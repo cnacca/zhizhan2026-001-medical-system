@@ -1,0 +1,22 @@
+{
+  "mode": "plan-ingest",
+  "reasons": [
+    "At least one source file was provided in the intake bundle."
+  ],
+  "repo_summary": {
+    "meaningful_file_count": 9,
+    "code_file_count": 1,
+    "partial_doc_count": 1,
+    "sample_files": [
+      ".DS_Store",
+      ".gitignore",
+      ".local-context/AI智能下单平台_PRD_V1.0.docx",
+      ".local-context/AI智能下单平台一期 团队执行与协作文档(1).docx",
+      ".local-context/API规范_OpenAPI3.0.yaml",
+      ".local-context/README.md",
+      ".local-context/生产流程.docx",
+      "README.md",
+      "docs/.DS_Store"
+    ]
+  }
+}

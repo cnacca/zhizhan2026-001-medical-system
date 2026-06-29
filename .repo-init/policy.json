@@ -1,0 +1,70 @@
+{
+  "mode": "plan-ingest",
+  "files": {
+    "README.md": {
+      "policy": "supplement",
+      "state": "populated",
+      "reason": "README.md already exists and should be updated compatibly."
+    },
+    "AGENT.md": {
+      "policy": "create",
+      "state": "missing",
+      "reason": "AGENT.md does not exist."
+    },
+    "PROJECT.md": {
+      "policy": "create",
+      "state": "missing",
+      "reason": "PROJECT.md does not exist."
+    },
+    "STATUS.md": {
+      "policy": "create",
+      "state": "missing",
+      "reason": "STATUS.md does not exist."
+    },
+    "DECISIONS.md": {
+      "policy": "create",
+      "state": "missing",
+      "reason": "DECISIONS.md does not exist."
+    },
+    "acceptance.json": {
+      "policy": "create",
+      "state": "missing",
+      "reason": "acceptance.json does not exist."
+    },
+    "goals/": {
+      "policy": "create",
+      "state": "missing",
+      "reason": "Create the goals directory if absent; otherwise add a real goal file."
+    },
+    "tasks/": {
+      "policy": "create",
+      "state": "missing",
+      "reason": "Create the tasks directory if absent; otherwise add a real task file."
+    },
+    ".agent/": {
+      "policy": "create",
+      "state": "missing",
+      "reason": "Create the generated agent-rule directory without touching unrelated docs content."
+    },
+    ".agent/operating-rules.md": {
+      "policy": "create",
+      "state": "missing",
+      "reason": ".agent/operating-rules.md does not exist."
+    },
+    ".agent/replanning.md": {
+      "policy": "create",
+      "state": "missing",
+      "reason": ".agent/replanning.md does not exist."
+    },
+    ".agent/file-contract.md": {
+      "policy": "create",
+      "state": "missing",
+      "reason": ".agent/file-contract.md does not exist."
+    },
+    ".agent/collaboration-rule-changes.md": {
+      "policy": "create",
+      "state": "missing",
+      "reason": ".agent/collaboration-rule-changes.md does not exist."
+    }
+  }
+}

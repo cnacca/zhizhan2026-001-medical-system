@@ -1,0 +1,98 @@
+{
+  "version": 1,
+  "managed_by": "RepoFrame",
+  "active_goal": "GOAL-001",
+  "active_goal_file": "goals/GOAL-001-scope-clarified-for.md",
+  "linter": "repo-init/scripts/lint_acceptance.py",
+  "goals": [
+    {
+      "id": "GOAL-001",
+      "file": "goals/GOAL-001-scope-clarified-for.md",
+      "status": "active",
+      "checks": [
+        {
+          "id": "goal-001-goal-file-exists",
+          "type": "files_exist",
+          "paths": [
+            "goals/GOAL-001-scope-clarified-for.md"
+          ]
+        },
+        {
+          "id": "goal-001-goal-headings",
+          "type": "markdown_headings",
+          "paths": [
+            "goals/GOAL-001-scope-clarified-for.md"
+          ],
+          "headings": [
+            "Final Outcome",
+            "Human Acceptance",
+            "Machine Acceptance",
+            "Observation Ledger",
+            "Replan History"
+          ]
+        },
+        {
+          "id": "goal-001-status-active-goal",
+          "type": "required_text",
+          "paths": [
+            "STATUS.md"
+          ],
+          "patterns": [
+            "Active goal: `goals/GOAL-001-scope-clarified-for.md`"
+          ]
+        },
+        {
+          "id": "goal-001-recommended-task-exists",
+          "type": "files_exist",
+          "paths": [
+            "tasks/TASK-001-clarify-source-bundle-and-recover-missing-scope.md"
+          ]
+        },
+        {
+          "id": "goal-001-task-002-exists",
+          "type": "files_exist",
+          "paths": [
+            "tasks/TASK-002-project-skeleton-initialization.md"
+          ]
+        },
+        {
+          "id": "goal-001-task-002-headings",
+          "type": "markdown_headings",
+          "paths": [
+            "tasks/TASK-002-project-skeleton-initialization.md"
+          ],
+          "headings": [
+            "Metadata",
+            "Goal",
+            "Scope",
+            "Non-goals",
+            "Route Gate",
+            "Acceptance Criteria",
+            "Verification Commands",
+            "Real User Path",
+            "Execution Plan",
+            "Completion Record",
+            "Remaining Work",
+            "Known Risks"
+          ]
+        },
+        {
+          "id": "goal-001-skeleton-files-exist",
+          "type": "files_exist",
+          "paths": [
+            "package.json",
+            ".env.example",
+            "compose.yaml",
+            "backend/pom.xml",
+            "backend/platform-server/pom.xml",
+            "backend/platform-server/src/main/java/com/yuri/aiorder/AiOrderPlatformApplication.java",
+            "frontend/package.json",
+            "frontend/src/App.vue",
+            "scripts/with-jdk21.sh",
+            "scripts/check-toolchain.sh"
+          ]
+        }
+      ]
+    }
+  ]
+}

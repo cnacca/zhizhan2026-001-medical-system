@@ -1,0 +1,1625 @@
+openapi: 3.0.3
+info:
+  title: AI 智能下单与生产协同平台 API
+  version: 1.0.0
+  description: |
+    牙科定制工厂三端系统（医生端 / 客服端 / 生产端 / 管理端）后端 API 规范。
+
+    ## 认证方式
+    所有接口（除登录外）必须携带 Authorization: Bearer {access_token}。
+    服务端对每个接口强制校验角色权限，禁止仅靠前端隐藏。
+
+    ## 角色枚举
+    - DOCTOR：医生
+    - CS：客服
+    - WORKER：技工/生产人员
+    - ADMIN：超级管理员
+
+    ## 通用响应格式
+    所有接口统一返回：
+    { "code": 200, "msg": "success", "data": {} }
+    错误时：
+    { "code": 4xx/5xx, "msg": "错误说明", "data": null }
+
+servers:
+  - url: https://api.yourdomain.com/v1
+    description: 正式环境
+  - url: https://test-api.yourdomain.com/v1
+    description: 测试环境
+
+tags:
+  - name: Auth
+    description: 认证与 Token 管理
+  - name: User
+    description: 用户与账号管理
+  - name: Clinic
+    description: 诊所与客户档案
+  - name: Order
+    description: 订单核心流程
+  - name: OrderForm
+    description: 动态表单配置
+  - name: File
+    description: 文件上传与预览
+  - name: WorkflowChain
+    description: 工序链查询（预定义，只读）
+  - name: ProcessInstance
+    description: 订单工序链实例
+  - name: CheckRecord
+    description: 入检 / 出检记录
+  - name: WorkLog
+    description: 工时记录
+  - name: Performance
+    description: 绩效统计
+  - name: Message
+    description: 消息与留言系统
+  - name: DesignDraft
+    description: 设计稿模块
+  - name: Bill
+    description: 账单与物流
+  - name: CustomerPreference
+    description: 客户偏好
+  - name: AI
+    description: AI 智能体接口
+  - name: Notification
+    description: WebSocket 通知事件定义
+
+# ─────────────────────────────────────────────────────────────
+# COMPONENTS
+# ─────────────────────────────────────────────────────────────
+components:
+  securitySchemes:
+    BearerAuth:
+      type: http
+      scheme: bearer
+      bearerFormat: JWT
+
+  schemas:
+    # 通用
+    CommonResponse:
+      type: object
+      properties:
+        code: { type: integer, example: 200 }
+        msg:  { type: string,  example: success }
+        data: {}
+
+    PageResult:
+      type: object
+      properties:
+        total:   { type: integer }
+        pages:   { type: integer }
+        current: { type: integer }
+        size:    { type: integer }
+        records: { type: array, items: {} }
+
+    # 认证
+    LoginRequest:
+      type: object
+      required: [username, password]
+      properties:
+        username: { type: string, example: doctor001 }
+        password: { type: string, example: "******" }
+
+    LoginResponse:
+      type: object
+      properties:
+        access_token:  { type: string }
+        refresh_token: { type: string }
+        expires_in:    { type: integer, description: access_token 有效期（秒）, example: 7200 }
+        role:          { type: string, enum: [DOCTOR, CS, WORKER, ADMIN] }
+        user_id:       { type: integer }
+        username:      { type: string }
+
+    # 订单
+    OrderStatus:
+      type: string
+      enum:
+        - PENDING_REVIEW
+        - DESIGNING
+        - PRODUCING
+        - QC
+        - PENDING_SHIP
+        - SHIPPED
+        - COMPLETED
+      description: |
+        外部状态枚举（医生端可见）：
+        PENDING_REVIEW=待审核, DESIGNING=设计中, PRODUCING=生产中,
+        QC=质检中, PENDING_SHIP=待发货, SHIPPED=已发货, COMPLETED=已完成
+
+    OrderBrief:
+      type: object
+      properties:
+        order_id:        { type: integer }
+        order_no:        { type: string }
+        product_type:    { type: string }
+        external_status: { $ref: '#/components/schemas/OrderStatus' }
+        create_time:     { type: string, format: date-time }
+        clinic_name:     { type: string }
+
+    OrderDetail:
+      allOf:
+        - $ref: '#/components/schemas/OrderBrief'
+        - type: object
+          properties:
+            form_data:       { type: object, description: 动态表单填写内容，key 为 field_key }
+            attachments:     { type: array, items: { $ref: '#/components/schemas/FileInfo' } }
+            reject_reason:   { type: string }
+            production_note: { type: string, description: 仅内部角色可见 }
+            internal_status: { type: string, description: 仅内部角色可见 }
+            cs_user_id:      { type: integer, description: 仅内部角色可见 }
+
+    # 文件
+    FileInfo:
+      type: object
+      properties:
+        file_id:   { type: integer }
+        file_name: { type: string }
+        file_size: { type: integer, description: 字节 }
+        file_type: { type: string, example: "image/jpeg" }
+        preview_url: { type: string, description: 15 分钟签名预览 URL }
+
+    # 工序
+    ProcessNode:
+      type: object
+      properties:
+        node_id:           { type: integer }
+        process_id:        { type: integer }
+        process_name:      { type: string }
+        standard_duration: { type: integer, description: 标准工时（分钟）}
+        role_type:         { type: string, description: 负责角色/工种 }
+        position_x:        { type: number, description: 编辑器画布坐标 }
+        position_y:        { type: number }
+
+    ProcessEdge:
+      type: object
+      properties:
+        edge_id:      { type: integer }
+        from_node_id: { type: integer }
+        to_node_id:   { type: integer }
+
+    # 消息
+    MessageStatus:
+      type: string
+      enum: [DIRECT, PENDING_REVIEW, APPROVED, REJECTED]
+
+    MessageItem:
+      type: object
+      properties:
+        msg_id:          { type: integer }
+        order_id:        { type: integer }
+        sender_user_id:  { type: integer }
+        sender_role:     { type: string, enum: [DOCTOR, CS, WORKER] }
+        sender_name:     { type: string }
+        content:         { type: string }
+        edited_content:  { type: string, description: 客服编辑后内容 }
+        attachment_urls: { type: array, items: { type: string } }
+        visible_to:      { type: string }
+        review_status:   { $ref: '#/components/schemas/MessageStatus' }
+        review_note:     { type: string }
+        create_time:     { type: string, format: date-time }
+
+    # 设计稿
+    DraftStatus:
+      type: string
+      enum:
+        - PENDING_CS_REVIEW
+        - CS_REJECTED
+        - PENDING_DOCTOR_CONFIRM
+        - DOCTOR_CONFIRMED
+        - DOCTOR_REJECTED
+
+    DesignDraft:
+      type: object
+      properties:
+        draft_id:             { type: integer }
+        order_id:             { type: integer }
+        version:              { type: integer }
+        uploader_user_id:     { type: integer }
+        uploader_name:        { type: string }
+        file_urls:            { type: array, items: { type: string } }
+        upload_note:          { type: string }
+        status:               { $ref: '#/components/schemas/DraftStatus' }
+        cs_reject_reason:     { type: string }
+        doctor_reject_reason: { type: string }
+        create_time:          { type: string, format: date-time }
+
+    # 绩效
+    PerformanceStats:
+      type: object
+      properties:
+        user_id:            { type: integer }
+        username:           { type: string }
+        completed_count:    { type: integer, description: 完成工序数 }
+        effective_duration: { type: integer, description: 有效工时（分钟）}
+        rework_count:       { type: integer, description: 返工次数 }
+        on_time_rate:       { type: number,  description: 准时率（0-1）}
+        pass_rate:          { type: number,  description: 一次通过率（0-1）}
+        duration_efficiency: { type: number,  description: 工时效率（标准工时÷实际工时×100%）}
+
+security:
+  - BearerAuth: []
+
+# ─────────────────────────────────────────────────────────────
+# PATHS
+# ─────────────────────────────────────────────────────────────
+paths:
+
+  # ── AUTH ──────────────────────────────────────────────────
+  /auth/login:
+    post:
+      tags: [Auth]
+      summary: 登录
+      security: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/LoginRequest' }
+      responses:
+        '200':
+          description: 登录成功
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: '#/components/schemas/CommonResponse'
+                  - type: object
+                    properties:
+                      data: { $ref: '#/components/schemas/LoginResponse' }
+        '401':
+          description: 账号或密码错误
+
+  /auth/refresh:
+    post:
+      tags: [Auth]
+      summary: 刷新 Access Token
+      security: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                refresh_token: { type: string }
+      responses:
+        '200':
+          description: 刷新成功，返回新 access_token
+
+  /auth/logout:
+    post:
+      tags: [Auth]
+      summary: 登出，服务端使 Token 失效
+      responses:
+        '200':
+          description: 登出成功
+
+  # ── USER ──────────────────────────────────────────────────
+  /users:
+    get:
+      tags: [User]
+      summary: 获取用户列表
+      description: 权限：ADMIN
+      parameters:
+        - name: role
+          in: query
+          schema: { type: string, enum: [DOCTOR, CS, WORKER, ADMIN] }
+        - name: clinic_id
+          in: query
+          schema: { type: integer }
+        - name: page
+          in: query
+          schema: { type: integer, default: 1 }
+        - name: size
+          in: query
+          schema: { type: integer, default: 20 }
+      responses:
+        '200':
+          description: 用户列表（分页）
+    post:
+      tags: [User]
+      summary: 创建用户
+      description: 权限：ADMIN。不开放自助注册。
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [username, password, role]
+              properties:
+                username:  { type: string }
+                password:  { type: string }
+                role:      { type: string, enum: [DOCTOR, CS, WORKER, ADMIN] }
+                clinic_id: { type: integer, description: 角色为 DOCTOR 时必填 }
+                real_name: { type: string }
+      responses:
+        '200':
+          description: 创建成功，返回 user_id
+
+  /users/{userId}:
+    put:
+      tags: [User]
+      summary: 编辑用户信息
+      description: 权限：ADMIN
+      parameters:
+        - name: userId
+          in: path
+          required: true
+          schema: { type: integer }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                real_name: { type: string }
+                status:    { type: integer, enum: [0, 1], description: 0=禁用 1=启用 }
+      responses:
+        '200':
+          description: 编辑成功
+    delete:
+      tags: [User]
+      summary: 禁用用户（软删除）
+      description: 权限：ADMIN
+      parameters:
+        - name: userId
+          in: path
+          required: true
+          schema: { type: integer }
+      responses:
+        '200':
+          description: 禁用成功
+
+  # ── CLINIC ────────────────────────────────────────────────
+  /clinics:
+    get:
+      tags: [Clinic]
+      summary: 获取诊所列表
+      description: 权限：CS / ADMIN
+      parameters:
+        - name: keyword
+          in: query
+          schema: { type: string }
+        - name: page
+          in: query
+          schema: { type: integer, default: 1 }
+        - name: size
+          in: query
+          schema: { type: integer, default: 20 }
+      responses:
+        '200':
+          description: 诊所列表（分页）
+    post:
+      tags: [Clinic]
+      summary: 创建诊所
+      description: 权限：ADMIN
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [clinic_name]
+              properties:
+                clinic_name: { type: string }
+                country:     { type: string }
+                language:    { type: string }
+                cs_user_id:  { type: integer, description: 负责客服 }
+      responses:
+        '200':
+          description: 创建成功
+
+  /clinics/{clinicId}:
+    get:
+      tags: [Clinic]
+      summary: 获取诊所详情
+      description: 权限：CS / ADMIN
+      parameters:
+        - name: clinicId
+          in: path
+          required: true
+          schema: { type: integer }
+      responses:
+        '200':
+          description: 诊所详情
+
+  # ── CUSTOMER PREFERENCE ───────────────────────────────────
+  /clinics/{clinicId}/preference:
+    get:
+      tags: [CustomerPreference]
+      summary: 获取客户偏好
+      description: 权限：CS / ADMIN
+      parameters:
+        - name: clinicId
+          in: path
+          required: true
+          schema: { type: integer }
+      responses:
+        '200':
+          description: 客户偏好记录
+    put:
+      tags: [CustomerPreference]
+      summary: 更新客户偏好（覆盖写）
+      description: 权限：CS / ADMIN
+      parameters:
+        - name: clinicId
+          in: path
+          required: true
+          schema: { type: integer }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                color:    { type: string, description: 颜色/色号偏好 }
+                contact:  { type: string, description: 邻接关系偏好 }
+                margin:   { type: string, description: 边缘设计偏好 }
+                shape:    { type: string, description: 外形偏好 }
+                material: { type: string, description: 材料偏好 }
+                note:     { type: string, description: 其他备注 }
+      responses:
+        '200':
+          description: 更新成功
+
+  # ── ORDER FORM CONFIG ─────────────────────────────────────
+  /form-configs:
+    get:
+      tags: [OrderForm]
+      summary: 获取所有产品类型的表单字段配置
+      description: 权限：全部角色（医生下单时调用）
+      parameters:
+        - name: product_type
+          in: query
+          description: 不传则返回全部产品类型配置
+          schema: { type: string }
+      responses:
+        '200':
+          description: 字段配置列表
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data:
+                    type: array
+                    items:
+                      type: object
+                      properties:
+                        field_id:      { type: integer }
+                        product_type:  { type: string }
+                        field_key:     { type: string }
+                        field_label:   { type: string }
+                        field_type:    { type: string, enum: [text, textarea, select, multi-select, number, date, file] }
+                        is_required:   { type: boolean }
+                        options:       { type: array, items: { type: string }, description: select 类型的选项列表 }
+                        sort_order:    { type: integer }
+
+    post:
+      tags: [OrderForm]
+      summary: 新增表单字段
+      description: 权限：ADMIN
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [product_type, field_key, field_label, field_type]
+              properties:
+                product_type: { type: string }
+                field_key:    { type: string }
+                field_label:  { type: string }
+                field_type:   { type: string }
+                is_required:  { type: boolean, default: false }
+                options:      { type: array, items: { type: string } }
+                sort_order:   { type: integer }
+      responses:
+        '200':
+          description: 创建成功
+
+  /form-configs/{fieldId}:
+    put:
+      tags: [OrderForm]
+      summary: 编辑表单字段
+      description: 权限：ADMIN
+      parameters:
+        - name: fieldId
+          in: path
+          required: true
+          schema: { type: integer }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                field_label: { type: string }
+                is_required: { type: boolean }
+                options:     { type: array, items: { type: string } }
+                sort_order:  { type: integer }
+                status:      { type: integer, enum: [0, 1] }
+      responses:
+        '200':
+          description: 编辑成功
+
+  # ── FILE ──────────────────────────────────────────────────
+  /files/upload-token:
+    post:
+      tags: [File]
+      summary: 获取 Uppy 分片上传所需的预签名上传 Token
+      description: |
+        权限：DOCTOR / CS / WORKER / ADMIN
+        前端 Uppy 使用此接口获取 MinIO 预签名上传地址，直传到 MinIO 私有桶。
+        服务端不做文件内容中转。
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [file_name, file_size, file_type]
+              properties:
+                file_name:  { type: string }
+                file_size:  { type: integer }
+                file_type:  { type: string }
+                order_id:   { type: integer, description: 关联订单（可选，上传时关联）}
+      responses:
+        '200':
+          description: 返回上传凭证
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  upload_url: { type: string, description: MinIO 预签名上传 URL }
+                  file_id:    { type: integer, description: 系统生成的文件 ID，上传完成后用于关联订单 }
+
+  /files/{fileId}/preview-url:
+    get:
+      tags: [File]
+      summary: 获取文件预览签名 URL（15 分钟有效）
+      description: |
+        权限：按业务规则校验（医生只能访问自己订单的文件）
+        每次请求生成新的签名 URL，操作写审计日志。
+      parameters:
+        - name: fileId
+          in: path
+          required: true
+          schema: { type: integer }
+      responses:
+        '200':
+          description: 预览 URL
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  preview_url: { type: string }
+                  expires_in:  { type: integer, example: 900, description: 有效期（秒）}
+
+  /files/{fileId}/download-url:
+    get:
+      tags: [File]
+      summary: 获取文件下载签名 URL（2 小时有效）
+      description: |
+        权限：按业务规则校验
+        操作写审计日志。
+      parameters:
+        - name: fileId
+          in: path
+          required: true
+          schema: { type: integer }
+      responses:
+        '200':
+          description: 下载 URL
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  download_url: { type: string }
+                  expires_in:   { type: integer, example: 7200 }
+
+  # ── ORDER ─────────────────────────────────────────────────
+  /orders:
+    get:
+      tags: [Order]
+      summary: 获取订单列表
+      description: |
+        权限：DOCTOR（只返回本人订单）/ CS / WORKER / ADMIN
+        医生端接口在数据层过滤内部字段，只返回 external_status，不返回 internal_status / production_note 等。
+      parameters:
+        - name: external_status
+          in: query
+          schema: { $ref: '#/components/schemas/OrderStatus' }
+        - name: clinic_id
+          in: query
+          schema: { type: integer }
+        - name: keyword
+          in: query
+          schema: { type: string, description: 搜索订单号或患者姓名 }
+        - name: page
+          in: query
+          schema: { type: integer, default: 1 }
+        - name: size
+          in: query
+          schema: { type: integer, default: 20 }
+      responses:
+        '200':
+          description: 订单列表（分页）
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data: { $ref: '#/components/schemas/PageResult' }
+
+    post:
+      tags: [Order]
+      summary: 提交订单（医生下单）
+      description: 权限：DOCTOR
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [product_type, form_data]
+              properties:
+                product_type: { type: string, example: 冠桥 }
+                form_data:
+                  type: object
+                  description: 动态表单填写内容，key 为 field_key，value 为填写值
+                  example:
+                    patient_name: 张三
+                    tooth_position: "11,21"
+                    material: 氧化锆
+                file_ids:
+                  type: array
+                  items: { type: integer }
+                  description: 已上传文件的 file_id 列表
+                is_draft:
+                  type: boolean
+                  default: false
+                  description: true=保存草稿，false=正式提交
+      responses:
+        '200':
+          description: 订单创建成功，返回 order_id 和 order_no
+
+  /orders/{orderId}:
+    get:
+      tags: [Order]
+      summary: 获取订单详情
+      description: |
+        权限：DOCTOR（只能访问本人订单，内部字段在数据层过滤）/ CS / WORKER / ADMIN
+        医生端响应不含：internal_status, production_note, cs_user_id 等内部字段。
+      parameters:
+        - name: orderId
+          in: path
+          required: true
+          schema: { type: integer }
+      responses:
+        '200':
+          description: 订单详情
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data: { $ref: '#/components/schemas/OrderDetail' }
+
+    put:
+      tags: [Order]
+      summary: 更新订单（补资料/编辑草稿）
+      description: 权限：DOCTOR（仅限草稿或被驳回状态的订单）
+      parameters:
+        - name: orderId
+          in: path
+          required: true
+          schema: { type: integer }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                form_data: { type: object }
+                file_ids:  { type: array, items: { type: integer } }
+                is_draft:  { type: boolean }
+      responses:
+        '200':
+          description: 更新成功
+
+  /orders/{orderId}/review:
+    post:
+      tags: [Order]
+      summary: 客服审核订单（初审）
+      description: 权限：CS / ADMIN
+      parameters:
+        - name: orderId
+          in: path
+          required: true
+          schema: { type: integer }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [action]
+              properties:
+                action:
+                  type: string
+                  enum: [APPROVE, REJECT]
+                reject_reason:
+                  type: string
+                  description: action=REJECT 时必填
+                production_note:
+                  type: string
+                  description: 确认后的生产备注（AI 草稿经客服确认后填入）
+      responses:
+        '200':
+          description: 审核结果处理成功
+
+  /orders/{orderId}/production-review:
+    post:
+      tags: [Order]
+      summary: 生产端数据审核
+      description: 权限：WORKER / ADMIN
+      parameters:
+        - name: orderId
+          in: path
+          required: true
+          schema: { type: integer }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [action]
+              properties:
+                action:        { type: string, enum: [APPROVE, REJECT] }
+                reject_reason: { type: string }
+      responses:
+        '200':
+          description: 审核成功，APPROVE 时触发工序链实例化
+
+  /orders/{orderId}/confirm-receipt:
+    post:
+      tags: [Order]
+      summary: 医生确认收货，触发订单完成
+      description: 权限：DOCTOR（只能操作本人订单）
+      parameters:
+        - name: orderId
+          in: path
+          required: true
+          schema: { type: integer }
+      responses:
+        '200':
+          description: 确认成功，external_status 变为 COMPLETED
+
+  # ── WORKFLOW CHAIN (只读，预定义) ─────────────────────────
+  /workflow-chains:
+    get:
+      tags: [WorkflowChain]
+      summary: 获取全部工序链列表
+      description: |
+        权限：ADMIN / CS / WORKER
+        返回系统预定义的 9 条工序链基本信息。不提供增删改接口。
+      responses:
+        '200':
+          description: 工序链列表
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data:
+                    type: array
+                    items:
+                      type: object
+                      properties:
+                        chain_id:       { type: integer }
+                        chain_name:     { type: string, example: 常规冠修复 }
+                        intake_branch:  { type: string, enum: [IMPRESSION, SCAN, BOTH], description: IMPRESSION=仅印模路线/SCAN=仅口扫路线/BOTH=下单时二选一 }
+                        status:         { type: integer, enum: [0, 1] }
+
+  /workflow-chains/{chainId}/nodes:
+    get:
+      tags: [WorkflowChain]
+      summary: 获取某条工序链的节点列表
+      description: 权限：ADMIN / CS / WORKER
+      parameters:
+        - name: chainId
+          in: path
+          required: true
+          schema: { type: integer }
+      responses:
+        '200':
+          description: 工序节点列表（按 step_order 正序）
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data:
+                    type: array
+                    items:
+                      type: object
+                      properties:
+                        node_id:       { type: integer }
+                        process_name:  { type: string, example: CAD 入货检 }
+                        step_order:    { type: integer, description: 执行顺序号 }
+                        is_optional:   { type: integer, enum: [0, 1], description: 1=工厂内部可选节点 }
+                        branch_group:  { type: string, nullable: true, description: 并联分组标识，同组节点并联执行，NULL=顺序节点 }
+
+  # ── PROCESS INSTANCE ──────────────────────────────────────
+  /orders/{orderId}/process-instance:
+    get:
+      tags: [ProcessInstance]
+      summary: 获取订单工序链实例（含节点状态）
+      description: 权限：CS / WORKER / ADMIN（医生端不可访问此接口）
+      parameters:
+        - name: orderId
+          in: path
+          required: true
+          schema: { type: integer }
+      responses:
+        '200':
+          description: 工序链实例详情
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data:
+                    type: object
+                    properties:
+                      instance_id: { type: integer }
+                      nodes:
+                        type: array
+                        items:
+                          type: object
+                          properties:
+                            node_instance_id:  { type: integer }
+                            process_name:      { type: string }
+                            assigned_user_id:  { type: integer }
+                            assigned_username: { type: string }
+                            node_status:       { type: string, enum: [PENDING, IN_PROGRESS, COMPLETED, REWORK] }
+                            standard_duration: { type: integer }
+                            position_x:        { type: number }
+                            position_y:        { type: number }
+                      edges:
+                        type: array
+                        items: { $ref: '#/components/schemas/ProcessEdge' }
+
+  /orders/{orderId}/process-instance/assign:
+    post:
+      tags: [ProcessInstance]
+      summary: 批量绑定节点执行员工
+      description: 权限：ADMIN
+      parameters:
+        - name: orderId
+          in: path
+          required: true
+          schema: { type: integer }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [assignments]
+              properties:
+                assignments:
+                  type: array
+                  items:
+                    type: object
+                    required: [node_instance_id, user_id]
+                    properties:
+                      node_instance_id: { type: integer }
+                      user_id:          { type: integer }
+      responses:
+        '200':
+          description: 绑定成功，员工收到任务通知
+
+  /orders/{orderId}/process-instance/nodes/{nodeInstanceId}/reassign:
+    post:
+      tags: [ProcessInstance]
+      summary: 转派工序节点执行员工
+      description: 权限：ADMIN
+      parameters:
+        - name: orderId
+          in: path
+          required: true
+          schema: { type: integer }
+        - name: nodeInstanceId
+          in: path
+          required: true
+          schema: { type: integer }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [new_user_id]
+              properties:
+                new_user_id: { type: integer }
+                reason:      { type: string, description: 转派原因 }
+      responses:
+        '200':
+          description: 转派成功，新员工收到通知
+
+  # ── MY TASKS ──────────────────────────────────────────────
+  /tasks/mine:
+    get:
+      tags: [ProcessInstance]
+      summary: 获取我的工序任务列表
+      description: 权限：WORKER。只返回分配给当前登录员工的任务。
+      parameters:
+        - name: status
+          in: query
+          schema: { type: string, enum: [PENDING, IN_PROGRESS, COMPLETED] }
+      responses:
+        '200':
+          description: 我的任务列表
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data:
+                    type: array
+                    items:
+                      type: object
+                      properties:
+                        node_instance_id: { type: integer }
+                        order_id:         { type: integer }
+                        order_no:         { type: string }
+                        process_name:     { type: string }
+                        node_status:      { type: string }
+                        standard_duration: { type: integer }
+
+  # ── CHECK RECORD ──────────────────────────────────────────
+  /check-records:
+    post:
+      tags: [CheckRecord]
+      summary: 提交入检或出检记录
+      description: |
+        权限：WORKER / ADMIN
+        入检（check_type=1）：必须在出检之前提交，且当前节点状态为 PENDING。
+        出检（check_type=2）：必须在入检之后提交。
+        出检不通过时 rework_to_node_id 必填，系统将指定节点状态回退为 PENDING。
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [node_instance_id, check_type, is_pass]
+              properties:
+                node_instance_id:    { type: integer }
+                check_type:          { type: integer, enum: [1, 2], description: 1=入检 2=出检 }
+                is_pass:             { type: boolean }
+                remark:              { type: string, description: 问题说明，不通过时必填 }
+                attachment_file_ids: { type: array, items: { type: integer } }
+                rework_to_node_id:   { type: integer, description: 出检不通过时，回退到的节点 instance_id }
+      responses:
+        '200':
+          description: 记录提交成功
+        '400':
+          description: 顺序校验失败（如未入检就出检）
+
+  /check-records/{nodeInstanceId}:
+    get:
+      tags: [CheckRecord]
+      summary: 获取某工序节点的入检/出检记录列表
+      description: 权限：WORKER / CS / ADMIN
+      parameters:
+        - name: nodeInstanceId
+          in: path
+          required: true
+          schema: { type: integer }
+      responses:
+        '200':
+          description: 入检/出检记录列表（按时间正序）
+
+  # ── WORK LOG ──────────────────────────────────────────────
+  /work-logs/start:
+    post:
+      tags: [WorkLog]
+      summary: 开始工时计时
+      description: 权限：WORKER。同一节点只能有一条进行中的工时记录。
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [node_instance_id]
+              properties:
+                node_instance_id: { type: integer }
+      responses:
+        '200':
+          description: 计时开始，返回 work_log_id
+
+  /work-logs/{workLogId}/pause:
+    post:
+      tags: [WorkLog]
+      summary: 暂停工时计时
+      description: 权限：WORKER
+      parameters:
+        - name: workLogId
+          in: path
+          required: true
+          schema: { type: integer }
+      responses:
+        '200':
+          description: 暂停成功，记录暂停开始时间
+
+  /work-logs/{workLogId}/resume:
+    post:
+      tags: [WorkLog]
+      summary: 继续工时计时
+      description: 权限：WORKER
+      parameters:
+        - name: workLogId
+          in: path
+          required: true
+          schema: { type: integer }
+      responses:
+        '200':
+          description: 继续成功，累计暂停时长更新
+
+  /work-logs/{workLogId}/finish:
+    post:
+      tags: [WorkLog]
+      summary: 完成工时计时
+      description: |
+        权限：WORKER
+        有效工时 = (end_time - start_time) - pause_duration
+        服务端计算并存储 actual_duration。
+      parameters:
+        - name: workLogId
+          in: path
+          required: true
+          schema: { type: integer }
+      responses:
+        '200':
+          description: 完成成功，返回 actual_duration（分钟）
+
+  # ── PERFORMANCE ───────────────────────────────────────────
+  /performance:
+    get:
+      tags: [Performance]
+      summary: 获取绩效统计
+      description: |
+        权限：WORKER（只返回本人数据）/ ADMIN（可查全部）
+        绩效计算公式：
+        - 完成数量 = 完成工序数（node_status=COMPLETED）
+        - 有效工时 = SUM(actual_duration)
+        - 返工次数 = 返工记录次数
+        - 准时率 = 按标准工时内完成工序数 ÷ 总完成工序数
+        - 通过率 = 一次出检通过数 ÷ 总出检数
+        - 工时效率 = SUM(standard_duration) ÷ SUM(actual_duration) × 100%
+      parameters:
+        - name: user_id
+          in: query
+          schema: { type: integer, description: ADMIN 专用，不传则返回当前登录人 }
+        - name: start_date
+          in: query
+          schema: { type: string, format: date }
+        - name: end_date
+          in: query
+          schema: { type: string, format: date }
+      responses:
+        '200':
+          description: 绩效统计结果
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data: { $ref: '#/components/schemas/PerformanceStats' }
+
+  # ── MESSAGE ───────────────────────────────────────────────
+  /orders/{orderId}/messages:
+    get:
+      tags: [Message]
+      summary: 获取订单消息列表
+      description: |
+        权限：DOCTOR / CS / WORKER / ADMIN
+        数据层按角色过滤：
+        - DOCTOR：只返回 review_status=DIRECT 或 APPROVED 的消息，且 visible_to 包含 DOCTOR
+        - WORKER：只返回 visible_to 包含 WORKER 的消息
+        - CS / ADMIN：返回全部消息（含 PENDING_REVIEW / REJECTED）
+      parameters:
+        - name: orderId
+          in: path
+          required: true
+          schema: { type: integer }
+      responses:
+        '200':
+          description: 消息列表（正序）
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data:
+                    type: array
+                    items: { $ref: '#/components/schemas/MessageItem' }
+
+    post:
+      tags: [Message]
+      summary: 发送消息
+      description: |
+        权限：DOCTOR / CS / WORKER / ADMIN
+        - DOCTOR 发送：review_status=DIRECT，visible_to=CS_ONLY（生产端不可见）
+        - CS 发送：review_status=DIRECT，visible_to 由请求参数决定
+        - WORKER 发送：review_status=PENDING_REVIEW，visible_to=ALL（审核通过后医生可见）
+      parameters:
+        - name: orderId
+          in: path
+          required: true
+          schema: { type: integer }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [content]
+              properties:
+                content:         { type: string }
+                attachment_file_ids: { type: array, items: { type: integer } }
+                visible_to:
+                  type: string
+                  description: |
+                    仅 CS 角色可指定。
+                    DOCTOR_CS=仅医生和客服可见，CS_WORKER=仅客服和生产端可见，ALL=全部可见
+                  enum: [DOCTOR_CS, CS_WORKER, ALL]
+      responses:
+        '200':
+          description: 消息发送成功，返回 msg_id 和 review_status
+
+  /messages/{msgId}/review:
+    post:
+      tags: [Message]
+      summary: 客服审核生产端消息
+      description: 权限：CS / ADMIN
+      parameters:
+        - name: msgId
+          in: path
+          required: true
+          schema: { type: integer }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [action]
+              properties:
+                action:
+                  type: string
+                  enum: [APPROVE, EDIT_AND_APPROVE, REJECT]
+                edited_content:
+                  type: string
+                  description: action=EDIT_AND_APPROVE 时必填
+                review_note:
+                  type: string
+                  description: action=REJECT 时必填，驳回原因
+      responses:
+        '200':
+          description: 审核完成，APPROVE/EDIT_AND_APPROVE 时医生端收到 WebSocket 通知
+
+  /messages/pending-review:
+    get:
+      tags: [Message]
+      summary: 获取待审核消息队列（汇总）
+      description: 权限：CS / ADMIN
+      parameters:
+        - name: page
+          in: query
+          schema: { type: integer, default: 1 }
+        - name: size
+          in: query
+          schema: { type: integer, default: 20 }
+      responses:
+        '200':
+          description: 待审核消息列表，按发送时间正序
+
+  # ── DESIGN DRAFT ──────────────────────────────────────────
+  /orders/{orderId}/design-drafts:
+    get:
+      tags: [DesignDraft]
+      summary: 获取订单设计稿列表（所有版本）
+      description: |
+        权限：DOCTOR / CS / WORKER / ADMIN
+        医生端只返回 status 为 PENDING_DOCTOR_CONFIRM / DOCTOR_CONFIRMED / DOCTOR_REJECTED 的版本。
+        CS_REJECTED 的版本医生端不可见。
+      parameters:
+        - name: orderId
+          in: path
+          required: true
+          schema: { type: integer }
+      responses:
+        '200':
+          description: 设计稿列表（按版本号正序）
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data:
+                    type: array
+                    items: { $ref: '#/components/schemas/DesignDraft' }
+
+    post:
+      tags: [DesignDraft]
+      summary: 上传新版设计稿
+      description: 权限：WORKER / CS / ADMIN（工厂端任意人员）
+      parameters:
+        - name: orderId
+          in: path
+          required: true
+          schema: { type: integer }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [file_ids]
+              properties:
+                file_ids:    { type: array, items: { type: integer }, description: 已上传文件 ID 列表 }
+                upload_note: { type: string }
+      responses:
+        '200':
+          description: 上传成功，版本号自增，状态=PENDING_CS_REVIEW，客服收到通知
+
+  /orders/{orderId}/design-drafts/{draftId}/cs-review:
+    post:
+      tags: [DesignDraft]
+      summary: 客服审核设计稿
+      description: 权限：CS / ADMIN
+      parameters:
+        - name: orderId
+          in: path
+          required: true
+          schema: { type: integer }
+        - name: draftId
+          in: path
+          required: true
+          schema: { type: integer }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [action]
+              properties:
+                action:           { type: string, enum: [APPROVE, REJECT] }
+                cs_reject_reason: { type: string, description: action=REJECT 时必填 }
+      responses:
+        '200':
+          description: APPROVE 时医生端收到通知，REJECT 时上传人收到通知
+
+  /orders/{orderId}/design-drafts/{draftId}/doctor-confirm:
+    post:
+      tags: [DesignDraft]
+      summary: 医生确认或驳回设计稿
+      description: 权限：DOCTOR（只能操作本人订单的设计稿）
+      parameters:
+        - name: orderId
+          in: path
+          required: true
+          schema: { type: integer }
+        - name: draftId
+          in: path
+          required: true
+          schema: { type: integer }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [action]
+              properties:
+                action:               { type: string, enum: [CONFIRM, REJECT] }
+                doctor_reject_reason: { type: string, description: action=REJECT 时必填 }
+      responses:
+        '200':
+          description: CONFIRM 时流转生产；REJECT 时客服和上传人同时收到通知
+
+  # ── BILL & LOGISTICS ──────────────────────────────────────
+  /orders/{orderId}/bill:
+    get:
+      tags: [Bill]
+      summary: 获取账单信息
+      description: 权限：DOCTOR（只读）/ CS / ADMIN
+      parameters:
+        - name: orderId
+          in: path
+          required: true
+          schema: { type: integer }
+      responses:
+        '200':
+          description: 账单信息（含预览 URL）
+    post:
+      tags: [Bill]
+      summary: 上传账单文件
+      description: 权限：CS / ADMIN
+      parameters:
+        - name: orderId
+          in: path
+          required: true
+          schema: { type: integer }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [file_id]
+              properties:
+                file_id: { type: integer }
+      responses:
+        '200':
+          description: 上传成功，医生端可查看
+
+  /orders/{orderId}/logistics:
+    get:
+      tags: [Bill]
+      summary: 获取物流信息
+      description: 权限：DOCTOR（只读）/ CS / ADMIN
+      parameters:
+        - name: orderId
+          in: path
+          required: true
+          schema: { type: integer }
+      responses:
+        '200':
+          description: 物流信息（承运商、运单号、发货时间）
+    post:
+      tags: [Bill]
+      summary: 录入物流信息并发货
+      description: |
+        权限：CS / ADMIN
+        录入成功后 external_status 自动变为 SHIPPED，医生端收到 WebSocket 通知。
+      parameters:
+        - name: orderId
+          in: path
+          required: true
+          schema: { type: integer }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [carrier, tracking_no]
+              properties:
+                carrier:     { type: string, example: 顺丰速运 }
+                tracking_no: { type: string }
+      responses:
+        '200':
+          description: 发货成功，订单状态变为 SHIPPED
+
+  # ── AI ────────────────────────────────────────────────────
+  /ai/translate:
+    post:
+      tags: [AI]
+      summary: AI-1 翻译助手（客服端）
+      description: |
+        权限：CS / ADMIN
+        返回翻译草稿，客服确认后需调用 /orders/{orderId}/review 写入生产指令。
+        本接口只负责生成草稿，不写入任何订单字段。
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [order_id, source_text]
+              properties:
+                order_id:    { type: integer }
+                source_text: { type: string, description: 需要翻译的原文 }
+      responses:
+        '200':
+          description: 翻译草稿
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data:
+                    type: object
+                    properties:
+                      translated_text: { type: string, description: 翻译后的中文生产指令草稿 }
+
+  /ai/check-missing:
+    post:
+      tags: [AI]
+      summary: AI-4 资料缺失检查助手（医生端 + 客服端）
+      description: |
+        权限：DOCTOR / CS / ADMIN
+        只返回缺失项清单，不执行任何驳回或退回操作。
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [order_id]
+              properties:
+                order_id: { type: integer }
+      responses:
+        '200':
+          description: 缺失项检查结果
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data:
+                    type: object
+                    properties:
+                      is_complete:   { type: boolean }
+                      missing_items:
+                        type: array
+                        items:
+                          type: object
+                          properties:
+                            field_key:   { type: string }
+                            field_label: { type: string }
+                            tip:         { type: string, description: 提示文案，如「缺少咬合照片，请上传」}
+
+  /ai/cs-query:
+    post:
+      tags: [AI]
+      summary: AI-2 客服查询助手（客服端）
+      description: |
+        权限：CS / ADMIN
+        读取客服权限范围内的全部内部数据。
+        返回自然语言回答，对外发送前客服必须确认。
+        本接口不写入任何数据，不发送任何消息。
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [order_id, question]
+              properties:
+                order_id: { type: integer }
+                question: { type: string, example: "这个订单现在做到哪道工序了？" }
+      responses:
+        '200':
+          description: AI 回答
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data:
+                    type: object
+                    properties:
+                      answer: { type: string }
+
+  /ai/order-query:
+    post:
+      tags: [AI]
+      summary: AI-3 客户订单助手（医生端）
+      description: |
+        权限：DOCTOR
+        服务端专用查询层：只从 orders 表读取 external_status 和 logistics 表读取运单号。
+        禁止读取 internal_status / process_instance / check_record / work_log 等内部表。
+        此规则在服务端数据查询层强制执行，不依赖前端。
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [order_id, question]
+              properties:
+                order_id: { type: integer }
+                question: { type: string, example: "我的订单做到哪了？" }
+      responses:
+        '200':
+          description: AI 回答（只含外部状态和物流信息）
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data:
+                    type: object
+                    properties:
+                      answer: { type: string }
+
+  /ai/production-note:
+    post:
+      tags: [AI]
+      summary: AI-5 生产备注助手（客服端 + 生产端）
+      description: |
+        权限：CS / WORKER / ADMIN
+        返回生产备注草稿，格式按客户提供的标准模板（由全栈另行实现）。
+        本接口不写入任何数据，草稿需人工确认后通过订单编辑接口保存。
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [order_id]
+              properties:
+                order_id: { type: integer }
+      responses:
+        '200':
+          description: 生产备注草稿
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data:
+                    type: object
+                    properties:
+                      draft_note: { type: string, description: 格式化后的生产备注草稿 }
+
+  # ── NOTIFICATION ──────────────────────────────────────────
+  /ws/connect:
+    get:
+      tags: [Notification]
+      summary: WebSocket 连接端点（仅文档说明，非 REST 接口）
+      description: |
+        连接地址：wss://api.yourdomain.com/v1/ws?token={access_token}
+        连接时服务端校验 Token，Token 无效则拒绝连接。
+
+        ## 推送事件类型（event 字段）
+
+        | event | 触发条件 | 推送对象 |
+        |---|---|---|
+        | ORDER_SUBMITTED | 医生提交订单 | CS |
+        | ORDER_APPROVED | 客服审核通过 | DOCTOR + WORKER |
+        | ORDER_REJECTED | 订单被驳回 | DOCTOR |
+        | DESIGN_DRAFT_UPLOADED | 设计稿上传 | CS |
+        | DESIGN_DRAFT_CS_APPROVED | 客服通过设计稿 | DOCTOR |
+        | DESIGN_DRAFT_CS_REJECTED | 客服驳回设计稿 | 上传人 |
+        | DESIGN_DRAFT_CONFIRMED | 医生确认设计稿 | CS + 上传人 |
+        | DESIGN_DRAFT_REJECTED | 医生驳回设计稿 | CS + 上传人 |
+        | TASK_ASSIGNED | 工序任务分配 | 对应 WORKER |
+        | TASK_REASSIGNED | 工序任务转派 | 新旧 WORKER |
+        | MESSAGE_RECEIVED | 新消息（已通过审核或无需审核）| 目标接收方 |
+        | MESSAGE_PENDING_REVIEW | 生产端消息待审核 | CS |
+        | MESSAGE_REVIEW_REJECTED | 消息被驳回 | 发送人 |
+        | PROCESS_BLOCKED | 并联节点卡死（超时告警）| ADMIN |
+        | ORDER_SHIPPED | 发货完成 | DOCTOR |
+        | ORDER_COMPLETED | 医生确认收货 | CS + ADMIN |
+        | BILL_UPLOADED | 账单上传 | DOCTOR |
+
+        ## 推送消息格式
+        ```json
+        {
+          "event": "ORDER_APPROVED",
+          "order_id": 12345,
+          "order_no": "ORD-20260627-001",
+          "message": "您的订单已审核通过，正在进入生产流程",
+          "timestamp": "2026-06-27T10:00:00Z"
+        }
+        ```
+      responses:
+        '101':
+          description: WebSocket 升级成功
