@@ -4,7 +4,7 @@
 
 ## 当前仓库状态
 
-当前已完成项目工作流初始化、任务 0：接口契约与项目基线、任务 0.1：TRD V1.1 对齐与开发计划冻结、任务 1：项目骨架初始化。
+当前已完成项目工作流初始化、任务 0：接口契约与项目基线、任务 0.1：TRD V1.1 对齐与开发计划冻结、任务 1：项目骨架初始化、任务 2：数据库模型与 9 条工序链初始化。
 
 接手请先读：
 
@@ -22,7 +22,7 @@ RepoFrame 生成的 `AGENT.md` 和 `.agent/` 保留为协作细则入口；Codex
 当前任务入口：
 
 ```text
-tasks/README.md -> 任务 2：数据库模型与 9 条工序链初始化
+tasks/README.md -> 任务 3：订单状态投影与医生端脱敏基础
 ```
 
 ## 技术方向
@@ -62,6 +62,7 @@ docker compose ps
 启动后端：
 
 ```bash
+npm run compose:up
 npm run dev:backend
 ```
 
@@ -76,12 +77,23 @@ npm run dev:frontend
 ```text
 Frontend: http://localhost:5173
 Backend health: http://localhost:8080/api/bootstrap/health
+Workflow chains: http://localhost:8080/workflow-chains
 MinIO console: http://localhost:9001
 ```
 
 ## 环境变量
 
 环境变量模板位于 `.env.example`。该文件只包含本地占位值；任何真实数据库密码、MinIO 密钥、DeepSeek API Key 都不得提交进仓库。
+
+后端当前会在启动时通过 Flyway 连接 MySQL，常用本地变量：
+
+```text
+MYSQL_HOST=127.0.0.1
+MYSQL_PORT=3306
+MYSQL_DATABASE=ai_order_platform
+MYSQL_USER=ai_order
+MYSQL_PASSWORD=change-me
+```
 
 ## OpenAPI 契约
 
@@ -107,17 +119,22 @@ npx --yes @redocly/cli lint docs/api/openapi.yaml --max-problems 5
 
 ```bash
 npm run acceptance
+npm run compose:up
 npm run check:openapi
 npm run test:backend
 npm run build:frontend
 npm run compose:config
 ```
 
+说明：`npm run test:backend` 会加载 Spring Boot 上下文并执行 Flyway 校验，运行前需要本地 MySQL 可用。
+
 HTTP smoke：
 
 ```bash
 curl -sS http://localhost:8080/api/bootstrap/health
 curl -sS -X POST http://localhost:8080/api/auth/login -H 'Content-Type: application/json' -d '{"username":"admin","password":"change-me-admin"}'
+curl -sS http://localhost:8080/workflow-chains
+curl -sS http://localhost:8080/workflow-chains/1/nodes
 curl -sS http://localhost:5173/api/bootstrap/health
 ```
 
@@ -125,10 +142,10 @@ curl -sS http://localhost:5173/api/bootstrap/health
 
 优先处理 `tasks/README.md`：
 
-1. 进入「任务 2：数据库模型与 9 条工序链初始化」。
-2. 设计数据库迁移和 TRD V1.1 核心业务表。
-3. 整理 9 条工序链初始化脚本。
-4. 进入状态投影、医生端脱敏、文件鉴权、Workflow Runtime、AI Gateway 等任务。
+1. 进入「任务 3：订单状态投影与医生端脱敏基础」。
+2. 锁定 `internal_status` / `external_status` 枚举和状态变更服务边界。
+3. 建立医生端外部投影、脱敏 VO、AI-3 安全读模型。
+4. 后续再进入文件鉴权、Workflow Runtime、AI Gateway 等任务。
 
 ## 安全说明
 

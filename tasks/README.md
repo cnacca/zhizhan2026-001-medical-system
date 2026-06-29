@@ -6,7 +6,7 @@ M1：需求与架构冻结。
 
 目标不是写业务页面，而是冻结接口、数据模型、状态机、权限脱敏和工艺流基础。
 
-当前计划已按 TRD V1.1 深度研究优化版重排。后续不要直接从旧任务 1 进入业务代码；应从任务 1 的骨架初始化开始，再按任务 2-8 推进。
+当前计划已按 TRD V1.1 深度研究优化版重排。任务 0、0.1、1、2 已完成；下一步进入任务 3：订单状态投影与医生端脱敏基础。
 
 ## 任务 0：接口契约与项目基线
 
@@ -129,12 +129,12 @@ npx --yes @redocly/cli lint docs/api/openapi.yaml --max-problems 5
 剩余限制：
 
 - 当前 ADMIN 登录为骨架烟测，不是正式 RuoYi-Vue-Pro 权限体系。
-- 后端尚未连接 MySQL、Redis、MinIO。
+- 后端已在任务 2 接入 MySQL/Flyway；Redis、MinIO 尚未接入业务模块。
 - 浏览器点击级 smoke 未自动化执行；当前完成的是构建、HTML 加载、API 和 Vite 代理级验收。
 
 ## 任务 2：数据库模型与 9 条工序链初始化
 
-状态：下一步开始。
+状态：已完成数据库和 HTTP 烟测。
 
 目标：
 
@@ -150,7 +150,7 @@ npx --yes @redocly/cli lint docs/api/openapi.yaml --max-problems 5
 - 工时绩效：`work_log`，`work_log_pause_segment` 作为建议项，排期紧可先累计 pause_duration。
 - 文件、消息、设计稿、账单物流、AI、通知相关表：`file_resource`、`file_access_audit`、`order_message`、`message_review_log`、`design_draft`、`order_bill`、`order_logistics`、`ai_audit_log`、`notification_event`、`user_notification`。
 - 9 条工艺链的 chain/node/edge 种子数据。
-- Flyway 或 Liquibase 迁移方案。
+- Flyway SQL 迁移方案。
 
 验收标准：
 
@@ -160,9 +160,30 @@ npx --yes @redocly/cli lint docs/api/openapi.yaml --max-problems 5
 - 订单实例可引用 `chain_version`。
 - 表结构包含状态投影、实例边表、返工、文件审计、AI 审计、通知事实来源。
 
+完成记录：
+
+- 已选择并执行 Flyway SQL，迁移文件位于 `backend/platform-server/src/main/resources/db/migration/`。
+- `V1__create_core_schema.sql` 已创建 TRD V1.1 核心业务表、工艺定义/实例表、返工、工时、文件审计、AI 审计、通知事实来源等结构。
+- `V2__seed_workflow_chains.sql` 已按 `.local-context/生产流程.docx` 初始化 9 条工序链、节点和边。
+- 已实现最小只读接口：`GET /workflow-chains`、`GET /workflow-chains/{chainId}/nodes`。
+- `standard_duration` 暂无真实标准工时，已按计划保留为空。
+
+验收结果：
+
+- `docker compose up -d mysql redis minio`：通过，基础服务运行中。
+- `scripts/with-jdk21.sh mvn -f backend/pom.xml test`：通过，16 个 Maven 模块成功，Spring Boot 上下文加载并执行 Flyway v1/v2。
+- SQL 验收：`workflow_chain` 为 9 条；每条链均有节点和边；查询到 `intake`、`implant_abutment`、`veneer_route` 分支；可选节点为 10 个；重复工序名均有唯一 `node_code`。
+- HTTP 验收：`GET /workflow-chains` 返回 9 条；`GET /workflow-chains/1/nodes` 返回常规冠修复 30 个节点，并按 `step_order` 排序。
+
+剩余限制：
+
+- 任务 2 不实现订单生产审核后的工序实例化，不实现派工、转派、工时、入检/出检、返工。
+- 源生产流程存在孤立重复箭头和局部排版不连续，本轮按节点顺序标准化为顺序边；如客户提供修订版，应新增链版本迁移。
+- Flyway 对 MySQL 8.4 有兼容性 warning，但本轮迁移和测试已在本机 MySQL 8.4 通过。
+
 ## 任务 3：订单状态投影与医生端脱敏基础
 
-状态：待任务 2 后开始。
+状态：下一步开始。
 
 目标：
 

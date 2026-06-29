@@ -223,3 +223,52 @@
 
 - 如果用户确认该基线，任务 1 可直接按路线 A 安装/使用 JDK + Maven，或按路线 B 容器化 Maven 构建。
 - 如果用户要求兼容 JDK 8，则需要重新评估 RuoYi-Vue-Pro 分支、依赖版本和后续维护成本。
+
+## D-015 数据库迁移采用 Flyway SQL
+
+状态：已确认并执行。
+
+决策：
+
+- 使用 Flyway SQL 管理一期数据库基线迁移。
+- 迁移文件放在 `backend/platform-server/src/main/resources/db/migration/`。
+- `platform-server` 负责启动时执行迁移，默认连接本地 Docker Compose MySQL。
+
+影响：
+
+- 本地后端测试和启动前需要先启动 MySQL：`npm run compose:up`。
+- 后续表结构和种子数据变更通过新增 Flyway 版本，不直接改已执行迁移。
+- 当前 MySQL 8.4 会触发 Flyway 兼容性 warning，但任务 2 迁移已在本机通过。
+
+## D-016 9 条工序链种子数据以生产流程原文为准
+
+状态：已确认并执行。
+
+决策：
+
+- 9 条工序链种子数据以 `.local-context/生产流程.docx` 为准，TRD V1.1 的摘要表只做校验。
+- `standard_duration` 暂无真实来源，先允许为空，不编造标准工时。
+- 取模路线写入 `branch_group=intake`、`branch_key=IMPRESSION/SCAN`。
+- 种植基台、贴面路线等内部路线写入独立 `branch_group`，后续由生产审核补充 `branch_params` 决定。
+- 源文档里的孤立重复箭头、贴面/隐形流程排版不连续，按源文档节点顺序标准化为顺序边；不在任务 2 中发明额外节点。
+
+影响：
+
+- Workflow Definition 只读查询可以先验收 9 条链、节点、边、分支和可选节点。
+- Workflow Runtime 实例化时需要基于 `branch_params` 过滤不适用分支。
+- 如客户后续修订生产流程，应通过新增链版本和迁移脚本发布。
+
+## D-017 任务 2 只实现最小只读 Workflow API
+
+状态：已确认并执行。
+
+决策：
+
+- 本轮只实现 `GET /workflow-chains` 和 `GET /workflow-chains/{chainId}/nodes`。
+- 返回字段保持 `docs/api/openapi.yaml` 已冻结契约，不扩展公开 DTO。
+- 不实现工序实例化、派工、转派、工时、入检/出检、返工等运行时能力。
+
+影响：
+
+- 任务 2 可以完成“9 条工序链可查询”的验收。
+- 任务 3 继续做状态投影和医生端脱敏，任务 5A 再进入 Workflow Runtime。
