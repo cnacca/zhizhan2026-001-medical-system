@@ -1,0 +1,19 @@
+package com.yuri.aiorder.order.api;
+
+import com.fasterxml.jackson.annotation.JsonProperty;
+import com.fasterxml.jackson.databind.JsonNode;
+
+public record OrderInternalDTO(
+        @JsonProperty("order_id") long orderId,
+        @JsonProperty("order_no") String orderNo,
+        @JsonProperty("clinic_id") long clinicId,
+        @JsonProperty("clinic_name") String clinicName,
+        @JsonProperty("doctor_user_id") Long doctorUserId,
+        @JsonProperty("cs_user_id") Long csUserId,
+        @JsonProperty("product_type") String productType,
+        @JsonProperty("internal_status") String internalStatus,
+        @JsonProperty("external_status") String externalStatus,
+        @JsonProperty("production_note") String productionNote,
+        @JsonProperty("reject_reason") String rejectReason,
+        @JsonProperty("form_data") JsonNode formData) {
+}

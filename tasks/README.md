@@ -6,7 +6,7 @@ M1：需求与架构冻结。
 
 目标不是写业务页面，而是冻结接口、数据模型、状态机、权限脱敏和工艺流基础。
 
-当前计划已按 TRD V1.1 深度研究优化版重排。任务 0、0.1、1、2 已完成；下一步进入任务 3：订单状态投影与医生端脱敏基础。
+当前计划已按 TRD V1.1 深度研究优化版重排。任务 0、0.1、1、2、3、4 已完成；下一步进入任务 5A：Workflow Runtime 与工序节点状态机。
 
 ## 任务 0：接口契约与项目基线
 
@@ -183,7 +183,7 @@ npx --yes @redocly/cli lint docs/api/openapi.yaml --max-problems 5
 
 ## 任务 3：订单状态投影与医生端脱敏基础
 
-状态：下一步开始。
+状态：已完成状态投影和脱敏烟测。
 
 目标：
 
@@ -210,9 +210,29 @@ npx --yes @redocly/cli lint docs/api/openapi.yaml --max-problems 5
 - 跨诊所访问返回 403 或空数据。
 - AI-3 只能读取医生端安全读模型。
 
+完成记录：
+
+- 已新增 `InternalOrderStatus` / `ExternalOrderStatus` 枚举。
+- 已新增 `OrderStatusService` 和 `OrderStatusProjector`，状态变更会写 `order_status_history` 并刷新 `order_external_projection`。
+- 已新增 Flyway `V3__order_status_projection_foundation.sql`，补齐 `orders.version`、`cs_user_id`、`production_note`、`reject_reason`、状态索引，并把公开状态默认值调整为 `PENDING_REVIEW`。
+- 已新增 `DoctorOrderVO`、`OrderInternalDTO`、`DoctorOrderAssistantReadModel`。
+- 已实现最小接口：`GET /orders/{orderId}`、`POST /orders/{orderId}/confirm-receipt`、`POST /ai/order-query`、医生端访问 `GET /orders/{orderId}/process-instance` 返回 403。
+
+验收结果：
+
+- `npm run compose:up && scripts/with-jdk21.sh mvn -f backend/pom.xml test`：通过，5 个测试通过，Flyway 校验 3 个迁移。
+- SQL 验收：`flyway_schema_history` v1/v2/v3 均成功；`orders` 与 `order_external_projection` 中可查到 `PRODUCING` / `QC` 等投影结果。
+- HTTP 验收：医生端 `GET /orders/{orderId}` 只返回 `external_status` 等公开字段，不含 `internal_status`、`production_note`、`cs_user_id`；管理员详情包含内部字段；医生访问 `process-instance` 返回 403；AI-3 回答只含外部状态。
+
+剩余限制：
+
+- 本轮不实现正式 RuoYi-Vue-Pro RBAC/DataScope；`X-Bootstrap-*` 头只用于本地烟测。
+- 本轮不实现订单列表、下单、客服审核、生产审核、工序实例化、设计稿、账单物流完整业务。
+- AI-3 当前是安全占位回答，后续接入真实模型时必须继续只读 `DoctorOrderAssistantReadModel`。
+
 ## 任务 4：文件上传与访问权限
 
-状态：待任务 1 后可开始。
+状态：已完成文件上传与访问权限烟测。
 
 目标：
 
@@ -239,9 +259,35 @@ npx --yes @redocly/cli lint docs/api/openapi.yaml --max-problems 5
 - 医生不能访问其他诊所文件，不能访问内部入检/出检附件。
 - 前端不能直接拿永久 object_key。
 
+完成记录：
+
+- 已在 `platform-server` 接入 MinIO Java SDK。
+- 已新增 `V4__file_upload_access_foundation.sql`，为 `file_resource` 增加 `upload_status`，并补上传状态/归属查询索引。
+- 已新增 `POST /files/upload-token`，返回 `file_id`、预签名 PUT URL、过期秒数，不返回永久 `object_key`。
+- 已新增 `POST /files/{fileId}/complete`，通过 MinIO `statObject` 校验对象存在、大小、content type 和 etag，并写入 `COMPLETED`。
+- 已新增 `GET /files/{fileId}/preview-url`、`GET /files/{fileId}/download-url`，返回短时效签名 URL。
+- 已实现医生端文件访问边界：仅允许本人/本诊所访问 `DOCTOR`、`DOCTOR_CS`、`ALL` 可见文件，拒绝 `INTERNAL` 和跨诊所/跨医生访问。
+- 已实现 `file_access_audit` 写入：上传 token、complete、preview、download、拒绝访问均有记录。
+
+验收结果：
+
+- TDD 红灯：`FileAccessTests` 首次运行失败于 `/files/upload-token` 404 和 `upload_status` 列不存在，确认测试覆盖任务缺口。
+- `scripts/with-jdk21.sh mvn -f backend/pom.xml -pl platform-server -Dtest=FileAccessTests test`：通过，2 个文件访问测试通过。
+- `scripts/with-jdk21.sh mvn -f backend/pom.xml test`：通过，16 个 Maven 模块成功，7 个测试通过，Flyway 校验 4 个迁移。
+- HTTP/SQL smoke：真实后端启动后，`upload-token -> curl PUT presigned URL -> complete -> preview-url -> download-url` 通过；审计表查到 `UPLOAD_TOKEN`、`COMPLETE`、`PREVIEW`、`DOWNLOAD` 的 `ALLOWED` 记录。
+- 拒绝访问 smoke：其他医生/诊所访问同一文件返回 403，并写入 `PREVIEW / DENIED` 审计记录。
+
+剩余限制：
+
+- 本轮不实现前端 Uppy 页面。
+- 本轮不实现完整 S3 Multipart 分片创建、分片签名、合并流程；当前为单对象预签名 PUT，并保留阈值配置。
+- 文件类型、大小、数量限制仍需 PM/客户最终确认；当前本地默认最大 200MB。
+- 正式 RuoYi-Vue-Pro RBAC/DataScope 尚未接入；`X-Bootstrap-*` 头只用于本地烟测。
+- `docs/api/openapi.yaml` 后续需要同步 complete、签名 URL 和错误响应契约。
+
 ## 任务 5A：Workflow Runtime 与工序节点状态机
 
-状态：待任务 2 和任务 3 后开始。
+状态：下一步可开始。
 
 目标：
 

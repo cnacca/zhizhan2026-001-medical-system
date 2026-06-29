@@ -272,3 +272,57 @@
 
 - 任务 2 可以完成“9 条工序链可查询”的验收。
 - 任务 3 继续做状态投影和医生端脱敏，任务 5A 再进入 Workflow Runtime。
+
+## D-018 任务 3 状态投影基础边界
+
+状态：已确认并执行。
+
+决策：
+
+- `internal_status` 使用 `InternalOrderStatus` 枚举，`external_status` 使用 OpenAPI 已冻结的 7 个医生端状态。
+- `external_status` 不接受前端直接传值，由 `OrderStatusService` 调用 `OrderStatusProjector` 统一计算、写 `orders`、写 `order_status_history`、刷新 `order_external_projection`。
+- `DRAFT` 不作为医生端公开进度；提交后的默认公开状态为 `PENDING_REVIEW`。
+- `PROCESS_INSTANCE_CREATED` 和 `ASSIGNED` 在任务 3 暂按 `PRODUCING` 投影；后续 Workflow Runtime 可根据首个有效节点阶段细化为 `DESIGNING` 或 `PRODUCING`。
+
+影响：
+
+- 后续客服审核、生产审核、发货、确认收货等业务操作必须复用 `OrderStatusService`。
+- 后续不得在 Controller 或前端直接写 `external_status`。
+- 任务 5A 接入工序实例化时，只需要扩展投影判断，不应绕开当前服务。
+
+## D-019 任务 3 医生端与 AI-3 读取安全模型
+
+状态：已确认并执行。
+
+决策：
+
+- 医生端详情使用 `DoctorOrderVO`，只返回订单号、产品类型、`external_status`、医生可见 `form_data`、公开提示、账单/物流公开字段。
+- 内部角色详情使用 `OrderInternalDTO`，内部字段只在内部 DTO 出现。
+- AI-3 使用 `DoctorOrderAssistantReadModel`，只读外部状态、账单物流、医生端可见消息摘要；当前回答为 deterministic 安全占位，不接真实模型。
+- 医生访问 `/orders/{orderId}/process-instance` 返回 403；内部角色完整工序实例留到 Workflow Runtime。
+- 当前 `X-Bootstrap-*` 请求头仅用于本地烟测角色/数据范围，正式权限接入后由 RuoYi RBAC/DataScope 替换。
+
+影响：
+
+- 后续接入 DeepSeek/LangChain 时，AI-3 只能拿 `DoctorOrderAssistantReadModel`，不得查询工序、员工、入检/出检、工时、绩效、返工。
+- 文件、WebSocket、消息、设计稿等医生端通道必须复用同一脱敏口径。
+
+## D-020 任务 4 文件上传与访问权限基础
+
+状态：已确认并执行。
+
+决策：
+
+- 后端接入 MinIO Java SDK，使用私有桶和短时效预签名 URL，不把永久 `object_key` 返回给前端。
+- `POST /files/upload-token` 创建 `file_resource` 的 `PENDING` 记录，并返回 `file_id`、预签名 PUT URL 和过期秒数。
+- `POST /files/{fileId}/complete` 通过 MinIO `statObject` 校验对象存在、大小、content type，并保存 etag 到 `checksum`，再把 `upload_status` 置为 `COMPLETED`。
+- `GET /files/{fileId}/preview-url` 和 `GET /files/{fileId}/download-url` 每次先执行文件访问策略，再返回短时效 GET URL。
+- 医生只能访问本人/本诊所订单下，且 `visibility` 为 `DOCTOR`、`DOCTOR_CS`、`ALL` 的已完成文件；内部入检/出检等 `INTERNAL` 文件默认拒绝医生端访问。
+- 上传 token、complete、preview、download 和拒绝访问均写 `file_access_audit`。
+- 当前默认：上传/预览 URL 15 分钟，下载 URL 2 小时，最大文件 200MB；Multipart 分片完整流程留到文件限制最终确认后实现。
+
+影响：
+
+- 文件模块已具备后端最小验收链路，后续前端 Uppy 可直接调用 token/complete/签名 URL 接口。
+- 正式 RBAC/DataScope 接入后，当前 `X-Bootstrap-*` 头应替换为真实登录态，但医生端文件可见性边界不能放宽。
+- `docs/api/openapi.yaml` 后续需要补齐 complete、签名 URL 和错误响应契约。

@@ -27,3 +27,12 @@ app:
     admin:
       username: ${BOOTSTRAP_ADMIN_USERNAME:admin}
       password: ${BOOTSTRAP_ADMIN_PASSWORD:change-me-admin}
+  file:
+    endpoint: ${MINIO_ENDPOINT:http://127.0.0.1:9000}
+    access-key: ${MINIO_ROOT_USER:minioadmin}
+    secret-key: ${MINIO_ROOT_PASSWORD:change-me-minio}
+    bucket: ${MINIO_BUCKET:ai-order-private}
+    upload-url-ttl-seconds: ${FILE_UPLOAD_URL_TTL_SECONDS:900}
+    preview-url-ttl-seconds: ${FILE_PREVIEW_URL_TTL_SECONDS:900}
+    download-url-ttl-seconds: ${FILE_DOWNLOAD_URL_TTL_SECONDS:7200}
+    max-file-size-bytes: ${FILE_MAX_FILE_SIZE_BYTES:209715200}
