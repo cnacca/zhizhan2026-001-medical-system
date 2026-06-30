@@ -1,0 +1,82 @@
+package com.yuri.aiorder.ai;
+
+import com.fasterxml.jackson.annotation.JsonProperty;
+import com.yuri.aiorder.common.BootstrapIdentity;
+import com.yuri.aiorder.common.DataResponse;
+import com.yuri.aiorder.common.UserRole;
+import com.yuri.aiorder.common.auth.RequirePermission;
+import jakarta.validation.Valid;
+import jakarta.validation.constraints.NotBlank;
+import jakarta.validation.constraints.NotNull;
+import org.springframework.web.bind.annotation.CrossOrigin;
+import org.springframework.web.bind.annotation.PostMapping;
+import org.springframework.web.bind.annotation.RequestBody;
+import org.springframework.web.bind.annotation.RestController;
+
+@RestController
+@CrossOrigin(origins = "${app.cors.allowed-origin:http://localhost:5173}")
+public class AiGatewayController {
+
+    private final AiGatewayService aiGatewayService;
+
+    public AiGatewayController(AiGatewayService aiGatewayService) {
+        this.aiGatewayService = aiGatewayService;
+    }
+
+    @PostMapping("/ai/translate")
+    @RequirePermission(value = "ai:cs", roles = {UserRole.ADMIN, UserRole.CS})
+    public DataResponse<TranslateResponse> translate(
+            @Valid @RequestBody TranslateRequest request,
+            BootstrapIdentity identity) {
+        return new DataResponse<>(new TranslateResponse(
+                aiGatewayService.translate(request.orderId(), request.sourceText(), identity)));
+    }
+
+    @PostMapping("/ai/check-missing")
+    @RequirePermission(value = {"ai:cs", "ai:doctor"}, roles = {UserRole.ADMIN, UserRole.CS, UserRole.DOCTOR})
+    public DataResponse<MissingInfoResponse> checkMissing(
+            @Valid @RequestBody OrderOnlyRequest request,
+            BootstrapIdentity identity) {
+        return new DataResponse<>(aiGatewayService.checkMissing(request.orderId(), identity));
+    }
+
+    @PostMapping("/ai/cs-query")
+    @RequirePermission(value = "ai:cs", roles = {UserRole.ADMIN, UserRole.CS})
+    public DataResponse<QueryResponse> csQuery(
+            @Valid @RequestBody QueryRequest request,
+            BootstrapIdentity identity) {
+        return new DataResponse<>(new QueryResponse(
+                aiGatewayService.csQuery(request.orderId(), request.question(), identity)));
+    }
+
+    @PostMapping("/ai/production-note")
+    @RequirePermission(value = "ai:production", roles = {UserRole.ADMIN, UserRole.CS, UserRole.WORKER})
+    public DataResponse<ProductionNoteResponse> productionNote(
+            @Valid @RequestBody OrderOnlyRequest request,
+            BootstrapIdentity identity) {
+        return new DataResponse<>(new ProductionNoteResponse(
+                aiGatewayService.productionNote(request.orderId(), identity)));
+    }
+
+    public record TranslateRequest(
+            @JsonProperty("order_id") @NotNull Long orderId,
+            @JsonProperty("source_text") @NotBlank String sourceText) {
+    }
+
+    public record OrderOnlyRequest(@JsonProperty("order_id") @NotNull Long orderId) {
+    }
+
+    public record QueryRequest(
+            @JsonProperty("order_id") @NotNull Long orderId,
+            @NotBlank String question) {
+    }
+
+    public record TranslateResponse(@JsonProperty("translated_text") String translatedText) {
+    }
+
+    public record QueryResponse(String answer) {
+    }
+
+    public record ProductionNoteResponse(@JsonProperty("draft_note") String draftNote) {
+    }
+}

@@ -1,0 +1,382 @@
+package com.yuri.aiorder.workflow.execution;
+
+import static org.assertj.core.api.Assertions.assertThat;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
+import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
+import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
+
+import com.fasterxml.jackson.databind.JsonNode;
+import com.fasterxml.jackson.databind.ObjectMapper;
+import com.yuri.aiorder.common.BootstrapIdentity;
+import com.yuri.aiorder.common.UserRole;
+import com.yuri.aiorder.common.auth.BearerTokenService;
+import java.util.UUID;
+import org.junit.jupiter.api.BeforeEach;
+import org.junit.jupiter.api.Test;
+import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.boot.test.autoconfigure.web.servlet.AutoConfigureMockMvc;
+import org.springframework.boot.test.context.SpringBootTest;
+import org.springframework.http.MediaType;
+import org.springframework.jdbc.core.simple.JdbcClient;
+import org.springframework.test.web.servlet.MockMvc;
+import org.springframework.test.web.servlet.MvcResult;
+
+@SpringBootTest
+@AutoConfigureMockMvc
+class CheckWorklogPerformanceTests {
+
+    @Autowired
+    private JdbcClient jdbcClient;
+
+    @Autowired
+    private MockMvc mockMvc;
+
+    @Autowired
+    private ObjectMapper objectMapper;
+
+    @Autowired
+    private BearerTokenService tokenService;
+
+    private long orderId;
+    private long chainId;
+    private long nodeInstanceId;
+    private long doctorUserId;
+    private long workerUserId;
+    private long otherWorkerUserId;
+
+    @BeforeEach
+    void setUp() throws Exception {
+        String suffix = UUID.randomUUID().toString().replace("-", "");
+        long userSeed = Long.parseLong(suffix.substring(0, 8), 16);
+        doctorUserId = 990100000L + userSeed;
+        workerUserId = 990200000L + userSeed;
+        otherWorkerUserId = 990300000L + userSeed;
+        long clinicId = createClinic("执行测试诊所-" + suffix);
+        orderId = createOrder("EX" + suffix.substring(0, 12), clinicId);
+        chainId = createOneNodeChain(suffix);
+        nodeInstanceId = instantiateAndAssign();
+    }
+
+    @Test
+    void nodeRequiresInCheckBeforeStartAndOutCheckRequiresCompletion() throws Exception {
+        mockMvc.perform(post("/process-instance/nodes/{nodeInstanceId}/start", nodeInstanceId)
+                        .header("X-Bootstrap-Role", "WORKER")
+                        .header("X-Bootstrap-User-Id", workerUserId))
+                .andExpect(status().isConflict());
+
+        submitCheck(nodeInstanceId, 1, true, null);
+
+        mockMvc.perform(post("/process-instance/nodes/{nodeInstanceId}/start", nodeInstanceId)
+                        .header("X-Bootstrap-Role", "WORKER")
+                        .header("X-Bootstrap-User-Id", workerUserId))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.node_status").value("IN_PROGRESS"));
+
+        mockMvc.perform(post("/check-records")
+                        .header("X-Bootstrap-Role", "WORKER")
+                        .header("X-Bootstrap-User-Id", workerUserId)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("""
+                                {"node_instance_id":%d,"check_type":2,"is_pass":true}
+                                """.formatted(nodeInstanceId)))
+                .andExpect(status().isConflict());
+    }
+
+    @Test
+    void failedOutCheckCreatesReworkAndNewWorkLogWithoutOverwritingOriginalPerformance() throws Exception {
+        submitCheck(nodeInstanceId, 1, true, null);
+        startNode(nodeInstanceId);
+        long firstWorkLogId = startWorkLog(nodeInstanceId);
+        makeWorkLogStartedMinutesAgo(firstWorkLogId, 10);
+        pauseWorkLog(firstWorkLogId);
+        makeOpenPauseStartedMinutesAgo(firstWorkLogId, 2);
+        resumeWorkLog(firstWorkLogId);
+        finishWorkLog(firstWorkLogId)
+                .andExpect(jsonPath("$.data.effective_duration_seconds").value(480));
+        completeNode(nodeInstanceId);
+
+        submitCheck(nodeInstanceId, 2, false, nodeInstanceId);
+
+        assertThat(reworkCount(orderId)).isEqualTo(1L);
+        assertThat(nodeStatus(nodeInstanceId)).isEqualTo("READY");
+        assertThat(workLogStatus(firstWorkLogId)).isEqualTo("COMPLETED");
+
+        mockMvc.perform(get("/reworks")
+                        .header("X-Bootstrap-Role", "WORKER")
+                        .header("X-Bootstrap-User-Id", workerUserId)
+                        .param("status", "PENDING")
+                        .param("order_id", String.valueOf(orderId)))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data[0].order_id").value(orderId))
+                .andExpect(jsonPath("$.data[0].rework_id").isNumber())
+                .andExpect(jsonPath("$.data[0].source_check_id").isNumber())
+                .andExpect(jsonPath("$.data[0].from_node_instance_id").value(nodeInstanceId))
+                .andExpect(jsonPath("$.data[0].target_node_instance_id").value(nodeInstanceId))
+                .andExpect(jsonPath("$.data[0].target_node_status").value("READY"))
+                .andExpect(jsonPath("$.data[0].status").value("PENDING"))
+                .andExpect(jsonPath("$.data[0].reason_detail").value("测试"));
+
+        mockMvc.perform(get("/reworks")
+                        .header("X-Bootstrap-Role", "WORKER")
+                        .header("X-Bootstrap-User-Id", otherWorkerUserId)
+                        .param("status", "PENDING")
+                        .param("order_id", String.valueOf(orderId)))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data").isEmpty());
+
+        startNode(nodeInstanceId);
+        long secondWorkLogId = startWorkLog(nodeInstanceId);
+
+        assertThat(secondWorkLogId).isNotEqualTo(firstWorkLogId);
+        assertThat(workLogCount(nodeInstanceId)).isEqualTo(2L);
+
+        mockMvc.perform(get("/performance")
+                        .header("X-Bootstrap-Role", "WORKER")
+                        .header("X-Bootstrap-User-Id", workerUserId)
+                        .param("user_id", String.valueOf(otherWorkerUserId)))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.user_id").value(workerUserId))
+                .andExpect(jsonPath("$.data.completed_count").value(1))
+                .andExpect(jsonPath("$.data.effective_duration").value(8))
+                .andExpect(jsonPath("$.data.rework_count").value(1));
+
+        mockMvc.perform(get("/performance")
+                        .header("X-Bootstrap-Role", "ADMIN")
+                        .param("user_id", String.valueOf(workerUserId)))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.user_id").value(workerUserId))
+                .andExpect(jsonPath("$.data.completed_count").value(1));
+    }
+
+    @Test
+    void bearerCsCannotReadWorkerPerformance() throws Exception {
+        String csToken = tokenService.issue(new BootstrapIdentity(UserRole.CS, 8001L, null));
+
+        mockMvc.perform(get("/performance")
+                        .header("Authorization", "Bearer " + csToken)
+                        .param("user_id", String.valueOf(workerUserId)))
+                .andExpect(status().isForbidden());
+    }
+
+    @Test
+    void bearerDoctorCannotReadInternalCheckRecords() throws Exception {
+        String doctorToken = tokenService.issue(new BootstrapIdentity(UserRole.DOCTOR, doctorUserId, null));
+
+        mockMvc.perform(get("/check-records/{nodeInstanceId}", nodeInstanceId)
+                        .header("Authorization", "Bearer " + doctorToken))
+                .andExpect(status().isForbidden());
+    }
+
+    @Test
+    void bearerDoctorCannotReadReworkRecords() throws Exception {
+        String doctorToken = tokenService.issue(new BootstrapIdentity(UserRole.DOCTOR, doctorUserId, null));
+
+        mockMvc.perform(get("/reworks")
+                        .header("Authorization", "Bearer " + doctorToken))
+                .andExpect(status().isForbidden());
+    }
+
+    private long createClinic(String clinicName) {
+        jdbcClient.sql("INSERT INTO clinic (clinic_name) VALUES (:clinicName)")
+                .param("clinicName", clinicName)
+                .update();
+        return jdbcClient.sql("SELECT clinic_id FROM clinic WHERE clinic_name = :clinicName")
+                .param("clinicName", clinicName)
+                .query(Long.class)
+                .single();
+    }
+
+    private long createOrder(String orderNo, long clinicId) {
+        jdbcClient.sql("""
+                        INSERT INTO orders
+                            (order_no, clinic_id, doctor_user_id, product_type, internal_status, external_status)
+                        VALUES
+                            (:orderNo, :clinicId, :doctorUserId, 'EXECUTION_TEST',
+                             'PENDING_PRODUCTION_REVIEW', 'PENDING_REVIEW')
+                        """)
+                .param("orderNo", orderNo)
+                .param("clinicId", clinicId)
+                .param("doctorUserId", doctorUserId)
+                .update();
+        return jdbcClient.sql("SELECT order_id FROM orders WHERE order_no = :orderNo")
+                .param("orderNo", orderNo)
+                .query(Long.class)
+                .single();
+    }
+
+    private long createOneNodeChain(String suffix) {
+        String chainCode = "execution_test_" + suffix;
+        jdbcClient.sql("""
+                        INSERT INTO workflow_chain
+                            (chain_code, chain_name, product_type, version, intake_branch, status)
+                        VALUES
+                            (:chainCode, :chainName, 'EXECUTION_TEST', 1, 'BOTH', 1)
+                        """)
+                .param("chainCode", chainCode)
+                .param("chainName", "执行测试链-" + suffix)
+                .update();
+        long id = jdbcClient.sql("SELECT chain_id FROM workflow_chain WHERE chain_code = :chainCode")
+                .param("chainCode", chainCode)
+                .query(Long.class)
+                .single();
+        jdbcClient.sql("""
+                        INSERT INTO workflow_node
+                            (chain_id, node_code, process_name, step_order, is_optional,
+                             standard_duration, node_category, need_in_check, need_out_check)
+                        VALUES
+                            (:chainId, 'EXEC_NODE', '执行测试节点', 10, 0,
+                             600, 'PRODUCTION', 1, 1)
+                        """)
+                .param("chainId", id)
+                .update();
+        return id;
+    }
+
+    private long instantiateAndAssign() throws Exception {
+        MvcResult result = mockMvc.perform(post("/orders/{orderId}/production-review", orderId)
+                        .header("X-Bootstrap-Role", "ADMIN")
+                        .header("X-Bootstrap-User-Id", 8001L)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("""
+                                {"action":"APPROVE","chain_id":%d}
+                                """.formatted(chainId)))
+                .andExpect(status().isOk())
+                .andReturn();
+        long instanceId = objectMapper.readTree(result.getResponse().getContentAsString())
+                .path("data")
+                .path("instance_id")
+                .asLong();
+        long nodeId = jdbcClient.sql("""
+                        SELECT node_instance_id
+                        FROM order_process_node
+                        WHERE instance_id = :instanceId
+                        """)
+                .param("instanceId", instanceId)
+                .query(Long.class)
+                .single();
+        mockMvc.perform(post("/orders/{orderId}/process-instance/assign", orderId)
+                        .header("X-Bootstrap-Role", "ADMIN")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("""
+                                {"assignments":[{"node_instance_id":%d,"user_id":%d}]}
+                                """.formatted(nodeId, workerUserId)))
+                .andExpect(status().isOk());
+        return nodeId;
+    }
+
+    private JsonNode submitCheck(long nodeId, int checkType, boolean isPass, Long reworkToNodeId) throws Exception {
+        String reworkPart = reworkToNodeId == null ? "" : ",\"rework_to_node_id\":" + reworkToNodeId;
+        MvcResult result = mockMvc.perform(post("/check-records")
+                        .header("X-Bootstrap-Role", "WORKER")
+                        .header("X-Bootstrap-User-Id", workerUserId)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("""
+                                {"node_instance_id":%d,"check_type":%d,"is_pass":%s,"remark":"测试"%s}
+                                """.formatted(nodeId, checkType, isPass, reworkPart)))
+                .andExpect(status().isOk())
+                .andReturn();
+        return objectMapper.readTree(result.getResponse().getContentAsString()).path("data");
+    }
+
+    private void startNode(long nodeId) throws Exception {
+        mockMvc.perform(post("/process-instance/nodes/{nodeInstanceId}/start", nodeId)
+                        .header("X-Bootstrap-Role", "WORKER")
+                        .header("X-Bootstrap-User-Id", workerUserId))
+                .andExpect(status().isOk());
+    }
+
+    private void completeNode(long nodeId) throws Exception {
+        mockMvc.perform(post("/process-instance/nodes/{nodeInstanceId}/complete", nodeId)
+                        .header("X-Bootstrap-Role", "WORKER")
+                        .header("X-Bootstrap-User-Id", workerUserId))
+                .andExpect(status().isOk());
+    }
+
+    private long startWorkLog(long nodeId) throws Exception {
+        MvcResult result = mockMvc.perform(post("/work-logs/start")
+                        .header("X-Bootstrap-Role", "WORKER")
+                        .header("X-Bootstrap-User-Id", workerUserId)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("""
+                                {"node_instance_id":%d}
+                                """.formatted(nodeId)))
+                .andExpect(status().isOk())
+                .andReturn();
+        return objectMapper.readTree(result.getResponse().getContentAsString())
+                .path("data")
+                .path("work_log_id")
+                .asLong();
+    }
+
+    private void pauseWorkLog(long workLogId) throws Exception {
+        mockMvc.perform(post("/work-logs/{workLogId}/pause", workLogId)
+                        .header("X-Bootstrap-Role", "WORKER")
+                        .header("X-Bootstrap-User-Id", workerUserId))
+                .andExpect(status().isOk());
+    }
+
+    private void resumeWorkLog(long workLogId) throws Exception {
+        mockMvc.perform(post("/work-logs/{workLogId}/resume", workLogId)
+                        .header("X-Bootstrap-Role", "WORKER")
+                        .header("X-Bootstrap-User-Id", workerUserId))
+                .andExpect(status().isOk());
+    }
+
+    private org.springframework.test.web.servlet.ResultActions finishWorkLog(long workLogId) throws Exception {
+        return mockMvc.perform(post("/work-logs/{workLogId}/finish", workLogId)
+                .header("X-Bootstrap-Role", "WORKER")
+                .header("X-Bootstrap-User-Id", workerUserId));
+    }
+
+    private void makeWorkLogStartedMinutesAgo(long workLogId, int minutes) {
+        jdbcClient.sql("""
+                        UPDATE work_log
+                        SET started_at = DATE_SUB(CURRENT_TIMESTAMP(3), INTERVAL :minutes MINUTE)
+                        WHERE work_log_id = :workLogId
+                        """)
+                .param("minutes", minutes)
+                .param("workLogId", workLogId)
+                .update();
+    }
+
+    private void makeOpenPauseStartedMinutesAgo(long workLogId, int minutes) {
+        jdbcClient.sql("""
+                        UPDATE work_log_pause_segment
+                        SET paused_at = DATE_SUB(CURRENT_TIMESTAMP(3), INTERVAL :minutes MINUTE)
+                        WHERE work_log_id = :workLogId
+                          AND resumed_at IS NULL
+                        """)
+                .param("minutes", minutes)
+                .param("workLogId", workLogId)
+                .update();
+    }
+
+    private long reworkCount(long targetOrderId) {
+        return jdbcClient.sql("SELECT COUNT(*) FROM rework_record WHERE order_id = :orderId")
+                .param("orderId", targetOrderId)
+                .query(Long.class)
+                .single();
+    }
+
+    private String nodeStatus(long nodeId) {
+        return jdbcClient.sql("SELECT node_status FROM order_process_node WHERE node_instance_id = :nodeId")
+                .param("nodeId", nodeId)
+                .query(String.class)
+                .single();
+    }
+
+    private String workLogStatus(long workLogId) {
+        return jdbcClient.sql("SELECT status FROM work_log WHERE work_log_id = :workLogId")
+                .param("workLogId", workLogId)
+                .query(String.class)
+                .single();
+    }
+
+    private long workLogCount(long nodeId) {
+        return jdbcClient.sql("SELECT COUNT(*) FROM work_log WHERE node_instance_id = :nodeId")
+                .param("nodeId", nodeId)
+                .query(Long.class)
+                .single();
+    }
+}

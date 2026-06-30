@@ -1,0 +1,4 @@
+app:
+  auth:
+    token-secret: ${APP_AUTH_TOKEN_SECRET}
+    allow-bootstrap-headers: false

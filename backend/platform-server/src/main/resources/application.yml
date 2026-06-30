@@ -13,6 +13,10 @@ spring:
     enabled: true
     locations: classpath:db/migration
     baseline-on-migrate: false
+  data:
+    redis:
+      host: ${REDIS_HOST:127.0.0.1}
+      port: ${REDIS_PORT:6379}
 
 management:
   endpoints:
@@ -22,11 +26,11 @@ management:
 
 app:
   cors:
-    allowed-origin: ${APP_CORS_ALLOWED_ORIGIN:http://localhost:5173}
-  bootstrap:
-    admin:
-      username: ${BOOTSTRAP_ADMIN_USERNAME:admin}
-      password: ${BOOTSTRAP_ADMIN_PASSWORD:change-me-admin}
+    allowed-origin: ${APP_CORS_ALLOWED_ORIGIN:http://localhost:5173,http://127.0.0.1:5173}
+  auth:
+    token-secret: ${APP_AUTH_TOKEN_SECRET:local-dev-change-me-auth-secret}
+    token-ttl-seconds: ${APP_AUTH_TOKEN_TTL_SECONDS:7200}
+    allow-bootstrap-headers: ${APP_AUTH_ALLOW_BOOTSTRAP_HEADERS:true}
   file:
     endpoint: ${MINIO_ENDPOINT:http://127.0.0.1:9000}
     access-key: ${MINIO_ROOT_USER:minioadmin}
@@ -36,3 +40,7 @@ app:
     preview-url-ttl-seconds: ${FILE_PREVIEW_URL_TTL_SECONDS:900}
     download-url-ttl-seconds: ${FILE_DOWNLOAD_URL_TTL_SECONDS:7200}
     max-file-size-bytes: ${FILE_MAX_FILE_SIZE_BYTES:209715200}
+  notification:
+    instance-id: ${APP_INSTANCE_ID:${random.uuid}}
+    redis-broadcast-enabled: ${NOTIFICATION_REDIS_BROADCAST_ENABLED:false}
+    redis-channel: ${NOTIFICATION_REDIS_CHANNEL:ai-order:notifications}

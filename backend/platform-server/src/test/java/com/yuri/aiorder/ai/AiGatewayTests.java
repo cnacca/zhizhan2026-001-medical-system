@@ -1,0 +1,272 @@
+package com.yuri.aiorder.ai;
+
+import static org.assertj.core.api.Assertions.assertThat;
+import static org.hamcrest.Matchers.containsString;
+import static org.hamcrest.Matchers.not;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
+import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.content;
+import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
+import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
+
+import java.util.UUID;
+import org.junit.jupiter.api.BeforeEach;
+import org.junit.jupiter.api.Test;
+import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.boot.test.autoconfigure.web.servlet.AutoConfigureMockMvc;
+import org.springframework.boot.test.context.SpringBootTest;
+import org.springframework.http.MediaType;
+import org.springframework.jdbc.core.simple.JdbcClient;
+import org.springframework.test.web.servlet.MockMvc;
+
+@SpringBootTest
+@AutoConfigureMockMvc
+class AiGatewayTests {
+
+    private static final long DOCTOR_USER_ID = 9901L;
+    private static final long CS_USER_ID = 9902L;
+    private static final long WORKER_USER_ID = 9903L;
+    private static final long OTHER_DOCTOR_USER_ID = 9904L;
+
+    @Autowired
+    private JdbcClient jdbcClient;
+
+    @Autowired
+    private MockMvc mockMvc;
+
+    private long clinicId;
+    private long orderId;
+    private String productType;
+
+    @BeforeEach
+    void setUp() {
+        String suffix = UUID.randomUUID().toString().replace("-", "");
+        productType = "AI_TEST_" + suffix.substring(0, 12);
+        jdbcClient.sql("INSERT INTO clinic (clinic_name) VALUES (:clinicName)")
+                .param("clinicName", "AI测试诊所-" + suffix)
+                .update();
+        clinicId = jdbcClient.sql("SELECT LAST_INSERT_ID()").query(Long.class).single();
+
+        jdbcClient.sql("""
+                        INSERT INTO orders
+                            (order_no, clinic_id, doctor_user_id, cs_user_id, product_type,
+                             form_data, internal_status, external_status, production_note)
+                        VALUES
+                            (:orderNo, :clinicId, :doctorUserId, :csUserId, :productType,
+                             JSON_OBJECT('patient_name', '李四', 'tooth_position', '11'),
+                             'IN_PRODUCTION', 'PRODUCING', '内部工序备注：车瓷由7700处理')
+                        """)
+                .param("orderNo", "AI" + suffix.substring(0, 12))
+                .param("clinicId", clinicId)
+                .param("doctorUserId", DOCTOR_USER_ID)
+                .param("csUserId", CS_USER_ID)
+                .param("productType", productType)
+                .update();
+        orderId = jdbcClient.sql("SELECT LAST_INSERT_ID()").query(Long.class).single();
+        assignWorkerToOrder(suffix);
+
+        jdbcClient.sql("""
+                        INSERT INTO order_external_projection
+                            (order_id, external_status, public_message)
+                        VALUES
+                            (:orderId, 'PRODUCING', '订单正在制作中，请等待客服通知。')
+                        """)
+                .param("orderId", orderId)
+                .update();
+
+        jdbcClient.sql("""
+                        INSERT INTO order_message
+                            (order_id, sender_user_id, sender_role, content, visibility, review_status)
+                        VALUES
+                            (:orderId, :csUserId, 'CS', '公开消息：预计明天发货。', 'DOCTOR_CS', 'APPROVED'),
+                            (:orderId, :workerUserId, 'WORKER', '内部返工责任记录', 'INTERNAL', 'DIRECT')
+                        """)
+                .param("orderId", orderId)
+                .param("csUserId", CS_USER_ID)
+                .param("workerUserId", WORKER_USER_ID)
+                .update();
+    }
+
+    @Test
+    void allFiveAgentsReturnDraftOnlyResultsAndWriteAuditRows() throws Exception {
+        mockMvc.perform(post("/ai/translate")
+                        .header("X-Bootstrap-Role", "CS")
+                        .header("X-Bootstrap-User-Id", CS_USER_ID)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"order_id\":" + orderId + ",\"source_text\":\"Shade A2, urgent.\"}"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.translated_text").value(containsString("翻译草稿")))
+                .andExpect(content().string(not(containsString("内部工序备注"))));
+
+        mockMvc.perform(post("/ai/cs-query")
+                        .header("X-Bootstrap-Role", "CS")
+                        .header("X-Bootstrap-User-Id", CS_USER_ID)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"order_id\":" + orderId + ",\"question\":\"内部状态是什么？\"}"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.answer").value(containsString("IN_PRODUCTION")));
+
+        mockMvc.perform(post("/ai/order-query")
+                        .header("X-Bootstrap-Role", "DOCTOR")
+                        .header("X-Bootstrap-User-Id", DOCTOR_USER_ID)
+                        .header("X-Bootstrap-Clinic-Id", clinicId)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"order_id\":" + orderId + ",\"question\":\"我的订单状态？\"}"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.answer").value(containsString("PRODUCING")));
+
+        mockMvc.perform(post("/ai/check-missing")
+                        .header("X-Bootstrap-Role", "CS")
+                        .header("X-Bootstrap-User-Id", CS_USER_ID)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"order_id\":" + orderId + "}"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.is_complete").value(true));
+
+        mockMvc.perform(post("/ai/production-note")
+                        .header("X-Bootstrap-Role", "WORKER")
+                        .header("X-Bootstrap-User-Id", WORKER_USER_ID)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"order_id\":" + orderId + "}"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.draft_note").value(containsString("生产备注草稿")))
+                .andExpect(content().string(not(containsString("自动发送"))));
+
+        assertThat(auditCount()).isEqualTo(5L);
+        assertThat(auditCountByContext("DOCTOR_ORDER_ASSISTANT_READ_MODEL")).isEqualTo(1L);
+        assertThat(orderProductionNote()).isEqualTo("内部工序备注：车瓷由7700处理");
+    }
+
+    @Test
+    void doctorOrderAssistantRefusesInternalQuestionsAndDoesNotLeakInternalData() throws Exception {
+        mockMvc.perform(post("/ai/order-query")
+                        .header("X-Bootstrap-Role", "DOCTOR")
+                        .header("X-Bootstrap-User-Id", DOCTOR_USER_ID)
+                        .header("X-Bootstrap-Clinic-Id", clinicId)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"order_id\":" + orderId + ",\"question\":\"谁在做？有没有返工责任和工时绩效？\"}"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.answer").value(containsString("只能回答公开进度")))
+                .andExpect(jsonPath("$.data.answer").value(containsString("PRODUCING")))
+                .andExpect(content().string(not(containsString("车瓷"))))
+                .andExpect(content().string(not(containsString("7700"))))
+                .andExpect(content().string(not(containsString("内部返工责任"))))
+                .andExpect(content().string(not(containsString("工时绩效"))));
+
+        assertThat(auditCountByStatus("SAFE_REFUSAL")).isEqualTo(1L);
+    }
+
+    @Test
+    void missingInfoAgentUsesFormConfigAndDoctorScope() throws Exception {
+        jdbcClient.sql("""
+                        INSERT INTO form_field_config
+                            (product_type, field_key, field_label, field_type, required_flag, sort_order)
+                        VALUES
+                            (:productType, 'bite_photo', '咬合照片', 'FILE', 1, 10)
+                        """)
+                .param("productType", productType)
+                .update();
+
+        mockMvc.perform(post("/ai/check-missing")
+                        .header("X-Bootstrap-Role", "DOCTOR")
+                        .header("X-Bootstrap-User-Id", DOCTOR_USER_ID)
+                        .header("X-Bootstrap-Clinic-Id", clinicId)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"order_id\":" + orderId + "}"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.is_complete").value(false))
+                .andExpect(jsonPath("$.data.missing_items[0].field_key").value("bite_photo"))
+                .andExpect(jsonPath("$.data.missing_items[0].field_label").value("咬合照片"));
+
+        mockMvc.perform(post("/ai/check-missing")
+                        .header("X-Bootstrap-Role", "DOCTOR")
+                        .header("X-Bootstrap-User-Id", OTHER_DOCTOR_USER_ID)
+                        .header("X-Bootstrap-Clinic-Id", 7777L)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"order_id\":" + orderId + "}"))
+                .andExpect(status().isForbidden());
+    }
+
+    private long auditCount() {
+        return jdbcClient.sql("SELECT COUNT(*) FROM ai_audit_log WHERE order_id = :orderId")
+                .param("orderId", orderId)
+                .query(Long.class)
+                .single();
+    }
+
+    private long auditCountByContext(String contextType) {
+        return jdbcClient.sql("""
+                        SELECT COUNT(*)
+                        FROM ai_audit_log
+                        WHERE order_id = :orderId
+                          AND request_context_type = :contextType
+                        """)
+                .param("orderId", orderId)
+                .param("contextType", contextType)
+                .query(Long.class)
+                .single();
+    }
+
+    private long auditCountByStatus(String status) {
+        return jdbcClient.sql("""
+                        SELECT COUNT(*)
+                        FROM ai_audit_log
+                        WHERE order_id = :orderId
+                          AND result_status = :status
+                        """)
+                .param("orderId", orderId)
+                .param("status", status)
+                .query(Long.class)
+                .single();
+    }
+
+    private String orderProductionNote() {
+        return jdbcClient.sql("SELECT production_note FROM orders WHERE order_id = :orderId")
+                .param("orderId", orderId)
+                .query(String.class)
+                .single();
+    }
+
+    private void assignWorkerToOrder(String suffix) {
+        long chainId = jdbcClient.sql("SELECT chain_id FROM workflow_chain WHERE status = 1 ORDER BY chain_id LIMIT 1")
+                .query(Long.class)
+                .single();
+        int chainVersion = jdbcClient.sql("SELECT version FROM workflow_chain WHERE chain_id = :chainId")
+                .param("chainId", chainId)
+                .query(Integer.class)
+                .single();
+        long sourceNodeId = jdbcClient.sql("""
+                        SELECT node_id
+                        FROM workflow_node
+                        WHERE chain_id = :chainId
+                        ORDER BY step_order, node_id
+                        LIMIT 1
+                        """)
+                .param("chainId", chainId)
+                .query(Long.class)
+                .single();
+        jdbcClient.sql("""
+                        INSERT INTO order_process_instance
+                            (order_id, chain_id, chain_version, intake_branch_used, branch_params, instance_status)
+                        VALUES
+                            (:orderId, :chainId, :chainVersion, 'SCAN', JSON_OBJECT(), 'ACTIVE')
+                        """)
+                .param("orderId", orderId)
+                .param("chainId", chainId)
+                .param("chainVersion", chainVersion)
+                .update();
+        long instanceId = jdbcClient.sql("SELECT LAST_INSERT_ID()").query(Long.class).single();
+        jdbcClient.sql("""
+                        INSERT INTO order_process_node
+                            (instance_id, source_node_id, node_code, process_name, step_order,
+                             is_optional, node_category, need_in_check, need_out_check, node_status, assigned_user_id)
+                        VALUES
+                            (:instanceId, :sourceNodeId, :nodeCode, 'AI DataScope节点', 1,
+                             0, 'PRODUCTION', 0, 0, 'READY', :workerUserId)
+                        """)
+                .param("instanceId", instanceId)
+                .param("sourceNodeId", sourceNodeId)
+                .param("nodeCode", "ai-datascope-" + suffix.substring(0, 12))
+                .param("workerUserId", WORKER_USER_ID)
+                .update();
+    }
+}

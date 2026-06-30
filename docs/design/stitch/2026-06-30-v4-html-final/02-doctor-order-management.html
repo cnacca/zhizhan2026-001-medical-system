@@ -1,0 +1,450 @@
+<!-- 医生工作台 - 订单管理 (最终版) -->
+<!DOCTYPE html><html class="light" lang="zh-CN"><head>
+<meta charset="utf-8">
+<meta content="width=device-width, initial-scale=1.0" name="viewport">
+<title>订单管理 - AI智能下单平台</title>
+<!-- Tailwind CSS -->
+<script src="https://cdn.tailwindcss.com?plugins=forms,container-queries"></script>
+<!-- Tailwind Configuration -->
+<script id="tailwind-config">
+        tailwind.config = {
+            darkMode: "class",
+            theme: {
+                extend: {
+                    "colors": {
+                        "primary-fixed-dim": "#b4c5ff",
+                        "tertiary": "#822600",
+                        "surface-dim": "#d7dae5",
+                        "on-secondary": "#ffffff",
+                        "error-container": "#ffdad6",
+                        "secondary-fixed-dim": "#59dea0",
+                        "error": "#ba1a1a",
+                        "surface-variant": "#dfe2ed",
+                        "surface-container-highest": "#dfe2ed",
+                        "inverse-on-surface": "#eef0fc",
+                        "on-tertiary-fixed": "#390c00",
+                        "tertiary-fixed": "#ffdbd0",
+                        "surface-container-high": "#e5e8f3",
+                        "secondary-container": "#78fbbb",
+                        "on-tertiary-fixed-variant": "#832700",
+                        "surface": "#f9f9ff",
+                        "tertiary-fixed-dim": "#ffb59c",
+                        "inverse-surface": "#2c3039",
+                        "outline": "#737686",
+                        "on-primary": "#ffffff",
+                        "on-background": "#181c23",
+                        "surface-container-lowest": "#ffffff",
+                        "outline-variant": "#c3c6d7",
+                        "tertiary-container": "#aa3500",
+                        "background": "#f9f9ff",
+                        "on-error-container": "#93000a",
+                        "primary": "#003da6",
+                        "on-primary-fixed-variant": "#003ea8",
+                        "primary-fixed": "#dbe1ff",
+                        "secondary": "#006c47",
+                        "surface-container-low": "#f1f3ff",
+                        "surface-bright": "#f9f9ff",
+                        "primary-container": "#0052d9",
+                        "on-tertiary": "#ffffff",
+                        "on-primary-fixed": "#00174b",
+                        "surface-container": "#ebedf9",
+                        "on-primary-container": "#cbd6ff",
+                        "on-surface-variant": "#434654",
+                        "surface-tint": "#0353da",
+                        "on-error": "#ffffff",
+                        "on-secondary-fixed-variant": "#005234",
+                        "on-surface": "#181c23",
+                        "on-secondary-fixed": "#002112",
+                        "secondary-fixed": "#78fbbb",
+                        "inverse-primary": "#b4c5ff",
+                        "on-tertiary-container": "#ffccbc",
+                        "on-secondary-container": "#00734b"
+                    },
+                    "borderRadius": {
+                        "DEFAULT": "0.25rem",
+                        "lg": "0.5rem",
+                        "xl": "0.75rem",
+                        "full": "9999px"
+                    },
+                    "spacing": {
+                        "container-max": "1440px",
+                        "xl": "32px",
+                        "md": "16px",
+                        "gutter": "16px",
+                        "sm": "8px",
+                        "sidebar-width": "240px",
+                        "lg": "24px",
+                        "base": "4px",
+                        "xs": "4px"
+                    },
+                    "fontFamily": {
+                        "label-md": ["JetBrains Mono"],
+                        "headline-sm": ["Plus Jakarta Sans"],
+                        "display-lg": ["Plus Jakarta Sans"],
+                        "body-sm": ["Inter"],
+                        "body-lg": ["Inter"],
+                        "label-sm": ["JetBrains Mono"],
+                        "body-md": ["Inter"],
+                        "headline-md": ["Plus Jakarta Sans"]
+                    },
+                    "fontSize": {
+                        "label-md": ["13px", { "lineHeight": "18px", "fontWeight": "500" }],
+                        "headline-sm": ["16px", { "lineHeight": "24px", "fontWeight": "600" }],
+                        "display-lg": ["30px", { "lineHeight": "38px", "fontWeight": "700" }],
+                        "body-sm": ["12px", { "lineHeight": "20px", "fontWeight": "400" }],
+                        "body-lg": ["16px", { "lineHeight": "24px", "fontWeight": "400" }],
+                        "label-sm": ["11px", { "lineHeight": "16px", "fontWeight": "500" }],
+                        "body-md": ["14px", { "lineHeight": "22px", "fontWeight": "400" }],
+                        "headline-md": ["20px", { "lineHeight": "28px", "fontWeight": "600" }]
+                    }
+                }
+            }
+        }
+    </script>
+<!-- Google Fonts & Material Symbols -->
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600&amp;family=JetBrains+Mono:wght@400;500&amp;family=Plus+Jakarta+Sans:wght@600;700&amp;display=swap" rel="stylesheet">
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet">
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet">
+</head>
+<body class="bg-background text-on-background min-h-screen font-body-md overflow-x-hidden">
+<!-- SideNavBar (Shared Component) -->
+<aside class="flex flex-col h-screen w-sidebar-width fixed left-0 top-0 z-40 bg-surface border-r border-outline-variant">
+<!-- Header -->
+<div class="px-md py-lg border-b border-outline-variant">
+<div class="flex items-center gap-sm mb-1">
+<span class="material-symbols-outlined text-primary text-[28px]" style="font-variation-settings: 'FILL' 1;">dentistry</span>
+<h1 class="font-headline-md text-headline-md font-bold text-primary">AI智能下单平台</h1>
+</div>
+<p class="font-label-sm text-label-sm text-on-surface-variant ml-[36px]">牙科生产协同</p>
+</div>
+<!-- CTA Button -->
+<div class="p-md">
+<button class="w-full flex items-center justify-center gap-sm bg-primary text-on-primary py-2 px-4 rounded-full hover:bg-primary-container transition-colors shadow-sm font-label-md text-label-md">
+<span class="material-symbols-outlined text-[18px]">add</span>
+                新建订单
+            </button>
+</div>
+<!-- Navigation Tabs -->
+<nav class="flex-1 overflow-y-auto font-label-md text-label-md py-sm flex flex-col gap-xs">
+<!-- Inactive -->
+<a class="flex items-center gap-md px-md py-sm mx-sm rounded-lg text-on-surface-variant hover:bg-surface-container-high transition-colors" href="#">
+<span class="material-symbols-outlined">dashboard</span>
+                工作台
+            </a>
+<!-- Active (Mapped to Intent: Order Management) -->
+<a class="flex items-center gap-md px-md py-sm bg-primary-fixed text-on-primary-fixed-variant border-l-[3px] border-primary transition-colors" href="#">
+<span class="material-symbols-outlined" style="font-variation-settings: 'FILL' 1;">receipt_long</span>
+                订单管理
+            </a>
+<!-- Inactive -->
+<a class="flex items-center gap-md px-md py-sm mx-sm rounded-lg text-on-surface-variant hover:bg-surface-container-high transition-colors" href="#">
+<span class="material-symbols-outlined">precision_manufacturing</span>
+                生产看板
+            </a>
+<a class="flex items-center gap-md px-md py-sm mx-sm rounded-lg text-on-surface-variant hover:bg-surface-container-high transition-colors" href="#">
+<span class="material-symbols-outlined">payments</span>
+                财务结算
+            </a>
+<a class="flex items-center gap-md px-md py-sm mx-sm rounded-lg text-on-surface-variant hover:bg-surface-container-high transition-colors" href="#">
+<span class="material-symbols-outlined">inventory_2</span>
+                仓库物料
+            </a>
+<a class="flex items-center gap-md px-md py-sm mx-sm rounded-lg text-on-surface-variant hover:bg-surface-container-high transition-colors" href="#">
+<span class="material-symbols-outlined">analytics</span>
+                统计报表
+            </a>
+</nav>
+<!-- Footer Tabs -->
+<div class="border-t border-outline-variant p-sm font-label-md text-label-md flex flex-col gap-xs">
+<a class="flex items-center gap-md px-md py-sm rounded-lg text-on-surface-variant hover:bg-surface-container-high transition-colors" href="#">
+<span class="material-symbols-outlined">settings</span>
+                设置
+            </a>
+<a class="flex items-center gap-md px-md py-sm rounded-lg text-on-surface-variant hover:bg-surface-container-high transition-colors" href="#">
+<span class="material-symbols-outlined">help</span>
+                帮助中心
+            </a>
+</div>
+</aside>
+<!-- Main Content Area -->
+<main class="ml-sidebar-width min-h-screen flex flex-col">
+<!-- TopNavBar (Shared Component) -->
+<header class="flex justify-between items-center h-16 px-lg bg-surface border-b border-outline-variant sticky top-0 z-30 docked full-width">
+<!-- Search Bar on Left -->
+<div class="flex-1 max-w-[480px]">
+<div class="relative flex items-center">
+<span class="material-symbols-outlined absolute left-3 text-on-surface-variant text-[20px]">search</span>
+<input class="w-full bg-surface-container-low border border-outline-variant rounded-full py-1.5 pl-10 pr-4 font-body-sm text-body-sm text-on-surface placeholder:text-outline focus:outline-none focus:border-primary focus:ring-1 focus:ring-primary transition-all" placeholder="搜索订单号、诊所、患者/病例..." type="text">
+<div class="absolute right-3 flex items-center gap-1 border border-outline-variant rounded px-1.5 py-0.5 bg-surface-container">
+<span class="font-label-sm text-[10px] text-on-surface-variant">⌘K</span>
+</div>
+</div>
+</div>
+<!-- Trailing Actions -->
+<div class="flex items-center gap-md font-body-md text-body-md text-on-surface-variant">
+<button class="relative p-1 hover:text-primary transition-colors hover:scale-105 transform origin-center">
+<span class="material-symbols-outlined">notifications</span>
+<span class="absolute top-1 right-1 w-2 h-2 bg-error rounded-full border border-surface"></span>
+</button>
+<button class="p-1 hover:text-primary transition-colors hover:scale-105 transform origin-center">
+<span class="material-symbols-outlined">apps</span>
+</button>
+<button class="p-1 hover:text-primary transition-colors hover:scale-105 transform origin-center">
+<span class="material-symbols-outlined">help</span>
+</button>
+<div class="w-[1px] h-4 bg-outline-variant mx-1"></div>
+<button class="hover:text-primary transition-colors">角色切换</button>
+<button class="hover:text-primary transition-colors">个人中心</button>
+<img class="w-8 h-8 rounded-full border border-outline-variant object-cover ml-2 hover:scale-105 transition-transform cursor-pointer" data-alt="A professional headshot of a lab manager or doctor in a modern clinical setting, soft natural lighting, light mode aesthetic, crisp colors." src="https://lh3.googleusercontent.com/aida-public/AB6AXuDdAnQkNoiJe5ONl6sV1ILSaUoxuriLu5qxFhlBxtNYycpJq7y6oPHmhK--HOEFzLtLSwLfIaGiJincr1ud9fLobZ-rVrE6bpk0ftFjUuvoa2YNIY2hfmavdgEGZZUB1VTSriGDpmQQY-6KQRuGJ_OpIvQ2_H_RsJ2NKPkpD69GbcQ_0phhcKkZysSeUb-3jo2z5KpmfezfsrnGYYCXC1YNguGitf32YlIc8C_ejrYkYGtKA8FliOEBv6GlhwGyIGUyKzSDFDOZWDk">
+</div>
+</header>
+<!-- Page Content Canvas -->
+<div class="flex-1 p-lg max-w-[container-max] w-full mx-auto flex flex-col gap-lg bg-surface">
+<!-- Page Header -->
+<div class="flex justify-between items-end">
+<div>
+<h2 class="font-display-lg text-display-lg text-on-background tracking-tight">订单管理</h2>
+<p class="font-body-md text-body-md text-on-surface-variant mt-1">管理和追踪所有外部业务流转状态。</p>
+</div>
+<div class="flex items-center gap-sm">
+<button class="flex items-center gap-xs border border-outline-variant bg-surface-container-lowest text-on-surface px-3 py-1.5 rounded-lg hover:bg-surface-container-low transition-colors font-label-md text-label-md shadow-sm">
+<span class="material-symbols-outlined text-[18px]">download</span>
+                        导出报表
+                    </button>
+</div>
+</div>
+<!-- Bento Grid - Order Analytics Dashboard -->
+<div class="grid grid-cols-12 gap-gutter">
+<!-- Status Card 1 -->
+<div class="col-span-3 bg-surface-container-lowest border border-outline-variant rounded-xl p-md shadow-[0_4px_10px_rgba(29,33,41,0.02)] relative overflow-hidden group hover:shadow-[0_4px_10px_rgba(29,33,41,0.05)] transition-shadow">
+<div class="flex justify-between items-start mb-2">
+<span class="font-label-md text-label-md text-on-surface-variant flex items-center gap-1">
+<span class="w-2 h-2 rounded-full bg-tertiary"></span>待审核
+                        </span>
+<span class="material-symbols-outlined text-outline-variant text-[20px]">pending_actions</span>
+</div>
+<div class="font-display-lg text-[32px] font-bold text-on-background">42</div>
+<div class="font-body-sm text-body-sm text-on-surface-variant mt-1 flex items-center gap-1">
+<span class="text-tertiary flex items-center"><span class="material-symbols-outlined text-[14px]">arrow_upward</span> 12%</span> 较昨日
+                    </div>
+</div>
+<!-- Status Card 2 -->
+<div class="col-span-3 bg-surface-container-lowest border border-outline-variant rounded-xl p-md shadow-[0_4px_10px_rgba(29,33,41,0.02)] relative overflow-hidden group hover:shadow-[0_4px_10px_rgba(29,33,41,0.05)] transition-shadow">
+<div class="flex justify-between items-start mb-2">
+<span class="font-label-md text-label-md text-on-surface-variant flex items-center gap-1">
+<span class="w-2 h-2 rounded-full bg-primary"></span>生产中
+                        </span>
+<span class="material-symbols-outlined text-outline-variant text-[20px]">precision_manufacturing</span>
+</div>
+<div class="font-display-lg text-[32px] font-bold text-on-background">156</div>
+<div class="w-full bg-surface-container-high rounded-full h-1.5 mt-3">
+<div class="bg-primary h-1.5 rounded-full" style="width: 65%"></div>
+</div>
+<div class="font-body-sm text-body-sm text-on-surface-variant mt-1">65% 正常流转率</div>
+</div>
+<!-- Status Card 3 -->
+<div class="col-span-3 bg-surface-container-lowest border border-outline-variant rounded-xl p-md shadow-[0_4px_10px_rgba(29,33,41,0.02)] relative overflow-hidden group hover:shadow-[0_4px_10px_rgba(29,33,41,0.05)] transition-shadow">
+<div class="flex justify-between items-start mb-2">
+<span class="font-label-md text-label-md text-on-surface-variant flex items-center gap-1">
+<span class="w-2 h-2 rounded-full bg-secondary"></span>今日发货
+                        </span>
+<span class="material-symbols-outlined text-outline-variant text-[20px]">local_shipping</span>
+</div>
+<div class="font-display-lg text-[32px] font-bold text-on-background">28</div>
+<div class="font-body-sm text-body-sm text-on-surface-variant mt-1 flex items-center gap-1">
+                        预计总发货: <span class="font-medium text-on-background">35</span>
+</div>
+</div>
+<!-- AI Insight Card (Leveraging brand identity: AI-driven approach) -->
+<div class="col-span-3 bg-gradient-to-br from-surface-container-low to-primary-fixed/20 border border-primary-fixed-dim rounded-xl p-md shadow-[0_4px_10px_rgba(29,33,41,0.02)] relative overflow-hidden">
+<div class="flex justify-between items-start mb-2">
+<span class="font-label-md text-label-md text-primary flex items-center gap-1 font-bold">
+<span class="material-symbols-outlined text-[16px]" style="font-variation-settings: 'FILL' 1;">auto_awesome</span>AI 助手建议
+                        </span>
+</div>
+<p class="font-body-sm text-body-sm text-on-background mt-2 leading-relaxed">
+                        检测到 <span class="font-medium">3</span> 个订单存在延期风险（物料短缺）。建议优先处理单号 <a class="text-primary hover:underline" href="#">PO-2401-088</a>。
+                    </p>
+<button class="mt-2 text-primary font-label-sm text-label-sm hover:underline flex items-center gap-0.5">
+                        查看详情 <span class="material-symbols-outlined text-[14px]">chevron_right</span>
+</button>
+</div>
+</div>
+<!-- Table Container (Main List) -->
+<div class="bg-surface-container-lowest border border-outline-variant rounded-xl shadow-[0_4px_10px_rgba(29,33,41,0.02)] flex flex-col flex-1 overflow-hidden">
+<!-- Table Header Actions & Segmented Control -->
+<div class="p-md border-b border-outline-variant flex justify-between items-center bg-surface-container-lowest">
+<!-- Segmented Control for Views -->
+<div class="flex bg-surface-container-high p-1 rounded-lg">
+<button class="px-4 py-1.5 font-label-md text-label-md text-on-background bg-surface-container-lowest shadow-sm rounded-md transition-all">全部订单</button>
+<button class="px-4 py-1.5 font-label-md text-label-md text-on-surface-variant hover:text-on-background rounded-md transition-all">待处理 (42)</button>
+<button class="px-4 py-1.5 font-label-md text-label-md text-on-surface-variant hover:text-on-background rounded-md transition-all">进行中 (156)</button>
+</div>
+<!-- Right side filters -->
+<div class="flex items-center gap-sm">
+<button class="flex items-center gap-1 font-label-md text-label-md text-on-surface-variant hover:text-primary transition-colors px-2 py-1">
+<span class="material-symbols-outlined text-[18px]">filter_list</span> 筛选
+                        </button>
+<button class="flex items-center gap-1 font-label-md text-label-md text-on-surface-variant hover:text-primary transition-colors px-2 py-1">
+<span class="material-symbols-outlined text-[18px]">sort</span> 排序
+                        </button>
+<div class="w-[1px] h-4 bg-outline-variant mx-1"></div>
+<button class="flex items-center justify-center p-1.5 text-primary bg-primary-fixed rounded hover:bg-primary-fixed-dim transition-colors">
+<span class="material-symbols-outlined text-[18px]">view_list</span>
+</button>
+<button class="flex items-center justify-center p-1.5 text-on-surface-variant hover:bg-surface-container rounded transition-colors">
+<span class="material-symbols-outlined text-[18px]">grid_view</span>
+</button>
+</div>
+</div>
+<!-- Data Table (Compact Style: 40px rows) -->
+<div class="overflow-x-auto">
+<table class="w-full text-left border-collapse">
+<thead class="bg-surface-container-low border-b border-outline-variant text-on-surface-variant font-label-md text-label-md">
+<tr>
+<th class="h-[40px] px-md font-medium whitespace-nowrap w-[48px]"><input class="rounded border-outline-variant text-primary focus:ring-primary" type="checkbox"></th>
+<th class="h-[40px] px-md font-medium whitespace-nowrap">订单编号</th>
+<th class="h-[40px] px-md font-medium whitespace-nowrap">患者姓名 / 诊所</th>
+<th class="h-[40px] px-md font-medium whitespace-nowrap">产品类型</th>
+<th class="h-[40px] px-md font-medium whitespace-nowrap">牙位</th>
+<th class="h-[40px] px-md font-medium whitespace-nowrap">当前状态</th>
+<th class="h-[40px] px-md font-medium whitespace-nowrap">预计发货</th>
+<th class="h-[40px] px-md font-medium whitespace-nowrap text-right">操作</th>
+</tr>
+</thead>
+<tbody class="font-body-md text-body-md text-on-background">
+<!-- Row 1 -->
+<tr class="h-[40px] border-b border-outline-variant hover:bg-surface-container-high transition-colors group">
+<td class="px-md"><input class="rounded border-outline-variant text-primary focus:ring-primary" type="checkbox"></td>
+<td class="px-md font-label-md">PO-2401-089</td>
+<td class="px-md">
+<div class="flex items-center gap-1.5">
+<span class="font-medium">李建国</span>
+<span class="text-on-surface-variant text-[11px] bg-surface-container px-1.5 py-0.5 rounded">瑞尔齿科</span>
+</div>
+</td>
+<td class="px-md">氧化锆全瓷冠</td>
+<td class="px-md font-label-md text-on-surface-variant">14, 15</td>
+<td class="px-md">
+<span class="inline-flex items-center px-2 py-0.5 rounded-full text-label-sm font-label-sm bg-tertiary-fixed text-on-tertiary-fixed border border-tertiary-fixed-dim">
+                                        待审核
+                                    </span>
+</td>
+<td class="px-md text-on-surface-variant">-</td>
+<td class="px-md text-right">
+<button class="text-primary hover:text-primary-container font-label-sm mx-1">审核</button>
+<button class="text-on-surface-variant hover:text-on-background material-symbols-outlined text-[18px] align-middle ml-1">more_horiz</button>
+</td>
+</tr>
+<!-- Row 2 -->
+<tr class="h-[40px] border-b border-outline-variant hover:bg-surface-container-high transition-colors group">
+<td class="px-md"><input class="rounded border-outline-variant text-primary focus:ring-primary" type="checkbox"></td>
+<td class="px-md font-label-md">PO-2401-088</td>
+<td class="px-md">
+<div class="flex items-center gap-1.5">
+<span class="font-medium">王秀英</span>
+<span class="text-on-surface-variant text-[11px] bg-surface-container px-1.5 py-0.5 rounded">拜博口腔</span>
+</div>
+</td>
+<td class="px-md">隐形矫治器</td>
+<td class="px-md font-label-md text-on-surface-variant">全口</td>
+<td class="px-md">
+<span class="inline-flex items-center px-2 py-0.5 rounded-full text-label-sm font-label-sm bg-primary-fixed text-on-primary-fixed-variant border border-primary-fixed-dim">
+                                        生产中
+                                    </span>
+</td>
+<td class="px-md font-label-md text-on-surface-variant">2024-02-15</td>
+<td class="px-md text-right">
+<button class="text-primary hover:text-primary-container font-label-sm mx-1">查看</button>
+<button class="text-on-surface-variant hover:text-on-background material-symbols-outlined text-[18px] align-middle ml-1">more_horiz</button>
+</td>
+</tr>
+<!-- Row 3 -->
+<tr class="h-[40px] border-b border-outline-variant hover:bg-surface-container-high transition-colors group">
+<td class="px-md"><input class="rounded border-outline-variant text-primary focus:ring-primary" type="checkbox"></td>
+<td class="px-md font-label-md">PO-2401-087</td>
+<td class="px-md">
+<div class="flex items-center gap-1.5">
+<span class="font-medium">张伟</span>
+<span class="text-on-surface-variant text-[11px] bg-surface-container px-1.5 py-0.5 rounded">极光口腔</span>
+</div>
+</td>
+<td class="px-md">个性化基台</td>
+<td class="px-md font-label-md text-on-surface-variant">36</td>
+<td class="px-md">
+<span class="inline-flex items-center px-2 py-0.5 rounded-full text-label-sm font-label-sm bg-surface-variant text-on-surface border border-outline-variant">
+                                        质检中
+                                    </span>
+</td>
+<td class="px-md font-label-md text-on-surface-variant">2024-02-12</td>
+<td class="px-md text-right">
+<button class="text-primary hover:text-primary-container font-label-sm mx-1">查看</button>
+<button class="text-on-surface-variant hover:text-on-background material-symbols-outlined text-[18px] align-middle ml-1">more_horiz</button>
+</td>
+</tr>
+<!-- Row 4 -->
+<tr class="h-[40px] border-b border-outline-variant hover:bg-surface-container-high transition-colors group">
+<td class="px-md"><input class="rounded border-outline-variant text-primary focus:ring-primary" type="checkbox"></td>
+<td class="px-md font-label-md">PO-2401-086</td>
+<td class="px-md">
+<div class="flex items-center gap-1.5">
+<span class="font-medium">刘芳</span>
+<span class="text-on-surface-variant text-[11px] bg-surface-container px-1.5 py-0.5 rounded">泰康拜博</span>
+</div>
+</td>
+<td class="px-md">钴铬合金烤瓷冠</td>
+<td class="px-md font-label-md text-on-surface-variant">45, 46, 47</td>
+<td class="px-md">
+<span class="inline-flex items-center px-2 py-0.5 rounded-full text-label-sm font-label-sm bg-secondary-fixed text-on-secondary-fixed-variant border border-secondary-fixed-dim">
+                                        已发货
+                                    </span>
+</td>
+<td class="px-md font-label-md text-on-surface-variant">2024-02-10</td>
+<td class="px-md text-right">
+<button class="text-primary hover:text-primary-container font-label-sm mx-1">追踪</button>
+<button class="text-on-surface-variant hover:text-on-background material-symbols-outlined text-[18px] align-middle ml-1">more_horiz</button>
+</td>
+</tr>
+<!-- Row 5 (Completed) -->
+<tr class="h-[40px] border-b border-outline-variant hover:bg-surface-container-high transition-colors group bg-surface-bright/50">
+<td class="px-md"><input class="rounded border-outline-variant text-primary focus:ring-primary" disabled="" type="checkbox"></td>
+<td class="px-md font-label-md text-on-surface-variant">PO-2401-085</td>
+<td class="px-md text-on-surface-variant">
+<div class="flex items-center gap-1.5">
+<span>陈强</span>
+<span class="text-outline text-[11px] bg-surface-container-high px-1.5 py-0.5 rounded">个人诊所</span>
+</div>
+</td>
+<td class="px-md text-on-surface-variant">铸瓷嵌体</td>
+<td class="px-md font-label-md text-outline">16</td>
+<td class="px-md">
+<span class="inline-flex items-center px-2 py-0.5 rounded-full text-label-sm font-label-sm bg-surface-container-highest text-on-surface-variant border border-outline-variant">
+                                        已完成
+                                    </span>
+</td>
+<td class="px-md font-label-md text-outline">-</td>
+<td class="px-md text-right">
+<button class="text-on-surface-variant hover:text-on-background font-label-sm mx-1">归档</button>
+<button class="text-outline hover:text-on-surface-variant material-symbols-outlined text-[18px] align-middle ml-1">more_horiz</button>
+</td>
+</tr>
+</tbody>
+</table>
+</div>
+<!-- Pagination Footer -->
+<div class="px-md py-sm bg-surface-container-lowest border-t border-outline-variant flex justify-between items-center text-body-sm font-body-sm text-on-surface-variant">
+<div>共 248 条记录，当前显示 1-5 条</div>
+<div class="flex items-center gap-1">
+<button class="p-1 rounded hover:bg-surface-container disabled:opacity-50" disabled=""><span class="material-symbols-outlined text-[18px]">chevron_left</span></button>
+<button class="w-7 h-7 rounded bg-primary text-on-primary font-medium flex items-center justify-center">1</button>
+<button class="w-7 h-7 rounded hover:bg-surface-container font-medium flex items-center justify-center">2</button>
+<button class="w-7 h-7 rounded hover:bg-surface-container font-medium flex items-center justify-center">3</button>
+<span class="px-1">...</span>
+<button class="w-7 h-7 rounded hover:bg-surface-container font-medium flex items-center justify-center">50</button>
+<button class="p-1 rounded hover:bg-surface-container"><span class="material-symbols-outlined text-[18px]">chevron_right</span></button>
+</div>
+</div>
+</div>
+</div>
+</main>
+</body></html>

@@ -1,17 +1,29 @@
 package com.yuri.aiorder.file.api;
 
+import com.google.common.collect.HashMultimap;
+import com.google.common.collect.Multimap;
 import com.yuri.aiorder.common.BootstrapIdentity;
+import com.yuri.aiorder.common.auth.AccessControlService;
 import io.minio.BucketExistsArgs;
 import io.minio.GetPresignedObjectUrlArgs;
+import io.minio.ListPartsResponse;
 import io.minio.MakeBucketArgs;
+import io.minio.MinioAsyncClient;
 import io.minio.MinioClient;
 import io.minio.StatObjectArgs;
 import io.minio.StatObjectResponse;
 import io.minio.http.Method;
+import io.minio.messages.Part;
 import java.time.LocalDate;
+import java.util.ArrayList;
+import java.util.Comparator;
+import java.util.List;
 import java.util.Locale;
+import java.util.Map;
+import java.util.Optional;
 import java.util.Set;
 import java.util.UUID;
+import java.util.concurrent.ExecutionException;
 import java.util.concurrent.TimeUnit;
 import org.springframework.dao.EmptyResultDataAccessException;
 import org.springframework.http.HttpStatus;
@@ -23,22 +35,32 @@ import org.springframework.web.server.ResponseStatusException;
 public class FileResourceService {
 
     private static final Set<String> DOCTOR_VISIBLE_FILE_VISIBILITIES = Set.of("DOCTOR", "DOCTOR_CS", "ALL");
+    private static final long MIN_MULTIPART_PART_SIZE = 5L * 1024L * 1024L;
 
     private final JdbcClient jdbcClient;
     private final MinioClient minioClient;
+    private final MinioAsyncClient minioAsyncClient;
     private final FileStorageProperties properties;
+    private final AccessControlService accessControlService;
 
-    public FileResourceService(JdbcClient jdbcClient, MinioClient minioClient, FileStorageProperties properties) {
+    public FileResourceService(
+            JdbcClient jdbcClient,
+            MinioClient minioClient,
+            MinioAsyncClient minioAsyncClient,
+            FileStorageProperties properties,
+            AccessControlService accessControlService) {
         this.jdbcClient = jdbcClient;
         this.minioClient = minioClient;
+        this.minioAsyncClient = minioAsyncClient;
         this.properties = properties;
+        this.accessControlService = accessControlService;
     }
 
     public UploadTokenResponse createUploadToken(UploadTokenRequest request, BootstrapIdentity identity) {
         if (request.fileSize() > properties.maxFileSizeBytes()) {
             throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "file exceeds current size limit");
         }
-        OrderScope orderScope = loadOrderScope(request.orderId());
+        OrderScope orderScope = loadOrderScope(request.orderId(), identity, "identity cannot upload to this order");
         requireUploadScope(orderScope, normalizeVisibility(request.visibility()), identity);
         ensureBucket();
 
@@ -79,8 +101,200 @@ public class FileResourceService {
                 properties.uploadUrlTtlSeconds());
     }
 
+    public MultipartInitiateResponse initiateMultipartUpload(MultipartInitiateRequest request, BootstrapIdentity identity) {
+        if (request.fileSize() > properties.maxFileSizeBytes()) {
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "file exceeds current size limit");
+        }
+        OrderScope orderScope = loadOrderScope(request.orderId(), identity, "identity cannot upload to this order");
+        String visibility = normalizeVisibility(request.visibility());
+        requireUploadScope(orderScope, visibility, identity);
+        ensureBucket();
+
+        long partSize = Math.max(request.partSize() == null ? MIN_MULTIPART_PART_SIZE : request.partSize(), MIN_MULTIPART_PART_SIZE);
+        int partCount = Math.toIntExact((request.fileSize() + partSize - 1) / partSize);
+        String objectKey = buildObjectKey(request.orderId(), request.sourceType(), request.originalFilename());
+        String uploadId = createMultipartUpload(objectKey, request.contentType());
+
+        jdbcClient.sql("""
+                        INSERT INTO file_resource
+                            (order_id, owner_user_id, source_type, visibility, bucket_name, object_key,
+                             original_filename, content_type, file_size, upload_status, upload_mode,
+                             multipart_upload_id, multipart_part_size, multipart_part_count, status)
+                        VALUES
+                            (:orderId, :ownerUserId, :sourceType, :visibility, :bucketName, :objectKey,
+                             :originalFilename, :contentType, :fileSize, 'PENDING', 'MULTIPART',
+                             :uploadId, :partSize, :partCount, 'ACTIVE')
+                        """)
+                .param("orderId", request.orderId())
+                .param("ownerUserId", identity.userId())
+                .param("sourceType", normalizeCode(request.sourceType()))
+                .param("visibility", visibility)
+                .param("bucketName", properties.bucket())
+                .param("objectKey", objectKey)
+                .param("originalFilename", request.originalFilename())
+                .param("contentType", request.contentType())
+                .param("fileSize", request.fileSize())
+                .param("uploadId", uploadId)
+                .param("partSize", partSize)
+                .param("partCount", partCount)
+                .update();
+        long fileId = jdbcClient.sql("""
+                        SELECT file_id
+                        FROM file_resource
+                        WHERE multipart_upload_id = :uploadId
+                        """)
+                .param("uploadId", uploadId)
+                .query(Long.class)
+                .single();
+        audit(fileId, request.orderId(), identity.userId(), "MULTIPART_INITIATE", "ALLOWED", null);
+        return new MultipartInitiateResponse(fileId, uploadId, partSize, partCount, properties.uploadUrlTtlSeconds());
+    }
+
+    public MultipartPendingUploadsResponse listPendingMultipartUploads(long orderId, BootstrapIdentity identity) {
+        loadOrderScope(orderId, identity, "identity cannot list uploads for this order");
+        List<MultipartPendingUploadsResponse.Item> items = jdbcClient.sql("""
+                        SELECT
+                            f.file_id,
+                            f.multipart_upload_id,
+                            f.order_id,
+                            f.source_type,
+                            f.visibility,
+                            f.original_filename,
+                            f.content_type,
+                            f.file_size,
+                            f.multipart_part_size,
+                            f.multipart_part_count
+                        FROM file_resource f
+                        WHERE f.order_id = :orderId
+                          AND f.status = 'ACTIVE'
+                          AND f.upload_status = 'PENDING'
+                          AND f.upload_mode = 'MULTIPART'
+                          AND f.multipart_upload_id IS NOT NULL
+                          AND (:doctorScoped = 0
+                               OR (
+                                   f.owner_user_id = :userId
+                                   AND f.visibility IN ('DOCTOR', 'DOCTOR_CS', 'ALL')
+                               ))
+                        ORDER BY f.updated_at DESC, f.file_id DESC
+                        """)
+                .param("orderId", orderId)
+                .param("doctorScoped", identity.isDoctor() ? 1 : 0)
+                .param("userId", identity.userId())
+                .query((rs, rowNum) -> new MultipartPendingUploadsResponse.Item(
+                        rs.getLong("file_id"),
+                        rs.getString("multipart_upload_id"),
+                        rs.getLong("order_id"),
+                        rs.getString("source_type"),
+                        rs.getString("visibility"),
+                        rs.getString("original_filename"),
+                        rs.getString("content_type"),
+                        rs.getLong("file_size"),
+                        rs.getLong("multipart_part_size"),
+                        rs.getInt("multipart_part_count")))
+                .list();
+        for (MultipartPendingUploadsResponse.Item item : items) {
+            audit(item.fileId(), item.orderId(), identity.userId(), "MULTIPART_PENDING_LIST", "ALLOWED", null);
+        }
+        return new MultipartPendingUploadsResponse(items);
+    }
+
+    public MultipartPartUrlResponse createMultipartPartUrl(
+            long fileId,
+            MultipartPartUrlRequest request,
+            BootstrapIdentity identity) {
+        FileRow file = loadFile(fileId, identity, "MULTIPART_PART_URL");
+        requireFileActorScope(file, identity, "MULTIPART_PART_URL");
+        requireMultipartOwner(file, identity, "MULTIPART_PART_URL");
+        requireMultipartPending(file, request.uploadId(), "MULTIPART_PART_URL", identity);
+        if (file.multipartPartCount() != null && request.partNumber() > file.multipartPartCount()) {
+            audit(file.fileId(), file.orderId(), identity.userId(), "MULTIPART_PART_URL", "DENIED", "part number out of range");
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "part_number out of range");
+        }
+        String url = presignedMultipartPartUrl(file.objectKey(), request.uploadId(), request.partNumber());
+        audit(file.fileId(), file.orderId(), identity.userId(), "MULTIPART_PART_URL", "ALLOWED", null);
+        return new MultipartPartUrlResponse(
+                file.fileId(),
+                request.uploadId(),
+                request.partNumber(),
+                url,
+                properties.uploadUrlTtlSeconds());
+    }
+
+    public MultipartStatusResponse getMultipartStatus(long fileId, String uploadId, BootstrapIdentity identity) {
+        FileRow file = loadFile(fileId, identity, "MULTIPART_STATUS");
+        requireFileActorScope(file, identity, "MULTIPART_STATUS");
+        requireMultipartOwner(file, identity, "MULTIPART_STATUS");
+        requireMultipartPending(file, uploadId, "MULTIPART_STATUS", identity);
+        List<MultipartStatusResponse.PartStatus> completedParts = listMultipartParts(file, uploadId);
+        audit(file.fileId(), file.orderId(), identity.userId(), "MULTIPART_STATUS", "ALLOWED", null);
+        return new MultipartStatusResponse(
+                file.fileId(),
+                uploadId,
+                file.uploadStatus(),
+                file.multipartPartSize(),
+                file.multipartPartCount(),
+                completedParts);
+    }
+
+    public FileCompleteResponse completeMultipartUpload(
+            long fileId,
+            MultipartCompleteRequest request,
+            BootstrapIdentity identity) {
+        FileRow file = loadFile(fileId, identity, "MULTIPART_COMPLETE");
+        requireFileActorScope(file, identity, "MULTIPART_COMPLETE");
+        requireMultipartOwner(file, identity, "MULTIPART_COMPLETE");
+        requireMultipartPending(file, request.uploadId(), "MULTIPART_COMPLETE", identity);
+        Part[] parts = request.parts().stream()
+                .sorted(Comparator.comparing(MultipartCompleteRequest.Part::partNumber))
+                .map(part -> new Part(part.partNumber(), normalizeEtag(part.etag())))
+                .toArray(Part[]::new);
+        completeMultipart(file, request.uploadId(), parts);
+        StatObjectResponse stat = statObject(file);
+        String contentType = stat.contentType() == null ? file.contentType() : stat.contentType();
+        jdbcClient.sql("""
+                        UPDATE file_resource
+                        SET upload_status = 'COMPLETED',
+                            file_size = :fileSize,
+                            content_type = :contentType,
+                            checksum = :checksum
+                        WHERE file_id = :fileId
+                        """)
+                .param("fileSize", stat.size())
+                .param("contentType", contentType)
+                .param("checksum", stat.etag())
+                .param("fileId", file.fileId())
+                .update();
+        audit(file.fileId(), file.orderId(), identity.userId(), "MULTIPART_COMPLETE", "ALLOWED", null);
+        return new FileCompleteResponse(file.fileId(), "COMPLETED", stat.size(), contentType, stat.etag());
+    }
+
+    public FileCompleteResponse abortMultipartUpload(
+            long fileId,
+            MultipartAbortRequest request,
+            BootstrapIdentity identity) {
+        FileRow file = loadFile(fileId, identity, "MULTIPART_ABORT");
+        requireFileActorScope(file, identity, "MULTIPART_ABORT");
+        requireMultipartOwner(file, identity, "MULTIPART_ABORT");
+        requireMultipartPending(file, request.uploadId(), "MULTIPART_ABORT", identity);
+        abortMultipart(file, request.uploadId());
+        jdbcClient.sql("""
+                        UPDATE file_resource
+                        SET upload_status = 'ABORTED'
+                        WHERE file_id = :fileId
+                        """)
+                .param("fileId", file.fileId())
+                .update();
+        audit(file.fileId(), file.orderId(), identity.userId(), "MULTIPART_ABORT", "ALLOWED", null);
+        return new FileCompleteResponse(
+                file.fileId(),
+                "ABORTED",
+                file.fileSize() == null ? 0 : file.fileSize(),
+                file.contentType(),
+                null);
+    }
+
     public FileCompleteResponse completeUpload(long fileId, BootstrapIdentity identity) {
-        FileRow file = loadFile(fileId);
+        FileRow file = loadFile(fileId, identity, "COMPLETE");
         requireFileActorScope(file, identity, "COMPLETE");
         StatObjectResponse stat = statObject(file);
         if (stat.size() <= 0) {
@@ -115,7 +329,7 @@ public class FileResourceService {
     }
 
     public FileSignedUrlResponse createPreviewUrl(long fileId, BootstrapIdentity identity) {
-        FileRow file = loadFile(fileId);
+        FileRow file = loadFile(fileId, identity, "PREVIEW");
         requireCompleted(file, "PREVIEW", identity);
         requireFileActorScope(file, identity, "PREVIEW");
         String url = presignedUrl(Method.GET, file.objectKey(), properties.previewUrlTtlSeconds());
@@ -124,7 +338,7 @@ public class FileResourceService {
     }
 
     public FileSignedUrlResponse createDownloadUrl(long fileId, BootstrapIdentity identity) {
-        FileRow file = loadFile(fileId);
+        FileRow file = loadFile(fileId, identity, "DOWNLOAD");
         requireCompleted(file, "DOWNLOAD", identity);
         requireFileActorScope(file, identity, "DOWNLOAD");
         String url = presignedUrl(Method.GET, file.objectKey(), properties.downloadUrlTtlSeconds());
@@ -171,6 +385,123 @@ public class FileResourceService {
         }
     }
 
+    private String presignedMultipartPartUrl(String objectKey, String uploadId, int partNumber) {
+        try {
+            return minioClient.getPresignedObjectUrl(GetPresignedObjectUrlArgs.builder()
+                    .method(Method.PUT)
+                    .bucket(properties.bucket())
+                    .object(objectKey)
+                    .extraQueryParams(Map.of(
+                            "partNumber", String.valueOf(partNumber),
+                            "uploadId", uploadId))
+                    .expiry(properties.uploadUrlTtlSeconds(), TimeUnit.SECONDS)
+                    .build());
+        } catch (Exception ex) {
+            throw new ResponseStatusException(HttpStatus.SERVICE_UNAVAILABLE, "cannot create multipart signed url", ex);
+        }
+    }
+
+    private String createMultipartUpload(String objectKey, String contentType) {
+        try {
+            Multimap<String, String> headers = HashMultimap.create();
+            headers.put("Content-Type", contentType);
+            return minioAsyncClient.createMultipartUploadAsync(
+                            properties.bucket(),
+                            null,
+                            objectKey,
+                            headers,
+                            HashMultimap.create())
+                    .get()
+                    .result()
+                    .uploadId();
+        } catch (InterruptedException ex) {
+            Thread.currentThread().interrupt();
+            throw new ResponseStatusException(HttpStatus.SERVICE_UNAVAILABLE, "multipart upload interrupted", ex);
+        } catch (ExecutionException ex) {
+            throw new ResponseStatusException(HttpStatus.SERVICE_UNAVAILABLE, "cannot initiate multipart upload", ex);
+        } catch (Exception ex) {
+            throw new ResponseStatusException(HttpStatus.SERVICE_UNAVAILABLE, "cannot initiate multipart upload", ex);
+        }
+    }
+
+    private void completeMultipart(FileRow file, String uploadId, Part[] parts) {
+        try {
+            minioAsyncClient.completeMultipartUploadAsync(
+                            properties.bucket(),
+                            null,
+                            file.objectKey(),
+                            uploadId,
+                            parts,
+                            HashMultimap.create(),
+                            HashMultimap.create())
+                    .get();
+        } catch (InterruptedException ex) {
+            Thread.currentThread().interrupt();
+            throw new ResponseStatusException(HttpStatus.SERVICE_UNAVAILABLE, "multipart complete interrupted", ex);
+        } catch (ExecutionException ex) {
+            throw new ResponseStatusException(HttpStatus.CONFLICT, "cannot complete multipart upload", ex);
+        } catch (Exception ex) {
+            throw new ResponseStatusException(HttpStatus.CONFLICT, "cannot complete multipart upload", ex);
+        }
+    }
+
+    private void abortMultipart(FileRow file, String uploadId) {
+        try {
+            minioAsyncClient.abortMultipartUploadAsync(
+                            properties.bucket(),
+                            null,
+                            file.objectKey(),
+                            uploadId,
+                            HashMultimap.create(),
+                            HashMultimap.create())
+                    .get();
+        } catch (InterruptedException ex) {
+            Thread.currentThread().interrupt();
+            throw new ResponseStatusException(HttpStatus.SERVICE_UNAVAILABLE, "multipart abort interrupted", ex);
+        } catch (ExecutionException ex) {
+            throw new ResponseStatusException(HttpStatus.CONFLICT, "cannot abort multipart upload", ex);
+        } catch (Exception ex) {
+            throw new ResponseStatusException(HttpStatus.CONFLICT, "cannot abort multipart upload", ex);
+        }
+    }
+
+    private List<MultipartStatusResponse.PartStatus> listMultipartParts(FileRow file, String uploadId) {
+        try {
+            List<MultipartStatusResponse.PartStatus> parts = new ArrayList<>();
+            int marker = 0;
+            boolean truncated;
+            do {
+                ListPartsResponse response = minioAsyncClient.listPartsAsync(
+                                properties.bucket(),
+                                null,
+                                file.objectKey(),
+                                1000,
+                                marker,
+                                uploadId,
+                                HashMultimap.create(),
+                                HashMultimap.create())
+                        .get();
+                for (Part part : response.result().partList()) {
+                    parts.add(new MultipartStatusResponse.PartStatus(
+                            part.partNumber(),
+                            normalizeEtag(part.etag()),
+                            part.partSize()));
+                }
+                truncated = response.result().isTruncated();
+                marker = response.result().nextPartNumberMarker();
+            } while (truncated);
+            parts.sort(Comparator.comparing(MultipartStatusResponse.PartStatus::partNumber));
+            return parts;
+        } catch (InterruptedException ex) {
+            Thread.currentThread().interrupt();
+            throw new ResponseStatusException(HttpStatus.SERVICE_UNAVAILABLE, "multipart status interrupted", ex);
+        } catch (ExecutionException ex) {
+            throw new ResponseStatusException(HttpStatus.CONFLICT, "cannot list multipart parts", ex);
+        } catch (Exception ex) {
+            throw new ResponseStatusException(HttpStatus.CONFLICT, "cannot list multipart parts", ex);
+        }
+    }
+
     private void requireUploadScope(OrderScope orderScope, String visibility, BootstrapIdentity identity) {
         if (!identity.isDoctor()) {
             return;
@@ -178,7 +509,7 @@ public class FileResourceService {
         if (!DOCTOR_VISIBLE_FILE_VISIBILITIES.contains(visibility)) {
             throw new ResponseStatusException(HttpStatus.FORBIDDEN, "doctor cannot upload internal files");
         }
-        if (!doctorCanAccess(orderScope.doctorUserId(), orderScope.clinicId(), identity)) {
+        if (!accessControlService.doctorCanAccessOrder(identity, orderScope.doctorUserId(), orderScope.clinicId())) {
             throw new ResponseStatusException(HttpStatus.FORBIDDEN, "doctor cannot upload to this order");
         }
     }
@@ -191,42 +522,83 @@ public class FileResourceService {
         throw new ResponseStatusException(HttpStatus.CONFLICT, "file upload is not completed");
     }
 
+    private void requireMultipartPending(FileRow file, String uploadId, String action, BootstrapIdentity identity) {
+        if (!"MULTIPART".equals(file.uploadMode())
+                || !"PENDING".equals(file.uploadStatus())
+                || file.multipartUploadId() == null
+                || !file.multipartUploadId().equals(uploadId)) {
+            audit(file.fileId(), file.orderId(), identity.userId(), action, "DENIED", "invalid multipart upload");
+            throw new ResponseStatusException(HttpStatus.CONFLICT, "invalid multipart upload");
+        }
+    }
+
+    private void requireMultipartOwner(FileRow file, BootstrapIdentity identity, String action) {
+        if (!identity.isDoctor() || (file.ownerUserId() != null && file.ownerUserId().equals(identity.userId()))) {
+            return;
+        }
+        audit(file.fileId(), file.orderId(), identity.userId(), action, "DENIED", "doctor cannot mutate another uploader's multipart file");
+        throw new ResponseStatusException(HttpStatus.FORBIDDEN, "doctor cannot mutate another uploader's multipart file");
+    }
+
     private void requireFileActorScope(FileRow file, BootstrapIdentity identity, String action) {
         if (!identity.isDoctor()) {
             return;
         }
         if (file.orderId() == null || file.doctorUserId() == null
                 || !DOCTOR_VISIBLE_FILE_VISIBILITIES.contains(file.visibility())
-                || !doctorCanAccess(file.doctorUserId(), file.clinicId(), identity)) {
+                || !accessControlService.doctorCanAccessOrder(identity, file.doctorUserId(), file.clinicId())) {
             audit(file.fileId(), file.orderId(), identity.userId(), action, "DENIED", "doctor cannot access this file");
             throw new ResponseStatusException(HttpStatus.FORBIDDEN, "doctor cannot access this file");
         }
     }
 
-    private boolean doctorCanAccess(Long doctorUserId, Long clinicId, BootstrapIdentity identity) {
-        return (doctorUserId != null && identity.userId() != null && doctorUserId.equals(identity.userId()))
-                || (clinicId != null && identity.clinicId() != null && clinicId.equals(identity.clinicId()));
-    }
-
-    private OrderScope loadOrderScope(long orderId) {
+    private OrderScope loadOrderScope(long orderId, BootstrapIdentity identity, String forbiddenMessage) {
+        String dataScope = accessControlService.effectiveDataScope(identity);
+        accessControlService.requireScopedIdentity(identity, dataScope);
         try {
             return jdbcClient.sql("""
                             SELECT order_id, clinic_id, doctor_user_id
                             FROM orders
                             WHERE order_id = :orderId
+                              AND (
+                                  :dataScope = 'ALL'
+                                  OR (:dataScope = 'CLINIC'
+                                      AND (clinic_id = :clinicId OR doctor_user_id = :userId))
+                                  OR (:dataScope = 'SELF'
+                                      AND (
+                                          doctor_user_id = :userId
+                                          OR cs_user_id = :userId
+                                          OR EXISTS (
+                                              SELECT 1
+                                              FROM order_process_instance scoped_i
+                                              JOIN order_process_node scoped_n
+                                                ON scoped_n.instance_id = scoped_i.instance_id
+                                              WHERE scoped_i.order_id = orders.order_id
+                                                AND scoped_n.assigned_user_id = :userId
+                                          )
+                                      ))
+                              )
                             """)
                     .param("orderId", orderId)
+                    .param("dataScope", dataScope)
+                    .param("userId", identity.userId())
+                    .param("clinicId", identity.clinicId())
                     .query((rs, rowNum) -> new OrderScope(
                             rs.getLong("order_id"),
                             rs.getLong("clinic_id"),
                             rs.getObject("doctor_user_id", Long.class)))
                     .single();
         } catch (EmptyResultDataAccessException ex) {
+            if (orderExists(orderId)) {
+                throw new ResponseStatusException(HttpStatus.FORBIDDEN, forbiddenMessage, ex);
+            }
             throw new ResponseStatusException(HttpStatus.NOT_FOUND, "order not found", ex);
         }
     }
 
-    private FileRow loadFile(long fileId) {
+    private FileRow loadFile(long fileId, BootstrapIdentity identity, String action) {
+        String dataScope = accessControlService.effectiveDataScope(identity);
+        accessControlService.requireScopedIdentity(identity, dataScope);
         try {
             return jdbcClient.sql("""
                             SELECT
@@ -239,14 +611,43 @@ public class FileResourceService {
                                 f.content_type,
                                 f.file_size,
                                 f.upload_status,
+                                f.upload_mode,
+                                f.multipart_upload_id,
+                                f.multipart_part_size,
+                                f.multipart_part_count,
                                 f.status,
                                 o.clinic_id,
                                 o.doctor_user_id
                             FROM file_resource f
                             LEFT JOIN orders o ON o.order_id = f.order_id
                             WHERE f.file_id = :fileId
+                              AND (
+                                  :dataScope = 'ALL'
+                                  OR (:dataScope = 'CLINIC'
+                                      AND f.order_id IS NOT NULL
+                                      AND (o.clinic_id = :clinicId OR o.doctor_user_id = :userId)
+                                      AND f.visibility IN ('DOCTOR', 'DOCTOR_CS', 'ALL'))
+                                  OR (:dataScope = 'SELF'
+                                      AND (
+                                          f.owner_user_id = :userId
+                                          OR (
+                                              f.order_id IS NOT NULL
+                                              AND EXISTS (
+                                                  SELECT 1
+                                                  FROM order_process_instance scoped_i
+                                                  JOIN order_process_node scoped_n
+                                                    ON scoped_n.instance_id = scoped_i.instance_id
+                                                  WHERE scoped_i.order_id = f.order_id
+                                                    AND scoped_n.assigned_user_id = :userId
+                                              )
+                                          )
+                                      ))
+                              )
                             """)
                     .param("fileId", fileId)
+                    .param("dataScope", dataScope)
+                    .param("userId", identity.userId())
+                    .param("clinicId", identity.clinicId())
                     .query((rs, rowNum) -> new FileRow(
                             rs.getLong("file_id"),
                             rs.getObject("order_id", Long.class),
@@ -257,13 +658,43 @@ public class FileResourceService {
                             rs.getString("content_type"),
                             rs.getObject("file_size", Long.class),
                             rs.getString("upload_status"),
+                            rs.getString("upload_mode"),
+                            rs.getString("multipart_upload_id"),
+                            rs.getObject("multipart_part_size", Long.class),
+                            rs.getObject("multipart_part_count", Integer.class),
                             rs.getString("status"),
                             rs.getObject("clinic_id", Long.class),
                             rs.getObject("doctor_user_id", Long.class)))
                     .single();
         } catch (EmptyResultDataAccessException ex) {
+            Optional<FileAuditTarget> auditTarget = loadFileAuditTarget(fileId);
+            if (auditTarget.isPresent()) {
+                FileAuditTarget target = auditTarget.get();
+                audit(target.fileId(), target.orderId(), identity.userId(), action, "DENIED", "identity cannot access this file");
+                throw new ResponseStatusException(HttpStatus.FORBIDDEN, "identity cannot access this file", ex);
+            }
             throw new ResponseStatusException(HttpStatus.NOT_FOUND, "file not found", ex);
         }
+    }
+
+    private boolean orderExists(long orderId) {
+        return jdbcClient.sql("SELECT COUNT(*) FROM orders WHERE order_id = :orderId")
+                .param("orderId", orderId)
+                .query(Long.class)
+                .single() > 0;
+    }
+
+    private Optional<FileAuditTarget> loadFileAuditTarget(long fileId) {
+        return jdbcClient.sql("""
+                        SELECT file_id, order_id
+                        FROM file_resource
+                        WHERE file_id = :fileId
+                        """)
+                .param("fileId", fileId)
+                .query((rs, rowNum) -> new FileAuditTarget(
+                        rs.getLong("file_id"),
+                        rs.getObject("order_id", Long.class)))
+                .optional();
     }
 
     private void audit(Long fileId, Long orderId, Long actorUserId, String action, String result, String reason) {
@@ -283,9 +714,17 @@ public class FileResourceService {
     }
 
     private String buildObjectKey(UploadTokenRequest request) {
-        String source = normalizeCode(request.sourceType()).toLowerCase(Locale.ROOT);
-        String filename = sanitizeFilename(request.originalFilename());
-        return source + "/" + request.orderId() + "/" + LocalDate.now() + "/" + UUID.randomUUID() + "/" + filename;
+        return buildObjectKey(request.orderId(), request.sourceType(), request.originalFilename());
+    }
+
+    private String buildObjectKey(long orderId, String sourceType, String originalFilename) {
+        String source = normalizeCode(sourceType).toLowerCase(Locale.ROOT);
+        String filename = sanitizeFilename(originalFilename);
+        return source + "/" + orderId + "/" + LocalDate.now() + "/" + UUID.randomUUID() + "/" + filename;
+    }
+
+    private String normalizeEtag(String etag) {
+        return etag.replace("\"", "").trim();
     }
 
     private String sanitizeFilename(String filename) {
@@ -317,8 +756,15 @@ public class FileResourceService {
             String contentType,
             Long fileSize,
             String uploadStatus,
+            String uploadMode,
+            String multipartUploadId,
+            Long multipartPartSize,
+            Integer multipartPartCount,
             String status,
             Long clinicId,
             Long doctorUserId) {
+    }
+
+    private record FileAuditTarget(long fileId, Long orderId) {
     }
 }

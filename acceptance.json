@@ -91,6 +91,936 @@
             "scripts/with-jdk21.sh",
             "scripts/check-toolchain.sh"
           ]
+        },
+        {
+          "id": "task-8a-readiness-docs-exist",
+          "type": "files_exist",
+          "paths": [
+            "docs/acceptance/task-8-acceptance-matrix.md",
+            "docs/acceptance/task-8-regression-record.md",
+            "docs/deployment/readiness-checklist.md"
+          ]
+        },
+        {
+          "id": "task-8a-acceptance-matrix-headings",
+          "type": "markdown_headings",
+          "paths": [
+            "docs/acceptance/task-8-acceptance-matrix.md"
+          ],
+          "headings": [
+            "判定规则",
+            "PRD / TRD 12 步主链路",
+            "TRD 专项测试矩阵",
+            "上线结论"
+          ]
+        },
+        {
+          "id": "task-8a-regression-record-headings",
+          "type": "markdown_headings",
+          "paths": [
+            "docs/acceptance/task-8-regression-record.md"
+          ],
+          "headings": [
+            "本轮回归范围",
+            "自动化测试记录",
+            "HTTP/SQL Smoke 记录",
+            "回归结论"
+          ]
+        },
+        {
+          "id": "task-8a-readiness-checklist-headings",
+          "type": "markdown_headings",
+          "paths": [
+            "docs/deployment/readiness-checklist.md"
+          ],
+          "headings": [
+            "总结",
+            "必须完成后才能上线",
+            "环境变量与密钥边界",
+            "上线前人工验收"
+          ]
+        },
+        {
+          "id": "task-8b-openapi-contract-files-exist",
+          "type": "files_exist",
+          "paths": [
+            "docs/api/openapi.yaml",
+            "scripts/check-openapi-contract.rb"
+          ]
+        },
+        {
+          "id": "task-8b-openapi-required-text",
+          "type": "required_text",
+          "paths": [
+            "docs/api/openapi.yaml"
+          ],
+          "patterns": [
+            "operationId:",
+            "/files/{fileId}/complete:",
+            "/process-instance/nodes/{nodeInstanceId}/start:",
+            "/process-instance/nodes/{nodeInstanceId}/complete:",
+            "/process-instance/nodes/{nodeInstanceId}/skip:",
+            "ServiceUnavailable:"
+          ]
+        },
+        {
+          "id": "task-9b6-rbac-menu-files-exist",
+          "type": "files_exist",
+          "paths": [
+            "backend/platform-server/src/main/resources/db/migration/V7__auth_menu_dept_post_foundation.sql",
+            "backend/platform-server/src/main/java/com/yuri/aiorder/common/auth/AuthMenu.java"
+          ]
+        },
+        {
+          "id": "task-9b6-rbac-menu-migration-required-text",
+          "type": "required_text",
+          "paths": [
+            "backend/platform-server/src/main/resources/db/migration/V7__auth_menu_dept_post_foundation.sql"
+          ],
+          "patterns": [
+            "system_menu",
+            "system_dept",
+            "system_post"
+          ]
+        },
+        {
+          "id": "task-9b6-frontend-menu-required-text",
+          "type": "required_text",
+          "paths": [
+            "frontend/src/App.vue"
+          ],
+          "patterns": [
+            "visibleMenus",
+            "activeRoute"
+          ]
+        },
+        {
+          "id": "task-9b6-openapi-menu-required-text",
+          "type": "required_text",
+          "paths": [
+            "docs/api/openapi.yaml"
+          ],
+          "patterns": [
+            "AuthMenu",
+            "/auth/me"
+          ]
+        },
+        {
+          "id": "task-9b7-production-auth-gate-files-exist",
+          "type": "files_exist",
+          "paths": [
+            "backend/platform-server/src/main/java/com/yuri/aiorder/common/auth/AuthStartupValidator.java",
+            "backend/platform-server/src/main/resources/application-prod.yml",
+            "backend/platform-server/src/test/java/com/yuri/aiorder/auth/AuthStartupValidatorTests.java"
+          ]
+        },
+        {
+          "id": "task-9b7-production-auth-gate-java-required-text",
+          "type": "required_text",
+          "paths": [
+            "backend/platform-server/src/main/java/com/yuri/aiorder/common/auth/AuthStartupValidator.java"
+          ],
+          "patterns": [
+            "APP_AUTH_ALLOW_BOOTSTRAP_HEADERS must be false in prod",
+            "APP_AUTH_TOKEN_SECRET must be configured with a non-local secret in prod"
+          ]
+        },
+        {
+          "id": "task-9b7-production-auth-gate-prod-yml-required-text",
+          "type": "required_text",
+          "paths": [
+            "backend/platform-server/src/main/resources/application-prod.yml"
+          ],
+          "patterns": [
+            "allow-bootstrap-headers: false",
+            "token-secret: ${APP_AUTH_TOKEN_SECRET}"
+          ]
+        },
+        {
+          "id": "task-9c1-websocket-notification-files-exist",
+          "type": "files_exist",
+          "paths": [
+            "backend/platform-server/src/main/java/com/yuri/aiorder/notification/NotificationWebSocketConfiguration.java",
+            "backend/platform-server/src/main/java/com/yuri/aiorder/notification/NotificationWebSocketAuthInterceptor.java",
+            "backend/platform-server/src/main/java/com/yuri/aiorder/notification/NotificationWebSocketHandler.java",
+            "backend/platform-server/src/main/java/com/yuri/aiorder/notification/NotificationPushService.java",
+            "backend/platform-server/src/test/java/com/yuri/aiorder/notification/NotificationWebSocketTests.java"
+          ]
+        },
+        {
+          "id": "task-9c1-websocket-config-required-text",
+          "type": "required_text",
+          "paths": [
+            "backend/platform-server/src/main/java/com/yuri/aiorder/notification/NotificationWebSocketConfiguration.java"
+          ],
+          "patterns": [
+            "/ws/connect"
+          ]
+        },
+        {
+          "id": "task-9c1-websocket-auth-required-text",
+          "type": "required_text",
+          "paths": [
+            "backend/platform-server/src/main/java/com/yuri/aiorder/notification/NotificationWebSocketAuthInterceptor.java"
+          ],
+          "patterns": [
+            "tokenService.parse(token)"
+          ]
+        },
+        {
+          "id": "task-9c1-websocket-delivery-required-text",
+          "type": "required_text",
+          "paths": [
+            "backend/platform-server/src/main/java/com/yuri/aiorder/notification/NotificationPushService.java"
+          ],
+          "patterns": [
+            "delivered_at = CURRENT_TIMESTAMP(3)"
+          ]
+        },
+        {
+          "id": "task-9c1-websocket-dependency-required-text",
+          "type": "required_text",
+          "paths": [
+            "backend/platform-server/pom.xml"
+          ],
+          "patterns": [
+            "spring-boot-starter-websocket"
+          ]
+        },
+        {
+          "id": "task-9c2-notification-rest-files-exist",
+          "type": "files_exist",
+          "paths": [
+            "backend/platform-server/src/main/java/com/yuri/aiorder/notification/NotificationController.java",
+            "backend/platform-server/src/main/java/com/yuri/aiorder/notification/NotificationService.java",
+            "backend/platform-server/src/test/java/com/yuri/aiorder/notification/NotificationRestTests.java"
+          ]
+        },
+        {
+          "id": "task-9c2-notification-rest-required-text",
+          "type": "required_text",
+          "paths": [
+            "backend/platform-server/src/main/java/com/yuri/aiorder/notification/NotificationController.java",
+            "backend/platform-server/src/main/java/com/yuri/aiorder/notification/NotificationService.java"
+          ],
+          "patterns": [
+            "/notifications/unread-count",
+            "/notifications/read-all",
+            "read_at = CURRENT_TIMESTAMP(3)",
+            "WHERE un.user_id = :userId"
+          ]
+        },
+        {
+          "id": "task-9c2-frontend-notification-center-required-text",
+          "type": "required_text",
+          "paths": [
+            "frontend/src/App.vue"
+          ],
+          "patterns": [
+            "通知中心",
+            "unreadCount",
+            "markNotificationRead",
+            "markAllNotificationsRead"
+          ]
+        },
+        {
+          "id": "task-9c2-frontend-proxy-required-text",
+          "type": "required_text",
+          "paths": [
+            "frontend/vite.config.ts"
+          ],
+          "patterns": [
+            "/notifications"
+          ]
+        },
+        {
+          "id": "task-9c2-openapi-notification-required-text",
+          "type": "required_text",
+          "paths": [
+            "docs/api/openapi.yaml"
+          ],
+          "patterns": [
+            "/notifications:",
+            "/notifications/unread-count:",
+            "/notifications/{notificationId}/read:",
+            "/notifications/read-all:",
+            "NotificationItem"
+          ]
+        },
+        {
+          "id": "task-9c3-notification-broadcast-files-exist",
+          "type": "files_exist",
+          "paths": [
+            "backend/platform-server/src/main/java/com/yuri/aiorder/notification/NotificationBroadcaster.java",
+            "backend/platform-server/src/main/java/com/yuri/aiorder/notification/NotificationBroadcastMessage.java",
+            "backend/platform-server/src/main/java/com/yuri/aiorder/notification/NotificationRedisBroadcaster.java",
+            "backend/platform-server/src/main/java/com/yuri/aiorder/notification/NotificationRedisBroadcastListener.java",
+            "backend/platform-server/src/main/java/com/yuri/aiorder/notification/NotificationRedisBroadcastConfiguration.java",
+            "backend/platform-server/src/test/java/com/yuri/aiorder/notification/NotificationBroadcastTests.java"
+          ]
+        },
+        {
+          "id": "task-9c3-notification-broadcast-dependency-required-text",
+          "type": "required_text",
+          "paths": [
+            "backend/platform-server/pom.xml"
+          ],
+          "patterns": [
+            "spring-boot-starter-data-redis"
+          ]
+        },
+        {
+          "id": "task-9c3-notification-broadcast-config-required-text",
+          "type": "required_text",
+          "paths": [
+            "backend/platform-server/src/main/resources/application.yml"
+          ],
+          "patterns": [
+            "redis-broadcast-enabled",
+            "redis-channel",
+            "instance-id"
+          ]
+        },
+        {
+          "id": "task-9c3-notification-broadcast-push-required-text",
+          "type": "required_text",
+          "paths": [
+            "backend/platform-server/src/main/java/com/yuri/aiorder/notification/NotificationPushService.java"
+          ],
+          "patterns": [
+            "pushLocalToUser",
+            "broadcast("
+          ]
+        },
+        {
+          "id": "task-9c3-notification-broadcast-listener-required-text",
+          "type": "required_text",
+          "paths": [
+            "backend/platform-server/src/main/java/com/yuri/aiorder/notification/NotificationRedisBroadcastListener.java"
+          ],
+          "patterns": [
+            "originInstanceId"
+          ]
+        },
+        {
+          "id": "task-9c3-frontend-websocket-app-required-text",
+          "type": "required_text",
+          "paths": [
+            "frontend/src/App.vue"
+          ],
+          "patterns": [
+            "new WebSocket",
+            "/ws/connect",
+            "notificationSocketStatus",
+            "lastRealtimeNotification"
+          ]
+        },
+        {
+          "id": "task-9c3-frontend-websocket-proxy-required-text",
+          "type": "required_text",
+          "paths": [
+            "frontend/vite.config.ts"
+          ],
+          "patterns": [
+            "/ws",
+            "ws: true"
+          ]
+        },
+        {
+          "id": "task-9d1-frontend-check-script-exists",
+          "type": "files_exist",
+          "paths": [
+            "scripts/check-task-9d1-frontend.mjs"
+          ]
+        },
+        {
+          "id": "task-9d1-order-list-backend-required-text",
+          "type": "required_text",
+          "paths": [
+            "backend/platform-server/src/main/java/com/yuri/aiorder/order/api/OrderController.java",
+            "backend/platform-server/src/main/java/com/yuri/aiorder/order/api/OrderProjectionQueryService.java",
+            "backend/platform-server/src/test/java/com/yuri/aiorder/order/OrderStatusProjectionTests.java"
+          ],
+          "patterns": [
+            "listOrders",
+            "OrderListResponse",
+            "doctorOrderListUsesDataScopeAndDesensitizedProjection"
+          ]
+        },
+        {
+          "id": "task-9d1-frontend-doctor-order-workspace-required-text",
+          "type": "required_text",
+          "paths": [
+            "frontend/src/App.vue"
+          ],
+          "patterns": [
+            "type DoctorOrderItem",
+            "type DoctorOrderWorkspace",
+            "loadDoctorOrders",
+            "loadDoctorOrderWorkspace",
+            "confirmDoctorReceipt",
+            "askDoctorAi",
+            "医生订单工作台"
+          ]
+        },
+        {
+          "id": "task-9d1-frontend-proxy-required-text",
+          "type": "required_text",
+          "paths": [
+            "frontend/vite.config.ts"
+          ],
+          "patterns": [
+            "/orders",
+            "/ai"
+          ]
+        },
+        {
+          "id": "task-9d2-frontend-check-script-exists",
+          "type": "files_exist",
+          "paths": [
+            "scripts/check-task-9d2-frontend.mjs"
+          ]
+        },
+        {
+          "id": "task-9d2-order-create-backend-required-text",
+          "type": "required_text",
+          "paths": [
+            "backend/platform-server/src/main/java/com/yuri/aiorder/order/api/OrderController.java",
+            "backend/platform-server/src/main/java/com/yuri/aiorder/order/api/OrderCreationService.java",
+            "backend/platform-server/src/main/java/com/yuri/aiorder/order/form/FormConfigController.java",
+            "backend/platform-server/src/test/java/com/yuri/aiorder/order/OrderStatusProjectionTests.java"
+          ],
+          "patterns": [
+            "createOrder",
+            "createSubmittedOrder",
+            "listFormConfigs",
+            "doctorCanReadDynamicFormAndCreateSubmittedOrderWithOwnCompletedFiles",
+            "doctorCannotBindOtherUnfinishedOrInternalFilesWhenCreatingOrder"
+          ]
+        },
+        {
+          "id": "task-9d2-form-seed-required-text",
+          "type": "required_text",
+          "paths": [
+            "backend/platform-server/src/main/resources/db/migration/V8__doctor_order_entry_form_seed.sql"
+          ],
+          "patterns": [
+            "REGULAR_CROWN",
+            "patient_name",
+            "tooth_position"
+          ]
+        },
+        {
+          "id": "task-9d2-frontend-doctor-order-create-required-text",
+          "type": "required_text",
+          "paths": [
+            "frontend/src/App.vue"
+          ],
+          "patterns": [
+            "type FormFieldConfig",
+            "loadDoctorOrderForm",
+            "createDoctorOrder",
+            "doctorOrderFileIds",
+            "新建订单",
+            "提交订单"
+          ]
+        },
+        {
+          "id": "task-9d2-vite-form-configs-proxy-required-text",
+          "type": "required_text",
+          "paths": [
+            "frontend/vite.config.ts",
+            "scripts/check-task-9d2-frontend.mjs"
+          ],
+          "patterns": [
+            "'/form-configs'"
+          ]
+        },
+        {
+          "id": "task-9d2-openapi-order-create-required-text",
+          "type": "required_text",
+          "paths": [
+            "docs/api/openapi.yaml"
+          ],
+          "patterns": [
+            "FormFieldConfig",
+            "CreateOrderRequest",
+            "CreateOrderResponse",
+            "9D.2 第一增量暂不支持草稿"
+          ]
+        },
+        {
+          "id": "local-browser-cors-loopback-required-text",
+          "type": "required_text",
+          "paths": [
+            "backend/platform-server/src/main/resources/application.yml",
+            ".env.example",
+            "backend/platform-server/src/test/java/com/yuri/aiorder/auth/BearerIdentityTests.java"
+          ],
+          "patterns": [
+            "http://127.0.0.1:5173",
+            "databaseLoginAllowsLocalhostAndLoopbackViteOrigins"
+          ]
+        },
+        {
+          "id": "task-9d3-frontend-check-script-exists",
+          "type": "files_exist",
+          "paths": [
+            "scripts/check-task-9d3-frontend.mjs"
+          ]
+        },
+        {
+          "id": "task-9d3-order-review-backend-required-text",
+          "type": "required_text",
+          "paths": [
+            "backend/platform-server/src/main/java/com/yuri/aiorder/order/api/OrderController.java",
+            "backend/platform-server/src/main/java/com/yuri/aiorder/order/api/OrderReviewService.java",
+            "backend/platform-server/src/test/java/com/yuri/aiorder/order/OrderStatusProjectionTests.java"
+          ],
+          "patterns": [
+            "reviewOrder",
+            "CS_APPROVE_ORDER",
+            "CS_REJECT_ORDER",
+            "csCanApprovePendingDoctorOrderIntoProductionReviewWithoutStartingProduction",
+            "csCanRejectPendingDoctorOrderAndDoctorStillSeesOnlyExternalProjection"
+          ]
+        },
+        {
+          "id": "task-9d3-frontend-cs-review-required-text",
+          "type": "required_text",
+          "paths": [
+            "frontend/src/App.vue"
+          ],
+          "patterns": [
+            "type InternalOrderItem",
+            "loadInternalOrders",
+            "reviewInternalOrder",
+            "PENDING_CS_REVIEW",
+            "客服初审",
+            "通过初审"
+          ]
+        },
+        {
+          "id": "task-9d3-openapi-order-review-required-text",
+          "type": "required_text",
+          "paths": [
+            "docs/api/openapi.yaml"
+          ],
+          "patterns": [
+            "/orders/{orderId}/review:",
+            "OrderReviewRequest",
+            "OrderInternalDTO",
+            "internal_status"
+          ]
+        },
+        {
+          "id": "task-9d4-frontend-check-script-exists",
+          "type": "files_exist",
+          "paths": [
+            "scripts/check-task-9d4-frontend.mjs"
+          ]
+        },
+        {
+          "id": "task-9d4-production-review-backend-required-text",
+          "type": "required_text",
+          "paths": [
+            "backend/platform-server/src/main/java/com/yuri/aiorder/workflow/runtime/WorkflowRuntimeService.java",
+            "backend/platform-server/src/test/java/com/yuri/aiorder/workflow/runtime/WorkflowRuntimeTests.java"
+          ],
+          "patterns": [
+            "requirePendingProductionReview",
+            "PENDING_PRODUCTION_REVIEW",
+            "productionReviewRejectsOrdersThatHaveNotPassedCsReview"
+          ]
+        },
+        {
+          "id": "task-9d4-frontend-production-review-required-text",
+          "type": "required_text",
+          "paths": [
+            "frontend/src/App.vue"
+          ],
+          "patterns": [
+            "type WorkflowChainSummary",
+            "loadProductionReviewOrders",
+            "reviewProductionOrder",
+            "PENDING_PRODUCTION_REVIEW",
+            "生产审核",
+            "通过生产审核"
+          ]
+        },
+        {
+          "id": "task-9d4-openapi-production-review-required-text",
+          "type": "required_text",
+          "paths": [
+            "docs/api/openapi.yaml"
+          ],
+          "patterns": [
+            "/orders/{orderId}/production-review:",
+            "ProductionReviewRequest",
+            "PENDING_PRODUCTION_REVIEW",
+            "PROCESS_INSTANCE_CREATED"
+          ]
+        },
+        {
+          "id": "task-9d5-frontend-check-script-exists",
+          "type": "files_exist",
+          "paths": [
+            "scripts/check-task-9d5-frontend.mjs"
+          ]
+        },
+        {
+          "id": "task-9d5-frontend-process-task-required-text",
+          "type": "required_text",
+          "paths": [
+            "frontend/src/App.vue"
+          ],
+          "patterns": [
+            "type ProcessInstanceDetail",
+            "type WorkerTaskItem",
+            "loadProcessInstancePage",
+            "assignSelectedProcessNode",
+            "loadWorkerTasks",
+            "operateWorkerTask",
+            "工序实例",
+            "派工转派",
+            "我的任务"
+          ]
+        },
+        {
+          "id": "task-9d5-openapi-process-task-required-text",
+          "type": "required_text",
+          "paths": [
+            "docs/api/openapi.yaml"
+          ],
+          "patterns": [
+            "/orders/{orderId}/process-instance:",
+            "/orders/{orderId}/process-instance/assign:",
+            "/tasks/mine:",
+            "READY",
+            "权限：CS / ADMIN"
+          ]
+        },
+        {
+          "id": "task-9d6-frontend-check-script-exists",
+          "type": "files_exist",
+          "paths": [
+            "scripts/check-task-9d6-frontend.mjs"
+          ]
+        },
+        {
+          "id": "task-9d6-frontend-check-worklog-required-text",
+          "type": "required_text",
+          "paths": [
+            "frontend/src/App.vue"
+          ],
+          "patterns": [
+            "type CheckRecordResponse",
+            "type WorkLogResponse",
+            "loadCheckTasks",
+            "submitCheckRecord",
+            "loadWorklogTasks",
+            "startSelectedWorkLog",
+            "operateWorkLog",
+            "入检出检",
+            "工时记录"
+          ]
+        },
+        {
+          "id": "task-9d6-frontend-check-worklog-proxy-required-text",
+          "type": "required_text",
+          "paths": [
+            "frontend/vite.config.ts"
+          ],
+          "patterns": [
+            "/check-records",
+            "/work-logs"
+          ]
+        },
+        {
+          "id": "task-9d6-openapi-check-worklog-required-text",
+          "type": "required_text",
+          "paths": [
+            "docs/api/openapi.yaml"
+          ],
+          "patterns": [
+            "/check-records:",
+            "/work-logs/start:",
+            "/work-logs/{workLogId}/pause:",
+            "/work-logs/{workLogId}/resume:",
+            "/work-logs/{workLogId}/finish:"
+          ]
+        },
+        {
+          "id": "task-9d7-frontend-check-script-exists",
+          "type": "files_exist",
+          "paths": [
+            "scripts/check-task-9d7-frontend.mjs"
+          ]
+        },
+        {
+          "id": "task-9d7-frontend-performance-required-text",
+          "type": "required_text",
+          "paths": [
+            "frontend/src/App.vue"
+          ],
+          "patterns": [
+            "type PerformanceStatsResponse",
+            "performanceStats",
+            "performanceUserId",
+            "loadPerformanceStats",
+            "isPerformanceRoute",
+            "绩效统计",
+            "完成工序",
+            "工时效率"
+          ]
+        },
+        {
+          "id": "task-9d7-frontend-performance-proxy-required-text",
+          "type": "required_text",
+          "paths": [
+            "frontend/vite.config.ts"
+          ],
+          "patterns": [
+            "/performance"
+          ]
+        },
+        {
+          "id": "task-9d7-openapi-performance-required-text",
+          "type": "required_text",
+          "paths": [
+            "docs/api/openapi.yaml"
+          ],
+          "patterns": [
+            "/performance:",
+            "PerformanceStats",
+            "duration_efficiency"
+          ]
+        },
+        {
+          "id": "task-9d8-frontend-check-script-exists",
+          "type": "files_exist",
+          "paths": [
+            "scripts/check-task-9d8-frontend.mjs"
+          ]
+        },
+        {
+          "id": "task-9d8-production-board-menu-migration-exists",
+          "type": "files_exist",
+          "paths": [
+            "backend/platform-server/src/main/resources/db/migration/V9__production_board_menu_seed.sql"
+          ]
+        },
+        {
+          "id": "task-9d8-frontend-production-board-required-text",
+          "type": "required_text",
+          "paths": [
+            "frontend/src/App.vue"
+          ],
+          "patterns": [
+            "productionBoardOrders",
+            "productionBoardStatus",
+            "loadProductionBoardOrders",
+            "loadProductionBoardInstance",
+            "isProductionBoardRoute",
+            "生产看板",
+            "跨状态生产检索",
+            "节点进度"
+          ]
+        },
+        {
+          "id": "task-9d8-openapi-reused-contract-required-text",
+          "type": "required_text",
+          "paths": [
+            "docs/api/openapi.yaml"
+          ],
+          "patterns": [
+            "\"/orders\":",
+            "internal_status",
+            "\"/orders/{orderId}/process-instance\":"
+          ]
+        },
+        {
+          "id": "task-9d9-frontend-check-script-exists",
+          "type": "files_exist",
+          "paths": [
+            "scripts/check-task-9d9-frontend.mjs"
+          ]
+        },
+        {
+          "id": "task-9d9-rework-final-menu-migration-exists",
+          "type": "files_exist",
+          "paths": [
+            "backend/platform-server/src/main/resources/db/migration/V10__rework_final_menu_seed.sql"
+          ]
+        },
+        {
+          "id": "task-9d9-frontend-rework-final-required-text",
+          "type": "required_text",
+          "paths": [
+            "frontend/src/App.vue"
+          ],
+          "patterns": [
+            "type ReworkRecordResponse",
+            "reworkRecords",
+            "finalInspectionTasks",
+            "loadReworkRecords",
+            "loadFinalInspectionTasks",
+            "isReworkFinalRoute",
+            "返工终检",
+            "终检入口"
+          ]
+        },
+        {
+          "id": "task-9d9-openapi-rework-required-text",
+          "type": "required_text",
+          "paths": [
+            "docs/api/openapi.yaml"
+          ],
+          "patterns": [
+            "\"/reworks\":",
+            "ReworkRecordResponse",
+            "target_node_status",
+            "reason_detail"
+          ]
+        },
+        {
+          "id": "task-9d10-frontend-check-script-exists",
+          "type": "files_exist",
+          "paths": [
+            "scripts/check-task-9d10-frontend.mjs",
+            "scripts/smoke-task-9d10-large-upload.spec.mjs",
+            "scripts/smoke-task-9d10-server-resume.spec.mjs",
+            "scripts/smoke-task-9d10-interrupted-resume.spec.mjs"
+          ]
+        },
+        {
+          "id": "task-9d10-multipart-metadata-migration-exists",
+          "type": "files_exist",
+          "paths": [
+            "backend/platform-server/src/main/resources/db/migration/V11__file_multipart_upload_metadata.sql"
+          ]
+        },
+        {
+          "id": "task-9d10-backend-multipart-required-text",
+          "type": "required_text",
+          "paths": [
+            "backend/platform-server/src/main/java/com/yuri/aiorder/file/api/FileController.java",
+            "backend/platform-server/src/main/java/com/yuri/aiorder/file/api/FileResourceService.java",
+            "backend/platform-server/src/test/java/com/yuri/aiorder/file/FileAccessTests.java"
+          ],
+          "patterns": [
+            "/files/multipart/initiate",
+            "/files/multipart/pending",
+            "createMultipartPartUrl",
+            "getMultipartStatus",
+            "listPendingMultipartUploads",
+            "completeMultipartUpload",
+            "abortMultipartUpload",
+            "multipartUploadStatusListsUploadedPartsForResume",
+            "multipartPendingUploadsListsOnlyCurrentDoctorRowsForCrossDeviceResume",
+            "MULTIPART_PENDING_LIST",
+            "MULTIPART_STATUS",
+            "multipartUploadCanInitiateUploadPartCompleteAndAuditWithoutExposingObjectKey"
+          ]
+        },
+        {
+          "id": "task-9d10-frontend-multipart-required-text",
+          "type": "required_text",
+          "paths": [
+            "frontend/src/App.vue",
+            "frontend/package.json"
+          ],
+          "patterns": [
+            "@uppy/core",
+            "data-testid=\"doctor-upload-file-input\"",
+            "data-testid=\"doctor-upload-bind-button\"",
+            "data-testid=\"doctor-upload-progress\"",
+            "doctorUploadFiles",
+            "uploadDoctorOrderFiles",
+            "doctorUploadResumeSessions",
+            "doctorUploadServerResumeCandidates",
+            "loadDoctorPendingMultipartUploads",
+            "findDoctorServerResumeCandidate",
+            "files/multipart/pending",
+            "loadDoctorUploadSession",
+            "multipart/status",
+            "选择附件",
+            "上传并绑定",
+            "取消未完成上传"
+          ]
+        },
+        {
+          "id": "task-9d10-large-upload-smoke-required-text",
+          "type": "required_text",
+          "paths": [
+            "package.json",
+            "scripts/smoke-task-9d10-large-upload.spec.mjs"
+          ],
+          "patterns": [
+            "smoke:task9d10-large-upload",
+            "TASK9D10_UPLOAD_SIZE_BYTES",
+            "TASK9D10_BROWSER_CHANNEL",
+            "100MB+",
+            "setInputFiles",
+            "doctor-upload-file-input",
+            "doctor-upload-bind-button",
+            "doctor-upload-completed-file-id"
+          ]
+        },
+        {
+          "id": "task-9d10-server-resume-smoke-required-text",
+          "type": "required_text",
+          "paths": [
+            "package.json",
+            "scripts/smoke-task-9d10-server-resume.spec.mjs"
+          ],
+          "patterns": [
+            "smoke:task9d10-server-resume",
+            "TASK9D10_RESUME_UPLOAD_SIZE_BYTES",
+            "files/multipart/initiate",
+            "files/multipart/pending",
+            "doctor-order-upload:",
+            "pendingFileId",
+            "doctor-upload-completed-file-id",
+            "server resume"
+          ]
+        },
+        {
+          "id": "task-9d10-interrupted-resume-smoke-required-text",
+          "type": "required_text",
+          "paths": [
+            "package.json",
+            "scripts/smoke-task-9d10-interrupted-resume.spec.mjs"
+          ],
+          "patterns": [
+            "smoke:task9d10-interrupted-resume",
+            "TASK9D10_INTERRUPTED_UPLOAD_SIZE_BYTES",
+            "route",
+            "abort",
+            "doctor-order-upload:",
+            "multipart/status",
+            "doctor-upload-completed-file-id",
+            "interrupted resume"
+          ]
+        },
+        {
+          "id": "task-9d10-openapi-multipart-required-text",
+          "type": "required_text",
+          "paths": [
+            "docs/api/openapi.yaml"
+          ],
+          "patterns": [
+            "\"/files/multipart/initiate\":",
+            "\"/files/multipart/pending\":",
+            "\"/files/{fileId}/multipart/part-url\":",
+            "\"/files/{fileId}/multipart/status\":",
+            "\"/files/{fileId}/multipart/complete\":",
+            "\"/files/{fileId}/multipart/abort\":",
+            "MultipartInitiateResponse",
+            "MultipartPendingUploadsResponse",
+            "MultipartStatusResponse",
+            "completed_parts"
+          ]
         }
       ]
     }

@@ -35,12 +35,569 @@ body {
   gap: 16px;
 }
 
+.content-grid.with-nav {
+  grid-template-columns: 280px minmax(0, 1fr) minmax(0, 1.2fr);
+}
+
 .panel {
   min-height: 320px;
   padding: 24px;
   border: 1px solid #d8dee9;
   border-radius: 8px;
   background: #ffffff;
+}
+
+.nav-panel {
+  padding: 16px;
+}
+
+.user-block {
+  display: grid;
+  gap: 6px;
+  min-height: 58px;
+  padding: 8px 8px 14px;
+  border-bottom: 1px solid #e5e7eb;
+}
+
+.user-block span {
+  color: #64748b;
+  font-size: 13px;
+}
+
+.route-menu {
+  border-right: 0;
+}
+
+.menu-badge {
+  max-width: 100%;
+}
+
+.route-panel {
+  min-width: 0;
+}
+
+.route-heading {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  margin-bottom: 18px;
+}
+
+.route-meta {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 12px;
+  margin: 0 0 18px;
+}
+
+.route-meta div {
+  min-height: 76px;
+  padding: 12px;
+  border: 1px solid #e5e7eb;
+  border-radius: 8px;
+  background: #f8fafc;
+}
+
+.route-meta dt {
+  margin-bottom: 8px;
+  color: #64748b;
+  font-size: 13px;
+}
+
+.route-meta dd {
+  margin: 0;
+  overflow-wrap: anywhere;
+  font-weight: 700;
+}
+
+.permission-strip {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.notification-panel {
+  display: grid;
+  align-content: start;
+  gap: 16px;
+}
+
+.notification-toolbar {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+}
+
+.notification-heading-tags {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+  gap: 8px;
+}
+
+.realtime-strip {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr);
+  gap: 10px;
+  align-items: center;
+  min-height: 44px;
+  padding: 10px 12px;
+  border: 1px solid #bfdbfe;
+  border-radius: 8px;
+  background: #eff6ff;
+  color: #1e3a8a;
+}
+
+.realtime-strip span {
+  overflow-wrap: anywhere;
+}
+
+.notification-list {
+  display: grid;
+  gap: 10px;
+}
+
+.notification-item {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 12px;
+  min-height: 96px;
+  padding: 14px;
+  border: 1px solid #e5e7eb;
+  border-radius: 8px;
+  background: #ffffff;
+}
+
+.notification-item.unread {
+  border-color: #f59e0b;
+  background: #fffbeb;
+}
+
+.notification-main {
+  min-width: 0;
+}
+
+.notification-title {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: 8px;
+}
+
+.notification-main p {
+  margin-bottom: 8px;
+  overflow-wrap: anywhere;
+}
+
+.notification-main span,
+.empty-state {
+  color: #64748b;
+  font-size: 13px;
+}
+
+.empty-state {
+  min-height: 96px;
+  display: grid;
+  place-items: center;
+  border: 1px dashed #d1d5db;
+  border-radius: 8px;
+}
+
+.doctor-order-panel,
+.internal-order-panel,
+.production-review-panel,
+.process-instance-panel,
+.worker-task-panel,
+.check-record-panel,
+.worklog-panel,
+.performance-panel {
+  display: grid;
+  align-content: start;
+  gap: 16px;
+}
+
+.doctor-order-toolbar {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  gap: 10px;
+}
+
+.doctor-order-create {
+  display: grid;
+  gap: 12px;
+  padding: 14px;
+  border: 1px solid #dbeafe;
+  border-radius: 8px;
+  background: #f8fbff;
+}
+
+.subheading-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.subheading-row h3 {
+  margin: 0;
+  font-size: 16px;
+}
+
+.order-create-grid,
+.dynamic-form-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 10px 14px;
+}
+
+.doctor-order-create .el-form-item {
+  margin-bottom: 0;
+}
+
+.file-input {
+  width: 100%;
+  min-height: 32px;
+}
+
+.upload-binding-row {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+  min-height: 34px;
+}
+
+.upload-binding-row span {
+  color: #475569;
+  overflow-wrap: anywhere;
+}
+
+.doctor-order-workspace,
+.internal-order-workspace,
+.production-review-workspace,
+.process-instance-workspace,
+.check-workspace,
+.worklog-workspace {
+  display: grid;
+  grid-template-columns: 260px minmax(0, 1fr);
+  gap: 16px;
+  min-height: 420px;
+}
+
+.doctor-order-list,
+.compact-list {
+  display: grid;
+  align-content: start;
+  gap: 10px;
+}
+
+.doctor-order-row {
+  display: grid;
+  gap: 6px;
+  width: 100%;
+  min-height: 92px;
+  padding: 12px;
+  border: 1px solid #e5e7eb;
+  border-radius: 8px;
+  background: #ffffff;
+  color: inherit;
+  cursor: pointer;
+  font: inherit;
+  text-align: left;
+}
+
+.doctor-order-row.active {
+  border-color: #2563eb;
+  background: #eff6ff;
+}
+
+.doctor-order-row span,
+.doctor-order-row small,
+.doctor-order-summary span,
+.field-cell span {
+  color: #64748b;
+  font-size: 13px;
+}
+
+.doctor-order-row small {
+  overflow-wrap: anywhere;
+}
+
+.doctor-order-detail {
+  min-width: 0;
+}
+
+.doctor-order-summary {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 10px;
+  margin-bottom: 14px;
+}
+
+.doctor-order-summary div,
+.field-cell,
+.compact-list article,
+.ai-answer {
+  min-width: 0;
+  padding: 12px;
+  border: 1px solid #e5e7eb;
+  border-radius: 8px;
+  background: #f8fafc;
+}
+
+.doctor-order-summary div,
+.field-cell {
+  display: grid;
+  gap: 8px;
+}
+
+.field-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 10px;
+  margin-bottom: 12px;
+}
+
+.field-cell strong,
+.doctor-order-summary strong {
+  overflow-wrap: anywhere;
+}
+
+.public-message,
+.ai-answer {
+  margin-bottom: 12px;
+}
+
+.message-composer {
+  display: grid;
+  gap: 10px;
+  margin-bottom: 12px;
+}
+
+.review-form {
+  display: grid;
+  gap: 12px;
+}
+
+.review-form .el-form-item,
+.check-form .el-form-item {
+  margin-bottom: 0;
+}
+
+.check-form {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 12px;
+  margin-bottom: 14px;
+  padding: 12px;
+  border: 1px solid #dbeafe;
+  border-radius: 8px;
+  background: #f8fbff;
+}
+
+.check-form .el-form-item:nth-child(4),
+.check-form .el-button {
+  grid-column: 1 / -1;
+}
+
+.check-record-list {
+  display: grid;
+  gap: 10px;
+}
+
+.check-record-card,
+.worklog-status-card {
+  min-width: 0;
+  padding: 12px;
+  border: 1px solid #e5e7eb;
+  border-radius: 8px;
+  background: #ffffff;
+}
+
+.check-record-card {
+  display: grid;
+  gap: 6px;
+}
+
+.check-record-card span,
+.check-record-card small,
+.worklog-status-card span {
+  color: #64748b;
+  font-size: 13px;
+}
+
+.worklog-status-card {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 10px;
+  margin-bottom: 12px;
+}
+
+.worklog-status-card div {
+  display: grid;
+  gap: 8px;
+}
+
+.performance-toolbar {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  gap: 10px;
+}
+
+.performance-grid {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 12px;
+}
+
+.production-board-toolbar {
+  display: grid;
+  grid-template-columns: minmax(0, 220px) minmax(0, 1fr) auto;
+  gap: 10px;
+}
+
+.production-board-workspace {
+  display: grid;
+  grid-template-columns: minmax(260px, 0.82fr) minmax(0, 1.5fr);
+  gap: 16px;
+}
+
+.production-board-stats {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 12px;
+  margin-bottom: 14px;
+}
+
+.section-subtitle {
+  color: #334155;
+  font-size: 14px;
+  font-weight: 700;
+}
+
+.performance-card {
+  display: grid;
+  align-content: start;
+  gap: 8px;
+  min-height: 128px;
+  padding: 14px;
+  border: 1px solid #e5e7eb;
+  border-radius: 8px;
+  background: #ffffff;
+}
+
+.performance-card span,
+.performance-card small {
+  color: #64748b;
+  font-size: 13px;
+}
+
+.performance-card strong {
+  overflow-wrap: anywhere;
+  color: #111827;
+  font-size: 28px;
+  line-height: 1.1;
+}
+
+.compact-list article p {
+  margin: 8px 0 0;
+  overflow-wrap: anywhere;
+}
+
+.assignment-toolbar {
+  display: grid;
+  grid-template-columns: minmax(0, 220px) minmax(0, 1fr);
+  gap: 12px;
+  align-items: end;
+  margin-bottom: 14px;
+  padding: 12px;
+  border: 1px solid #dbeafe;
+  border-radius: 8px;
+  background: #f8fbff;
+}
+
+.assignment-toolbar .el-form-item {
+  margin-bottom: 0;
+}
+
+.process-node-list,
+.worker-task-list {
+  display: grid;
+  gap: 10px;
+}
+
+.process-node-row {
+  display: grid;
+  grid-template-columns: 48px minmax(120px, 1.3fr) minmax(90px, 1fr) minmax(92px, 0.8fr) minmax(88px, 0.8fr) minmax(84px, 0.8fr);
+  align-items: center;
+  gap: 10px;
+  width: 100%;
+  min-height: 58px;
+  padding: 10px 12px;
+  border: 1px solid #e5e7eb;
+  border-radius: 8px;
+  background: #ffffff;
+  color: inherit;
+  cursor: pointer;
+  font: inherit;
+  text-align: left;
+}
+
+.process-node-row.active {
+  border-color: #2563eb;
+  background: #eff6ff;
+}
+
+.process-node-row span,
+.worker-task-card span,
+.worker-task-card small {
+  min-width: 0;
+  overflow-wrap: anywhere;
+  color: #64748b;
+  font-size: 13px;
+}
+
+.process-node-row strong,
+.worker-task-card strong {
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+
+.node-order {
+  display: grid;
+  place-items: center;
+  width: 34px;
+  height: 34px;
+  border-radius: 999px;
+  background: #eef2ff;
+  color: #3730a3;
+  font-weight: 700;
+}
+
+.worker-task-card {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(120px, auto) auto;
+  align-items: center;
+  gap: 12px;
+  min-height: 96px;
+  padding: 14px;
+  border: 1px solid #e5e7eb;
+  border-radius: 8px;
+  background: #ffffff;
+}
+
+.worker-task-card div:first-child {
+  display: grid;
+  gap: 6px;
+}
+
+.inline-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-top: 10px;
 }
 
 h1,
@@ -81,12 +638,45 @@ p {
   }
 
   .status-bar,
-  .content-grid {
+  .content-grid,
+  .content-grid.with-nav {
     display: block;
   }
 
   .panel {
     min-height: auto;
     margin-top: 16px;
+  }
+
+  .notification-item {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  .realtime-strip {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  .doctor-order-toolbar,
+  .doctor-order-workspace,
+  .internal-order-workspace,
+  .production-review-workspace,
+  .process-instance-workspace,
+  .check-workspace,
+  .worklog-workspace,
+  .doctor-order-summary,
+  .order-create-grid,
+  .dynamic-form-grid,
+  .field-grid,
+  .check-form,
+  .worklog-status-card,
+  .performance-toolbar,
+  .performance-grid,
+  .production-board-toolbar,
+  .production-board-workspace,
+  .production-board-stats,
+  .assignment-toolbar,
+  .process-node-row,
+  .worker-task-card {
+    grid-template-columns: minmax(0, 1fr);
   }
 }

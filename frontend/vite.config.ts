@@ -9,6 +9,59 @@ export default defineConfig({
       '/api': {
         target: 'http://localhost:8080',
         changeOrigin: true
+      },
+      '/notifications': {
+        target: 'http://localhost:8080',
+        changeOrigin: true
+      },
+      '/orders': {
+        target: 'http://localhost:8080',
+        changeOrigin: true
+      },
+      '/files': {
+        target: 'http://localhost:8080',
+        changeOrigin: true
+      },
+      '/form-configs': {
+        target: 'http://localhost:8080',
+        changeOrigin: true
+      },
+      '/workflow-chains': {
+        target: 'http://localhost:8080',
+        changeOrigin: true
+      },
+      '/tasks': {
+        target: 'http://localhost:8080',
+        changeOrigin: true
+      },
+      '/process-instance': {
+        target: 'http://localhost:8080',
+        changeOrigin: true
+      },
+      '/check-records': {
+        target: 'http://localhost:8080',
+        changeOrigin: true
+      },
+      '/reworks': {
+        target: 'http://localhost:8080',
+        changeOrigin: true
+      },
+      '/work-logs': {
+        target: 'http://localhost:8080',
+        changeOrigin: true
+      },
+      '/performance': {
+        target: 'http://localhost:8080',
+        changeOrigin: true
+      },
+      '/ai': {
+        target: 'http://localhost:8080',
+        changeOrigin: true
+      },
+      '/ws': {
+        target: 'ws://localhost:8080',
+        ws: true,
+        changeOrigin: true
       }
     }
   }

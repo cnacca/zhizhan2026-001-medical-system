@@ -120,6 +120,135 @@ class FileAccessTests {
     }
 
     @Test
+    void multipartUploadCanInitiateUploadPartCompleteAndAuditWithoutExposingObjectKey() throws Exception {
+        byte[] bytes = "multipart-pdf-bytes".getBytes(StandardCharsets.UTF_8);
+        MultipartUploadInfo upload = initiateMultipartUpload(bytes.length);
+
+        assertThat(fileStatus(upload.fileId())).isEqualTo("PENDING");
+        assertThat(multipartUploadId(upload.fileId())).isEqualTo(upload.uploadId());
+
+        String partUrl = requestPartUrl(upload.fileId(), upload.uploadId(), 1);
+        String etag = putObject(partUrl, bytes, "application/pdf");
+
+        mockMvc.perform(post("/files/{fileId}/multipart/complete", upload.fileId())
+                        .header("X-Bootstrap-Role", "DOCTOR")
+                        .header("X-Bootstrap-User-Id", DOCTOR_USER_ID)
+                        .header("X-Bootstrap-Clinic-Id", clinicId)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("""
+                                {
+                                  "upload_id": "%s",
+                                  "parts": [
+                                    {"part_number": 1, "etag": "%s"}
+                                  ]
+                                }
+                                """.formatted(upload.uploadId(), etag)))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.file_id").value(upload.fileId()))
+                .andExpect(jsonPath("$.data.upload_status").value("COMPLETED"));
+
+        assertThat(fileStatus(upload.fileId())).isEqualTo("COMPLETED");
+        assertThat(storedFileSize(upload.fileId())).isEqualTo((long) bytes.length);
+        assertThat(auditCount(upload.fileId(), "MULTIPART_INITIATE", "ALLOWED")).isEqualTo(1L);
+        assertThat(auditCount(upload.fileId(), "MULTIPART_PART_URL", "ALLOWED")).isEqualTo(1L);
+        assertThat(auditCount(upload.fileId(), "MULTIPART_COMPLETE", "ALLOWED")).isEqualTo(1L);
+    }
+
+    @Test
+    void multipartUploadStatusListsUploadedPartsForResume() throws Exception {
+        byte[] firstPart = new byte[5 * 1024 * 1024];
+        byte[] secondPart = "resume-tail".getBytes(StandardCharsets.UTF_8);
+        MultipartUploadInfo upload = initiateMultipartUpload(firstPart.length + secondPart.length);
+
+        String firstPartUrl = requestPartUrl(upload.fileId(), upload.uploadId(), 1);
+        String firstPartEtag = putObject(firstPartUrl, firstPart, "application/pdf");
+
+        mockMvc.perform(get("/files/{fileId}/multipart/status", upload.fileId())
+                        .param("upload_id", upload.uploadId())
+                        .header("X-Bootstrap-Role", "DOCTOR")
+                        .header("X-Bootstrap-User-Id", DOCTOR_USER_ID)
+                        .header("X-Bootstrap-Clinic-Id", clinicId))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.file_id").value(upload.fileId()))
+                .andExpect(jsonPath("$.data.upload_id").value(upload.uploadId()))
+                .andExpect(jsonPath("$.data.upload_status").value("PENDING"))
+                .andExpect(jsonPath("$.data.part_count").value(2))
+                .andExpect(jsonPath("$.data.completed_parts[0].part_number").value(1))
+                .andExpect(jsonPath("$.data.completed_parts[0].etag").value(firstPartEtag))
+                .andExpect(jsonPath("$.data.completed_parts[0].size").value(firstPart.length))
+                .andExpect(jsonPath("$.data.object_key").doesNotExist())
+                .andExpect(content().string(not(org.hamcrest.Matchers.containsString("object_key"))));
+
+        assertThat(auditCount(upload.fileId(), "MULTIPART_STATUS", "ALLOWED")).isEqualTo(1L);
+    }
+
+    @Test
+    void multipartPendingUploadsListsOnlyCurrentDoctorRowsForCrossDeviceResume() throws Exception {
+        MultipartUploadInfo ownUpload = initiateMultipartUploadAs(
+                DOCTOR_USER_ID,
+                clinicId,
+                11L * 1024L * 1024L,
+                "resume-own.pdf");
+        MultipartUploadInfo otherUpload = initiateMultipartUploadAs(
+                OTHER_DOCTOR_USER_ID,
+                clinicId,
+                11L * 1024L * 1024L,
+                "resume-other.pdf");
+
+        MvcResult result = mockMvc.perform(get("/files/multipart/pending")
+                        .param("order_id", String.valueOf(orderId))
+                        .header("X-Bootstrap-Role", "DOCTOR")
+                        .header("X-Bootstrap-User-Id", DOCTOR_USER_ID)
+                        .header("X-Bootstrap-Clinic-Id", clinicId))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.items[0].file_id").value(ownUpload.fileId()))
+                .andExpect(jsonPath("$.data.items[0].upload_id").value(ownUpload.uploadId()))
+                .andExpect(jsonPath("$.data.items[0].order_id").value(orderId))
+                .andExpect(jsonPath("$.data.items[0].original_filename").value("resume-own.pdf"))
+                .andExpect(jsonPath("$.data.items[0].file_size").value(11L * 1024L * 1024L))
+                .andExpect(jsonPath("$.data.items[0].part_size").value(5242880))
+                .andExpect(jsonPath("$.data.items[0].part_count").value(3))
+                .andExpect(jsonPath("$.data.items[0].object_key").doesNotExist())
+                .andExpect(content().string(not(org.hamcrest.Matchers.containsString("object_key"))))
+                .andReturn();
+
+        JsonNode items = objectMapper.readTree(result.getResponse().getContentAsString()).path("data").path("items");
+        assertThat(items).hasSize(1);
+        assertThat(items.get(0).path("file_id").asLong()).isNotEqualTo(otherUpload.fileId());
+        assertThat(auditCount(ownUpload.fileId(), "MULTIPART_PENDING_LIST", "ALLOWED")).isEqualTo(1L);
+    }
+
+    @Test
+    void multipartUploadCanBeAbortedAndCannotBeAbortedByOtherDoctor() throws Exception {
+        MultipartUploadInfo upload = initiateMultipartUpload(16L);
+
+        mockMvc.perform(post("/files/{fileId}/multipart/abort", upload.fileId())
+                        .header("X-Bootstrap-Role", "DOCTOR")
+                        .header("X-Bootstrap-User-Id", OTHER_DOCTOR_USER_ID)
+                        .header("X-Bootstrap-Clinic-Id", clinicId)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("""
+                                {"upload_id":"%s"}
+                                """.formatted(upload.uploadId())))
+                .andExpect(status().isForbidden());
+
+        mockMvc.perform(post("/files/{fileId}/multipart/abort", upload.fileId())
+                        .header("X-Bootstrap-Role", "DOCTOR")
+                        .header("X-Bootstrap-User-Id", DOCTOR_USER_ID)
+                        .header("X-Bootstrap-Clinic-Id", clinicId)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("""
+                                {"upload_id":"%s"}
+                                """.formatted(upload.uploadId())))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.file_id").value(upload.fileId()))
+                .andExpect(jsonPath("$.data.upload_status").value("ABORTED"));
+
+        assertThat(fileStatus(upload.fileId())).isEqualTo("ABORTED");
+        assertThat(auditCount(upload.fileId(), "MULTIPART_ABORT", "ALLOWED")).isEqualTo(1L);
+    }
+
+    @Test
     void doctorCannotPreviewInternalOrOtherClinicFilesAndDenialsAreAudited() throws Exception {
         long internalFileId = insertCompletedFile(orderId, "INTERNAL");
 
@@ -170,16 +299,83 @@ class FileAccessTests {
         return new UploadToken(data.path("file_id").asLong(), data.path("upload_url").asText());
     }
 
-    private void putObject(String uploadUrl, byte[] bytes, String contentType) throws Exception {
+    private MultipartUploadInfo initiateMultipartUpload(long fileSize) throws Exception {
+        return initiateMultipartUploadAs(DOCTOR_USER_ID, clinicId, fileSize, "case-multipart.pdf");
+    }
+
+    private MultipartUploadInfo initiateMultipartUploadAs(
+            long userId,
+            long requestClinicId,
+            long fileSize,
+            String originalFilename) throws Exception {
+        int expectedPartCount = Math.toIntExact((fileSize + 5242879L) / 5242880L);
+        String body = """
+                {
+                  "order_id": %d,
+                  "source_type": "ORDER_ATTACHMENT",
+                  "visibility": "DOCTOR",
+                  "original_filename": "%s",
+                  "content_type": "application/pdf",
+                  "file_size": %d,
+                  "part_size": 5242880
+                }
+                """.formatted(orderId, originalFilename, fileSize);
+        MvcResult result = mockMvc.perform(post("/files/multipart/initiate")
+                        .header("X-Bootstrap-Role", "DOCTOR")
+                        .header("X-Bootstrap-User-Id", userId)
+                        .header("X-Bootstrap-Clinic-Id", requestClinicId)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(body))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.file_id").isNumber())
+                .andExpect(jsonPath("$.data.upload_id").isString())
+                .andExpect(jsonPath("$.data.part_size").value(5242880))
+                .andExpect(jsonPath("$.data.part_count").value(expectedPartCount))
+                .andExpect(jsonPath("$.data.object_key").doesNotExist())
+                .andExpect(content().string(not(org.hamcrest.Matchers.containsString("object_key"))))
+                .andReturn();
+        JsonNode data = objectMapper.readTree(result.getResponse().getContentAsString()).path("data");
+        return new MultipartUploadInfo(data.path("file_id").asLong(), data.path("upload_id").asText());
+    }
+
+    private String requestPartUrl(long fileId, String uploadId, int partNumber) throws Exception {
+        MvcResult result = mockMvc.perform(post("/files/{fileId}/multipart/part-url", fileId)
+                        .header("X-Bootstrap-Role", "DOCTOR")
+                        .header("X-Bootstrap-User-Id", DOCTOR_USER_ID)
+                        .header("X-Bootstrap-Clinic-Id", clinicId)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("""
+                                {"upload_id":"%s","part_number":%d}
+                                """.formatted(uploadId, partNumber)))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.file_id").value(fileId))
+                .andExpect(jsonPath("$.data.part_number").value(partNumber))
+                .andExpect(jsonPath("$.data.upload_url").value(startsWith("http")))
+                .andExpect(jsonPath("$.data.object_key").doesNotExist())
+                .andReturn();
+        return objectMapper.readTree(result.getResponse().getContentAsString())
+                .path("data")
+                .path("upload_url")
+                .asText();
+    }
+
+    private String putObject(String uploadUrl, byte[] bytes, String contentType) throws Exception {
         HttpRequest request = HttpRequest.newBuilder(URI.create(uploadUrl))
                 .header("Content-Type", contentType)
                 .PUT(HttpRequest.BodyPublishers.ofByteArray(bytes))
                 .build();
         HttpResponse<String> response = HttpClient.newHttpClient().send(request, HttpResponse.BodyHandlers.ofString());
         assertThat(response.statusCode()).isBetween(200, 299);
+        return response.headers()
+                .firstValue("ETag")
+                .orElseThrow()
+                .replace("\"", "");
     }
 
     private record UploadToken(long fileId, String uploadUrl) {
+    }
+
+    private record MultipartUploadInfo(long fileId, String uploadId) {
     }
 
     private String fileStatus(long fileId) {
@@ -193,6 +389,13 @@ class FileAccessTests {
         return jdbcClient.sql("SELECT file_size FROM file_resource WHERE file_id = :fileId")
                 .param("fileId", fileId)
                 .query(Long.class)
+                .single();
+    }
+
+    private String multipartUploadId(long fileId) {
+        return jdbcClient.sql("SELECT multipart_upload_id FROM file_resource WHERE file_id = :fileId")
+                .param("fileId", fileId)
+                .query(String.class)
                 .single();
     }
 

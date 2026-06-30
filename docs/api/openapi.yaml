@@ -20,240 +20,1216 @@ info:
     { "code": 200, "msg": "success", "data": {} }
     错误时：
     { "code": 4xx/5xx, "msg": "错误说明", "data": null }
-
+  license:
+    name: Proprietary internal API
+    url: https://yourdomain.com/legal/proprietary-api-license
 servers:
-  - url: https://api.yourdomain.com/v1
-    description: 正式环境
-  - url: https://test-api.yourdomain.com/v1
-    description: 测试环境
-
+- url: https://api.yourdomain.com/v1
+  description: 正式环境
+- url: https://test-api.yourdomain.com/v1
+  description: 测试环境
 tags:
-  - name: Auth
-    description: 认证与 Token 管理
-  - name: User
-    description: 用户与账号管理
-  - name: Clinic
-    description: 诊所与客户档案
-  - name: Order
-    description: 订单核心流程
-  - name: OrderForm
-    description: 动态表单配置
-  - name: File
-    description: 文件上传与预览
-  - name: WorkflowChain
-    description: 工序链查询（预定义，只读）
-  - name: ProcessInstance
-    description: 订单工序链实例
-  - name: CheckRecord
-    description: 入检 / 出检记录
-  - name: WorkLog
-    description: 工时记录
-  - name: Performance
-    description: 绩效统计
-  - name: Message
-    description: 消息与留言系统
-  - name: DesignDraft
-    description: 设计稿模块
-  - name: Bill
-    description: 账单与物流
-  - name: CustomerPreference
-    description: 客户偏好
-  - name: AI
-    description: AI 智能体接口
-  - name: Notification
-    description: WebSocket 通知事件定义
-
-# ─────────────────────────────────────────────────────────────
-# COMPONENTS
-# ─────────────────────────────────────────────────────────────
+- name: Auth
+  description: 认证与 Token 管理
+- name: User
+  description: 用户与账号管理
+- name: Clinic
+  description: 诊所与客户档案
+- name: Order
+  description: 订单核心流程
+- name: OrderForm
+  description: 动态表单配置
+- name: File
+  description: 文件上传与预览
+- name: WorkflowChain
+  description: 工序链查询（预定义，只读）
+- name: ProcessInstance
+  description: 订单工序链实例
+- name: CheckRecord
+  description: 入检 / 出检记录
+- name: WorkLog
+  description: 工时记录
+- name: Performance
+  description: 绩效统计
+- name: Message
+  description: 消息与留言系统
+- name: DesignDraft
+  description: 设计稿模块
+- name: Bill
+  description: 账单与物流
+- name: CustomerPreference
+  description: 客户偏好
+- name: AI
+  description: AI 智能体接口
+- name: Notification
+  description: 通知 REST 与 WebSocket 事件定义
 components:
   securitySchemes:
     BearerAuth:
       type: http
       scheme: bearer
       bearerFormat: JWT
-
   schemas:
-    # 通用
     CommonResponse:
       type: object
       properties:
-        code: { type: integer, example: 200 }
-        msg:  { type: string,  example: success }
+        code:
+          type: integer
+          example: 200
+        msg:
+          type: string
+          example: success
         data: {}
-
-    PageResult:
-      type: object
-      properties:
-        total:   { type: integer }
-        pages:   { type: integer }
-        current: { type: integer }
-        size:    { type: integer }
-        records: { type: array, items: {} }
-
-    # 认证
     LoginRequest:
       type: object
-      required: [username, password]
+      required:
+      - username
+      - password
       properties:
-        username: { type: string, example: doctor001 }
-        password: { type: string, example: "******" }
-
+        username:
+          type: string
+          example: doctor001
+        password:
+          type: string
+          example: "******"
     LoginResponse:
       type: object
       properties:
-        access_token:  { type: string }
-        refresh_token: { type: string }
-        expires_in:    { type: integer, description: access_token 有效期（秒）, example: 7200 }
-        role:          { type: string, enum: [DOCTOR, CS, WORKER, ADMIN] }
-        user_id:       { type: integer }
-        username:      { type: string }
-
-    # 订单
+        accessToken:
+          type: string
+          description: 服务端签发的 Bearer token
+        username:
+          type: string
+        userId:
+          type: integer
+          format: int64
+          nullable: true
+        clinicId:
+          type: integer
+          format: int64
+          nullable: true
+        roles:
+          type: array
+          items:
+            type: string
+            enum:
+            - DOCTOR
+            - CS
+            - WORKER
+            - ADMIN
+        permissions:
+          type: array
+          items:
+            type: string
+          description: 当前账号角色聚合后的权限码
+        menus:
+          type: array
+          items:
+            "$ref": "#/components/schemas/AuthMenu"
+          description: 当前账号可见菜单，用于前端权限路由
+        dataScope:
+          type: string
+          nullable: true
+          enum:
+          - ALL
+          - CLINIC
+          - SELF
+          - NONE
+          description: 当前账号的数据范围
+        expiresAt:
+          type: string
+          format: date-time
+    CurrentUserResponse:
+      type: object
+      properties:
+        username:
+          type: string
+        userId:
+          type: integer
+          format: int64
+          nullable: true
+        clinicId:
+          type: integer
+          format: int64
+          nullable: true
+        roles:
+          type: array
+          items:
+            type: string
+        permissions:
+          type: array
+          items:
+            type: string
+        menus:
+          type: array
+          items:
+            "$ref": "#/components/schemas/AuthMenu"
+        dataScope:
+          type: string
+          nullable: true
+    AuthMenu:
+      type: object
+      properties:
+        menuCode:
+          type: string
+          example: internal-orders
+        menuName:
+          type: string
+          example: 内部订单
+        menuType:
+          type: string
+          example: MENU
+        routePath:
+          type: string
+          nullable: true
+          example: /orders/internal
+        componentPath:
+          type: string
+          nullable: true
+          example: InternalOrdersView
+        permissionCode:
+          type: string
+          nullable: true
+          example: order:read-internal
+        icon:
+          type: string
+          nullable: true
+        sortOrder:
+          type: integer
+          nullable: true
     OrderStatus:
       type: string
       enum:
-        - PENDING_REVIEW
-        - DESIGNING
-        - PRODUCING
-        - QC
-        - PENDING_SHIP
-        - SHIPPED
-        - COMPLETED
+      - PENDING_REVIEW
+      - DESIGNING
+      - PRODUCING
+      - QC
+      - PENDING_SHIP
+      - SHIPPED
+      - COMPLETED
       description: |
         外部状态枚举（医生端可见）：
         PENDING_REVIEW=待审核, DESIGNING=设计中, PRODUCING=生产中,
         QC=质检中, PENDING_SHIP=待发货, SHIPPED=已发货, COMPLETED=已完成
-
     OrderBrief:
       type: object
       properties:
-        order_id:        { type: integer }
-        order_no:        { type: string }
-        product_type:    { type: string }
-        external_status: { $ref: '#/components/schemas/OrderStatus' }
-        create_time:     { type: string, format: date-time }
-        clinic_name:     { type: string }
-
+        order_id:
+          type: integer
+        order_no:
+          type: string
+        product_type:
+          type: string
+        external_status:
+          "$ref": "#/components/schemas/OrderStatus"
+        create_time:
+          type: string
+          format: date-time
+        clinic_name:
+          type: string
+    DoctorOrderSummary:
+      type: object
+      description: 医生端订单列表/详情脱敏视图，不包含 internal_status、production_note、cs_user_id。
+      properties:
+        order_id:
+          type: integer
+        order_no:
+          type: string
+        product_type:
+          type: string
+        external_status:
+          "$ref": "#/components/schemas/OrderStatus"
+        form_data:
+          type: object
+        public_message:
+          type: string
+          nullable: true
+        bill_status:
+          type: string
+          nullable: true
+        logistics_status:
+          type: string
+          nullable: true
+        tracking_no:
+          type: string
+          nullable: true
+    OrderListResponse:
+      type: object
+      properties:
+        items:
+          type: array
+          items:
+            oneOf:
+            - "$ref": "#/components/schemas/DoctorOrderSummary"
+            - "$ref": "#/components/schemas/OrderDetail"
+        total:
+          type: integer
+        page:
+          type: integer
+        size:
+          type: integer
+    FormFieldConfig:
+      type: object
+      properties:
+        field_id:
+          type: integer
+        product_type:
+          type: string
+        field_key:
+          type: string
+        field_label:
+          type: string
+        field_type:
+          type: string
+          enum:
+          - text
+          - textarea
+          - select
+          - multi-select
+          - number
+          - date
+          - file
+        is_required:
+          type: boolean
+        options:
+          type: array
+          items:
+            type: string
+        sort_order:
+          type: integer
+    CreateOrderRequest:
+      type: object
+      required:
+      - product_type
+      - form_data
+      properties:
+        product_type:
+          type: string
+          example: REGULAR_CROWN
+        form_data:
+          type: object
+          description: 动态表单填写内容，key 为 field_key，value 为填写值。
+          example:
+            patient_name: 张三
+            tooth_position: '11,21'
+            material: 氧化锆
+        file_ids:
+          type: array
+          items:
+            type: integer
+          description: 已完成且医生本人可绑定的 file_id 列表。
+        is_draft:
+          type: boolean
+          default: false
+          description: 9D.2 第一增量暂不支持草稿；传 true 会返回 400。
+    CreateOrderResponse:
+      type: object
+      description: 医生提交订单后的脱敏响应，不包含 internal_status。
+      properties:
+        order_id:
+          type: integer
+        order_no:
+          type: string
+        product_type:
+          type: string
+        external_status:
+          "$ref": "#/components/schemas/OrderStatus"
+        form_data:
+          type: object
+    OrderReviewRequest:
+      type: object
+      required:
+      - action
+      properties:
+        action:
+          type: string
+          enum:
+          - APPROVE
+          - REJECT
+        reject_reason:
+          type: string
+          description: action=REJECT 时必填；写入 orders.reject_reason，并通过通知提示医生补资料。
+        production_note:
+          type: string
+          description: action=APPROVE 时可填；写入内部生产备注。本接口只进入生产审核状态，不实例化工序。
     OrderDetail:
       allOf:
-        - $ref: '#/components/schemas/OrderBrief'
-        - type: object
-          properties:
-            form_data:       { type: object, description: 动态表单填写内容，key 为 field_key }
-            attachments:     { type: array, items: { $ref: '#/components/schemas/FileInfo' } }
-            reject_reason:   { type: string }
-            production_note: { type: string, description: 仅内部角色可见 }
-            internal_status: { type: string, description: 仅内部角色可见 }
-            cs_user_id:      { type: integer, description: 仅内部角色可见 }
-
-    # 文件
+      - "$ref": "#/components/schemas/OrderBrief"
+      - type: object
+        properties:
+          form_data:
+            type: object
+            description: 动态表单填写内容，key 为 field_key
+          attachments:
+            type: array
+            items:
+              "$ref": "#/components/schemas/FileInfo"
+          reject_reason:
+            type: string
+          production_note:
+            type: string
+            description: 仅内部角色可见
+          internal_status:
+            type: string
+            description: 仅内部角色可见
+          cs_user_id:
+            type: integer
+            description: 仅内部角色可见
     FileInfo:
       type: object
       properties:
-        file_id:   { type: integer }
-        file_name: { type: string }
-        file_size: { type: integer, description: 字节 }
-        file_type: { type: string, example: "image/jpeg" }
-        preview_url: { type: string, description: 15 分钟签名预览 URL }
-
-    # 工序
-    ProcessNode:
-      type: object
-      properties:
-        node_id:           { type: integer }
-        process_id:        { type: integer }
-        process_name:      { type: string }
-        standard_duration: { type: integer, description: 标准工时（分钟）}
-        role_type:         { type: string, description: 负责角色/工种 }
-        position_x:        { type: number, description: 编辑器画布坐标 }
-        position_y:        { type: number }
-
-    ProcessEdge:
-      type: object
-      properties:
-        edge_id:      { type: integer }
-        from_node_id: { type: integer }
-        to_node_id:   { type: integer }
-
-    # 消息
+        file_id:
+          type: integer
+        file_name:
+          type: string
+        file_size:
+          type: integer
+          description: 字节
+        file_type:
+          type: string
+          example: image/jpeg
+        preview_url:
+          type: string
+          description: 15 分钟签名预览 URL
     MessageStatus:
       type: string
-      enum: [DIRECT, PENDING_REVIEW, APPROVED, REJECTED]
-
+      enum:
+      - DIRECT
+      - PENDING_REVIEW
+      - APPROVED
+      - REJECTED
     MessageItem:
       type: object
       properties:
-        msg_id:          { type: integer }
-        order_id:        { type: integer }
-        sender_user_id:  { type: integer }
-        sender_role:     { type: string, enum: [DOCTOR, CS, WORKER] }
-        sender_name:     { type: string }
-        content:         { type: string }
-        edited_content:  { type: string, description: 客服编辑后内容 }
-        attachment_urls: { type: array, items: { type: string } }
-        visible_to:      { type: string }
-        review_status:   { $ref: '#/components/schemas/MessageStatus' }
-        review_note:     { type: string }
-        create_time:     { type: string, format: date-time }
-
-    # 设计稿
+        msg_id:
+          type: integer
+        order_id:
+          type: integer
+        sender_user_id:
+          type: integer
+        sender_role:
+          type: string
+          enum:
+          - DOCTOR
+          - CS
+          - WORKER
+        sender_name:
+          type: string
+        content:
+          type: string
+        edited_content:
+          type: string
+          description: 客服编辑后内容
+        attachment_urls:
+          type: array
+          items:
+            type: string
+        visible_to:
+          type: string
+        review_status:
+          "$ref": "#/components/schemas/MessageStatus"
+        review_note:
+          type: string
+        create_time:
+          type: string
+          format: date-time
     DraftStatus:
       type: string
       enum:
-        - PENDING_CS_REVIEW
-        - CS_REJECTED
-        - PENDING_DOCTOR_CONFIRM
-        - DOCTOR_CONFIRMED
-        - DOCTOR_REJECTED
-
-    DesignDraft:
-      type: object
-      properties:
-        draft_id:             { type: integer }
-        order_id:             { type: integer }
-        version:              { type: integer }
-        uploader_user_id:     { type: integer }
-        uploader_name:        { type: string }
-        file_urls:            { type: array, items: { type: string } }
-        upload_note:          { type: string }
-        status:               { $ref: '#/components/schemas/DraftStatus' }
-        cs_reject_reason:     { type: string }
-        doctor_reject_reason: { type: string }
-        create_time:          { type: string, format: date-time }
-
-    # 绩效
+      - PENDING_CS_REVIEW
+      - CS_REJECTED
+      - PENDING_DOCTOR_CONFIRM
+      - DOCTOR_CONFIRMED
+      - DOCTOR_REJECTED
     PerformanceStats:
       type: object
       properties:
-        user_id:            { type: integer }
-        username:           { type: string }
-        completed_count:    { type: integer, description: 完成工序数 }
-        effective_duration: { type: integer, description: 有效工时（分钟）}
-        rework_count:       { type: integer, description: 返工次数 }
-        on_time_rate:       { type: number,  description: 准时率（0-1）}
-        pass_rate:          { type: number,  description: 一次通过率（0-1）}
-        duration_efficiency: { type: number,  description: 工时效率（标准工时÷实际工时×100%）}
-
+        user_id:
+          type: integer
+        username:
+          type: string
+        completed_count:
+          type: integer
+          description: 完成工序数
+        effective_duration:
+          type: integer
+          description: 有效工时（分钟）
+        rework_count:
+          type: integer
+          description: 返工次数
+        on_time_rate:
+          type: number
+          description: 准时率（0-1）
+        pass_rate:
+          type: number
+          description: 一次通过率（0-1）
+        duration_efficiency:
+          type: number
+          description: 工时效率（标准工时÷实际工时×100%）
+    ErrorResponse:
+      type: object
+      required:
+      - code
+      - msg
+      - data
+      properties:
+        code:
+          type: integer
+          example: 403
+        msg:
+          type: string
+          example: forbidden
+        data:
+          nullable: true
+          type: object
+    UploadTokenRequest:
+      type: object
+      required:
+      - order_id
+      - source_type
+      - visibility
+      - original_filename
+      - content_type
+      - file_size
+      properties:
+        order_id:
+          type: integer
+        source_type:
+          type: string
+          example: ORDER_ATTACHMENT
+        visibility:
+          type: string
+          enum:
+          - DOCTOR
+          - DOCTOR_CS
+          - INTERNAL
+          - ALL
+        original_filename:
+          type: string
+          example: scan.stl
+        content_type:
+          type: string
+          example: model/stl
+        file_size:
+          type: integer
+          format: int64
+    UploadTokenResponse:
+      type: object
+      properties:
+        file_id:
+          type: integer
+        upload_url:
+          type: string
+        expires_in_seconds:
+          type: integer
+          example: 900
+    MultipartInitiateRequest:
+      type: object
+      required:
+      - order_id
+      - source_type
+      - visibility
+      - original_filename
+      - content_type
+      - file_size
+      properties:
+        order_id:
+          type: integer
+        source_type:
+          type: string
+          example: ORDER_ATTACHMENT
+        visibility:
+          type: string
+          enum:
+          - DOCTOR
+          - DOCTOR_CS
+          - INTERNAL
+          - ALL
+        original_filename:
+          type: string
+          example: scan.stl
+        content_type:
+          type: string
+          example: model/stl
+        file_size:
+          type: integer
+          format: int64
+        part_size:
+          type: integer
+          format: int64
+          nullable: true
+          example: 5242880
+    MultipartInitiateResponse:
+      type: object
+      properties:
+        file_id:
+          type: integer
+        upload_id:
+          type: string
+        part_size:
+          type: integer
+          format: int64
+        part_count:
+          type: integer
+        expires_in_seconds:
+          type: integer
+          example: 900
+    MultipartPartUrlRequest:
+      type: object
+      required:
+      - upload_id
+      - part_number
+      properties:
+        upload_id:
+          type: string
+        part_number:
+          type: integer
+          minimum: 1
+    MultipartPartUrlResponse:
+      type: object
+      properties:
+        file_id:
+          type: integer
+        upload_id:
+          type: string
+        part_number:
+          type: integer
+        upload_url:
+          type: string
+        expires_in_seconds:
+          type: integer
+          example: 900
+    MultipartStatusResponse:
+      type: object
+      properties:
+        file_id:
+          type: integer
+        upload_id:
+          type: string
+        upload_status:
+          type: string
+          enum:
+          - PENDING
+        part_size:
+          type: integer
+          format: int64
+        part_count:
+          type: integer
+        completed_parts:
+          type: array
+          items:
+            type: object
+            properties:
+              part_number:
+                type: integer
+              etag:
+                type: string
+              size:
+                type: integer
+                format: int64
+    MultipartPendingUpload:
+      type: object
+      properties:
+        file_id:
+          type: integer
+        upload_id:
+          type: string
+        order_id:
+          type: integer
+        source_type:
+          type: string
+        visibility:
+          type: string
+        original_filename:
+          type: string
+        content_type:
+          type: string
+          nullable: true
+        file_size:
+          type: integer
+          format: int64
+        part_size:
+          type: integer
+          format: int64
+        part_count:
+          type: integer
+    MultipartPendingUploadsResponse:
+      type: object
+      properties:
+        items:
+          type: array
+          items:
+            "$ref": "#/components/schemas/MultipartPendingUpload"
+    MultipartCompleteRequest:
+      type: object
+      required:
+      - upload_id
+      - parts
+      properties:
+        upload_id:
+          type: string
+        parts:
+          type: array
+          minItems: 1
+          items:
+            type: object
+            required:
+            - part_number
+            - etag
+            properties:
+              part_number:
+                type: integer
+                minimum: 1
+              etag:
+                type: string
+    MultipartAbortRequest:
+      type: object
+      required:
+      - upload_id
+      properties:
+        upload_id:
+          type: string
+    FileCompleteResponse:
+      type: object
+      properties:
+        file_id:
+          type: integer
+        upload_status:
+          type: string
+          example: COMPLETED
+        file_size:
+          type: integer
+          format: int64
+        content_type:
+          type: string
+        checksum:
+          type: string
+    FileSignedUrlResponse:
+      type: object
+      properties:
+        file_id:
+          type: integer
+        preview_url:
+          type: string
+          nullable: true
+        download_url:
+          type: string
+          nullable: true
+        expires_in_seconds:
+          type: integer
+    ProductionReviewRequest:
+      type: object
+      description: 生产审核请求；仅允许处理 internal_status=PENDING_PRODUCTION_REVIEW 的订单。
+      required:
+      - action
+      properties:
+        action:
+          type: string
+          enum:
+          - APPROVE
+          - REJECT
+        chain_id:
+          type: integer
+          description: action=APPROVE 时必填
+        intake_branch:
+          type: string
+          enum:
+          - IMPRESSION
+          - SCAN
+        branch_params:
+          type: object
+          description: 贴面、种植基台等内部路线参数
+        reject_reason:
+          type: string
+    ProductionReviewResponse:
+      type: object
+      properties:
+        order_id:
+          type: integer
+        instance_id:
+          type: integer
+          nullable: true
+        internal_status:
+          type: string
+        external_status:
+          "$ref": "#/components/schemas/OrderStatus"
+    ProcessNodeInstance:
+      type: object
+      properties:
+        node_instance_id:
+          type: integer
+        node_code:
+          type: string
+        process_name:
+          type: string
+        step_order:
+          type: integer
+        is_optional:
+          type: integer
+          enum:
+          - 0
+          - 1
+        branch_group:
+          type: string
+          nullable: true
+        assigned_user_id:
+          type: integer
+          nullable: true
+        node_status:
+          type: string
+          enum:
+          - PENDING
+          - READY
+          - IN_PROGRESS
+          - COMPLETED
+          - SKIPPED
+        standard_duration:
+          type: integer
+          nullable: true
+    ProcessEdgeInstance:
+      type: object
+      properties:
+        edge_instance_id:
+          type: integer
+        from_node_instance_id:
+          type: integer
+        to_node_instance_id:
+          type: integer
+        edge_type:
+          type: string
+    ProcessInstanceResponse:
+      type: object
+      properties:
+        instance_id:
+          type: integer
+        order_id:
+          type: integer
+        instance_status:
+          type: string
+        nodes:
+          type: array
+          items:
+            "$ref": "#/components/schemas/ProcessNodeInstance"
+        edges:
+          type: array
+          items:
+            "$ref": "#/components/schemas/ProcessEdgeInstance"
+    NodeActionResponse:
+      type: object
+      properties:
+        node_instance_id:
+          type: integer
+        node_status:
+          type: string
+          enum:
+          - READY
+          - IN_PROGRESS
+          - COMPLETED
+          - SKIPPED
+    SkipNodeRequest:
+      type: object
+      properties:
+        reason:
+          type: string
+    CheckRecordRequest:
+      type: object
+      required:
+      - node_instance_id
+      - check_type
+      - is_pass
+      properties:
+        node_instance_id:
+          type: integer
+        check_type:
+          type: integer
+          enum:
+          - 1
+          - 2
+          description: 1=入检, 2=出检
+        is_pass:
+          type: boolean
+        remark:
+          type: string
+        rework_to_node_id:
+          type: integer
+          description: 出检不通过时必填
+    CheckRecordResponse:
+      type: object
+      properties:
+        check_id:
+          type: integer
+        node_instance_id:
+          type: integer
+        check_type:
+          type: integer
+          enum:
+          - 1
+          - 2
+        result:
+          type: string
+          enum:
+          - PASS
+          - FAIL
+        rework_id:
+          type: integer
+          nullable: true
+    ReworkRecordResponse:
+      type: object
+      properties:
+        rework_id:
+          type: integer
+        order_id:
+          type: integer
+        order_no:
+          type: string
+        source_check_id:
+          type: integer
+        from_node_instance_id:
+          type: integer
+          nullable: true
+        from_process_name:
+          type: string
+          nullable: true
+        target_node_instance_id:
+          type: integer
+          nullable: true
+        target_process_name:
+          type: string
+          nullable: true
+        target_node_status:
+          type: string
+          nullable: true
+        assigned_user_id:
+          type: integer
+          nullable: true
+        reason_detail:
+          type: string
+          nullable: true
+        status:
+          type: string
+        created_at:
+          type: string
+          format: date-time
+    WorkLogStartRequest:
+      type: object
+      required:
+      - node_instance_id
+      properties:
+        node_instance_id:
+          type: integer
+    WorkLogResponse:
+      type: object
+      properties:
+        work_log_id:
+          type: integer
+        node_instance_id:
+          type: integer
+        worker_user_id:
+          type: integer
+        status:
+          type: string
+          enum:
+          - IN_PROGRESS
+          - PAUSED
+          - COMPLETED
+        pause_duration_seconds:
+          type: integer
+        effective_duration_seconds:
+          type: integer
+          nullable: true
+    MessageRequest:
+      type: object
+      required:
+      - content
+      properties:
+        content:
+          type: string
+        attachment_file_ids:
+          type: array
+          items:
+            type: integer
+        visible_to:
+          type: string
+          enum:
+          - DOCTOR
+          - DOCTOR_CS
+          - INTERNAL
+          - ALL
+    MessageReviewRequest:
+      type: object
+      required:
+      - action
+      properties:
+        action:
+          type: string
+          enum:
+          - APPROVE
+          - REJECT
+        edited_content:
+          type: string
+        review_note:
+          type: string
+    DesignDraftRequest:
+      type: object
+      required:
+      - file_ids
+      properties:
+        file_ids:
+          type: array
+          items:
+            type: integer
+        upload_note:
+          type: string
+    DesignDraftResponse:
+      type: object
+      properties:
+        draft_id:
+          type: integer
+        order_id:
+          type: integer
+        version:
+          type: integer
+        uploader_user_id:
+          type: integer
+          nullable: true
+        file_id:
+          type: integer
+          nullable: true
+        status:
+          "$ref": "#/components/schemas/DraftStatus"
+    DesignDraftReviewRequest:
+      type: object
+      required:
+      - action
+      properties:
+        action:
+          type: string
+          enum:
+          - APPROVE
+          - REJECT
+        cs_reject_reason:
+          type: string
+    DoctorDraftConfirmRequest:
+      type: object
+      required:
+      - action
+      properties:
+        action:
+          type: string
+          enum:
+          - CONFIRM
+          - REJECT
+        doctor_reject_reason:
+          type: string
+    BillRequest:
+      type: object
+      required:
+      - file_id
+      properties:
+        file_id:
+          type: integer
+    BillResponse:
+      type: object
+      properties:
+        bill_id:
+          type: integer
+          nullable: true
+        order_id:
+          type: integer
+        bill_status:
+          type: string
+        file_id:
+          type: integer
+          nullable: true
+    LogisticsRequest:
+      type: object
+      required:
+      - carrier
+      - tracking_no
+      properties:
+        carrier:
+          type: string
+        tracking_no:
+          type: string
+    LogisticsResponse:
+      type: object
+      properties:
+        logistics_id:
+          type: integer
+          nullable: true
+        order_id:
+          type: integer
+        carrier:
+          type: string
+        tracking_no:
+          type: string
+        logistics_status:
+          type: string
+    AiOrderOnlyRequest:
+      type: object
+      required:
+      - order_id
+      properties:
+        order_id:
+          type: integer
+    AiQuestionRequest:
+      type: object
+      required:
+      - order_id
+      - question
+      properties:
+        order_id:
+          type: integer
+        question:
+          type: string
+    AiTranslateRequest:
+      type: object
+      required:
+      - order_id
+      - source_text
+      properties:
+        order_id:
+          type: integer
+        source_text:
+          type: string
+    AiTranslateResponse:
+      type: object
+      properties:
+        translated_text:
+          type: string
+    AiAnswerResponse:
+      type: object
+      properties:
+        answer:
+          type: string
+    AiProductionNoteResponse:
+      type: object
+      properties:
+        draft_note:
+          type: string
+    MissingInfoResponse:
+      type: object
+      properties:
+        is_complete:
+          type: boolean
+        missing_items:
+          type: array
+          items:
+            type: object
+            properties:
+              field_key:
+                type: string
+              field_label:
+                type: string
+              tip:
+                type: string
+    NotificationItem:
+      type: object
+      properties:
+        notification_id:
+          type: integer
+          format: int64
+        event_id:
+          type: integer
+          format: int64
+        event:
+          type: string
+          example: BILL_UPLOADED
+        order_id:
+          type: integer
+          format: int64
+          nullable: true
+        order_no:
+          type: string
+          nullable: true
+        message:
+          type: string
+          nullable: true
+          description: 面向接收人的脱敏通知文案
+        read_at:
+          type: string
+          format: date-time
+          nullable: true
+        delivered_at:
+          type: string
+          format: date-time
+          nullable: true
+        created_at:
+          type: string
+          format: date-time
+    NotificationListResponse:
+      type: array
+      items:
+        "$ref": "#/components/schemas/NotificationItem"
+    UnreadCountResponse:
+      type: object
+      properties:
+        unread_count:
+          type: integer
+          format: int64
+    MarkAllReadResponse:
+      type: object
+      properties:
+        updated_count:
+          type: integer
+  responses:
+    BadRequest:
+      description: 请求参数错误或校验失败
+      content:
+        application/json:
+          schema:
+            "$ref": "#/components/schemas/ErrorResponse"
+    Unauthorized:
+      description: 未登录或 Token 无效
+      content:
+        application/json:
+          schema:
+            "$ref": "#/components/schemas/ErrorResponse"
+    Forbidden:
+      description: 无权限或数据范围拒绝
+      content:
+        application/json:
+          schema:
+            "$ref": "#/components/schemas/ErrorResponse"
+    NotFound:
+      description: 资源不存在
+      content:
+        application/json:
+          schema:
+            "$ref": "#/components/schemas/ErrorResponse"
+    Conflict:
+      description: 业务状态冲突或幂等冲突
+      content:
+        application/json:
+          schema:
+            "$ref": "#/components/schemas/ErrorResponse"
+    ServiceUnavailable:
+      description: 外部依赖或存储服务不可用
+      content:
+        application/json:
+          schema:
+            "$ref": "#/components/schemas/ErrorResponse"
+    DefaultError:
+      description: 未分类错误响应
+      content:
+        application/json:
+          schema:
+            "$ref": "#/components/schemas/ErrorResponse"
 security:
-  - BearerAuth: []
-
-# ─────────────────────────────────────────────────────────────
-# PATHS
-# ─────────────────────────────────────────────────────────────
+- BearerAuth: []
 paths:
-
-  # ── AUTH ──────────────────────────────────────────────────
-  /auth/login:
+  "/auth/login":
     post:
-      tags: [Auth]
+      tags:
+      - Auth
       summary: 登录
       security: []
       requestBody:
         required: true
         content:
           application/json:
-            schema: { $ref: '#/components/schemas/LoginRequest' }
+            schema:
+              "$ref": "#/components/schemas/LoginRequest"
       responses:
         '200':
           description: 登录成功
@@ -261,16 +1237,57 @@ paths:
             application/json:
               schema:
                 allOf:
-                  - $ref: '#/components/schemas/CommonResponse'
-                  - type: object
-                    properties:
-                      data: { $ref: '#/components/schemas/LoginResponse' }
+                - "$ref": "#/components/schemas/CommonResponse"
+                - type: object
+                  properties:
+                    data:
+                      "$ref": "#/components/schemas/LoginResponse"
         '401':
           description: 账号或密码错误
-
-  /auth/refresh:
+        '400':
+          "$ref": "#/components/responses/BadRequest"
+        '403':
+          "$ref": "#/components/responses/Forbidden"
+        '404':
+          "$ref": "#/components/responses/NotFound"
+        '409':
+          "$ref": "#/components/responses/Conflict"
+        default:
+          "$ref": "#/components/responses/DefaultError"
+        '503':
+          "$ref": "#/components/responses/ServiceUnavailable"
+      operationId: postAuthLogin
+  "/auth/me":
+    get:
+      tags:
+      - Auth
+      summary: 当前登录用户
+      responses:
+        '200':
+          description: 当前用户、权限码、数据范围和可见菜单
+          content:
+            application/json:
+              schema:
+                "$ref": "#/components/schemas/CurrentUserResponse"
+        '400':
+          "$ref": "#/components/responses/BadRequest"
+        '401':
+          "$ref": "#/components/responses/Unauthorized"
+        '403':
+          "$ref": "#/components/responses/Forbidden"
+        '404':
+          "$ref": "#/components/responses/NotFound"
+        '409':
+          "$ref": "#/components/responses/Conflict"
+        '503':
+          "$ref": "#/components/responses/ServiceUnavailable"
+        default:
+          "$ref": "#/components/responses/DefaultError"
+      operationId: getAuthMe
+  "/auth/refresh":
     post:
-      tags: [Auth]
+      tags:
+      - Auth
       summary: 刷新 Access Token
       security: []
       requestBody:
@@ -280,43 +1297,100 @@ paths:
             schema:
               type: object
               properties:
-                refresh_token: { type: string }
+                refresh_token:
+                  type: string
       responses:
         '200':
           description: 刷新成功，返回新 access_token
-
-  /auth/logout:
+        '400':
+          "$ref": "#/components/responses/BadRequest"
+        '401':
+          "$ref": "#/components/responses/Unauthorized"
+        '403':
+          "$ref": "#/components/responses/Forbidden"
+        '404':
+          "$ref": "#/components/responses/NotFound"
+        '409':
+          "$ref": "#/components/responses/Conflict"
+        default:
+          "$ref": "#/components/responses/DefaultError"
+        '503':
+          "$ref": "#/components/responses/ServiceUnavailable"
+      operationId: postAuthRefresh
+  "/auth/logout":
     post:
-      tags: [Auth]
+      tags:
+      - Auth
       summary: 登出，服务端使 Token 失效
       responses:
         '200':
           description: 登出成功
-
-  # ── USER ──────────────────────────────────────────────────
-  /users:
+        '400':
+          "$ref": "#/components/responses/BadRequest"
+        '401':
+          "$ref": "#/components/responses/Unauthorized"
+        '403':
+          "$ref": "#/components/responses/Forbidden"
+        '404':
+          "$ref": "#/components/responses/NotFound"
+        '409':
+          "$ref": "#/components/responses/Conflict"
+        default:
+          "$ref": "#/components/responses/DefaultError"
+        '503':
+          "$ref": "#/components/responses/ServiceUnavailable"
+      operationId: postAuthLogout
+  "/users":
     get:
-      tags: [User]
+      tags:
+      - User
       summary: 获取用户列表
-      description: 权限：ADMIN
+      description: 权限：CS / ADMIN
       parameters:
-        - name: role
-          in: query
-          schema: { type: string, enum: [DOCTOR, CS, WORKER, ADMIN] }
-        - name: clinic_id
-          in: query
-          schema: { type: integer }
-        - name: page
-          in: query
-          schema: { type: integer, default: 1 }
-        - name: size
-          in: query
-          schema: { type: integer, default: 20 }
+      - name: role
+        in: query
+        schema:
+          type: string
+          enum:
+          - DOCTOR
+          - CS
+          - WORKER
+          - ADMIN
+      - name: clinic_id
+        in: query
+        schema:
+          type: integer
+      - name: page
+        in: query
+        schema:
+          type: integer
+          default: 1
+      - name: size
+        in: query
+        schema:
+          type: integer
+          default: 20
       responses:
         '200':
           description: 用户列表（分页）
+        '400':
+          "$ref": "#/components/responses/BadRequest"
+        '401':
+          "$ref": "#/components/responses/Unauthorized"
+        '403':
+          "$ref": "#/components/responses/Forbidden"
+        '404':
+          "$ref": "#/components/responses/NotFound"
+        '409':
+          "$ref": "#/components/responses/Conflict"
+        default:
+          "$ref": "#/components/responses/DefaultError"
+        '503':
+          "$ref": "#/components/responses/ServiceUnavailable"
+      operationId: getUsers
     post:
-      tags: [User]
+      tags:
+      - User
       summary: 创建用户
       description: 权限：ADMIN。不开放自助注册。
       requestBody:
@@ -325,27 +1399,57 @@ paths:
           application/json:
             schema:
               type: object
-              required: [username, password, role]
+              required:
+              - username
+              - password
+              - role
               properties:
-                username:  { type: string }
-                password:  { type: string }
-                role:      { type: string, enum: [DOCTOR, CS, WORKER, ADMIN] }
-                clinic_id: { type: integer, description: 角色为 DOCTOR 时必填 }
-                real_name: { type: string }
+                username:
+                  type: string
+                password:
+                  type: string
+                role:
+                  type: string
+                  enum:
+                  - DOCTOR
+                  - CS
+                  - WORKER
+                  - ADMIN
+                clinic_id:
+                  type: integer
+                  description: 角色为 DOCTOR 时必填
+                real_name:
+                  type: string
       responses:
         '200':
           description: 创建成功，返回 user_id
-
-  /users/{userId}:
+        '400':
+          "$ref": "#/components/responses/BadRequest"
+        '401':
+          "$ref": "#/components/responses/Unauthorized"
+        '403':
+          "$ref": "#/components/responses/Forbidden"
+        '404':
+          "$ref": "#/components/responses/NotFound"
+        '409':
+          "$ref": "#/components/responses/Conflict"
+        default:
+          "$ref": "#/components/responses/DefaultError"
+        '503':
+          "$ref": "#/components/responses/ServiceUnavailable"
+      operationId: postUsers
+  "/users/{userId}":
     put:
-      tags: [User]
+      tags:
+      - User
       summary: 编辑用户信息
-      description: 权限：ADMIN
+      description: 权限：CS / ADMIN
       parameters:
-        - name: userId
-          in: path
-          required: true
-          schema: { type: integer }
+      - name: userId
+        in: path
+        required: true
+        schema:
+          type: integer
       requestBody:
         required: true
         content:
@@ -353,45 +1457,103 @@ paths:
             schema:
               type: object
               properties:
-                real_name: { type: string }
-                status:    { type: integer, enum: [0, 1], description: 0=禁用 1=启用 }
+                real_name:
+                  type: string
+                status:
+                  type: integer
+                  enum:
+                  - 0
+                  - 1
+                  description: 0=禁用 1=启用
       responses:
         '200':
           description: 编辑成功
+        '400':
+          "$ref": "#/components/responses/BadRequest"
+        '401':
+          "$ref": "#/components/responses/Unauthorized"
+        '403':
+          "$ref": "#/components/responses/Forbidden"
+        '404':
+          "$ref": "#/components/responses/NotFound"
+        '409':
+          "$ref": "#/components/responses/Conflict"
+        default:
+          "$ref": "#/components/responses/DefaultError"
+        '503':
+          "$ref": "#/components/responses/ServiceUnavailable"
+      operationId: putUsersByUserId
     delete:
-      tags: [User]
+      tags:
+      - User
       summary: 禁用用户（软删除）
       description: 权限：ADMIN
       parameters:
-        - name: userId
-          in: path
-          required: true
-          schema: { type: integer }
+      - name: userId
+        in: path
+        required: true
+        schema:
+          type: integer
       responses:
         '200':
           description: 禁用成功
-
-  # ── CLINIC ────────────────────────────────────────────────
-  /clinics:
+        '400':
+          "$ref": "#/components/responses/BadRequest"
+        '401':
+          "$ref": "#/components/responses/Unauthorized"
+        '403':
+          "$ref": "#/components/responses/Forbidden"
+        '404':
+          "$ref": "#/components/responses/NotFound"
+        '409':
+          "$ref": "#/components/responses/Conflict"
+        default:
+          "$ref": "#/components/responses/DefaultError"
+        '503':
+          "$ref": "#/components/responses/ServiceUnavailable"
+      operationId: deleteUsersByUserId
+  "/clinics":
     get:
-      tags: [Clinic]
+      tags:
+      - Clinic
       summary: 获取诊所列表
       description: 权限：CS / ADMIN
       parameters:
-        - name: keyword
-          in: query
-          schema: { type: string }
-        - name: page
-          in: query
-          schema: { type: integer, default: 1 }
-        - name: size
-          in: query
-          schema: { type: integer, default: 20 }
+      - name: keyword
+        in: query
+        schema:
+          type: string
+      - name: page
+        in: query
+        schema:
+          type: integer
+          default: 1
+      - name: size
+        in: query
+        schema:
+          type: integer
+          default: 20
       responses:
         '200':
           description: 诊所列表（分页）
+        '400':
+          "$ref": "#/components/responses/BadRequest"
+        '401':
+          "$ref": "#/components/responses/Unauthorized"
+        '403':
+          "$ref": "#/components/responses/Forbidden"
+        '404':
+          "$ref": "#/components/responses/NotFound"
+        '409':
+          "$ref": "#/components/responses/Conflict"
+        default:
+          "$ref": "#/components/responses/DefaultError"
+        '503':
+          "$ref": "#/components/responses/ServiceUnavailable"
+      operationId: getClinics
     post:
-      tags: [Clinic]
+      tags:
+      - Clinic
       summary: 创建诊所
       description: 权限：ADMIN
       requestBody:
@@ -400,53 +1562,107 @@ paths:
           application/json:
             schema:
               type: object
-              required: [clinic_name]
+              required:
+              - clinic_name
               properties:
-                clinic_name: { type: string }
-                country:     { type: string }
-                language:    { type: string }
-                cs_user_id:  { type: integer, description: 负责客服 }
+                clinic_name:
+                  type: string
+                country:
+                  type: string
+                language:
+                  type: string
+                cs_user_id:
+                  type: integer
+                  description: 负责客服
       responses:
         '200':
           description: 创建成功
-
-  /clinics/{clinicId}:
+        '400':
+          "$ref": "#/components/responses/BadRequest"
+        '401':
+          "$ref": "#/components/responses/Unauthorized"
+        '403':
+          "$ref": "#/components/responses/Forbidden"
+        '404':
+          "$ref": "#/components/responses/NotFound"
+        '409':
+          "$ref": "#/components/responses/Conflict"
+        default:
+          "$ref": "#/components/responses/DefaultError"
+        '503':
+          "$ref": "#/components/responses/ServiceUnavailable"
+      operationId: postClinics
+  "/clinics/{clinicId}":
     get:
-      tags: [Clinic]
+      tags:
+      - Clinic
       summary: 获取诊所详情
       description: 权限：CS / ADMIN
       parameters:
-        - name: clinicId
-          in: path
-          required: true
-          schema: { type: integer }
+      - name: clinicId
+        in: path
+        required: true
+        schema:
+          type: integer
       responses:
         '200':
           description: 诊所详情
-
-  # ── CUSTOMER PREFERENCE ───────────────────────────────────
-  /clinics/{clinicId}/preference:
+        '400':
+          "$ref": "#/components/responses/BadRequest"
+        '401':
+          "$ref": "#/components/responses/Unauthorized"
+        '403':
+          "$ref": "#/components/responses/Forbidden"
+        '404':
+          "$ref": "#/components/responses/NotFound"
+        '409':
+          "$ref": "#/components/responses/Conflict"
+        default:
+          "$ref": "#/components/responses/DefaultError"
+        '503':
+          "$ref": "#/components/responses/ServiceUnavailable"
+      operationId: getClinicsByClinicId
+  "/clinics/{clinicId}/preference":
     get:
-      tags: [CustomerPreference]
+      tags:
+      - CustomerPreference
       summary: 获取客户偏好
       description: 权限：CS / ADMIN
       parameters:
-        - name: clinicId
-          in: path
-          required: true
-          schema: { type: integer }
+      - name: clinicId
+        in: path
+        required: true
+        schema:
+          type: integer
       responses:
         '200':
           description: 客户偏好记录
+        '400':
+          "$ref": "#/components/responses/BadRequest"
+        '401':
+          "$ref": "#/components/responses/Unauthorized"
+        '403':
+          "$ref": "#/components/responses/Forbidden"
+        '404':
+          "$ref": "#/components/responses/NotFound"
+        '409':
+          "$ref": "#/components/responses/Conflict"
+        default:
+          "$ref": "#/components/responses/DefaultError"
+        '503':
+          "$ref": "#/components/responses/ServiceUnavailable"
+      operationId: getClinicsByClinicIdPreference
     put:
-      tags: [CustomerPreference]
+      tags:
+      - CustomerPreference
       summary: 更新客户偏好（覆盖写）
       description: 权限：CS / ADMIN
       parameters:
-        - name: clinicId
-          in: path
-          required: true
-          schema: { type: integer }
+      - name: clinicId
+        in: path
+        required: true
+        schema:
+          type: integer
       requestBody:
         required: true
         content:
@@ -454,27 +1670,54 @@ paths:
             schema:
               type: object
               properties:
-                color:    { type: string, description: 颜色/色号偏好 }
-                contact:  { type: string, description: 邻接关系偏好 }
-                margin:   { type: string, description: 边缘设计偏好 }
-                shape:    { type: string, description: 外形偏好 }
-                material: { type: string, description: 材料偏好 }
-                note:     { type: string, description: 其他备注 }
+                color:
+                  type: string
+                  description: 颜色/色号偏好
+                contact:
+                  type: string
+                  description: 邻接关系偏好
+                margin:
+                  type: string
+                  description: 边缘设计偏好
+                shape:
+                  type: string
+                  description: 外形偏好
+                material:
+                  type: string
+                  description: 材料偏好
+                note:
+                  type: string
+                  description: 其他备注
       responses:
         '200':
           description: 更新成功
-
-  # ── ORDER FORM CONFIG ─────────────────────────────────────
-  /form-configs:
+        '400':
+          "$ref": "#/components/responses/BadRequest"
+        '401':
+          "$ref": "#/components/responses/Unauthorized"
+        '403':
+          "$ref": "#/components/responses/Forbidden"
+        '404':
+          "$ref": "#/components/responses/NotFound"
+        '409':
+          "$ref": "#/components/responses/Conflict"
+        default:
+          "$ref": "#/components/responses/DefaultError"
+        '503':
+          "$ref": "#/components/responses/ServiceUnavailable"
+      operationId: putClinicsByClinicIdPreference
+  "/form-configs":
     get:
-      tags: [OrderForm]
+      tags:
+      - OrderForm
       summary: 获取所有产品类型的表单字段配置
       description: 权限：全部角色（医生下单时调用）
       parameters:
-        - name: product_type
-          in: query
-          description: 不传则返回全部产品类型配置
-          schema: { type: string }
+      - name: product_type
+        in: query
+        description: 不传则返回全部产品类型配置
+        schema:
+          type: string
       responses:
         '200':
           description: 字段配置列表
@@ -486,19 +1729,25 @@ paths:
                   data:
                     type: array
                     items:
-                      type: object
-                      properties:
-                        field_id:      { type: integer }
-                        product_type:  { type: string }
-                        field_key:     { type: string }
-                        field_label:   { type: string }
-                        field_type:    { type: string, enum: [text, textarea, select, multi-select, number, date, file] }
-                        is_required:   { type: boolean }
-                        options:       { type: array, items: { type: string }, description: select 类型的选项列表 }
-                        sort_order:    { type: integer }
-
+                      "$ref": "#/components/schemas/FormFieldConfig"
+        '400':
+          "$ref": "#/components/responses/BadRequest"
+        '401':
+          "$ref": "#/components/responses/Unauthorized"
+        '403':
+          "$ref": "#/components/responses/Forbidden"
+        '404':
+          "$ref": "#/components/responses/NotFound"
+        '409':
+          "$ref": "#/components/responses/Conflict"
+        default:
+          "$ref": "#/components/responses/DefaultError"
+        '503':
+          "$ref": "#/components/responses/ServiceUnavailable"
+      operationId: getFormConfigs
     post:
-      tags: [OrderForm]
+      tags:
+      - OrderForm
       summary: 新增表单字段
       description: 权限：ADMIN
       requestBody:
@@ -507,29 +1756,59 @@ paths:
           application/json:
             schema:
               type: object
-              required: [product_type, field_key, field_label, field_type]
+              required:
+              - product_type
+              - field_key
+              - field_label
+              - field_type
               properties:
-                product_type: { type: string }
-                field_key:    { type: string }
-                field_label:  { type: string }
-                field_type:   { type: string }
-                is_required:  { type: boolean, default: false }
-                options:      { type: array, items: { type: string } }
-                sort_order:   { type: integer }
+                product_type:
+                  type: string
+                field_key:
+                  type: string
+                field_label:
+                  type: string
+                field_type:
+                  type: string
+                is_required:
+                  type: boolean
+                  default: false
+                options:
+                  type: array
+                  items:
+                    type: string
+                sort_order:
+                  type: integer
       responses:
         '200':
           description: 创建成功
-
-  /form-configs/{fieldId}:
+        '400':
+          "$ref": "#/components/responses/BadRequest"
+        '401':
+          "$ref": "#/components/responses/Unauthorized"
+        '403':
+          "$ref": "#/components/responses/Forbidden"
+        '404':
+          "$ref": "#/components/responses/NotFound"
+        '409':
+          "$ref": "#/components/responses/Conflict"
+        default:
+          "$ref": "#/components/responses/DefaultError"
+        '503':
+          "$ref": "#/components/responses/ServiceUnavailable"
+      operationId: postFormConfigs
+  "/form-configs/{fieldId}":
     put:
-      tags: [OrderForm]
+      tags:
+      - OrderForm
       summary: 编辑表单字段
       description: 权限：ADMIN
       parameters:
-        - name: fieldId
-          in: path
-          required: true
-          schema: { type: integer }
+      - name: fieldId
+        in: path
+        required: true
+        schema:
+          type: integer
       requestBody:
         required: true
         content:
@@ -537,117 +1816,476 @@ paths:
             schema:
               type: object
               properties:
-                field_label: { type: string }
-                is_required: { type: boolean }
-                options:     { type: array, items: { type: string } }
-                sort_order:  { type: integer }
-                status:      { type: integer, enum: [0, 1] }
+                field_label:
+                  type: string
+                is_required:
+                  type: boolean
+                options:
+                  type: array
+                  items:
+                    type: string
+                sort_order:
+                  type: integer
+                status:
+                  type: integer
+                  enum:
+                  - 0
+                  - 1
       responses:
         '200':
           description: 编辑成功
-
-  # ── FILE ──────────────────────────────────────────────────
-  /files/upload-token:
+        '400':
+          "$ref": "#/components/responses/BadRequest"
+        '401':
+          "$ref": "#/components/responses/Unauthorized"
+        '403':
+          "$ref": "#/components/responses/Forbidden"
+        '404':
+          "$ref": "#/components/responses/NotFound"
+        '409':
+          "$ref": "#/components/responses/Conflict"
+        default:
+          "$ref": "#/components/responses/DefaultError"
+        '503':
+          "$ref": "#/components/responses/ServiceUnavailable"
+      operationId: putFormConfigsByFieldId
+  "/files/upload-token":
     post:
-      tags: [File]
-      summary: 获取 Uppy 分片上传所需的预签名上传 Token
+      tags:
+      - File
+      summary: 获取单文件 PUT 直传预签名上传 Token
       description: |
         权限：DOCTOR / CS / WORKER / ADMIN
-        前端 Uppy 使用此接口获取 MinIO 预签名上传地址，直传到 MinIO 私有桶。
-        服务端不做文件内容中转。
+        前端使用此接口获取 MinIO 单对象 PUT 预签名上传地址，直传到 MinIO 私有桶；服务端不做文件内容中转。
       requestBody:
         required: true
         content:
           application/json:
             schema:
-              type: object
-              required: [file_name, file_size, file_type]
-              properties:
-                file_name:  { type: string }
-                file_size:  { type: integer }
-                file_type:  { type: string }
-                order_id:   { type: integer, description: 关联订单（可选，上传时关联）}
+              "$ref": "#/components/schemas/UploadTokenRequest"
       responses:
         '200':
-          description: 返回上传凭证
+          description: 返回预签名 PUT 上传地址和 file_id
           content:
             application/json:
               schema:
-                type: object
-                properties:
-                  upload_url: { type: string, description: MinIO 预签名上传 URL }
-                  file_id:    { type: integer, description: 系统生成的文件 ID，上传完成后用于关联订单 }
-
-  /files/{fileId}/preview-url:
+                allOf:
+                - "$ref": "#/components/schemas/CommonResponse"
+                - type: object
+                  properties:
+                    data:
+                      "$ref": "#/components/schemas/UploadTokenResponse"
+        '400':
+          "$ref": "#/components/responses/BadRequest"
+        '401':
+          "$ref": "#/components/responses/Unauthorized"
+        '403':
+          "$ref": "#/components/responses/Forbidden"
+        '404':
+          "$ref": "#/components/responses/NotFound"
+        '409':
+          "$ref": "#/components/responses/Conflict"
+        default:
+          "$ref": "#/components/responses/DefaultError"
+        '503':
+          "$ref": "#/components/responses/ServiceUnavailable"
+      operationId: postFilesUploadToken
+  "/files/multipart/initiate":
+    post:
+      tags:
+      - File
+      summary: 初始化 MinIO Multipart 上传
+      description: |
+        权限：DOCTOR / CS / WORKER / ADMIN
+        创建 file_resource=PENDING/MULTIPART 记录并返回 upload_id、part_size、part_count；医生只能向本人可访问订单上传医生可见文件。
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              "$ref": "#/components/schemas/MultipartInitiateRequest"
+      responses:
+        '200':
+          description: Multipart 初始化成功
+          content:
+            application/json:
+              schema:
+                allOf:
+                - "$ref": "#/components/schemas/CommonResponse"
+                - type: object
+                  properties:
+                    data:
+                      "$ref": "#/components/schemas/MultipartInitiateResponse"
+        '400':
+          "$ref": "#/components/responses/BadRequest"
+        '401':
+          "$ref": "#/components/responses/Unauthorized"
+        '403':
+          "$ref": "#/components/responses/Forbidden"
+        '404':
+          "$ref": "#/components/responses/NotFound"
+        '409':
+          "$ref": "#/components/responses/Conflict"
+        default:
+          "$ref": "#/components/responses/DefaultError"
+        '503':
+          "$ref": "#/components/responses/ServiceUnavailable"
+      operationId: postFilesMultipartInitiate
+  "/files/multipart/pending":
     get:
-      tags: [File]
+      tags:
+      - File
+      summary: 列出订单下未完成 Multipart 上传
+      description: |
+        权限：DOCTOR / CS / WORKER / ADMIN。用于断点续传恢复候选列表；医生只能看到本人创建的医生可见未完成 Multipart 文件，响应不暴露 object_key。
+      parameters:
+      - name: order_id
+        in: query
+        required: true
+        schema:
+          type: integer
+      responses:
+        '200':
+          description: 返回当前订单可恢复的 Multipart 上传候选
+          content:
+            application/json:
+              schema:
+                allOf:
+                - "$ref": "#/components/schemas/CommonResponse"
+                - type: object
+                  properties:
+                    data:
+                      "$ref": "#/components/schemas/MultipartPendingUploadsResponse"
+        '400':
+          "$ref": "#/components/responses/BadRequest"
+        '401':
+          "$ref": "#/components/responses/Unauthorized"
+        '403':
+          "$ref": "#/components/responses/Forbidden"
+        '404':
+          "$ref": "#/components/responses/NotFound"
+        '409':
+          "$ref": "#/components/responses/Conflict"
+        default:
+          "$ref": "#/components/responses/DefaultError"
+        '503':
+          "$ref": "#/components/responses/ServiceUnavailable"
+      operationId: getFilesMultipartPending
+  "/files/{fileId}/multipart/part-url":
+    post:
+      tags:
+      - File
+      summary: 获取 Multipart 单个分片上传签名 URL
+      description: |
+        权限：按文件归属和可见性校验。医生只能为自己创建的 Multipart 文件申请分片签名 URL。
+      parameters:
+      - name: fileId
+        in: path
+        required: true
+        schema:
+          type: integer
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              "$ref": "#/components/schemas/MultipartPartUrlRequest"
+      responses:
+        '200':
+          description: 返回分片 PUT 预签名 URL
+          content:
+            application/json:
+              schema:
+                allOf:
+                - "$ref": "#/components/schemas/CommonResponse"
+                - type: object
+                  properties:
+                    data:
+                      "$ref": "#/components/schemas/MultipartPartUrlResponse"
+        '400':
+          "$ref": "#/components/responses/BadRequest"
+        '401':
+          "$ref": "#/components/responses/Unauthorized"
+        '403':
+          "$ref": "#/components/responses/Forbidden"
+        '404':
+          "$ref": "#/components/responses/NotFound"
+        '409':
+          "$ref": "#/components/responses/Conflict"
+        default:
+          "$ref": "#/components/responses/DefaultError"
+        '503':
+          "$ref": "#/components/responses/ServiceUnavailable"
+      operationId: postFilesByFileIdMultipartPartUrl
+  "/files/{fileId}/multipart/status":
+    get:
+      tags:
+      - File
+      summary: 查询 Multipart 上传状态用于断点续传
+      description: |
+        权限：按文件归属和可见性校验。医生只能查询自己创建的未完成 Multipart 文件；响应只返回已上传分片，不暴露 object_key。
+      parameters:
+      - name: fileId
+        in: path
+        required: true
+        schema:
+          type: integer
+      - name: upload_id
+        in: query
+        required: true
+        schema:
+          type: string
+      responses:
+        '200':
+          description: 返回当前 Multipart 已上传分片
+          content:
+            application/json:
+              schema:
+                allOf:
+                - "$ref": "#/components/schemas/CommonResponse"
+                - type: object
+                  properties:
+                    data:
+                      "$ref": "#/components/schemas/MultipartStatusResponse"
+        '400':
+          "$ref": "#/components/responses/BadRequest"
+        '401':
+          "$ref": "#/components/responses/Unauthorized"
+        '403':
+          "$ref": "#/components/responses/Forbidden"
+        '404':
+          "$ref": "#/components/responses/NotFound"
+        '409':
+          "$ref": "#/components/responses/Conflict"
+        default:
+          "$ref": "#/components/responses/DefaultError"
+        '503':
+          "$ref": "#/components/responses/ServiceUnavailable"
+      operationId: getFilesByFileIdMultipartStatus
+  "/files/{fileId}/multipart/complete":
+    post:
+      tags:
+      - File
+      summary: 完成 Multipart 上传并写入文件元数据
+      description: |
+        权限：按文件归属和可见性校验。服务端使用 upload_id 和 part ETag 完成 MinIO Multipart，并写 upload_status=COMPLETED 与审计日志。
+      parameters:
+      - name: fileId
+        in: path
+        required: true
+        schema:
+          type: integer
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              "$ref": "#/components/schemas/MultipartCompleteRequest"
+      responses:
+        '200':
+          description: Multipart 上传完成确认成功
+          content:
+            application/json:
+              schema:
+                allOf:
+                - "$ref": "#/components/schemas/CommonResponse"
+                - type: object
+                  properties:
+                    data:
+                      "$ref": "#/components/schemas/FileCompleteResponse"
+        '400':
+          "$ref": "#/components/responses/BadRequest"
+        '401':
+          "$ref": "#/components/responses/Unauthorized"
+        '403':
+          "$ref": "#/components/responses/Forbidden"
+        '404':
+          "$ref": "#/components/responses/NotFound"
+        '409':
+          "$ref": "#/components/responses/Conflict"
+        default:
+          "$ref": "#/components/responses/DefaultError"
+        '503':
+          "$ref": "#/components/responses/ServiceUnavailable"
+      operationId: postFilesByFileIdMultipartComplete
+  "/files/{fileId}/multipart/abort":
+    post:
+      tags:
+      - File
+      summary: 取消 Multipart 上传
+      description: |
+        权限：按文件归属和可见性校验。取消 MinIO Multipart，并将 file_resource.upload_status 标记为 ABORTED。
+      parameters:
+      - name: fileId
+        in: path
+        required: true
+        schema:
+          type: integer
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              "$ref": "#/components/schemas/MultipartAbortRequest"
+      responses:
+        '200':
+          description: Multipart 上传已取消
+          content:
+            application/json:
+              schema:
+                allOf:
+                - "$ref": "#/components/schemas/CommonResponse"
+                - type: object
+                  properties:
+                    data:
+                      "$ref": "#/components/schemas/FileCompleteResponse"
+        '400':
+          "$ref": "#/components/responses/BadRequest"
+        '401':
+          "$ref": "#/components/responses/Unauthorized"
+        '403':
+          "$ref": "#/components/responses/Forbidden"
+        '404':
+          "$ref": "#/components/responses/NotFound"
+        '409':
+          "$ref": "#/components/responses/Conflict"
+        default:
+          "$ref": "#/components/responses/DefaultError"
+        '503':
+          "$ref": "#/components/responses/ServiceUnavailable"
+      operationId: postFilesByFileIdMultipartAbort
+  "/files/{fileId}/preview-url":
+    get:
+      tags:
+      - File
       summary: 获取文件预览签名 URL（15 分钟有效）
       description: |
         权限：按业务规则校验（医生只能访问自己订单的文件）
         每次请求生成新的签名 URL，操作写审计日志。
       parameters:
-        - name: fileId
-          in: path
-          required: true
-          schema: { type: integer }
+      - name: fileId
+        in: path
+        required: true
+        schema:
+          type: integer
       responses:
         '200':
-          description: 预览 URL
+          description: 预览签名 URL
           content:
             application/json:
               schema:
-                type: object
-                properties:
-                  preview_url: { type: string }
-                  expires_in:  { type: integer, example: 900, description: 有效期（秒）}
-
-  /files/{fileId}/download-url:
+                allOf:
+                - "$ref": "#/components/schemas/CommonResponse"
+                - type: object
+                  properties:
+                    data:
+                      "$ref": "#/components/schemas/FileSignedUrlResponse"
+        '400':
+          "$ref": "#/components/responses/BadRequest"
+        '401':
+          "$ref": "#/components/responses/Unauthorized"
+        '403':
+          "$ref": "#/components/responses/Forbidden"
+        '404':
+          "$ref": "#/components/responses/NotFound"
+        '409':
+          "$ref": "#/components/responses/Conflict"
+        default:
+          "$ref": "#/components/responses/DefaultError"
+        '503':
+          "$ref": "#/components/responses/ServiceUnavailable"
+      operationId: getFilesByFileIdPreviewUrl
+  "/files/{fileId}/download-url":
     get:
-      tags: [File]
+      tags:
+      - File
       summary: 获取文件下载签名 URL（2 小时有效）
       description: |
         权限：按业务规则校验
         操作写审计日志。
       parameters:
-        - name: fileId
-          in: path
-          required: true
-          schema: { type: integer }
+      - name: fileId
+        in: path
+        required: true
+        schema:
+          type: integer
       responses:
         '200':
-          description: 下载 URL
+          description: 下载签名 URL
           content:
             application/json:
               schema:
-                type: object
-                properties:
-                  download_url: { type: string }
-                  expires_in:   { type: integer, example: 7200 }
-
-  # ── ORDER ─────────────────────────────────────────────────
-  /orders:
+                allOf:
+                - "$ref": "#/components/schemas/CommonResponse"
+                - type: object
+                  properties:
+                    data:
+                      "$ref": "#/components/schemas/FileSignedUrlResponse"
+        '400':
+          "$ref": "#/components/responses/BadRequest"
+        '401':
+          "$ref": "#/components/responses/Unauthorized"
+        '403':
+          "$ref": "#/components/responses/Forbidden"
+        '404':
+          "$ref": "#/components/responses/NotFound"
+        '409':
+          "$ref": "#/components/responses/Conflict"
+        default:
+          "$ref": "#/components/responses/DefaultError"
+        '503':
+          "$ref": "#/components/responses/ServiceUnavailable"
+      operationId: getFilesByFileIdDownloadUrl
+  "/orders":
     get:
-      tags: [Order]
+      tags:
+      - Order
       summary: 获取订单列表
       description: |
         权限：DOCTOR（只返回本人订单）/ CS / WORKER / ADMIN
         医生端接口在数据层过滤内部字段，只返回 external_status，不返回 internal_status / production_note 等。
       parameters:
-        - name: external_status
-          in: query
-          schema: { $ref: '#/components/schemas/OrderStatus' }
-        - name: clinic_id
-          in: query
-          schema: { type: integer }
-        - name: keyword
-          in: query
-          schema: { type: string, description: 搜索订单号或患者姓名 }
-        - name: page
-          in: query
-          schema: { type: integer, default: 1 }
-        - name: size
-          in: query
-          schema: { type: integer, default: 20 }
+      - name: external_status
+        in: query
+        schema:
+          "$ref": "#/components/schemas/OrderStatus"
+      - name: internal_status
+        in: query
+        schema:
+          type: string
+          enum:
+          - PENDING_CS_REVIEW
+          - CS_REJECTED
+          - PENDING_PRODUCTION_REVIEW
+          - PRODUCTION_REJECTED
+          - PROCESS_INSTANCE_CREATED
+          - ASSIGNED
+          - IN_DESIGN
+          - IN_PRODUCTION
+          - IN_QC
+          - QC_PASSED
+          - SHIPPED
+          - COMPLETED
+        description: 9D.3 客服初审和 9D.4 生产审核列表使用；仅内部角色有效，医生端忽略该过滤且不返回 internal_status。
+      - name: clinic_id
+        in: query
+        schema:
+          type: integer
+      - name: keyword
+        in: query
+        schema:
+          type: string
+          description: 搜索订单号或患者姓名
+      - name: page
+        in: query
+        schema:
+          type: integer
+          default: 1
+      - name: size
+        in: query
+        schema:
+          type: integer
+          default: 20
       responses:
         '200':
           description: 订单列表（分页）
@@ -656,10 +2294,26 @@ paths:
               schema:
                 type: object
                 properties:
-                  data: { $ref: '#/components/schemas/PageResult' }
-
+                  data:
+                    "$ref": "#/components/schemas/OrderListResponse"
+        '400':
+          "$ref": "#/components/responses/BadRequest"
+        '401':
+          "$ref": "#/components/responses/Unauthorized"
+        '403':
+          "$ref": "#/components/responses/Forbidden"
+        '404':
+          "$ref": "#/components/responses/NotFound"
+        '409':
+          "$ref": "#/components/responses/Conflict"
+        default:
+          "$ref": "#/components/responses/DefaultError"
+        '503':
+          "$ref": "#/components/responses/ServiceUnavailable"
+      operationId: getOrders
     post:
-      tags: [Order]
+      tags:
+      - Order
       summary: 提交订单（医生下单）
       description: 权限：DOCTOR
       requestBody:
@@ -667,41 +2321,46 @@ paths:
         content:
           application/json:
             schema:
-              type: object
-              required: [product_type, form_data]
-              properties:
-                product_type: { type: string, example: 冠桥 }
-                form_data:
-                  type: object
-                  description: 动态表单填写内容，key 为 field_key，value 为填写值
-                  example:
-                    patient_name: 张三
-                    tooth_position: "11,21"
-                    material: 氧化锆
-                file_ids:
-                  type: array
-                  items: { type: integer }
-                  description: 已上传文件的 file_id 列表
-                is_draft:
-                  type: boolean
-                  default: false
-                  description: true=保存草稿，false=正式提交
+              "$ref": "#/components/schemas/CreateOrderRequest"
       responses:
         '200':
           description: 订单创建成功，返回 order_id 和 order_no
-
-  /orders/{orderId}:
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data:
+                    "$ref": "#/components/schemas/CreateOrderResponse"
+        '400':
+          "$ref": "#/components/responses/BadRequest"
+        '401':
+          "$ref": "#/components/responses/Unauthorized"
+        '403':
+          "$ref": "#/components/responses/Forbidden"
+        '404':
+          "$ref": "#/components/responses/NotFound"
+        '409':
+          "$ref": "#/components/responses/Conflict"
+        default:
+          "$ref": "#/components/responses/DefaultError"
+        '503':
+          "$ref": "#/components/responses/ServiceUnavailable"
+      operationId: postOrders
+  "/orders/{orderId}":
     get:
-      tags: [Order]
+      tags:
+      - Order
       summary: 获取订单详情
       description: |
         权限：DOCTOR（只能访问本人订单，内部字段在数据层过滤）/ CS / WORKER / ADMIN
         医生端响应不含：internal_status, production_note, cs_user_id 等内部字段。
       parameters:
-        - name: orderId
-          in: path
-          required: true
-          schema: { type: integer }
+      - name: orderId
+        in: path
+        required: true
+        schema:
+          type: integer
       responses:
         '200':
           description: 订单详情
@@ -710,17 +2369,34 @@ paths:
               schema:
                 type: object
                 properties:
-                  data: { $ref: '#/components/schemas/OrderDetail' }
-
+                  data:
+                    "$ref": "#/components/schemas/OrderDetail"
+        '400':
+          "$ref": "#/components/responses/BadRequest"
+        '401':
+          "$ref": "#/components/responses/Unauthorized"
+        '403':
+          "$ref": "#/components/responses/Forbidden"
+        '404':
+          "$ref": "#/components/responses/NotFound"
+        '409':
+          "$ref": "#/components/responses/Conflict"
+        default:
+          "$ref": "#/components/responses/DefaultError"
+        '503':
+          "$ref": "#/components/responses/ServiceUnavailable"
+      operationId: getOrdersByOrderId
     put:
-      tags: [Order]
+      tags:
+      - Order
       summary: 更新订单（补资料/编辑草稿）
       description: 权限：DOCTOR（仅限草稿或被驳回状态的订单）
       parameters:
-        - name: orderId
-          in: path
-          required: true
-          schema: { type: integer }
+      - name: orderId
+        in: path
+        required: true
+        schema:
+          type: integer
       requestBody:
         required: true
         content:
@@ -728,86 +2404,154 @@ paths:
             schema:
               type: object
               properties:
-                form_data: { type: object }
-                file_ids:  { type: array, items: { type: integer } }
-                is_draft:  { type: boolean }
+                form_data:
+                  type: object
+                file_ids:
+                  type: array
+                  items:
+                    type: integer
+                is_draft:
+                  type: boolean
       responses:
         '200':
           description: 更新成功
-
-  /orders/{orderId}/review:
+        '400':
+          "$ref": "#/components/responses/BadRequest"
+        '401':
+          "$ref": "#/components/responses/Unauthorized"
+        '403':
+          "$ref": "#/components/responses/Forbidden"
+        '404':
+          "$ref": "#/components/responses/NotFound"
+        '409':
+          "$ref": "#/components/responses/Conflict"
+        default:
+          "$ref": "#/components/responses/DefaultError"
+        '503':
+          "$ref": "#/components/responses/ServiceUnavailable"
+      operationId: putOrdersByOrderId
+  "/orders/{orderId}/review":
     post:
-      tags: [Order]
+      tags:
+      - Order
       summary: 客服审核订单（初审）
       description: 权限：CS / ADMIN
       parameters:
-        - name: orderId
-          in: path
-          required: true
-          schema: { type: integer }
+      - name: orderId
+        in: path
+        required: true
+        schema:
+          type: integer
       requestBody:
         required: true
         content:
           application/json:
             schema:
-              type: object
-              required: [action]
-              properties:
-                action:
-                  type: string
-                  enum: [APPROVE, REJECT]
-                reject_reason:
-                  type: string
-                  description: action=REJECT 时必填
-                production_note:
-                  type: string
-                  description: 确认后的生产备注（AI 草稿经客服确认后填入）
+              "$ref": "#/components/schemas/OrderReviewRequest"
       responses:
         '200':
-          description: 审核结果处理成功
-
-  /orders/{orderId}/production-review:
+          description: 审核结果处理成功；返回内部订单详情。APPROVE 后 internal_status=PENDING_PRODUCTION_REVIEW，REJECT 后 internal_status=CS_REJECTED。
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data:
+                    "$ref": "#/components/schemas/OrderDetail"
+        '400':
+          "$ref": "#/components/responses/BadRequest"
+        '401':
+          "$ref": "#/components/responses/Unauthorized"
+        '403':
+          "$ref": "#/components/responses/Forbidden"
+        '404':
+          "$ref": "#/components/responses/NotFound"
+        '409':
+          "$ref": "#/components/responses/Conflict"
+        default:
+          "$ref": "#/components/responses/DefaultError"
+        '503':
+          "$ref": "#/components/responses/ServiceUnavailable"
+      operationId: postOrdersByOrderIdReview
+  "/orders/{orderId}/production-review":
     post:
-      tags: [Order]
+      tags:
+      - Order
       summary: 生产端数据审核
-      description: 权限：WORKER / ADMIN
+      description: 权限：CS / ADMIN；仅允许处理 PENDING_PRODUCTION_REVIEW 订单，APPROVE 后触发工序链实例化。
       parameters:
-        - name: orderId
-          in: path
-          required: true
-          schema: { type: integer }
+      - name: orderId
+        in: path
+        required: true
+        schema:
+          type: integer
       requestBody:
         required: true
         content:
           application/json:
             schema:
-              type: object
-              required: [action]
-              properties:
-                action:        { type: string, enum: [APPROVE, REJECT] }
-                reject_reason: { type: string }
+              "$ref": "#/components/schemas/ProductionReviewRequest"
       responses:
         '200':
-          description: 审核成功，APPROVE 时触发工序链实例化
-
-  /orders/{orderId}/confirm-receipt:
+          description: 审核成功，APPROVE 时触发工序链实例化，internal_status=PROCESS_INSTANCE_CREATED
+          content:
+            application/json:
+              schema:
+                allOf:
+                - "$ref": "#/components/schemas/CommonResponse"
+                - type: object
+                  properties:
+                    data:
+                      "$ref": "#/components/schemas/ProductionReviewResponse"
+        '400':
+          "$ref": "#/components/responses/BadRequest"
+        '401':
+          "$ref": "#/components/responses/Unauthorized"
+        '403':
+          "$ref": "#/components/responses/Forbidden"
+        '404':
+          "$ref": "#/components/responses/NotFound"
+        '409':
+          "$ref": "#/components/responses/Conflict"
+        default:
+          "$ref": "#/components/responses/DefaultError"
+        '503':
+          "$ref": "#/components/responses/ServiceUnavailable"
+      operationId: postOrdersByOrderIdProductionReview
+  "/orders/{orderId}/confirm-receipt":
     post:
-      tags: [Order]
+      tags:
+      - Order
       summary: 医生确认收货，触发订单完成
       description: 权限：DOCTOR（只能操作本人订单）
       parameters:
-        - name: orderId
-          in: path
-          required: true
-          schema: { type: integer }
+      - name: orderId
+        in: path
+        required: true
+        schema:
+          type: integer
       responses:
         '200':
           description: 确认成功，external_status 变为 COMPLETED
-
-  # ── WORKFLOW CHAIN (只读，预定义) ─────────────────────────
-  /workflow-chains:
+        '400':
+          "$ref": "#/components/responses/BadRequest"
+        '401':
+          "$ref": "#/components/responses/Unauthorized"
+        '403':
+          "$ref": "#/components/responses/Forbidden"
+        '404':
+          "$ref": "#/components/responses/NotFound"
+        '409':
+          "$ref": "#/components/responses/Conflict"
+        default:
+          "$ref": "#/components/responses/DefaultError"
+        '503':
+          "$ref": "#/components/responses/ServiceUnavailable"
+      operationId: postOrdersByOrderIdConfirmReceipt
+  "/workflow-chains":
     get:
-      tags: [WorkflowChain]
+      tags:
+      - WorkflowChain
       summary: 获取全部工序链列表
       description: |
         权限：ADMIN / CS / WORKER
@@ -825,21 +2569,50 @@ paths:
                     items:
                       type: object
                       properties:
-                        chain_id:       { type: integer }
-                        chain_name:     { type: string, example: 常规冠修复 }
-                        intake_branch:  { type: string, enum: [IMPRESSION, SCAN, BOTH], description: IMPRESSION=仅印模路线/SCAN=仅口扫路线/BOTH=下单时二选一 }
-                        status:         { type: integer, enum: [0, 1] }
-
-  /workflow-chains/{chainId}/nodes:
+                        chain_id:
+                          type: integer
+                        chain_name:
+                          type: string
+                          example: 常规冠修复
+                        intake_branch:
+                          type: string
+                          enum:
+                          - IMPRESSION
+                          - SCAN
+                          - BOTH
+                          description: IMPRESSION=仅印模路线/SCAN=仅口扫路线/BOTH=下单时二选一
+                        status:
+                          type: integer
+                          enum:
+                          - 0
+                          - 1
+        '400':
+          "$ref": "#/components/responses/BadRequest"
+        '401':
+          "$ref": "#/components/responses/Unauthorized"
+        '403':
+          "$ref": "#/components/responses/Forbidden"
+        '404':
+          "$ref": "#/components/responses/NotFound"
+        '409':
+          "$ref": "#/components/responses/Conflict"
+        default:
+          "$ref": "#/components/responses/DefaultError"
+        '503':
+          "$ref": "#/components/responses/ServiceUnavailable"
+      operationId: getWorkflowChains
+  "/workflow-chains/{chainId}/nodes":
     get:
-      tags: [WorkflowChain]
+      tags:
+      - WorkflowChain
       summary: 获取某条工序链的节点列表
       description: 权限：ADMIN / CS / WORKER
       parameters:
-        - name: chainId
-          in: path
-          required: true
-          schema: { type: integer }
+      - name: chainId
+        in: path
+        required: true
+        schema:
+          type: integer
       responses:
         '200':
           description: 工序节点列表（按 step_order 正序）
@@ -853,120 +2626,212 @@ paths:
                     items:
                       type: object
                       properties:
-                        node_id:       { type: integer }
-                        process_name:  { type: string, example: CAD 入货检 }
-                        step_order:    { type: integer, description: 执行顺序号 }
-                        is_optional:   { type: integer, enum: [0, 1], description: 1=工厂内部可选节点 }
-                        branch_group:  { type: string, nullable: true, description: 并联分组标识，同组节点并联执行，NULL=顺序节点 }
-
-  # ── PROCESS INSTANCE ──────────────────────────────────────
-  /orders/{orderId}/process-instance:
+                        node_id:
+                          type: integer
+                        process_name:
+                          type: string
+                          example: CAD 入货检
+                        step_order:
+                          type: integer
+                          description: 执行顺序号
+                        is_optional:
+                          type: integer
+                          enum:
+                          - 0
+                          - 1
+                          description: 1=工厂内部可选节点
+                        branch_group:
+                          type: string
+                          nullable: true
+                          description: 并联分组标识，同组节点并联执行，NULL=顺序节点
+        '400':
+          "$ref": "#/components/responses/BadRequest"
+        '401':
+          "$ref": "#/components/responses/Unauthorized"
+        '403':
+          "$ref": "#/components/responses/Forbidden"
+        '404':
+          "$ref": "#/components/responses/NotFound"
+        '409':
+          "$ref": "#/components/responses/Conflict"
+        default:
+          "$ref": "#/components/responses/DefaultError"
+        '503':
+          "$ref": "#/components/responses/ServiceUnavailable"
+      operationId: getWorkflowChainsByChainIdNodes
+  "/orders/{orderId}/process-instance":
     get:
-      tags: [ProcessInstance]
+      tags:
+      - ProcessInstance
       summary: 获取订单工序链实例（含节点状态）
       description: 权限：CS / WORKER / ADMIN（医生端不可访问此接口）
       parameters:
-        - name: orderId
-          in: path
-          required: true
-          schema: { type: integer }
+      - name: orderId
+        in: path
+        required: true
+        schema:
+          type: integer
       responses:
         '200':
           description: 工序链实例详情
           content:
             application/json:
               schema:
-                type: object
-                properties:
-                  data:
-                    type: object
-                    properties:
-                      instance_id: { type: integer }
-                      nodes:
-                        type: array
-                        items:
-                          type: object
-                          properties:
-                            node_instance_id:  { type: integer }
-                            process_name:      { type: string }
-                            assigned_user_id:  { type: integer }
-                            assigned_username: { type: string }
-                            node_status:       { type: string, enum: [PENDING, IN_PROGRESS, COMPLETED, REWORK] }
-                            standard_duration: { type: integer }
-                            position_x:        { type: number }
-                            position_y:        { type: number }
-                      edges:
-                        type: array
-                        items: { $ref: '#/components/schemas/ProcessEdge' }
-
-  /orders/{orderId}/process-instance/assign:
+                allOf:
+                - "$ref": "#/components/schemas/CommonResponse"
+                - type: object
+                  properties:
+                    data:
+                      "$ref": "#/components/schemas/ProcessInstanceResponse"
+        '400':
+          "$ref": "#/components/responses/BadRequest"
+        '401':
+          "$ref": "#/components/responses/Unauthorized"
+        '403':
+          "$ref": "#/components/responses/Forbidden"
+        '404':
+          "$ref": "#/components/responses/NotFound"
+        '409':
+          "$ref": "#/components/responses/Conflict"
+        default:
+          "$ref": "#/components/responses/DefaultError"
+        '503':
+          "$ref": "#/components/responses/ServiceUnavailable"
+      operationId: getOrdersByOrderIdProcessInstance
+  "/orders/{orderId}/process-instance/assign":
     post:
-      tags: [ProcessInstance]
+      tags:
+      - ProcessInstance
       summary: 批量绑定节点执行员工
       description: 权限：ADMIN
       parameters:
-        - name: orderId
-          in: path
-          required: true
-          schema: { type: integer }
+      - name: orderId
+        in: path
+        required: true
+        schema:
+          type: integer
       requestBody:
         required: true
         content:
           application/json:
             schema:
               type: object
-              required: [assignments]
+              required:
+              - assignments
               properties:
                 assignments:
                   type: array
                   items:
                     type: object
-                    required: [node_instance_id, user_id]
+                    required:
+                    - node_instance_id
+                    - user_id
                     properties:
-                      node_instance_id: { type: integer }
-                      user_id:          { type: integer }
+                      node_instance_id:
+                        type: integer
+                      user_id:
+                        type: integer
       responses:
         '200':
-          description: 绑定成功，员工收到任务通知
-
-  /orders/{orderId}/process-instance/nodes/{nodeInstanceId}/reassign:
+          description: 绑定成功，返回最新工序实例
+          content:
+            application/json:
+              schema:
+                allOf:
+                - "$ref": "#/components/schemas/CommonResponse"
+                - type: object
+                  properties:
+                    data:
+                      "$ref": "#/components/schemas/ProcessInstanceResponse"
+        '400':
+          "$ref": "#/components/responses/BadRequest"
+        '401':
+          "$ref": "#/components/responses/Unauthorized"
+        '403':
+          "$ref": "#/components/responses/Forbidden"
+        '404':
+          "$ref": "#/components/responses/NotFound"
+        '409':
+          "$ref": "#/components/responses/Conflict"
+        default:
+          "$ref": "#/components/responses/DefaultError"
+        '503':
+          "$ref": "#/components/responses/ServiceUnavailable"
+      operationId: postOrdersByOrderIdProcessInstanceAssign
+  "/orders/{orderId}/process-instance/nodes/{nodeInstanceId}/reassign":
     post:
-      tags: [ProcessInstance]
+      tags:
+      - ProcessInstance
       summary: 转派工序节点执行员工
       description: 权限：ADMIN
       parameters:
-        - name: orderId
-          in: path
-          required: true
-          schema: { type: integer }
-        - name: nodeInstanceId
-          in: path
-          required: true
-          schema: { type: integer }
+      - name: orderId
+        in: path
+        required: true
+        schema:
+          type: integer
+      - name: nodeInstanceId
+        in: path
+        required: true
+        schema:
+          type: integer
       requestBody:
         required: true
         content:
           application/json:
             schema:
               type: object
-              required: [new_user_id]
+              required:
+              - new_user_id
               properties:
-                new_user_id: { type: integer }
-                reason:      { type: string, description: 转派原因 }
+                new_user_id:
+                  type: integer
+                reason:
+                  type: string
+                  description: 转派原因
       responses:
         '200':
-          description: 转派成功，新员工收到通知
-
-  # ── MY TASKS ──────────────────────────────────────────────
-  /tasks/mine:
+          description: 转派成功，返回最新工序实例
+          content:
+            application/json:
+              schema:
+                allOf:
+                - "$ref": "#/components/schemas/CommonResponse"
+                - type: object
+                  properties:
+                    data:
+                      "$ref": "#/components/schemas/ProcessInstanceResponse"
+        '400':
+          "$ref": "#/components/responses/BadRequest"
+        '401':
+          "$ref": "#/components/responses/Unauthorized"
+        '403':
+          "$ref": "#/components/responses/Forbidden"
+        '404':
+          "$ref": "#/components/responses/NotFound"
+        '409':
+          "$ref": "#/components/responses/Conflict"
+        default:
+          "$ref": "#/components/responses/DefaultError"
+        '503':
+          "$ref": "#/components/responses/ServiceUnavailable"
+      operationId: postOrdersByOrderIdProcessInstanceNodesByNodeInstanceIdReassign
+  "/tasks/mine":
     get:
-      tags: [ProcessInstance]
+      tags:
+      - ProcessInstance
       summary: 获取我的工序任务列表
       description: 权限：WORKER。只返回分配给当前登录员工的任务。
       parameters:
-        - name: status
-          in: query
-          schema: { type: string, enum: [PENDING, IN_PROGRESS, COMPLETED] }
+      - name: status
+        in: query
+        schema:
+          type: string
+          enum:
+          - PENDING
+          - READY
+          - IN_PROGRESS
+          - COMPLETED
       responses:
         '200':
           description: 我的任务列表
@@ -980,61 +2845,173 @@ paths:
                     items:
                       type: object
                       properties:
-                        node_instance_id: { type: integer }
-                        order_id:         { type: integer }
-                        order_no:         { type: string }
-                        process_name:     { type: string }
-                        node_status:      { type: string }
-                        standard_duration: { type: integer }
-
-  # ── CHECK RECORD ──────────────────────────────────────────
-  /check-records:
+                        node_instance_id:
+                          type: integer
+                        order_id:
+                          type: integer
+                        order_no:
+                          type: string
+                        process_name:
+                          type: string
+                        node_status:
+                          type: string
+                        standard_duration:
+                          type: integer
+        '400':
+          "$ref": "#/components/responses/BadRequest"
+        '401':
+          "$ref": "#/components/responses/Unauthorized"
+        '403':
+          "$ref": "#/components/responses/Forbidden"
+        '404':
+          "$ref": "#/components/responses/NotFound"
+        '409':
+          "$ref": "#/components/responses/Conflict"
+        default:
+          "$ref": "#/components/responses/DefaultError"
+        '503':
+          "$ref": "#/components/responses/ServiceUnavailable"
+      operationId: getTasksMine
+  "/check-records":
     post:
-      tags: [CheckRecord]
+      tags:
+      - CheckRecord
       summary: 提交入检或出检记录
       description: |
         权限：WORKER / ADMIN
-        入检（check_type=1）：必须在出检之前提交，且当前节点状态为 PENDING。
-        出检（check_type=2）：必须在入检之后提交。
-        出检不通过时 rework_to_node_id 必填，系统将指定节点状态回退为 PENDING。
+        入检（check_type=1）：当前节点状态必须为 READY。
+        出检（check_type=2）：当前节点状态必须为 COMPLETED。
+        出检不通过时 rework_to_node_id 必填，系统将指定节点状态回退为 READY。
       requestBody:
         required: true
         content:
           application/json:
             schema:
-              type: object
-              required: [node_instance_id, check_type, is_pass]
-              properties:
-                node_instance_id:    { type: integer }
-                check_type:          { type: integer, enum: [1, 2], description: 1=入检 2=出检 }
-                is_pass:             { type: boolean }
-                remark:              { type: string, description: 问题说明，不通过时必填 }
-                attachment_file_ids: { type: array, items: { type: integer } }
-                rework_to_node_id:   { type: integer, description: 出检不通过时，回退到的节点 instance_id }
+              "$ref": "#/components/schemas/CheckRecordRequest"
       responses:
         '200':
           description: 记录提交成功
+          content:
+            application/json:
+              schema:
+                allOf:
+                - "$ref": "#/components/schemas/CommonResponse"
+                - type: object
+                  properties:
+                    data:
+                      "$ref": "#/components/schemas/CheckRecordResponse"
         '400':
           description: 顺序校验失败（如未入检就出检）
-
-  /check-records/{nodeInstanceId}:
+        '401':
+          "$ref": "#/components/responses/Unauthorized"
+        '403':
+          "$ref": "#/components/responses/Forbidden"
+        '404':
+          "$ref": "#/components/responses/NotFound"
+        '409':
+          "$ref": "#/components/responses/Conflict"
+        default:
+          "$ref": "#/components/responses/DefaultError"
+        '503':
+          "$ref": "#/components/responses/ServiceUnavailable"
+      operationId: postCheckRecords
+  "/check-records/{nodeInstanceId}":
     get:
-      tags: [CheckRecord]
+      tags:
+      - CheckRecord
       summary: 获取某工序节点的入检/出检记录列表
       description: 权限：WORKER / CS / ADMIN
       parameters:
-        - name: nodeInstanceId
-          in: path
-          required: true
-          schema: { type: integer }
+      - name: nodeInstanceId
+        in: path
+        required: true
+        schema:
+          type: integer
       responses:
         '200':
-          description: 入检/出检记录列表（按时间正序）
-
-  # ── WORK LOG ──────────────────────────────────────────────
-  /work-logs/start:
+          description: 入检/出检记录列表
+          content:
+            application/json:
+              schema:
+                allOf:
+                - "$ref": "#/components/schemas/CommonResponse"
+                - type: object
+                  properties:
+                    data:
+                      type: array
+                      items:
+                        "$ref": "#/components/schemas/CheckRecordResponse"
+        '400':
+          "$ref": "#/components/responses/BadRequest"
+        '401':
+          "$ref": "#/components/responses/Unauthorized"
+        '403':
+          "$ref": "#/components/responses/Forbidden"
+        '404':
+          "$ref": "#/components/responses/NotFound"
+        '409':
+          "$ref": "#/components/responses/Conflict"
+        default:
+          "$ref": "#/components/responses/DefaultError"
+        '503':
+          "$ref": "#/components/responses/ServiceUnavailable"
+      operationId: getCheckRecordsByNodeInstanceId
+  "/reworks":
+    get:
+      tags:
+      - CheckRecord
+      summary: 查询返工记录列表
+      description: |
+        权限：WORKER / CS / ADMIN。
+        WORKER 仅返回来源节点或目标节点分配给本人的返工记录；CS / ADMIN 可按状态或订单筛选内部返工记录。
+      parameters:
+      - name: status
+        in: query
+        required: false
+        schema:
+          type: string
+          enum:
+          - PENDING
+          - IN_PROGRESS
+          - DONE
+      - name: order_id
+        in: query
+        required: false
+        schema:
+          type: integer
+      responses:
+        '200':
+          description: 返工记录列表
+          content:
+            application/json:
+              schema:
+                allOf:
+                - "$ref": "#/components/schemas/CommonResponse"
+                - type: object
+                  properties:
+                    data:
+                      type: array
+                      items:
+                        "$ref": "#/components/schemas/ReworkRecordResponse"
+        '400':
+          "$ref": "#/components/responses/BadRequest"
+        '401':
+          "$ref": "#/components/responses/Unauthorized"
+        '403':
+          "$ref": "#/components/responses/Forbidden"
+        '404':
+          "$ref": "#/components/responses/NotFound"
+        '409':
+          "$ref": "#/components/responses/Conflict"
+        default:
+          "$ref": "#/components/responses/DefaultError"
+        '503':
+          "$ref": "#/components/responses/ServiceUnavailable"
+      operationId: getReworks
+  "/work-logs/start":
     post:
-      tags: [WorkLog]
+      tags:
+      - WorkLog
       summary: 开始工时计时
       description: 权限：WORKER。同一节点只能有一条进行中的工时记录。
       requestBody:
@@ -1042,63 +3019,158 @@ paths:
         content:
           application/json:
             schema:
-              type: object
-              required: [node_instance_id]
-              properties:
-                node_instance_id: { type: integer }
+              "$ref": "#/components/schemas/WorkLogStartRequest"
       responses:
         '200':
-          description: 计时开始，返回 work_log_id
-
-  /work-logs/{workLogId}/pause:
+          description: 工时记录已开始
+          content:
+            application/json:
+              schema:
+                allOf:
+                - "$ref": "#/components/schemas/CommonResponse"
+                - type: object
+                  properties:
+                    data:
+                      "$ref": "#/components/schemas/WorkLogResponse"
+        '400':
+          "$ref": "#/components/responses/BadRequest"
+        '401':
+          "$ref": "#/components/responses/Unauthorized"
+        '403':
+          "$ref": "#/components/responses/Forbidden"
+        '404':
+          "$ref": "#/components/responses/NotFound"
+        '409':
+          "$ref": "#/components/responses/Conflict"
+        default:
+          "$ref": "#/components/responses/DefaultError"
+        '503':
+          "$ref": "#/components/responses/ServiceUnavailable"
+      operationId: postWorkLogsStart
+  "/work-logs/{workLogId}/pause":
     post:
-      tags: [WorkLog]
+      tags:
+      - WorkLog
       summary: 暂停工时计时
       description: 权限：WORKER
       parameters:
-        - name: workLogId
-          in: path
-          required: true
-          schema: { type: integer }
+      - name: workLogId
+        in: path
+        required: true
+        schema:
+          type: integer
       responses:
         '200':
-          description: 暂停成功，记录暂停开始时间
-
-  /work-logs/{workLogId}/resume:
+          description: 返回更新后的工时记录
+          content:
+            application/json:
+              schema:
+                allOf:
+                - "$ref": "#/components/schemas/CommonResponse"
+                - type: object
+                  properties:
+                    data:
+                      "$ref": "#/components/schemas/WorkLogResponse"
+        '400':
+          "$ref": "#/components/responses/BadRequest"
+        '401':
+          "$ref": "#/components/responses/Unauthorized"
+        '403':
+          "$ref": "#/components/responses/Forbidden"
+        '404':
+          "$ref": "#/components/responses/NotFound"
+        '409':
+          "$ref": "#/components/responses/Conflict"
+        default:
+          "$ref": "#/components/responses/DefaultError"
+        '503':
+          "$ref": "#/components/responses/ServiceUnavailable"
+      operationId: postWorkLogsByWorkLogIdPause
+  "/work-logs/{workLogId}/resume":
     post:
-      tags: [WorkLog]
+      tags:
+      - WorkLog
       summary: 继续工时计时
       description: 权限：WORKER
       parameters:
-        - name: workLogId
-          in: path
-          required: true
-          schema: { type: integer }
+      - name: workLogId
+        in: path
+        required: true
+        schema:
+          type: integer
       responses:
         '200':
-          description: 继续成功，累计暂停时长更新
-
-  /work-logs/{workLogId}/finish:
+          description: 返回更新后的工时记录
+          content:
+            application/json:
+              schema:
+                allOf:
+                - "$ref": "#/components/schemas/CommonResponse"
+                - type: object
+                  properties:
+                    data:
+                      "$ref": "#/components/schemas/WorkLogResponse"
+        '400':
+          "$ref": "#/components/responses/BadRequest"
+        '401':
+          "$ref": "#/components/responses/Unauthorized"
+        '403':
+          "$ref": "#/components/responses/Forbidden"
+        '404':
+          "$ref": "#/components/responses/NotFound"
+        '409':
+          "$ref": "#/components/responses/Conflict"
+        default:
+          "$ref": "#/components/responses/DefaultError"
+        '503':
+          "$ref": "#/components/responses/ServiceUnavailable"
+      operationId: postWorkLogsByWorkLogIdResume
+  "/work-logs/{workLogId}/finish":
     post:
-      tags: [WorkLog]
+      tags:
+      - WorkLog
       summary: 完成工时计时
       description: |
         权限：WORKER
         有效工时 = (end_time - start_time) - pause_duration
         服务端计算并存储 actual_duration。
       parameters:
-        - name: workLogId
-          in: path
-          required: true
-          schema: { type: integer }
+      - name: workLogId
+        in: path
+        required: true
+        schema:
+          type: integer
       responses:
         '200':
-          description: 完成成功，返回 actual_duration（分钟）
-
-  # ── PERFORMANCE ───────────────────────────────────────────
-  /performance:
+          description: 返回更新后的工时记录
+          content:
+            application/json:
+              schema:
+                allOf:
+                - "$ref": "#/components/schemas/CommonResponse"
+                - type: object
+                  properties:
+                    data:
+                      "$ref": "#/components/schemas/WorkLogResponse"
+        '400':
+          "$ref": "#/components/responses/BadRequest"
+        '401':
+          "$ref": "#/components/responses/Unauthorized"
+        '403':
+          "$ref": "#/components/responses/Forbidden"
+        '404':
+          "$ref": "#/components/responses/NotFound"
+        '409':
+          "$ref": "#/components/responses/Conflict"
+        default:
+          "$ref": "#/components/responses/DefaultError"
+        '503':
+          "$ref": "#/components/responses/ServiceUnavailable"
+      operationId: postWorkLogsByWorkLogIdFinish
+  "/performance":
     get:
-      tags: [Performance]
+      tags:
+      - Performance
       summary: 获取绩效统计
       description: |
         权限：WORKER（只返回本人数据）/ ADMIN（可查全部）
@@ -1110,15 +3182,21 @@ paths:
         - 通过率 = 一次出检通过数 ÷ 总出检数
         - 工时效率 = SUM(standard_duration) ÷ SUM(actual_duration) × 100%
       parameters:
-        - name: user_id
-          in: query
-          schema: { type: integer, description: ADMIN 专用，不传则返回当前登录人 }
-        - name: start_date
-          in: query
-          schema: { type: string, format: date }
-        - name: end_date
-          in: query
-          schema: { type: string, format: date }
+      - name: user_id
+        in: query
+        schema:
+          type: integer
+          description: ADMIN 专用，不传则返回当前登录人
+      - name: start_date
+        in: query
+        schema:
+          type: string
+          format: date
+      - name: end_date
+        in: query
+        schema:
+          type: string
+          format: date
       responses:
         '200':
           description: 绩效统计结果
@@ -1127,12 +3205,27 @@ paths:
               schema:
                 type: object
                 properties:
-                  data: { $ref: '#/components/schemas/PerformanceStats' }
-
-  # ── MESSAGE ───────────────────────────────────────────────
-  /orders/{orderId}/messages:
+                  data:
+                    "$ref": "#/components/schemas/PerformanceStats"
+        '400':
+          "$ref": "#/components/responses/BadRequest"
+        '401':
+          "$ref": "#/components/responses/Unauthorized"
+        '403':
+          "$ref": "#/components/responses/Forbidden"
+        '404':
+          "$ref": "#/components/responses/NotFound"
+        '409':
+          "$ref": "#/components/responses/Conflict"
+        default:
+          "$ref": "#/components/responses/DefaultError"
+        '503':
+          "$ref": "#/components/responses/ServiceUnavailable"
+      operationId: getPerformance
+  "/orders/{orderId}/messages":
     get:
-      tags: [Message]
+      tags:
+      - Message
       summary: 获取订单消息列表
       description: |
         权限：DOCTOR / CS / WORKER / ADMIN
@@ -1141,24 +3234,43 @@ paths:
         - WORKER：只返回 visible_to 包含 WORKER 的消息
         - CS / ADMIN：返回全部消息（含 PENDING_REVIEW / REJECTED）
       parameters:
-        - name: orderId
-          in: path
-          required: true
-          schema: { type: integer }
+      - name: orderId
+        in: path
+        required: true
+        schema:
+          type: integer
       responses:
         '200':
-          description: 消息列表（正序）
+          description: 成功
           content:
             application/json:
               schema:
-                type: object
-                properties:
-                  data:
-                    type: array
-                    items: { $ref: '#/components/schemas/MessageItem' }
-
+                allOf:
+                - "$ref": "#/components/schemas/CommonResponse"
+                - type: object
+                  properties:
+                    data:
+                      type: array
+                      items:
+                        "$ref": "#/components/schemas/MessageItem"
+        '400':
+          "$ref": "#/components/responses/BadRequest"
+        '401':
+          "$ref": "#/components/responses/Unauthorized"
+        '403':
+          "$ref": "#/components/responses/Forbidden"
+        '404':
+          "$ref": "#/components/responses/NotFound"
+        '409':
+          "$ref": "#/components/responses/Conflict"
+        default:
+          "$ref": "#/components/responses/DefaultError"
+        '503':
+          "$ref": "#/components/responses/ServiceUnavailable"
+      operationId: getOrdersByOrderIdMessages
     post:
-      tags: [Message]
+      tags:
+      - Message
       summary: 发送消息
       description: |
         权限：DOCTOR / CS / WORKER / ADMIN
@@ -1166,260 +3278,495 @@ paths:
         - CS 发送：review_status=DIRECT，visible_to 由请求参数决定
         - WORKER 发送：review_status=PENDING_REVIEW，visible_to=ALL（审核通过后医生可见）
       parameters:
-        - name: orderId
-          in: path
-          required: true
-          schema: { type: integer }
+      - name: orderId
+        in: path
+        required: true
+        schema:
+          type: integer
       requestBody:
         required: true
         content:
           application/json:
             schema:
-              type: object
-              required: [content]
-              properties:
-                content:         { type: string }
-                attachment_file_ids: { type: array, items: { type: integer } }
-                visible_to:
-                  type: string
-                  description: |
-                    仅 CS 角色可指定。
-                    DOCTOR_CS=仅医生和客服可见，CS_WORKER=仅客服和生产端可见，ALL=全部可见
-                  enum: [DOCTOR_CS, CS_WORKER, ALL]
+              "$ref": "#/components/schemas/MessageRequest"
       responses:
         '200':
-          description: 消息发送成功，返回 msg_id 和 review_status
-
-  /messages/{msgId}/review:
+          description: 成功
+          content:
+            application/json:
+              schema:
+                allOf:
+                - "$ref": "#/components/schemas/CommonResponse"
+                - type: object
+                  properties:
+                    data:
+                      "$ref": "#/components/schemas/MessageItem"
+        '400':
+          "$ref": "#/components/responses/BadRequest"
+        '401':
+          "$ref": "#/components/responses/Unauthorized"
+        '403':
+          "$ref": "#/components/responses/Forbidden"
+        '404':
+          "$ref": "#/components/responses/NotFound"
+        '409':
+          "$ref": "#/components/responses/Conflict"
+        default:
+          "$ref": "#/components/responses/DefaultError"
+        '503':
+          "$ref": "#/components/responses/ServiceUnavailable"
+      operationId: postOrdersByOrderIdMessages
+  "/messages/{msgId}/review":
     post:
-      tags: [Message]
+      tags:
+      - Message
       summary: 客服审核生产端消息
       description: 权限：CS / ADMIN
       parameters:
-        - name: msgId
-          in: path
-          required: true
-          schema: { type: integer }
+      - name: msgId
+        in: path
+        required: true
+        schema:
+          type: integer
       requestBody:
         required: true
         content:
           application/json:
             schema:
-              type: object
-              required: [action]
-              properties:
-                action:
-                  type: string
-                  enum: [APPROVE, EDIT_AND_APPROVE, REJECT]
-                edited_content:
-                  type: string
-                  description: action=EDIT_AND_APPROVE 时必填
-                review_note:
-                  type: string
-                  description: action=REJECT 时必填，驳回原因
+              "$ref": "#/components/schemas/MessageReviewRequest"
       responses:
         '200':
-          description: 审核完成，APPROVE/EDIT_AND_APPROVE 时医生端收到 WebSocket 通知
-
-  /messages/pending-review:
+          description: 成功
+          content:
+            application/json:
+              schema:
+                allOf:
+                - "$ref": "#/components/schemas/CommonResponse"
+                - type: object
+                  properties:
+                    data:
+                      "$ref": "#/components/schemas/MessageItem"
+        '400':
+          "$ref": "#/components/responses/BadRequest"
+        '401':
+          "$ref": "#/components/responses/Unauthorized"
+        '403':
+          "$ref": "#/components/responses/Forbidden"
+        '404':
+          "$ref": "#/components/responses/NotFound"
+        '409':
+          "$ref": "#/components/responses/Conflict"
+        default:
+          "$ref": "#/components/responses/DefaultError"
+        '503':
+          "$ref": "#/components/responses/ServiceUnavailable"
+      operationId: postMessagesByMsgIdReview
+  "/messages/pending-review":
     get:
-      tags: [Message]
+      tags:
+      - Message
       summary: 获取待审核消息队列（汇总）
       description: 权限：CS / ADMIN
       parameters:
-        - name: page
-          in: query
-          schema: { type: integer, default: 1 }
-        - name: size
-          in: query
-          schema: { type: integer, default: 20 }
+      - name: page
+        in: query
+        schema:
+          type: integer
+          default: 1
+      - name: size
+        in: query
+        schema:
+          type: integer
+          default: 20
       responses:
         '200':
-          description: 待审核消息列表，按发送时间正序
-
-  # ── DESIGN DRAFT ──────────────────────────────────────────
-  /orders/{orderId}/design-drafts:
+          description: 成功
+          content:
+            application/json:
+              schema:
+                allOf:
+                - "$ref": "#/components/schemas/CommonResponse"
+                - type: object
+                  properties:
+                    data:
+                      type: array
+                      items:
+                        "$ref": "#/components/schemas/MessageItem"
+        '400':
+          "$ref": "#/components/responses/BadRequest"
+        '401':
+          "$ref": "#/components/responses/Unauthorized"
+        '403':
+          "$ref": "#/components/responses/Forbidden"
+        '404':
+          "$ref": "#/components/responses/NotFound"
+        '409':
+          "$ref": "#/components/responses/Conflict"
+        default:
+          "$ref": "#/components/responses/DefaultError"
+        '503':
+          "$ref": "#/components/responses/ServiceUnavailable"
+      operationId: getMessagesPendingReview
+  "/orders/{orderId}/design-drafts":
     get:
-      tags: [DesignDraft]
+      tags:
+      - DesignDraft
       summary: 获取订单设计稿列表（所有版本）
       description: |
         权限：DOCTOR / CS / WORKER / ADMIN
         医生端只返回 status 为 PENDING_DOCTOR_CONFIRM / DOCTOR_CONFIRMED / DOCTOR_REJECTED 的版本。
         CS_REJECTED 的版本医生端不可见。
       parameters:
-        - name: orderId
-          in: path
-          required: true
-          schema: { type: integer }
+      - name: orderId
+        in: path
+        required: true
+        schema:
+          type: integer
       responses:
         '200':
-          description: 设计稿列表（按版本号正序）
+          description: 成功
           content:
             application/json:
               schema:
-                type: object
-                properties:
-                  data:
-                    type: array
-                    items: { $ref: '#/components/schemas/DesignDraft' }
-
+                allOf:
+                - "$ref": "#/components/schemas/CommonResponse"
+                - type: object
+                  properties:
+                    data:
+                      type: array
+                      items:
+                        "$ref": "#/components/schemas/DesignDraftResponse"
+        '400':
+          "$ref": "#/components/responses/BadRequest"
+        '401':
+          "$ref": "#/components/responses/Unauthorized"
+        '403':
+          "$ref": "#/components/responses/Forbidden"
+        '404':
+          "$ref": "#/components/responses/NotFound"
+        '409':
+          "$ref": "#/components/responses/Conflict"
+        default:
+          "$ref": "#/components/responses/DefaultError"
+        '503':
+          "$ref": "#/components/responses/ServiceUnavailable"
+      operationId: getOrdersByOrderIdDesignDrafts
     post:
-      tags: [DesignDraft]
+      tags:
+      - DesignDraft
       summary: 上传新版设计稿
       description: 权限：WORKER / CS / ADMIN（工厂端任意人员）
       parameters:
-        - name: orderId
-          in: path
-          required: true
-          schema: { type: integer }
+      - name: orderId
+        in: path
+        required: true
+        schema:
+          type: integer
       requestBody:
         required: true
         content:
           application/json:
             schema:
-              type: object
-              required: [file_ids]
-              properties:
-                file_ids:    { type: array, items: { type: integer }, description: 已上传文件 ID 列表 }
-                upload_note: { type: string }
+              "$ref": "#/components/schemas/DesignDraftRequest"
       responses:
         '200':
-          description: 上传成功，版本号自增，状态=PENDING_CS_REVIEW，客服收到通知
-
-  /orders/{orderId}/design-drafts/{draftId}/cs-review:
+          description: 成功
+          content:
+            application/json:
+              schema:
+                allOf:
+                - "$ref": "#/components/schemas/CommonResponse"
+                - type: object
+                  properties:
+                    data:
+                      "$ref": "#/components/schemas/DesignDraftResponse"
+        '400':
+          "$ref": "#/components/responses/BadRequest"
+        '401':
+          "$ref": "#/components/responses/Unauthorized"
+        '403':
+          "$ref": "#/components/responses/Forbidden"
+        '404':
+          "$ref": "#/components/responses/NotFound"
+        '409':
+          "$ref": "#/components/responses/Conflict"
+        default:
+          "$ref": "#/components/responses/DefaultError"
+        '503':
+          "$ref": "#/components/responses/ServiceUnavailable"
+      operationId: postOrdersByOrderIdDesignDrafts
+  "/orders/{orderId}/design-drafts/{draftId}/cs-review":
     post:
-      tags: [DesignDraft]
+      tags:
+      - DesignDraft
       summary: 客服审核设计稿
       description: 权限：CS / ADMIN
       parameters:
-        - name: orderId
-          in: path
-          required: true
-          schema: { type: integer }
-        - name: draftId
-          in: path
-          required: true
-          schema: { type: integer }
+      - name: orderId
+        in: path
+        required: true
+        schema:
+          type: integer
+      - name: draftId
+        in: path
+        required: true
+        schema:
+          type: integer
       requestBody:
         required: true
         content:
           application/json:
             schema:
-              type: object
-              required: [action]
-              properties:
-                action:           { type: string, enum: [APPROVE, REJECT] }
-                cs_reject_reason: { type: string, description: action=REJECT 时必填 }
+              "$ref": "#/components/schemas/DesignDraftReviewRequest"
       responses:
         '200':
-          description: APPROVE 时医生端收到通知，REJECT 时上传人收到通知
-
-  /orders/{orderId}/design-drafts/{draftId}/doctor-confirm:
+          description: 成功
+          content:
+            application/json:
+              schema:
+                allOf:
+                - "$ref": "#/components/schemas/CommonResponse"
+                - type: object
+                  properties:
+                    data:
+                      "$ref": "#/components/schemas/DesignDraftResponse"
+        '400':
+          "$ref": "#/components/responses/BadRequest"
+        '401':
+          "$ref": "#/components/responses/Unauthorized"
+        '403':
+          "$ref": "#/components/responses/Forbidden"
+        '404':
+          "$ref": "#/components/responses/NotFound"
+        '409':
+          "$ref": "#/components/responses/Conflict"
+        default:
+          "$ref": "#/components/responses/DefaultError"
+        '503':
+          "$ref": "#/components/responses/ServiceUnavailable"
+      operationId: postOrdersByOrderIdDesignDraftsByDraftIdCsReview
+  "/orders/{orderId}/design-drafts/{draftId}/doctor-confirm":
     post:
-      tags: [DesignDraft]
+      tags:
+      - DesignDraft
       summary: 医生确认或驳回设计稿
       description: 权限：DOCTOR（只能操作本人订单的设计稿）
       parameters:
-        - name: orderId
-          in: path
-          required: true
-          schema: { type: integer }
-        - name: draftId
-          in: path
-          required: true
-          schema: { type: integer }
+      - name: orderId
+        in: path
+        required: true
+        schema:
+          type: integer
+      - name: draftId
+        in: path
+        required: true
+        schema:
+          type: integer
       requestBody:
         required: true
         content:
           application/json:
             schema:
-              type: object
-              required: [action]
-              properties:
-                action:               { type: string, enum: [CONFIRM, REJECT] }
-                doctor_reject_reason: { type: string, description: action=REJECT 时必填 }
+              "$ref": "#/components/schemas/DoctorDraftConfirmRequest"
       responses:
         '200':
-          description: CONFIRM 时流转生产；REJECT 时客服和上传人同时收到通知
-
-  # ── BILL & LOGISTICS ──────────────────────────────────────
-  /orders/{orderId}/bill:
+          description: 成功
+          content:
+            application/json:
+              schema:
+                allOf:
+                - "$ref": "#/components/schemas/CommonResponse"
+                - type: object
+                  properties:
+                    data:
+                      "$ref": "#/components/schemas/DesignDraftResponse"
+        '400':
+          "$ref": "#/components/responses/BadRequest"
+        '401':
+          "$ref": "#/components/responses/Unauthorized"
+        '403':
+          "$ref": "#/components/responses/Forbidden"
+        '404':
+          "$ref": "#/components/responses/NotFound"
+        '409':
+          "$ref": "#/components/responses/Conflict"
+        default:
+          "$ref": "#/components/responses/DefaultError"
+        '503':
+          "$ref": "#/components/responses/ServiceUnavailable"
+      operationId: postOrdersByOrderIdDesignDraftsByDraftIdDoctorConfirm
+  "/orders/{orderId}/bill":
     get:
-      tags: [Bill]
+      tags:
+      - Bill
       summary: 获取账单信息
       description: 权限：DOCTOR（只读）/ CS / ADMIN
       parameters:
-        - name: orderId
-          in: path
-          required: true
-          schema: { type: integer }
+      - name: orderId
+        in: path
+        required: true
+        schema:
+          type: integer
       responses:
         '200':
-          description: 账单信息（含预览 URL）
+          description: 成功
+          content:
+            application/json:
+              schema:
+                allOf:
+                - "$ref": "#/components/schemas/CommonResponse"
+                - type: object
+                  properties:
+                    data:
+                      "$ref": "#/components/schemas/BillResponse"
+        '400':
+          "$ref": "#/components/responses/BadRequest"
+        '401':
+          "$ref": "#/components/responses/Unauthorized"
+        '403':
+          "$ref": "#/components/responses/Forbidden"
+        '404':
+          "$ref": "#/components/responses/NotFound"
+        '409':
+          "$ref": "#/components/responses/Conflict"
+        default:
+          "$ref": "#/components/responses/DefaultError"
+        '503':
+          "$ref": "#/components/responses/ServiceUnavailable"
+      operationId: getOrdersByOrderIdBill
     post:
-      tags: [Bill]
+      tags:
+      - Bill
       summary: 上传账单文件
       description: 权限：CS / ADMIN
       parameters:
-        - name: orderId
-          in: path
-          required: true
-          schema: { type: integer }
+      - name: orderId
+        in: path
+        required: true
+        schema:
+          type: integer
       requestBody:
         required: true
         content:
           application/json:
             schema:
-              type: object
-              required: [file_id]
-              properties:
-                file_id: { type: integer }
+              "$ref": "#/components/schemas/BillRequest"
       responses:
         '200':
-          description: 上传成功，医生端可查看
-
-  /orders/{orderId}/logistics:
+          description: 成功
+          content:
+            application/json:
+              schema:
+                allOf:
+                - "$ref": "#/components/schemas/CommonResponse"
+                - type: object
+                  properties:
+                    data:
+                      "$ref": "#/components/schemas/BillResponse"
+        '400':
+          "$ref": "#/components/responses/BadRequest"
+        '401':
+          "$ref": "#/components/responses/Unauthorized"
+        '403':
+          "$ref": "#/components/responses/Forbidden"
+        '404':
+          "$ref": "#/components/responses/NotFound"
+        '409':
+          "$ref": "#/components/responses/Conflict"
+        default:
+          "$ref": "#/components/responses/DefaultError"
+        '503':
+          "$ref": "#/components/responses/ServiceUnavailable"
+      operationId: postOrdersByOrderIdBill
+  "/orders/{orderId}/logistics":
     get:
-      tags: [Bill]
+      tags:
+      - Bill
       summary: 获取物流信息
       description: 权限：DOCTOR（只读）/ CS / ADMIN
       parameters:
-        - name: orderId
-          in: path
-          required: true
-          schema: { type: integer }
+      - name: orderId
+        in: path
+        required: true
+        schema:
+          type: integer
       responses:
         '200':
-          description: 物流信息（承运商、运单号、发货时间）
+          description: 成功
+          content:
+            application/json:
+              schema:
+                allOf:
+                - "$ref": "#/components/schemas/CommonResponse"
+                - type: object
+                  properties:
+                    data:
+                      "$ref": "#/components/schemas/LogisticsResponse"
+        '400':
+          "$ref": "#/components/responses/BadRequest"
+        '401':
+          "$ref": "#/components/responses/Unauthorized"
+        '403':
+          "$ref": "#/components/responses/Forbidden"
+        '404':
+          "$ref": "#/components/responses/NotFound"
+        '409':
+          "$ref": "#/components/responses/Conflict"
+        default:
+          "$ref": "#/components/responses/DefaultError"
+        '503':
+          "$ref": "#/components/responses/ServiceUnavailable"
+      operationId: getOrdersByOrderIdLogistics
     post:
-      tags: [Bill]
+      tags:
+      - Bill
       summary: 录入物流信息并发货
       description: |
         权限：CS / ADMIN
         录入成功后 external_status 自动变为 SHIPPED，医生端收到 WebSocket 通知。
       parameters:
-        - name: orderId
-          in: path
-          required: true
-          schema: { type: integer }
+      - name: orderId
+        in: path
+        required: true
+        schema:
+          type: integer
       requestBody:
         required: true
         content:
           application/json:
             schema:
-              type: object
-              required: [carrier, tracking_no]
-              properties:
-                carrier:     { type: string, example: 顺丰速运 }
-                tracking_no: { type: string }
+              "$ref": "#/components/schemas/LogisticsRequest"
       responses:
         '200':
-          description: 发货成功，订单状态变为 SHIPPED
-
-  # ── AI ────────────────────────────────────────────────────
-  /ai/translate:
+          description: 成功
+          content:
+            application/json:
+              schema:
+                allOf:
+                - "$ref": "#/components/schemas/CommonResponse"
+                - type: object
+                  properties:
+                    data:
+                      "$ref": "#/components/schemas/LogisticsResponse"
+        '400':
+          "$ref": "#/components/responses/BadRequest"
+        '401':
+          "$ref": "#/components/responses/Unauthorized"
+        '403':
+          "$ref": "#/components/responses/Forbidden"
+        '404':
+          "$ref": "#/components/responses/NotFound"
+        '409':
+          "$ref": "#/components/responses/Conflict"
+        default:
+          "$ref": "#/components/responses/DefaultError"
+        '503':
+          "$ref": "#/components/responses/ServiceUnavailable"
+      operationId: postOrdersByOrderIdLogistics
+  "/ai/translate":
     post:
-      tags: [AI]
+      tags:
+      - AI
       summary: AI-1 翻译助手（客服端）
       description: |
         权限：CS / ADMIN
@@ -1430,27 +3777,38 @@ paths:
         content:
           application/json:
             schema:
-              type: object
-              required: [order_id, source_text]
-              properties:
-                order_id:    { type: integer }
-                source_text: { type: string, description: 需要翻译的原文 }
+              "$ref": "#/components/schemas/AiTranslateRequest"
       responses:
         '200':
-          description: 翻译草稿
+          description: 返回翻译草稿，不自动写入业务字段
           content:
             application/json:
               schema:
-                type: object
-                properties:
-                  data:
-                    type: object
-                    properties:
-                      translated_text: { type: string, description: 翻译后的中文生产指令草稿 }
-
-  /ai/check-missing:
+                allOf:
+                - "$ref": "#/components/schemas/CommonResponse"
+                - type: object
+                  properties:
+                    data:
+                      "$ref": "#/components/schemas/AiTranslateResponse"
+        '400':
+          "$ref": "#/components/responses/BadRequest"
+        '401':
+          "$ref": "#/components/responses/Unauthorized"
+        '403':
+          "$ref": "#/components/responses/Forbidden"
+        '404':
+          "$ref": "#/components/responses/NotFound"
+        '409':
+          "$ref": "#/components/responses/Conflict"
+        default:
+          "$ref": "#/components/responses/DefaultError"
+        '503':
+          "$ref": "#/components/responses/ServiceUnavailable"
+      operationId: postAiTranslate
+  "/ai/check-missing":
     post:
-      tags: [AI]
+      tags:
+      - AI
       summary: AI-4 资料缺失检查助手（医生端 + 客服端）
       description: |
         权限：DOCTOR / CS / ADMIN
@@ -1460,34 +3818,38 @@ paths:
         content:
           application/json:
             schema:
-              type: object
-              required: [order_id]
-              properties:
-                order_id: { type: integer }
+              "$ref": "#/components/schemas/AiOrderOnlyRequest"
       responses:
         '200':
-          description: 缺失项检查结果
+          description: 返回缺失资料检查结果
           content:
             application/json:
               schema:
-                type: object
-                properties:
-                  data:
-                    type: object
-                    properties:
-                      is_complete:   { type: boolean }
-                      missing_items:
-                        type: array
-                        items:
-                          type: object
-                          properties:
-                            field_key:   { type: string }
-                            field_label: { type: string }
-                            tip:         { type: string, description: 提示文案，如「缺少咬合照片，请上传」}
-
-  /ai/cs-query:
+                allOf:
+                - "$ref": "#/components/schemas/CommonResponse"
+                - type: object
+                  properties:
+                    data:
+                      "$ref": "#/components/schemas/MissingInfoResponse"
+        '400':
+          "$ref": "#/components/responses/BadRequest"
+        '401':
+          "$ref": "#/components/responses/Unauthorized"
+        '403':
+          "$ref": "#/components/responses/Forbidden"
+        '404':
+          "$ref": "#/components/responses/NotFound"
+        '409':
+          "$ref": "#/components/responses/Conflict"
+        default:
+          "$ref": "#/components/responses/DefaultError"
+        '503':
+          "$ref": "#/components/responses/ServiceUnavailable"
+      operationId: postAiCheckMissing
+  "/ai/cs-query":
     post:
-      tags: [AI]
+      tags:
+      - AI
       summary: AI-2 客服查询助手（客服端）
       description: |
         权限：CS / ADMIN
@@ -1499,27 +3861,38 @@ paths:
         content:
           application/json:
             schema:
-              type: object
-              required: [order_id, question]
-              properties:
-                order_id: { type: integer }
-                question: { type: string, example: "这个订单现在做到哪道工序了？" }
+              "$ref": "#/components/schemas/AiQuestionRequest"
       responses:
         '200':
-          description: AI 回答
+          description: 返回客服内部查询草稿
           content:
             application/json:
               schema:
-                type: object
-                properties:
-                  data:
-                    type: object
-                    properties:
-                      answer: { type: string }
-
-  /ai/order-query:
+                allOf:
+                - "$ref": "#/components/schemas/CommonResponse"
+                - type: object
+                  properties:
+                    data:
+                      "$ref": "#/components/schemas/AiAnswerResponse"
+        '400':
+          "$ref": "#/components/responses/BadRequest"
+        '401':
+          "$ref": "#/components/responses/Unauthorized"
+        '403':
+          "$ref": "#/components/responses/Forbidden"
+        '404':
+          "$ref": "#/components/responses/NotFound"
+        '409':
+          "$ref": "#/components/responses/Conflict"
+        default:
+          "$ref": "#/components/responses/DefaultError"
+        '503':
+          "$ref": "#/components/responses/ServiceUnavailable"
+      operationId: postAiCsQuery
+  "/ai/order-query":
     post:
-      tags: [AI]
+      tags:
+      - AI
       summary: AI-3 客户订单助手（医生端）
       description: |
         权限：DOCTOR
@@ -1531,27 +3904,38 @@ paths:
         content:
           application/json:
             schema:
-              type: object
-              required: [order_id, question]
-              properties:
-                order_id: { type: integer }
-                question: { type: string, example: "我的订单做到哪了？" }
+              "$ref": "#/components/schemas/AiQuestionRequest"
       responses:
         '200':
-          description: AI 回答（只含外部状态和物流信息）
+          description: 返回医生端安全查询答案
           content:
             application/json:
               schema:
-                type: object
-                properties:
-                  data:
-                    type: object
-                    properties:
-                      answer: { type: string }
-
-  /ai/production-note:
+                allOf:
+                - "$ref": "#/components/schemas/CommonResponse"
+                - type: object
+                  properties:
+                    data:
+                      "$ref": "#/components/schemas/AiAnswerResponse"
+        '400':
+          "$ref": "#/components/responses/BadRequest"
+        '401':
+          "$ref": "#/components/responses/Unauthorized"
+        '403':
+          "$ref": "#/components/responses/Forbidden"
+        '404':
+          "$ref": "#/components/responses/NotFound"
+        '409':
+          "$ref": "#/components/responses/Conflict"
+        default:
+          "$ref": "#/components/responses/DefaultError"
+        '503':
+          "$ref": "#/components/responses/ServiceUnavailable"
+      operationId: postAiOrderQuery
+  "/ai/production-note":
     post:
-      tags: [AI]
+      tags:
+      - AI
       summary: AI-5 生产备注助手（客服端 + 生产端）
       description: |
         权限：CS / WORKER / ADMIN
@@ -1562,30 +3946,196 @@ paths:
         content:
           application/json:
             schema:
-              type: object
-              required: [order_id]
-              properties:
-                order_id: { type: integer }
+              "$ref": "#/components/schemas/AiOrderOnlyRequest"
       responses:
         '200':
-          description: 生产备注草稿
+          description: 返回生产备注草稿，不自动写订单字段
           content:
             application/json:
               schema:
-                type: object
-                properties:
-                  data:
-                    type: object
-                    properties:
-                      draft_note: { type: string, description: 格式化后的生产备注草稿 }
-
-  # ── NOTIFICATION ──────────────────────────────────────────
-  /ws/connect:
+                allOf:
+                - "$ref": "#/components/schemas/CommonResponse"
+                - type: object
+                  properties:
+                    data:
+                      "$ref": "#/components/schemas/AiProductionNoteResponse"
+        '400':
+          "$ref": "#/components/responses/BadRequest"
+        '401':
+          "$ref": "#/components/responses/Unauthorized"
+        '403':
+          "$ref": "#/components/responses/Forbidden"
+        '404':
+          "$ref": "#/components/responses/NotFound"
+        '409':
+          "$ref": "#/components/responses/Conflict"
+        default:
+          "$ref": "#/components/responses/DefaultError"
+        '503':
+          "$ref": "#/components/responses/ServiceUnavailable"
+      operationId: postAiProductionNote
+  "/notifications":
     get:
-      tags: [Notification]
+      tags:
+      - Notification
+      summary: 查询当前用户通知列表
+      description: |
+        权限：DOCTOR / CS / WORKER / ADMIN
+        仅返回当前登录用户自己的 `user_notification` 记录。响应只包含通知事件的公开 payload 字段，不返回内部备注、内部状态、员工绩效或工序敏感信息。
+      parameters:
+      - name: unread_only
+        in: query
+        required: false
+        schema:
+          type: boolean
+          default: false
+      - name: limit
+        in: query
+        required: false
+        schema:
+          type: integer
+          default: 50
+          maximum: 100
+      responses:
+        '200':
+          description: 当前用户通知列表
+          content:
+            application/json:
+              schema:
+                allOf:
+                - "$ref": "#/components/schemas/CommonResponse"
+                - type: object
+                  properties:
+                    data:
+                      "$ref": "#/components/schemas/NotificationListResponse"
+        '400':
+          "$ref": "#/components/responses/BadRequest"
+        '401':
+          "$ref": "#/components/responses/Unauthorized"
+        '403':
+          "$ref": "#/components/responses/Forbidden"
+        '404':
+          "$ref": "#/components/responses/NotFound"
+        '409':
+          "$ref": "#/components/responses/Conflict"
+        default:
+          "$ref": "#/components/responses/DefaultError"
+        '503':
+          "$ref": "#/components/responses/ServiceUnavailable"
+      operationId: getNotifications
+  "/notifications/unread-count":
+    get:
+      tags:
+      - Notification
+      summary: 查询当前用户未读通知数
+      description: 权限：DOCTOR / CS / WORKER / ADMIN。只统计当前登录用户未读通知。
+      responses:
+        '200':
+          description: 当前用户未读通知数
+          content:
+            application/json:
+              schema:
+                allOf:
+                - "$ref": "#/components/schemas/CommonResponse"
+                - type: object
+                  properties:
+                    data:
+                      "$ref": "#/components/schemas/UnreadCountResponse"
+        '400':
+          "$ref": "#/components/responses/BadRequest"
+        '401':
+          "$ref": "#/components/responses/Unauthorized"
+        '403':
+          "$ref": "#/components/responses/Forbidden"
+        '404':
+          "$ref": "#/components/responses/NotFound"
+        '409':
+          "$ref": "#/components/responses/Conflict"
+        default:
+          "$ref": "#/components/responses/DefaultError"
+        '503':
+          "$ref": "#/components/responses/ServiceUnavailable"
+      operationId: getNotificationsUnreadCount
+  "/notifications/{notificationId}/read":
+    post:
+      tags:
+      - Notification
+      summary: 标记单条通知为已读
+      description: 权限：DOCTOR / CS / WORKER / ADMIN。只允许操作当前登录用户自己的通知；其他用户通知返回 404。
+      parameters:
+      - name: notificationId
+        in: path
+        required: true
+        schema:
+          type: integer
+          format: int64
+      responses:
+        '200':
+          description: 已标记为已读并返回通知详情
+          content:
+            application/json:
+              schema:
+                allOf:
+                - "$ref": "#/components/schemas/CommonResponse"
+                - type: object
+                  properties:
+                    data:
+                      "$ref": "#/components/schemas/NotificationItem"
+        '400':
+          "$ref": "#/components/responses/BadRequest"
+        '401':
+          "$ref": "#/components/responses/Unauthorized"
+        '403':
+          "$ref": "#/components/responses/Forbidden"
+        '404':
+          "$ref": "#/components/responses/NotFound"
+        '409':
+          "$ref": "#/components/responses/Conflict"
+        default:
+          "$ref": "#/components/responses/DefaultError"
+        '503':
+          "$ref": "#/components/responses/ServiceUnavailable"
+      operationId: postNotificationsByNotificationIdRead
+  "/notifications/read-all":
+    post:
+      tags:
+      - Notification
+      summary: 标记当前用户全部通知为已读
+      description: 权限：DOCTOR / CS / WORKER / ADMIN。只更新当前登录用户自己的未读通知。
+      responses:
+        '200':
+          description: 已更新的通知数量
+          content:
+            application/json:
+              schema:
+                allOf:
+                - "$ref": "#/components/schemas/CommonResponse"
+                - type: object
+                  properties:
+                    data:
+                      "$ref": "#/components/schemas/MarkAllReadResponse"
+        '400':
+          "$ref": "#/components/responses/BadRequest"
+        '401':
+          "$ref": "#/components/responses/Unauthorized"
+        '403':
+          "$ref": "#/components/responses/Forbidden"
+        '404':
+          "$ref": "#/components/responses/NotFound"
+        '409':
+          "$ref": "#/components/responses/Conflict"
+        default:
+          "$ref": "#/components/responses/DefaultError"
+        '503':
+          "$ref": "#/components/responses/ServiceUnavailable"
+      operationId: postNotificationsReadAll
+  "/ws/connect":
+    get:
+      tags:
+      - Notification
       summary: WebSocket 连接端点（仅文档说明，非 REST 接口）
       description: |
-        连接地址：wss://api.yourdomain.com/v1/ws?token={access_token}
+        连接地址：wss://api.yourdomain.com/ws/connect?token={access_token}
         连接时服务端校验 Token，Token 无效则拒绝连接。
 
         ## 推送事件类型（event 字段）
@@ -1623,3 +4173,182 @@ paths:
       responses:
         '101':
           description: WebSocket 升级成功
+        '400':
+          "$ref": "#/components/responses/BadRequest"
+        '401':
+          "$ref": "#/components/responses/Unauthorized"
+        '403':
+          "$ref": "#/components/responses/Forbidden"
+        '404':
+          "$ref": "#/components/responses/NotFound"
+        '409':
+          "$ref": "#/components/responses/Conflict"
+        default:
+          "$ref": "#/components/responses/DefaultError"
+        '503':
+          "$ref": "#/components/responses/ServiceUnavailable"
+      operationId: getWsConnect
+  "/files/{fileId}/complete":
+    post:
+      tags:
+      - File
+      summary: 确认文件直传完成并写入文件元数据
+      description: 权限：按文件归属和可见性校验。服务端通过 MinIO statObject 校验对象存在、大小和类型，成功后写 upload_status=COMPLETED
+        并记录审计。
+      parameters:
+      - name: fileId
+        in: path
+        required: true
+        schema:
+          type: integer
+      responses:
+        '200':
+          description: 文件上传完成确认成功
+          content:
+            application/json:
+              schema:
+                allOf:
+                - "$ref": "#/components/schemas/CommonResponse"
+                - type: object
+                  properties:
+                    data:
+                      "$ref": "#/components/schemas/FileCompleteResponse"
+        '400':
+          "$ref": "#/components/responses/BadRequest"
+        '401':
+          "$ref": "#/components/responses/Unauthorized"
+        '403':
+          "$ref": "#/components/responses/Forbidden"
+        '404':
+          "$ref": "#/components/responses/NotFound"
+        '409':
+          "$ref": "#/components/responses/Conflict"
+        default:
+          "$ref": "#/components/responses/DefaultError"
+        '503':
+          "$ref": "#/components/responses/ServiceUnavailable"
+      operationId: postFilesByFileIdComplete
+  "/process-instance/nodes/{nodeInstanceId}/start":
+    post:
+      tags:
+      - ProcessInstance
+      summary: 开始工序节点
+      description: 权限：WORKER。仅分配员工可操作；需要节点 READY，且 need_in_check=1 时必须已有通过的入检记录。
+      parameters:
+      - name: nodeInstanceId
+        in: path
+        required: true
+        schema:
+          type: integer
+      responses:
+        '200':
+          description: 节点已进入 IN_PROGRESS
+          content:
+            application/json:
+              schema:
+                allOf:
+                - "$ref": "#/components/schemas/CommonResponse"
+                - type: object
+                  properties:
+                    data:
+                      "$ref": "#/components/schemas/NodeActionResponse"
+        '400':
+          "$ref": "#/components/responses/BadRequest"
+        '401':
+          "$ref": "#/components/responses/Unauthorized"
+        '403':
+          "$ref": "#/components/responses/Forbidden"
+        '404':
+          "$ref": "#/components/responses/NotFound"
+        '409':
+          "$ref": "#/components/responses/Conflict"
+        default:
+          "$ref": "#/components/responses/DefaultError"
+        '503':
+          "$ref": "#/components/responses/ServiceUnavailable"
+      operationId: postProcessInstanceNodesByNodeInstanceIdStart
+  "/process-instance/nodes/{nodeInstanceId}/complete":
+    post:
+      tags:
+      - ProcessInstance
+      summary: 完成工序节点
+      description: 权限：WORKER。仅分配员工可操作；节点必须处于 IN_PROGRESS，完成后按 DAG 前置条件激活后续 READY 节点。
+      parameters:
+      - name: nodeInstanceId
+        in: path
+        required: true
+        schema:
+          type: integer
+      responses:
+        '200':
+          description: 节点已完成
+          content:
+            application/json:
+              schema:
+                allOf:
+                - "$ref": "#/components/schemas/CommonResponse"
+                - type: object
+                  properties:
+                    data:
+                      "$ref": "#/components/schemas/NodeActionResponse"
+        '400':
+          "$ref": "#/components/responses/BadRequest"
+        '401':
+          "$ref": "#/components/responses/Unauthorized"
+        '403':
+          "$ref": "#/components/responses/Forbidden"
+        '404':
+          "$ref": "#/components/responses/NotFound"
+        '409':
+          "$ref": "#/components/responses/Conflict"
+        default:
+          "$ref": "#/components/responses/DefaultError"
+        '503':
+          "$ref": "#/components/responses/ServiceUnavailable"
+      operationId: postProcessInstanceNodesByNodeInstanceIdComplete
+  "/process-instance/nodes/{nodeInstanceId}/skip":
+    post:
+      tags:
+      - ProcessInstance
+      summary: 跳过可选工序节点
+      description: 权限：WORKER / ADMIN。仅允许跳过 is_optional=1 且当前为 PENDING/READY 的节点，并记录
+        skipped_at 与 skip_reason。
+      parameters:
+      - name: nodeInstanceId
+        in: path
+        required: true
+        schema:
+          type: integer
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              "$ref": "#/components/schemas/SkipNodeRequest"
+      responses:
+        '200':
+          description: 节点已跳过
+          content:
+            application/json:
+              schema:
+                allOf:
+                - "$ref": "#/components/schemas/CommonResponse"
+                - type: object
+                  properties:
+                    data:
+                      "$ref": "#/components/schemas/NodeActionResponse"
+        '400':
+          "$ref": "#/components/responses/BadRequest"
+        '401':
+          "$ref": "#/components/responses/Unauthorized"
+        '403':
+          "$ref": "#/components/responses/Forbidden"
+        '404':
+          "$ref": "#/components/responses/NotFound"
+        '409':
+          "$ref": "#/components/responses/Conflict"
+        default:
+          "$ref": "#/components/responses/DefaultError"
+        '503':
+          "$ref": "#/components/responses/ServiceUnavailable"
+      operationId: postProcessInstanceNodesByNodeInstanceIdSkip

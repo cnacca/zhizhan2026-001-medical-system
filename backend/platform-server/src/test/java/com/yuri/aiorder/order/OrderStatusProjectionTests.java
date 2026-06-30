@@ -1,7 +1,11 @@
 package com.yuri.aiorder.order;
 
 import static org.hamcrest.Matchers.containsString;
+import static org.hamcrest.Matchers.greaterThanOrEqualTo;
+import static org.hamcrest.Matchers.hasSize;
+import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.not;
+import static org.hamcrest.Matchers.nullValue;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.content;
@@ -38,12 +42,13 @@ class OrderStatusProjectionTests {
 
     private long clinicId;
     private long orderId;
+    private String orderNo;
 
     @BeforeEach
     void setUp() {
         String suffix = UUID.randomUUID().toString().replace("-", "");
         String clinicName = "测试诊所-" + suffix;
-        String orderNo = "T" + suffix.substring(0, 12);
+        orderNo = "T" + suffix.substring(0, 12);
 
         jdbcClient.sql("INSERT INTO clinic (clinic_name) VALUES (:clinicName)")
                 .param("clinicName", clinicName)
@@ -129,6 +134,302 @@ class OrderStatusProjectionTests {
     }
 
     @Test
+    void doctorOrderListUsesDataScopeAndDesensitizedProjection() throws Exception {
+        statusService.updateOrderState(orderId, InternalOrderStatus.IN_PRODUCTION, "TEST_START_PRODUCTION", 8001L, null);
+        jdbcClient.sql("""
+                        INSERT INTO orders
+                            (order_no, clinic_id, doctor_user_id, cs_user_id, product_type,
+                             form_data, internal_status, external_status, production_note)
+                        VALUES
+                            (:orderNo, :clinicId, :doctorUserId, 8001, 'REGULAR_CROWN',
+                             JSON_OBJECT('patient_name', '李四', 'tooth_position', '21'),
+                             'IN_PRODUCTION', 'PRODUCING', '其他医生内部备注')
+                        """)
+                .param("orderNo", "OTHER" + UUID.randomUUID().toString().replace("-", "").substring(0, 10))
+                .param("clinicId", clinicId)
+                .param("doctorUserId", OTHER_DOCTOR_USER_ID)
+                .update();
+
+        mockMvc.perform(get("/orders")
+                        .param("keyword", orderNo)
+                        .header("X-Bootstrap-Role", "DOCTOR")
+                        .header("X-Bootstrap-User-Id", DOCTOR_USER_ID)
+                        .header("X-Bootstrap-Clinic-Id", clinicId))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.items", hasSize(1)))
+                .andExpect(jsonPath("$.data.items[0].order_id").value(orderId))
+                .andExpect(jsonPath("$.data.items[0].external_status").value("PRODUCING"))
+                .andExpect(jsonPath("$.data.items[0].internal_status").doesNotExist())
+                .andExpect(jsonPath("$.data.items[0].production_note").doesNotExist())
+                .andExpect(jsonPath("$.data.items[0].cs_user_id").doesNotExist())
+                .andExpect(content().string(not(containsString("内部生产备注"))))
+                .andExpect(content().string(not(containsString("其他医生内部备注"))));
+    }
+
+    @Test
+    void doctorCanReadDynamicFormAndCreateSubmittedOrderWithOwnCompletedFiles() throws Exception {
+        long completedFileId = insertFileResource(
+                null,
+                DOCTOR_USER_ID,
+                "ORDER_ATTACHMENT",
+                "DOCTOR",
+                "COMPLETED");
+
+        mockMvc.perform(get("/form-configs")
+                        .param("product_type", "REGULAR_CROWN")
+                        .header("X-Bootstrap-Role", "DOCTOR")
+                        .header("X-Bootstrap-User-Id", DOCTOR_USER_ID)
+                        .header("X-Bootstrap-Clinic-Id", clinicId))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data", hasSize(greaterThanOrEqualTo(2))))
+                .andExpect(jsonPath("$.data[0].field_key").value("patient_name"))
+                .andExpect(jsonPath("$.data[0].is_required").value(true))
+                .andExpect(jsonPath("$.data[1].field_key").value("tooth_position"));
+
+        String request = """
+                {
+                  "product_type": "REGULAR_CROWN",
+                  "form_data": {
+                    "patient_name": "王五",
+                    "tooth_position": "36"
+                  },
+                  "file_ids": [%d]
+                }
+                """.formatted(completedFileId);
+
+        String response = mockMvc.perform(post("/orders")
+                        .header("X-Bootstrap-Role", "DOCTOR")
+                        .header("X-Bootstrap-User-Id", DOCTOR_USER_ID)
+                        .header("X-Bootstrap-Clinic-Id", clinicId)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(request))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.order_id").isNumber())
+                .andExpect(jsonPath("$.data.order_no").value(containsString("ORD")))
+                .andExpect(jsonPath("$.data.internal_status").doesNotExist())
+                .andExpect(jsonPath("$.data.external_status").value("PENDING_REVIEW"))
+                .andExpect(content().string(not(containsString("PENDING_CS_REVIEW"))))
+                .andReturn()
+                .getResponse()
+                .getContentAsString();
+
+        long createdOrderId = ((Number) com.jayway.jsonpath.JsonPath.read(response, "$.data.order_id")).longValue();
+        String internalStatus = jdbcClient.sql("SELECT internal_status FROM orders WHERE order_id = :orderId")
+                .param("orderId", createdOrderId)
+                .query(String.class)
+                .single();
+        Long fileOrderId = jdbcClient.sql("SELECT order_id FROM file_resource WHERE file_id = :fileId")
+                .param("fileId", completedFileId)
+                .query(Long.class)
+                .single();
+        long historyCount = jdbcClient.sql("""
+                        SELECT COUNT(*)
+                        FROM order_status_history
+                        WHERE order_id = :orderId
+                          AND to_internal_status = 'PENDING_CS_REVIEW'
+                          AND to_external_status = 'PENDING_REVIEW'
+                          AND event_type = 'DOCTOR_SUBMIT_ORDER'
+                        """)
+                .param("orderId", createdOrderId)
+                .query(Long.class)
+                .single();
+
+        org.assertj.core.api.Assertions.assertThat(internalStatus).isEqualTo("PENDING_CS_REVIEW");
+        org.assertj.core.api.Assertions.assertThat(fileOrderId).isEqualTo(createdOrderId);
+        org.assertj.core.api.Assertions.assertThat(historyCount).isEqualTo(1L);
+    }
+
+    @Test
+    void doctorCannotBindOtherUnfinishedOrInternalFilesWhenCreatingOrder() throws Exception {
+        long otherDoctorFileId = insertFileResource(
+                null,
+                OTHER_DOCTOR_USER_ID,
+                "ORDER_ATTACHMENT",
+                "DOCTOR",
+                "COMPLETED");
+        long pendingFileId = insertFileResource(
+                null,
+                DOCTOR_USER_ID,
+                "ORDER_ATTACHMENT",
+                "DOCTOR",
+                "PENDING");
+        long internalFileId = insertFileResource(
+                null,
+                DOCTOR_USER_ID,
+                "ORDER_ATTACHMENT",
+                "INTERNAL",
+                "COMPLETED");
+
+        assertCreateOrderWithFileRejected(otherDoctorFileId, is(403));
+        assertCreateOrderWithFileRejected(pendingFileId, is(409));
+        assertCreateOrderWithFileRejected(internalFileId, is(403));
+    }
+
+    @Test
+    void csCanApprovePendingDoctorOrderIntoProductionReviewWithoutStartingProduction() throws Exception {
+        mockMvc.perform(post("/orders/{orderId}/review", orderId)
+                        .header("X-Bootstrap-Role", "CS")
+                        .header("X-Bootstrap-User-Id", 8002L)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("""
+                                {
+                                  "action": "APPROVE",
+                                  "production_note": "客服确认：资料完整，进入生产审核。"
+                                }
+                                """))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.order_id").value(orderId))
+                .andExpect(jsonPath("$.data.internal_status").value("PENDING_PRODUCTION_REVIEW"))
+                .andExpect(jsonPath("$.data.external_status").value("PENDING_REVIEW"))
+                .andExpect(jsonPath("$.data.production_note").value("客服确认：资料完整，进入生产审核。"))
+                .andExpect(jsonPath("$.data.reject_reason").value(nullValue()));
+
+        long processInstanceCount = jdbcClient.sql("""
+                        SELECT COUNT(*)
+                        FROM order_process_instance
+                        WHERE order_id = :orderId
+                        """)
+                .param("orderId", orderId)
+                .query(Long.class)
+                .single();
+        long historyCount = jdbcClient.sql("""
+                        SELECT COUNT(*)
+                        FROM order_status_history
+                        WHERE order_id = :orderId
+                          AND from_internal_status = 'PENDING_CS_REVIEW'
+                          AND to_internal_status = 'PENDING_PRODUCTION_REVIEW'
+                          AND event_type = 'CS_APPROVE_ORDER'
+                          AND operator_user_id = 8002
+                        """)
+                .param("orderId", orderId)
+                .query(Long.class)
+                .single();
+        long doctorNotificationCount = notificationCount(orderId, "ORDER_APPROVED", "DOCTOR");
+
+        org.assertj.core.api.Assertions.assertThat(processInstanceCount).isZero();
+        org.assertj.core.api.Assertions.assertThat(historyCount).isEqualTo(1L);
+        org.assertj.core.api.Assertions.assertThat(doctorNotificationCount).isEqualTo(1L);
+    }
+
+    @Test
+    void csOrderListCanFilterPendingCsReviewByInternalStatus() throws Exception {
+        String listPrefix = "CSLIST" + UUID.randomUUID().toString().replace("-", "").substring(0, 8);
+        jdbcClient.sql("""
+                        UPDATE orders
+                        SET order_no = :orderNo
+                        WHERE order_id = :orderId
+                        """)
+                .param("orderNo", listPrefix + "-PENDING")
+                .param("orderId", orderId)
+                .update();
+        jdbcClient.sql("""
+                        INSERT INTO orders
+                            (order_no, clinic_id, doctor_user_id, cs_user_id, product_type,
+                             form_data, internal_status, external_status)
+                        VALUES
+                            (:orderNo, :clinicId, :doctorUserId, 8002, 'REGULAR_CROWN',
+                             JSON_OBJECT('patient_name', '已初审', 'tooth_position', '12'),
+                             'PENDING_PRODUCTION_REVIEW', 'PENDING_REVIEW')
+                        """)
+                .param("orderNo", listPrefix + "-REVIEWED")
+                .param("clinicId", clinicId)
+                .param("doctorUserId", DOCTOR_USER_ID)
+                .update();
+
+        mockMvc.perform(get("/orders")
+                        .param("internal_status", "PENDING_CS_REVIEW")
+                        .param("keyword", listPrefix)
+                        .header("X-Bootstrap-Role", "CS")
+                        .header("X-Bootstrap-User-Id", 8002L))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.items", hasSize(1)))
+                .andExpect(jsonPath("$.data.items[0].order_id").value(orderId))
+                .andExpect(jsonPath("$.data.items[0].internal_status").value("PENDING_CS_REVIEW"));
+    }
+
+    @Test
+    void csCanRejectPendingDoctorOrderAndDoctorStillSeesOnlyExternalProjection() throws Exception {
+        mockMvc.perform(post("/orders/{orderId}/review", orderId)
+                        .header("X-Bootstrap-Role", "CS")
+                        .header("X-Bootstrap-User-Id", 8002L)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("""
+                                {
+                                  "action": "REJECT",
+                                  "reject_reason": "缺少咬合记录，请补充附件。"
+                                }
+                                """))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.order_id").value(orderId))
+                .andExpect(jsonPath("$.data.internal_status").value("CS_REJECTED"))
+                .andExpect(jsonPath("$.data.external_status").value("PENDING_REVIEW"))
+                .andExpect(jsonPath("$.data.reject_reason").value("缺少咬合记录，请补充附件。"));
+
+        mockMvc.perform(get("/orders/{orderId}", orderId)
+                        .header("X-Bootstrap-Role", "DOCTOR")
+                        .header("X-Bootstrap-User-Id", DOCTOR_USER_ID)
+                        .header("X-Bootstrap-Clinic-Id", clinicId))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.external_status").value("PENDING_REVIEW"))
+                .andExpect(jsonPath("$.data.internal_status").doesNotExist())
+                .andExpect(jsonPath("$.data.reject_reason").doesNotExist())
+                .andExpect(content().string(not(containsString("CS_REJECTED"))));
+
+        long historyCount = jdbcClient.sql("""
+                        SELECT COUNT(*)
+                        FROM order_status_history
+                        WHERE order_id = :orderId
+                          AND to_internal_status = 'CS_REJECTED'
+                          AND event_type = 'CS_REJECT_ORDER'
+                          AND reason = '缺少咬合记录，请补充附件。'
+                        """)
+                .param("orderId", orderId)
+                .query(Long.class)
+                .single();
+        long doctorNotificationCount = notificationCount(orderId, "ORDER_REJECTED", "DOCTOR");
+
+        org.assertj.core.api.Assertions.assertThat(historyCount).isEqualTo(1L);
+        org.assertj.core.api.Assertions.assertThat(doctorNotificationCount).isEqualTo(1L);
+    }
+
+    @Test
+    void orderReviewRejectsWrongRoleInvalidActionAndWrongCurrentStatus() throws Exception {
+        mockMvc.perform(post("/orders/{orderId}/review", orderId)
+                        .header("X-Bootstrap-Role", "DOCTOR")
+                        .header("X-Bootstrap-User-Id", DOCTOR_USER_ID)
+                        .header("X-Bootstrap-Clinic-Id", clinicId)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("""
+                                {"action":"APPROVE"}
+                                """))
+                .andExpect(status().isForbidden());
+
+        mockMvc.perform(post("/orders/{orderId}/review", orderId)
+                        .header("X-Bootstrap-Role", "CS")
+                        .header("X-Bootstrap-User-Id", 8002L)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("""
+                                {"action":"HOLD"}
+                                """))
+                .andExpect(status().isBadRequest());
+
+        statusService.updateOrderState(
+                orderId,
+                InternalOrderStatus.PENDING_PRODUCTION_REVIEW,
+                "TEST_ALREADY_REVIEWED",
+                8002L,
+                null);
+        mockMvc.perform(post("/orders/{orderId}/review", orderId)
+                        .header("X-Bootstrap-Role", "CS")
+                        .header("X-Bootstrap-User-Id", 8002L)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("""
+                                {"action":"APPROVE"}
+                                """))
+                .andExpect(status().isConflict());
+    }
+
+    @Test
     void doctorCannotAccessOtherDoctorOrInternalProcessApi() throws Exception {
         mockMvc.perform(get("/orders/{orderId}", orderId)
                         .header("X-Bootstrap-Role", "DOCTOR")
@@ -158,5 +459,69 @@ class OrderStatusProjectionTests {
                 .andExpect(content().string(not(containsString("internal_status"))))
                 .andExpect(content().string(not(containsString("内部生产备注"))))
                 .andExpect(content().string(not(containsString("assigned_user_id"))));
+    }
+
+    private long insertFileResource(
+            Long fileOrderId,
+            long ownerUserId,
+            String sourceType,
+            String visibility,
+            String uploadStatus) {
+        String objectKey = "task-9d2/" + UUID.randomUUID() + ".stl";
+        jdbcClient.sql("""
+                        INSERT INTO file_resource
+                            (order_id, owner_user_id, source_type, visibility, bucket_name, object_key,
+                             original_filename, content_type, file_size, upload_status, status)
+                        VALUES
+                            (:orderId, :ownerUserId, :sourceType, :visibility, 'test-bucket', :objectKey,
+                             'case.stl', 'model/stl', 128, :uploadStatus, 'ACTIVE')
+                        """)
+                .param("orderId", fileOrderId)
+                .param("ownerUserId", ownerUserId)
+                .param("sourceType", sourceType)
+                .param("visibility", visibility)
+                .param("objectKey", objectKey)
+                .param("uploadStatus", uploadStatus)
+                .update();
+        return jdbcClient.sql("SELECT file_id FROM file_resource WHERE object_key = :objectKey")
+                .param("objectKey", objectKey)
+                .query(Long.class)
+                .single();
+    }
+
+    private long notificationCount(long notificationOrderId, String eventType, String audienceRole) {
+        return jdbcClient.sql("""
+                        SELECT COUNT(*)
+                        FROM notification_event
+                        WHERE order_id = :orderId
+                          AND event_type = :eventType
+                          AND audience_role = :audienceRole
+                        """)
+                .param("orderId", notificationOrderId)
+                .param("eventType", eventType)
+                .param("audienceRole", audienceRole)
+                .query(Long.class)
+                .single();
+    }
+
+    private void assertCreateOrderWithFileRejected(long fileId, org.hamcrest.Matcher<Integer> statusMatcher) throws Exception {
+        String request = """
+                {
+                  "product_type": "REGULAR_CROWN",
+                  "form_data": {
+                    "patient_name": "赵六",
+                    "tooth_position": "46"
+                  },
+                  "file_ids": [%d]
+                }
+                """.formatted(fileId);
+
+        mockMvc.perform(post("/orders")
+                        .header("X-Bootstrap-Role", "DOCTOR")
+                        .header("X-Bootstrap-User-Id", DOCTOR_USER_ID)
+                        .header("X-Bootstrap-Clinic-Id", clinicId)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(request))
+                .andExpect(status().is(statusMatcher));
     }
 }
