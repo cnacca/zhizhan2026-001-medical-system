@@ -51,6 +51,7 @@ app:
     max-model-retries: ${AI_MODEL_MAX_RETRIES:1}
     input-token-cost-microusd: ${AI_INPUT_TOKEN_COST_MICROUSD:0}
     output-token-cost-microusd: ${AI_OUTPUT_TOKEN_COST_MICROUSD:0}
+    daily-budget-microusd: ${AI_DAILY_BUDGET_MICROUSD:0}
     deepseek:
       enabled: ${AI_DEEPSEEK_ENABLED:false}
       base-url: ${AI_DEEPSEEK_BASE_URL:https://api.deepseek.com}

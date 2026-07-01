@@ -19,7 +19,7 @@ import org.springframework.http.MediaType;
 import org.springframework.jdbc.core.simple.JdbcClient;
 import org.springframework.test.web.servlet.MockMvc;
 
-@SpringBootTest
+@SpringBootTest(properties = "app.ai.daily-budget-microusd=100")
 @AutoConfigureMockMvc
 class AiGatewayTests {
 
@@ -216,6 +216,30 @@ class AiGatewayTests {
                 .andExpect(jsonPath("$.data.model_failed_count").value(baseline.modelFailedCount() + 1))
                 .andExpect(jsonPath("$.data.estimated_cost_microusd").value(baseline.estimatedCostMicrousd() + 84))
                 .andExpect(jsonPath("$.data.latest_model_failure_at").exists());
+    }
+
+    @Test
+    void aiGovernanceSummaryFlagsDailyBudgetThreshold() throws Exception {
+        AuditSummary baseline = auditSummary();
+        jdbcClient.sql("""
+                        INSERT INTO ai_audit_log
+                            (order_id, actor_user_id, agent_code, request_context_type,
+                             prompt_hash, model_name, input_token_count, output_token_count,
+                             estimated_cost_microusd, result_status)
+                        VALUES
+                            (NULL, :csUserId, 'AI_TRANSLATE', 'ORDER_TRANSLATION_DRAFT',
+                             'hash-budget-threshold', 'deepseek-chat', 30, 20, 184, 'SUCCESS')
+                        """)
+                .param("csUserId", CS_USER_ID)
+                .update();
+
+        mockMvc.perform(get("/ai/governance/summary")
+                        .header("X-Bootstrap-Role", "ADMIN")
+                        .header("X-Bootstrap-User-Id", 1L))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.estimated_cost_microusd").value(baseline.estimatedCostMicrousd() + 184))
+                .andExpect(jsonPath("$.data.daily_budget_microusd").value(100))
+                .andExpect(jsonPath("$.data.budget_exceeded").value(true));
     }
 
     private AuditSummary auditSummary() {

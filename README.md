@@ -653,3 +653,16 @@ npm run acceptance
 npm run check:openapi
 ./scripts/with-jdk21.sh mvn -f backend/pom.xml -pl platform-server -Dtest=AiGatewayTests#aiGovernanceSummaryCountsRecentAuditOutcomesForInternalUsers test
 ```
+
+## 任务 9D.31 AI 预算阈值第一增量检查
+
+任务 9D.31 新增 `AI_DAILY_BUDGET_MICROUSD`：治理摘要返回 `daily_budget_microusd` 和 `budget_exceeded`，用于标记近 24 小时估算成本是否达到阈值。默认 0 不启用阈值，Task 8 仍保持 `NOT READY`。
+
+建议验证：
+
+```bash
+npm run check:task9d31
+npm run acceptance
+npm run check:openapi
+./scripts/with-jdk21.sh mvn -f backend/pom.xml -pl platform-server -Dtest=AiGatewayTests#aiGovernanceSummaryFlagsDailyBudgetThreshold test
+```

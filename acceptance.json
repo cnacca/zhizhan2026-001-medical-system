@@ -1607,6 +1607,38 @@
             "AI 治理摘要第一增量",
             "check:task9d30"
           ]
+        },
+        {
+          "id": "task-9d31-ai-budget-threshold-required-text",
+          "type": "required_text",
+          "paths": [
+            ".env.example",
+            "backend/platform-server/src/main/resources/application.yml",
+            "backend/platform-server/src/main/java/com/yuri/aiorder/ai/AiGatewayProperties.java",
+            "backend/platform-server/src/main/java/com/yuri/aiorder/ai/AiGatewayService.java",
+            "backend/platform-server/src/main/java/com/yuri/aiorder/ai/AiGovernanceSummaryResponse.java",
+            "backend/platform-server/src/test/java/com/yuri/aiorder/ai/AiGatewayTests.java",
+            "docs/api/openapi.yaml",
+            "docs/acceptance/task-8-acceptance-matrix.md",
+            "docs/deployment/readiness-checklist.md",
+            "STATUS.md",
+            "tasks/README.md",
+            "README.md",
+            "scripts/check-task-9d31-ai-budget-threshold.mjs",
+            "package.json"
+          ],
+          "patterns": [
+            "AI_DAILY_BUDGET_MICROUSD",
+            "dailyBudgetMicrousd",
+            "daily_budget_microusd",
+            "budget_exceeded",
+            "aiGovernanceSummaryFlagsDailyBudgetThreshold",
+            "任务 9D.31：AI 预算阈值第一增量",
+            "9D.31 AI 预算阈值第一增量",
+            "9D.31 已补 AI 预算阈值第一增量",
+            "AI 预算阈值第一增量",
+            "check:task9d31"
+          ]
         }
       ]
     }

@@ -211,6 +211,7 @@ public class AiGatewayService {
     @Transactional(readOnly = true)
     public AiGovernanceSummaryResponse governanceSummary(BootstrapIdentity identity) {
         accessControlService.requireAnyRole(identity, CS_AND_ADMIN, "AI governance summary is CS/ADMIN only");
+        long dailyBudgetMicrousd = Math.max(0, properties.getDailyBudgetMicrousd());
         return jdbcClient.sql("""
                         SELECT
                             COALESCE(SUM(CASE WHEN result_status = 'SUCCESS' THEN 1 ELSE 0 END), 0) AS success_count,
@@ -231,6 +232,8 @@ public class AiGatewayService {
                         rs.getLong("rate_limited_count"),
                         rs.getLong("model_failed_count"),
                         rs.getLong("estimated_cost_microusd"),
+                        dailyBudgetMicrousd,
+                        dailyBudgetMicrousd > 0 && rs.getLong("estimated_cost_microusd") >= dailyBudgetMicrousd,
                         rs.getObject("latest_model_failure_at", LocalDateTime.class)))
                 .single();
     }

@@ -4,7 +4,7 @@
 
 任务 8：专项验收矩阵与上线准备。
 
-当前目标是清理上线前硬缺口：已完成 readiness audit、OpenAPI 二次契约、Bearer 身份基线、后端权限守卫、数据库化 RBAC/DataScope 基础、权限注解/统一拦截器、订单/工序实例 DataScope SQL 第一增量、文件/协同/AI DataScope 扩展、菜单/部门/岗位/前端权限路由第一增量、生产鉴权启动门禁第一增量、WebSocket 通知第一增量、通知未读/已读第一增量、通知实时前端/Redis 广播第一增量、医生订单工作台第一增量、医生下单/动态表单第一增量、客服初审第一增量、生产审核第一增量、生产任务入口第一增量、质检工时第一增量、绩效管理第一增量、生产看板第一增量、返工终检第一增量、Multipart 上传第一增量、本地恢复上传第一增量、服务端候选恢复第一增量、服务端候选恢复浏览器 smoke、上传中断后恢复浏览器 smoke、100MB+ 浏览器上传 smoke、AI 调用限流第一增量、AI 成本审计第一增量、AI 模型重试第一增量、AI 模型失败审计第一增量和 AI 治理摘要第一增量，后续继续补真实弱网/跨设备续传、返工影响图形化、生产级 AI 治理和部署交付材料。
+当前目标是清理上线前硬缺口：已完成 readiness audit、OpenAPI 二次契约、Bearer 身份基线、后端权限守卫、数据库化 RBAC/DataScope 基础、权限注解/统一拦截器、订单/工序实例 DataScope SQL 第一增量、文件/协同/AI DataScope 扩展、菜单/部门/岗位/前端权限路由第一增量、生产鉴权启动门禁第一增量、WebSocket 通知第一增量、通知未读/已读第一增量、通知实时前端/Redis 广播第一增量、医生订单工作台第一增量、医生下单/动态表单第一增量、客服初审第一增量、生产审核第一增量、生产任务入口第一增量、质检工时第一增量、绩效管理第一增量、生产看板第一增量、返工终检第一增量、Multipart 上传第一增量、本地恢复上传第一增量、服务端候选恢复第一增量、服务端候选恢复浏览器 smoke、上传中断后恢复浏览器 smoke、100MB+ 浏览器上传 smoke、AI 调用限流第一增量、AI 成本审计第一增量、AI 模型重试第一增量、AI 模型失败审计第一增量、AI 治理摘要第一增量和 AI 预算阈值第一增量，后续继续补真实弱网/跨设备续传、返工影响图形化、生产级 AI 治理和部署交付材料。
 
 当前计划已按 TRD V1.1 深度研究优化版重排。任务 0、0.1、1、2、3、4、5A、5B、6、7、8A、8B、9A 已完成；9B.1 到 9B.7、9C.1 到 9C.3、9D.1 到 9D.10 第一增量已完成；任务 8 总体仍进行中，正式上线缺口未完成。
 
@@ -17,6 +17,65 @@
 验证命令：`npm run check:task9d19`、`npm run acceptance`、`npm run check:openapi`、`./scripts/with-jdk21.sh mvn -f backend/pom.xml -pl platform-server -Dtest=CheckWorklogPerformanceTests test`。
 
 剩余风险：当前只做内部通知事实和本地推送，不覆盖真实双实例 Redis、生产网关和前端点击级通知联动验收。
+
+## 任务 9D.31：AI 预算阈值第一增量
+
+状态：completed-first-increment。
+
+来源：
+
+- 9D.30 已补内部 AI 治理摘要，但预算仍只是裸成本数字，没有可配置阈值或超额标记。
+- readiness 清单仍把预算告警、熔断/降级和生产级 AI 治理列为上线硬缺口。
+
+目标：
+
+- 新增可配置近 24 小时 AI 预算阈值。
+- 治理摘要返回预算阈值和是否达到/超过阈值。
+- 默认不启用预算阈值，避免本地和 CI 因价格配置产生误报。
+
+范围：
+
+- 新增 `AI_DAILY_BUDGET_MICROUSD` / `app.ai.daily-budget-microusd`，默认 0。
+- `AiGovernanceSummaryResponse` 新增 `daily_budget_microusd` 和 `budget_exceeded`。
+- `AiGatewayService#governanceSummary` 用近 24 小时 `estimated_cost_microusd` 判断是否达到阈值。
+- 新增 `AiGatewayTests#aiGovernanceSummaryFlagsDailyBudgetThreshold`。
+- OpenAPI、acceptance、`package.json` 和静态检查脚本同步。
+
+非目标：
+
+- 不拦截 AI 请求。
+- 不发送通知或告警。
+- 不做分角色/分模型预算、不做熔断/降级、不新增管理页面。
+- 不把 Task 8 标为完成。
+
+验收标准：
+
+- 配置 `app.ai.daily-budget-microusd=100` 时，治理摘要返回 `daily_budget_microusd=100`。
+- 近 24 小时估算成本达到或超过阈值时，`budget_exceeded=true`。
+- 默认阈值为 0，表示不启用预算阈值。
+
+建议验证命令：
+
+```bash
+npm run check:task9d31
+npm run acceptance
+npm run check:openapi
+./scripts/with-jdk21.sh mvn -f backend/pom.xml -pl platform-server -Dtest=AiGatewayTests#aiGovernanceSummaryFlagsDailyBudgetThreshold test
+./scripts/with-jdk21.sh mvn -f backend/pom.xml -pl platform-server -Dtest=AiGatewayTests test
+./scripts/with-jdk21.sh mvn -f backend/pom.xml -pl platform-server test
+git diff --check
+```
+
+完成记录：
+
+- TDD 红灯先确认治理摘要缺少 `daily_budget_microusd`。
+- 已新增预算阈值配置和摘要超额标记。
+- 本轮只读聚合既有 `ai_audit_log`，不清理历史审计数据。
+
+剩余风险：
+
+- 仍缺预算告警推送、分角色/分模型预算、熔断/降级、提示词版本、输出防护、真实 key 联调和生产部署。
+- Task 8 总体仍保持 `NOT READY`。
 
 ## 任务 9D.30：AI 治理摘要第一增量
 
@@ -44,7 +103,7 @@
 非目标：
 
 - 不做前端管理页面。
-- 不做告警推送、预算阈值、熔断、降级或提示词版本管理。
+- 不做告警推送、熔断、降级或提示词版本管理。
 - 不新增汇总表，不清理历史 AI 审计。
 - 不把 Task 8 标为完成。
 
@@ -74,7 +133,7 @@ git diff --check
 
 剩余风险：
 
-- 仍缺预算阈值、告警推送、熔断/降级、提示词版本、输出防护、真实 key 联调和生产部署。
+- 仍缺告警推送、熔断/降级、提示词版本、输出防护、真实 key 联调和生产部署。
 - Task 8 总体仍保持 `NOT READY`。
 
 ## 任务 9D.29：AI 模型失败审计第一增量

@@ -59,7 +59,7 @@
 | --- | --- | --- | --- |
 | 权限脱敏 | PASS | `OrderStatusProjectionTests`、`MessageDesignBillNotificationTests`、`AiGatewayTests` 覆盖医生端不返回内部字段；`BearerIdentityTests` 覆盖 Bearer 医生 token 下的脱敏与跨医生 403；9B.1 新增 `AccessControlService` 并覆盖医生不能读检查记录、WORKER 不能派工/跳过、CS 不能查绩效；9B.2 覆盖数据库账号登录、权限码、data scope 和医生账号范围；9B.3 新增 `@RequirePermission` / `PermissionInterceptor` 并用 `PermissionInterceptorTests` 覆盖医生、工人、客服账号入口权限边界；9B.4 覆盖业务 Controller 身份收口和订单/工序实例 SQL DataScope；9B.5 覆盖文件、协同订单范围和 AI 内部上下文 SQL DataScope；9B.6 覆盖菜单权限与医生端前端入口隐藏。 | 完整 RuoYi RBAC/DataScope 接入后必须重跑全矩阵。 |
 | 文件越权 | PASS | `FileAccessTests` 覆盖跨医生/跨诊所/INTERNAL 文件拒绝和审计。 | 仍需 Bearer token 多文件场景和正式 RuoYi 登录态复测。 |
-| AI 越权 | PASS | `AiGatewayTests` 覆盖 AI-3 内部问题安全拒绝；9D.28 已补 AI 模型重试第一增量，真实模型首次 500、第二次成功时接口返回成功且只写一条成功审计；9D.29 已补 AI 模型失败审计第一增量，重试耗尽时返回 503 并写 `AI_MODEL_FAILED`；9D.30 已补 AI 治理摘要第一增量，内部端可查看近 24 小时成功、限流、模型失败和估算成本。 | 真实 key 环境、生产提示词、预算阈值、熔断/降级告警和输出防护策略仍需上线前复测。 |
+| AI 越权 | PASS | `AiGatewayTests` 覆盖 AI-3 内部问题安全拒绝；9D.28 已补 AI 模型重试第一增量，真实模型首次 500、第二次成功时接口返回成功且只写一条成功审计；9D.29 已补 AI 模型失败审计第一增量，重试耗尽时返回 503 并写 `AI_MODEL_FAILED`；9D.30 已补 AI 治理摘要第一增量，内部端可查看近 24 小时成功、限流、模型失败和估算成本；9D.31 已补 AI 预算阈值第一增量，治理摘要可返回 `budget_exceeded`。 | 真实 key 环境、生产提示词、预算告警推送、熔断/降级告警和输出防护策略仍需上线前复测。 |
 | 状态投影 | PASS | `OrderStatusProjectionTests` 覆盖 `OrderStatusService`、历史记录和外部投影。 | 更多业务事件映射需在完整主链路中复测。 |
 | 并联汇合 | PASS | `WorkflowRuntimeTests` 覆盖未全部完成时汇合节点不 READY。 | 复杂链路可补更多产品类型回归。 |
 | 入检/出检 | PASS | `CheckWorklogPerformanceTests` 覆盖入检门禁、出检时序、返工、`/reworks` WORKER 范围和 DOCTOR Bearer token 403；9D.9 已新增终检出检入口。 | 终检报告、发货前拦截和正式 RuoYi 角色权限点待补。 |

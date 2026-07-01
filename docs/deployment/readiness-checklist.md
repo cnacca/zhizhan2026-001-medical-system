@@ -15,7 +15,7 @@
 | WebSocket / 通知 | PARTIAL | 已实现 `/ws/connect?token=...` 单实例在线推送，基于 `notification_event` / `user_notification` 派发脱敏 payload，并写 `delivered_at`；已实现通知列表、未读数、单条已读、全部已读 REST 接口、前端通知中心实时刷新、Redis 广播代码路径和返工通知联动第一增量。仍需真实双后端实例 Redis 联调、心跳/重连压测、Nginx/HTTPS 生产验收、监控告警和完整业务页面联动。 |
 | OpenAPI 契约 | READY_FOR_CURRENT_BASELINE | 当前 61 个 path / 72 个 operation 已补唯一 `operationId`、统一 4xx/503/default、关键 DTO/schema、license；9D.1 已补 `/orders` 当前实现响应 schema，9D.9 已补 `/reworks` 和 `ReworkRecordResponse`，9D.10 已补 Multipart 文件上传、status 恢复与 pending 候选接口；Swagger validate 与 Redocly lint 通过。后续新增接口必须持续同步。 |
 | 文件上传 | PARTIAL | 已实现 MinIO Multipart 初始化、分片签名、status、pending、complete/abort、审计和医生写路径越权拒绝，前端已有最小 Uppy 文件选择/上传、本地恢复上传、服务端候选恢复并回填 `file_id`；`npm run smoke:task9d10-large-upload` 已通过本地 105MB 浏览器上传，`file_id=457` 为 21 个分片完成；`npm run smoke:task9d10-server-resume` 已通过无本地上传会话时复用 pending `file_id=514` 的浏览器 smoke；`npm run smoke:task9d10-interrupted-resume` 已通过第 2 个分片中断后复用同一 `file_id=537` 的浏览器 smoke。仍需确认文件大小/类型/数量限制、真实弱网/跨设备浏览器续传和测试/正式 bucket 隔离。 |
-| AI 接入 | PARTIAL | 已完成 DeepSeek 适配、每用户小时限流、单次成本审计、AI 模型重试第一增量、AI 模型失败审计第一增量和 AI 治理摘要第一增量；`AI_MODEL_MAX_RETRIES` 默认 1 次，真实模型短暂 5xx 或连接异常可重试，重试耗尽后写 `AI_MODEL_FAILED` 并返回 503，内部端可通过 `/ai/governance/summary` 查看近 24 小时成功、限流、模型失败和估算成本。仍需真实 key 环境联调、预算阈值、熔断/降级告警、成本趋势、提示词版本和输出防护；复测 AI-3 越权。 |
+| AI 接入 | PARTIAL | 已完成 DeepSeek 适配、每用户小时限流、单次成本审计、AI 模型重试第一增量、AI 模型失败审计第一增量、AI 治理摘要第一增量和 AI 预算阈值第一增量；`AI_MODEL_MAX_RETRIES` 默认 1 次，真实模型短暂 5xx 或连接异常可重试，重试耗尽后写 `AI_MODEL_FAILED` 并返回 503，内部端可通过 `/ai/governance/summary` 查看近 24 小时成功、限流、模型失败、估算成本和 `budget_exceeded`。仍需真实 key 环境联调、预算告警推送、熔断/降级告警、成本趋势、提示词版本和输出防护；复测 AI-3 越权。 |
 | 订单主链路 | PARTIAL | 已有医生订单读取、公开协同信息、医生 AI、确认收货、医生提交订单、Multipart 上传第一增量、本地恢复上传第一增量、服务端候选恢复第一增量、上传中断后恢复浏览器 smoke、100MB+ 浏览器上传 smoke、客服初审、生产审核、工序实例详情、派工、worker 任务池、入检/出检、工时、绩效、生产看板和返工终检页面级第一增量；仍需补草稿/补资料、真实弱网/跨设备浏览器续传、返工关闭/责任分类、终检报告/发货前拦截、付款状态。 |
 | 生产规则 | PARTIAL | 补责任分类、返工原因字典、复杂 DAG 回滚策略、标准工时和绩效完整公式。 |
 | 部署基础设施 | NOT_READY | Nginx HTTPS、Docker 镜像构建、测试/正式环境隔离、生产 `.env` 注入、数据库备份、日志留存、监控告警。 |
@@ -70,3 +70,5 @@ git diff --check
 - 2026-07-02：AI 模型失败审计第一增量已落地；正式上线仍需失败聚合、熔断/降级告警、提示词版本、输出防护、预算告警、真实 key 环境联调和部署交付材料。
 
 - 2026-07-02：AI 治理摘要第一增量已落地；正式上线仍需预算阈值、告警推送、熔断/降级、提示词版本、输出防护、真实 key 环境联调和部署交付材料。
+
+- 2026-07-02：AI 预算阈值第一增量已落地；正式上线仍需预算告警推送、分角色/分模型预算、熔断/降级、提示词版本、输出防护、真实 key 环境联调和部署交付材料。

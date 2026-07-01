@@ -1327,6 +1327,13 @@ components:
         estimated_cost_microusd:
           type: integer
           format: int64
+        daily_budget_microusd:
+          type: integer
+          format: int64
+          description: 近 24 小时预算阈值，0 表示未启用预算阈值。
+        budget_exceeded:
+          type: boolean
+          description: 当 daily_budget_microusd 大于 0 且近 24 小时估算成本达到或超过阈值时为 true。
         latest_model_failure_at:
           type: string
           format: date-time
@@ -4483,6 +4490,7 @@ paths:
       description: |
         权限：CS / ADMIN
         任务 9D.30 第一增量：基于 ai_audit_log 返回近 24 小时 AI 调用治理摘要，包含成功、安全拒绝、限流、模型失败、估算成本和最近模型失败时间。
+        任务 9D.31 第一增量：可通过 AI_DAILY_BUDGET_MICROUSD / app.ai.daily-budget-microusd 配置近 24 小时预算阈值，并返回 budget_exceeded；默认 0 表示不启用预算阈值。
         本接口只读，不触发告警、不修改模型配置、不暴露 prompt 原文或上游供应商错误正文。
       responses:
         '200':

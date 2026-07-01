@@ -10,6 +10,7 @@ public class AiGatewayProperties {
     private int maxModelRetries = 1;
     private long inputTokenCostMicrousd = 0;
     private long outputTokenCostMicrousd = 0;
+    private long dailyBudgetMicrousd = 0;
     private final DeepSeek deepseek = new DeepSeek();
 
     public String getProvider() {
@@ -50,6 +51,14 @@ public class AiGatewayProperties {
 
     public void setOutputTokenCostMicrousd(long outputTokenCostMicrousd) {
         this.outputTokenCostMicrousd = outputTokenCostMicrousd;
+    }
+
+    public long getDailyBudgetMicrousd() {
+        return dailyBudgetMicrousd;
+    }
+
+    public void setDailyBudgetMicrousd(long dailyBudgetMicrousd) {
+        this.dailyBudgetMicrousd = dailyBudgetMicrousd;
     }
 
     public DeepSeek getDeepseek() {

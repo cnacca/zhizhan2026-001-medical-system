@@ -20,6 +20,7 @@
 
 - 9D.29 AI 模型失败审计第一增量：真实模型重试耗尽或不可恢复失败时返回受控 503，并用独立事务写入 `AI_MODEL_FAILED` 审计；不暴露上游供应商原始错误正文。
 - 9D.30 已补 AI 治理摘要第一增量：新增 `GET /ai/governance/summary`，CS / ADMIN 可查看近 24 小时成功、安全拒绝、限流、模型失败、估算成本和最近模型失败时间；Task 8 仍保持 `NOT READY`。
+- 9D.31 已补 AI 预算阈值第一增量：新增 `AI_DAILY_BUDGET_MICROUSD`，治理摘要返回 `daily_budget_microusd` 和 `budget_exceeded`；默认 0 不启用阈值，不拦截请求、不发送告警。
 - 9D.28 AI 模型重试第一增量：真实 DeepSeek 调用遇到短暂 5xx 或连接类异常时按 `AI_MODEL_MAX_RETRIES` 有限重试，默认 1 次；TDD 覆盖首次 500、第二次成功且只写一条成功审计。
 - 9D.19 返工通知联动第一增量：出检失败生成返工记录时写入 REWORK_CREATED 给目标 WORKER，返工关闭后写入 REWORK_CLOSED 给订单 CS，并验证医生用户不会收到返工内部通知。
 - 明确项目技术方向：Vue3 + Element Plus + Spring Boot + RuoYi-Vue-Pro + MySQL + Redis + MinIO + Uppy + 后端 ai-gateway + DeepSeek。
@@ -290,3 +291,5 @@ Task 8 已完成 8A readiness audit、8B OpenAPI 二次契约、9A Bearer 身份
 - 2026-07-02 9D.29 AI 模型失败审计第一增量：已新增 `AI_MODEL_FAILED` 失败审计，真实模型重试耗尽后返回 503；Task 8 总体仍保持 NOT READY，仍缺熔断/降级告警、失败聚合、提示词版本、输出防护、预算告警、真实 key 联调和生产部署。
 
 - 2026-07-02 9D.30 AI 治理摘要第一增量：已新增 `/ai/governance/summary` 近 24 小时治理摘要，只读聚合 `ai_audit_log`；Task 8 总体仍保持 NOT READY，仍缺预算阈值、告警推送、熔断/降级、提示词版本、输出防护、真实 key 联调和生产部署。
+
+- 2026-07-02 9D.31 AI 预算阈值第一增量：已新增 `AI_DAILY_BUDGET_MICROUSD` 和治理摘要 `budget_exceeded` 标记；Task 8 总体仍保持 NOT READY，仍缺预算告警推送、分角色/分模型预算、熔断/降级、提示词版本、输出防护、真实 key 联调和生产部署。

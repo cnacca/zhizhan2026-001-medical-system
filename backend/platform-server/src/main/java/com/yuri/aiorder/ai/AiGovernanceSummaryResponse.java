@@ -10,5 +10,7 @@ public record AiGovernanceSummaryResponse(
         @JsonProperty("rate_limited_count") long rateLimitedCount,
         @JsonProperty("model_failed_count") long modelFailedCount,
         @JsonProperty("estimated_cost_microusd") long estimatedCostMicrousd,
+        @JsonProperty("daily_budget_microusd") long dailyBudgetMicrousd,
+        @JsonProperty("budget_exceeded") boolean budgetExceeded,
         @JsonProperty("latest_model_failure_at") LocalDateTime latestModelFailureAt) {
 }

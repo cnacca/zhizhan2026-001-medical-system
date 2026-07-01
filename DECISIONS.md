@@ -1,5 +1,21 @@
 # DECISIONS
 
+## D-076 AI 预算阈值先作为治理摘要标记
+
+状态：已确认。
+
+决策：
+
+- 新增 `AI_DAILY_BUDGET_MICROUSD` / `app.ai.daily-budget-microusd`，默认 0 表示不启用预算阈值。
+- 预算阈值先作用于 `/ai/governance/summary`，返回 `daily_budget_microusd` 和 `budget_exceeded`。
+- `budget_exceeded` 仅表示近 24 小时估算成本达到或超过阈值，不拦截请求、不发送通知、不自动降级模型。
+- 预算金额继续使用微美元整数，沿用 9D.27 的可配置 token 成本估算，不内置供应商实时价格。
+
+影响：
+
+- 9D.31 把生产级 AI 治理从“能看成本摘要”推进到“能看到预算阈值是否触发”的第一增量。
+- 后续仍需预算告警推送、分角色/分模型预算、熔断/降级、提示词版本、输出防护和真实 key 环境联调记录。
+
 ## D-075 AI 治理先提供审计摘要只读入口
 
 状态：已确认。
