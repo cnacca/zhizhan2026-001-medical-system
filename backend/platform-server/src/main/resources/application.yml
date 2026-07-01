@@ -45,3 +45,14 @@ app:
     instance-id: ${APP_INSTANCE_ID:${random.uuid}}
     redis-broadcast-enabled: ${NOTIFICATION_REDIS_BROADCAST_ENABLED:false}
     redis-channel: ${NOTIFICATION_REDIS_CHANNEL:ai-order:notifications}
+  ai:
+    provider: ${AI_PROVIDER:deterministic}
+    deepseek:
+      enabled: ${AI_DEEPSEEK_ENABLED:false}
+      base-url: ${AI_DEEPSEEK_BASE_URL:https://api.deepseek.com}
+      api-key: ${DEEPSEEK_API_KEY:}
+      model: ${AI_DEEPSEEK_MODEL:deepseek-chat}
+      temperature: ${AI_DEEPSEEK_TEMPERATURE:0.2}
+      max-tokens: ${AI_DEEPSEEK_MAX_TOKENS:800}
+      connect-timeout-seconds: ${AI_DEEPSEEK_CONNECT_TIMEOUT_SECONDS:10}
+      read-timeout-seconds: ${AI_DEEPSEEK_READ_TIMEOUT_SECONDS:45}

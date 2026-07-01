@@ -1179,6 +1179,33 @@
             "任务 9D.14 第一增量",
             "check:task9d14"
           ]
+        },
+        {
+          "id": "task-9d15-deepseek-provider-required-text",
+          "type": "required_text",
+          "paths": [
+            ".env.example",
+            "backend/platform-server/src/main/resources/application.yml",
+            "backend/platform-server/src/main/java/com/yuri/aiorder/ai/AiGatewayProperties.java",
+            "backend/platform-server/src/main/java/com/yuri/aiorder/ai/DeepSeekAiModelClient.java",
+            "backend/platform-server/src/main/java/com/yuri/aiorder/ai/AiGatewayService.java",
+            "backend/platform-server/src/test/java/com/yuri/aiorder/ai/AiGatewayDeepSeekTests.java",
+            "docs/api/openapi.yaml",
+            "scripts/check-task-9d15-deepseek.mjs",
+            "package.json"
+          ],
+          "patterns": [
+            "AI_PROVIDER=deterministic",
+            "AI_DEEPSEEK_ENABLED=false",
+            "DEEPSEEK_API_KEY=replace-with-local-dev-key",
+            "deepSeekEnabled",
+            "/chat/completions",
+            "completeWithModel",
+            "SAFE_REFUSAL",
+            "enabledDeepSeekProviderCallsOpenAiCompatibleEndpointAndAuditsRealModel",
+            "任务 9D.15 第一增量",
+            "check:task9d15"
+          ]
         }
       ]
     }
