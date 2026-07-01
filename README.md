@@ -519,3 +519,21 @@ npm run check:task9d21
 ```
 
 验收口径：`/performance` 新增 `responsible_rework_count`、`non_worker_responsibility_rework_count` 和 `unclassified_rework_count`，Task 8 仍保持 NOT READY。
+
+
+任务 9D.22 返工影响审计可视化第一增量检查：
+
+```bash
+npm run check:task9d22
+./scripts/with-jdk21.sh mvn -f backend/pom.xml -pl platform-server -Dtest=CheckWorklogPerformanceTests#reworkListExposesImpactedDownstreamNodesForAudit test
+./scripts/with-jdk21.sh mvn -f backend/pom.xml -pl platform-server -Dtest=CheckWorklogPerformanceTests test
+```
+
+任务 9D.22 验收口径：
+
+```text
+1. 创建返工时记录本次实际受影响的后续节点数量和节点 ID。
+2. /reworks 返回 impacted_node_count 和 impacted_node_instance_ids。
+3. 返工终检页面展示影响后续节点数量和 ID。
+4. 当前第一增量不做图形化 DAG、筛选、导出或 IN_PROGRESS 后续节点冲突确认。
+```

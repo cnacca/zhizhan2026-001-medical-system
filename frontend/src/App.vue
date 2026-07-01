@@ -314,6 +314,8 @@ type ReworkRecordResponse = {
   target_node_instance_id: number | null
   target_process_name: string | null
   target_node_status: string | null
+  impacted_node_count: number
+  impacted_node_instance_ids: number[]
   assigned_user_id: number | null
   reason_category: string | null
   reason_detail: string | null
@@ -3297,6 +3299,7 @@ onBeforeUnmount(() => {
                 <strong>{{ record.order_no }} / 返工 {{ record.rework_id }}</strong>
                 <span>{{ record.from_process_name ?? '-' }} -> {{ record.target_process_name ?? '-' }}</span>
                 <small>返工目标节点 {{ record.target_node_instance_id ?? '-' }} / {{ record.target_node_status ?? '-' }}</small>
+                <small>影响后续节点 {{ record.impacted_node_count }} 个</small>
                 <small v-if="record.responsibility_type">责任 {{ record.responsibility_type }} / {{ record.reason_category ?? '-' }}</small>
               </button>
               <div v-if="reworkRecords.length === 0" class="empty-state">
@@ -3326,6 +3329,14 @@ onBeforeUnmount(() => {
                 <div>
                   <span>状态</span>
                   <strong>{{ selectedRework.status }}</strong>
+                </div>
+                <div>
+                  <span>影响后续节点</span>
+                  <strong>{{ selectedRework.impacted_node_count }} 个</strong>
+                </div>
+                <div>
+                  <span>影响节点 ID</span>
+                  <strong>{{ selectedRework.impacted_node_instance_ids.length > 0 ? selectedRework.impacted_node_instance_ids.join(', ') : '-' }}</strong>
                 </div>
                 <div>
                   <span>责任分类</span>

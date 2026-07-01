@@ -380,6 +380,38 @@ class CheckWorklogPerformanceTests {
 
 
     @Test
+    void reworkListExposesImpactedDownstreamNodesForAudit() throws Exception {
+        String suffix = UUID.randomUUID().toString().replace("-", "");
+        long clinicId = createClinic("返工审计测试诊所-" + suffix);
+        long auditOrderId = createOrder("RA" + suffix.substring(0, 12), clinicId);
+        long auditChainId = createTwoNodeChain(suffix);
+        List<Long> nodes = instantiateAndAssignAll(auditOrderId, auditChainId);
+        long firstNodeId = nodes.get(0);
+        long secondNodeId = nodes.get(1);
+
+        submitCheck(firstNodeId, 1, true, null);
+        startNode(firstNodeId);
+        completeNode(firstNodeId);
+        submitCheck(firstNodeId, 2, true, null);
+
+        submitCheck(secondNodeId, 1, true, null);
+        startNode(secondNodeId);
+        completeNode(secondNodeId);
+
+        long reworkId = submitCheck(secondNodeId, 2, false, firstNodeId).path("rework_id").asLong();
+
+        mockMvc.perform(get("/reworks")
+                        .header("X-Bootstrap-Role", "WORKER")
+                        .header("X-Bootstrap-User-Id", workerUserId)
+                        .param("status", "PENDING")
+                        .param("order_id", String.valueOf(auditOrderId)))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data[0].rework_id").value(reworkId))
+                .andExpect(jsonPath("$.data[0].impacted_node_count").value(1))
+                .andExpect(jsonPath("$.data[0].impacted_node_instance_ids[0]").value(secondNodeId));
+    }
+
+    @Test
     void performanceSeparatesReworkResponsibilityAttribution() throws Exception {
         submitCheck(nodeInstanceId, 1, true, null);
         startNode(nodeInstanceId);

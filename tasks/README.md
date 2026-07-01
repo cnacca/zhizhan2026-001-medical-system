@@ -18,6 +18,78 @@
 
 剩余风险：当前只做内部通知事实和本地推送，不覆盖真实双实例 Redis、生产网关和前端点击级通知联动验收。
 
+## 任务 9D.22：返工影响审计可视化第一增量
+
+状态：completed-first-increment。
+
+来源：
+
+- 9D.20 已能在后道失败返前道时把目标后续 `READY/COMPLETED` 节点重置为 `PENDING`，但返工记录列表没有留存“本次返工影响了哪些后续节点”。
+- Task 8 readiness 仍把返工影响审计/可视化列为完整返工闭环缺口之一。
+
+目标：
+
+- 在创建返工时记录本次实际被重置的后续节点数量和节点 ID。
+- 在既有 `/reworks` 列表响应中返回影响范围审计字段。
+- 前端「返工终检」页面展示影响后续节点数量和节点 ID。
+
+范围：
+
+- 新增 Flyway `V17__rework_impact_audit.sql`，为 `rework_record` 增加 `impacted_node_count` 和 `impacted_node_instance_ids`。
+- `WorkflowExecutionService#createRework` 在重置后续节点前计算实际可重置的后续节点，并写入返工记录。
+- `ReworkRecordResponse`、`loadRework` 和 `getReworks` 返回审计字段。
+- 新增 `CheckWorklogPerformanceTests#reworkListExposesImpactedDownstreamNodesForAudit`。
+- 前端返工列表和详情展示影响范围审计信息。
+- OpenAPI、acceptance、`package.json` 和静态检查脚本同步。
+
+非目标：
+
+- 不新增公开 API path。
+- 不做图形化 DAG 展示、影响范围筛选、审计导出或人工确认冲突流程。
+- 不处理 `IN_PROGRESS` 后续节点冲突确认。
+- 不把 Task 8 标为完成。
+
+验收标准：
+
+- 后道出检失败返到前道节点时，返工记录保存实际被重置的后续节点数量。
+- `/reworks` 返回 `impacted_node_count` 和 `impacted_node_instance_ids`。
+- 前端返工终检页面能看到影响后续节点数量和 ID。
+- 历史检查、工时和返工记录不删除、不覆盖。
+
+建议验证命令：
+
+```bash
+npm run check:task9d22
+npm run acceptance
+npm run check:openapi
+npm run build:frontend
+./scripts/with-jdk21.sh mvn -f backend/pom.xml -pl platform-server -Dtest=CheckWorklogPerformanceTests#reworkListExposesImpactedDownstreamNodesForAudit test
+./scripts/with-jdk21.sh mvn -f backend/pom.xml -pl platform-server -Dtest=CheckWorklogPerformanceTests test
+./scripts/with-jdk21.sh mvn -f backend/pom.xml -pl platform-server test
+git diff --check
+```
+
+完成记录：
+
+- TDD 红灯先确认 `/reworks` 缺少 `impacted_node_count`。
+- 返工创建时已写入实际受影响后续节点数量和 JSON 节点 ID 列表。
+- 前端返工终检页已展示影响后续节点数量和 ID。
+- OpenAPI `ReworkRecordResponse` schema 已同步新增字段。
+- 新增 `scripts/check-task-9d22-rework-impact-audit.mjs`、`npm run check:task9d22`，并纳入 `acceptance.json`。
+
+验收结果：
+
+- `CheckWorklogPerformanceTests#reworkListExposesImpactedDownstreamNodesForAudit`：PASS。
+- `CheckWorklogPerformanceTests`：PASS。
+- `platform-server` 后端测试：PASS。
+- `npm run check:task9d22`、`npm run acceptance`、`npm run check:openapi`、`npm run build:frontend`、`git diff --check`：PASS。
+
+剩余风险：
+
+- 仍缺返工影响范围图形化、筛选、导出和 `IN_PROGRESS` 后续节点冲突处理。
+- 仍缺绩效完整公式、周期筛选、管理端明细、申诉闭环和标准工时配置。
+- Task 8 总体仍保持 `NOT READY`。
+
 ## 任务 9D.21：绩效归因联动第一增量
 
 状态：completed-first-increment。

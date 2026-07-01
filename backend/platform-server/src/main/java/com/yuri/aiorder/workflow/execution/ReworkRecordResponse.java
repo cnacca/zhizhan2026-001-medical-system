@@ -2,6 +2,7 @@ package com.yuri.aiorder.workflow.execution;
 
 import com.fasterxml.jackson.annotation.JsonProperty;
 import java.time.LocalDateTime;
+import java.util.List;
 
 public record ReworkRecordResponse(
         @JsonProperty("rework_id") long reworkId,
@@ -13,6 +14,8 @@ public record ReworkRecordResponse(
         @JsonProperty("target_node_instance_id") Long targetNodeInstanceId,
         @JsonProperty("target_process_name") String targetProcessName,
         @JsonProperty("target_node_status") String targetNodeStatus,
+        @JsonProperty("impacted_node_count") int impactedNodeCount,
+        @JsonProperty("impacted_node_instance_ids") List<Long> impactedNodeInstanceIds,
         @JsonProperty("assigned_user_id") Long assignedUserId,
         @JsonProperty("reason_category") String reasonCategory,
         @JsonProperty("reason_detail") String reasonDetail,

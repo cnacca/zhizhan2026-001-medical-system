@@ -1,6 +1,7 @@
 package com.yuri.aiorder.workflow.execution;
 
 import com.fasterxml.jackson.core.JsonProcessingException;
+import com.fasterxml.jackson.core.type.TypeReference;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.yuri.aiorder.common.BootstrapIdentity;
 import com.yuri.aiorder.common.auth.AccessControlService;
@@ -16,6 +17,9 @@ import org.springframework.web.server.ResponseStatusException;
 
 @Service
 public class WorkflowExecutionService {
+
+    private static final TypeReference<List<Long>> LONG_LIST_TYPE = new TypeReference<>() {
+    };
 
     private static final List<ReworkDictionaryOption> REWORK_REASON_CATEGORIES = List.of(
             new ReworkDictionaryOption("FIT_ISSUE", "适配问题"),
@@ -117,6 +121,8 @@ public class WorkflowExecutionService {
                             r.target_node_instance_id,
                             target_node.process_name AS target_process_name,
                             target_node.node_status AS target_node_status,
+                            r.impacted_node_count,
+                            CAST(r.impacted_node_instance_ids AS CHAR) AS impacted_node_instance_ids,
                             target_node.assigned_user_id,
                             r.reason_category,
                             r.reason_detail,
@@ -161,6 +167,8 @@ public class WorkflowExecutionService {
                         rs.getObject("target_node_instance_id", Long.class),
                         rs.getString("target_process_name"),
                         rs.getString("target_node_status"),
+                        rs.getInt("impacted_node_count"),
+                        parseImpactedNodeInstanceIds(rs.getString("impacted_node_instance_ids")),
                         rs.getObject("assigned_user_id", Long.class),
                         rs.getString("reason_category"),
                         rs.getString("reason_detail"),
@@ -475,18 +483,21 @@ public class WorkflowExecutionService {
         if (target.orderId() != node.orderId()) {
             throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "rework target must belong to same order");
         }
+        List<Long> impactedNodeIds = findImpactedResettableDownstreamNodeIds(target);
         jdbcClient.sql("""
                         INSERT INTO rework_record
                             (order_id, source_check_id, from_node_instance_id, target_node_instance_id,
-                             reason_detail, status)
+                             impacted_node_count, impacted_node_instance_ids, reason_detail, status)
                         VALUES
                             (:orderId, :sourceCheckId, :fromNodeInstanceId, :targetNodeInstanceId,
-                             :reasonDetail, 'PENDING')
+                             :impactedNodeCount, CAST(:impactedNodeInstanceIds AS JSON), :reasonDetail, 'PENDING')
                         """)
                 .param("orderId", node.orderId())
                 .param("sourceCheckId", checkId)
                 .param("fromNodeInstanceId", node.nodeInstanceId())
                 .param("targetNodeInstanceId", target.nodeInstanceId())
+                .param("impactedNodeCount", impactedNodeIds.size())
+                .param("impactedNodeInstanceIds", serializeImpactedNodeInstanceIds(impactedNodeIds))
                 .param("reasonDetail", request.remark())
                 .update();
         long reworkId = lastInsertId();
@@ -542,6 +553,35 @@ public class WorkflowExecutionService {
                 .param("instanceId", target.instanceId())
                 .param("targetNodeInstanceId", target.nodeInstanceId())
                 .update();
+    }
+
+
+    private List<Long> findImpactedResettableDownstreamNodeIds(NodeRow target) {
+        return jdbcClient.sql("""
+                        WITH RECURSIVE impacted_nodes(node_instance_id) AS (
+                            SELECT edge.to_node_instance_id
+                            FROM order_process_edge edge
+                            WHERE edge.instance_id = :instanceId
+                              AND edge.from_node_instance_id = :targetNodeInstanceId
+                            UNION DISTINCT
+                            SELECT edge.to_node_instance_id
+                            FROM order_process_edge edge
+                            JOIN impacted_nodes impacted
+                              ON impacted.node_instance_id = edge.from_node_instance_id
+                            WHERE edge.instance_id = :instanceId
+                        )
+                        SELECT node.node_instance_id
+                        FROM order_process_node node
+                        JOIN impacted_nodes impacted
+                          ON impacted.node_instance_id = node.node_instance_id
+                        WHERE node.instance_id = :instanceId
+                          AND node.node_status IN ('READY', 'COMPLETED')
+                        ORDER BY node.step_order, node.node_instance_id
+                        """)
+                .param("instanceId", target.instanceId())
+                .param("targetNodeInstanceId", target.nodeInstanceId())
+                .query(Long.class)
+                .list();
     }
 
     private void closeOpenPause(long workLogId) {
@@ -720,6 +760,8 @@ public class WorkflowExecutionService {
                                 r.target_node_instance_id,
                                 target_node.process_name AS target_process_name,
                                 target_node.node_status AS target_node_status,
+                                r.impacted_node_count,
+                                CAST(r.impacted_node_instance_ids AS CHAR) AS impacted_node_instance_ids,
                                 target_node.assigned_user_id,
                                 r.reason_category,
                                 r.reason_detail,
@@ -748,6 +790,8 @@ public class WorkflowExecutionService {
                             rs.getObject("target_node_instance_id", Long.class),
                             rs.getString("target_process_name"),
                             rs.getString("target_node_status"),
+                            rs.getInt("impacted_node_count"),
+                            parseImpactedNodeInstanceIds(rs.getString("impacted_node_instance_ids")),
                             rs.getObject("assigned_user_id", Long.class),
                             rs.getString("reason_category"),
                             rs.getString("reason_detail"),
@@ -945,6 +989,28 @@ public class WorkflowExecutionService {
 
     private String blankToNull(String value) {
         return value == null || value.isBlank() ? null : value.trim();
+    }
+
+
+    private String serializeImpactedNodeInstanceIds(List<Long> nodeInstanceIds) {
+        try {
+            return objectMapper.writeValueAsString(nodeInstanceIds);
+        } catch (JsonProcessingException ex) {
+            throw new ResponseStatusException(
+                    HttpStatus.INTERNAL_SERVER_ERROR, "failed to build rework impact audit payload", ex);
+        }
+    }
+
+    private List<Long> parseImpactedNodeInstanceIds(String payload) {
+        if (payload == null || payload.isBlank()) {
+            return List.of();
+        }
+        try {
+            return objectMapper.readValue(payload, LONG_LIST_TYPE);
+        } catch (JsonProcessingException ex) {
+            throw new ResponseStatusException(
+                    HttpStatus.INTERNAL_SERVER_ERROR, "failed to parse rework impact audit payload", ex);
+        }
     }
 
     private String normalizeDictionaryValue(

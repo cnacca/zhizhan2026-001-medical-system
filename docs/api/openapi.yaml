@@ -959,6 +959,14 @@ components:
         target_node_status:
           type: string
           nullable: true
+        impacted_node_count:
+          type: integer
+          description: 本次返工创建时被重置为待执行的后续节点数量。
+        impacted_node_instance_ids:
+          type: array
+          description: 本次返工创建时被重置为待执行的后续节点 ID 列表，用于内部审计和可视化。
+          items:
+            type: integer
         assigned_user_id:
           type: integer
           nullable: true

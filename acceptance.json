@@ -1350,6 +1350,37 @@
             "绩效归因联动第一增量",
             "check:task9d21"
           ]
+        },
+        {
+          "id": "task-9d22-rework-impact-audit-required-text",
+          "type": "required_text",
+          "paths": [
+            "backend/platform-server/src/main/resources/db/migration/V17__rework_impact_audit.sql",
+            "backend/platform-server/src/main/java/com/yuri/aiorder/workflow/execution/ReworkRecordResponse.java",
+            "backend/platform-server/src/main/java/com/yuri/aiorder/workflow/execution/WorkflowExecutionService.java",
+            "backend/platform-server/src/test/java/com/yuri/aiorder/workflow/execution/CheckWorklogPerformanceTests.java",
+            "frontend/src/App.vue",
+            "docs/api/openapi.yaml",
+            "tasks/README.md",
+            "STATUS.md",
+            "docs/acceptance/task-8-acceptance-matrix.md",
+            "docs/deployment/readiness-checklist.md",
+            "scripts/check-task-9d22-rework-impact-audit.mjs",
+            "package.json"
+          ],
+          "patterns": [
+            "impacted_node_count",
+            "impacted_node_instance_ids",
+            "findImpactedResettableDownstreamNodeIds",
+            "reworkListExposesImpactedDownstreamNodesForAudit",
+            "影响后续节点",
+            "影响节点 ID",
+            "任务 9D.22：返工影响审计可视化第一增量",
+            "9D.22 返工影响审计可视化第一增量",
+            "9D.22 已补返工影响审计可视化第一增量",
+            "返工影响审计可视化第一增量",
+            "check:task9d22"
+          ]
         }
       ]
     }
