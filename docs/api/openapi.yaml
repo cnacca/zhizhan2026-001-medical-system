@@ -4502,6 +4502,8 @@ paths:
         | MESSAGE_PENDING_REVIEW | 生产端消息待审核 | CS |
         | MESSAGE_REVIEW_REJECTED | 消息被驳回 | 发送人 |
         | PROCESS_BLOCKED | 并联节点卡死（超时告警）| ADMIN |
+        | REWORK_CREATED | 出检失败生成返工记录 | 目标 WORKER |
+        | REWORK_CLOSED | 返工重新出检通过后关闭 | CS |
         | ORDER_SHIPPED | 发货完成 | DOCTOR |
         | ORDER_COMPLETED | 医生确认收货 | CS + ADMIN |
         | BILL_UPLOADED | 账单上传 | DOCTOR |

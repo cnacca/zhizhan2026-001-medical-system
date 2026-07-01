@@ -1,7 +1,10 @@
 package com.yuri.aiorder.workflow.execution;
 
+import com.fasterxml.jackson.core.JsonProcessingException;
+import com.fasterxml.jackson.databind.ObjectMapper;
 import com.yuri.aiorder.common.BootstrapIdentity;
 import com.yuri.aiorder.common.auth.AccessControlService;
+import com.yuri.aiorder.notification.NotificationPushService;
 import java.time.LocalDateTime;
 import java.util.List;
 import org.springframework.dao.EmptyResultDataAccessException;
@@ -27,10 +30,18 @@ public class WorkflowExecutionService {
 
     private final JdbcClient jdbcClient;
     private final AccessControlService accessControlService;
+    private final ObjectMapper objectMapper;
+    private final NotificationPushService notificationPushService;
 
-    public WorkflowExecutionService(JdbcClient jdbcClient, AccessControlService accessControlService) {
+    public WorkflowExecutionService(
+            JdbcClient jdbcClient,
+            AccessControlService accessControlService,
+            ObjectMapper objectMapper,
+            NotificationPushService notificationPushService) {
         this.jdbcClient = jdbcClient;
         this.accessControlService = accessControlService;
+        this.objectMapper = objectMapper;
+        this.notificationPushService = notificationPushService;
     }
 
     @Transactional
@@ -211,7 +222,15 @@ public class WorkflowExecutionService {
                 .param("closedByUserId", identity.userId())
                 .param("reworkId", reworkId)
                 .update();
-        return loadRework(reworkId);
+        ReworkRecordResponse closed = loadRework(reworkId);
+        ReworkNotificationRow notification = loadReworkNotification(reworkId);
+        emitReworkNotification(
+                notification,
+                "REWORK_CLOSED",
+                "CS",
+                notification.csUserId(),
+                "返工已关闭");
+        return closed;
     }
 
     @Transactional
@@ -462,6 +481,12 @@ public class WorkflowExecutionService {
                         """)
                 .param("instanceId", target.instanceId())
                 .update();
+        emitReworkNotification(
+                loadReworkNotification(reworkId),
+                "REWORK_CREATED",
+                "WORKER",
+                target.assignedUserId(),
+                "返工待处理");
         return reworkId;
     }
 
@@ -477,6 +502,71 @@ public class WorkflowExecutionService {
                         """)
                 .param("workLogId", workLogId)
                 .update();
+    }
+
+    private ReworkNotificationRow loadReworkNotification(long reworkId) {
+        return jdbcClient.sql("""
+                        SELECT
+                            r.rework_id,
+                            r.order_id,
+                            o.order_no,
+                            o.cs_user_id,
+                            r.target_node_instance_id
+                        FROM rework_record r
+                        JOIN orders o ON o.order_id = r.order_id
+                        WHERE r.rework_id = :reworkId
+                        """)
+                .param("reworkId", reworkId)
+                .query((rs, rowNum) -> new ReworkNotificationRow(
+                        rs.getLong("rework_id"),
+                        rs.getLong("order_id"),
+                        rs.getString("order_no"),
+                        rs.getObject("cs_user_id", Long.class),
+                        rs.getLong("target_node_instance_id")))
+                .single();
+    }
+
+    private void emitReworkNotification(
+            ReworkNotificationRow rework, String eventType, String audienceRole, Long userId, String message) {
+        String payload = reworkPayload(rework, eventType, message);
+        jdbcClient.sql("""
+                        INSERT INTO notification_event
+                            (order_id, event_type, audience_role, payload, delivery_status)
+                        VALUES
+                            (:orderId, :eventType, :audienceRole, CAST(:payload AS JSON), 'PENDING')
+                        """)
+                .param("orderId", rework.orderId())
+                .param("eventType", eventType)
+                .param("audienceRole", audienceRole)
+                .param("payload", payload)
+                .update();
+        long eventId = lastInsertId();
+        if (userId == null) {
+            return;
+        }
+        jdbcClient.sql("""
+                        INSERT IGNORE INTO user_notification (event_id, user_id)
+                        VALUES (:eventId, :userId)
+                        """)
+                .param("eventId", eventId)
+                .param("userId", userId)
+                .update();
+        notificationPushService.pushToUser(userId, eventId, payload);
+    }
+
+    private String reworkPayload(ReworkNotificationRow rework, String eventType, String message) {
+        try {
+            return objectMapper.writeValueAsString(new ReworkNotificationPayload(
+                    eventType,
+                    rework.orderId(),
+                    rework.orderNo(),
+                    message,
+                    rework.reworkId(),
+                    rework.targetNodeInstanceId()));
+        } catch (JsonProcessingException ex) {
+            throw new ResponseStatusException(
+                    HttpStatus.INTERNAL_SERVER_ERROR, "failed to build rework notification payload", ex);
+        }
     }
 
     private boolean hasOpenPause(long workLogId) {
@@ -857,6 +947,23 @@ public class WorkflowExecutionService {
             long sourceCheckId,
             long targetNodeInstanceId,
             String status) {
+    }
+
+    private record ReworkNotificationRow(
+            long reworkId,
+            long orderId,
+            String orderNo,
+            Long csUserId,
+            long targetNodeInstanceId) {
+    }
+
+    private record ReworkNotificationPayload(
+            String event,
+            long orderId,
+            String orderNo,
+            String message,
+            long reworkId,
+            long targetNodeInstanceId) {
     }
 
     private record FinalCheckRow(long checkId) {

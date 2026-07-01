@@ -42,6 +42,7 @@ class CheckWorklogPerformanceTests {
     private long chainId;
     private long nodeInstanceId;
     private long doctorUserId;
+    private long csUserId;
     private long workerUserId;
     private long otherWorkerUserId;
 
@@ -50,6 +51,7 @@ class CheckWorklogPerformanceTests {
         String suffix = UUID.randomUUID().toString().replace("-", "");
         long userSeed = Long.parseLong(suffix.substring(0, 8), 16);
         doctorUserId = 990100000L + userSeed;
+        csUserId = 990150000L + userSeed;
         workerUserId = 990200000L + userSeed;
         otherWorkerUserId = 990300000L + userSeed;
         long clinicId = createClinic("执行测试诊所-" + suffix);
@@ -298,6 +300,47 @@ class CheckWorklogPerformanceTests {
     }
 
     @Test
+    void reworkLifecycleEmitsInternalNotificationsWithoutDoctorRecipient() throws Exception {
+        submitCheck(nodeInstanceId, 1, true, null);
+        startNode(nodeInstanceId);
+        completeNode(nodeInstanceId);
+        long reworkId = submitCheck(nodeInstanceId, 2, false, nodeInstanceId).path("rework_id").asLong();
+
+        assertThat(notificationCount("REWORK_CREATED", "WORKER")).isEqualTo(1L);
+        assertThat(userNotificationCount(workerUserId, "REWORK_CREATED")).isEqualTo(1L);
+        assertThat(userNotificationCount(doctorUserId, "REWORK_CREATED")).isZero();
+        JsonNode createdPayload = latestNotificationPayload("REWORK_CREATED", "WORKER");
+        assertThat(createdPayload.path("reworkId").asLong()).isEqualTo(reworkId);
+        assertThat(createdPayload.path("targetNodeInstanceId").asLong()).isEqualTo(nodeInstanceId);
+        assertThat(createdPayload.path("message").asText()).isEqualTo("返工待处理");
+
+        startNode(nodeInstanceId);
+        completeNode(nodeInstanceId);
+        submitCheck(nodeInstanceId, 2, true, null);
+
+        mockMvc.perform(post("/reworks/{reworkId}/close", reworkId)
+                        .header("X-Bootstrap-Role", "WORKER")
+                        .header("X-Bootstrap-User-Id", workerUserId)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("""
+                                {
+                                  "reason_category":"FIT_ISSUE",
+                                  "responsibility_type":"WORKER",
+                                  "close_note":"返工复检通过"
+                                }
+                                """))
+                .andExpect(status().isOk());
+
+        assertThat(notificationCount("REWORK_CLOSED", "CS")).isEqualTo(1L);
+        assertThat(userNotificationCount(csUserId, "REWORK_CLOSED")).isEqualTo(1L);
+        assertThat(userNotificationCount(doctorUserId, "REWORK_CLOSED")).isZero();
+        JsonNode closedPayload = latestNotificationPayload("REWORK_CLOSED", "CS");
+        assertThat(closedPayload.path("reworkId").asLong()).isEqualTo(reworkId);
+        assertThat(closedPayload.path("targetNodeInstanceId").asLong()).isEqualTo(nodeInstanceId);
+        assertThat(closedPayload.path("message").asText()).isEqualTo("返工已关闭");
+    }
+
+    @Test
     void bearerCsCannotReadWorkerPerformance() throws Exception {
         String csToken = tokenService.issue(new BootstrapIdentity(UserRole.CS, 8001L, null));
 
@@ -338,14 +381,16 @@ class CheckWorklogPerformanceTests {
     private long createOrder(String orderNo, long clinicId) {
         jdbcClient.sql("""
                         INSERT INTO orders
-                            (order_no, clinic_id, doctor_user_id, product_type, internal_status, external_status)
+                            (order_no, clinic_id, doctor_user_id, cs_user_id,
+                             product_type, internal_status, external_status)
                         VALUES
-                            (:orderNo, :clinicId, :doctorUserId, 'EXECUTION_TEST',
-                             'PENDING_PRODUCTION_REVIEW', 'PENDING_REVIEW')
+                            (:orderNo, :clinicId, :doctorUserId, :csUserId,
+                             'EXECUTION_TEST', 'PENDING_PRODUCTION_REVIEW', 'PENDING_REVIEW')
                         """)
                 .param("orderNo", orderNo)
                 .param("clinicId", clinicId)
                 .param("doctorUserId", doctorUserId)
+                .param("csUserId", csUserId)
                 .update();
         return jdbcClient.sql("SELECT order_id FROM orders WHERE order_no = :orderNo")
                 .param("orderNo", orderNo)
@@ -527,4 +572,54 @@ class CheckWorklogPerformanceTests {
                 .query(Long.class)
                 .single();
     }
+
+    private long notificationCount(String eventType, String audienceRole) {
+        return jdbcClient.sql("""
+                        SELECT COUNT(*)
+                        FROM notification_event
+                        WHERE order_id = :orderId
+                          AND event_type = :eventType
+                          AND audience_role = :audienceRole
+                        """)
+                .param("orderId", orderId)
+                .param("eventType", eventType)
+                .param("audienceRole", audienceRole)
+                .query(Long.class)
+                .single();
+    }
+
+    private JsonNode latestNotificationPayload(String eventType, String audienceRole) throws Exception {
+        String payload = jdbcClient.sql("""
+                        SELECT CAST(payload AS CHAR)
+                        FROM notification_event
+                        WHERE order_id = :orderId
+                          AND event_type = :eventType
+                          AND audience_role = :audienceRole
+                        ORDER BY event_id DESC
+                        LIMIT 1
+                        """)
+                .param("orderId", orderId)
+                .param("eventType", eventType)
+                .param("audienceRole", audienceRole)
+                .query(String.class)
+                .single();
+        return objectMapper.readTree(payload);
+    }
+
+    private long userNotificationCount(long userId, String eventType) {
+        return jdbcClient.sql("""
+                        SELECT COUNT(*)
+                        FROM user_notification un
+                        JOIN notification_event ne ON ne.event_id = un.event_id
+                        WHERE ne.order_id = :orderId
+                          AND ne.event_type = :eventType
+                          AND un.user_id = :userId
+                        """)
+                .param("orderId", orderId)
+                .param("eventType", eventType)
+                .param("userId", userId)
+                .query(Long.class)
+                .single();
+    }
+
 }

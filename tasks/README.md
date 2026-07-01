@@ -8,6 +8,16 @@
 
 当前计划已按 TRD V1.1 深度研究优化版重排。任务 0、0.1、1、2、3、4、5A、5B、6、7、8A、8B、9A 已完成；9B.1 到 9B.7、9C.1 到 9C.3、9D.1 到 9D.10 第一增量已完成；任务 8 总体仍进行中，正式上线缺口未完成。
 
+## 任务 9D.19：返工通知联动第一增量
+
+状态：completed-first-increment。
+
+目标：出检失败生成返工记录时写入 REWORK_CREATED 通知给目标 WORKER；返工关闭后写入 REWORK_CLOSED 通知给订单 CS；医生用户不接收返工内部通知。
+
+验证命令：`npm run check:task9d19`、`npm run acceptance`、`npm run check:openapi`、`./scripts/with-jdk21.sh mvn -f backend/pom.xml -pl platform-server -Dtest=CheckWorklogPerformanceTests test`。
+
+剩余风险：当前只做内部通知事实和本地推送，不覆盖真实双实例 Redis、生产网关和前端点击级通知联动验收。
+
 ## 任务 0：接口契约与项目基线
 
 状态：已完成。

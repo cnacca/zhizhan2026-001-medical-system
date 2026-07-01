@@ -18,6 +18,7 @@
 
 ## 已完成
 
+- 9D.19 返工通知联动第一增量：出检失败生成返工记录时写入 REWORK_CREATED 给目标 WORKER，返工关闭后写入 REWORK_CLOSED 给订单 CS，并验证医生用户不会收到返工内部通知。
 - 明确项目技术方向：Vue3 + Element Plus + Spring Boot + RuoYi-Vue-Pro + MySQL + Redis + MinIO + Uppy + 后端 ai-gateway + DeepSeek。
 - 明确一期口径：9 条预定义工序链写入数据库，不做后台拖拽编辑器。
 - 从 `.local-context/API规范_OpenAPI3.0.yaml` 修复并冻结稳定 OpenAPI 契约到 `docs/api/openapi.yaml`。

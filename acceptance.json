@@ -1294,6 +1294,31 @@
             "ReworkDictionariesResponse",
             "check:task9d18"
           ]
+        },
+        {
+          "id": "task-9d19-rework-notifications-required-text",
+          "type": "required_text",
+          "paths": [
+            "backend/platform-server/src/main/java/com/yuri/aiorder/workflow/execution/WorkflowExecutionService.java",
+            "backend/platform-server/src/test/java/com/yuri/aiorder/workflow/execution/CheckWorklogPerformanceTests.java",
+            "docs/api/openapi.yaml",
+            "tasks/README.md",
+            "STATUS.md",
+            "docs/deployment/readiness-checklist.md",
+            "scripts/check-task-9d19-rework-notifications.mjs",
+            "package.json"
+          ],
+          "patterns": [
+            "REWORK_CREATED",
+            "REWORK_CLOSED",
+            "emitReworkNotification",
+            "ReworkNotificationPayload",
+            "reworkLifecycleEmitsInternalNotificationsWithoutDoctorRecipient",
+            "任务 9D.19：返工通知联动第一增量",
+            "9D.19 返工通知联动第一增量",
+            "返工通知联动第一增量",
+            "check:task9d19"
+          ]
         }
       ]
     }
