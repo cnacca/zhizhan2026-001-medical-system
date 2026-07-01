@@ -1478,6 +1478,39 @@
             "AI 调用限流第一增量",
             "check:task9d26"
           ]
+        },
+        {
+          "id": "task-9d27-ai-cost-audit-required-text",
+          "type": "required_text",
+          "paths": [
+            "backend/platform-server/src/main/resources/db/migration/V18__ai_audit_cost.sql",
+            "backend/platform-server/src/main/java/com/yuri/aiorder/ai/AiGatewayProperties.java",
+            "backend/platform-server/src/main/java/com/yuri/aiorder/ai/AiGatewayService.java",
+            "backend/platform-server/src/main/resources/application.yml",
+            ".env.example",
+            "backend/platform-server/src/test/java/com/yuri/aiorder/ai/AiGatewayDeepSeekTests.java",
+            "docs/api/openapi.yaml",
+            "tasks/README.md",
+            "STATUS.md",
+            "docs/acceptance/task-8-acceptance-matrix.md",
+            "docs/deployment/readiness-checklist.md",
+            "scripts/check-task-9d27-ai-cost-audit.mjs",
+            "package.json"
+          ],
+          "patterns": [
+            "estimated_cost_microusd",
+            "inputTokenCostMicrousd",
+            "outputTokenCostMicrousd",
+            "AI_INPUT_TOKEN_COST_MICROUSD",
+            "AI_OUTPUT_TOKEN_COST_MICROUSD",
+            "estimatedCostMicrousd",
+            "deepSeekProviderAuditsEstimatedCostMicrousdFromTokenUsage",
+            "任务 9D.27：AI 成本审计第一增量",
+            "9D.27 AI 成本审计第一增量",
+            "9D.27 已补 AI 成本审计第一增量",
+            "AI 成本审计第一增量",
+            "check:task9d27"
+          ]
         }
       ]
     }

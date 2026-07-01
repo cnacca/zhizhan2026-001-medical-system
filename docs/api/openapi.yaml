@@ -4222,6 +4222,7 @@ paths:
         本接口只负责生成草稿，不写入任何订单字段。
         任务 9D.15 第一增量：当后端配置 AI_PROVIDER=deepseek、AI_DEEPSEEK_ENABLED=true 且注入 DEEPSEEK_API_KEY 时，通过 OpenAI-compatible /chat/completions 调用 DeepSeek；未启用或未配置真实 key 时保持 deterministic-placeholder 安全占位输出。
         任务 9D.26 第一增量：真实模型调用受 AI_MAX_REQUESTS_PER_USER_HOUR 限流，超额返回 429 并写 ai_audit_log.result_status=AI_RATE_LIMITED。
+        任务 9D.27 第一增量：可通过 AI_INPUT_TOKEN_COST_MICROUSD / AI_OUTPUT_TOKEN_COST_MICROUSD 配置估算成本，并写入 ai_audit_log.estimated_cost_microusd；仓库不内置真实供应商价格。
       requestBody:
         required: true
         content:
@@ -4310,6 +4311,7 @@ paths:
         本接口不写入任何数据，不发送任何消息。
         任务 9D.15 第一增量：可通过后端 DeepSeek 适配层生成草稿；所有调用写 ai_audit_log.model_name，未启用真实模型时保持 deterministic-placeholder。
         任务 9D.26 第一增量：真实模型调用受 AI_MAX_REQUESTS_PER_USER_HOUR 限流，超额返回 429 并写 ai_audit_log.result_status=AI_RATE_LIMITED。
+        任务 9D.27 第一增量：可通过 AI_INPUT_TOKEN_COST_MICROUSD / AI_OUTPUT_TOKEN_COST_MICROUSD 配置估算成本，并写入 ai_audit_log.estimated_cost_microusd；仓库不内置真实供应商价格。
       requestBody:
         required: true
         content:
@@ -4357,6 +4359,7 @@ paths:
         此规则在服务端数据查询层强制执行，不依赖前端。
         任务 9D.15 第一增量：公开问题可通过 DeepSeek 适配层生成回答；内部问题继续本地 SAFE_REFUSAL，不向模型发送内部问题上下文。
         任务 9D.26 第一增量：真实模型调用受 AI_MAX_REQUESTS_PER_USER_HOUR 限流，超额返回 429 并写 ai_audit_log.result_status=AI_RATE_LIMITED。
+        任务 9D.27 第一增量：可通过 AI_INPUT_TOKEN_COST_MICROUSD / AI_OUTPUT_TOKEN_COST_MICROUSD 配置估算成本，并写入 ai_audit_log.estimated_cost_microusd；仓库不内置真实供应商价格。
       requestBody:
         required: true
         content:
@@ -4403,6 +4406,7 @@ paths:
         本接口不写入任何数据，草稿需人工确认后通过订单编辑接口保存。
         任务 9D.15 第一增量：可通过后端 DeepSeek 适配层生成草稿；本接口仍不自动写入订单字段。
         任务 9D.26 第一增量：真实模型调用受 AI_MAX_REQUESTS_PER_USER_HOUR 限流，超额返回 429 并写 ai_audit_log.result_status=AI_RATE_LIMITED。
+        任务 9D.27 第一增量：可通过 AI_INPUT_TOKEN_COST_MICROUSD / AI_OUTPUT_TOKEN_COST_MICROUSD 配置估算成本，并写入 ai_audit_log.estimated_cost_microusd；仓库不内置真实供应商价格。
       requestBody:
         required: true
         content:

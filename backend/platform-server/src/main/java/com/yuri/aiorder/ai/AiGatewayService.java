@@ -370,10 +370,12 @@ public class AiGatewayService {
         jdbcClient.sql("""
                         INSERT INTO ai_audit_log
                             (order_id, actor_user_id, agent_code, request_context_type,
-                             prompt_hash, model_name, input_token_count, output_token_count, result_status)
+                             prompt_hash, model_name, input_token_count, output_token_count,
+                             estimated_cost_microusd, result_status)
                         VALUES
                             (:orderId, :actorUserId, :agentCode, :contextType,
-                             :promptHash, :modelName, :inputTokenCount, :outputTokenCount, :resultStatus)
+                             :promptHash, :modelName, :inputTokenCount, :outputTokenCount,
+                             :estimatedCostMicrousd, :resultStatus)
                         """)
                 .param("orderId", orderId)
                 .param("actorUserId", identity.userId())
@@ -383,8 +385,16 @@ public class AiGatewayService {
                 .param("modelName", modelResult.modelName())
                 .param("inputTokenCount", modelResult.inputTokenCount())
                 .param("outputTokenCount", modelResult.outputTokenCount())
+                .param("estimatedCostMicrousd", estimatedCostMicrousd(modelResult))
                 .param("resultStatus", resultStatus)
                 .update();
+    }
+
+    private long estimatedCostMicrousd(AiModelResult modelResult) {
+        long inputCost = Math.max(0, properties.getInputTokenCostMicrousd());
+        long outputCost = Math.max(0, properties.getOutputTokenCostMicrousd());
+        long outputTokens = modelResult.outputTokenCount() == null ? 0 : modelResult.outputTokenCount();
+        return modelResult.inputTokenCount() * inputCost + outputTokens * outputCost;
     }
 
     private String sha256(String value) {

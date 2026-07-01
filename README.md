@@ -601,3 +601,16 @@ npm run acceptance
 npm run check:openapi
 ./scripts/with-jdk21.sh mvn -f backend/pom.xml -pl platform-server -Dtest=AiGatewayDeepSeekTests test
 ```
+
+## 任务 9D.27 AI 成本审计第一增量检查
+
+任务 9D.27 新增 `ai_audit_log.estimated_cost_microusd`，并通过 `AI_INPUT_TOKEN_COST_MICROUSD` / `AI_OUTPUT_TOKEN_COST_MICROUSD` 配置按 token usage 估算单次调用成本。仓库不内置真实供应商价格，Task 8 仍保持 `NOT READY`。
+
+建议验证：
+
+```bash
+npm run check:task9d27
+npm run acceptance
+npm run check:openapi
+./scripts/with-jdk21.sh mvn -f backend/pom.xml -pl platform-server -Dtest=AiGatewayDeepSeekTests test
+```

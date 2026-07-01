@@ -1013,3 +1013,20 @@
 - 生产级 AI 治理从“真实 DeepSeek 可接入”推进到“真实模型调用有最小额度保护和拒绝审计”。
 - 本轮不做分角色额度、成本预算、重试/熔断、提示词版本、告警或管理后台配置。
 - Task 8 总体仍保持 `NOT READY`；后续仍需成本统计、提示词版本、输出防护、降级告警和真实环境联调记录。
+
+## D-072 任务 9D.27 AI 成本审计采用可配置微美元估算
+
+状态：已确认并执行第一增量。
+
+决策：
+
+- 新增 `ai_audit_log.estimated_cost_microusd`，以微美元整数记录单次 AI 调用的估算成本。
+- 新增 `AI_INPUT_TOKEN_COST_MICROUSD` 和 `AI_OUTPUT_TOKEN_COST_MICROUSD` 配置，默认均为 0；仓库不内置 DeepSeek 或任何供应商的实时价格。
+- 成本估算公式为 `input_token_count * inputTokenCostMicrousd + output_token_count * outputTokenCostMicrousd`，缺失输出 token 时按 0 计算。
+- 成本记录继续复用既有 `ai_audit_log`，不新增成本汇总表或管理后台。
+
+影响：
+
+- 生产级 AI 治理从“限流和调用审计”推进到“每次调用有可配置成本估算”。
+- 本轮不做按日/月聚合、预算告警、供应商价格自动同步、币种汇率转换或管理端图表。
+- Task 8 总体仍保持 `NOT READY`；后续仍需成本汇总、提示词版本、输出防护、重试/熔断、降级告警和真实环境联调记录。

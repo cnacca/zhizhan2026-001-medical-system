@@ -100,3 +100,5 @@
 - 2026-07-02：9D.25 已补绩效明细第一增量，`/performance/details` 可返回最近 100 条完成工时来源；Task 8 仍为 NOT READY。
 
 - 2026-07-02：9D.26 已补 AI 调用限流第一增量，真实模型调用达到每用户小时额度后返回 429 并写 `AI_RATE_LIMITED` 审计；Task 8 仍为 NOT READY。
+
+- 2026-07-02：9D.27 已补 AI 成本审计第一增量，`ai_audit_log.estimated_cost_microusd` 可按配置记录单次真实模型调用估算成本；Task 8 仍为 NOT READY。

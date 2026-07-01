@@ -32,7 +32,9 @@ import org.springframework.test.web.servlet.MockMvc;
         "app.ai.provider=deepseek",
         "app.ai.deepseek.enabled=true",
         "app.ai.deepseek.api-key=test-deepseek-key",
-        "app.ai.deepseek.model=deepseek-chat"
+        "app.ai.deepseek.model=deepseek-chat",
+        "app.ai.input-token-cost-microusd=2",
+        "app.ai.output-token-cost-microusd=8"
 })
 @AutoConfigureMockMvc
 class AiGatewayDeepSeekTests {
@@ -208,6 +210,21 @@ class AiGatewayDeepSeekTests {
         assertThat(auditCountByStatus("AI_RATE_LIMITED")).isEqualTo(1L);
     }
 
+    @Test
+    void deepSeekProviderAuditsEstimatedCostMicrousdFromTokenUsage() throws Exception {
+        deepSeekServer.enqueue("DeepSeek翻译草稿：Shade A2。");
+
+        mockMvc.perform(post("/ai/translate")
+                        .header("X-Bootstrap-Role", "CS")
+                        .header("X-Bootstrap-User-Id", CS_USER_ID)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"order_id\":" + orderId + ",\"source_text\":\"Shade A2.\"}"))
+                .andExpect(status().isOk());
+
+        assertThat(auditCostColumnCount()).isEqualTo(1L);
+        assertThat(estimatedCostMicrousd()).isEqualTo(84L);
+    }
+
     private long auditCountByModel(String modelName) {
         return jdbcClient.sql("""
                         SELECT COUNT(*)
@@ -230,6 +247,32 @@ class AiGatewayDeepSeekTests {
                         """)
                 .param("orderId", orderId)
                 .param("status", status)
+                .query(Long.class)
+                .single();
+    }
+
+    private long auditCostColumnCount() {
+        return jdbcClient.sql("""
+                        SELECT COUNT(*)
+                        FROM information_schema.columns
+                        WHERE table_schema = DATABASE()
+                          AND table_name = 'ai_audit_log'
+                          AND column_name = 'estimated_cost_microusd'
+                        """)
+                .query(Long.class)
+                .single();
+    }
+
+    private long estimatedCostMicrousd() {
+        return jdbcClient.sql("""
+                        SELECT estimated_cost_microusd
+                        FROM ai_audit_log
+                        WHERE order_id = :orderId
+                          AND result_status = 'SUCCESS'
+                        ORDER BY ai_audit_id DESC
+                        LIMIT 1
+                        """)
+                .param("orderId", orderId)
                 .query(Long.class)
                 .single();
     }

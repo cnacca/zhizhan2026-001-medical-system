@@ -18,6 +18,65 @@
 
 剩余风险：当前只做内部通知事实和本地推送，不覆盖真实双实例 Redis、生产网关和前端点击级通知联动验收。
 
+## 任务 9D.27：AI 成本审计第一增量
+
+状态：completed-first-increment。
+
+来源：
+
+- 9D.26 已为真实模型调用增加每用户小时限流，但生产级 AI 治理仍缺成本统计基础。
+- 当前 `ai_audit_log` 已记录模型名和 token 数，但没有保存单次调用成本估算。
+
+目标：
+
+- 为每条 AI 审计记录保存估算成本。
+- 成本单价由环境变量配置，不在仓库写死真实供应商价格。
+- DeepSeek stub 测试覆盖 token usage 到成本字段的落库。
+
+范围：
+
+- 新增 Flyway `V18__ai_audit_cost.sql`，为 `ai_audit_log` 增加 `estimated_cost_microusd`。
+- 新增 `AI_INPUT_TOKEN_COST_MICROUSD`、`AI_OUTPUT_TOKEN_COST_MICROUSD` 配置和 `.env.example` 占位值。
+- `AiGatewayService#audit` 写入估算成本。
+- `AiGatewayDeepSeekTests#deepSeekProviderAuditsEstimatedCostMicrousdFromTokenUsage` 覆盖 18 输入 token、6 输出 token、2/8 微美元单价时成本为 84。
+- acceptance、`package.json` 和静态检查脚本同步。
+
+非目标：
+
+- 不做真实供应商价格同步。
+- 不做币种汇率、预算告警、按日/月聚合或管理后台图表。
+- 不提交真实 DeepSeek API Key。
+- 不把 Task 8 标为完成。
+
+验收标准：
+
+- Flyway 能新增 `estimated_cost_microusd` 字段。
+- DeepSeek usage 返回 token 后，AI 审计行写入可配置估算成本。
+- 默认成本配置为 0，不影响本地 deterministic 和 CI 路径。
+
+建议验证命令：
+
+```bash
+npm run check:task9d27
+npm run acceptance
+npm run check:openapi
+./scripts/with-jdk21.sh mvn -f backend/pom.xml -pl platform-server -Dtest=AiGatewayDeepSeekTests test
+./scripts/with-jdk21.sh mvn -f backend/pom.xml -pl platform-server test
+git diff --check
+```
+
+完成记录：
+
+- TDD 红灯先确认 `ai_audit_log` 缺少 `estimated_cost_microusd` 字段。
+- 已新增 V18 成本审计迁移和可配置 token 微美元单价。
+- 已在 AI 审计写入时计算 `estimated_cost_microusd`。
+- OpenAPI 文档说明成本配置变量；仓库不内置真实供应商价格。
+
+剩余风险：
+
+- 仍缺成本汇总、预算告警、提示词版本、输出防护、重试/熔断和真实环境联调记录。
+- Task 8 总体仍保持 `NOT READY`。
+
 ## 任务 9D.26：AI 调用限流第一增量
 
 状态：completed-first-increment。
