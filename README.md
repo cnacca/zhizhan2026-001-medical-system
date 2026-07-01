@@ -588,3 +588,16 @@ npm run check:openapi
 npm run build:frontend
 ./scripts/with-jdk21.sh mvn -f backend/pom.xml -pl platform-server -Dtest=CheckWorklogPerformanceTests#performanceDetailsListCompletedWorkLogsForResolvedUser test
 ```
+
+## 任务 9D.26 AI 调用限流第一增量检查
+
+任务 9D.26 新增 `AI_MAX_REQUESTS_PER_USER_HOUR`，对真实模型调用做每用户每小时限流；超额返回 429，并写入 `ai_audit_log.result_status=AI_RATE_LIMITED`。Task 8 仍保持 `NOT READY`。
+
+建议验证：
+
+```bash
+npm run check:task9d26
+npm run acceptance
+npm run check:openapi
+./scripts/with-jdk21.sh mvn -f backend/pom.xml -pl platform-server -Dtest=AiGatewayDeepSeekTests test
+```

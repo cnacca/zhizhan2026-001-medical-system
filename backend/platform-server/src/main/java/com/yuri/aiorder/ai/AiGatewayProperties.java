@@ -6,6 +6,7 @@ import org.springframework.boot.context.properties.ConfigurationProperties;
 public class AiGatewayProperties {
 
     private String provider = "deterministic";
+    private int maxRequestsPerUserHour = 120;
     private final DeepSeek deepseek = new DeepSeek();
 
     public String getProvider() {
@@ -14,6 +15,14 @@ public class AiGatewayProperties {
 
     public void setProvider(String provider) {
         this.provider = provider;
+    }
+
+    public int getMaxRequestsPerUserHour() {
+        return maxRequestsPerUserHour;
+    }
+
+    public void setMaxRequestsPerUserHour(int maxRequestsPerUserHour) {
+        this.maxRequestsPerUserHour = maxRequestsPerUserHour;
     }
 
     public DeepSeek getDeepseek() {

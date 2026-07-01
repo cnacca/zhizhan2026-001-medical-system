@@ -277,3 +277,5 @@ Task 8 已完成 8A readiness audit、8B OpenAPI 二次契约、9A Bearer 身份
 - 2026-07-02 9D.23 返工影响筛选第一增量：已在 `/reworks` 增加 `has_impacted_nodes` 筛选并在返工终检页提供“仅看影响后续工序”入口；Task 8 总体仍保持 NOT READY。
 
 - 2026-07-02 9D.25 绩效明细第一增量：已新增 `/performance/details` 和前端“工时明细”表，用于核对绩效汇总来源；Task 8 总体仍保持 NOT READY，仍缺绩效周期筛选/完整公式/申诉闭环、生产级 AI 治理和生产部署。
+
+- 2026-07-02 9D.26 AI 调用限流第一增量：已为真实模型调用新增 `AI_MAX_REQUESTS_PER_USER_HOUR` 每用户小时限流，超额返回 429 且写 `AI_RATE_LIMITED` 审计；Task 8 总体仍保持 NOT READY，仍缺成本统计、提示词版本、输出防护、降级告警和生产部署。

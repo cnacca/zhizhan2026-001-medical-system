@@ -18,6 +18,65 @@
 
 剩余风险：当前只做内部通知事实和本地推送，不覆盖真实双实例 Redis、生产网关和前端点击级通知联动验收。
 
+## 任务 9D.26：AI 调用限流第一增量
+
+状态：completed-first-increment。
+
+来源：
+
+- 9D.15 已完成真实 DeepSeek 接入第一增量，但生产级 AI 治理仍缺限流、成本、重试、降级和输出防护。
+- Task 8 readiness 仍把生产级 AI 治理列为上线硬缺口。
+
+目标：
+
+- 为真实模型调用增加每用户每小时限流。
+- 超额请求返回 429，不再调用 DeepSeek。
+- 超额拒绝写入 `ai_audit_log.result_status=AI_RATE_LIMITED`，便于上线前追踪治理效果。
+
+范围：
+
+- 新增 `AI_MAX_REQUESTS_PER_USER_HOUR` 配置，默认 120。
+- `AiGatewayService` 在真实模型调用前执行限流检查。
+- `AiGatewayDeepSeekTests` 覆盖第三次调用被 429 拒绝、DeepSeek stub 只收到两次请求、审计记录保留。
+- OpenAPI、acceptance、`.env.example`、`package.json` 和静态检查脚本同步。
+
+非目标：
+
+- 不做分角色/分 agent 额度。
+- 不做成本预算、重试、熔断、告警、提示词版本或管理后台配置。
+- 不提交真实 DeepSeek API Key。
+- 不把 Task 8 标为完成。
+
+验收标准：
+
+- DeepSeek 启用且用户达到小时额度后，下一次真实模型请求返回 429。
+- 被限流请求不调用外部模型。
+- 被限流请求写 `AI_RATE_LIMITED` 审计。
+- 默认 deterministic 模式仍不依赖外部网络。
+
+建议验证命令：
+
+```bash
+npm run check:task9d26
+npm run acceptance
+npm run check:openapi
+./scripts/with-jdk21.sh mvn -f backend/pom.xml -pl platform-server -Dtest=AiGatewayDeepSeekTests test
+./scripts/with-jdk21.sh mvn -f backend/pom.xml -pl platform-server test
+git diff --check
+```
+
+完成记录：
+
+- TDD 红灯先确认第三次 DeepSeek 调用仍返回 200 并继续打到 stub。
+- 已新增每用户每小时真实模型限流配置和 `AI_RATE_LIMITED` 审计。
+- 已用独立事务保留限流审计，避免 429 异常回滚审计记录。
+- OpenAPI 已同步 AI 真实模型接口的 429 响应。
+
+剩余风险：
+
+- 仍缺成本统计、提示词版本、重试/熔断、输出防护、告警和生产环境真实 key 联调记录。
+- Task 8 总体仍保持 `NOT READY`。
+
 ## 任务 9D.25：绩效明细第一增量
 
 状态：completed-first-increment。

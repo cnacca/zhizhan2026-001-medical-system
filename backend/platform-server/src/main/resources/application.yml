@@ -47,6 +47,7 @@ app:
     redis-channel: ${NOTIFICATION_REDIS_CHANNEL:ai-order:notifications}
   ai:
     provider: ${AI_PROVIDER:deterministic}
+    max-requests-per-user-hour: ${AI_MAX_REQUESTS_PER_USER_HOUR:120}
     deepseek:
       enabled: ${AI_DEEPSEEK_ENABLED:false}
       base-url: ${AI_DEEPSEEK_BASE_URL:https://api.deepseek.com}

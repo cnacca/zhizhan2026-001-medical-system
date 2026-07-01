@@ -1402,6 +1402,12 @@ components:
         application/json:
           schema:
             "$ref": "#/components/schemas/ErrorResponse"
+    TooManyRequests:
+      description: 请求过于频繁或 AI 调用限流
+      content:
+        application/json:
+          schema:
+            "$ref": "#/components/schemas/ErrorResponse"
     ServiceUnavailable:
       description: 外部依赖或存储服务不可用
       content:
@@ -4215,6 +4221,7 @@ paths:
         返回翻译草稿，客服确认后需调用 /orders/{orderId}/review 写入生产指令。
         本接口只负责生成草稿，不写入任何订单字段。
         任务 9D.15 第一增量：当后端配置 AI_PROVIDER=deepseek、AI_DEEPSEEK_ENABLED=true 且注入 DEEPSEEK_API_KEY 时，通过 OpenAI-compatible /chat/completions 调用 DeepSeek；未启用或未配置真实 key 时保持 deterministic-placeholder 安全占位输出。
+        任务 9D.26 第一增量：真实模型调用受 AI_MAX_REQUESTS_PER_USER_HOUR 限流，超额返回 429 并写 ai_audit_log.result_status=AI_RATE_LIMITED。
       requestBody:
         required: true
         content:
@@ -4243,6 +4250,8 @@ paths:
           "$ref": "#/components/responses/NotFound"
         '409':
           "$ref": "#/components/responses/Conflict"
+        '429':
+          "$ref": "#/components/responses/TooManyRequests"
         default:
           "$ref": "#/components/responses/DefaultError"
         '503':
@@ -4300,6 +4309,7 @@ paths:
         返回自然语言回答，对外发送前客服必须确认。
         本接口不写入任何数据，不发送任何消息。
         任务 9D.15 第一增量：可通过后端 DeepSeek 适配层生成草稿；所有调用写 ai_audit_log.model_name，未启用真实模型时保持 deterministic-placeholder。
+        任务 9D.26 第一增量：真实模型调用受 AI_MAX_REQUESTS_PER_USER_HOUR 限流，超额返回 429 并写 ai_audit_log.result_status=AI_RATE_LIMITED。
       requestBody:
         required: true
         content:
@@ -4328,6 +4338,8 @@ paths:
           "$ref": "#/components/responses/NotFound"
         '409':
           "$ref": "#/components/responses/Conflict"
+        '429':
+          "$ref": "#/components/responses/TooManyRequests"
         default:
           "$ref": "#/components/responses/DefaultError"
         '503':
@@ -4344,6 +4356,7 @@ paths:
         禁止读取 internal_status / process_instance / check_record / work_log 等内部表。
         此规则在服务端数据查询层强制执行，不依赖前端。
         任务 9D.15 第一增量：公开问题可通过 DeepSeek 适配层生成回答；内部问题继续本地 SAFE_REFUSAL，不向模型发送内部问题上下文。
+        任务 9D.26 第一增量：真实模型调用受 AI_MAX_REQUESTS_PER_USER_HOUR 限流，超额返回 429 并写 ai_audit_log.result_status=AI_RATE_LIMITED。
       requestBody:
         required: true
         content:
@@ -4372,6 +4385,8 @@ paths:
           "$ref": "#/components/responses/NotFound"
         '409':
           "$ref": "#/components/responses/Conflict"
+        '429':
+          "$ref": "#/components/responses/TooManyRequests"
         default:
           "$ref": "#/components/responses/DefaultError"
         '503':
@@ -4387,6 +4402,7 @@ paths:
         返回生产备注草稿，格式按客户提供的标准模板（由全栈另行实现）。
         本接口不写入任何数据，草稿需人工确认后通过订单编辑接口保存。
         任务 9D.15 第一增量：可通过后端 DeepSeek 适配层生成草稿；本接口仍不自动写入订单字段。
+        任务 9D.26 第一增量：真实模型调用受 AI_MAX_REQUESTS_PER_USER_HOUR 限流，超额返回 429 并写 ai_audit_log.result_status=AI_RATE_LIMITED。
       requestBody:
         required: true
         content:
@@ -4415,6 +4431,8 @@ paths:
           "$ref": "#/components/responses/NotFound"
         '409':
           "$ref": "#/components/responses/Conflict"
+        '429':
+          "$ref": "#/components/responses/TooManyRequests"
         default:
           "$ref": "#/components/responses/DefaultError"
         '503':

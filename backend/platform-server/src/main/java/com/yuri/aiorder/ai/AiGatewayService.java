@@ -22,13 +22,18 @@ import org.springframework.dao.EmptyResultDataAccessException;
 import org.springframework.http.HttpStatus;
 import org.springframework.jdbc.core.simple.JdbcClient;
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.PlatformTransactionManager;
+import org.springframework.transaction.TransactionDefinition;
 import org.springframework.transaction.annotation.Transactional;
+import org.springframework.transaction.support.TransactionTemplate;
 import org.springframework.web.server.ResponseStatusException;
 
 @Service
 public class AiGatewayService {
 
     private static final String DETERMINISTIC_MODEL_NAME = "deterministic-placeholder";
+    private static final String RATE_LIMIT_MODEL_NAME = "ai-governance-rate-limit";
+    private static final String RATE_LIMIT_STATUS = "AI_RATE_LIMITED";
     private static final Set<UserRole> CS_AND_ADMIN = EnumSet.of(UserRole.CS, UserRole.ADMIN);
     private static final Set<UserRole> CHECK_MISSING_ROLES = EnumSet.of(UserRole.DOCTOR, UserRole.CS, UserRole.ADMIN);
     private static final Set<UserRole> PRODUCTION_NOTE_ROLES = EnumSet.of(UserRole.CS, UserRole.WORKER, UserRole.ADMIN);
@@ -41,24 +46,32 @@ public class AiGatewayService {
     private final OrderProjectionQueryService orderProjectionQueryService;
     private final AccessControlService accessControlService;
     private final AiModelClient aiModelClient;
+    private final AiGatewayProperties properties;
+    private final TransactionTemplate rateLimitAuditTransaction;
 
     public AiGatewayService(
             JdbcClient jdbcClient,
             ObjectMapper objectMapper,
             OrderProjectionQueryService orderProjectionQueryService,
             AccessControlService accessControlService,
-            AiModelClient aiModelClient) {
+            AiModelClient aiModelClient,
+            AiGatewayProperties properties,
+            PlatformTransactionManager transactionManager) {
         this.jdbcClient = jdbcClient;
         this.objectMapper = objectMapper;
         this.orderProjectionQueryService = orderProjectionQueryService;
         this.accessControlService = accessControlService;
         this.aiModelClient = aiModelClient;
+        this.properties = properties;
+        this.rateLimitAuditTransaction = new TransactionTemplate(transactionManager);
+        this.rateLimitAuditTransaction.setPropagationBehavior(TransactionDefinition.PROPAGATION_REQUIRES_NEW);
     }
 
     @Transactional
     public String translate(long orderId, String sourceText, BootstrapIdentity identity) {
         accessControlService.requireAnyRole(identity, CS_AND_ADMIN, "AI-1 is CS/ADMIN only");
         OrderAiContext context = loadOrderContext(orderId, identity, "identity cannot access this order");
+        enforceAiRateLimit(orderId, identity, "AI_TRANSLATE", "ORDER_TRANSLATION_DRAFT", sourceText);
         AiModelResult answer = completeWithModel(
                 "你是牙科工厂客服翻译助手。只输出翻译草稿，不自动审核、不自动发送。",
                 "订单号：" + context.orderNo() + "\n待翻译内容：" + sourceText.trim(),
@@ -75,6 +88,7 @@ public class AiGatewayService {
     public String csQuery(long orderId, String question, BootstrapIdentity identity) {
         accessControlService.requireAnyRole(identity, CS_AND_ADMIN, "AI-2 is CS/ADMIN only");
         OrderAiContext context = loadOrderContext(orderId, identity, "identity cannot access this order");
+        enforceAiRateLimit(orderId, identity, "AI_CS_QUERY", "INTERNAL_ORDER_SUMMARY", question);
         AiModelResult answer = completeWithModel(
                 "你是牙科工厂客服查询助手。可以辅助客服理解内部订单摘要，但输出必须提示人工确认。",
                 "订单号：" + context.orderNo()
@@ -111,6 +125,7 @@ public class AiGatewayService {
                     resultStatus, deterministic(answer));
             return answer;
         } else {
+            enforceAiRateLimit(orderId, identity, "AI_DOCTOR_ORDER_QUERY", "DOCTOR_ORDER_ASSISTANT_READ_MODEL", question);
             AiModelResult aiAnswer = completeWithModel(
                     "你是医生端订单助手。只能回答公开进度、账单、物流和医生可见消息；不得推测内部工序、员工、返工、工时或绩效。",
                     "公开状态：" + readModel.externalStatus()
@@ -150,6 +165,8 @@ public class AiGatewayService {
     public String productionNote(long orderId, BootstrapIdentity identity) {
         accessControlService.requireAnyRole(identity, PRODUCTION_NOTE_ROLES, "AI-5 is CS/WORKER/ADMIN only");
         OrderAiContext context = loadOrderContext(orderId, identity, "identity cannot access this order");
+        enforceAiRateLimit(orderId, identity, "AI_PRODUCTION_NOTE", "PRODUCTION_NOTE_DRAFT",
+                "production-note:" + orderId);
         AiModelResult draft = completeWithModel(
                 "你是生产备注助手。只生成草稿，不写入订单字段，不自动下发生产指令。",
                 "订单号：" + context.orderNo()
@@ -178,6 +195,41 @@ public class AiGatewayService {
 
     private AiModelResult deterministic(String content) {
         return new AiModelResult(content, DETERMINISTIC_MODEL_NAME, estimateTokenCount(content), null);
+    }
+
+    private void enforceAiRateLimit(
+            long orderId,
+            BootstrapIdentity identity,
+            String agentCode,
+            String contextType,
+            String prompt) {
+        if (!aiModelClient.isEnabled() || properties.getMaxRequestsPerUserHour() <= 0) {
+            return;
+        }
+        long usedRequests = jdbcClient.sql("""
+                        SELECT COUNT(*)
+                        FROM ai_audit_log
+                        WHERE actor_user_id = :actorUserId
+                          AND model_name <> :deterministicModel
+                          AND result_status = 'SUCCESS'
+                          AND created_at >= DATE_SUB(CURRENT_TIMESTAMP(3), INTERVAL 1 HOUR)
+                        """)
+                .param("actorUserId", identity.userId())
+                .param("deterministicModel", DETERMINISTIC_MODEL_NAME)
+                .query(Long.class)
+                .single();
+        if (usedRequests < properties.getMaxRequestsPerUserHour()) {
+            return;
+        }
+        rateLimitAuditTransaction.executeWithoutResult(status -> audit(
+                orderId,
+                identity,
+                agentCode,
+                contextType,
+                prompt,
+                RATE_LIMIT_STATUS,
+                new AiModelResult("ai-rate-limited", RATE_LIMIT_MODEL_NAME, 0, null)));
+        throw new ResponseStatusException(HttpStatus.TOO_MANY_REQUESTS, "AI request rate limit exceeded");
     }
 
     private String nullToBlank(String value) {

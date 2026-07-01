@@ -1445,6 +1445,39 @@
             "绩效明细第一增量",
             "check:task9d25"
           ]
+        },
+        {
+          "id": "task-9d26-ai-rate-limit-required-text",
+          "type": "required_text",
+          "paths": [
+            "backend/platform-server/src/main/java/com/yuri/aiorder/ai/AiGatewayProperties.java",
+            "backend/platform-server/src/main/java/com/yuri/aiorder/ai/AiGatewayService.java",
+            "backend/platform-server/src/main/resources/application.yml",
+            ".env.example",
+            "backend/platform-server/src/test/java/com/yuri/aiorder/ai/AiGatewayDeepSeekTests.java",
+            "docs/api/openapi.yaml",
+            "tasks/README.md",
+            "STATUS.md",
+            "docs/acceptance/task-8-acceptance-matrix.md",
+            "docs/deployment/readiness-checklist.md",
+            "scripts/check-task-9d26-ai-rate-limit.mjs",
+            "package.json"
+          ],
+          "patterns": [
+            "maxRequestsPerUserHour",
+            "AI_MAX_REQUESTS_PER_USER_HOUR",
+            "enforceAiRateLimit",
+            "AI_RATE_LIMITED",
+            "HttpStatus.TOO_MANY_REQUESTS",
+            "PROPAGATION_REQUIRES_NEW",
+            "deepSeekProviderRateLimitsRealModelCallsPerUserAndAuditsRejection",
+            "TooManyRequests",
+            "任务 9D.26：AI 调用限流第一增量",
+            "9D.26 AI 调用限流第一增量",
+            "9D.26 已补 AI 调用限流第一增量",
+            "AI 调用限流第一增量",
+            "check:task9d26"
+          ]
         }
       ]
     }

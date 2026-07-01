@@ -61,6 +61,9 @@ class AiGatewayDeepSeekTests {
     private JdbcClient jdbcClient;
 
     @Autowired
+    private AiGatewayProperties aiGatewayProperties;
+
+    @Autowired
     private MockMvc mockMvc;
 
     private long clinicId;
@@ -70,6 +73,15 @@ class AiGatewayDeepSeekTests {
     @BeforeEach
     void setUp() {
         deepSeekServer.reset();
+        aiGatewayProperties.setMaxRequestsPerUserHour(120);
+        jdbcClient.sql("""
+                        DELETE FROM ai_audit_log
+                        WHERE actor_user_id IN (:doctorUserId, :csUserId, :workerUserId)
+                        """)
+                .param("doctorUserId", DOCTOR_USER_ID)
+                .param("csUserId", CS_USER_ID)
+                .param("workerUserId", WORKER_USER_ID)
+                .update();
         String suffix = UUID.randomUUID().toString().replace("-", "");
         productType = "AI_DEEPSEEK_" + suffix.substring(0, 10);
         jdbcClient.sql("INSERT INTO clinic (clinic_name) VALUES (:clinicName)")
@@ -163,6 +175,37 @@ class AiGatewayDeepSeekTests {
         assertThat(deepSeekServer.requests().get(2).body()).doesNotContain("内部工序备注");
         assertThat(auditCountByModel("deepseek-chat")).isEqualTo(4L);
         assertThat(auditCountByStatus("SAFE_REFUSAL")).isEqualTo(1L);
+    }
+
+    @Test
+    void deepSeekProviderRateLimitsRealModelCallsPerUserAndAuditsRejection() throws Exception {
+        aiGatewayProperties.setMaxRequestsPerUserHour(2);
+        deepSeekServer.enqueue("DeepSeek翻译草稿一。");
+        deepSeekServer.enqueue("DeepSeek翻译草稿二。");
+
+        mockMvc.perform(post("/ai/translate")
+                        .header("X-Bootstrap-Role", "CS")
+                        .header("X-Bootstrap-User-Id", CS_USER_ID)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"order_id\":" + orderId + ",\"source_text\":\"Shade A1.\"}"))
+                .andExpect(status().isOk());
+
+        mockMvc.perform(post("/ai/translate")
+                        .header("X-Bootstrap-Role", "CS")
+                        .header("X-Bootstrap-User-Id", CS_USER_ID)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"order_id\":" + orderId + ",\"source_text\":\"Shade A2.\"}"))
+                .andExpect(status().isOk());
+
+        mockMvc.perform(post("/ai/translate")
+                        .header("X-Bootstrap-Role", "CS")
+                        .header("X-Bootstrap-User-Id", CS_USER_ID)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"order_id\":" + orderId + ",\"source_text\":\"Shade A3.\"}"))
+                .andExpect(status().isTooManyRequests());
+
+        assertThat(deepSeekServer.requests()).hasSize(2);
+        assertThat(auditCountByStatus("AI_RATE_LIMITED")).isEqualTo(1L);
     }
 
     private long auditCountByModel(String modelName) {
