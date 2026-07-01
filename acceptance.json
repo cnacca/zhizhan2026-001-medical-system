@@ -1319,6 +1319,37 @@
             "返工通知联动第一增量",
             "check:task9d19"
           ]
+        },
+        {
+          "id": "task-9d21-performance-attribution-required-text",
+          "type": "required_text",
+          "paths": [
+            "backend/platform-server/src/main/java/com/yuri/aiorder/workflow/execution/PerformanceStatsResponse.java",
+            "backend/platform-server/src/main/java/com/yuri/aiorder/workflow/execution/WorkflowExecutionService.java",
+            "backend/platform-server/src/test/java/com/yuri/aiorder/workflow/execution/CheckWorklogPerformanceTests.java",
+            "frontend/src/App.vue",
+            "docs/api/openapi.yaml",
+            "tasks/README.md",
+            "STATUS.md",
+            "docs/acceptance/task-8-acceptance-matrix.md",
+            "docs/deployment/readiness-checklist.md",
+            "scripts/check-task-9d21-performance-attribution.mjs",
+            "package.json"
+          ],
+          "patterns": [
+            "responsible_rework_count",
+            "non_worker_responsibility_rework_count",
+            "unclassified_rework_count",
+            "performanceSeparatesReworkResponsibilityAttribution",
+            "生产责任返工",
+            "非生产责任返工",
+            "未归因返工",
+            "任务 9D.21：绩效归因联动第一增量",
+            "9D.21 绩效归因联动第一增量",
+            "9D.21 已补绩效归因联动第一增量",
+            "绩效归因联动第一增量",
+            "check:task9d21"
+          ]
         }
       ]
     }

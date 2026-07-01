@@ -400,6 +400,27 @@ public class WorkflowExecutionService {
                         JOIN order_process_node n ON n.node_instance_id = r.target_node_instance_id
                         WHERE n.assigned_user_id = :userId
                         """, targetUserId);
+        long responsibleReworkCount = countLong("""
+                        SELECT COUNT(*)
+                        FROM rework_record r
+                        JOIN order_process_node n ON n.node_instance_id = r.target_node_instance_id
+                        WHERE n.assigned_user_id = :userId
+                          AND r.responsibility_type = 'WORKER'
+                        """, targetUserId);
+        long nonWorkerResponsibilityReworkCount = countLong("""
+                        SELECT COUNT(*)
+                        FROM rework_record r
+                        JOIN order_process_node n ON n.node_instance_id = r.target_node_instance_id
+                        WHERE n.assigned_user_id = :userId
+                          AND r.responsibility_type IN ('DOCTOR', 'CS', 'SYSTEM')
+                        """, targetUserId);
+        long unclassifiedReworkCount = countLong("""
+                        SELECT COUNT(*)
+                        FROM rework_record r
+                        JOIN order_process_node n ON n.node_instance_id = r.target_node_instance_id
+                        WHERE n.assigned_user_id = :userId
+                          AND r.responsibility_type IS NULL
+                        """, targetUserId);
         long outCheckTotal = countLong("""
                         SELECT COUNT(*)
                         FROM check_record c
@@ -437,10 +458,14 @@ public class WorkflowExecutionService {
                 completedCount,
                 effectiveSeconds / 60,
                 reworkCount,
+                responsibleReworkCount,
+                nonWorkerResponsibilityReworkCount,
+                unclassifiedReworkCount,
                 percent(onTimeCount, completedCount),
                 percent(outCheckPass, outCheckTotal),
                 effectiveSeconds == 0 ? 0 : Math.toIntExact(Math.round((standardSeconds * 100.0) / effectiveSeconds)));
     }
+
 
     private Long createRework(NodeRow node, long checkId, CheckRecordRequest request) {
         if (request.reworkToNodeId() == null) {

@@ -269,3 +269,5 @@ Task 8 已完成 8A readiness audit、8B OpenAPI 二次契约、9A Bearer 身份
 建议下一轮继续做真实弱网限速/断网和跨设备浏览器续传验收，或扩展 9D.9 后续的返工关闭 / 责任分类 / 终检发货拦截；同时保留 Task 8 总体 `NOT READY` 结论，直到完整前端业务页面、真实 DeepSeek 和部署交付材料补齐。
 
 - 已完成任务 9D.20 复杂返工影响范围第一增量：后道出检失败返到前道节点时，沿 `order_process_edge` 递归重置返工目标后续 `READY/COMPLETED` 节点为 `PENDING`。
+
+- 已完成任务 9D.21 绩效归因联动第一增量：`/performance` 新增生产责任、非生产责任和未归因返工拆分统计；Task 8 仍 NOT READY。

@@ -52,3 +52,5 @@ git diff --check
 - 对 WebSocket 做在线推送、离线未读补偿、已读同步、多实例广播和网关代理验收。
 
 - 复杂返工影响范围第一增量已补：返工目标后续 READY/COMPLETED 节点重置为 PENDING；Task 8 仍 NOT READY。
+
+- 绩效归因联动第一增量已补：生产责任、非生产责任和未归因返工可在绩效统计中拆分；Task 8 仍 NOT READY。

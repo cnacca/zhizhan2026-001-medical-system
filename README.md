@@ -510,3 +510,12 @@ Task 8A smoke 注意事项：
 ## 安全说明
 
 不要提交任何真实密钥、Token、数据库连接串、MinIO 凭据、DeepSeek API Key 或客户隐私数据。
+
+## 任务 9D.21 绩效归因联动第一增量检查
+
+```bash
+npm run check:task9d21
+./scripts/with-jdk21.sh mvn -f backend/pom.xml -pl platform-server -Dtest=CheckWorklogPerformanceTests#performanceSeparatesReworkResponsibilityAttribution test
+```
+
+验收口径：`/performance` 新增 `responsible_rework_count`、`non_worker_responsibility_rework_count` 和 `unclassified_rework_count`，Task 8 仍保持 NOT READY。

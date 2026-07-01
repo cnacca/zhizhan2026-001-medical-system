@@ -380,6 +380,38 @@ class CheckWorklogPerformanceTests {
 
 
     @Test
+    void performanceSeparatesReworkResponsibilityAttribution() throws Exception {
+        submitCheck(nodeInstanceId, 1, true, null);
+        startNode(nodeInstanceId);
+        completeNode(nodeInstanceId);
+        long workerResponsibleReworkId = submitCheck(nodeInstanceId, 2, false, nodeInstanceId)
+                .path("rework_id")
+                .asLong();
+        startNode(nodeInstanceId);
+        completeNode(nodeInstanceId);
+        submitCheck(nodeInstanceId, 2, true, null);
+        closeRework(workerResponsibleReworkId, "WORKER");
+
+        long doctorResponsibleReworkId = submitCheck(nodeInstanceId, 2, false, nodeInstanceId)
+                .path("rework_id")
+                .asLong();
+        startNode(nodeInstanceId);
+        completeNode(nodeInstanceId);
+        submitCheck(nodeInstanceId, 2, true, null);
+        closeRework(doctorResponsibleReworkId, "DOCTOR");
+
+        mockMvc.perform(get("/performance")
+                        .header("X-Bootstrap-Role", "WORKER")
+                        .header("X-Bootstrap-User-Id", workerUserId))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.rework_count").value(2))
+                .andExpect(jsonPath("$.data.responsible_rework_count").value(1))
+                .andExpect(jsonPath("$.data.non_worker_responsibility_rework_count").value(1))
+                .andExpect(jsonPath("$.data.unclassified_rework_count").value(0));
+    }
+
+
+    @Test
     void bearerCsCannotReadWorkerPerformance() throws Exception {
         String csToken = tokenService.issue(new BootstrapIdentity(UserRole.CS, 8001L, null));
 
@@ -608,6 +640,22 @@ class CheckWorklogPerformanceTests {
                         .header("X-Bootstrap-User-Id", workerUserId))
                 .andExpect(status().isOk());
     }
+
+    private void closeRework(long reworkId, String responsibilityType) throws Exception {
+        mockMvc.perform(post("/reworks/{reworkId}/close", reworkId)
+                        .header("X-Bootstrap-Role", "WORKER")
+                        .header("X-Bootstrap-User-Id", workerUserId)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("""
+                                {
+                                  "reason_category":"FIT_ISSUE",
+                                  "responsibility_type":"%s",
+                                  "close_note":"绩效归因测试"
+                                }
+                                """.formatted(responsibilityType)))
+                .andExpect(status().isOk());
+    }
+
 
     private long startWorkLog(long nodeId) throws Exception {
         MvcResult result = mockMvc.perform(post("/work-logs/start")

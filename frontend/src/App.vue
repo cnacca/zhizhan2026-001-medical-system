@@ -362,6 +362,9 @@ type PerformanceStatsResponse = {
   completed_count: number
   effective_duration: number
   rework_count: number
+  responsible_rework_count: number
+  non_worker_responsibility_rework_count: number
+  unclassified_rework_count: number
   on_time_rate: number
   pass_rate: number
   duration_efficiency: number
@@ -3619,6 +3622,21 @@ onBeforeUnmount(() => {
               <span>返工次数</span>
               <strong>{{ performanceStats.rework_count }}</strong>
               <small>目标节点返工记录</small>
+            </article>
+            <article class="performance-card">
+              <span>生产责任返工</span>
+              <strong>{{ performanceStats.responsible_rework_count }}</strong>
+              <small>责任类型 WORKER</small>
+            </article>
+            <article class="performance-card">
+              <span>非生产责任返工</span>
+              <strong>{{ performanceStats.non_worker_responsibility_rework_count }}</strong>
+              <small>医生 / 客服 / 系统</small>
+            </article>
+            <article class="performance-card">
+              <span>未归因返工</span>
+              <strong>{{ performanceStats.unclassified_rework_count }}</strong>
+              <small>待关闭或待分类</small>
             </article>
             <article class="performance-card">
               <span>准时率</span>

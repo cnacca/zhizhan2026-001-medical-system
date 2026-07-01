@@ -18,6 +18,79 @@
 
 剩余风险：当前只做内部通知事实和本地推送，不覆盖真实双实例 Redis、生产网关和前端点击级通知联动验收。
 
+## 任务 9D.21：绩效归因联动第一增量
+
+状态：completed-first-increment。
+
+来源：
+
+- 9D.17 到 9D.20 已完成返工关闭、责任分类、字典、通知和复杂影响范围重置，但绩效统计仍只暴露总返工次数，无法区分生产人员责任和非生产责任。
+- Task 8 readiness 仍把绩效归因联动列为正式上线前管理端硬缺口之一。
+
+目标：
+
+- 在既有 `/performance` 统计中拆分返工责任归因字段。
+- 保留 `rework_count` 作为目标节点返工总数。
+- 新增生产责任返工、非生产责任返工和未归因返工三个只读统计字段。
+- 前端绩效管理页面展示新增归因卡片。
+
+范围：
+
+- `PerformanceStatsResponse` 新增 `responsible_rework_count`、`non_worker_responsibility_rework_count`、`unclassified_rework_count`。
+- `WorkflowExecutionService#getPerformance` 基于 `rework_record.responsibility_type` 统计 `WORKER`、`DOCTOR/CS/SYSTEM` 和 `NULL` 三类。
+- 新增 `CheckWorklogPerformanceTests#performanceSeparatesReworkResponsibilityAttribution`，覆盖同一 worker 目标节点下 WORKER 与 DOCTOR 责任返工的拆分。
+- 前端绩效卡片展示“生产责任返工 / 非生产责任返工 / 未归因返工”。
+- OpenAPI、acceptance、`package.json` 和静态检查脚本同步。
+
+非目标：
+
+- 不新增公开 API path，不新增 DB migration。
+- 不实现绩效奖金公式、周期筛选、绩效明细导出、申诉流程或标准工时配置。
+- 不改变返工责任字典后台维护方式。
+- 不把 Task 8 标为完成。
+
+验收标准：
+
+- 已关闭且责任类型为 `WORKER` 的返工计入 `responsible_rework_count`。
+- 已关闭且责任类型为 `DOCTOR/CS/SYSTEM` 的返工计入 `non_worker_responsibility_rework_count`。
+- 未关闭或未设置责任类型的返工计入 `unclassified_rework_count`。
+- `rework_count` 继续返回同一目标节点的返工总数。
+- WORKER 本人范围与 ADMIN 指定员工范围沿用既有权限规则。
+
+建议验证命令：
+
+```bash
+npm run check:task9d21
+npm run acceptance
+npm run check:openapi
+npm run build:frontend
+./scripts/with-jdk21.sh mvn -f backend/pom.xml -pl platform-server -Dtest=CheckWorklogPerformanceTests#performanceSeparatesReworkResponsibilityAttribution test
+./scripts/with-jdk21.sh mvn -f backend/pom.xml -pl platform-server -Dtest=CheckWorklogPerformanceTests test
+./scripts/with-jdk21.sh mvn -f backend/pom.xml -pl platform-server test
+git diff --check
+```
+
+完成记录：
+
+- TDD 红灯先确认 `/performance` 缺少 `responsible_rework_count`。
+- 后端响应和查询已补三类责任归因统计。
+- 前端绩效页面新增三张归因卡片。
+- OpenAPI `PerformanceStats` schema 已同步新增字段。
+- 新增 `scripts/check-task-9d21-performance-attribution.mjs`、`npm run check:task9d21`，并纳入 `acceptance.json`。
+
+验收结果：
+
+- `CheckWorklogPerformanceTests#performanceSeparatesReworkResponsibilityAttribution`：PASS。
+- `CheckWorklogPerformanceTests`：PASS。
+- `platform-server` 后端测试：PASS。
+- `npm run check:task9d21`、`npm run acceptance`、`npm run check:openapi`、`npm run build:frontend`、`git diff --check`：PASS。
+
+剩余风险：
+
+- 仍缺绩效奖金/扣罚公式、周期筛选、管理端明细、申诉闭环和标准工时配置。
+- 返工责任字典仍是后端固定字典，未做后台维护。
+- Task 8 总体仍保持 `NOT READY`。
+
 ## 任务 9D.20：复杂返工影响范围第一增量
 
 状态：completed-first-increment。

@@ -508,6 +508,15 @@ components:
         rework_count:
           type: integer
           description: 返工次数
+        responsible_rework_count:
+          type: integer
+          description: 责任类型为 WORKER 的返工次数
+        non_worker_responsibility_rework_count:
+          type: integer
+          description: 责任类型为 DOCTOR/CS/SYSTEM 的返工次数
+        unclassified_rework_count:
+          type: integer
+          description: 尚未关闭或未设置责任类型的返工次数
         on_time_rate:
           type: number
           description: 准时率（0-1）
