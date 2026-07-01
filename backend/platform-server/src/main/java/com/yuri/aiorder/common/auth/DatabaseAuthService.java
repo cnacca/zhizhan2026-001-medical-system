@@ -32,6 +32,14 @@ public class DatabaseAuthService {
         if (!passwordHashService.matches(password, row.passwordHash())) {
             throw unauthorized();
         }
+        return toAuthenticatedUser(row);
+    }
+
+    public AuthenticatedUser loadAuthenticatedUser(long userId) {
+        return toAuthenticatedUser(loadUser(userId));
+    }
+
+    private AuthenticatedUser toAuthenticatedUser(UserAuthRow row) {
         List<String> roles = splitCsv(row.roleCodes());
         List<String> permissions = splitCsv(row.permissionCodes());
         UserRole primaryRole = primaryRole(roles);
@@ -85,6 +93,43 @@ public class DatabaseAuthService {
                             GROUP BY u.user_id, u.username, u.password_hash, u.clinic_id
                             """)
                     .param("username", username)
+                    .query((rs, rowNum) -> new UserAuthRow(
+                            rs.getLong("user_id"),
+                            rs.getString("username"),
+                            rs.getString("password_hash"),
+                            rs.getObject("clinic_id", Long.class),
+                            rs.getString("role_codes"),
+                            rs.getString("data_scopes"),
+                            rs.getString("permission_codes")))
+                    .single();
+        } catch (EmptyResultDataAccessException ex) {
+            throw unauthorized();
+        }
+    }
+
+    private UserAuthRow loadUser(long userId) {
+        try {
+            return jdbcClient.sql("""
+                            SELECT
+                                u.user_id,
+                                u.username,
+                                u.password_hash,
+                                u.clinic_id,
+                                GROUP_CONCAT(DISTINCT r.role_code ORDER BY r.role_code SEPARATOR ',') AS role_codes,
+                                GROUP_CONCAT(DISTINCT r.data_scope ORDER BY r.data_scope SEPARATOR ',') AS data_scopes,
+                                GROUP_CONCAT(DISTINCT p.permission_code ORDER BY p.permission_code SEPARATOR ',') AS permission_codes
+                            FROM system_user u
+                            JOIN system_user_role ur ON ur.user_id = u.user_id
+                            JOIN system_role r ON r.role_id = ur.role_id
+                            LEFT JOIN system_role_permission rp ON rp.role_id = r.role_id
+                            LEFT JOIN system_permission p ON p.permission_id = rp.permission_id
+                            WHERE u.user_id = :userId
+                              AND u.status = 'ACTIVE'
+                              AND r.status = 'ACTIVE'
+                              AND (p.permission_id IS NULL OR p.status = 'ACTIVE')
+                            GROUP BY u.user_id, u.username, u.password_hash, u.clinic_id
+                            """)
+                    .param("userId", userId)
                     .query((rs, rowNum) -> new UserAuthRow(
                             rs.getLong("user_id"),
                             rs.getString("username"),

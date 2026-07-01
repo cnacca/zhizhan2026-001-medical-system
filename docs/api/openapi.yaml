@@ -108,6 +108,9 @@ components:
         accessToken:
           type: string
           description: 服务端签发的 Bearer token
+        refreshToken:
+          type: string
+          description: 服务端签发的刷新令牌；客户端仅提交给 refresh/logout，不作为 Bearer token 使用
         username:
           type: string
         userId:
@@ -149,6 +152,17 @@ components:
         expiresAt:
           type: string
           format: date-time
+        refreshExpiresAt:
+          type: string
+          format: date-time
+    RefreshTokenRequest:
+      type: object
+      required:
+      - refresh_token
+      properties:
+        refresh_token:
+          type: string
+          description: 登录或刷新时返回的 refreshToken
     CurrentUserResponse:
       type: object
       properties:
@@ -1300,19 +1314,21 @@ paths:
       tags:
       - Auth
       summary: 刷新 Access Token
+      description: 使用仍有效且未登出的 refresh token 返回新的 accessToken；第一增量不轮换 refreshToken。
       security: []
       requestBody:
         required: true
         content:
           application/json:
             schema:
-              type: object
-              properties:
-                refresh_token:
-                  type: string
+              "$ref": "#/components/schemas/RefreshTokenRequest"
       responses:
         '200':
-          description: 刷新成功，返回新 access_token
+          description: 刷新成功，返回新的 accessToken 和原 refreshToken
+          content:
+            application/json:
+              schema:
+                "$ref": "#/components/schemas/LoginResponse"
         '400':
           "$ref": "#/components/responses/BadRequest"
         '401':
@@ -1333,6 +1349,14 @@ paths:
       tags:
       - Auth
       summary: 登出，服务端使 Token 失效
+      description: 吊销请求体中的 refresh token；既有 accessToken 不做服务端黑名单，等待自然过期。
+      security: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              "$ref": "#/components/schemas/RefreshTokenRequest"
       responses:
         '200':
           description: 登出成功

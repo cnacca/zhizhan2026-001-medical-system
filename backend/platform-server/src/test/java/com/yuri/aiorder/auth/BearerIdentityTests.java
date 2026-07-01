@@ -240,4 +240,49 @@ class BearerIdentityTests {
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.roles", hasItem("ADMIN")));
     }
+
+    @Test
+    void refreshTokenCanIssueNewAccessTokenAndLogoutRevokesIt() throws Exception {
+        MvcResult login = mockMvc.perform(post("/api/auth/login")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"username\":\"doctor\",\"password\":\"change-me-doctor\",\"portal\":\"DOCTOR\"}"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.accessToken").isString())
+                .andExpect(jsonPath("$.refreshToken").isString())
+                .andExpect(jsonPath("$.refreshExpiresAt").isString())
+                .andReturn();
+
+        JsonNode loginRoot = objectMapper.readTree(login.getResponse().getContentAsString());
+        String refreshToken = loginRoot.path("refreshToken").asText();
+
+        MvcResult refreshed = mockMvc.perform(post("/api/auth/refresh")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"refresh_token\":\"" + refreshToken + "\"}"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.accessToken").isString())
+                .andExpect(jsonPath("$.refreshToken").value(refreshToken))
+                .andExpect(jsonPath("$.username").value("doctor"))
+                .andExpect(jsonPath("$.roles", hasItem("DOCTOR")))
+                .andReturn();
+
+        String refreshedAccessToken = objectMapper.readTree(refreshed.getResponse().getContentAsString())
+                .path("accessToken")
+                .asText();
+
+        mockMvc.perform(get("/orders/{orderId}", orderId)
+                        .header("Authorization", "Bearer " + refreshedAccessToken))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.order_id").value(orderId))
+                .andExpect(jsonPath("$.data.internal_status").doesNotExist());
+
+        mockMvc.perform(post("/api/auth/logout")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"refresh_token\":\"" + refreshToken + "\"}"))
+                .andExpect(status().isOk());
+
+        mockMvc.perform(post("/api/auth/refresh")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"refresh_token\":\"" + refreshToken + "\"}"))
+                .andExpect(status().isUnauthorized());
+    }
 }

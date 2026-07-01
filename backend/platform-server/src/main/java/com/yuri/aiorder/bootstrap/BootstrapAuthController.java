@@ -5,6 +5,8 @@ import com.yuri.aiorder.common.auth.AuthMenu;
 import com.yuri.aiorder.common.auth.AuthenticatedUser;
 import com.yuri.aiorder.common.auth.BearerTokenService;
 import com.yuri.aiorder.common.auth.DatabaseAuthService;
+import com.yuri.aiorder.common.auth.RefreshTokenService;
+import com.fasterxml.jackson.annotation.JsonProperty;
 import jakarta.validation.Valid;
 import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.NotNull;
@@ -28,18 +30,42 @@ public class BootstrapAuthController {
 
     private final BearerTokenService tokenService;
     private final DatabaseAuthService databaseAuthService;
+    private final RefreshTokenService refreshTokenService;
 
-    public BootstrapAuthController(BearerTokenService tokenService, DatabaseAuthService databaseAuthService) {
+    public BootstrapAuthController(
+            BearerTokenService tokenService,
+            DatabaseAuthService databaseAuthService,
+            RefreshTokenService refreshTokenService) {
         this.tokenService = tokenService;
         this.databaseAuthService = databaseAuthService;
+        this.refreshTokenService = refreshTokenService;
     }
 
     @PostMapping("/login")
     public LoginResponse login(@Valid @RequestBody LoginRequest request) {
         AuthenticatedUser authenticatedUser = databaseAuthService.authenticate(request.username(), request.password());
         requirePortalRole(request.portal(), authenticatedUser.roles());
+        RefreshTokenService.IssuedRefreshToken refreshToken = refreshTokenService.issue(authenticatedUser.userId());
+        return loginResponse(authenticatedUser, refreshToken.token(), refreshToken.expiresAt());
+    }
+
+    @PostMapping("/refresh")
+    public LoginResponse refresh(@Valid @RequestBody RefreshTokenRequest request) {
+        RefreshTokenService.ActiveRefreshToken refreshToken =
+                refreshTokenService.requireActive(request.refreshToken());
+        AuthenticatedUser authenticatedUser = databaseAuthService.loadAuthenticatedUser(refreshToken.userId());
+        return loginResponse(authenticatedUser, request.refreshToken(), refreshToken.expiresAt());
+    }
+
+    @PostMapping("/logout")
+    public void logout(@Valid @RequestBody RefreshTokenRequest request) {
+        refreshTokenService.revoke(request.refreshToken());
+    }
+
+    private LoginResponse loginResponse(AuthenticatedUser authenticatedUser, String refreshToken, Instant refreshExpiresAt) {
         return new LoginResponse(
                 tokenService.issue(authenticatedUser.identity()),
+                refreshToken,
                 authenticatedUser.username(),
                 authenticatedUser.userId(),
                 authenticatedUser.clinicId(),
@@ -47,7 +73,8 @@ public class BootstrapAuthController {
                 authenticatedUser.permissions(),
                 authenticatedUser.menus(),
                 authenticatedUser.dataScope(),
-                Instant.now().plusSeconds(tokenService.tokenTtlSeconds()));
+                Instant.now().plusSeconds(tokenService.tokenTtlSeconds()),
+                refreshExpiresAt);
     }
 
     private void requirePortalRole(LoginPortal portal, List<String> roles) {
@@ -88,8 +115,12 @@ public class BootstrapAuthController {
         ADMIN
     }
 
+    public record RefreshTokenRequest(@JsonProperty("refresh_token") @NotBlank String refreshToken) {
+    }
+
     public record LoginResponse(
             String accessToken,
+            String refreshToken,
             String username,
             Long userId,
             Long clinicId,
@@ -97,7 +128,8 @@ public class BootstrapAuthController {
             List<String> permissions,
             List<AuthMenu> menus,
             String dataScope,
-            Instant expiresAt) {
+            Instant expiresAt,
+            Instant refreshExpiresAt) {
     }
 
     public record CurrentUserResponse(

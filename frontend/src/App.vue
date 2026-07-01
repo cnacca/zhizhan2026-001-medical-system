@@ -17,6 +17,7 @@ type LoginPortal = 'DOCTOR' | 'CS' | 'PRODUCTION' | 'ADMIN'
 
 type LoginResponse = {
   accessToken: string
+  refreshToken: string
   username: string
   userId: number | null
   clinicId: number | null
@@ -25,6 +26,7 @@ type LoginResponse = {
   menus: AuthMenu[]
   dataScope: string | null
   expiresAt: string
+  refreshExpiresAt: string
 }
 
 type ApiResponse<T> = {
@@ -340,11 +342,13 @@ const username = ref('admin')
 const password = ref('change-me-admin')
 const selectedPortal = ref<LoginPortal | null>(null)
 const token = ref('')
+const refreshToken = ref('')
 const currentUser = ref<LoginResponse | null>(null)
 const activeRoute = ref('/dashboard')
 const loginError = ref('')
 const health = ref('未检查')
 const loading = ref(false)
+const authActionLoading = ref(false)
 const notifications = ref<NotificationItem[]>([])
 const unreadCount = ref(0)
 const notificationsLoading = ref(false)
@@ -601,38 +605,107 @@ async function login() {
       throw new Error(`登录失败：${response.status}`)
     }
     const payload = await response.json() as LoginResponse
-    token.value = payload.accessToken
-    currentUser.value = payload
-    activeRoute.value = portalRouteFor(payload)
-    await loadNotifications()
-    if (activeRoute.value === '/doctor/orders') {
-      await loadDoctorOrderForm()
-      await loadDoctorOrders()
-    } else if (activeRoute.value === '/orders/internal') {
-      await loadInternalOrders()
-    } else if (activeRoute.value === '/workflow/review') {
-      await loadProductionReviewPage()
-    } else if (activeRoute.value === '/workflow/process-instance' || activeRoute.value === '/workflow/assign') {
-      await loadProcessInstancePage()
-    } else if (activeRoute.value === '/tasks/mine') {
-      await loadWorkerTasks()
-    } else if (activeRoute.value === '/checks') {
-      await loadCheckTasks()
-    } else if (activeRoute.value === '/rework-final') {
-      await loadReworkFinalPage()
-    } else if (activeRoute.value === '/worklogs/self') {
-      await loadWorklogTasks()
-    } else if (activeRoute.value === '/performance') {
-      await loadPerformanceStats()
-    } else if (activeRoute.value === '/production/board') {
-      await loadProductionBoardOrders()
-    }
+    await applyLoginSession(payload, portalRouteFor(payload))
     connectNotificationSocket()
   } catch (error) {
     loginError.value = error instanceof Error ? error.message : '登录失败'
   } finally {
     loading.value = false
   }
+}
+
+async function applyLoginSession(payload: LoginResponse, nextRoute: string) {
+  token.value = payload.accessToken
+  refreshToken.value = payload.refreshToken
+  currentUser.value = payload
+  activeRoute.value = nextRoute
+  await loadNotifications()
+  await loadActiveRouteData()
+}
+
+async function loadActiveRouteData() {
+  if (activeRoute.value === '/doctor/orders') {
+    await loadDoctorOrderForm()
+    await loadDoctorOrders()
+  } else if (activeRoute.value === '/orders/internal') {
+    await loadInternalOrders()
+  } else if (activeRoute.value === '/workflow/review') {
+    await loadProductionReviewPage()
+  } else if (activeRoute.value === '/workflow/process-instance' || activeRoute.value === '/workflow/assign') {
+    await loadProcessInstancePage()
+  } else if (activeRoute.value === '/tasks/mine') {
+    await loadWorkerTasks()
+  } else if (activeRoute.value === '/checks') {
+    await loadCheckTasks()
+  } else if (activeRoute.value === '/rework-final') {
+    await loadReworkFinalPage()
+  } else if (activeRoute.value === '/worklogs/self') {
+    await loadWorklogTasks()
+  } else if (activeRoute.value === '/performance') {
+    await loadPerformanceStats()
+  } else if (activeRoute.value === '/production/board') {
+    await loadProductionBoardOrders()
+  }
+}
+
+async function refreshSession() {
+  if (!refreshToken.value) {
+    loginError.value = '缺少 refresh token，请重新登录'
+    return
+  }
+  authActionLoading.value = true
+  loginError.value = ''
+  try {
+    const response = await fetch('/api/auth/refresh', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ refresh_token: refreshToken.value })
+    })
+    if (!response.ok) {
+      throw new Error(`刷新登录失败：${response.status}`)
+    }
+    const payload = await response.json() as LoginResponse
+    await applyLoginSession(payload, activeRoute.value)
+    connectNotificationSocket()
+  } catch (error) {
+    loginError.value = error instanceof Error ? error.message : '刷新登录失败'
+  } finally {
+    authActionLoading.value = false
+  }
+}
+
+async function logout() {
+  authActionLoading.value = true
+  loginError.value = ''
+  const tokenToRevoke = refreshToken.value
+  try {
+    if (tokenToRevoke) {
+      const response = await fetch('/api/auth/logout', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ refresh_token: tokenToRevoke })
+      })
+      if (!response.ok) {
+        throw new Error(`退出登录失败：${response.status}`)
+      }
+    }
+  } catch (error) {
+    loginError.value = error instanceof Error ? error.message : '退出登录失败'
+  } finally {
+    clearLoginSession()
+    authActionLoading.value = false
+  }
+}
+
+function clearLoginSession() {
+  token.value = ''
+  refreshToken.value = ''
+  currentUser.value = null
+  activeRoute.value = '/dashboard'
+  unreadCount.value = 0
+  notifications.value = []
+  lastRealtimeNotification.value = null
+  closeNotificationSocket()
 }
 
 function selectMenu(menu: AuthMenu) {
@@ -1973,6 +2046,28 @@ onBeforeUnmount(() => {
           <div class="user-block">
             <strong>{{ currentUser?.username }}</strong>
             <span>{{ currentUser?.roles.join(', ') }} / {{ currentUser?.dataScope ?? 'NONE' }}</span>
+            <span>Access {{ currentUser?.expiresAt ?? '-' }}</span>
+            <div class="inline-actions">
+              <el-button
+                size="small"
+                plain
+                :loading="authActionLoading"
+                data-testid="auth-refresh-button"
+                @click="refreshSession"
+              >
+                刷新 Token
+              </el-button>
+              <el-button
+                size="small"
+                type="danger"
+                plain
+                :loading="authActionLoading"
+                data-testid="auth-logout-button"
+                @click="logout"
+              >
+                退出登录
+              </el-button>
+            </div>
           </div>
           <el-menu :default-active="activeRoute" class="route-menu">
             <el-menu-item

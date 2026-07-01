@@ -1048,6 +1048,30 @@
             "smoke:task9d24",
             "task 9D.24 mismatched portal smoke ok"
           ]
+        },
+        {
+          "id": "auth-refresh-logout-required-text",
+          "type": "required_text",
+          "paths": [
+            "backend/platform-server/src/main/java/com/yuri/aiorder/bootstrap/BootstrapAuthController.java",
+            "backend/platform-server/src/main/java/com/yuri/aiorder/common/auth/RefreshTokenService.java",
+            "backend/platform-server/src/main/resources/db/migration/V12__auth_refresh_token.sql",
+            "backend/platform-server/src/test/java/com/yuri/aiorder/auth/BearerIdentityTests.java",
+            "frontend/src/App.vue",
+            "docs/api/openapi.yaml",
+            "scripts/check-auth-refresh.mjs",
+            ".env.example",
+            "package.json"
+          ],
+          "patterns": [
+            "@PostMapping(\"/refresh\")",
+            "@PostMapping(\"/logout\")",
+            "auth-refresh-button",
+            "auth-logout-button",
+            "RefreshTokenRequest",
+            "check:auth-refresh",
+            "APP_AUTH_REFRESH_TOKEN_TTL_SECONDS"
+          ]
         }
       ]
     }
