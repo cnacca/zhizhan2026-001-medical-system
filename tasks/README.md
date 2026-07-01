@@ -18,6 +18,73 @@
 
 剩余风险：当前只做内部通知事实和本地推送，不覆盖真实双实例 Redis、生产网关和前端点击级通知联动验收。
 
+## 任务 9D.20：复杂返工影响范围第一增量
+
+状态：completed-first-increment。
+
+来源：
+
+- 9D.17 到 9D.19 已完成返工关闭、字典和通知，但出检失败返到前道节点时，后续已完成节点仍停留在 `COMPLETED`，不能表达需要重新执行的影响范围。
+- Task 8 readiness 仍把复杂返工影响范围列为完整返工闭环缺口之一。
+
+目标：
+
+- 出检失败指定返工到前道节点时，后端基于订单实例边表计算返工目标的后续节点影响范围。
+- 返工目标节点仍进入 `READY`。
+- 已经处于 `READY` 或 `COMPLETED` 的后续受影响节点重置为 `PENDING`，等待目标节点返工完成后由既有 DAG 激活规则重新进入 `READY`。
+- 保留历史 `check_record`、`work_log` 和 `rework_record`，不删除、不覆盖。
+
+范围：
+
+- `WorkflowExecutionService#createRework` 新增 `resetImpactedDownstreamNodes`。
+- 使用 `order_process_edge` 的递归 CTE 查找同一实例内从返工目标可达的后续节点。
+- 新增 `CheckWorklogPerformanceTests#failedOutCheckResetsTargetAndCompletedDownstreamNodesForReworkImpact` 两节点链回归。
+- 新增 `scripts/check-task-9d20-rework-impact.mjs`、`npm run check:task9d20`，并纳入 `acceptance.json`。
+
+非目标：
+
+- 不新增公开 API 或前端入口；OpenAPI 不变。
+- 不处理正在 `IN_PROGRESS` 的后续节点自动终止、暂停工时或人工冲突确认。
+- 不做返工影响范围审计表、可视化、绩效明细归因或完整返工处理台。
+- 不调整责任字典后台维护、终检专用角色或生产通知网关。
+
+验收标准：
+
+- 两节点链路中，后道节点 `OUT/FAIL` 并返到前道节点后，前道节点为 `READY`。
+- 同一实例内从前道可达且已经完成的后道节点重置为 `PENDING`。
+- 前道返工重新完成后，后道节点通过既有 DAG 激活规则重新进入 `READY`。
+- 历史检查、工时和返工记录不删除。
+
+建议验证命令：
+
+```bash
+npm run check:task9d20
+npm run acceptance
+./scripts/with-jdk21.sh mvn -f backend/pom.xml -pl platform-server -Dtest=CheckWorklogPerformanceTests#failedOutCheckResetsTargetAndCompletedDownstreamNodesForReworkImpact test
+./scripts/with-jdk21.sh mvn -f backend/pom.xml -pl platform-server -Dtest=CheckWorklogPerformanceTests test
+git diff --check
+```
+
+完成记录：
+
+- `createRework` 在写入返工记录后，会调用 `resetImpactedDownstreamNodes`。
+- `resetImpactedDownstreamNodes` 使用 `WITH RECURSIVE impacted_nodes` 递归查找返工目标后续节点，并把 `READY/COMPLETED` 的后续节点重置为 `PENDING`。
+- 目标节点仍单独置为 `READY`，并清空其本轮 `started_at/completed_at`。
+- 本轮不新增 DB migration，不改变既有响应 schema。
+
+验收结果：
+
+- TDD 红灯：`CheckWorklogPerformanceTests#failedOutCheckResetsTargetAndCompletedDownstreamNodesForReworkImpact` 首次失败于后道节点仍为 `COMPLETED`，确认返工影响范围缺失。
+- 精准后端回归：`./scripts/with-jdk21.sh mvn -f backend/pom.xml -pl platform-server -Dtest=CheckWorklogPerformanceTests#failedOutCheckResetsTargetAndCompletedDownstreamNodesForReworkImpact test`：PASS，1 test / 0 failures / 0 errors。
+- Check/Worklog 模块回归：`./scripts/with-jdk21.sh mvn -f backend/pom.xml -pl platform-server -Dtest=CheckWorklogPerformanceTests test`：PASS，10 tests / 0 failures / 0 errors。
+
+未完成原因：
+
+- 当前只处理 `READY/COMPLETED` 后续节点的状态重置，不处理正在执行的后续节点人工冲突确认。
+- 当前没有影响范围审计表或前端可视化。
+- 绩效仍未按返工影响范围做明细归因。
+- Task 8 总体仍保持 `NOT READY`。
+
 ## 任务 0：接口契约与项目基线
 
 状态：已完成。

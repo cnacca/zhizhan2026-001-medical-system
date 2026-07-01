@@ -28,6 +28,7 @@
     "check:task9d17": "node scripts/check-task-9d17-rework-close.mjs",
     "check:task9d18": "node scripts/check-task-9d18-rework-dictionaries.mjs",
     "check:task9d19": "node scripts/check-task-9d19-rework-notifications.mjs",
+    "check:task9d20": "node scripts/check-task-9d20-rework-impact.mjs",
     "check:task9d24": "node scripts/check-task-9d24-four-portal-login.mjs",
     "check:auth-refresh": "node scripts/check-auth-refresh.mjs",
     "smoke:task9d10-large-upload": "playwright test scripts/smoke-task-9d10-large-upload.spec.mjs --browser=chromium --workers=1",

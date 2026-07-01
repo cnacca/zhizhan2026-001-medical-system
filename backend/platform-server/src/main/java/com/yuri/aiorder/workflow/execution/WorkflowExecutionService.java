@@ -465,6 +465,7 @@ public class WorkflowExecutionService {
                 .param("reasonDetail", request.remark())
                 .update();
         long reworkId = lastInsertId();
+        resetImpactedDownstreamNodes(target);
         jdbcClient.sql("""
                         UPDATE order_process_node
                         SET node_status = 'READY',
@@ -488,6 +489,34 @@ public class WorkflowExecutionService {
                 target.assignedUserId(),
                 "返工待处理");
         return reworkId;
+    }
+
+    private void resetImpactedDownstreamNodes(NodeRow target) {
+        jdbcClient.sql("""
+                        WITH RECURSIVE impacted_nodes(node_instance_id) AS (
+                            SELECT edge.to_node_instance_id
+                            FROM order_process_edge edge
+                            WHERE edge.instance_id = :instanceId
+                              AND edge.from_node_instance_id = :targetNodeInstanceId
+                            UNION DISTINCT
+                            SELECT edge.to_node_instance_id
+                            FROM order_process_edge edge
+                            JOIN impacted_nodes impacted
+                              ON impacted.node_instance_id = edge.from_node_instance_id
+                            WHERE edge.instance_id = :instanceId
+                        )
+                        UPDATE order_process_node node
+                        JOIN impacted_nodes impacted
+                          ON impacted.node_instance_id = node.node_instance_id
+                        SET node.node_status = 'PENDING',
+                            node.started_at = NULL,
+                            node.completed_at = NULL
+                        WHERE node.instance_id = :instanceId
+                          AND node.node_status IN ('READY', 'COMPLETED')
+                        """)
+                .param("instanceId", target.instanceId())
+                .param("targetNodeInstanceId", target.nodeInstanceId())
+                .update();
     }
 
     private void closeOpenPause(long workLogId) {

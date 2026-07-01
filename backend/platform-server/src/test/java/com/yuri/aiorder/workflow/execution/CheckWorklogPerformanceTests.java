@@ -11,6 +11,7 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import com.yuri.aiorder.common.BootstrapIdentity;
 import com.yuri.aiorder.common.UserRole;
 import com.yuri.aiorder.common.auth.BearerTokenService;
+import java.util.List;
 import java.util.UUID;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -341,6 +342,44 @@ class CheckWorklogPerformanceTests {
     }
 
     @Test
+    void failedOutCheckResetsTargetAndCompletedDownstreamNodesForReworkImpact() throws Exception {
+        String suffix = UUID.randomUUID().toString().replace("-", "");
+        long clinicId = createClinic("返工影响测试诊所-" + suffix);
+        long impactOrderId = createOrder("RW" + suffix.substring(0, 12), clinicId);
+        long impactChainId = createTwoNodeChain(suffix);
+        List<Long> nodes = instantiateAndAssignAll(impactOrderId, impactChainId);
+        long firstNodeId = nodes.get(0);
+        long secondNodeId = nodes.get(1);
+
+        submitCheck(firstNodeId, 1, true, null);
+        startNode(firstNodeId);
+        completeNode(firstNodeId);
+        submitCheck(firstNodeId, 2, true, null);
+
+        assertThat(nodeStatus(secondNodeId)).isEqualTo("READY");
+        submitCheck(secondNodeId, 1, true, null);
+        startNode(secondNodeId);
+        completeNode(secondNodeId);
+
+        assertThat(nodeStatus(firstNodeId)).isEqualTo("COMPLETED");
+        assertThat(nodeStatus(secondNodeId)).isEqualTo("COMPLETED");
+
+        long reworkId = submitCheck(secondNodeId, 2, false, firstNodeId).path("rework_id").asLong();
+
+        assertThat(reworkId).isPositive();
+        assertThat(nodeStatus(firstNodeId)).isEqualTo("READY");
+        assertThat(nodeStatus(secondNodeId)).isEqualTo("PENDING");
+
+        submitCheck(firstNodeId, 1, true, null);
+        startNode(firstNodeId);
+        completeNode(firstNodeId);
+        submitCheck(firstNodeId, 2, true, null);
+
+        assertThat(nodeStatus(secondNodeId)).isEqualTo("READY");
+    }
+
+
+    @Test
     void bearerCsCannotReadWorkerPerformance() throws Exception {
         String csToken = tokenService.issue(new BootstrapIdentity(UserRole.CS, 8001L, null));
 
@@ -426,6 +465,50 @@ class CheckWorklogPerformanceTests {
         return id;
     }
 
+    private long createTwoNodeChain(String suffix) {
+        String chainCode = "rework_impact_test_" + suffix;
+        jdbcClient.sql("""
+                        INSERT INTO workflow_chain
+                            (chain_code, chain_name, product_type, version, intake_branch, status)
+                        VALUES
+                            (:chainCode, :chainName, 'EXECUTION_TEST', 1, 'BOTH', 1)
+                        """)
+                .param("chainCode", chainCode)
+                .param("chainName", "返工影响测试链-" + suffix)
+                .update();
+        long id = jdbcClient.sql("SELECT chain_id FROM workflow_chain WHERE chain_code = :chainCode")
+                .param("chainCode", chainCode)
+                .query(Long.class)
+                .single();
+        jdbcClient.sql("""
+                        INSERT INTO workflow_node
+                            (chain_id, node_code, process_name, step_order, is_optional,
+                             standard_duration, node_category, need_in_check, need_out_check)
+                        VALUES
+                            (:chainId, 'RW_IMPACT_A', '返工影响前道', 10, 0,
+                             600, 'PRODUCTION', 1, 1),
+                            (:chainId, 'RW_IMPACT_B', '返工影响后道', 20, 0,
+                             600, 'PRODUCTION', 1, 1)
+                        """)
+                .param("chainId", id)
+                .update();
+        jdbcClient.sql("""
+                        INSERT INTO workflow_edge
+                            (chain_id, from_node_id, to_node_id, edge_type)
+                        SELECT :chainId, from_node.node_id, to_node.node_id, 'SEQUENCE'
+                        FROM workflow_node from_node
+                        JOIN workflow_node to_node
+                          ON to_node.chain_id = from_node.chain_id
+                         AND to_node.node_code = 'RW_IMPACT_B'
+                        WHERE from_node.chain_id = :chainId
+                          AND from_node.node_code = 'RW_IMPACT_A'
+                        """)
+                .param("chainId", id)
+                .update();
+        return id;
+    }
+
+
     private long instantiateAndAssign() throws Exception {
         MvcResult result = mockMvc.perform(post("/orders/{orderId}/production-review", orderId)
                         .header("X-Bootstrap-Role", "ADMIN")
@@ -457,6 +540,46 @@ class CheckWorklogPerformanceTests {
                 .andExpect(status().isOk());
         return nodeId;
     }
+
+    private List<Long> instantiateAndAssignAll(long targetOrderId, long targetChainId) throws Exception {
+        MvcResult result = mockMvc.perform(post("/orders/{orderId}/production-review", targetOrderId)
+                        .header("X-Bootstrap-Role", "ADMIN")
+                        .header("X-Bootstrap-User-Id", 8001L)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("""
+                                {"action":"APPROVE","chain_id":%d}
+                                """.formatted(targetChainId)))
+                .andExpect(status().isOk())
+                .andReturn();
+        long instanceId = objectMapper.readTree(result.getResponse().getContentAsString())
+                .path("data")
+                .path("instance_id")
+                .asLong();
+        List<Long> nodeIds = jdbcClient.sql("""
+                        SELECT node_instance_id
+                        FROM order_process_node
+                        WHERE instance_id = :instanceId
+                        ORDER BY step_order
+                        """)
+                .param("instanceId", instanceId)
+                .query(Long.class)
+                .list();
+        String assignments = nodeIds.stream()
+                .map((nodeId) -> """
+                        {"node_instance_id":%d,"user_id":%d}
+                        """.formatted(nodeId, workerUserId).trim())
+                .reduce((left, right) -> left + "," + right)
+                .orElseThrow();
+        mockMvc.perform(post("/orders/{orderId}/process-instance/assign", targetOrderId)
+                        .header("X-Bootstrap-Role", "ADMIN")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("""
+                                {"assignments":[%s]}
+                                """.formatted(assignments)))
+                .andExpect(status().isOk());
+        return nodeIds;
+    }
+
 
     private JsonNode submitCheck(long nodeId, int checkType, boolean isPass, Long reworkToNodeId) throws Exception {
         String reworkPart = reworkToNodeId == null ? "" : ",\"rework_to_node_id\":" + reworkToNodeId;
