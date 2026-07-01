@@ -31,7 +31,7 @@ async function apiLogin() {
   const response = await fetch(`${frontendUrl}/api/auth/login`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ username, password })
+    body: JSON.stringify({ username, password, portal: 'DOCTOR' })
   })
   if (!response.ok) {
     throw new Error(`doctor API login failed: ${response.status}`)

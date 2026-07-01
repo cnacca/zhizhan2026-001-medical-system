@@ -12,10 +12,19 @@ const requiredAppFragments = [
   'type LoginPortal',
   'selectedPortal',
   'portalOptions',
+  'login-brand',
+  'precision_manufacturing',
+  '智能下单与生产协同平台',
+  '快速登录通道',
+  '仅用于授权账号访问',
   '医生端',
   '客服端',
   '生产端',
   '管理端',
+  'stethoscope',
+  'support_agent',
+  'factory',
+  'admin_panel_settings',
   'selectPortal',
   'portalDefaultRoute',
   'body: JSON.stringify({ username: username.value, password: password.value, portal: selectedPortal.value })',
@@ -26,9 +35,13 @@ const requiredAppFragments = [
 ]
 
 const requiredStyleFragments = [
+  '.login-shell',
+  '.login-brand',
+  '.login-card',
   '.portal-grid',
   '.portal-card',
-  '.portal-login-panel'
+  '.portal-login-panel',
+  '.portal-icon'
 ]
 
 const requiredBackendFragments = [

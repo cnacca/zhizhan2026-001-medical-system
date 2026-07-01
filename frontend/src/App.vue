@@ -376,6 +376,8 @@ type PortalOption = {
   value: LoginPortal
   title: string
   subtitle: string
+  icon: string
+  tone: 'doctor' | 'cs' | 'production' | 'admin'
   defaultUsername: string
   defaultPassword: string
 }
@@ -557,6 +559,8 @@ const portalOptions: PortalOption[] = [
     value: 'DOCTOR',
     title: '医生端',
     subtitle: '医生 / 诊所',
+    icon: 'stethoscope',
+    tone: 'doctor',
     defaultUsername: 'doctor',
     defaultPassword: 'change-me-doctor'
   },
@@ -564,6 +568,8 @@ const portalOptions: PortalOption[] = [
     value: 'CS',
     title: '客服端',
     subtitle: '客服 / CS 中台',
+    icon: 'support_agent',
+    tone: 'cs',
     defaultUsername: 'cs',
     defaultPassword: 'change-me-cs'
   },
@@ -571,6 +577,8 @@ const portalOptions: PortalOption[] = [
     value: 'PRODUCTION',
     title: '生产端',
     subtitle: '技工 / 生产人员',
+    icon: 'factory',
+    tone: 'production',
     defaultUsername: 'worker',
     defaultPassword: 'change-me-worker'
   },
@@ -578,6 +586,8 @@ const portalOptions: PortalOption[] = [
     value: 'ADMIN',
     title: '管理端',
     subtitle: '超级管理员',
+    icon: 'admin_panel_settings',
+    tone: 'admin',
     defaultUsername: 'admin',
     defaultPassword: 'change-me-admin'
   }
@@ -2474,16 +2484,16 @@ onBeforeUnmount(() => {
 </script>
 
 <template>
-  <main class="app-shell">
-    <section class="workspace">
-      <div class="status-bar">
+  <main class="app-shell" :class="{ 'login-shell': !isLoggedIn }">
+    <section class="workspace" :class="{ 'login-workspace': !isLoggedIn }">
+      <div v-if="isLoggedIn" class="status-bar">
         <span>AI 智能下单与生产协同平台</span>
         <el-tag :type="isLoggedIn ? 'success' : 'info'" round>
           {{ isLoggedIn ? `${currentUser?.username ?? '用户'} 已登录` : '骨架烟测' }}
         </el-tag>
       </div>
 
-      <div class="content-grid" :class="{ 'with-nav': isLoggedIn }">
+      <div class="content-grid" :class="{ 'with-nav': isLoggedIn, 'login-only': !isLoggedIn }">
         <aside v-if="isLoggedIn" class="panel nav-panel">
           <div class="user-block">
             <strong>{{ currentUser?.username }}</strong>
@@ -2531,46 +2541,105 @@ onBeforeUnmount(() => {
           </el-menu>
         </aside>
 
-        <section class="panel health-panel">
+        <section v-if="isLoggedIn" class="panel health-panel">
           <h1>项目骨架</h1>
           <el-button type="primary" @click="checkHealth">检查后端</el-button>
           <p class="result">后端状态：{{ health }}</p>
         </section>
 
-        <section v-if="!isLoggedIn" class="panel portal-login-panel">
-          <div class="route-heading">
-            <div>
-              <h2>{{ selectedPortalOption ? `${selectedPortalOption.title}登录` : '选择登录入口' }}</h2>
-              <span>{{ selectedPortalOption?.subtitle ?? '医生端 / 客服端 / 生产端 / 管理端' }}</span>
+        <section v-if="!isLoggedIn" class="login-page">
+          <div class="login-brand">
+            <div class="brand-mark" aria-hidden="true">
+              <span class="material-symbols-outlined">precision_manufacturing</span>
             </div>
-            <el-button v-if="selectedPortal" plain @click="selectedPortal = null">返回入口</el-button>
+            <h1>AI智能下单平台</h1>
+            <p>智能下单与生产协同平台</p>
           </div>
-          <div v-if="!selectedPortal" class="portal-grid">
-            <button
-              v-for="option in portalOptions"
-              :key="option.value"
-              class="portal-card"
-              type="button"
-              :data-testid="`portal-card-${option.value}`"
-              @click="selectPortal(option)"
-            >
-              <strong>{{ option.title }}</strong>
-              <span>{{ option.subtitle }}</span>
-            </button>
+
+          <div class="login-card portal-login-panel">
+            <div class="login-card-header">
+              <div>
+                <h2>{{ selectedPortalOption ? `${selectedPortalOption.title}登录` : '选择登录入口' }}</h2>
+                <span>{{ selectedPortalOption?.subtitle ?? '医生端 / 客服端 / 生产端 / 管理端' }}</span>
+              </div>
+              <button v-if="selectedPortal" class="ghost-icon-button" type="button" @click="selectedPortal = null">
+                返回入口
+              </button>
+            </div>
+
+            <div v-if="!selectedPortal" class="portal-grid" aria-label="快速登录通道">
+              <button
+                v-for="option in portalOptions"
+                :key="option.value"
+                class="portal-card"
+                :class="`portal-card-${option.tone}`"
+                type="button"
+                :data-testid="`portal-card-${option.value}`"
+                @click="selectPortal(option)"
+              >
+                <span class="portal-icon" aria-hidden="true">
+                  <span class="material-symbols-outlined">{{ option.icon }}</span>
+                </span>
+                <strong>{{ option.title }}</strong>
+                <span>{{ option.subtitle }}</span>
+              </button>
+            </div>
+
+            <form v-else class="login-form" @submit.prevent="login">
+              <label class="login-field">
+                <span class="sr-only">用户名</span>
+                <span class="material-symbols-outlined field-icon" aria-hidden="true">person</span>
+                <input
+                  v-model="username"
+                  name="username"
+                  autocomplete="username"
+                  placeholder="请输入授权账号"
+                  type="text"
+                  aria-label="用户名"
+                >
+              </label>
+              <label class="login-field">
+                <span class="sr-only">密码</span>
+                <span class="material-symbols-outlined field-icon" aria-hidden="true">lock</span>
+                <input
+                  v-model="password"
+                  name="password"
+                  autocomplete="current-password"
+                  placeholder="请输入密码"
+                  type="password"
+                  aria-label="密码"
+                >
+              </label>
+              <div class="login-options">
+                <label class="remember-option">
+                  <input type="checkbox">
+                  <span>记住我</span>
+                </label>
+                <button class="text-link" type="button">忘记密码？</button>
+              </div>
+              <button class="login-submit" type="submit" :disabled="loading" aria-label="登录">
+                <span>{{ loading ? '登录中...' : '登录系统' }}</span>
+                <span class="material-symbols-outlined" aria-hidden="true">arrow_forward</span>
+              </button>
+            </form>
+
+            <div class="login-divider">
+              <span>快速登录通道</span>
+            </div>
+
+            <p v-if="token" class="result success">
+              登录成功：{{ currentUser?.roles.join(', ') }} / {{ currentUser?.dataScope ?? 'NONE' }}
+            </p>
+            <p v-if="loginError" class="result error">{{ loginError }}</p>
           </div>
-          <el-form v-else label-position="top" @submit.prevent="login">
-            <el-form-item label="用户名">
-              <el-input v-model="username" autocomplete="username" />
-            </el-form-item>
-            <el-form-item label="密码">
-              <el-input v-model="password" type="password" autocomplete="current-password" show-password />
-            </el-form-item>
-            <el-button type="primary" :loading="loading" @click="login">登录</el-button>
-          </el-form>
-          <p v-if="token" class="result success">
-            登录成功：{{ currentUser?.roles.join(', ') }} / {{ currentUser?.dataScope ?? 'NONE' }}
-          </p>
-          <p v-if="loginError" class="result error">{{ loginError }}</p>
+
+          <div class="login-footer">
+            <div class="auth-note">
+              <span class="material-symbols-outlined" aria-hidden="true">gpp_maybe</span>
+              <span>仅用于授权账号访问</span>
+            </div>
+            <p>© 2026 AI智能下单平台</p>
+          </div>
         </section>
 
         <section v-else-if="isInternalOrdersRoute" class="panel route-panel internal-order-panel">
