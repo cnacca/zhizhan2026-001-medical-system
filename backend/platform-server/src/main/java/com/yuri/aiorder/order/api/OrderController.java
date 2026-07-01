@@ -11,6 +11,7 @@ import org.springframework.web.bind.annotation.CrossOrigin;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
+import org.springframework.web.bind.annotation.PutMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
@@ -53,7 +54,16 @@ public class OrderController {
     public DataResponse<CreateOrderResponse> createOrder(
             @Valid @RequestBody CreateOrderRequest request,
             BootstrapIdentity identity) {
-        return new DataResponse<>(creationService.createSubmittedOrder(request, identity));
+        return new DataResponse<>(creationService.createOrder(request, identity));
+    }
+
+    @PutMapping("/orders/{orderId}")
+    @RequirePermission(value = "order:read-doctor", roles = {UserRole.DOCTOR})
+    public DataResponse<CreateOrderResponse> updateDoctorOrder(
+            @PathVariable long orderId,
+            @Valid @RequestBody UpdateOrderRequest request,
+            BootstrapIdentity identity) {
+        return new DataResponse<>(creationService.updateDoctorOrder(orderId, request, identity));
     }
 
     @PostMapping("/orders/{orderId}/review")

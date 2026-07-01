@@ -224,6 +224,7 @@ components:
     OrderStatus:
       type: string
       enum:
+      - DRAFT
       - PENDING_REVIEW
       - DESIGNING
       - PRODUCING
@@ -233,7 +234,7 @@ components:
       - COMPLETED
       description: |
         外部状态枚举（医生端可见）：
-        PENDING_REVIEW=待审核, DESIGNING=设计中, PRODUCING=生产中,
+        DRAFT=草稿, PENDING_REVIEW=待审核, DESIGNING=设计中, PRODUCING=生产中,
         QC=质检中, PENDING_SHIP=待发货, SHIPPED=已发货, COMPLETED=已完成
     OrderBrief:
       type: object
@@ -345,10 +346,31 @@ components:
         is_draft:
           type: boolean
           default: false
-          description: 9D.2 第一增量暂不支持草稿；传 true 会返回 400。
+          description: true 时保存医生草稿，不进入客服审核队列；false 或缺省时提交到客服初审。
+    UpdateOrderRequest:
+      type: object
+      required:
+      - product_type
+      - form_data
+      properties:
+        product_type:
+          type: string
+          example: REGULAR_CROWN
+        form_data:
+          type: object
+          description: 更新后的动态表单内容；submit=true 时必须满足必填字段。
+        file_ids:
+          type: array
+          items:
+            type: integer
+          description: 新增绑定到订单的本人已完成 file_id；已绑定到该订单的 file_id 可重复提交。
+        submit:
+          type: boolean
+          default: false
+          description: true 时将 DRAFT / CS_REJECTED / PRODUCTION_REJECTED 订单重新提交到客服初审。
     CreateOrderResponse:
       type: object
-      description: 医生提交订单后的脱敏响应，不包含 internal_status。
+      description: 医生创建、编辑或提交订单后的脱敏响应，不包含 internal_status。
       properties:
         order_id:
           type: integer
@@ -2425,7 +2447,10 @@ paths:
       tags:
       - Order
       summary: 更新订单（补资料/编辑草稿）
-      description: 权限：DOCTOR（仅限草稿或被驳回状态的订单）
+      description: |
+        权限：DOCTOR。
+        仅允许医生本人更新 DRAFT / CS_REJECTED / PRODUCTION_REJECTED 订单。
+        submit=false 保存草稿；submit=true 提交或重新提交到 PENDING_CS_REVIEW / PENDING_REVIEW。
       parameters:
       - name: orderId
         in: path
@@ -2437,19 +2462,17 @@ paths:
         content:
           application/json:
             schema:
-              type: object
-              properties:
-                form_data:
-                  type: object
-                file_ids:
-                  type: array
-                  items:
-                    type: integer
-                is_draft:
-                  type: boolean
+              "$ref": "#/components/schemas/UpdateOrderRequest"
       responses:
         '200':
-          description: 更新成功
+          description: 更新成功；返回医生端脱敏订单响应。
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data:
+                    "$ref": "#/components/schemas/CreateOrderResponse"
         '400':
           "$ref": "#/components/responses/BadRequest"
         '401':

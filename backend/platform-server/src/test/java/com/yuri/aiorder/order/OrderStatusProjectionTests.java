@@ -8,6 +8,7 @@ import static org.hamcrest.Matchers.not;
 import static org.hamcrest.Matchers.nullValue;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.put;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.content;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
@@ -236,6 +237,214 @@ class OrderStatusProjectionTests {
 
         org.assertj.core.api.Assertions.assertThat(internalStatus).isEqualTo("PENDING_CS_REVIEW");
         org.assertj.core.api.Assertions.assertThat(fileOrderId).isEqualTo(createdOrderId);
+        org.assertj.core.api.Assertions.assertThat(historyCount).isEqualTo(1L);
+    }
+
+    @Test
+    void doctorCanCreateDraftWithoutRequiredFieldsAndItDoesNotEnterCsReviewQueue() throws Exception {
+        String request = """
+                {
+                  "product_type": "REGULAR_CROWN",
+                  "form_data": {
+                    "patient_name": "草稿患者"
+                  },
+                  "is_draft": true
+                }
+                """;
+
+        String response = mockMvc.perform(post("/orders")
+                        .header("X-Bootstrap-Role", "DOCTOR")
+                        .header("X-Bootstrap-User-Id", DOCTOR_USER_ID)
+                        .header("X-Bootstrap-Clinic-Id", clinicId)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(request))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.order_id").isNumber())
+                .andExpect(jsonPath("$.data.external_status").value("DRAFT"))
+                .andExpect(jsonPath("$.data.internal_status").doesNotExist())
+                .andExpect(jsonPath("$.data.form_data.patient_name").value("草稿患者"))
+                .andReturn()
+                .getResponse()
+                .getContentAsString();
+
+        long draftOrderId = ((Number) com.jayway.jsonpath.JsonPath.read(response, "$.data.order_id")).longValue();
+        String draftOrderNo = com.jayway.jsonpath.JsonPath.read(response, "$.data.order_no");
+        String internalStatus = jdbcClient.sql("SELECT internal_status FROM orders WHERE order_id = :orderId")
+                .param("orderId", draftOrderId)
+                .query(String.class)
+                .single();
+        long submittedHistoryCount = jdbcClient.sql("""
+                        SELECT COUNT(*)
+                        FROM order_status_history
+                        WHERE order_id = :orderId
+                          AND event_type = 'DOCTOR_SUBMIT_ORDER'
+                        """)
+                .param("orderId", draftOrderId)
+                .query(Long.class)
+                .single();
+
+        org.assertj.core.api.Assertions.assertThat(internalStatus).isEqualTo("DRAFT");
+        org.assertj.core.api.Assertions.assertThat(submittedHistoryCount).isZero();
+
+        mockMvc.perform(get("/orders")
+                        .param("internal_status", "PENDING_CS_REVIEW")
+                        .param("keyword", draftOrderNo)
+                        .header("X-Bootstrap-Role", "CS")
+                        .header("X-Bootstrap-User-Id", 8002L))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.items", hasSize(0)));
+
+        mockMvc.perform(get("/orders/{orderId}", draftOrderId)
+                        .header("X-Bootstrap-Role", "DOCTOR")
+                        .header("X-Bootstrap-User-Id", OTHER_DOCTOR_USER_ID)
+                        .header("X-Bootstrap-Clinic-Id", clinicId))
+                .andExpect(status().isForbidden());
+    }
+
+    @Test
+    void doctorCanSubmitOwnDraftWithCompletedFiles() throws Exception {
+        String draftResponse = mockMvc.perform(post("/orders")
+                        .header("X-Bootstrap-Role", "DOCTOR")
+                        .header("X-Bootstrap-User-Id", DOCTOR_USER_ID)
+                        .header("X-Bootstrap-Clinic-Id", clinicId)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("""
+                                {
+                                  "product_type": "REGULAR_CROWN",
+                                  "form_data": {
+                                    "patient_name": "待提交草稿"
+                                  },
+                                  "is_draft": true
+                                }
+                                """))
+                .andExpect(status().isOk())
+                .andReturn()
+                .getResponse()
+                .getContentAsString();
+        long draftOrderId = ((Number) com.jayway.jsonpath.JsonPath.read(draftResponse, "$.data.order_id")).longValue();
+        long completedFileId = insertFileResource(
+                null,
+                DOCTOR_USER_ID,
+                "ORDER_ATTACHMENT",
+                "DOCTOR",
+                "COMPLETED");
+
+        mockMvc.perform(put("/orders/{orderId}", draftOrderId)
+                        .header("X-Bootstrap-Role", "DOCTOR")
+                        .header("X-Bootstrap-User-Id", DOCTOR_USER_ID)
+                        .header("X-Bootstrap-Clinic-Id", clinicId)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("""
+                                {
+                                  "product_type": "REGULAR_CROWN",
+                                  "form_data": {
+                                    "patient_name": "已提交草稿",
+                                    "tooth_position": "16"
+                                  },
+                                  "file_ids": [%d],
+                                  "submit": true
+                                }
+                                """.formatted(completedFileId)))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.order_id").value(draftOrderId))
+                .andExpect(jsonPath("$.data.external_status").value("PENDING_REVIEW"))
+                .andExpect(jsonPath("$.data.internal_status").doesNotExist())
+                .andExpect(jsonPath("$.data.form_data.patient_name").value("已提交草稿"));
+
+        String internalStatus = jdbcClient.sql("SELECT internal_status FROM orders WHERE order_id = :orderId")
+                .param("orderId", draftOrderId)
+                .query(String.class)
+                .single();
+        Long fileOrderId = jdbcClient.sql("SELECT order_id FROM file_resource WHERE file_id = :fileId")
+                .param("fileId", completedFileId)
+                .query(Long.class)
+                .single();
+        long historyCount = jdbcClient.sql("""
+                        SELECT COUNT(*)
+                        FROM order_status_history
+                        WHERE order_id = :orderId
+                          AND from_internal_status = 'DRAFT'
+                          AND to_internal_status = 'PENDING_CS_REVIEW'
+                          AND event_type = 'DOCTOR_SUBMIT_ORDER'
+                        """)
+                .param("orderId", draftOrderId)
+                .query(Long.class)
+                .single();
+
+        org.assertj.core.api.Assertions.assertThat(internalStatus).isEqualTo("PENDING_CS_REVIEW");
+        org.assertj.core.api.Assertions.assertThat(fileOrderId).isEqualTo(draftOrderId);
+        org.assertj.core.api.Assertions.assertThat(historyCount).isEqualTo(1L);
+    }
+
+    @Test
+    void doctorCanSupplementRejectedOrderAndResubmitIt() throws Exception {
+        mockMvc.perform(post("/orders/{orderId}/review", orderId)
+                        .header("X-Bootstrap-Role", "CS")
+                        .header("X-Bootstrap-User-Id", 8002L)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("""
+                                {
+                                  "action": "REJECT",
+                                  "reject_reason": "缺少咬合记录，请补充附件。"
+                                }
+                                """))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.internal_status").value("CS_REJECTED"));
+        long completedFileId = insertFileResource(
+                null,
+                DOCTOR_USER_ID,
+                "ORDER_ATTACHMENT",
+                "DOCTOR",
+                "COMPLETED");
+
+        mockMvc.perform(put("/orders/{orderId}", orderId)
+                        .header("X-Bootstrap-Role", "DOCTOR")
+                        .header("X-Bootstrap-User-Id", DOCTOR_USER_ID)
+                        .header("X-Bootstrap-Clinic-Id", clinicId)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("""
+                                {
+                                  "product_type": "REGULAR_CROWN",
+                                  "form_data": {
+                                    "patient_name": "张三-已补资料",
+                                    "tooth_position": "11"
+                                  },
+                                  "file_ids": [%d],
+                                  "submit": true
+                                }
+                                """.formatted(completedFileId)))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.order_id").value(orderId))
+                .andExpect(jsonPath("$.data.external_status").value("PENDING_REVIEW"))
+                .andExpect(jsonPath("$.data.internal_status").doesNotExist())
+                .andExpect(content().string(not(containsString("CS_REJECTED"))));
+
+        String internalStatus = jdbcClient.sql("SELECT internal_status FROM orders WHERE order_id = :orderId")
+                .param("orderId", orderId)
+                .query(String.class)
+                .single();
+        String patientName = jdbcClient.sql("""
+                        SELECT JSON_UNQUOTE(JSON_EXTRACT(form_data, '$.patient_name'))
+                        FROM orders
+                        WHERE order_id = :orderId
+                        """)
+                .param("orderId", orderId)
+                .query(String.class)
+                .single();
+        long historyCount = jdbcClient.sql("""
+                        SELECT COUNT(*)
+                        FROM order_status_history
+                        WHERE order_id = :orderId
+                          AND from_internal_status = 'CS_REJECTED'
+                          AND to_internal_status = 'PENDING_CS_REVIEW'
+                          AND event_type = 'DOCTOR_RESUBMIT_ORDER'
+                        """)
+                .param("orderId", orderId)
+                .query(Long.class)
+                .single();
+
+        org.assertj.core.api.Assertions.assertThat(internalStatus).isEqualTo("PENDING_CS_REVIEW");
+        org.assertj.core.api.Assertions.assertThat(patientName).isEqualTo("张三-已补资料");
         org.assertj.core.api.Assertions.assertThat(historyCount).isEqualTo(1L);
     }
 

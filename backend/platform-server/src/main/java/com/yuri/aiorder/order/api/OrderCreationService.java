@@ -43,17 +43,15 @@ public class OrderCreationService {
     }
 
     @Transactional
-    public CreateOrderResponse createSubmittedOrder(CreateOrderRequest request, BootstrapIdentity identity) {
+    public CreateOrderResponse createOrder(CreateOrderRequest request, BootstrapIdentity identity) {
         accessControlService.requireDoctorOnly(identity, "only doctors can create orders");
         accessControlService.requireScopedIdentity(identity, "CLINIC");
-        if (Boolean.TRUE.equals(request.draft())) {
-            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "draft orders are not supported in task 9D.2");
-        }
 
         String productType = normalizeProductType(request.productType());
-        validateFormData(productType, request.formData());
+        boolean draft = Boolean.TRUE.equals(request.draft());
+        validateFormData(productType, request.formData(), !draft);
         List<Long> fileIds = normalizedFileIds(request.fileIds());
-        fileIds.forEach((fileId) -> validateBindableDoctorFile(fileId, identity));
+        fileIds.forEach((fileId) -> validateBindableDoctorFile(fileId, identity, null));
 
         String orderNo = nextOrderNo();
         jdbcClient.sql("""
@@ -75,16 +73,10 @@ public class OrderCreationService {
                 .query(Long.class)
                 .single();
 
-        for (Long fileId : fileIds) {
-            jdbcClient.sql("""
-                            UPDATE file_resource
-                            SET order_id = :orderId,
-                                source_type = 'ORDER_ATTACHMENT'
-                            WHERE file_id = :fileId
-                            """)
-                    .param("orderId", orderId)
-                    .param("fileId", fileId)
-                    .update();
+        bindFilesToOrder(orderId, fileIds);
+
+        if (draft) {
+            return new CreateOrderResponse(orderId, orderNo, productType, "DRAFT", request.formData());
         }
 
         String externalStatus = statusService.updateOrderState(
@@ -97,7 +89,50 @@ public class OrderCreationService {
         return new CreateOrderResponse(orderId, orderNo, productType, externalStatus, request.formData());
     }
 
-    private void validateFormData(String productType, JsonNode formData) {
+    @Transactional
+    public CreateOrderResponse updateDoctorOrder(long orderId, UpdateOrderRequest request, BootstrapIdentity identity) {
+        accessControlService.requireDoctorOnly(identity, "only doctors can update orders");
+        accessControlService.requireScopedIdentity(identity, "CLINIC");
+
+        DoctorEditableOrder order = loadDoctorEditableOrder(orderId, identity);
+        boolean submit = Boolean.TRUE.equals(request.submit());
+        String productType = normalizeProductType(request.productType());
+        validateEditableStatus(order.internalStatus(), submit);
+        validateFormData(productType, request.formData(), submit);
+        List<Long> fileIds = normalizedFileIds(request.fileIds());
+        fileIds.forEach((fileId) -> validateBindableDoctorFile(fileId, identity, orderId));
+
+        jdbcClient.sql("""
+                        UPDATE orders
+                        SET product_type = :productType,
+                            form_data = CAST(:formData AS JSON),
+                            reject_reason = CASE WHEN :submit THEN NULL ELSE reject_reason END
+                        WHERE order_id = :orderId
+                        """)
+                .param("productType", productType)
+                .param("formData", writeJson(request.formData()))
+                .param("submit", submit)
+                .param("orderId", orderId)
+                .update();
+        bindFilesToOrder(orderId, fileIds);
+
+        String externalStatus = order.externalStatus();
+        if (submit) {
+            String eventType = "DRAFT".equals(order.internalStatus())
+                    ? "DOCTOR_SUBMIT_ORDER"
+                    : "DOCTOR_RESUBMIT_ORDER";
+            externalStatus = statusService.updateOrderState(
+                            orderId,
+                            InternalOrderStatus.PENDING_CS_REVIEW,
+                            eventType,
+                            identity.userId(),
+                            "doctor submitted order")
+                    .name();
+        }
+        return new CreateOrderResponse(orderId, order.orderNo(), productType, externalStatus, request.formData());
+    }
+
+    private void validateFormData(String productType, JsonNode formData, boolean requireRequiredFields) {
         if (formData == null || !formData.isObject()) {
             throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "form_data must be an object");
         }
@@ -114,10 +149,10 @@ public class OrderCreationService {
                         rs.getInt("required_flag") == 1))
                 .list();
         if (fields.isEmpty()) {
-            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "active form config not found");
+                throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "active form config not found");
         }
         for (FormFieldRequirement field : fields) {
-            if (field.required() && isMissing(formData.get(field.fieldKey()))) {
+            if (requireRequiredFields && field.required() && isMissing(formData.get(field.fieldKey()))) {
                 throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "missing required field: " + field.fieldKey());
             }
         }
@@ -137,7 +172,7 @@ public class OrderCreationService {
         return new LinkedHashSet<>(fileIds).stream().toList();
     }
 
-    private void validateBindableDoctorFile(long fileId, BootstrapIdentity identity) {
+    private void validateBindableDoctorFile(long fileId, BootstrapIdentity identity, Long targetOrderId) {
         try {
             BindableFile file = jdbcClient.sql("""
                             SELECT file_id, order_id, owner_user_id, visibility, upload_status, status
@@ -160,7 +195,7 @@ public class OrderCreationService {
             if (!"ACTIVE".equals(file.status())) {
                 throw new ResponseStatusException(HttpStatus.CONFLICT, "file is not active");
             }
-            if (file.orderId() != null) {
+            if (file.orderId() != null && !file.orderId().equals(targetOrderId)) {
                 throw new ResponseStatusException(HttpStatus.CONFLICT, "file is already bound to an order");
             }
             if (!"COMPLETED".equals(file.uploadStatus())) {
@@ -168,6 +203,68 @@ public class OrderCreationService {
             }
         } catch (EmptyResultDataAccessException ex) {
             throw new ResponseStatusException(HttpStatus.NOT_FOUND, "file not found", ex);
+        }
+    }
+
+    private void bindFilesToOrder(long orderId, List<Long> fileIds) {
+        for (Long fileId : fileIds) {
+            jdbcClient.sql("""
+                            UPDATE file_resource
+                            SET order_id = :orderId,
+                                source_type = 'ORDER_ATTACHMENT'
+                            WHERE file_id = :fileId
+                            """)
+                    .param("orderId", orderId)
+                    .param("fileId", fileId)
+                    .update();
+        }
+    }
+
+    private DoctorEditableOrder loadDoctorEditableOrder(long orderId, BootstrapIdentity identity) {
+        try {
+            return jdbcClient.sql("""
+                            SELECT order_id, order_no, doctor_user_id, internal_status, external_status
+                            FROM orders
+                            WHERE order_id = :orderId
+                              AND doctor_user_id = :doctorUserId
+                              AND clinic_id = :clinicId
+                            FOR UPDATE
+                            """)
+                    .param("orderId", orderId)
+                    .param("doctorUserId", identity.userId())
+                    .param("clinicId", identity.clinicId())
+                    .query((rs, rowNum) -> new DoctorEditableOrder(
+                            rs.getLong("order_id"),
+                            rs.getString("order_no"),
+                            rs.getObject("doctor_user_id", Long.class),
+                            rs.getString("internal_status"),
+                            rs.getString("external_status")))
+                    .single();
+        } catch (EmptyResultDataAccessException ex) {
+            if (orderExists(orderId)) {
+                throw new ResponseStatusException(HttpStatus.FORBIDDEN, "doctor cannot update this order", ex);
+            }
+            throw new ResponseStatusException(HttpStatus.NOT_FOUND, "order not found", ex);
+        }
+    }
+
+    private boolean orderExists(long orderId) {
+        return jdbcClient.sql("SELECT COUNT(*) FROM orders WHERE order_id = :orderId")
+                .param("orderId", orderId)
+                .query(Long.class)
+                .single() > 0;
+    }
+
+    private void validateEditableStatus(String internalStatus, boolean submit) {
+        Set<String> editableStatuses = Set.of(
+                InternalOrderStatus.DRAFT.name(),
+                InternalOrderStatus.CS_REJECTED.name(),
+                InternalOrderStatus.PRODUCTION_REJECTED.name());
+        if (!editableStatuses.contains(internalStatus)) {
+            throw new ResponseStatusException(HttpStatus.CONFLICT, "order is not editable by doctor");
+        }
+        if (!submit && !InternalOrderStatus.DRAFT.name().equals(internalStatus)) {
+            throw new ResponseStatusException(HttpStatus.CONFLICT, "rejected orders must be resubmitted");
         }
     }
 
@@ -199,5 +296,13 @@ public class OrderCreationService {
             String visibility,
             String uploadStatus,
             String status) {
+    }
+
+    private record DoctorEditableOrder(
+            long orderId,
+            String orderNo,
+            Long doctorUserId,
+            String internalStatus,
+            String externalStatus) {
     }
 }

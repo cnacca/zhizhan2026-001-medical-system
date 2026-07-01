@@ -370,6 +370,7 @@ const doctorOrderFormProductType = ref('REGULAR_CROWN')
 const doctorOrderFormFields = ref<FormFieldConfig[]>([])
 const doctorOrderFormData = ref<Record<string, string | string[]>>({})
 const doctorOrderFileIds = ref('')
+const doctorOrderEditingId = ref<number | null>(null)
 const doctorUploadFiles = ref<File[]>([])
 const doctorUploadProgress = ref('')
 const doctorUploadCompletedFileIds = ref<number[]>([])
@@ -845,7 +846,15 @@ async function loadDoctorOrderForm() {
   }
 }
 
-async function createDoctorOrder() {
+function buildDoctorOrderFormData() {
+  const formData: Record<string, string | string[]> = {}
+  for (const field of doctorOrderFormFields.value) {
+    formData[field.field_key] = doctorOrderFormData.value[field.field_key] ?? ''
+  }
+  return formData
+}
+
+async function submitDoctorOrderForm(draft: boolean) {
   if (!token.value || doctorOrderFormFields.value.length === 0) {
     return
   }
@@ -853,28 +862,69 @@ async function createDoctorOrder() {
   doctorOrderCreateError.value = ''
   doctorOrderCreateResult.value = null
   try {
-    const formData: Record<string, string | string[]> = {}
-    for (const field of doctorOrderFormFields.value) {
-      formData[field.field_key] = doctorOrderFormData.value[field.field_key] ?? ''
+    const formData = buildDoctorOrderFormData()
+    const orderPayload = {
+      product_type: doctorOrderFormProductType.value.trim(),
+      form_data: formData,
+      file_ids: parseDoctorOrderFileIds()
     }
-    const payload = await apiFetch<CreateOrderResponse>('/orders', {
-      method: 'POST',
-      body: JSON.stringify({
-        product_type: doctorOrderFormProductType.value.trim(),
-        form_data: formData,
-        file_ids: parseDoctorOrderFileIds()
+    const payload = doctorOrderEditingId.value
+      ? await apiFetch<CreateOrderResponse>(`/orders/${doctorOrderEditingId.value}`, {
+        method: 'PUT',
+        body: JSON.stringify({
+          ...orderPayload,
+          submit: !draft
+        })
       })
-    })
+      : await apiFetch<CreateOrderResponse>('/orders', {
+        method: 'POST',
+        body: JSON.stringify({
+          ...orderPayload,
+          is_draft: draft
+        })
+      })
     doctorOrderCreateResult.value = payload.data
     doctorOrderFileIds.value = ''
+    doctorOrderEditingId.value = draft ? payload.data.order_id : null
     doctorOrderKeyword.value = payload.data.order_no
     await loadDoctorOrders()
     await loadDoctorOrderWorkspace(payload.data.order_id)
   } catch (error) {
-    doctorOrderCreateError.value = error instanceof Error ? error.message : '医生下单失败'
+    doctorOrderCreateError.value = error instanceof Error ? error.message : '医生订单保存失败'
   } finally {
     doctorOrderCreateLoading.value = false
   }
+}
+
+function createDoctorOrder() {
+  return submitDoctorOrderForm(false)
+}
+
+function saveDoctorOrderDraft() {
+  return submitDoctorOrderForm(true)
+}
+
+function submitDoctorOrderSupplement() {
+  return submitDoctorOrderForm(false)
+}
+
+async function startDoctorOrderEdit(order: DoctorOrderItem) {
+  doctorOrderEditingId.value = order.order_id
+  doctorOrderFormProductType.value = order.product_type
+  const nextData: Record<string, string | string[]> = {}
+  for (const [key, value] of Object.entries(order.form_data ?? {})) {
+    nextData[key] = Array.isArray(value) ? value.map(String) : String(value ?? '')
+  }
+  doctorOrderFormData.value = nextData
+  doctorOrderFileIds.value = ''
+  doctorOrderCreateResult.value = null
+  doctorOrderCreateError.value = ''
+  await loadDoctorOrderForm()
+}
+
+function cancelDoctorOrderEdit() {
+  doctorOrderEditingId.value = null
+  doctorOrderCreateResult.value = null
 }
 
 function selectDoctorUploadFiles(event: Event) {
@@ -3144,9 +3194,16 @@ onBeforeUnmount(() => {
 
           <section class="doctor-order-create">
             <div class="subheading-row">
-              <h3>新建订单</h3>
+              <h3>{{ doctorOrderEditingId ? '编辑草稿/补资料' : '新建订单' }}</h3>
               <el-button :loading="doctorOrderCreateLoading" @click="loadDoctorOrderForm">刷新表单</el-button>
             </div>
+            <el-alert
+              v-if="doctorOrderEditingId"
+              :title="`正在编辑订单 #${doctorOrderEditingId}`"
+              type="info"
+              show-icon
+              :closable="false"
+            />
             <div class="order-create-grid">
               <el-form-item label="产品类型">
                 <el-input
@@ -3251,13 +3308,29 @@ onBeforeUnmount(() => {
             </div>
             <div class="inline-actions">
               <el-button
+                plain
+                :loading="doctorOrderCreateLoading"
+                :disabled="doctorOrderFormFields.length === 0"
+                data-testid="doctor-order-save-draft-button"
+                @click="saveDoctorOrderDraft"
+              >
+                保存草稿
+              </el-button>
+              <el-button
                 type="primary"
                 :loading="doctorOrderCreateLoading"
                 :disabled="doctorOrderFormFields.length === 0"
                 data-testid="doctor-order-create-button"
-                @click="createDoctorOrder"
+                @click="doctorOrderEditingId ? submitDoctorOrderSupplement() : createDoctorOrder()"
               >
-                提交订单
+                {{ doctorOrderEditingId ? '提交草稿/补资料' : '提交订单' }}
+              </el-button>
+              <el-button
+                v-if="doctorOrderEditingId"
+                plain
+                @click="cancelDoctorOrderEdit"
+              >
+                取消编辑
               </el-button>
               <el-tag v-if="doctorOrderCreateResult" data-testid="doctor-order-create-result" type="success" round>
                 {{ doctorOrderCreateResult.order_no }} / {{ doctorOrderCreateResult.external_status }}
@@ -3312,6 +3385,15 @@ onBeforeUnmount(() => {
             </aside>
 
             <section v-if="doctorOrderWorkspace" class="doctor-order-detail">
+              <div class="inline-actions">
+                <el-button
+                  plain
+                  data-testid="doctor-order-edit-button"
+                  @click="startDoctorOrderEdit(doctorOrderWorkspace.order)"
+                >
+                  继续编辑/补资料
+                </el-button>
+              </div>
               <div class="doctor-order-summary">
                 <div>
                   <span>订单号</span>

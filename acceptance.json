@@ -1072,6 +1072,32 @@
             "check:auth-refresh",
             "APP_AUTH_REFRESH_TOKEN_TTL_SECONDS"
           ]
+        },
+        {
+          "id": "task-9d11-doctor-draft-supplement-required-text",
+          "type": "required_text",
+          "paths": [
+            "backend/platform-server/src/main/java/com/yuri/aiorder/order/api/OrderController.java",
+            "backend/platform-server/src/main/java/com/yuri/aiorder/order/api/OrderCreationService.java",
+            "backend/platform-server/src/main/java/com/yuri/aiorder/order/api/UpdateOrderRequest.java",
+            "backend/platform-server/src/test/java/com/yuri/aiorder/order/OrderStatusProjectionTests.java",
+            "frontend/src/App.vue",
+            "docs/api/openapi.yaml",
+            "scripts/check-task-9d11-frontend.mjs",
+            "package.json"
+          ],
+          "patterns": [
+            "@PutMapping(\"/orders/{orderId}\")",
+            "UpdateOrderRequest",
+            "updateDoctorOrder",
+            "DOCTOR_RESUBMIT_ORDER",
+            "doctorOrderEditingId",
+            "保存草稿",
+            "提交草稿/补资料",
+            "doctor-order-save-draft-button",
+            "DRAFT=草稿",
+            "check:task9d11"
+          ]
         }
       ]
     }
