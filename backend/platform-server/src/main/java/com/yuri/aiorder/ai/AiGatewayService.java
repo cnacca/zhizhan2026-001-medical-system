@@ -26,6 +26,8 @@ import org.springframework.transaction.PlatformTransactionManager;
 import org.springframework.transaction.TransactionDefinition;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.transaction.support.TransactionTemplate;
+import org.springframework.web.client.HttpServerErrorException;
+import org.springframework.web.client.ResourceAccessException;
 import org.springframework.web.server.ResponseStatusException;
 
 @Service
@@ -190,7 +192,30 @@ public class AiGatewayService {
         if (!aiModelClient.isEnabled()) {
             return fallback.get();
         }
-        return aiModelClient.complete(systemPrompt, userPrompt);
+        RuntimeException lastFailure = null;
+        int maxAttempts = Math.max(1, properties.getMaxModelRetries() + 1);
+        for (int attempt = 1; attempt <= maxAttempts; attempt++) {
+            try {
+                return aiModelClient.complete(systemPrompt, userPrompt);
+            } catch (RuntimeException ex) {
+                lastFailure = ex;
+                if (attempt == maxAttempts || !isRetryableModelFailure(ex)) {
+                    throw ex;
+                }
+            }
+        }
+        throw lastFailure == null ? new IllegalStateException("AI model retry failed") : lastFailure;
+    }
+
+    private boolean isRetryableModelFailure(Throwable ex) {
+        Throwable current = ex;
+        while (current != null) {
+            if (current instanceof HttpServerErrorException || current instanceof ResourceAccessException) {
+                return true;
+            }
+            current = current.getCause();
+        }
+        return false;
     }
 
     private AiModelResult deterministic(String content) {

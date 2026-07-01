@@ -48,6 +48,7 @@ app:
   ai:
     provider: ${AI_PROVIDER:deterministic}
     max-requests-per-user-hour: ${AI_MAX_REQUESTS_PER_USER_HOUR:120}
+    max-model-retries: ${AI_MODEL_MAX_RETRIES:1}
     input-token-cost-microusd: ${AI_INPUT_TOKEN_COST_MICROUSD:0}
     output-token-cost-microusd: ${AI_OUTPUT_TOKEN_COST_MICROUSD:0}
     deepseek:

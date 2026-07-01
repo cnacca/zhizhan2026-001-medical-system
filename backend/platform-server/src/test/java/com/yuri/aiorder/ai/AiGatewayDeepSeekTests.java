@@ -225,6 +225,23 @@ class AiGatewayDeepSeekTests {
         assertThat(estimatedCostMicrousd()).isEqualTo(84L);
     }
 
+    @Test
+    void deepSeekProviderRetriesTransientServerFailureBeforeAuditingSuccess() throws Exception {
+        deepSeekServer.enqueueFailure(500);
+        deepSeekServer.enqueue("DeepSeek重试后翻译草稿：Shade A2。");
+
+        mockMvc.perform(post("/ai/translate")
+                        .header("X-Bootstrap-Role", "CS")
+                        .header("X-Bootstrap-User-Id", CS_USER_ID)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"order_id\":" + orderId + ",\"source_text\":\"Shade A2.\"}"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.translated_text").value(containsString("DeepSeek重试后翻译草稿")));
+
+        assertThat(deepSeekServer.requests()).hasSize(2);
+        assertThat(auditCountByModel("deepseek-chat")).isEqualTo(1L);
+    }
+
     private long auditCountByModel(String modelName) {
         return jdbcClient.sql("""
                         SELECT COUNT(*)
@@ -280,7 +297,7 @@ class AiGatewayDeepSeekTests {
     private static final class DeepSeekStubServer {
         private final HttpServer server;
         private final List<CapturedRequest> requests = new ArrayList<>();
-        private final List<String> responses = new ArrayList<>();
+        private final List<StubResponse> responses = new ArrayList<>();
 
         private DeepSeekStubServer() {
             try {
@@ -297,7 +314,11 @@ class AiGatewayDeepSeekTests {
         }
 
         private void enqueue(String answer) {
-            responses.add(answer);
+            responses.add(new StubResponse(200, answer));
+        }
+
+        private void enqueueFailure(int statusCode) {
+            responses.add(new StubResponse(statusCode, "DeepSeek temporary failure"));
         }
 
         private void reset() {
@@ -319,10 +340,21 @@ class AiGatewayDeepSeekTests {
                     exchange.getRequestURI().getPath(),
                     exchange.getRequestHeaders().getFirst("Authorization"),
                     body));
-            String answer = responses.isEmpty() ? "DeepSeek默认答复" : responses.remove(0);
+            StubResponse stubResponse = responses.isEmpty()
+                    ? new StubResponse(200, "DeepSeek默认答复")
+                    : responses.remove(0);
+            if (stubResponse.statusCode() >= 400) {
+                byte[] response = ("{\"error\":\"" + stubResponse.answer() + "\"}")
+                        .getBytes(StandardCharsets.UTF_8);
+                exchange.getResponseHeaders().add("Content-Type", "application/json");
+                exchange.sendResponseHeaders(stubResponse.statusCode(), response.length);
+                exchange.getResponseBody().write(response);
+                exchange.close();
+                return;
+            }
             byte[] response = ("""
                     {"choices":[{"message":{"content":%s}}],"usage":{"prompt_tokens":18,"completion_tokens":6}}
-                    """.formatted(jsonString(answer))).getBytes(StandardCharsets.UTF_8);
+                    """.formatted(jsonString(stubResponse.answer()))).getBytes(StandardCharsets.UTF_8);
             exchange.getResponseHeaders().add("Content-Type", "application/json");
             exchange.sendResponseHeaders(200, response.length);
             exchange.getResponseBody().write(response);
@@ -335,5 +367,8 @@ class AiGatewayDeepSeekTests {
     }
 
     private record CapturedRequest(String path, String authorization, String body) {
+    }
+
+    private record StubResponse(int statusCode, String answer) {
     }
 }

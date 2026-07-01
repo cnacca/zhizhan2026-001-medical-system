@@ -7,6 +7,7 @@ public class AiGatewayProperties {
 
     private String provider = "deterministic";
     private int maxRequestsPerUserHour = 120;
+    private int maxModelRetries = 1;
     private long inputTokenCostMicrousd = 0;
     private long outputTokenCostMicrousd = 0;
     private final DeepSeek deepseek = new DeepSeek();
@@ -25,6 +26,14 @@ public class AiGatewayProperties {
 
     public void setMaxRequestsPerUserHour(int maxRequestsPerUserHour) {
         this.maxRequestsPerUserHour = maxRequestsPerUserHour;
+    }
+
+    public int getMaxModelRetries() {
+        return maxModelRetries;
+    }
+
+    public void setMaxModelRetries(int maxModelRetries) {
+        this.maxModelRetries = maxModelRetries;
     }
 
     public long getInputTokenCostMicrousd() {

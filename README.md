@@ -614,3 +614,16 @@ npm run acceptance
 npm run check:openapi
 ./scripts/with-jdk21.sh mvn -f backend/pom.xml -pl platform-server -Dtest=AiGatewayDeepSeekTests test
 ```
+
+## 任务 9D.28 AI 模型重试第一增量检查
+
+任务 9D.28 新增 `AI_MODEL_MAX_RETRIES`，真实模型调用遇到短暂 5xx 或连接类异常时可有限重试；默认重试 1 次，成功后仍只写一条 `SUCCESS` 审计。Task 8 仍保持 `NOT READY`。
+
+建议验证：
+
+```bash
+npm run check:task9d28
+npm run acceptance
+npm run check:openapi
+./scripts/with-jdk21.sh mvn -f backend/pom.xml -pl platform-server -Dtest=AiGatewayDeepSeekTests test
+```
