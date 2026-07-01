@@ -7,6 +7,7 @@ import com.yuri.aiorder.common.auth.BearerTokenService;
 import com.yuri.aiorder.common.auth.DatabaseAuthService;
 import jakarta.validation.Valid;
 import jakarta.validation.constraints.NotBlank;
+import jakarta.validation.constraints.NotNull;
 import java.time.Instant;
 import java.util.List;
 import org.springframework.http.HttpStatus;
@@ -18,6 +19,7 @@ import org.springframework.web.bind.annotation.RequestHeader;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.ResponseStatus;
 import org.springframework.web.bind.annotation.RestController;
+import org.springframework.web.server.ResponseStatusException;
 
 @RestController
 @RequestMapping("/api/auth")
@@ -35,6 +37,7 @@ public class BootstrapAuthController {
     @PostMapping("/login")
     public LoginResponse login(@Valid @RequestBody LoginRequest request) {
         AuthenticatedUser authenticatedUser = databaseAuthService.authenticate(request.username(), request.password());
+        requirePortalRole(request.portal(), authenticatedUser.roles());
         return new LoginResponse(
                 tokenService.issue(authenticatedUser.identity()),
                 authenticatedUser.username(),
@@ -45,6 +48,18 @@ public class BootstrapAuthController {
                 authenticatedUser.menus(),
                 authenticatedUser.dataScope(),
                 Instant.now().plusSeconds(tokenService.tokenTtlSeconds()));
+    }
+
+    private void requirePortalRole(LoginPortal portal, List<String> roles) {
+        String requiredRole = switch (portal) {
+            case DOCTOR -> "DOCTOR";
+            case CS -> "CS";
+            case PRODUCTION -> "WORKER";
+            case ADMIN -> "ADMIN";
+        };
+        if (!roles.contains(requiredRole)) {
+            throw new ResponseStatusException(HttpStatus.FORBIDDEN, "account role does not match login portal");
+        }
     }
 
     @GetMapping("/me")
@@ -63,7 +78,14 @@ public class BootstrapAuthController {
                 identity.dataScope());
     }
 
-    public record LoginRequest(@NotBlank String username, @NotBlank String password) {
+    public record LoginRequest(@NotBlank String username, @NotBlank String password, @NotNull LoginPortal portal) {
+    }
+
+    public enum LoginPortal {
+        DOCTOR,
+        CS,
+        PRODUCTION,
+        ADMIN
     }
 
     public record LoginResponse(

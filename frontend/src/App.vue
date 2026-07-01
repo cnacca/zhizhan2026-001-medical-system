@@ -13,6 +13,8 @@ type AuthMenu = {
   sortOrder: number | null
 }
 
+type LoginPortal = 'DOCTOR' | 'CS' | 'PRODUCTION' | 'ADMIN'
+
 type LoginResponse = {
   accessToken: string
   username: string
@@ -326,8 +328,17 @@ type ProductionBoardStatusOption = {
   value: string
 }
 
+type PortalOption = {
+  value: LoginPortal
+  title: string
+  subtitle: string
+  defaultUsername: string
+  defaultPassword: string
+}
+
 const username = ref('admin')
 const password = ref('change-me-admin')
+const selectedPortal = ref<LoginPortal | null>(null)
 const token = ref('')
 const currentUser = ref<LoginResponse | null>(null)
 const activeRoute = ref('/dashboard')
@@ -451,6 +462,42 @@ const productionBoardStatusOptions: ProductionBoardStatusOption[] = [
   { label: '已发货', value: 'SHIPPED' },
   { label: '已完成', value: 'COMPLETED' }
 ]
+const portalDefaultRoute: Record<LoginPortal, string> = {
+  DOCTOR: '/doctor/orders',
+  CS: '/orders/internal',
+  PRODUCTION: '/tasks/mine',
+  ADMIN: '/dashboard'
+}
+const portalOptions: PortalOption[] = [
+  {
+    value: 'DOCTOR',
+    title: '医生端',
+    subtitle: '医生 / 诊所',
+    defaultUsername: 'doctor',
+    defaultPassword: 'change-me-doctor'
+  },
+  {
+    value: 'CS',
+    title: '客服端',
+    subtitle: '客服 / CS 中台',
+    defaultUsername: 'cs',
+    defaultPassword: 'change-me-cs'
+  },
+  {
+    value: 'PRODUCTION',
+    title: '生产端',
+    subtitle: '技工 / 生产人员',
+    defaultUsername: 'worker',
+    defaultPassword: 'change-me-worker'
+  },
+  {
+    value: 'ADMIN',
+    title: '管理端',
+    subtitle: '超级管理员',
+    defaultUsername: 'admin',
+    defaultPassword: 'change-me-admin'
+  }
+]
 
 const isLoggedIn = computed(() => Boolean(token.value))
 const visibleMenus = computed(() => currentUser.value?.menus.filter((menu) => menu.routePath) ?? [])
@@ -490,6 +537,7 @@ const isProductionBoardRoute = computed(() => activeRoute.value === '/production
 const selectedOrderId = computed(() => selectedDoctorOrder.value?.order_id ?? doctorOrderWorkspace.value?.order.order_id ?? null)
 const selectedProductionReviewChain = computed(() => workflowChains.value.find((chain) => chain.chain_id === productionReviewChainId.value) ?? null)
 const selectedProcessNode = computed(() => selectedProcessInstance.value?.nodes.find((node) => node.node_instance_id === selectedProcessNodeId.value) ?? null)
+const selectedPortalOption = computed(() => portalOptions.find((option) => option.value === selectedPortal.value) ?? null)
 const productionBoardNodeStats = computed(() => {
   const stats = {
     READY: 0,
@@ -517,7 +565,26 @@ async function checkHealth() {
   health.value = payload.status
 }
 
+function selectPortal(option: PortalOption) {
+  selectedPortal.value = option.value
+  username.value = option.defaultUsername
+  password.value = option.defaultPassword
+  loginError.value = ''
+}
+
+function portalRouteFor(payload: LoginResponse) {
+  const preferredRoute = selectedPortal.value ? portalDefaultRoute[selectedPortal.value] : '/dashboard'
+  if (payload.menus.some((menu) => menu.routePath === preferredRoute)) {
+    return preferredRoute
+  }
+  return payload.menus.find((menu) => menu.routePath)?.routePath ?? '/dashboard'
+}
+
 async function login() {
+  if (!selectedPortal.value) {
+    loginError.value = '请先选择登录入口'
+    return
+  }
   loading.value = true
   loginError.value = ''
   notificationError.value = ''
@@ -525,15 +592,18 @@ async function login() {
     const response = await fetch('/api/auth/login', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ username: username.value, password: password.value })
+      body: JSON.stringify({ username: username.value, password: password.value, portal: selectedPortal.value })
     })
     if (!response.ok) {
+      if (response.status === 403) {
+        throw new Error('账号角色与所选入口不匹配')
+      }
       throw new Error(`登录失败：${response.status}`)
     }
     const payload = await response.json() as LoginResponse
     token.value = payload.accessToken
     currentUser.value = payload
-    activeRoute.value = payload.menus.find((menu) => menu.routePath)?.routePath ?? '/dashboard'
+    activeRoute.value = portalRouteFor(payload)
     await loadNotifications()
     if (activeRoute.value === '/doctor/orders') {
       await loadDoctorOrderForm()
@@ -1930,9 +2000,28 @@ onBeforeUnmount(() => {
           <p class="result">后端状态：{{ health }}</p>
         </section>
 
-        <section v-if="!isLoggedIn" class="panel">
-          <h2>登录</h2>
-          <el-form label-position="top" @submit.prevent="login">
+        <section v-if="!isLoggedIn" class="panel portal-login-panel">
+          <div class="route-heading">
+            <div>
+              <h2>{{ selectedPortalOption ? `${selectedPortalOption.title}登录` : '选择登录入口' }}</h2>
+              <span>{{ selectedPortalOption?.subtitle ?? '医生端 / 客服端 / 生产端 / 管理端' }}</span>
+            </div>
+            <el-button v-if="selectedPortal" plain @click="selectedPortal = null">返回入口</el-button>
+          </div>
+          <div v-if="!selectedPortal" class="portal-grid">
+            <button
+              v-for="option in portalOptions"
+              :key="option.value"
+              class="portal-card"
+              type="button"
+              :data-testid="`portal-card-${option.value}`"
+              @click="selectPortal(option)"
+            >
+              <strong>{{ option.title }}</strong>
+              <span>{{ option.subtitle }}</span>
+            </button>
+          </div>
+          <el-form v-else label-position="top" @submit.prevent="login">
             <el-form-item label="用户名">
               <el-input v-model="username" autocomplete="username" />
             </el-form-item>

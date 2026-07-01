@@ -1021,6 +1021,33 @@
             "MultipartStatusResponse",
             "completed_parts"
           ]
+        },
+        {
+          "id": "task-9d24-four-portal-login-required-text",
+          "type": "required_text",
+          "paths": [
+            "backend/platform-server/src/main/java/com/yuri/aiorder/bootstrap/BootstrapAuthController.java",
+            "backend/platform-server/src/test/java/com/yuri/aiorder/auth/BearerIdentityTests.java",
+            "backend/platform-server/src/test/java/com/yuri/aiorder/auth/PermissionInterceptorTests.java",
+            "frontend/src/App.vue",
+            "frontend/src/styles.css",
+            "docs/api/openapi.yaml",
+            "scripts/check-task-9d24-four-portal-login.mjs",
+            "scripts/smoke-task-9d24-four-portal-login.spec.mjs",
+            "package.json"
+          ],
+          "patterns": [
+            "LoginPortal",
+            "portalDefaultRoute",
+            "portal-card-",
+            "账号角色与所选入口不匹配",
+            "account role does not match login portal",
+            "databaseLoginRequiresPortalAndMatchesRoleToPortal",
+            "登录入口",
+            "check:task9d24",
+            "smoke:task9d24",
+            "task 9D.24 mismatched portal smoke ok"
+          ]
         }
       ]
     }

@@ -47,6 +47,53 @@ body {
   background: #ffffff;
 }
 
+.portal-login-panel {
+  display: grid;
+  align-content: start;
+  gap: 16px;
+}
+
+.portal-login-panel .route-heading span {
+  color: #64748b;
+  font-size: 13px;
+}
+
+.portal-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 12px;
+}
+
+.portal-card {
+  display: grid;
+  gap: 8px;
+  min-height: 116px;
+  padding: 18px;
+  border: 1px solid #d8dee9;
+  border-radius: 8px;
+  background: #f8fafc;
+  color: #1f2937;
+  cursor: pointer;
+  font: inherit;
+  text-align: left;
+}
+
+.portal-card:hover,
+.portal-card:focus-visible {
+  border-color: #2563eb;
+  background: #eff6ff;
+  outline: none;
+}
+
+.portal-card strong {
+  font-size: 18px;
+}
+
+.portal-card span {
+  color: #64748b;
+  font-size: 13px;
+}
+
 .nav-panel {
   padding: 16px;
 }
@@ -674,6 +721,7 @@ p {
   .production-board-toolbar,
   .production-board-workspace,
   .production-board-stats,
+  .portal-grid,
   .assignment-toolbar,
   .process-node-row,
   .worker-task-card {

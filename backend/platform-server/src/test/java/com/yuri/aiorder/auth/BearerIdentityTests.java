@@ -122,7 +122,7 @@ class BearerIdentityTests {
     void databaseLoginReturnsRbacIdentityAndMeReadsBearerClaims() throws Exception {
         MvcResult login = mockMvc.perform(post("/api/auth/login")
                         .contentType(MediaType.APPLICATION_JSON)
-                        .content("{\"username\":\"admin\",\"password\":\"change-me-admin\"}"))
+                        .content("{\"username\":\"admin\",\"password\":\"change-me-admin\",\"portal\":\"ADMIN\"}"))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.username").value("admin"))
                 .andExpect(jsonPath("$.userId").value(8001))
@@ -153,13 +153,13 @@ class BearerIdentityTests {
         mockMvc.perform(post("/api/auth/login")
                         .header("Origin", "http://localhost:5173")
                         .contentType(MediaType.APPLICATION_JSON)
-                        .content("{\"username\":\"doctor\",\"password\":\"change-me-doctor\"}"))
+                        .content("{\"username\":\"doctor\",\"password\":\"change-me-doctor\",\"portal\":\"DOCTOR\"}"))
                 .andExpect(status().isOk());
 
         mockMvc.perform(post("/api/auth/login")
                         .header("Origin", "http://127.0.0.1:5173")
                         .contentType(MediaType.APPLICATION_JSON)
-                        .content("{\"username\":\"doctor\",\"password\":\"change-me-doctor\"}"))
+                        .content("{\"username\":\"doctor\",\"password\":\"change-me-doctor\",\"portal\":\"DOCTOR\"}"))
                 .andExpect(status().isOk());
     }
 
@@ -167,7 +167,7 @@ class BearerIdentityTests {
     void databaseDoctorLoginUsesUserDataScopeForDoctorOrder() throws Exception {
         MvcResult login = mockMvc.perform(post("/api/auth/login")
                         .contentType(MediaType.APPLICATION_JSON)
-                        .content("{\"username\":\"doctor\",\"password\":\"change-me-doctor\"}"))
+                        .content("{\"username\":\"doctor\",\"password\":\"change-me-doctor\",\"portal\":\"DOCTOR\"}"))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.username").value("doctor"))
                 .andExpect(jsonPath("$.userId").value(DOCTOR_USER_ID))
@@ -195,7 +195,49 @@ class BearerIdentityTests {
     void databaseLoginRejectsBadPassword() throws Exception {
         mockMvc.perform(post("/api/auth/login")
                         .contentType(MediaType.APPLICATION_JSON)
-                        .content("{\"username\":\"admin\",\"password\":\"wrong-password\"}"))
+                        .content("{\"username\":\"admin\",\"password\":\"wrong-password\",\"portal\":\"ADMIN\"}"))
                 .andExpect(status().isUnauthorized());
+    }
+
+    @Test
+    void databaseLoginRequiresPortalAndMatchesRoleToPortal() throws Exception {
+        mockMvc.perform(post("/api/auth/login")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"username\":\"admin\",\"password\":\"change-me-admin\"}"))
+                .andExpect(status().isBadRequest());
+
+        mockMvc.perform(post("/api/auth/login")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"username\":\"doctor\",\"password\":\"change-me-doctor\",\"portal\":\"ADMIN\"}"))
+                .andExpect(status().isForbidden());
+
+        mockMvc.perform(post("/api/auth/login")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"username\":\"worker\",\"password\":\"change-me-worker\",\"portal\":\"DOCTOR\"}"))
+                .andExpect(status().isForbidden());
+
+        mockMvc.perform(post("/api/auth/login")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"username\":\"doctor\",\"password\":\"change-me-doctor\",\"portal\":\"DOCTOR\"}"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.roles", hasItem("DOCTOR")));
+
+        mockMvc.perform(post("/api/auth/login")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"username\":\"cs\",\"password\":\"change-me-cs\",\"portal\":\"CS\"}"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.roles", hasItem("CS")));
+
+        mockMvc.perform(post("/api/auth/login")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"username\":\"worker\",\"password\":\"change-me-worker\",\"portal\":\"PRODUCTION\"}"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.roles", hasItem("WORKER")));
+
+        mockMvc.perform(post("/api/auth/login")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"username\":\"admin\",\"password\":\"change-me-admin\",\"portal\":\"ADMIN\"}"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.roles", hasItem("ADMIN")));
     }
 }

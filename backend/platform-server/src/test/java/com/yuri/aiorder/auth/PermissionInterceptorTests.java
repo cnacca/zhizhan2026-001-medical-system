@@ -190,11 +190,17 @@ class PermissionInterceptorTests {
     }
 
     private String login(String username, String password) throws Exception {
+        String portal = switch (username) {
+            case "doctor" -> "DOCTOR";
+            case "cs" -> "CS";
+            case "worker" -> "PRODUCTION";
+            default -> "ADMIN";
+        };
         String response = mockMvc.perform(post("/api/auth/login")
                         .contentType(MediaType.APPLICATION_JSON)
                         .content("""
-                                {"username":"%s","password":"%s"}
-                                """.formatted(username, password)))
+                                {"username":"%s","password":"%s","portal":"%s"}
+                                """.formatted(username, password, portal)))
                 .andExpect(status().isOk())
                 .andReturn()
                 .getResponse()
