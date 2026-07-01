@@ -627,3 +627,16 @@ npm run acceptance
 npm run check:openapi
 ./scripts/with-jdk21.sh mvn -f backend/pom.xml -pl platform-server -Dtest=AiGatewayDeepSeekTests test
 ```
+
+## 任务 9D.29 AI 模型失败审计第一增量检查
+
+任务 9D.29 新增 `AI_MODEL_FAILED` 审计：真实模型重试耗尽或不可恢复失败时返回 503，并用独立事务保留失败记录。Task 8 仍保持 `NOT READY`。
+
+建议验证：
+
+```bash
+npm run check:task9d29
+npm run acceptance
+npm run check:openapi
+./scripts/with-jdk21.sh mvn -f backend/pom.xml -pl platform-server -Dtest=AiGatewayDeepSeekTests test
+```

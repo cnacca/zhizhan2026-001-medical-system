@@ -1544,6 +1544,36 @@
             "AI 模型重试第一增量",
             "check:task9d28"
           ]
+        },
+        {
+          "id": "task-9d29-ai-model-failure-audit-required-text",
+          "type": "required_text",
+          "paths": [
+            "backend/platform-server/src/main/java/com/yuri/aiorder/ai/AiGatewayService.java",
+            "backend/platform-server/src/test/java/com/yuri/aiorder/ai/AiGatewayDeepSeekTests.java",
+            "docs/api/openapi.yaml",
+            "docs/acceptance/task-8-acceptance-matrix.md",
+            "docs/deployment/readiness-checklist.md",
+            "STATUS.md",
+            "tasks/README.md",
+            "README.md",
+            "scripts/check-task-9d29-ai-model-failure-audit.mjs",
+            "package.json"
+          ],
+          "patterns": [
+            "MODEL_FAILURE_STATUS",
+            "AI_MODEL_FAILED",
+            "MODEL_FAILURE_MODEL_NAME",
+            "ai-governance-model-failure",
+            "auditModelFailure",
+            "HttpStatus.SERVICE_UNAVAILABLE",
+            "deepSeekProviderAuditsModelFailureWhenRetriesAreExhausted",
+            "任务 9D.29：AI 模型失败审计第一增量",
+            "9D.29 AI 模型失败审计第一增量",
+            "9D.29 已补 AI 模型失败审计第一增量",
+            "AI 模型失败审计第一增量",
+            "check:task9d29"
+          ]
         }
       ]
     }

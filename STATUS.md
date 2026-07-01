@@ -18,6 +18,7 @@
 
 ## 已完成
 
+- 9D.29 AI 模型失败审计第一增量：真实模型重试耗尽或不可恢复失败时返回受控 503，并用独立事务写入 `AI_MODEL_FAILED` 审计；不暴露上游供应商原始错误正文。
 - 9D.28 AI 模型重试第一增量：真实 DeepSeek 调用遇到短暂 5xx 或连接类异常时按 `AI_MODEL_MAX_RETRIES` 有限重试，默认 1 次；TDD 覆盖首次 500、第二次成功且只写一条成功审计。
 - 9D.19 返工通知联动第一增量：出检失败生成返工记录时写入 REWORK_CREATED 给目标 WORKER，返工关闭后写入 REWORK_CLOSED 给订单 CS，并验证医生用户不会收到返工内部通知。
 - 明确项目技术方向：Vue3 + Element Plus + Spring Boot + RuoYi-Vue-Pro + MySQL + Redis + MinIO + Uppy + 后端 ai-gateway + DeepSeek。
@@ -284,3 +285,5 @@ Task 8 已完成 8A readiness audit、8B OpenAPI 二次契约、9A Bearer 身份
 - 2026-07-02 9D.27 AI 成本审计第一增量：已新增 `estimated_cost_microusd` 审计字段和 `AI_INPUT_TOKEN_COST_MICROUSD` / `AI_OUTPUT_TOKEN_COST_MICROUSD` 配置，用 token usage 估算单次调用成本；Task 8 总体仍保持 NOT READY，仍缺成本汇总、提示词版本、输出防护、重试/熔断和生产部署。
 
 - 2026-07-02 9D.28 AI 模型重试第一增量：已新增 `AI_MODEL_MAX_RETRIES`，真实模型短暂 5xx 或连接异常默认重试 1 次；Task 8 总体仍保持 NOT READY，仍缺熔断/降级告警、提示词版本、输出防护、预算告警、真实 key 联调和生产部署。
+
+- 2026-07-02 9D.29 AI 模型失败审计第一增量：已新增 `AI_MODEL_FAILED` 失败审计，真实模型重试耗尽后返回 503；Task 8 总体仍保持 NOT READY，仍缺熔断/降级告警、失败聚合、提示词版本、输出防护、预算告警、真实 key 联调和生产部署。

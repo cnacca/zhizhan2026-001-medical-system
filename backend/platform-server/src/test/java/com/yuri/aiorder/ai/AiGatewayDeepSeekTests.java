@@ -242,6 +242,22 @@ class AiGatewayDeepSeekTests {
         assertThat(auditCountByModel("deepseek-chat")).isEqualTo(1L);
     }
 
+    @Test
+    void deepSeekProviderAuditsModelFailureWhenRetriesAreExhausted() throws Exception {
+        deepSeekServer.enqueueFailure(500);
+        deepSeekServer.enqueueFailure(500);
+
+        mockMvc.perform(post("/ai/translate")
+                        .header("X-Bootstrap-Role", "CS")
+                        .header("X-Bootstrap-User-Id", CS_USER_ID)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"order_id\":" + orderId + ",\"source_text\":\"Shade A2.\"}"))
+                .andExpect(status().isServiceUnavailable());
+
+        assertThat(deepSeekServer.requests()).hasSize(2);
+        assertThat(auditCountByStatus("AI_MODEL_FAILED")).isEqualTo(1L);
+    }
+
     private long auditCountByModel(String modelName) {
         return jdbcClient.sql("""
                         SELECT COUNT(*)

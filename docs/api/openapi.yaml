@@ -4224,6 +4224,7 @@ paths:
         任务 9D.26 第一增量：真实模型调用受 AI_MAX_REQUESTS_PER_USER_HOUR 限流，超额返回 429 并写 ai_audit_log.result_status=AI_RATE_LIMITED。
         任务 9D.27 第一增量：可通过 AI_INPUT_TOKEN_COST_MICROUSD / AI_OUTPUT_TOKEN_COST_MICROUSD 配置估算成本，并写入 ai_audit_log.estimated_cost_microusd；仓库不内置真实供应商价格。
         任务 9D.28 第一增量：真实模型短暂 5xx 或连接异常可按 AI_MODEL_MAX_RETRIES 重试；默认重试 1 次，成功后仍只写一条 SUCCESS 审计。
+        任务 9D.29 第一增量：真实模型重试耗尽或不可恢复失败时返回 503，并用独立事务写 ai_audit_log.result_status=AI_MODEL_FAILED。
       requestBody:
         required: true
         content:
@@ -4314,6 +4315,7 @@ paths:
         任务 9D.26 第一增量：真实模型调用受 AI_MAX_REQUESTS_PER_USER_HOUR 限流，超额返回 429 并写 ai_audit_log.result_status=AI_RATE_LIMITED。
         任务 9D.27 第一增量：可通过 AI_INPUT_TOKEN_COST_MICROUSD / AI_OUTPUT_TOKEN_COST_MICROUSD 配置估算成本，并写入 ai_audit_log.estimated_cost_microusd；仓库不内置真实供应商价格。
         任务 9D.28 第一增量：真实模型短暂 5xx 或连接异常可按 AI_MODEL_MAX_RETRIES 重试；默认重试 1 次，成功后仍只写一条 SUCCESS 审计。
+        任务 9D.29 第一增量：真实模型重试耗尽或不可恢复失败时返回 503，并用独立事务写 ai_audit_log.result_status=AI_MODEL_FAILED。
       requestBody:
         required: true
         content:
@@ -4363,6 +4365,7 @@ paths:
         任务 9D.26 第一增量：真实模型调用受 AI_MAX_REQUESTS_PER_USER_HOUR 限流，超额返回 429 并写 ai_audit_log.result_status=AI_RATE_LIMITED。
         任务 9D.27 第一增量：可通过 AI_INPUT_TOKEN_COST_MICROUSD / AI_OUTPUT_TOKEN_COST_MICROUSD 配置估算成本，并写入 ai_audit_log.estimated_cost_microusd；仓库不内置真实供应商价格。
         任务 9D.28 第一增量：真实模型短暂 5xx 或连接异常可按 AI_MODEL_MAX_RETRIES 重试；默认重试 1 次，成功后仍只写一条 SUCCESS 审计。
+        任务 9D.29 第一增量：真实模型重试耗尽或不可恢复失败时返回 503，并用独立事务写 ai_audit_log.result_status=AI_MODEL_FAILED。
       requestBody:
         required: true
         content:
@@ -4411,6 +4414,7 @@ paths:
         任务 9D.26 第一增量：真实模型调用受 AI_MAX_REQUESTS_PER_USER_HOUR 限流，超额返回 429 并写 ai_audit_log.result_status=AI_RATE_LIMITED。
         任务 9D.27 第一增量：可通过 AI_INPUT_TOKEN_COST_MICROUSD / AI_OUTPUT_TOKEN_COST_MICROUSD 配置估算成本，并写入 ai_audit_log.estimated_cost_microusd；仓库不内置真实供应商价格。
         任务 9D.28 第一增量：真实模型短暂 5xx 或连接异常可按 AI_MODEL_MAX_RETRIES 重试；默认重试 1 次，成功后仍只写一条 SUCCESS 审计。
+        任务 9D.29 第一增量：真实模型重试耗尽或不可恢复失败时返回 503，并用独立事务写 ai_audit_log.result_status=AI_MODEL_FAILED。
       requestBody:
         required: true
         content:

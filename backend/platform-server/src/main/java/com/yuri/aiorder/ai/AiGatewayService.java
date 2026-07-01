@@ -36,6 +36,8 @@ public class AiGatewayService {
     private static final String DETERMINISTIC_MODEL_NAME = "deterministic-placeholder";
     private static final String RATE_LIMIT_MODEL_NAME = "ai-governance-rate-limit";
     private static final String RATE_LIMIT_STATUS = "AI_RATE_LIMITED";
+    private static final String MODEL_FAILURE_MODEL_NAME = "ai-governance-model-failure";
+    private static final String MODEL_FAILURE_STATUS = "AI_MODEL_FAILED";
     private static final Set<UserRole> CS_AND_ADMIN = EnumSet.of(UserRole.CS, UserRole.ADMIN);
     private static final Set<UserRole> CHECK_MISSING_ROLES = EnumSet.of(UserRole.DOCTOR, UserRole.CS, UserRole.ADMIN);
     private static final Set<UserRole> PRODUCTION_NOTE_ROLES = EnumSet.of(UserRole.CS, UserRole.WORKER, UserRole.ADMIN);
@@ -49,7 +51,7 @@ public class AiGatewayService {
     private final AccessControlService accessControlService;
     private final AiModelClient aiModelClient;
     private final AiGatewayProperties properties;
-    private final TransactionTemplate rateLimitAuditTransaction;
+    private final TransactionTemplate aiGovernanceAuditTransaction;
 
     public AiGatewayService(
             JdbcClient jdbcClient,
@@ -65,8 +67,8 @@ public class AiGatewayService {
         this.accessControlService = accessControlService;
         this.aiModelClient = aiModelClient;
         this.properties = properties;
-        this.rateLimitAuditTransaction = new TransactionTemplate(transactionManager);
-        this.rateLimitAuditTransaction.setPropagationBehavior(TransactionDefinition.PROPAGATION_REQUIRES_NEW);
+        this.aiGovernanceAuditTransaction = new TransactionTemplate(transactionManager);
+        this.aiGovernanceAuditTransaction.setPropagationBehavior(TransactionDefinition.PROPAGATION_REQUIRES_NEW);
     }
 
     @Transactional
@@ -81,7 +83,12 @@ public class AiGatewayService {
                         + sourceText.trim()
                         + "。订单号："
                         + context.orderNo()
-                        + "。"));
+                        + "。"),
+                orderId,
+                identity,
+                "AI_TRANSLATE",
+                "ORDER_TRANSLATION_DRAFT",
+                sourceText);
         audit(orderId, identity, "AI_TRANSLATE", "ORDER_TRANSLATION_DRAFT", sourceText, "SUCCESS", answer);
         return answer.content();
     }
@@ -105,7 +112,12 @@ public class AiGatewayService {
                         + context.internalStatus()
                         + "，外部状态为"
                         + context.externalStatus()
-                        + "。对外发送前需人工确认。"));
+                        + "。对外发送前需人工确认。"),
+                orderId,
+                identity,
+                "AI_CS_QUERY",
+                "INTERNAL_ORDER_SUMMARY",
+                question);
         audit(orderId, identity, "AI_CS_QUERY", "INTERNAL_ORDER_SUMMARY", question, "SUCCESS", answer);
         return answer.content();
     }
@@ -136,7 +148,12 @@ public class AiGatewayService {
                     () -> deterministic("您的订单当前状态："
                             + readModel.externalStatus()
                             + publicSuffix(readModel)
-                            + "。"));
+                            + "。"),
+                    orderId,
+                    identity,
+                    "AI_DOCTOR_ORDER_QUERY",
+                    "DOCTOR_ORDER_ASSISTANT_READ_MODEL",
+                    question);
             answer = aiAnswer.content();
             resultStatus = "SUCCESS";
             audit(orderId, identity, "AI_DOCTOR_ORDER_QUERY", "DOCTOR_ORDER_ASSISTANT_READ_MODEL", question,
@@ -179,7 +196,12 @@ public class AiGatewayService {
                         + context.productType()
                         + "；订单号="
                         + context.orderNo()
-                        + "；请按客户确认信息、设计要求和工厂规范补全。"));
+                        + "；请按客户确认信息、设计要求和工厂规范补全。"),
+                orderId,
+                identity,
+                "AI_PRODUCTION_NOTE",
+                "PRODUCTION_NOTE_DRAFT",
+                "production-note:" + orderId);
         audit(orderId, identity, "AI_PRODUCTION_NOTE", "PRODUCTION_NOTE_DRAFT", "production-note:" + orderId,
                 "SUCCESS", draft);
         return draft.content();
@@ -188,7 +210,12 @@ public class AiGatewayService {
     private AiModelResult completeWithModel(
             String systemPrompt,
             String userPrompt,
-            Supplier<AiModelResult> fallback) {
+            Supplier<AiModelResult> fallback,
+            long orderId,
+            BootstrapIdentity identity,
+            String agentCode,
+            String contextType,
+            String auditPrompt) {
         if (!aiModelClient.isEnabled()) {
             return fallback.get();
         }
@@ -200,11 +227,35 @@ public class AiGatewayService {
             } catch (RuntimeException ex) {
                 lastFailure = ex;
                 if (attempt == maxAttempts || !isRetryableModelFailure(ex)) {
-                    throw ex;
+                    auditModelFailure(orderId, identity, agentCode, contextType, auditPrompt);
+                    throw new ResponseStatusException(
+                            HttpStatus.SERVICE_UNAVAILABLE,
+                            "AI model temporarily unavailable",
+                            ex);
                 }
             }
         }
-        throw lastFailure == null ? new IllegalStateException("AI model retry failed") : lastFailure;
+        auditModelFailure(orderId, identity, agentCode, contextType, auditPrompt);
+        throw new ResponseStatusException(
+                HttpStatus.SERVICE_UNAVAILABLE,
+                "AI model temporarily unavailable",
+                lastFailure == null ? new IllegalStateException("AI model retry failed") : lastFailure);
+    }
+
+    private void auditModelFailure(
+            long orderId,
+            BootstrapIdentity identity,
+            String agentCode,
+            String contextType,
+            String prompt) {
+        aiGovernanceAuditTransaction.executeWithoutResult(status -> audit(
+                orderId,
+                identity,
+                agentCode,
+                contextType,
+                prompt,
+                MODEL_FAILURE_STATUS,
+                new AiModelResult("ai-model-failed", MODEL_FAILURE_MODEL_NAME, 0, null)));
     }
 
     private boolean isRetryableModelFailure(Throwable ex) {
@@ -246,7 +297,7 @@ public class AiGatewayService {
         if (usedRequests < properties.getMaxRequestsPerUserHour()) {
             return;
         }
-        rateLimitAuditTransaction.executeWithoutResult(status -> audit(
+        aiGovernanceAuditTransaction.executeWithoutResult(status -> audit(
                 orderId,
                 identity,
                 agentCode,
