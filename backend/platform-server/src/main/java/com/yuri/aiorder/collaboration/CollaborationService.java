@@ -8,8 +8,11 @@ import com.yuri.aiorder.common.auth.AccessControlService;
 import com.yuri.aiorder.notification.NotificationPushService;
 import com.yuri.aiorder.order.status.InternalOrderStatus;
 import com.yuri.aiorder.order.status.OrderStatusService;
+import java.util.ArrayList;
+import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Locale;
+import java.util.Set;
 import org.springframework.dao.EmptyResultDataAccessException;
 import org.springframework.http.HttpStatus;
 import org.springframework.jdbc.core.simple.JdbcClient;
@@ -165,7 +168,7 @@ public class CollaborationService {
                         ORDER BY version_no, design_draft_id
                         """.formatted(doctorFilter))
                 .param("orderId", orderId)
-                .query((rs, rowNum) -> new DesignDraftResponse(
+                .query((rs, rowNum) -> mapDesignDraft(
                         rs.getLong("design_draft_id"),
                         rs.getLong("order_id"),
                         rs.getInt("version_no"),
@@ -181,6 +184,10 @@ public class CollaborationService {
             throw new ResponseStatusException(HttpStatus.FORBIDDEN, "doctor cannot upload design draft");
         }
         if (request.fileIds() == null || request.fileIds().isEmpty()) {
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "file_ids is required");
+        }
+        List<Long> fileIds = normalizeFileIds(request.fileIds());
+        if (fileIds.isEmpty()) {
             throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "file_ids is required");
         }
         OrderRow order = loadOrder(orderId, identity, "identity cannot access this order");
@@ -199,11 +206,12 @@ public class CollaborationService {
                             (:orderId, :fileId, :versionNo, 'PENDING_CS_REVIEW', :uploadedByUserId)
                         """)
                 .param("orderId", orderId)
-                .param("fileId", request.fileIds().get(0))
+                .param("fileId", fileIds.get(0))
                 .param("versionNo", nextVersion)
                 .param("uploadedByUserId", identity.userId())
                 .update();
         long draftId = lastInsertId();
+        insertDesignDraftFiles(draftId, fileIds);
         emit(order, "DESIGN_DRAFT_UPLOADED", "CS", order.csUserId(), "设计稿待客服审核");
         return loadDesignDraft(draftId);
     }
@@ -422,7 +430,7 @@ public class CollaborationService {
                         WHERE design_draft_id = :draftId
                         """)
                 .param("draftId", draftId)
-                .query((rs, rowNum) -> new DesignDraftResponse(
+                .query((rs, rowNum) -> mapDesignDraft(
                         rs.getLong("design_draft_id"),
                         rs.getLong("order_id"),
                         rs.getInt("version_no"),
@@ -430,6 +438,63 @@ public class CollaborationService {
                         rs.getObject("file_id", Long.class),
                         rs.getString("draft_status")))
                 .single();
+    }
+
+    private DesignDraftResponse mapDesignDraft(
+            long draftId,
+            long orderId,
+            int version,
+            Long uploaderUserId,
+            Long primaryFileId,
+            String status) {
+        List<Long> fileIds = loadDesignDraftFileIds(draftId);
+        if (fileIds.isEmpty() && primaryFileId != null) {
+            fileIds = List.of(primaryFileId);
+        }
+        return new DesignDraftResponse(
+                draftId,
+                orderId,
+                version,
+                uploaderUserId,
+                primaryFileId,
+                fileIds,
+                fileIds.size(),
+                status);
+    }
+
+    private List<Long> loadDesignDraftFileIds(long draftId) {
+        return jdbcClient.sql("""
+                        SELECT file_id
+                        FROM design_draft_file
+                        WHERE design_draft_id = :draftId
+                        ORDER BY sort_order, design_draft_file_id
+                        """)
+                .param("draftId", draftId)
+                .query(Long.class)
+                .list();
+    }
+
+    private List<Long> normalizeFileIds(List<Long> rawFileIds) {
+        Set<Long> seen = new LinkedHashSet<>();
+        for (Long fileId : rawFileIds) {
+            if (fileId != null && fileId > 0) {
+                seen.add(fileId);
+            }
+        }
+        return new ArrayList<>(seen);
+    }
+
+    private void insertDesignDraftFiles(long draftId, List<Long> fileIds) {
+        for (int index = 0; index < fileIds.size(); index++) {
+            jdbcClient.sql("""
+                            INSERT INTO design_draft_file (design_draft_id, file_id, sort_order)
+                            VALUES (:draftId, :fileId, :sortOrder)
+                            """)
+                    .param("draftId", draftId)
+                    .param("fileId", fileIds.get(index))
+                    .param("sortOrder", index)
+                    .update();
+        }
     }
 
     private DesignDraftRow loadDesignDraftRow(long orderId, long draftId) {

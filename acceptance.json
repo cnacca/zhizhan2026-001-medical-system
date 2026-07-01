@@ -1128,6 +1128,34 @@
             "任务 9D.12 第一增量",
             "check:task9d12"
           ]
+        },
+        {
+          "id": "task-9d13-design-draft-multi-file-required-text",
+          "type": "required_text",
+          "paths": [
+            "backend/platform-server/src/main/resources/db/migration/V14__design_draft_multi_file.sql",
+            "backend/platform-server/src/main/java/com/yuri/aiorder/collaboration/DesignDraftResponse.java",
+            "backend/platform-server/src/main/java/com/yuri/aiorder/collaboration/CollaborationService.java",
+            "backend/platform-server/src/test/java/com/yuri/aiorder/collaboration/MessageDesignBillNotificationTests.java",
+            "frontend/src/App.vue",
+            "docs/api/openapi.yaml",
+            "scripts/check-task-9d13-design-drafts.mjs",
+            "package.json"
+          ],
+          "patterns": [
+            "CREATE TABLE design_draft_file",
+            "@JsonProperty(\"file_ids\")",
+            "@JsonProperty(\"file_count\")",
+            "insertDesignDraftFiles",
+            "loadDesignDraftFileIds",
+            "designDraftUploadKeepsMultipleFilesPerVersionAndIncrementsVersions",
+            "file_ids: number[]",
+            "draft.file_ids.join",
+            "uploadInternalDesignDraft",
+            "internal-design-draft-upload-button",
+            "任务 9D.13 第一增量",
+            "check:task9d13"
+          ]
         }
       ]
     }

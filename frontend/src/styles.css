@@ -123,6 +123,10 @@ body {
   min-width: 0;
 }
 
+.content-grid.with-nav > .route-panel {
+  grid-column: 2 / -1;
+}
+
 .route-heading {
   display: flex;
   align-items: center;

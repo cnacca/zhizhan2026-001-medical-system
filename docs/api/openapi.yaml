@@ -1046,6 +1046,15 @@ components:
         file_id:
           type: integer
           nullable: true
+          description: 兼容字段，表示该版本第一个设计稿文件。
+        file_ids:
+          type: array
+          description: 任务 9D.13 第一增量：同一设计稿版本关联的全部文件 ID，按上传顺序返回。
+          items:
+            type: integer
+        file_count:
+          type: integer
+          description: 同一设计稿版本的文件数量。
         status:
           "$ref": "#/components/schemas/DraftStatus"
     DesignDraftReviewRequest:
@@ -3536,7 +3545,9 @@ paths:
       tags:
       - DesignDraft
       summary: 上传新版设计稿
-      description: 权限：WORKER / CS / ADMIN（工厂端任意人员）
+      description: |
+        权限：WORKER / CS / ADMIN（工厂端任意人员）
+        任务 9D.13 第一增量支持同一版本绑定多个 file_ids；响应保留 file_id 作为第一个文件的兼容字段。
       parameters:
       - name: orderId
         in: path

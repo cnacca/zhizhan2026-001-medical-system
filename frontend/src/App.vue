@@ -118,6 +118,8 @@ type DesignDraftItem = {
   version: number
   uploader_user_id: number | null
   file_id: number | null
+  file_ids: number[]
+  file_count: number
   status: string
 }
 
@@ -401,6 +403,9 @@ const internalOrderError = ref('')
 const csProductionNote = ref('')
 const csRejectReason = ref('')
 const csReviewActionLoading = ref(false)
+const csDesignDraftFileIds = ref('')
+const csDesignDraftUploadNote = ref('')
+const csDesignDraftResult = ref('')
 const productionReviewOrders = ref<InternalOrderItem[]>([])
 const selectedProductionReviewOrder = ref<InternalOrderItem | null>(null)
 const productionReviewKeyword = ref('')
@@ -1505,6 +1510,9 @@ function selectInternalOrder(order: InternalOrderItem) {
   selectedInternalOrder.value = order
   csProductionNote.value = order.production_note ?? ''
   csRejectReason.value = ''
+  csDesignDraftFileIds.value = ''
+  csDesignDraftUploadNote.value = ''
+  csDesignDraftResult.value = ''
 }
 
 async function reviewInternalOrder(action: 'APPROVE' | 'REJECT') {
@@ -1529,6 +1537,40 @@ async function reviewInternalOrder(action: 'APPROVE' | 'REJECT') {
     await loadNotifications()
   } catch (error) {
     internalOrderError.value = error instanceof Error ? error.message : '客服审核失败'
+  } finally {
+    csReviewActionLoading.value = false
+  }
+}
+
+async function uploadInternalDesignDraft() {
+  if (!selectedInternalOrder.value) {
+    return
+  }
+  const fileIds = parseFileIds(csDesignDraftFileIds.value)
+  if (fileIds.length === 0) {
+    internalOrderError.value = '请填写设计稿 file_id'
+    return
+  }
+  csReviewActionLoading.value = true
+  internalOrderError.value = ''
+  csDesignDraftResult.value = ''
+  try {
+    const payload = await apiFetch<DesignDraftItem>(
+      `/orders/${selectedInternalOrder.value.order_id}/design-drafts`,
+      {
+        method: 'POST',
+        body: JSON.stringify({
+          file_ids: fileIds,
+          upload_note: csDesignDraftUploadNote.value.trim() || null
+        })
+      }
+    )
+    csDesignDraftResult.value = `已上传 V${payload.data.version}，文件数 ${payload.data.file_count}`
+    csDesignDraftFileIds.value = ''
+    csDesignDraftUploadNote.value = ''
+    await loadNotifications()
+  } catch (error) {
+    internalOrderError.value = error instanceof Error ? error.message : '设计稿上传失败'
   } finally {
     csReviewActionLoading.value = false
   }
@@ -2172,6 +2214,15 @@ function parseDoctorOrderFileIds() {
     .filter((item) => Number.isInteger(item) && item > 0)
 }
 
+function parseFileIds(value: string) {
+  return value
+    .split(',')
+    .map((item) => item.trim())
+    .filter(Boolean)
+    .map((item) => Number(item))
+    .filter((item) => Number.isInteger(item) && item > 0)
+}
+
 function connectNotificationSocket() {
   closeNotificationSocket()
   if (!token.value) {
@@ -2450,6 +2501,39 @@ onBeforeUnmount(() => {
                       >
                         驳回
                       </el-button>
+                    </div>
+                  </div>
+                </el-tab-pane>
+
+                <el-tab-pane label="设计稿">
+                  <div class="review-form">
+                    <el-form-item label="设计稿 file_id">
+                      <el-input
+                        v-model="csDesignDraftFileIds"
+                        data-testid="internal-design-draft-file-ids"
+                        placeholder="多个 file_id 用英文逗号分隔"
+                      />
+                    </el-form-item>
+                    <el-form-item label="上传说明">
+                      <el-input
+                        v-model="csDesignDraftUploadNote"
+                        data-testid="internal-design-draft-note"
+                        type="textarea"
+                        :rows="3"
+                      />
+                    </el-form-item>
+                    <div class="inline-actions">
+                      <el-button
+                        type="primary"
+                        :loading="csReviewActionLoading"
+                        data-testid="internal-design-draft-upload-button"
+                        @click="uploadInternalDesignDraft"
+                      >
+                        上传设计稿
+                      </el-button>
+                      <el-tag v-if="csDesignDraftResult" data-testid="internal-design-draft-result" type="success" round>
+                        {{ csDesignDraftResult }}
+                      </el-tag>
                     </div>
                   </div>
                 </el-tab-pane>
@@ -3626,7 +3710,8 @@ onBeforeUnmount(() => {
                   <div class="compact-list">
                     <article v-for="draft in doctorOrderWorkspace.drafts" :key="draft.draft_id">
                       <strong>V{{ draft.version }} / {{ draft.status }}</strong>
-                      <p>文件 ID：{{ draft.file_id ?? '-' }}</p>
+                      <p>文件 ID：{{ draft.file_ids?.length ? draft.file_ids.join(', ') : (draft.file_id ?? '-') }}</p>
+                      <span>文件数：{{ draft.file_count ?? draft.file_ids?.length ?? (draft.file_id ? 1 : 0) }}</span>
                       <div v-if="draft.status === 'PENDING_DOCTOR_CONFIRM'" class="inline-actions">
                         <el-button
                           type="primary"

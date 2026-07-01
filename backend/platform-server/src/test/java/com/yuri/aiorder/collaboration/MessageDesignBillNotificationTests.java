@@ -175,6 +175,55 @@ class MessageDesignBillNotificationTests {
     }
 
     @Test
+    void designDraftUploadKeepsMultipleFilesPerVersionAndIncrementsVersions() throws Exception {
+        long secondFileId = createDesignDraftFile("supplement.stl", "application/sla", 2048);
+
+        MvcResult firstUpload = mockMvc.perform(post("/orders/{orderId}/design-drafts", orderId)
+                        .header("X-Bootstrap-Role", "WORKER")
+                        .header("X-Bootstrap-User-Id", WORKER_USER_ID)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"file_ids\":[" + fileId + "," + secondFileId + "],\"upload_note\":\"V1 多文件\"}"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.version").value(1))
+                .andExpect(jsonPath("$.data.file_id").value(fileId))
+                .andExpect(jsonPath("$.data.file_ids[0]").value(fileId))
+                .andExpect(jsonPath("$.data.file_ids[1]").value(secondFileId))
+                .andExpect(jsonPath("$.data.file_count").value(2))
+                .andReturn();
+        long firstDraftId = extractId(firstUpload, "draft_id");
+
+        long thirdFileId = createDesignDraftFile("version-two.pdf", "application/pdf", 3072);
+        mockMvc.perform(post("/orders/{orderId}/design-drafts", orderId)
+                        .header("X-Bootstrap-Role", "WORKER")
+                        .header("X-Bootstrap-User-Id", WORKER_USER_ID)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"file_ids\":[" + thirdFileId + "],\"upload_note\":\"V2\"}"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.version").value(2))
+                .andExpect(jsonPath("$.data.file_ids[0]").value(thirdFileId))
+                .andExpect(jsonPath("$.data.file_count").value(1));
+
+        mockMvc.perform(post("/orders/{orderId}/design-drafts/{draftId}/cs-review", orderId, firstDraftId)
+                        .header("X-Bootstrap-Role", "CS")
+                        .header("X-Bootstrap-User-Id", CS_USER_ID)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"action\":\"APPROVE\"}"))
+                .andExpect(status().isOk());
+
+        mockMvc.perform(get("/orders/{orderId}/design-drafts", orderId)
+                        .header("X-Bootstrap-Role", "DOCTOR")
+                        .header("X-Bootstrap-User-Id", DOCTOR_USER_ID)
+                        .header("X-Bootstrap-Clinic-Id", clinicId))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data[0].draft_id").value(firstDraftId))
+                .andExpect(jsonPath("$.data[0].version").value(1))
+                .andExpect(jsonPath("$.data[0].file_ids[0]").value(fileId))
+                .andExpect(jsonPath("$.data[0].file_ids[1]").value(secondFileId))
+                .andExpect(jsonPath("$.data[0].file_count").value(2))
+                .andExpect(content().string(not(containsString("内部协同备注"))));
+    }
+
+    @Test
     void billAndLogisticsAreVisibleToDoctorAndShipmentUpdatesExternalProjection() throws Exception {
         mockMvc.perform(post("/orders/{orderId}/bill", orderId)
                         .header("X-Bootstrap-Role", "CS")
@@ -265,6 +314,25 @@ class MessageDesignBillNotificationTests {
                 .param("userId", userId)
                 .query(Long.class)
                 .single();
+    }
+
+    private long createDesignDraftFile(String filename, String contentType, long fileSize) {
+        jdbcClient.sql("""
+                        INSERT INTO file_resource
+                            (order_id, owner_user_id, source_type, visibility, bucket_name,
+                             object_key, original_filename, content_type, file_size, upload_status)
+                        VALUES
+                            (:orderId, :ownerUserId, 'DESIGN_DRAFT', 'DOCTOR_CS', 'ai-order-private',
+                             :objectKey, :filename, :contentType, :fileSize, 'COMPLETED')
+                        """)
+                .param("orderId", orderId)
+                .param("ownerUserId", WORKER_USER_ID)
+                .param("objectKey", "test/collab/" + UUID.randomUUID() + "/" + filename)
+                .param("filename", filename)
+                .param("contentType", contentType)
+                .param("fileSize", fileSize)
+                .update();
+        return jdbcClient.sql("SELECT LAST_INSERT_ID()").query(Long.class).single();
     }
 
     private void assignWorkerToOrder(String suffix) {
