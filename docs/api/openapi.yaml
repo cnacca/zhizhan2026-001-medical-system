@@ -953,14 +953,42 @@ components:
         assigned_user_id:
           type: integer
           nullable: true
+        reason_category:
+          type: string
+          nullable: true
         reason_detail:
           type: string
+          nullable: true
+        responsibility_type:
+          type: string
+          nullable: true
+        close_note:
+          type: string
+          nullable: true
+        closed_by_user_id:
+          type: integer
+          nullable: true
+        closed_at:
+          type: string
+          format: date-time
           nullable: true
         status:
           type: string
         created_at:
           type: string
           format: date-time
+    ReworkCloseRequest:
+      type: object
+      properties:
+        reason_category:
+          type: string
+          description: 返工原因分类，支持 FIT_ISSUE / MATERIAL_ISSUE / DESIGN_ISSUE / OTHER。
+        responsibility_type:
+          type: string
+          description: 责任类型，支持 WORKER / DOCTOR / CS / SYSTEM。
+        close_note:
+          type: string
+          description: 关闭备注。
     FinalInspectionReportRequest:
       type: object
       required:
@@ -3138,6 +3166,53 @@ paths:
         '503':
           "$ref": "#/components/responses/ServiceUnavailable"
       operationId: getReworks
+  "/reworks/{reworkId}/close":
+    post:
+      tags:
+      - CheckRecord
+      summary: 关闭返工记录
+      description: |
+        任务 9D.17 第一增量：权限 WORKER / ADMIN。
+        返工目标节点必须在来源失败检查之后重新提交 OUT/PASS，才能关闭返工并写入原因分类、责任类型和关闭备注。
+      parameters:
+      - name: reworkId
+        in: path
+        required: true
+        schema:
+          type: integer
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              "$ref": "#/components/schemas/ReworkCloseRequest"
+      responses:
+        '200':
+          description: 返工已关闭
+          content:
+            application/json:
+              schema:
+                allOf:
+                - "$ref": "#/components/schemas/CommonResponse"
+                - type: object
+                  properties:
+                    data:
+                      "$ref": "#/components/schemas/ReworkRecordResponse"
+        '400':
+          "$ref": "#/components/responses/BadRequest"
+        '401':
+          "$ref": "#/components/responses/Unauthorized"
+        '403':
+          "$ref": "#/components/responses/Forbidden"
+        '404':
+          "$ref": "#/components/responses/NotFound"
+        '409':
+          "$ref": "#/components/responses/Conflict"
+        default:
+          "$ref": "#/components/responses/DefaultError"
+        '503':
+          "$ref": "#/components/responses/ServiceUnavailable"
+      operationId: postReworksByReworkIdClose
   "/final-inspection-reports":
     post:
       tags:

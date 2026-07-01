@@ -14,7 +14,12 @@ public record ReworkRecordResponse(
         @JsonProperty("target_process_name") String targetProcessName,
         @JsonProperty("target_node_status") String targetNodeStatus,
         @JsonProperty("assigned_user_id") Long assignedUserId,
+        @JsonProperty("reason_category") String reasonCategory,
         @JsonProperty("reason_detail") String reasonDetail,
+        @JsonProperty("responsibility_type") String responsibilityType,
+        @JsonProperty("close_note") String closeNote,
+        @JsonProperty("closed_by_user_id") Long closedByUserId,
+        @JsonProperty("closed_at") LocalDateTime closedAt,
         String status,
         @JsonProperty("created_at") LocalDateTime createdAt) {
 }

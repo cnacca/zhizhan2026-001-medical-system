@@ -198,6 +198,60 @@ class CheckWorklogPerformanceTests {
     }
 
     @Test
+    void reworkCanCloseOnlyAfterTargetOutPassAndKeepsResponsibilityClassification() throws Exception {
+        submitCheck(nodeInstanceId, 1, true, null);
+        startNode(nodeInstanceId);
+        completeNode(nodeInstanceId);
+        long reworkId = submitCheck(nodeInstanceId, 2, false, nodeInstanceId).path("rework_id").asLong();
+
+        mockMvc.perform(post("/reworks/{reworkId}/close", reworkId)
+                        .header("X-Bootstrap-Role", "WORKER")
+                        .header("X-Bootstrap-User-Id", workerUserId)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("""
+                                {
+                                  "reason_category":"FIT_ISSUE",
+                                  "responsibility_type":"WORKER",
+                                  "close_note":"返工复检通过"
+                                }
+                                """))
+                .andExpect(status().isConflict());
+
+        startNode(nodeInstanceId);
+        completeNode(nodeInstanceId);
+        submitCheck(nodeInstanceId, 2, true, null);
+
+        mockMvc.perform(post("/reworks/{reworkId}/close", reworkId)
+                        .header("X-Bootstrap-Role", "WORKER")
+                        .header("X-Bootstrap-User-Id", workerUserId)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("""
+                                {
+                                  "reason_category":"FIT_ISSUE",
+                                  "responsibility_type":"WORKER",
+                                  "close_note":"返工复检通过"
+                                }
+                                """))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.rework_id").value(reworkId))
+                .andExpect(jsonPath("$.data.status").value("DONE"))
+                .andExpect(jsonPath("$.data.reason_category").value("FIT_ISSUE"))
+                .andExpect(jsonPath("$.data.responsibility_type").value("WORKER"))
+                .andExpect(jsonPath("$.data.close_note").value("返工复检通过"))
+                .andExpect(jsonPath("$.data.closed_at").isNotEmpty());
+
+        mockMvc.perform(get("/reworks")
+                        .header("X-Bootstrap-Role", "WORKER")
+                        .header("X-Bootstrap-User-Id", workerUserId)
+                        .param("status", "DONE")
+                        .param("order_id", String.valueOf(orderId)))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data[0].rework_id").value(reworkId))
+                .andExpect(jsonPath("$.data[0].reason_category").value("FIT_ISSUE"))
+                .andExpect(jsonPath("$.data[0].responsibility_type").value("WORKER"));
+    }
+
+    @Test
     void bearerCsCannotReadWorkerPerformance() throws Exception {
         String csToken = tokenService.issue(new BootstrapIdentity(UserRole.CS, 8001L, null));
 

@@ -48,6 +48,15 @@ public class WorkflowExecutionController {
         return new DataResponse<>(workflowExecutionService.getReworks(status, orderId, identity));
     }
 
+    @PostMapping("/reworks/{reworkId}/close")
+    @RequirePermission(value = "check:write", roles = {UserRole.ADMIN, UserRole.WORKER})
+    public DataResponse<ReworkRecordResponse> closeRework(
+            @PathVariable long reworkId,
+            @RequestBody ReworkCloseRequest request,
+            BootstrapIdentity identity) {
+        return new DataResponse<>(workflowExecutionService.closeRework(reworkId, request, identity));
+    }
+
     @PostMapping("/final-inspection-reports")
     @RequirePermission(value = "check:write", roles = {UserRole.ADMIN, UserRole.WORKER})
     public DataResponse<FinalInspectionReportResponse> createFinalInspectionReport(

@@ -1234,6 +1234,36 @@
             "任务 9D.16 第一增量",
             "check:task9d16"
           ]
+        },
+        {
+          "id": "task-9d17-rework-close-required-text",
+          "type": "required_text",
+          "paths": [
+            "backend/platform-server/src/main/resources/db/migration/V16__rework_close_metadata.sql",
+            "backend/platform-server/src/main/java/com/yuri/aiorder/workflow/execution/WorkflowExecutionService.java",
+            "backend/platform-server/src/main/java/com/yuri/aiorder/workflow/execution/WorkflowExecutionController.java",
+            "backend/platform-server/src/main/java/com/yuri/aiorder/workflow/execution/ReworkCloseRequest.java",
+            "backend/platform-server/src/main/java/com/yuri/aiorder/workflow/execution/ReworkRecordResponse.java",
+            "backend/platform-server/src/test/java/com/yuri/aiorder/workflow/execution/CheckWorklogPerformanceTests.java",
+            "frontend/src/App.vue",
+            "docs/api/openapi.yaml",
+            "scripts/check-task-9d17-rework-close.mjs",
+            "package.json"
+          ],
+          "patterns": [
+            "closed_at DATETIME(3)",
+            "closeRework",
+            "/reworks/{reworkId}/close",
+            "@JsonProperty(\"responsibility_type\")",
+            "@JsonProperty(\"closed_at\")",
+            "reworkCanCloseOnlyAfterTargetOutPassAndKeepsResponsibilityClassification",
+            "closeSelectedRework",
+            "rework-close-button",
+            "关闭返工",
+            "任务 9D.17 第一增量",
+            "ReworkCloseRequest",
+            "check:task9d17"
+          ]
         }
       ]
     }

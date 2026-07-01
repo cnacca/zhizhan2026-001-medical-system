@@ -4,6 +4,7 @@ import com.yuri.aiorder.common.BootstrapIdentity;
 import com.yuri.aiorder.common.auth.AccessControlService;
 import java.time.LocalDateTime;
 import java.util.List;
+import java.util.Set;
 import org.springframework.dao.EmptyResultDataAccessException;
 import org.springframework.http.HttpStatus;
 import org.springframework.jdbc.core.simple.JdbcClient;
@@ -13,6 +14,11 @@ import org.springframework.web.server.ResponseStatusException;
 
 @Service
 public class WorkflowExecutionService {
+
+    private static final Set<String> REWORK_REASON_CATEGORIES = Set.of(
+            "FIT_ISSUE", "MATERIAL_ISSUE", "DESIGN_ISSUE", "OTHER");
+    private static final Set<String> REWORK_RESPONSIBILITY_TYPES = Set.of(
+            "WORKER", "DOCTOR", "CS", "SYSTEM");
 
     private final JdbcClient jdbcClient;
     private final AccessControlService accessControlService;
@@ -96,7 +102,12 @@ public class WorkflowExecutionService {
                             target_node.process_name AS target_process_name,
                             target_node.node_status AS target_node_status,
                             target_node.assigned_user_id,
+                            r.reason_category,
                             r.reason_detail,
+                            r.responsibility_type,
+                            r.close_note,
+                            r.closed_by_user_id,
+                            r.closed_at,
                             r.status,
                             r.created_at
                         FROM rework_record r
@@ -135,10 +146,62 @@ public class WorkflowExecutionService {
                         rs.getString("target_process_name"),
                         rs.getString("target_node_status"),
                         rs.getObject("assigned_user_id", Long.class),
+                        rs.getString("reason_category"),
                         rs.getString("reason_detail"),
+                        rs.getString("responsibility_type"),
+                        rs.getString("close_note"),
+                        rs.getObject("closed_by_user_id", Long.class),
+                        rs.getObject("closed_at", LocalDateTime.class),
                         rs.getString("status"),
                         rs.getObject("created_at", LocalDateTime.class)))
                 .list();
+    }
+
+    @Transactional
+    public ReworkRecordResponse closeRework(long reworkId, ReworkCloseRequest request, BootstrapIdentity identity) {
+        ReworkRow rework = lockRework(reworkId);
+        NodeRow targetNode = lockNode(rework.targetNodeInstanceId());
+        requireWorkerAssignment(targetNode, identity);
+        if ("DONE".equals(rework.status())) {
+            return loadRework(reworkId);
+        }
+        boolean hasReworkOutPass = jdbcClient.sql("""
+                        SELECT COUNT(*)
+                        FROM check_record
+                        WHERE node_instance_id = :targetNodeInstanceId
+                          AND check_type = 'OUT'
+                          AND result = 'PASS'
+                          AND check_id > :sourceCheckId
+                        """)
+                .param("targetNodeInstanceId", rework.targetNodeInstanceId())
+                .param("sourceCheckId", rework.sourceCheckId())
+                .query(Long.class)
+                .single() > 0;
+        if (!hasReworkOutPass) {
+            throw new ResponseStatusException(
+                    HttpStatus.CONFLICT, "rework target OUT/PASS check is required before closing rework");
+        }
+        String reasonCategory = normalizeDictionaryValue(
+                request.reasonCategory(), REWORK_REASON_CATEGORIES, "unsupported rework reason category");
+        String responsibilityType = normalizeDictionaryValue(
+                request.responsibilityType(), REWORK_RESPONSIBILITY_TYPES, "unsupported rework responsibility type");
+        jdbcClient.sql("""
+                        UPDATE rework_record
+                        SET reason_category = :reasonCategory,
+                            responsibility_type = :responsibilityType,
+                            close_note = :closeNote,
+                            closed_by_user_id = :closedByUserId,
+                            closed_at = CURRENT_TIMESTAMP(3),
+                            status = 'DONE'
+                        WHERE rework_id = :reworkId
+                        """)
+                .param("reasonCategory", reasonCategory)
+                .param("responsibilityType", responsibilityType)
+                .param("closeNote", blankToNull(request.closeNote()))
+                .param("closedByUserId", identity.userId())
+                .param("reworkId", reworkId)
+                .update();
+        return loadRework(reworkId);
     }
 
     @Transactional
@@ -470,6 +533,82 @@ public class WorkflowExecutionService {
         }
     }
 
+    private ReworkRow lockRework(long reworkId) {
+        try {
+            return jdbcClient.sql("""
+                            SELECT rework_id, source_check_id, target_node_instance_id, status
+                            FROM rework_record
+                            WHERE rework_id = :reworkId
+                            FOR UPDATE
+                            """)
+                    .param("reworkId", reworkId)
+                    .query((rs, rowNum) -> new ReworkRow(
+                            rs.getLong("rework_id"),
+                            rs.getLong("source_check_id"),
+                            rs.getLong("target_node_instance_id"),
+                            rs.getString("status")))
+                    .single();
+        } catch (EmptyResultDataAccessException ex) {
+            throw new ResponseStatusException(HttpStatus.NOT_FOUND, "rework record not found", ex);
+        }
+    }
+
+    private ReworkRecordResponse loadRework(long reworkId) {
+        try {
+            return jdbcClient.sql("""
+                            SELECT
+                                r.rework_id,
+                                r.order_id,
+                                o.order_no,
+                                r.source_check_id,
+                                r.from_node_instance_id,
+                                from_node.process_name AS from_process_name,
+                                r.target_node_instance_id,
+                                target_node.process_name AS target_process_name,
+                                target_node.node_status AS target_node_status,
+                                target_node.assigned_user_id,
+                                r.reason_category,
+                                r.reason_detail,
+                                r.responsibility_type,
+                                r.close_note,
+                                r.closed_by_user_id,
+                                r.closed_at,
+                                r.status,
+                                r.created_at
+                            FROM rework_record r
+                            JOIN orders o ON o.order_id = r.order_id
+                            LEFT JOIN order_process_node from_node
+                              ON from_node.node_instance_id = r.from_node_instance_id
+                            LEFT JOIN order_process_node target_node
+                              ON target_node.node_instance_id = r.target_node_instance_id
+                            WHERE r.rework_id = :reworkId
+                            """)
+                    .param("reworkId", reworkId)
+                    .query((rs, rowNum) -> new ReworkRecordResponse(
+                            rs.getLong("rework_id"),
+                            rs.getLong("order_id"),
+                            rs.getString("order_no"),
+                            rs.getLong("source_check_id"),
+                            rs.getObject("from_node_instance_id", Long.class),
+                            rs.getString("from_process_name"),
+                            rs.getObject("target_node_instance_id", Long.class),
+                            rs.getString("target_process_name"),
+                            rs.getString("target_node_status"),
+                            rs.getObject("assigned_user_id", Long.class),
+                            rs.getString("reason_category"),
+                            rs.getString("reason_detail"),
+                            rs.getString("responsibility_type"),
+                            rs.getString("close_note"),
+                            rs.getObject("closed_by_user_id", Long.class),
+                            rs.getObject("closed_at", LocalDateTime.class),
+                            rs.getString("status"),
+                            rs.getObject("created_at", LocalDateTime.class)))
+                    .single();
+        } catch (EmptyResultDataAccessException ex) {
+            throw new ResponseStatusException(HttpStatus.NOT_FOUND, "rework record not found", ex);
+        }
+    }
+
     private NodeRow lockFinalNode(long orderId) {
         try {
             return jdbcClient.sql("""
@@ -650,6 +789,22 @@ public class WorkflowExecutionService {
         return null;
     }
 
+    private String blankToNull(String value) {
+        return value == null || value.isBlank() ? null : value.trim();
+    }
+
+    private String normalizeDictionaryValue(String value, Set<String> supportedValues, String unsupportedMessage) {
+        String normalized = blankToNull(value);
+        if (normalized == null) {
+            return null;
+        }
+        String upper = normalized.toUpperCase();
+        if (!supportedValues.contains(upper)) {
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, unsupportedMessage);
+        }
+        return upper;
+    }
+
     private long lastInsertId() {
         return jdbcClient.sql("SELECT LAST_INSERT_ID()")
                 .query(Long.class)
@@ -683,6 +838,13 @@ public class WorkflowExecutionService {
             long workerUserId,
             String status,
             LocalDateTime startedAt) {
+    }
+
+    private record ReworkRow(
+            long reworkId,
+            long sourceCheckId,
+            long targetNodeInstanceId,
+            String status) {
     }
 
     private record FinalCheckRow(long checkId) {

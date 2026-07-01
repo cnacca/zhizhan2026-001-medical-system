@@ -315,10 +315,29 @@ type ReworkRecordResponse = {
   target_process_name: string | null
   target_node_status: string | null
   assigned_user_id: number | null
+  reason_category: string | null
   reason_detail: string | null
+  responsibility_type: string | null
+  close_note: string | null
+  closed_by_user_id: number | null
+  closed_at: string | null
   status: string
   created_at: string
 }
+
+const REWORK_REASON_CATEGORY_OPTIONS = [
+  { code: 'FIT_ISSUE', label: '适配问题' },
+  { code: 'MATERIAL_ISSUE', label: '材料问题' },
+  { code: 'DESIGN_ISSUE', label: '设计问题' },
+  { code: 'OTHER', label: '其他' }
+]
+
+const REWORK_RESPONSIBILITY_TYPE_OPTIONS = [
+  { code: 'WORKER', label: '生产' },
+  { code: 'DOCTOR', label: '医生' },
+  { code: 'CS', label: '客服' },
+  { code: 'SYSTEM', label: '系统' }
+]
 
 type FinalInspectionReportResponse = {
   report_id: number
@@ -463,6 +482,11 @@ const reworkStatus = ref('PENDING')
 const reworkRecordsLoading = ref(false)
 const reworkError = ref('')
 const selectedRework = ref<ReworkRecordResponse | null>(null)
+const reworkCloseReasonCategory = ref('FIT_ISSUE')
+const reworkCloseResponsibilityType = ref('WORKER')
+const reworkCloseNote = ref('')
+const reworkCloseLoading = ref(false)
+const reworkCloseResult = ref<ReworkRecordResponse | null>(null)
 const finalInspectionTasks = ref<WorkerTaskItem[]>([])
 const selectedFinalInspectionTask = ref<WorkerTaskItem | null>(null)
 const finalInspectionRecords = ref<CheckRecordResponse[]>([])
@@ -1954,12 +1978,53 @@ async function loadReworkRecords() {
       ? payload.data.some((record) => record.rework_id === selectedRework.value?.rework_id)
       : false
     selectedRework.value = selectedStillVisible ? selectedRework.value : payload.data[0] ?? null
+    if (selectedRework.value) {
+      applyReworkCloseDefaults(selectedRework.value)
+    }
   } catch (error) {
     reworkRecords.value = []
     selectedRework.value = null
     reworkError.value = error instanceof Error ? error.message : '返工记录加载失败'
   } finally {
     reworkRecordsLoading.value = false
+  }
+}
+
+function selectReworkRecord(record: ReworkRecordResponse) {
+  selectedRework.value = record
+  applyReworkCloseDefaults(record)
+}
+
+function applyReworkCloseDefaults(record: ReworkRecordResponse) {
+  reworkCloseReasonCategory.value = record.reason_category ?? REWORK_REASON_CATEGORY_OPTIONS[0].code
+  reworkCloseResponsibilityType.value = record.responsibility_type ?? REWORK_RESPONSIBILITY_TYPE_OPTIONS[0].code
+  reworkCloseNote.value = record.close_note ?? ''
+  reworkCloseResult.value = null
+}
+
+async function closeSelectedRework() {
+  if (!selectedRework.value) {
+    return
+  }
+  reworkCloseLoading.value = true
+  reworkError.value = ''
+  reworkCloseResult.value = null
+  try {
+    const payload = await apiFetch<ReworkRecordResponse>(`/reworks/${selectedRework.value.rework_id}/close`, {
+      method: 'POST',
+      body: JSON.stringify({
+        reason_category: reworkCloseReasonCategory.value,
+        responsibility_type: reworkCloseResponsibilityType.value,
+        close_note: reworkCloseNote.value.trim() || null
+      })
+    })
+    selectedRework.value = payload.data
+    reworkCloseResult.value = payload.data
+    await loadReworkRecords()
+  } catch (error) {
+    reworkError.value = error instanceof Error ? error.message : '关闭返工失败'
+  } finally {
+    reworkCloseLoading.value = false
   }
 }
 
@@ -3112,6 +3177,14 @@ onBeforeUnmount(() => {
           />
 
           <el-alert
+            v-if="reworkCloseResult"
+            :title="`已关闭返工：${reworkCloseResult.rework_id} / ${reworkCloseResult.status}`"
+            type="success"
+            show-icon
+            :closable="false"
+          />
+
+          <el-alert
             v-if="finalInspectionResult"
             :title="`已提交终检出检：${finalInspectionResult.result}`"
             type="success"
@@ -3127,11 +3200,12 @@ onBeforeUnmount(() => {
                 class="doctor-order-row"
                 :class="{ active: selectedRework?.rework_id === record.rework_id }"
                 type="button"
-                @click="selectedRework = record"
+                @click="selectReworkRecord(record)"
               >
                 <strong>{{ record.order_no }} / 返工 {{ record.rework_id }}</strong>
                 <span>{{ record.from_process_name ?? '-' }} -> {{ record.target_process_name ?? '-' }}</span>
                 <small>返工目标节点 {{ record.target_node_instance_id ?? '-' }} / {{ record.target_node_status ?? '-' }}</small>
+                <small v-if="record.responsibility_type">责任 {{ record.responsibility_type }} / {{ record.reason_category ?? '-' }}</small>
               </button>
               <div v-if="reworkRecords.length === 0" class="empty-state">
                 暂无待返工记录
@@ -3161,6 +3235,53 @@ onBeforeUnmount(() => {
                   <span>状态</span>
                   <strong>{{ selectedRework.status }}</strong>
                 </div>
+                <div>
+                  <span>责任分类</span>
+                  <strong>{{ selectedRework.reason_category ?? '-' }} / {{ selectedRework.responsibility_type ?? '-' }}</strong>
+                </div>
+                <div>
+                  <span>关闭时间</span>
+                  <strong>{{ selectedRework.closed_at ?? '-' }}</strong>
+                </div>
+              </div>
+
+              <div v-if="selectedRework" class="check-form">
+                <div class="doctor-order-toolbar">
+                  <el-select v-model="reworkCloseReasonCategory" placeholder="原因分类">
+                    <el-option
+                      v-for="option in REWORK_REASON_CATEGORY_OPTIONS"
+                      :key="option.code"
+                      :label="`${option.code} / ${option.label}`"
+                      :value="option.code"
+                    />
+                  </el-select>
+                  <el-select v-model="reworkCloseResponsibilityType" placeholder="责任类型">
+                    <el-option
+                      v-for="option in REWORK_RESPONSIBILITY_TYPE_OPTIONS"
+                      :key="option.code"
+                      :label="`${option.code} / ${option.label}`"
+                      :value="option.code"
+                    />
+                  </el-select>
+                </div>
+                <el-form-item label="关闭备注">
+                  <el-input
+                    v-model="reworkCloseNote"
+                    data-testid="rework-close-note"
+                    type="textarea"
+                    :rows="3"
+                    placeholder="目标节点重新出检通过后关闭返工"
+                  />
+                </el-form-item>
+                <el-button
+                  type="primary"
+                  plain
+                  :loading="reworkCloseLoading"
+                  data-testid="rework-close-button"
+                  @click="closeSelectedRework"
+                >
+                  关闭返工
+                </el-button>
               </div>
 
               <div class="doctor-order-toolbar">
