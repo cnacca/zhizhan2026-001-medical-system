@@ -39,6 +39,8 @@ public class AiGatewayService {
     private static final String RATE_LIMIT_STATUS = "AI_RATE_LIMITED";
     private static final String MODEL_FAILURE_MODEL_NAME = "ai-governance-model-failure";
     private static final String MODEL_FAILURE_STATUS = "AI_MODEL_FAILED";
+    private static final String BUDGET_EXCEEDED_MODEL_NAME = "ai-governance-budget-exceeded";
+    private static final String BUDGET_EXCEEDED_STATUS = "AI_BUDGET_EXCEEDED";
     private static final Set<UserRole> CS_AND_ADMIN = EnumSet.of(UserRole.CS, UserRole.ADMIN);
     private static final Set<UserRole> CHECK_MISSING_ROLES = EnumSet.of(UserRole.DOCTOR, UserRole.CS, UserRole.ADMIN);
     private static final Set<UserRole> PRODUCTION_NOTE_ROLES = EnumSet.of(UserRole.CS, UserRole.WORKER, UserRole.ADMIN);
@@ -218,13 +220,16 @@ public class AiGatewayService {
                             COALESCE(SUM(CASE WHEN result_status = 'SAFE_REFUSAL' THEN 1 ELSE 0 END), 0) AS safe_refusal_count,
                             COALESCE(SUM(CASE WHEN result_status = :rateLimitStatus THEN 1 ELSE 0 END), 0) AS rate_limited_count,
                             COALESCE(SUM(CASE WHEN result_status = :modelFailureStatus THEN 1 ELSE 0 END), 0) AS model_failed_count,
+                            COALESCE(SUM(CASE WHEN result_status = :budgetExceededStatus THEN 1 ELSE 0 END), 0) AS budget_alert_count,
                             COALESCE(SUM(estimated_cost_microusd), 0) AS estimated_cost_microusd,
-                            MAX(CASE WHEN result_status = :modelFailureStatus THEN created_at ELSE NULL END) AS latest_model_failure_at
+                            MAX(CASE WHEN result_status = :modelFailureStatus THEN created_at ELSE NULL END) AS latest_model_failure_at,
+                            MAX(CASE WHEN result_status = :budgetExceededStatus THEN created_at ELSE NULL END) AS latest_budget_alert_at
                         FROM ai_audit_log
                         WHERE created_at >= DATE_SUB(CURRENT_TIMESTAMP(3), INTERVAL 24 HOUR)
                         """)
                 .param("rateLimitStatus", RATE_LIMIT_STATUS)
                 .param("modelFailureStatus", MODEL_FAILURE_STATUS)
+                .param("budgetExceededStatus", BUDGET_EXCEEDED_STATUS)
                 .query((rs, rowNum) -> new AiGovernanceSummaryResponse(
                         24,
                         rs.getLong("success_count"),
@@ -234,7 +239,9 @@ public class AiGatewayService {
                         rs.getLong("estimated_cost_microusd"),
                         dailyBudgetMicrousd,
                         dailyBudgetMicrousd > 0 && rs.getLong("estimated_cost_microusd") >= dailyBudgetMicrousd,
-                        rs.getObject("latest_model_failure_at", LocalDateTime.class)))
+                        rs.getLong("budget_alert_count"),
+                        rs.getObject("latest_model_failure_at", LocalDateTime.class),
+                        rs.getObject("latest_budget_alert_at", LocalDateTime.class)))
                 .single();
     }
 
@@ -474,6 +481,7 @@ public class AiGatewayService {
             String prompt,
             String resultStatus,
             AiModelResult modelResult) {
+        long estimatedCostMicrousd = estimatedCostMicrousd(modelResult);
         jdbcClient.sql("""
                         INSERT INTO ai_audit_log
                             (order_id, actor_user_id, agent_code, request_context_type,
@@ -492,9 +500,49 @@ public class AiGatewayService {
                 .param("modelName", modelResult.modelName())
                 .param("inputTokenCount", modelResult.inputTokenCount())
                 .param("outputTokenCount", modelResult.outputTokenCount())
-                .param("estimatedCostMicrousd", estimatedCostMicrousd(modelResult))
+                .param("estimatedCostMicrousd", estimatedCostMicrousd)
                 .param("resultStatus", resultStatus)
                 .update();
+        auditBudgetExceededIfCrossed(orderId, identity, agentCode, contextType, prompt, resultStatus, modelResult,
+                estimatedCostMicrousd);
+    }
+
+    private void auditBudgetExceededIfCrossed(
+            long orderId,
+            BootstrapIdentity identity,
+            String agentCode,
+            String contextType,
+            String prompt,
+            String resultStatus,
+            AiModelResult modelResult,
+            long estimatedCostMicrousd) {
+        long dailyBudgetMicrousd = Math.max(0, properties.getDailyBudgetMicrousd());
+        if (dailyBudgetMicrousd <= 0
+                || estimatedCostMicrousd <= 0
+                || !"SUCCESS".equals(resultStatus)
+                || DETERMINISTIC_MODEL_NAME.equals(modelResult.modelName())) {
+            return;
+        }
+        long currentWindowCost = jdbcClient.sql("""
+                        SELECT COALESCE(SUM(estimated_cost_microusd), 0)
+                        FROM ai_audit_log
+                        WHERE result_status = 'SUCCESS'
+                          AND created_at >= DATE_SUB(CURRENT_TIMESTAMP(3), INTERVAL 24 HOUR)
+                        """)
+                .query(Long.class)
+                .single();
+        long previousWindowCost = Math.max(0, currentWindowCost - estimatedCostMicrousd);
+        if (previousWindowCost >= dailyBudgetMicrousd || currentWindowCost < dailyBudgetMicrousd) {
+            return;
+        }
+        audit(
+                orderId,
+                identity,
+                agentCode,
+                contextType,
+                prompt,
+                BUDGET_EXCEEDED_STATUS,
+                new AiModelResult("ai-budget-exceeded", BUDGET_EXCEEDED_MODEL_NAME, 0, null));
     }
 
     private long estimatedCostMicrousd(AiModelResult modelResult) {

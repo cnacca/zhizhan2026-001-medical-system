@@ -1,5 +1,21 @@
 # DECISIONS
 
+## D-077 AI 预算告警先落为可追踪治理审计
+
+状态：已确认。
+
+决策：
+
+- 真实模型成功调用导致近 24 小时估算成本从低于预算阈值变为达到或超过阈值时，写入 `ai_audit_log.result_status=AI_BUDGET_EXCEEDED`。
+- `AI_BUDGET_EXCEEDED` 使用 `ai-governance-budget-exceeded` 虚拟模型名，估算成本为 0，避免告警审计重复计费。
+- `/ai/governance/summary` 新增 `budget_alert_count` 和 `latest_budget_alert_at`，供内部端追踪预算跨线告警。
+- 本增量不拦截 AI 请求、不发送外部通知、不自动降级模型。
+
+影响：
+
+- 9D.32 把预算阈值从只读标记推进到可审计的告警触发点。
+- 后续仍需预算通知推送、分角色/分模型预算、熔断/降级、提示词版本、输出防护和真实 key 环境联调记录。
+
 ## D-076 AI 预算阈值先作为治理摘要标记
 
 状态：已确认。

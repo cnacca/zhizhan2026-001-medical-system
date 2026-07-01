@@ -666,3 +666,16 @@ npm run acceptance
 npm run check:openapi
 ./scripts/with-jdk21.sh mvn -f backend/pom.xml -pl platform-server -Dtest=AiGatewayTests#aiGovernanceSummaryFlagsDailyBudgetThreshold test
 ```
+
+## 任务 9D.32 AI 预算超限审计第一增量检查
+
+任务 9D.32 新增 `AI_BUDGET_EXCEEDED`：真实模型成功调用导致近 24 小时估算成本跨过 `AI_DAILY_BUDGET_MICROUSD` 阈值时，写入一条成本为 0 的治理审计，并在 `/ai/governance/summary` 返回 `budget_alert_count` 和 `latest_budget_alert_at`。本轮不拦截请求、不发送外部通知，Task 8 仍保持 `NOT READY`。
+
+建议验证：
+
+```bash
+npm run check:task9d32
+npm run acceptance
+npm run check:openapi
+./scripts/with-jdk21.sh mvn -f backend/pom.xml -pl platform-server -Dtest=AiGatewayDeepSeekTests#deepSeekProviderAuditsBudgetExceededWhenDailyBudgetIsReached test
+```

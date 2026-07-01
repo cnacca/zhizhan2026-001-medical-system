@@ -2,6 +2,7 @@ package com.yuri.aiorder.ai;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.hamcrest.Matchers.containsString;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
@@ -76,6 +77,7 @@ class AiGatewayDeepSeekTests {
     void setUp() {
         deepSeekServer.reset();
         aiGatewayProperties.setMaxRequestsPerUserHour(120);
+        aiGatewayProperties.setDailyBudgetMicrousd(0);
         jdbcClient.sql("""
                         DELETE FROM ai_audit_log
                         WHERE actor_user_id IN (:doctorUserId, :csUserId, :workerUserId)
@@ -226,6 +228,31 @@ class AiGatewayDeepSeekTests {
     }
 
     @Test
+    void deepSeekProviderAuditsBudgetExceededWhenDailyBudgetIsReached() throws Exception {
+        long baselineOrderBudgetAlerts = auditCountByStatus("AI_BUDGET_EXCEEDED");
+        long baselineRecentBudgetAlerts = recentAuditCountByStatus("AI_BUDGET_EXCEEDED");
+        aiGatewayProperties.setDailyBudgetMicrousd(recentSuccessCostMicrousd() + 50);
+        deepSeekServer.enqueue("DeepSeek预算告警测试翻译。");
+
+        mockMvc.perform(post("/ai/translate")
+                        .header("X-Bootstrap-Role", "CS")
+                        .header("X-Bootstrap-User-Id", CS_USER_ID)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"order_id\":" + orderId + ",\"source_text\":\"Shade A2.\"}"))
+                .andExpect(status().isOk());
+
+        assertThat(deepSeekServer.requests()).hasSize(1);
+        assertThat(auditCountByStatus("AI_BUDGET_EXCEEDED")).isEqualTo(baselineOrderBudgetAlerts + 1);
+
+        mockMvc.perform(get("/ai/governance/summary")
+                        .header("X-Bootstrap-Role", "ADMIN")
+                        .header("X-Bootstrap-User-Id", 1L))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.budget_alert_count").value(baselineRecentBudgetAlerts + 1))
+                .andExpect(jsonPath("$.data.latest_budget_alert_at").exists());
+    }
+
+    @Test
     void deepSeekProviderRetriesTransientServerFailureBeforeAuditingSuccess() throws Exception {
         deepSeekServer.enqueueFailure(500);
         deepSeekServer.enqueue("DeepSeek重试后翻译草稿：Shade A2。");
@@ -280,6 +307,29 @@ class AiGatewayDeepSeekTests {
                         """)
                 .param("orderId", orderId)
                 .param("status", status)
+                .query(Long.class)
+                .single();
+    }
+
+    private long recentAuditCountByStatus(String status) {
+        return jdbcClient.sql("""
+                        SELECT COUNT(*)
+                        FROM ai_audit_log
+                        WHERE result_status = :status
+                          AND created_at >= DATE_SUB(CURRENT_TIMESTAMP(3), INTERVAL 24 HOUR)
+                        """)
+                .param("status", status)
+                .query(Long.class)
+                .single();
+    }
+
+    private long recentSuccessCostMicrousd() {
+        return jdbcClient.sql("""
+                        SELECT COALESCE(SUM(estimated_cost_microusd), 0)
+                        FROM ai_audit_log
+                        WHERE result_status = 'SUCCESS'
+                          AND created_at >= DATE_SUB(CURRENT_TIMESTAMP(3), INTERVAL 24 HOUR)
+                        """)
                 .query(Long.class)
                 .single();
     }
