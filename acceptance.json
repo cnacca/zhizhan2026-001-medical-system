@@ -1206,6 +1206,34 @@
             "任务 9D.15 第一增量",
             "check:task9d15"
           ]
+        },
+        {
+          "id": "task-9d16-final-inspection-report-required-text",
+          "type": "required_text",
+          "paths": [
+            "backend/platform-server/src/main/resources/db/migration/V15__final_inspection_report.sql",
+            "backend/platform-server/src/main/java/com/yuri/aiorder/workflow/execution/WorkflowExecutionService.java",
+            "backend/platform-server/src/main/java/com/yuri/aiorder/workflow/execution/WorkflowExecutionController.java",
+            "backend/platform-server/src/main/java/com/yuri/aiorder/workflow/execution/FinalInspectionReportResponse.java",
+            "backend/platform-server/src/test/java/com/yuri/aiorder/workflow/execution/CheckWorklogPerformanceTests.java",
+            "frontend/src/App.vue",
+            "frontend/vite.config.ts",
+            "docs/api/openapi.yaml",
+            "scripts/check-task-9d16-final-report.mjs",
+            "package.json"
+          ],
+          "patterns": [
+            "CREATE TABLE final_inspection_report",
+            "createFinalInspectionReport",
+            "/final-inspection-reports",
+            "@JsonProperty(\"report_no\")",
+            "finalInspectionReportRequiresFinalOutPassAndIsInternalOnly",
+            "type FinalInspectionReportResponse",
+            "final-inspection-report-create-button",
+            "生成终检报告",
+            "任务 9D.16 第一增量",
+            "check:task9d16"
+          ]
         }
       ]
     }

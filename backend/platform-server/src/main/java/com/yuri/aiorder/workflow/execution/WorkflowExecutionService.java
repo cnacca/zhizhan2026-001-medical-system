@@ -142,6 +142,54 @@ public class WorkflowExecutionService {
     }
 
     @Transactional
+    public FinalInspectionReportResponse createFinalInspectionReport(
+            FinalInspectionReportRequest request, BootstrapIdentity identity) {
+        if (request.orderId() == null) {
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "order_id is required");
+        }
+        NodeRow finalNode = lockFinalNode(request.orderId());
+        requireWorkerAssignment(finalNode, identity);
+        FinalCheckRow finalCheck = findLatestFinalOutPass(finalNode.nodeInstanceId());
+        FinalInspectionReportResponse existing = findFinalInspectionReport(request.orderId());
+        if (existing != null) {
+            return existing;
+        }
+        String summary = request.summary() == null || request.summary().isBlank()
+                ? "终检通过"
+                : request.summary().trim();
+        String reportNo = "FIR-" + request.orderId() + "-" + finalCheck.checkId();
+        jdbcClient.sql("""
+                        INSERT INTO final_inspection_report
+                            (order_id, report_no, final_node_instance_id, final_check_id,
+                             conclusion, summary, inspector_user_id, status)
+                        VALUES
+                            (:orderId, :reportNo, :finalNodeInstanceId, :finalCheckId,
+                             'PASS', :summary, :inspectorUserId, 'ISSUED')
+                        """)
+                .param("orderId", request.orderId())
+                .param("reportNo", reportNo)
+                .param("finalNodeInstanceId", finalNode.nodeInstanceId())
+                .param("finalCheckId", finalCheck.checkId())
+                .param("summary", summary)
+                .param("inspectorUserId", identity.userId())
+                .update();
+        return loadFinalInspectionReportById(lastInsertId());
+    }
+
+    public FinalInspectionReportResponse getFinalInspectionReport(long orderId, BootstrapIdentity identity) {
+        accessControlService.requireCheckRecordRead(identity);
+        FinalInspectionReportResponse report = findFinalInspectionReport(orderId);
+        if (report == null) {
+            throw new ResponseStatusException(HttpStatus.NOT_FOUND, "final inspection report not found");
+        }
+        if (identity.role() == com.yuri.aiorder.common.UserRole.WORKER) {
+            NodeRow finalNode = loadFinalNode(orderId);
+            requireWorkerAssignment(finalNode, identity);
+        }
+        return report;
+    }
+
+    @Transactional
     public WorkLogResponse startWorkLog(WorkLogStartRequest request, BootstrapIdentity identity) {
         if (request.nodeInstanceId() == null) {
             throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "node_instance_id is required");
@@ -422,6 +470,139 @@ public class WorkflowExecutionService {
         }
     }
 
+    private NodeRow lockFinalNode(long orderId) {
+        try {
+            return jdbcClient.sql("""
+                            SELECT
+                                n.node_instance_id,
+                                n.instance_id,
+                                i.order_id,
+                                n.assigned_user_id,
+                                n.node_status
+                            FROM order_process_node n
+                            JOIN order_process_instance i ON i.instance_id = n.instance_id
+                            WHERE i.order_id = :orderId
+                              AND n.step_order = (
+                                  SELECT MAX(last_node.step_order)
+                                  FROM order_process_node last_node
+                                  JOIN order_process_instance last_instance
+                                    ON last_instance.instance_id = last_node.instance_id
+                                  WHERE last_instance.order_id = :orderId
+                              )
+                            ORDER BY n.node_instance_id DESC
+                            LIMIT 1
+                            FOR UPDATE
+                            """)
+                    .param("orderId", orderId)
+                    .query((rs, rowNum) -> new NodeRow(
+                            rs.getLong("node_instance_id"),
+                            rs.getLong("instance_id"),
+                            rs.getLong("order_id"),
+                            rs.getObject("assigned_user_id", Long.class),
+                            rs.getString("node_status")))
+                    .single();
+        } catch (EmptyResultDataAccessException ex) {
+            throw new ResponseStatusException(HttpStatus.NOT_FOUND, "final process node not found", ex);
+        }
+    }
+
+    private NodeRow loadFinalNode(long orderId) {
+        try {
+            return jdbcClient.sql("""
+                            SELECT
+                                n.node_instance_id,
+                                n.instance_id,
+                                i.order_id,
+                                n.assigned_user_id,
+                                n.node_status
+                            FROM order_process_node n
+                            JOIN order_process_instance i ON i.instance_id = n.instance_id
+                            WHERE i.order_id = :orderId
+                              AND n.step_order = (
+                                  SELECT MAX(last_node.step_order)
+                                  FROM order_process_node last_node
+                                  JOIN order_process_instance last_instance
+                                    ON last_instance.instance_id = last_node.instance_id
+                                  WHERE last_instance.order_id = :orderId
+                              )
+                            ORDER BY n.node_instance_id DESC
+                            LIMIT 1
+                            """)
+                    .param("orderId", orderId)
+                    .query((rs, rowNum) -> new NodeRow(
+                            rs.getLong("node_instance_id"),
+                            rs.getLong("instance_id"),
+                            rs.getLong("order_id"),
+                            rs.getObject("assigned_user_id", Long.class),
+                            rs.getString("node_status")))
+                    .single();
+        } catch (EmptyResultDataAccessException ex) {
+            throw new ResponseStatusException(HttpStatus.NOT_FOUND, "final process node not found", ex);
+        }
+    }
+
+    private FinalCheckRow findLatestFinalOutPass(long finalNodeInstanceId) {
+        return jdbcClient.sql("""
+                        SELECT check_id
+                        FROM check_record
+                        WHERE node_instance_id = :nodeInstanceId
+                          AND check_type = 'OUT'
+                          AND result = 'PASS'
+                        ORDER BY check_id DESC
+                        LIMIT 1
+                        """)
+                .param("nodeInstanceId", finalNodeInstanceId)
+                .query((rs, rowNum) -> new FinalCheckRow(rs.getLong("check_id")))
+                .optional()
+                .orElseThrow(() -> new ResponseStatusException(
+                        HttpStatus.CONFLICT, "final OUT/PASS check is required before final inspection report"));
+    }
+
+    private FinalInspectionReportResponse findFinalInspectionReport(long orderId) {
+        return jdbcClient.sql("""
+                        SELECT report_id, order_id, report_no, final_node_instance_id, final_check_id,
+                               conclusion, summary, inspector_user_id, status, created_at
+                        FROM final_inspection_report
+                        WHERE order_id = :orderId
+                        """)
+                .param("orderId", orderId)
+                .query((rs, rowNum) -> new FinalInspectionReportResponse(
+                        rs.getLong("report_id"),
+                        rs.getLong("order_id"),
+                        rs.getString("report_no"),
+                        rs.getLong("final_node_instance_id"),
+                        rs.getLong("final_check_id"),
+                        rs.getString("conclusion"),
+                        rs.getString("summary"),
+                        rs.getObject("inspector_user_id", Long.class),
+                        rs.getString("status"),
+                        rs.getObject("created_at", LocalDateTime.class)))
+                .optional()
+                .orElse(null);
+    }
+
+    private FinalInspectionReportResponse loadFinalInspectionReportById(long reportId) {
+        return jdbcClient.sql("""
+                        SELECT report_id, order_id, report_no, final_node_instance_id, final_check_id,
+                               conclusion, summary, inspector_user_id, status, created_at
+                        FROM final_inspection_report
+                        WHERE report_id = :reportId
+                        """)
+                .param("reportId", reportId)
+                .query((rs, rowNum) -> new FinalInspectionReportResponse(
+                        rs.getLong("report_id"),
+                        rs.getLong("order_id"),
+                        rs.getString("report_no"),
+                        rs.getLong("final_node_instance_id"),
+                        rs.getLong("final_check_id"),
+                        rs.getString("conclusion"),
+                        rs.getString("summary"),
+                        rs.getObject("inspector_user_id", Long.class),
+                        rs.getString("status"),
+                        rs.getObject("created_at", LocalDateTime.class)))
+                .single();
+    }
+
     private WorkLogRow lockWorkLog(long workLogId) {
         try {
             return jdbcClient.sql("""
@@ -502,5 +683,8 @@ public class WorkflowExecutionService {
             long workerUserId,
             String status,
             LocalDateTime startedAt) {
+    }
+
+    private record FinalCheckRow(long checkId) {
     }
 }

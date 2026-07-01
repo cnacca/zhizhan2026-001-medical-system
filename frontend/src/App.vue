@@ -320,6 +320,19 @@ type ReworkRecordResponse = {
   created_at: string
 }
 
+type FinalInspectionReportResponse = {
+  report_id: number
+  order_id: number
+  report_no: string
+  final_node_instance_id: number
+  final_check_id: number
+  conclusion: string
+  summary: string | null
+  inspector_user_id: number | null
+  status: string
+  created_at: string
+}
+
 type WorkLogResponse = {
   work_log_id: number
   node_instance_id: number
@@ -456,6 +469,9 @@ const finalInspectionRecords = ref<CheckRecordResponse[]>([])
 const finalInspectionRemark = ref('')
 const finalInspectionLoading = ref(false)
 const finalInspectionResult = ref<CheckRecordResponse | null>(null)
+const finalInspectionReport = ref<FinalInspectionReportResponse | null>(null)
+const finalInspectionReportSummary = ref('')
+const finalInspectionReportLoading = ref(false)
 const worklogTaskStatus = ref('IN_PROGRESS')
 const worklogTasks = ref<WorkerTaskItem[]>([])
 const selectedWorklogTask = ref<WorkerTaskItem | null>(null)
@@ -1963,6 +1979,8 @@ async function loadFinalInspectionTasks() {
     if (payload.data.length === 0) {
       selectedFinalInspectionTask.value = null
       finalInspectionRecords.value = []
+      finalInspectionReport.value = null
+      finalInspectionReportSummary.value = ''
       return
     }
     if (!selectedStillVisible) {
@@ -1984,7 +2002,9 @@ async function selectFinalInspectionTask(task: WorkerTaskItem) {
   selectedFinalInspectionTask.value = task
   finalInspectionRemark.value = ''
   finalInspectionResult.value = null
+  finalInspectionReportSummary.value = ''
   await loadFinalInspectionRecords(task.node_instance_id)
+  await loadFinalInspectionReport(task.order_id)
 }
 
 function selectFinalInspectionTaskById(nodeId: number) {
@@ -2026,12 +2046,51 @@ async function submitFinalInspectionCheck() {
     finalInspectionResult.value = payload.data
     finalInspectionRemark.value = ''
     await loadFinalInspectionRecords(selectedFinalInspectionTask.value.node_instance_id)
+    await loadFinalInspectionReport(selectedFinalInspectionTask.value.order_id)
     await loadFinalInspectionTasks()
     await loadReworkRecords()
   } catch (error) {
     reworkError.value = error instanceof Error ? error.message : '提交终检出检失败'
   } finally {
     finalInspectionLoading.value = false
+  }
+}
+
+async function loadFinalInspectionReport(orderId: number) {
+  finalInspectionReport.value = null
+  try {
+    const payload = await apiFetch<FinalInspectionReportResponse>(`/final-inspection-reports/${orderId}`)
+    finalInspectionReport.value = payload.data
+    finalInspectionReportSummary.value = payload.data.summary ?? ''
+  } catch (error) {
+    if (error instanceof Error && error.message.includes('404')) {
+      return
+    }
+    reworkError.value = error instanceof Error ? error.message : '终检报告加载失败'
+  }
+}
+
+async function createFinalInspectionReport() {
+  if (!selectedFinalInspectionTask.value) {
+    return
+  }
+  finalInspectionReportLoading.value = true
+  reworkError.value = ''
+  try {
+    const payload = await apiFetch<FinalInspectionReportResponse>('/final-inspection-reports', {
+      method: 'POST',
+      body: JSON.stringify({
+        order_id: selectedFinalInspectionTask.value.order_id,
+        summary: finalInspectionReportSummary.value.trim() || '终检通过'
+      })
+    })
+    finalInspectionReport.value = payload.data
+    finalInspectionReportSummary.value = payload.data.summary ?? ''
+  } catch (error) {
+    const message = error instanceof Error ? error.message : '生成终检报告失败'
+    reworkError.value = message.includes('409') ? '终检出检通过后才能生成报告' : message
+  } finally {
+    finalInspectionReportLoading.value = false
   }
 }
 
@@ -3151,6 +3210,33 @@ onBeforeUnmount(() => {
                 >
                   提交终检出检
                 </el-button>
+                <el-form-item label="报告摘要">
+                  <el-input
+                    v-model="finalInspectionReportSummary"
+                    data-testid="final-inspection-report-summary"
+                    type="textarea"
+                    :rows="3"
+                    placeholder="终检通过后生成报告"
+                  />
+                </el-form-item>
+                <el-button
+                  type="primary"
+                  plain
+                  :loading="finalInspectionReportLoading"
+                  data-testid="final-inspection-report-create-button"
+                  @click="createFinalInspectionReport"
+                >
+                  生成终检报告
+                </el-button>
+                <el-alert
+                  v-if="finalInspectionReport"
+                  :title="`终检报告 ${finalInspectionReport.report_no} / ${finalInspectionReport.conclusion}`"
+                  type="success"
+                  show-icon
+                  :closable="false"
+                >
+                  <p>{{ finalInspectionReport.summary }}</p>
+                </el-alert>
               </div>
 
               <div class="check-record-list">

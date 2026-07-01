@@ -24,6 +24,7 @@
     "check:task9d13": "node scripts/check-task-9d13-design-drafts.mjs",
     "check:task9d14": "node scripts/check-task-9d14-shipping-gate.mjs",
     "check:task9d15": "node scripts/check-task-9d15-deepseek.mjs",
+    "check:task9d16": "node scripts/check-task-9d16-final-report.mjs",
     "check:task9d24": "node scripts/check-task-9d24-four-portal-login.mjs",
     "check:auth-refresh": "node scripts/check-auth-refresh.mjs",
     "smoke:task9d10-large-upload": "playwright test scripts/smoke-task-9d10-large-upload.spec.mjs --browser=chromium --workers=1",

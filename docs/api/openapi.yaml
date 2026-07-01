@@ -961,6 +961,46 @@ components:
         created_at:
           type: string
           format: date-time
+    FinalInspectionReportRequest:
+      type: object
+      required:
+      - order_id
+      properties:
+        order_id:
+          type: integer
+        summary:
+          type: string
+          description: 终检报告摘要；不传时默认记录“终检通过”。
+    FinalInspectionReportResponse:
+      type: object
+      properties:
+        report_id:
+          type: integer
+        order_id:
+          type: integer
+        report_no:
+          type: string
+        final_node_instance_id:
+          type: integer
+        final_check_id:
+          type: integer
+        conclusion:
+          type: string
+          enum:
+          - PASS
+        summary:
+          type: string
+          nullable: true
+        inspector_user_id:
+          type: integer
+          nullable: true
+        status:
+          type: string
+          enum:
+          - ISSUED
+        created_at:
+          type: string
+          format: date-time
     WorkLogStartRequest:
       type: object
       required:
@@ -3098,6 +3138,87 @@ paths:
         '503':
           "$ref": "#/components/responses/ServiceUnavailable"
       operationId: getReworks
+  "/final-inspection-reports":
+    post:
+      tags:
+      - CheckRecord
+      summary: 生成终检报告
+      description: |
+        任务 9D.16 第一增量：权限 WORKER / ADMIN。
+        生成前必须存在订单最后一道工序节点的 OUT/PASS 终检出检记录；缺失时返回 409。
+        同一订单仅保留一份终检报告，重复生成返回已有报告。
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              "$ref": "#/components/schemas/FinalInspectionReportRequest"
+      responses:
+        '200':
+          description: 终检报告已生成或已存在
+          content:
+            application/json:
+              schema:
+                allOf:
+                - "$ref": "#/components/schemas/CommonResponse"
+                - type: object
+                  properties:
+                    data:
+                      "$ref": "#/components/schemas/FinalInspectionReportResponse"
+        '400':
+          "$ref": "#/components/responses/BadRequest"
+        '401':
+          "$ref": "#/components/responses/Unauthorized"
+        '403':
+          "$ref": "#/components/responses/Forbidden"
+        '404':
+          "$ref": "#/components/responses/NotFound"
+        '409':
+          "$ref": "#/components/responses/Conflict"
+        default:
+          "$ref": "#/components/responses/DefaultError"
+        '503':
+          "$ref": "#/components/responses/ServiceUnavailable"
+      operationId: postFinalInspectionReports
+  "/final-inspection-reports/{orderId}":
+    get:
+      tags:
+      - CheckRecord
+      summary: 读取订单终检报告
+      description: 权限：WORKER / CS / ADMIN。医生端禁止读取终检报告。
+      parameters:
+      - name: orderId
+        in: path
+        required: true
+        schema:
+          type: integer
+      responses:
+        '200':
+          description: 终检报告
+          content:
+            application/json:
+              schema:
+                allOf:
+                - "$ref": "#/components/schemas/CommonResponse"
+                - type: object
+                  properties:
+                    data:
+                      "$ref": "#/components/schemas/FinalInspectionReportResponse"
+        '400':
+          "$ref": "#/components/responses/BadRequest"
+        '401':
+          "$ref": "#/components/responses/Unauthorized"
+        '403':
+          "$ref": "#/components/responses/Forbidden"
+        '404':
+          "$ref": "#/components/responses/NotFound"
+        '409':
+          "$ref": "#/components/responses/Conflict"
+        default:
+          "$ref": "#/components/responses/DefaultError"
+        '503':
+          "$ref": "#/components/responses/ServiceUnavailable"
+      operationId: getFinalInspectionReportsByOrderId
   "/work-logs/start":
     post:
       tags:

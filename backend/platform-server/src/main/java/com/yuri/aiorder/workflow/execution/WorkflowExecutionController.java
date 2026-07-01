@@ -48,6 +48,22 @@ public class WorkflowExecutionController {
         return new DataResponse<>(workflowExecutionService.getReworks(status, orderId, identity));
     }
 
+    @PostMapping("/final-inspection-reports")
+    @RequirePermission(value = "check:write", roles = {UserRole.ADMIN, UserRole.WORKER})
+    public DataResponse<FinalInspectionReportResponse> createFinalInspectionReport(
+            @RequestBody FinalInspectionReportRequest request,
+            BootstrapIdentity identity) {
+        return new DataResponse<>(workflowExecutionService.createFinalInspectionReport(request, identity));
+    }
+
+    @GetMapping("/final-inspection-reports/{orderId}")
+    @RequirePermission(value = "check:read-internal", roles = {UserRole.ADMIN, UserRole.CS, UserRole.WORKER})
+    public DataResponse<FinalInspectionReportResponse> getFinalInspectionReport(
+            @PathVariable long orderId,
+            BootstrapIdentity identity) {
+        return new DataResponse<>(workflowExecutionService.getFinalInspectionReport(orderId, identity));
+    }
+
     @PostMapping("/work-logs/start")
     @RequirePermission(value = "worklog:write-self", roles = {UserRole.ADMIN, UserRole.WORKER})
     public DataResponse<WorkLogResponse> startWorkLog(

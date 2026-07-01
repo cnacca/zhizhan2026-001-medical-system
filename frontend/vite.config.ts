@@ -46,6 +46,10 @@ export default defineConfig({
         target: 'http://localhost:8080',
         changeOrigin: true
       },
+      '/final-inspection-reports': {
+        target: 'http://localhost:8080',
+        changeOrigin: true
+      },
       '/work-logs': {
         target: 'http://localhost:8080',
         changeOrigin: true

@@ -150,6 +150,54 @@ class CheckWorklogPerformanceTests {
     }
 
     @Test
+    void finalInspectionReportRequiresFinalOutPassAndIsInternalOnly() throws Exception {
+        mockMvc.perform(post("/final-inspection-reports")
+                        .header("X-Bootstrap-Role", "WORKER")
+                        .header("X-Bootstrap-User-Id", workerUserId)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("""
+                                {"order_id":%d,"summary":"终检报告第一增量"}
+                                """.formatted(orderId)))
+                .andExpect(status().isConflict());
+
+        submitCheck(nodeInstanceId, 1, true, null);
+        startNode(nodeInstanceId);
+        completeNode(nodeInstanceId);
+        long finalCheckId = submitCheck(nodeInstanceId, 2, true, null).path("check_id").asLong();
+
+        MvcResult created = mockMvc.perform(post("/final-inspection-reports")
+                        .header("X-Bootstrap-Role", "WORKER")
+                        .header("X-Bootstrap-User-Id", workerUserId)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("""
+                                {"order_id":%d,"summary":"终检报告第一增量"}
+                                """.formatted(orderId)))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.report_id").isNumber())
+                .andExpect(jsonPath("$.data.order_id").value(orderId))
+                .andExpect(jsonPath("$.data.final_node_instance_id").value(nodeInstanceId))
+                .andExpect(jsonPath("$.data.final_check_id").value(finalCheckId))
+                .andExpect(jsonPath("$.data.conclusion").value("PASS"))
+                .andExpect(jsonPath("$.data.summary").value("终检报告第一增量"))
+                .andReturn();
+        long reportId = objectMapper.readTree(created.getResponse().getContentAsString())
+                .path("data")
+                .path("report_id")
+                .asLong();
+
+        mockMvc.perform(get("/final-inspection-reports/{orderId}", orderId)
+                        .header("X-Bootstrap-Role", "ADMIN"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.report_id").value(reportId))
+                .andExpect(jsonPath("$.data.report_no").isNotEmpty());
+
+        String doctorToken = tokenService.issue(new BootstrapIdentity(UserRole.DOCTOR, doctorUserId, null));
+        mockMvc.perform(get("/final-inspection-reports/{orderId}", orderId)
+                        .header("Authorization", "Bearer " + doctorToken))
+                .andExpect(status().isForbidden());
+    }
+
+    @Test
     void bearerCsCannotReadWorkerPerformance() throws Exception {
         String csToken = tokenService.issue(new BootstrapIdentity(UserRole.CS, 8001L, null));
 
