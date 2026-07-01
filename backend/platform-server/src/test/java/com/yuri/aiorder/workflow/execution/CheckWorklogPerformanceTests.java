@@ -412,6 +412,46 @@ class CheckWorklogPerformanceTests {
     }
 
     @Test
+    void reworkListCanFilterRecordsThatImpactedDownstreamNodes() throws Exception {
+        submitCheck(nodeInstanceId, 1, true, null);
+        startNode(nodeInstanceId);
+        completeNode(nodeInstanceId);
+        long nonImpactedReworkId = submitCheck(nodeInstanceId, 2, false, nodeInstanceId)
+                .path("rework_id")
+                .asLong();
+
+        String suffix = UUID.randomUUID().toString().replace("-", "");
+        long clinicId = createClinic("返工筛选测试诊所-" + suffix);
+        long filteredOrderId = createOrder("RF" + suffix.substring(0, 12), clinicId);
+        long filteredChainId = createTwoNodeChain(suffix);
+        List<Long> nodes = instantiateAndAssignAll(filteredOrderId, filteredChainId);
+        long firstNodeId = nodes.get(0);
+        long secondNodeId = nodes.get(1);
+
+        submitCheck(firstNodeId, 1, true, null);
+        startNode(firstNodeId);
+        completeNode(firstNodeId);
+        submitCheck(firstNodeId, 2, true, null);
+
+        submitCheck(secondNodeId, 1, true, null);
+        startNode(secondNodeId);
+        completeNode(secondNodeId);
+        long impactedReworkId = submitCheck(secondNodeId, 2, false, firstNodeId)
+                .path("rework_id")
+                .asLong();
+
+        JsonNode impactedOnly = performReworkListWithImpactFilter(true);
+        assertThat(reworkIds(impactedOnly)).contains(impactedReworkId);
+        assertThat(reworkIds(impactedOnly)).doesNotContain(nonImpactedReworkId);
+        assertThat(impactedOnly.path("data")).allMatch((node) -> node.path("impacted_node_count").asInt() > 0);
+
+        JsonNode withoutImpact = performReworkListWithImpactFilter(false);
+        assertThat(reworkIds(withoutImpact)).contains(nonImpactedReworkId);
+        assertThat(reworkIds(withoutImpact)).doesNotContain(impactedReworkId);
+        assertThat(withoutImpact.path("data")).allMatch((node) -> node.path("impacted_node_count").asInt() == 0);
+    }
+
+    @Test
     void performanceSeparatesReworkResponsibilityAttribution() throws Exception {
         submitCheck(nodeInstanceId, 1, true, null);
         startNode(nodeInstanceId);
@@ -671,6 +711,25 @@ class CheckWorklogPerformanceTests {
                         .header("X-Bootstrap-Role", "WORKER")
                         .header("X-Bootstrap-User-Id", workerUserId))
                 .andExpect(status().isOk());
+    }
+
+    private JsonNode performReworkListWithImpactFilter(boolean hasImpactedNodes) throws Exception {
+        MvcResult result = mockMvc.perform(get("/reworks")
+                        .header("X-Bootstrap-Role", "WORKER")
+                        .header("X-Bootstrap-User-Id", workerUserId)
+                        .param("status", "PENDING")
+                        .param("has_impacted_nodes", String.valueOf(hasImpactedNodes)))
+                .andExpect(status().isOk())
+                .andReturn();
+        return objectMapper.readTree(result.getResponse().getContentAsString());
+    }
+
+    private List<Long> reworkIds(JsonNode response) {
+        return response.path("data")
+                .findValues("rework_id")
+                .stream()
+                .map(JsonNode::asLong)
+                .toList();
     }
 
     private void closeRework(long reworkId, String responsibilityType) throws Exception {

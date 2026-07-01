@@ -94,3 +94,5 @@
 - 9D.21 已补绩效归因联动第一增量：`/performance` 可拆分生产责任、非生产责任和未归因返工。
 
 - 2026-07-02：9D.22 已补返工影响审计可视化第一增量，`/reworks` 返回受影响后续节点数量和 ID；Task 8 仍为 NOT READY。
+
+- 2026-07-02：9D.23 已补返工影响筛选第一增量，`/reworks?has_impacted_nodes=true/false` 可按影响后续节点筛选；Task 8 仍为 NOT READY。

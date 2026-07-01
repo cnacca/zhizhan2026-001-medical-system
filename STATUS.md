@@ -273,3 +273,5 @@ Task 8 已完成 8A readiness audit、8B OpenAPI 二次契约、9A Bearer 身份
 - 已完成任务 9D.21 绩效归因联动第一增量：`/performance` 新增生产责任、非生产责任和未归因返工拆分统计；Task 8 仍 NOT READY。
 
 - 2026-07-02 9D.22 返工影响审计可视化第一增量：已在返工记录中保存并展示受影响后续节点数量和 ID；Task 8 总体仍保持 NOT READY。
+
+- 2026-07-02 9D.23 返工影响筛选第一增量：已在 `/reworks` 增加 `has_impacted_nodes` 筛选并在返工终检页提供“仅看影响后续工序”入口；Task 8 总体仍保持 NOT READY。

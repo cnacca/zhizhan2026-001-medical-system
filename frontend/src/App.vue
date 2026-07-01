@@ -482,6 +482,7 @@ const checkError = ref('')
 const checkResult = ref<CheckRecordResponse | null>(null)
 const reworkRecords = ref<ReworkRecordResponse[]>([])
 const reworkStatus = ref('PENDING')
+const reworkOnlyImpacted = ref(false)
 const reworkRecordsLoading = ref(false)
 const reworkError = ref('')
 const selectedRework = ref<ReworkRecordResponse | null>(null)
@@ -2006,6 +2007,9 @@ async function loadReworkRecords() {
     if (reworkStatus.value) {
       params.set('status', reworkStatus.value)
     }
+    if (reworkOnlyImpacted.value) {
+      params.set('has_impacted_nodes', 'true')
+    }
     const query = params.toString()
     const payload = await apiFetch<ReworkRecordResponse[]>(query ? `/reworks?${query}` : '/reworks')
     reworkRecords.value = payload.data
@@ -3257,6 +3261,9 @@ onBeforeUnmount(() => {
               <el-option label="IN_PROGRESS" value="IN_PROGRESS" />
               <el-option label="DONE" value="DONE" />
             </el-select>
+            <el-checkbox v-model="reworkOnlyImpacted" @change="loadReworkRecords">
+              仅看影响后续工序
+            </el-checkbox>
             <el-button type="primary" :loading="reworkRecordsLoading || finalInspectionLoading" @click="loadReworkFinalPage">
               刷新
             </el-button>

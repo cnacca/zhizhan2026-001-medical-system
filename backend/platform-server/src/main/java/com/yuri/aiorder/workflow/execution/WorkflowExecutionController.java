@@ -44,8 +44,9 @@ public class WorkflowExecutionController {
     public DataResponse<List<ReworkRecordResponse>> getReworks(
             BootstrapIdentity identity,
             @RequestParam(name = "status", required = false) String status,
-            @RequestParam(name = "order_id", required = false) Long orderId) {
-        return new DataResponse<>(workflowExecutionService.getReworks(status, orderId, identity));
+            @RequestParam(name = "order_id", required = false) Long orderId,
+            @RequestParam(name = "has_impacted_nodes", required = false) Boolean hasImpactedNodes) {
+        return new DataResponse<>(workflowExecutionService.getReworks(status, orderId, hasImpactedNodes, identity));
     }
 
     @GetMapping("/reworks/dictionaries")

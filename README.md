@@ -537,3 +537,40 @@ npm run check:task9d22
 3. 返工终检页面展示影响后续节点数量和 ID。
 4. 当前第一增量不做图形化 DAG、筛选、导出或 IN_PROGRESS 后续节点冲突确认。
 ```
+
+
+任务 9D.23 返工影响筛选第一增量检查：
+
+```bash
+npm run check:task9d23
+./scripts/with-jdk21.sh mvn -f backend/pom.xml -pl platform-server -Dtest=CheckWorklogPerformanceTests#reworkListCanFilterRecordsThatImpactedDownstreamNodes test
+./scripts/with-jdk21.sh mvn -f backend/pom.xml -pl platform-server -Dtest=CheckWorklogPerformanceTests test
+```
+
+任务 9D.23 验收口径：
+
+```text
+1. /reworks?has_impacted_nodes=true 只返回 impacted_node_count > 0 的返工。
+2. /reworks?has_impacted_nodes=false 只返回 impacted_node_count = 0 的返工。
+3. 返工终检页面提供“仅看影响后续工序”筛选开关。
+4. 当前第一增量不做图形化 DAG、导出或 IN_PROGRESS 后续节点冲突确认。
+```
+
+任务 9D.24 四入口登录页与角色端口校验检查：
+
+```bash
+npm run check:task9d24
+npm run smoke:task9d24
+./scripts/with-jdk21.sh mvn -f backend/pom.xml -pl platform-server -Dtest=BearerIdentityTests#databaseLoginRequiresPortalAndMatchesRoleToPortal test
+./scripts/with-jdk21.sh mvn -f backend/pom.xml -pl platform-server -Dtest=BearerIdentityTests test
+```
+
+任务 9D.24 验收口径：
+
+```text
+1. 登录页显示医生端、客服端、生产端、管理端四入口。
+2. 登录请求必须携带 portal，缺失或非法 portal 返回 400。
+3. 账号角色与入口不匹配返回 403，前端提示“账号角色与所选入口不匹配”。
+4. 登录成功后继续复用现有 RBAC 菜单，并按入口优先跳转到默认页面。
+5. `npm run smoke:task9d24` 通过真实 Chrome 依次点击四入口，并验证 doctor 不能从管理端入口登录。
+```

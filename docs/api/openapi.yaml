@@ -3172,6 +3172,12 @@ paths:
         required: false
         schema:
           type: integer
+      - name: has_impacted_nodes
+        in: query
+        required: false
+        description: 为 true 时仅返回影响过后续节点的返工记录；为 false 时仅返回未影响后续节点的返工记录。
+        schema:
+          type: boolean
       responses:
         '200':
           description: 返工记录列表

@@ -1381,6 +1381,37 @@
             "返工影响审计可视化第一增量",
             "check:task9d22"
           ]
+        },
+        {
+          "id": "task-9d23-rework-impact-filter-required-text",
+          "type": "required_text",
+          "paths": [
+            "backend/platform-server/src/main/java/com/yuri/aiorder/workflow/execution/WorkflowExecutionController.java",
+            "backend/platform-server/src/main/java/com/yuri/aiorder/workflow/execution/WorkflowExecutionService.java",
+            "backend/platform-server/src/test/java/com/yuri/aiorder/workflow/execution/CheckWorklogPerformanceTests.java",
+            "frontend/src/App.vue",
+            "docs/api/openapi.yaml",
+            "tasks/README.md",
+            "STATUS.md",
+            "docs/acceptance/task-8-acceptance-matrix.md",
+            "docs/deployment/readiness-checklist.md",
+            "scripts/check-task-9d23-rework-impact-filter.mjs",
+            "package.json"
+          ],
+          "patterns": [
+            "has_impacted_nodes",
+            "hasImpactedNodes",
+            "r.impacted_node_count > 0",
+            "r.impacted_node_count = 0",
+            "reworkListCanFilterRecordsThatImpactedDownstreamNodes",
+            "reworkOnlyImpacted",
+            "仅看影响后续工序",
+            "任务 9D.23：返工影响筛选第一增量",
+            "9D.23 返工影响筛选第一增量",
+            "9D.23 已补返工影响筛选第一增量",
+            "返工影响筛选第一增量",
+            "check:task9d23"
+          ]
         }
       ]
     }

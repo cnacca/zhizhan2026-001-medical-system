@@ -102,11 +102,17 @@ public class WorkflowExecutionService {
                 .list();
     }
 
-    public List<ReworkRecordResponse> getReworks(String status, Long orderId, BootstrapIdentity identity) {
+    public List<ReworkRecordResponse> getReworks(
+            String status, Long orderId, Boolean hasImpactedNodes, BootstrapIdentity identity) {
         accessControlService.requireCheckRecordRead(identity);
         String normalizedStatus = status == null || status.isBlank() ? null : status.trim().toUpperCase();
         String statusClause = normalizedStatus == null ? "" : " AND r.status = :status";
         String orderClause = orderId == null ? "" : " AND r.order_id = :orderId";
+        String impactedClause = hasImpactedNodes == null
+                ? ""
+                : Boolean.TRUE.equals(hasImpactedNodes)
+                        ? " AND r.impacted_node_count > 0"
+                        : " AND r.impacted_node_count = 0";
         String workerClause = identity.role() == com.yuri.aiorder.common.UserRole.WORKER
                 ? " AND (target_node.assigned_user_id = :workerUserId OR from_node.assigned_user_id = :workerUserId)"
                 : "";
@@ -142,9 +148,10 @@ public class WorkflowExecutionService {
                         %s
                         %s
                         %s
+                        %s
                         ORDER BY r.created_at DESC, r.rework_id DESC
                         LIMIT 100
-                        """.formatted(statusClause, orderClause, workerClause));
+                        """.formatted(statusClause, orderClause, impactedClause, workerClause));
         if (normalizedStatus != null) {
             spec = spec.param("status", normalizedStatus);
         }

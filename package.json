@@ -31,6 +31,7 @@
     "check:task9d20": "node scripts/check-task-9d20-rework-impact.mjs",
     "check:task9d21": "node scripts/check-task-9d21-performance-attribution.mjs",
     "check:task9d22": "node scripts/check-task-9d22-rework-impact-audit.mjs",
+    "check:task9d23": "node scripts/check-task-9d23-rework-impact-filter.mjs",
     "check:task9d24": "node scripts/check-task-9d24-four-portal-login.mjs",
     "check:auth-refresh": "node scripts/check-auth-refresh.mjs",
     "smoke:task9d10-large-upload": "playwright test scripts/smoke-task-9d10-large-upload.spec.mjs --browser=chromium --workers=1",
