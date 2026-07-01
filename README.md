@@ -640,3 +640,16 @@ npm run acceptance
 npm run check:openapi
 ./scripts/with-jdk21.sh mvn -f backend/pom.xml -pl platform-server -Dtest=AiGatewayDeepSeekTests test
 ```
+
+## 任务 9D.30 AI 治理摘要第一增量检查
+
+任务 9D.30 新增 `GET /ai/governance/summary`：CS / ADMIN 可查看近 24 小时 AI 审计摘要，包括成功、安全拒绝、限流、模型失败、估算成本和最近模型失败时间。Task 8 仍保持 `NOT READY`。
+
+建议验证：
+
+```bash
+npm run check:task9d30
+npm run acceptance
+npm run check:openapi
+./scripts/with-jdk21.sh mvn -f backend/pom.xml -pl platform-server -Dtest=AiGatewayTests#aiGovernanceSummaryCountsRecentAuditOutcomesForInternalUsers test
+```

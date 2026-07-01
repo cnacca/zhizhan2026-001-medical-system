@@ -3,6 +3,7 @@ package com.yuri.aiorder.ai;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.not;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.content;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
@@ -186,6 +187,55 @@ class AiGatewayTests {
                 .andExpect(status().isForbidden());
     }
 
+    @Test
+    void aiGovernanceSummaryCountsRecentAuditOutcomesForInternalUsers() throws Exception {
+        AuditSummary baseline = auditSummary();
+        jdbcClient.sql("""
+                        INSERT INTO ai_audit_log
+                            (order_id, actor_user_id, agent_code, request_context_type,
+                             prompt_hash, model_name, input_token_count, output_token_count,
+                             estimated_cost_microusd, result_status)
+                        VALUES
+                            (NULL, :csUserId, 'AI_TRANSLATE', 'ORDER_TRANSLATION_DRAFT',
+                             'hash-success', 'deepseek-chat', 18, 6, 84, 'SUCCESS'),
+                            (NULL, :csUserId, 'AI_TRANSLATE', 'ORDER_TRANSLATION_DRAFT',
+                             'hash-rate-limit', 'ai-governance-rate-limit', 0, NULL, 0, 'AI_RATE_LIMITED'),
+                            (NULL, :csUserId, 'AI_TRANSLATE', 'ORDER_TRANSLATION_DRAFT',
+                             'hash-model-failed', 'ai-governance-model-failure', 0, NULL, 0, 'AI_MODEL_FAILED')
+                        """)
+                .param("csUserId", CS_USER_ID)
+                .update();
+
+        mockMvc.perform(get("/ai/governance/summary")
+                        .header("X-Bootstrap-Role", "ADMIN")
+                        .header("X-Bootstrap-User-Id", 1L))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.window_hours").value(24))
+                .andExpect(jsonPath("$.data.success_count").value(baseline.successCount() + 1))
+                .andExpect(jsonPath("$.data.rate_limited_count").value(baseline.rateLimitedCount() + 1))
+                .andExpect(jsonPath("$.data.model_failed_count").value(baseline.modelFailedCount() + 1))
+                .andExpect(jsonPath("$.data.estimated_cost_microusd").value(baseline.estimatedCostMicrousd() + 84))
+                .andExpect(jsonPath("$.data.latest_model_failure_at").exists());
+    }
+
+    private AuditSummary auditSummary() {
+        return jdbcClient.sql("""
+                        SELECT
+                            COALESCE(SUM(CASE WHEN result_status = 'SUCCESS' THEN 1 ELSE 0 END), 0) AS success_count,
+                            COALESCE(SUM(CASE WHEN result_status = 'AI_RATE_LIMITED' THEN 1 ELSE 0 END), 0) AS rate_limited_count,
+                            COALESCE(SUM(CASE WHEN result_status = 'AI_MODEL_FAILED' THEN 1 ELSE 0 END), 0) AS model_failed_count,
+                            COALESCE(SUM(estimated_cost_microusd), 0) AS estimated_cost_microusd
+                        FROM ai_audit_log
+                        WHERE created_at >= DATE_SUB(CURRENT_TIMESTAMP(3), INTERVAL 24 HOUR)
+                        """)
+                .query((rs, rowNum) -> new AuditSummary(
+                        rs.getLong("success_count"),
+                        rs.getLong("rate_limited_count"),
+                        rs.getLong("model_failed_count"),
+                        rs.getLong("estimated_cost_microusd")))
+                .single();
+    }
+
     private long auditCount() {
         return jdbcClient.sql("SELECT COUNT(*) FROM ai_audit_log WHERE order_id = :orderId")
                 .param("orderId", orderId)
@@ -268,5 +318,12 @@ class AiGatewayTests {
                 .param("nodeCode", "ai-datascope-" + suffix.substring(0, 12))
                 .param("workerUserId", WORKER_USER_ID)
                 .update();
+    }
+
+    private record AuditSummary(
+            long successCount,
+            long rateLimitedCount,
+            long modelFailedCount,
+            long estimatedCostMicrousd) {
     }
 }

@@ -38,6 +38,7 @@
     "check:task9d27": "node scripts/check-task-9d27-ai-cost-audit.mjs",
     "check:task9d28": "node scripts/check-task-9d28-ai-model-retry.mjs",
     "check:task9d29": "node scripts/check-task-9d29-ai-model-failure-audit.mjs",
+    "check:task9d30": "node scripts/check-task-9d30-ai-governance-summary.mjs",
     "check:auth-refresh": "node scripts/check-auth-refresh.mjs",
     "smoke:task9d10-large-upload": "playwright test scripts/smoke-task-9d10-large-upload.spec.mjs --browser=chromium --workers=1",
     "smoke:task9d10-server-resume": "playwright test scripts/smoke-task-9d10-server-resume.spec.mjs --browser=chromium --workers=1",

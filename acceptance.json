@@ -1574,6 +1574,39 @@
             "AI 模型失败审计第一增量",
             "check:task9d29"
           ]
+        },
+        {
+          "id": "task-9d30-ai-governance-summary-required-text",
+          "type": "required_text",
+          "paths": [
+            "backend/platform-server/src/main/java/com/yuri/aiorder/ai/AiGatewayController.java",
+            "backend/platform-server/src/main/java/com/yuri/aiorder/ai/AiGatewayService.java",
+            "backend/platform-server/src/main/java/com/yuri/aiorder/ai/AiGovernanceSummaryResponse.java",
+            "backend/platform-server/src/test/java/com/yuri/aiorder/ai/AiGatewayTests.java",
+            "docs/api/openapi.yaml",
+            "docs/acceptance/task-8-acceptance-matrix.md",
+            "docs/deployment/readiness-checklist.md",
+            "STATUS.md",
+            "tasks/README.md",
+            "README.md",
+            "scripts/check-task-9d30-ai-governance-summary.mjs",
+            "package.json"
+          ],
+          "patterns": [
+            "/ai/governance/summary",
+            "AiGovernanceSummaryResponse",
+            "governanceSummary",
+            "AI_RATE_LIMITED",
+            "AI_MODEL_FAILED",
+            "estimated_cost_microusd",
+            "latest_model_failure_at",
+            "aiGovernanceSummaryCountsRecentAuditOutcomesForInternalUsers",
+            "任务 9D.30：AI 治理摘要第一增量",
+            "9D.30 AI 治理摘要第一增量",
+            "9D.30 已补 AI 治理摘要第一增量",
+            "AI 治理摘要第一增量",
+            "check:task9d30"
+          ]
         }
       ]
     }

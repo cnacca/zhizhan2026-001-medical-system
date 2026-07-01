@@ -11,6 +11,7 @@ import com.yuri.aiorder.order.api.OrderProjectionQueryService;
 import java.nio.charset.StandardCharsets;
 import java.security.MessageDigest;
 import java.security.NoSuchAlgorithmException;
+import java.time.LocalDateTime;
 import java.util.ArrayList;
 import java.util.EnumSet;
 import java.util.HexFormat;
@@ -205,6 +206,33 @@ public class AiGatewayService {
         audit(orderId, identity, "AI_PRODUCTION_NOTE", "PRODUCTION_NOTE_DRAFT", "production-note:" + orderId,
                 "SUCCESS", draft);
         return draft.content();
+    }
+
+    @Transactional(readOnly = true)
+    public AiGovernanceSummaryResponse governanceSummary(BootstrapIdentity identity) {
+        accessControlService.requireAnyRole(identity, CS_AND_ADMIN, "AI governance summary is CS/ADMIN only");
+        return jdbcClient.sql("""
+                        SELECT
+                            COALESCE(SUM(CASE WHEN result_status = 'SUCCESS' THEN 1 ELSE 0 END), 0) AS success_count,
+                            COALESCE(SUM(CASE WHEN result_status = 'SAFE_REFUSAL' THEN 1 ELSE 0 END), 0) AS safe_refusal_count,
+                            COALESCE(SUM(CASE WHEN result_status = :rateLimitStatus THEN 1 ELSE 0 END), 0) AS rate_limited_count,
+                            COALESCE(SUM(CASE WHEN result_status = :modelFailureStatus THEN 1 ELSE 0 END), 0) AS model_failed_count,
+                            COALESCE(SUM(estimated_cost_microusd), 0) AS estimated_cost_microusd,
+                            MAX(CASE WHEN result_status = :modelFailureStatus THEN created_at ELSE NULL END) AS latest_model_failure_at
+                        FROM ai_audit_log
+                        WHERE created_at >= DATE_SUB(CURRENT_TIMESTAMP(3), INTERVAL 24 HOUR)
+                        """)
+                .param("rateLimitStatus", RATE_LIMIT_STATUS)
+                .param("modelFailureStatus", MODEL_FAILURE_STATUS)
+                .query((rs, rowNum) -> new AiGovernanceSummaryResponse(
+                        24,
+                        rs.getLong("success_count"),
+                        rs.getLong("safe_refusal_count"),
+                        rs.getLong("rate_limited_count"),
+                        rs.getLong("model_failed_count"),
+                        rs.getLong("estimated_cost_microusd"),
+                        rs.getObject("latest_model_failure_at", LocalDateTime.class)))
+                .single();
     }
 
     private AiModelResult completeWithModel(
