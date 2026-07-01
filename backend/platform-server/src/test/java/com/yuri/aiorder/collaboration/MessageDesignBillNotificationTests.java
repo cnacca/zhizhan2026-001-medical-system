@@ -241,6 +241,8 @@ class MessageDesignBillNotificationTests {
                 .andExpect(jsonPath("$.data.bill_status").value("UPLOADED"))
                 .andExpect(content().string(not(containsString("内部协同备注"))));
 
+        markFinalOutCheckPassed();
+
         mockMvc.perform(post("/orders/{orderId}/logistics", orderId)
                         .header("X-Bootstrap-Role", "CS")
                         .header("X-Bootstrap-User-Id", CS_USER_ID)
@@ -268,6 +270,37 @@ class MessageDesignBillNotificationTests {
         assertThat(notificationCount("BILL_UPLOADED", "DOCTOR")).isEqualTo(1L);
         assertThat(notificationCount("ORDER_SHIPPED", "DOCTOR")).isEqualTo(1L);
         assertThat(userNotificationCount(DOCTOR_USER_ID)).isEqualTo(2L);
+    }
+
+    @Test
+    void shipmentRequiresFinalOutCheckPassBeforeUpdatingExternalProjection() throws Exception {
+        mockMvc.perform(post("/orders/{orderId}/logistics", orderId)
+                        .header("X-Bootstrap-Role", "CS")
+                        .header("X-Bootstrap-User-Id", CS_USER_ID)
+                .contentType(MediaType.APPLICATION_JSON)
+                .content("{\"carrier\":\"顺丰速运\",\"tracking_no\":\"SF-BLOCKED\"}"))
+                .andExpect(status().isConflict())
+                .andExpect(status().reason(containsString("final out-check pass is required before shipment")));
+
+        assertThat(notificationCount("ORDER_SHIPPED", "DOCTOR")).isZero();
+
+        markFinalOutCheckPassed();
+
+        mockMvc.perform(post("/orders/{orderId}/logistics", orderId)
+                        .header("X-Bootstrap-Role", "CS")
+                        .header("X-Bootstrap-User-Id", CS_USER_ID)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"carrier\":\"顺丰速运\",\"tracking_no\":\"SF-READY\"}"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.logistics_status").value("SHIPPED"))
+                .andExpect(jsonPath("$.data.tracking_no").value("SF-READY"));
+
+        mockMvc.perform(get("/orders/{orderId}", orderId)
+                        .header("X-Bootstrap-Role", "DOCTOR")
+                        .header("X-Bootstrap-User-Id", DOCTOR_USER_ID)
+                        .header("X-Bootstrap-Clinic-Id", clinicId))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.external_status").value("SHIPPED"));
     }
 
     private long notificationCount(String eventType, String audienceRole) {
@@ -333,6 +366,41 @@ class MessageDesignBillNotificationTests {
                 .param("fileSize", fileSize)
                 .update();
         return jdbcClient.sql("SELECT LAST_INSERT_ID()").query(Long.class).single();
+    }
+
+    private void markFinalOutCheckPassed() {
+        long finalNodeId = latestOrderNodeId();
+        jdbcClient.sql("""
+                        UPDATE order_process_node
+                        SET node_status = 'COMPLETED'
+                        WHERE node_instance_id = :nodeInstanceId
+                        """)
+                .param("nodeInstanceId", finalNodeId)
+                .update();
+        jdbcClient.sql("""
+                        INSERT INTO check_record
+                            (order_id, node_instance_id, check_type, result, checker_user_id, note)
+                        VALUES
+                            (:orderId, :nodeInstanceId, 'OUT', 'PASS', :checkerUserId, '终检通过')
+                        """)
+                .param("orderId", orderId)
+                .param("nodeInstanceId", finalNodeId)
+                .param("checkerUserId", WORKER_USER_ID)
+                .update();
+    }
+
+    private long latestOrderNodeId() {
+        return jdbcClient.sql("""
+                        SELECT n.node_instance_id
+                        FROM order_process_node n
+                        JOIN order_process_instance i ON i.instance_id = n.instance_id
+                        WHERE i.order_id = :orderId
+                        ORDER BY n.step_order DESC, n.node_instance_id DESC
+                        LIMIT 1
+                        """)
+                .param("orderId", orderId)
+                .query(Long.class)
+                .single();
     }
 
     private void assignWorkerToOrder(String suffix) {

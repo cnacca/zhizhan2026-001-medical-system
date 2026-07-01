@@ -350,6 +350,7 @@ public class CollaborationService {
             throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "carrier and tracking_no are required");
         }
         OrderRow order = loadOrder(orderId, identity, "identity cannot access this order");
+        requireFinalOutCheckPass(orderId);
         jdbcClient.sql("""
                         INSERT INTO order_logistics
                             (order_id, carrier_name, tracking_no, logistics_status, shipped_at)
@@ -369,6 +370,53 @@ public class CollaborationService {
         orderStatusService.updateOrderState(orderId, InternalOrderStatus.SHIPPED, "ORDER_SHIPPED", identity.userId(), request.trackingNo());
         emit(order, "ORDER_SHIPPED", "DOCTOR", order.doctorUserId(), "订单已发货");
         return getLogistics(orderId, identity);
+    }
+
+    private void requireFinalOutCheckPass(long orderId) {
+        long finalNodeCount = jdbcClient.sql("""
+                        SELECT COUNT(*)
+                        FROM order_process_node n
+                        JOIN order_process_instance i ON i.instance_id = n.instance_id
+                        WHERE i.order_id = :orderId
+                          AND n.step_order = (
+                              SELECT MAX(last_node.step_order)
+                              FROM order_process_node last_node
+                              JOIN order_process_instance last_i ON last_i.instance_id = last_node.instance_id
+                              WHERE last_i.order_id = :orderId
+                          )
+                        """)
+                .param("orderId", orderId)
+                .query(Long.class)
+                .single();
+        if (finalNodeCount == 0) {
+            throw new ResponseStatusException(HttpStatus.CONFLICT, "final out-check pass is required before shipment");
+        }
+        long missingPassCount = jdbcClient.sql("""
+                        SELECT COUNT(*)
+                        FROM order_process_node n
+                        JOIN order_process_instance i ON i.instance_id = n.instance_id
+                        WHERE i.order_id = :orderId
+                          AND n.step_order = (
+                              SELECT MAX(last_node.step_order)
+                              FROM order_process_node last_node
+                              JOIN order_process_instance last_i ON last_i.instance_id = last_node.instance_id
+                              WHERE last_i.order_id = :orderId
+                          )
+                          AND NOT EXISTS (
+                              SELECT 1
+                              FROM check_record c
+                              WHERE c.order_id = i.order_id
+                                AND c.node_instance_id = n.node_instance_id
+                                AND c.check_type = 'OUT'
+                                AND c.result = 'PASS'
+                          )
+                        """)
+                .param("orderId", orderId)
+                .query(Long.class)
+                .single();
+        if (missingPassCount > 0) {
+            throw new ResponseStatusException(HttpStatus.CONFLICT, "final out-check pass is required before shipment");
+        }
     }
 
     private List<MessageResponse> queryMessages(Long orderId, String extraWhere) {

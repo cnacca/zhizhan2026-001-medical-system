@@ -474,6 +474,10 @@ const productionBoardKeyword = ref('')
 const productionBoardStatus = ref('PROCESS_INSTANCE_CREATED')
 const productionBoardLoading = ref(false)
 const productionBoardError = ref('')
+const productionBoardShippingLoading = ref(false)
+const productionBoardLogisticsCarrier = ref('')
+const productionBoardLogisticsTrackingNo = ref('')
+const productionBoardShippingResult = ref('')
 const formConfigProductType = ref('REGULAR_CROWN')
 const formConfigFields = ref<FormFieldConfig[]>([])
 const formConfigLoading = ref(false)
@@ -2178,6 +2182,9 @@ async function loadProductionBoardOrders() {
 
 async function selectProductionBoardOrder(order: InternalOrderItem) {
   selectedProductionBoardOrder.value = order
+  productionBoardLogisticsCarrier.value = ''
+  productionBoardLogisticsTrackingNo.value = ''
+  productionBoardShippingResult.value = ''
   await loadProductionBoardInstance(order.order_id)
 }
 
@@ -2193,6 +2200,40 @@ async function loadProductionBoardInstance(orderId: number) {
     productionBoardInstance.value = payload.data
   } catch (error) {
     productionBoardError.value = error instanceof Error ? error.message : '生产看板工序实例加载失败'
+  }
+}
+
+async function shipProductionBoardOrder() {
+  if (!selectedProductionBoardOrder.value) {
+    return
+  }
+  if (!productionBoardLogisticsCarrier.value.trim() || !productionBoardLogisticsTrackingNo.value.trim()) {
+    productionBoardError.value = '请填写承运商和物流单号'
+    return
+  }
+  productionBoardShippingLoading.value = true
+  productionBoardError.value = ''
+  productionBoardShippingResult.value = ''
+  try {
+    const payload = await apiFetch<LogisticsInfo>(`/orders/${selectedProductionBoardOrder.value.order_id}/logistics`, {
+      method: 'POST',
+      body: JSON.stringify({
+        carrier: productionBoardLogisticsCarrier.value.trim(),
+        tracking_no: productionBoardLogisticsTrackingNo.value.trim()
+      })
+    })
+    productionBoardShippingResult.value = `已发货：${payload.data.carrier ?? '-'} / ${payload.data.tracking_no ?? '-'}`
+    selectedProductionBoardOrder.value = {
+      ...selectedProductionBoardOrder.value,
+      internal_status: 'SHIPPED',
+      external_status: 'SHIPPED'
+    }
+    await loadNotifications()
+  } catch (error) {
+    const message = error instanceof Error ? error.message : '发货失败'
+    productionBoardError.value = message.includes('409') ? '终检出检通过后才能发货' : message
+  } finally {
+    productionBoardShippingLoading.value = false
   }
 }
 
@@ -3398,6 +3439,47 @@ onBeforeUnmount(() => {
                   <strong>{{ productionBoardNodeStats.SKIPPED }} / {{ productionBoardNodeStats.PENDING }}</strong>
                   <small>跳过或未激活节点</small>
                 </article>
+              </div>
+
+              <div class="review-form">
+                <div class="section-subtitle">
+                  终检发货
+                </div>
+                <div class="order-create-grid">
+                  <el-form-item label="承运商">
+                    <el-input
+                      v-model="productionBoardLogisticsCarrier"
+                      data-testid="production-board-logistics-carrier"
+                      placeholder="例如：顺丰速运"
+                    />
+                  </el-form-item>
+                  <el-form-item label="物流单号">
+                    <el-input
+                      v-model="productionBoardLogisticsTrackingNo"
+                      data-testid="production-board-logistics-tracking-no"
+                      placeholder="终检通过后才能发货"
+                    />
+                  </el-form-item>
+                </div>
+                <div class="inline-actions">
+                  <el-button
+                    type="primary"
+                    :loading="productionBoardShippingLoading"
+                    :disabled="!productionBoardLogisticsCarrier.trim() || !productionBoardLogisticsTrackingNo.trim()"
+                    data-testid="production-board-ship-button"
+                    @click="shipProductionBoardOrder"
+                  >
+                    录入物流并发货
+                  </el-button>
+                  <el-tag
+                    v-if="productionBoardShippingResult"
+                    data-testid="production-board-shipping-result"
+                    type="success"
+                    round
+                  >
+                    {{ productionBoardShippingResult }}
+                  </el-tag>
+                </div>
               </div>
 
               <div v-if="productionBoardInstance" class="process-node-list">

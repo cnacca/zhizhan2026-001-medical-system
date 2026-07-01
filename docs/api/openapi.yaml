@@ -3815,6 +3815,7 @@ paths:
       summary: 录入物流信息并发货
       description: |
         权限：CS / ADMIN
+        任务 9D.14 第一增量：发货前必须存在该订单最后一道工序节点的 OUT/PASS 终检出检记录；缺失时返回 409。
         录入成功后 external_status 自动变为 SHIPPED，医生端收到 WebSocket 通知。
       parameters:
       - name: orderId

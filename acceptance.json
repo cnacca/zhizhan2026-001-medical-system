@@ -1156,6 +1156,29 @@
             "任务 9D.13 第一增量",
             "check:task9d13"
           ]
+        },
+        {
+          "id": "task-9d14-final-shipping-gate-required-text",
+          "type": "required_text",
+          "paths": [
+            "backend/platform-server/src/main/java/com/yuri/aiorder/collaboration/CollaborationService.java",
+            "backend/platform-server/src/test/java/com/yuri/aiorder/collaboration/MessageDesignBillNotificationTests.java",
+            "frontend/src/App.vue",
+            "docs/api/openapi.yaml",
+            "scripts/check-task-9d14-shipping-gate.mjs",
+            "package.json"
+          ],
+          "patterns": [
+            "requireFinalOutCheckPass",
+            "final out-check pass is required before shipment",
+            "shipmentRequiresFinalOutCheckPassBeforeUpdatingExternalProjection",
+            "markFinalOutCheckPassed",
+            "shipProductionBoardOrder",
+            "production-board-ship-button",
+            "终检出检通过后才能发货",
+            "任务 9D.14 第一增量",
+            "check:task9d14"
+          ]
         }
       ]
     }
