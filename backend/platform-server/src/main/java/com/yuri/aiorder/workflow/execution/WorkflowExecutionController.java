@@ -120,4 +120,13 @@ public class WorkflowExecutionController {
             @RequestParam(name = "user_id", required = false) Long requestedUserId) {
         return new DataResponse<>(workflowExecutionService.getPerformance(requestedUserId, identity));
     }
+
+    @GetMapping("/performance/details")
+    @RequirePermission(value = {"performance:read-all", "performance:read-self"}, roles = {
+            UserRole.ADMIN, UserRole.WORKER})
+    public DataResponse<List<PerformanceDetailResponse>> getPerformanceDetails(
+            BootstrapIdentity identity,
+            @RequestParam(name = "user_id", required = false) Long requestedUserId) {
+        return new DataResponse<>(workflowExecutionService.getPerformanceDetails(requestedUserId, identity));
+    }
 }

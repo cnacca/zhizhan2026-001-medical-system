@@ -372,6 +372,21 @@ type PerformanceStatsResponse = {
   duration_efficiency: number
 }
 
+type PerformanceDetailResponse = {
+  work_log_id: number
+  order_id: number
+  order_no: string
+  node_instance_id: number
+  node_name: string
+  worker_user_id: number
+  status: string
+  effective_duration: number | null
+  standard_duration: number | null
+  on_time: boolean | null
+  started_at: string
+  finished_at: string
+}
+
 type ProductionBoardStatusOption = {
   label: string
   value: string
@@ -510,6 +525,7 @@ const worklogTasksLoading = ref(false)
 const worklogActionLoading = ref(false)
 const worklogError = ref('')
 const performanceStats = ref<PerformanceStatsResponse | null>(null)
+const performanceDetails = ref<PerformanceDetailResponse[]>([])
 const performanceUserId = ref('')
 const performanceLoading = ref(false)
 const performanceError = ref('')
@@ -2295,9 +2311,14 @@ async function loadPerformanceStats() {
       params.set('user_id', String(userId))
     }
     const query = params.toString()
-    const payload = await apiFetch<PerformanceStatsResponse>(query ? `/performance?${query}` : '/performance')
-    performanceStats.value = payload.data
+    const [statsPayload, detailPayload] = await Promise.all([
+      apiFetch<PerformanceStatsResponse>(query ? `/performance?${query}` : '/performance'),
+      apiFetch<PerformanceDetailResponse[]>(query ? `/performance/details?${query}` : '/performance/details')
+    ])
+    performanceStats.value = statsPayload.data
+    performanceDetails.value = detailPayload.data
   } catch (error) {
+    performanceDetails.value = []
     performanceError.value = error instanceof Error ? error.message : '绩效统计加载失败'
   } finally {
     performanceLoading.value = false
@@ -3671,6 +3692,26 @@ onBeforeUnmount(() => {
               <strong>{{ performanceStats.duration_efficiency }}%</strong>
               <small>标准工时 / 实际工时</small>
             </article>
+          </div>
+          <div v-if="performanceStats" class="performance-detail-section">
+            <div class="section-heading compact">
+              <h3>工时明细</h3>
+              <el-tag round>{{ performanceDetails.length }} 条</el-tag>
+            </div>
+            <el-table :data="performanceDetails" border empty-text="暂无工时明细">
+              <el-table-column prop="order_no" label="订单号" min-width="160" />
+              <el-table-column prop="node_name" label="工序" min-width="140" />
+              <el-table-column prop="effective_duration" label="有效工时(分钟)" width="130" />
+              <el-table-column prop="standard_duration" label="标准工时(分钟)" width="130" />
+              <el-table-column label="准时" width="90">
+                <template #default="{ row }">
+                  <el-tag v-if="row.on_time === true" type="success" size="small">是</el-tag>
+                  <el-tag v-else-if="row.on_time === false" type="danger" size="small">否</el-tag>
+                  <el-tag v-else type="info" size="small">未配置</el-tag>
+                </template>
+              </el-table-column>
+              <el-table-column prop="finished_at" label="完成时间" min-width="180" />
+            </el-table>
           </div>
           <div v-else class="empty-state">
             暂无绩效统计

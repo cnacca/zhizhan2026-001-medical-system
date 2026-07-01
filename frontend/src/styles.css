@@ -868,6 +868,24 @@ body {
 }
 
 
+.performance-detail-section {
+  display: grid;
+  gap: 12px;
+}
+
+.section-heading.compact {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.section-heading.compact h3 {
+  margin: 0;
+  font-size: 16px;
+  font-weight: 700;
+}
+
 .production-board-toolbar {
   display: grid;
   grid-template-columns: minmax(0, 220px) minmax(0, 1fr) auto;

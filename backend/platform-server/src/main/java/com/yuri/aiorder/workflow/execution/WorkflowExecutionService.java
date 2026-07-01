@@ -482,6 +482,53 @@ public class WorkflowExecutionService {
     }
 
 
+    public List<PerformanceDetailResponse> getPerformanceDetails(Long requestedUserId, BootstrapIdentity identity) {
+        Long targetUserId = accessControlService.resolvePerformanceTargetUserId(identity, requestedUserId);
+        return jdbcClient.sql("""
+                        SELECT
+                            w.work_log_id,
+                            w.order_id,
+                            o.order_no,
+                            w.node_instance_id,
+                            n.process_name,
+                            w.worker_user_id,
+                            w.status,
+                            w.effective_duration_seconds,
+                            n.standard_duration,
+                            w.started_at,
+                            w.finished_at
+                        FROM work_log w
+                        JOIN orders o ON o.order_id = w.order_id
+                        JOIN order_process_node n ON n.node_instance_id = w.node_instance_id
+                        WHERE w.worker_user_id = :userId
+                          AND w.status = 'COMPLETED'
+                        ORDER BY w.finished_at DESC, w.work_log_id DESC
+                        LIMIT 100
+                        """)
+                .param("userId", targetUserId)
+                .query((rs, rowNum) -> {
+                    Integer effectiveSeconds = rs.getObject("effective_duration_seconds", Integer.class);
+                    Integer standardSeconds = rs.getObject("standard_duration", Integer.class);
+                    Boolean onTime = standardSeconds == null || effectiveSeconds == null
+                            ? null
+                            : effectiveSeconds <= standardSeconds;
+                    return new PerformanceDetailResponse(
+                            rs.getLong("work_log_id"),
+                            rs.getLong("order_id"),
+                            rs.getString("order_no"),
+                            rs.getLong("node_instance_id"),
+                            rs.getString("process_name"),
+                            rs.getLong("worker_user_id"),
+                            rs.getString("status"),
+                            effectiveSeconds == null ? null : effectiveSeconds / 60,
+                            standardSeconds == null ? null : standardSeconds / 60,
+                            onTime,
+                            rs.getObject("started_at", LocalDateTime.class),
+                            rs.getObject("finished_at", LocalDateTime.class));
+                })
+                .list();
+    }
+
     private Long createRework(NodeRow node, long checkId, CheckRecordRequest request) {
         if (request.reworkToNodeId() == null) {
             throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "rework_to_node_id is required when out-check fails");

@@ -574,3 +574,17 @@ npm run smoke:task9d24
 4. 登录成功后继续复用现有 RBAC 菜单，并按入口优先跳转到默认页面。
 5. `npm run smoke:task9d24` 通过真实 Chrome 依次点击四入口，并验证 doctor 不能从管理端入口登录。
 ```
+
+## 任务 9D.25 绩效明细第一增量检查
+
+任务 9D.25 新增 `/performance/details` 和前端绩效页“工时明细”表，用于核对最近 100 条已完成工时来源。Task 8 仍保持 `NOT READY`。
+
+建议验证：
+
+```bash
+npm run check:task9d25
+npm run acceptance
+npm run check:openapi
+npm run build:frontend
+./scripts/with-jdk21.sh mvn -f backend/pom.xml -pl platform-server -Dtest=CheckWorklogPerformanceTests#performanceDetailsListCompletedWorkLogsForResolvedUser test
+```

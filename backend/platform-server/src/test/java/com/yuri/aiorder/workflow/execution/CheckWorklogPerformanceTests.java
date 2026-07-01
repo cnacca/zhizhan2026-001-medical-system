@@ -484,6 +484,34 @@ class CheckWorklogPerformanceTests {
 
 
     @Test
+    void performanceDetailsListCompletedWorkLogsForResolvedUser() throws Exception {
+        submitCheck(nodeInstanceId, 1, true, null);
+        startNode(nodeInstanceId);
+        long workLogId = startWorkLog(nodeInstanceId);
+        makeWorkLogStartedMinutesAgo(workLogId, 7);
+        finishWorkLog(workLogId)
+                .andExpect(status().isOk());
+        setWorkLogEffectiveSeconds(workLogId, 420);
+
+        mockMvc.perform(get("/performance/details")
+                        .header("X-Bootstrap-Role", "WORKER")
+                        .header("X-Bootstrap-User-Id", workerUserId)
+                        .param("user_id", String.valueOf(otherWorkerUserId)))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.length()").value(1))
+                .andExpect(jsonPath("$.data[0].work_log_id").value(workLogId))
+                .andExpect(jsonPath("$.data[0].order_id").value(orderId))
+                .andExpect(jsonPath("$.data[0].node_instance_id").value(nodeInstanceId))
+                .andExpect(jsonPath("$.data[0].node_name").value("执行测试节点"))
+                .andExpect(jsonPath("$.data[0].worker_user_id").value(workerUserId))
+                .andExpect(jsonPath("$.data[0].status").value("COMPLETED"))
+                .andExpect(jsonPath("$.data[0].effective_duration").value(7))
+                .andExpect(jsonPath("$.data[0].standard_duration").value(10))
+                .andExpect(jsonPath("$.data[0].on_time").value(true))
+                .andExpect(jsonPath("$.data[0].finished_at").isString());
+    }
+
+    @Test
     void bearerCsCannotReadWorkerPerformance() throws Exception {
         String csToken = tokenService.issue(new BootstrapIdentity(UserRole.CS, 8001L, null));
 
@@ -803,6 +831,17 @@ class CheckWorklogPerformanceTests {
                           AND resumed_at IS NULL
                         """)
                 .param("minutes", minutes)
+                .param("workLogId", workLogId)
+                .update();
+    }
+
+    private void setWorkLogEffectiveSeconds(long workLogId, int effectiveSeconds) {
+        jdbcClient.sql("""
+                        UPDATE work_log
+                        SET effective_duration_seconds = :effectiveSeconds
+                        WHERE work_log_id = :workLogId
+                        """)
+                .param("effectiveSeconds", effectiveSeconds)
                 .param("workLogId", workLogId)
                 .update();
     }

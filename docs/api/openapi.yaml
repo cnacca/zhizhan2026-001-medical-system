@@ -526,6 +526,42 @@ components:
         duration_efficiency:
           type: number
           description: 工时效率（标准工时÷实际工时×100%）
+    PerformanceDetail:
+      type: object
+      properties:
+        work_log_id:
+          type: integer
+        order_id:
+          type: integer
+        order_no:
+          type: string
+        node_instance_id:
+          type: integer
+        node_name:
+          type: string
+        worker_user_id:
+          type: integer
+        status:
+          type: string
+          example: COMPLETED
+        effective_duration:
+          type: integer
+          nullable: true
+          description: 有效工时（分钟）
+        standard_duration:
+          type: integer
+          nullable: true
+          description: 标准工时（分钟），未配置时为空
+        on_time:
+          type: boolean
+          nullable: true
+          description: 有标准工时时返回是否准时，未配置时为空
+        started_at:
+          type: string
+          format: date-time
+        finished_at:
+          type: string
+          format: date-time
     ErrorResponse:
       type: object
       required:
@@ -3584,6 +3620,47 @@ paths:
         '503':
           "$ref": "#/components/responses/ServiceUnavailable"
       operationId: getPerformance
+  "/performance/details":
+    get:
+      tags:
+      - Performance
+      summary: 获取绩效工时明细
+      description: |
+        权限：WORKER（只返回本人数据）/ ADMIN（可查全部）。
+        返回最近 100 条已完成 work_log 明细，用于管理端核对绩效汇总来源。
+      parameters:
+      - name: user_id
+        in: query
+        schema:
+          type: integer
+          description: ADMIN 专用，不传则返回当前登录人；WORKER 传入也只返回本人
+      responses:
+        '200':
+          description: 绩效工时明细
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data:
+                    type: array
+                    items:
+                      "$ref": "#/components/schemas/PerformanceDetail"
+        '400':
+          "$ref": "#/components/responses/BadRequest"
+        '401':
+          "$ref": "#/components/responses/Unauthorized"
+        '403':
+          "$ref": "#/components/responses/Forbidden"
+        '404':
+          "$ref": "#/components/responses/NotFound"
+        '409':
+          "$ref": "#/components/responses/Conflict"
+        default:
+          "$ref": "#/components/responses/DefaultError"
+        '503':
+          "$ref": "#/components/responses/ServiceUnavailable"
+      operationId: getPerformanceDetails
   "/orders/{orderId}/messages":
     get:
       tags:

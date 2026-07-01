@@ -18,6 +18,68 @@
 
 剩余风险：当前只做内部通知事实和本地推送，不覆盖真实双实例 Redis、生产网关和前端点击级通知联动验收。
 
+## 任务 9D.25：绩效明细第一增量
+
+状态：completed-first-increment。
+
+来源：
+
+- 9D.21 已把绩效汇总拆出生产责任、非生产责任和未归因返工，但管理端还不能核对每条完成工时来源。
+- Task 8 readiness 仍把绩效明细、周期筛选、标准工时配置和申诉闭环列为上线缺口。
+
+目标：
+
+- 新增绩效工时明细接口，返回最近 100 条已完成 work log。
+- WORKER 只能看本人明细，ADMIN 可按 `user_id` 查询指定员工。
+- 前端绩效页展示“工时明细”表，方便核对汇总来源。
+
+范围：
+
+- 后端 `GET /performance/details`。
+- `PerformanceDetailResponse` 返回订单、工序、有效工时、标准工时、准时标记和完成时间。
+- 后端 TDD 测试覆盖 WORKER 忽略外部 `user_id`、只返回本人完成工时。
+- 前端绩效页加载 `/performance` 与 `/performance/details`。
+- OpenAPI、acceptance、`package.json` 和静态检查脚本同步。
+
+非目标：
+
+- 不做周期筛选。
+- 不做奖金/扣罚完整公式、绩效申诉、补录或导出。
+- 不做标准工时后台配置。
+- 不把 Task 8 标为完成。
+
+验收标准：
+
+- `GET /performance/details` 返回最近 100 条已完成工时明细。
+- WORKER 传入其他 `user_id` 时仍只返回本人数据。
+- 前端绩效页显示“工时明细”表。
+- OpenAPI 与 acceptance 同步。
+
+建议验证命令：
+
+```bash
+npm run check:task9d25
+npm run acceptance
+npm run check:openapi
+npm run build:frontend
+./scripts/with-jdk21.sh mvn -f backend/pom.xml -pl platform-server -Dtest=CheckWorklogPerformanceTests#performanceDetailsListCompletedWorkLogsForResolvedUser test
+./scripts/with-jdk21.sh mvn -f backend/pom.xml -pl platform-server test
+git diff --check
+```
+
+完成记录：
+
+- TDD 红灯先确认 `/performance/details` 当前返回 404。
+- 后端已新增 `PerformanceDetailResponse`、`GET /performance/details` 和最近 100 条完成工时查询。
+- 前端绩效页已在汇总卡片下展示“工时明细”。
+- OpenAPI 已同步 `PerformanceDetail` schema 和 `getPerformanceDetails` operation。
+- 新增 `scripts/check-task-9d25-performance-details.mjs`、`npm run check:task9d25`，并纳入 `acceptance.json`。
+
+剩余风险：
+
+- 仍缺绩效周期筛选、完整公式、标准工时配置、申诉闭环和明细导出。
+- Task 8 总体仍保持 `NOT READY`。
+
 ## 任务 9D.23：返工影响筛选第一增量
 
 状态：completed-first-increment。
