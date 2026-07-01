@@ -157,6 +157,18 @@ type FormFieldConfig = {
   is_required: boolean
   options: string[]
   sort_order: number
+  status: string
+}
+
+type FormFieldPayload = {
+  product_type?: string
+  field_key?: string
+  field_label?: string
+  field_type?: string
+  is_required?: boolean
+  options?: string[]
+  sort_order?: number
+  status?: string
 }
 
 type CreateOrderResponse = {
@@ -457,6 +469,25 @@ const productionBoardKeyword = ref('')
 const productionBoardStatus = ref('PROCESS_INSTANCE_CREATED')
 const productionBoardLoading = ref(false)
 const productionBoardError = ref('')
+const formConfigProductType = ref('REGULAR_CROWN')
+const formConfigFields = ref<FormFieldConfig[]>([])
+const formConfigLoading = ref(false)
+const formConfigSaving = ref(false)
+const formConfigError = ref('')
+const formConfigResult = ref('')
+const formConfigCreateProductType = ref('REGULAR_CROWN')
+const formConfigCreateKey = ref('')
+const formConfigCreateLabel = ref('')
+const formConfigCreateType = ref('text')
+const formConfigCreateRequired = ref(false)
+const formConfigCreateOptions = ref('')
+const formConfigCreateSortOrder = ref(10)
+const selectedFormConfigFieldId = ref<number | null>(null)
+const formConfigEditLabel = ref('')
+const formConfigEditRequired = ref(false)
+const formConfigEditOptions = ref('')
+const formConfigEditSortOrder = ref(10)
+const formConfigEditStatus = ref('ACTIVE')
 let notificationReconnectTimer: number | null = null
 
 const productionBoardStatusOptions: ProductionBoardStatusOption[] = [
@@ -467,6 +498,7 @@ const productionBoardStatusOptions: ProductionBoardStatusOption[] = [
   { label: '已发货', value: 'SHIPPED' },
   { label: '已完成', value: 'COMPLETED' }
 ]
+const formFieldTypeOptions = ['text', 'textarea', 'select', 'multi-select', 'number', 'date', 'file']
 const portalDefaultRoute: Record<LoginPortal, string> = {
   DOCTOR: '/doctor/orders',
   CS: '/orders/internal',
@@ -539,7 +571,9 @@ const isReworkFinalRoute = computed(() => activeRoute.value === '/rework-final')
 const isWorklogsRoute = computed(() => activeRoute.value === '/worklogs/self')
 const isPerformanceRoute = computed(() => activeRoute.value === '/performance')
 const isProductionBoardRoute = computed(() => activeRoute.value === '/production/board')
+const isFormConfigsRoute = computed(() => activeRoute.value === '/system/form-configs')
 const selectedOrderId = computed(() => selectedDoctorOrder.value?.order_id ?? doctorOrderWorkspace.value?.order.order_id ?? null)
+const selectedFormConfigField = computed(() => formConfigFields.value.find((field) => field.field_id === selectedFormConfigFieldId.value) ?? null)
 const selectedProductionReviewChain = computed(() => workflowChains.value.find((chain) => chain.chain_id === productionReviewChainId.value) ?? null)
 const selectedProcessNode = computed(() => selectedProcessInstance.value?.nodes.find((node) => node.node_instance_id === selectedProcessNodeId.value) ?? null)
 const selectedPortalOption = computed(() => portalOptions.find((option) => option.value === selectedPortal.value) ?? null)
@@ -646,6 +680,8 @@ async function loadActiveRouteData() {
     await loadPerformanceStats()
   } else if (activeRoute.value === '/production/board') {
     await loadProductionBoardOrders()
+  } else if (activeRoute.value === '/system/form-configs') {
+    await loadFormConfigFields()
   }
 }
 
@@ -735,6 +771,8 @@ function selectMenu(menu: AuthMenu) {
       void loadPerformanceStats()
     } else if (menu.routePath === '/production/board') {
       void loadProductionBoardOrders()
+    } else if (menu.routePath === '/system/form-configs') {
+      void loadFormConfigFields()
     }
   }
 }
@@ -843,6 +881,124 @@ async function loadDoctorOrderForm() {
     doctorOrderFormData.value = nextData
   } catch (error) {
     doctorOrderCreateError.value = error instanceof Error ? error.message : '动态表单加载失败'
+  }
+}
+
+function parseFormConfigOptions(value: string) {
+  return value
+    .split(',')
+    .map((item) => item.trim())
+    .filter(Boolean)
+}
+
+async function loadFormConfigFields() {
+  if (!token.value) {
+    return
+  }
+  formConfigLoading.value = true
+  formConfigError.value = ''
+  try {
+    const params = new URLSearchParams()
+    if (formConfigProductType.value.trim()) {
+      params.set('product_type', formConfigProductType.value.trim())
+    }
+    const payload = await apiFetch<FormFieldConfig[]>(`/form-configs?${params.toString()}`)
+    formConfigFields.value = payload.data
+    const selectedStillVisible = selectedFormConfigFieldId.value
+      ? payload.data.some((field) => field.field_id === selectedFormConfigFieldId.value)
+      : false
+    if (!selectedStillVisible) {
+      selectedFormConfigFieldId.value = payload.data[0]?.field_id ?? null
+      if (selectedFormConfigField.value) {
+        selectFormConfigField(selectedFormConfigField.value)
+      }
+    }
+  } catch (error) {
+    formConfigError.value = error instanceof Error ? error.message : '动态表单配置加载失败'
+  } finally {
+    formConfigLoading.value = false
+  }
+}
+
+function selectFormConfigField(field: FormFieldConfig) {
+  selectedFormConfigFieldId.value = field.field_id
+  formConfigEditLabel.value = field.field_label
+  formConfigEditRequired.value = field.is_required
+  formConfigEditOptions.value = field.options.join(', ')
+  formConfigEditSortOrder.value = field.sort_order
+  formConfigEditStatus.value = field.status
+}
+
+function resetFormConfigCreateForm() {
+  formConfigCreateKey.value = ''
+  formConfigCreateLabel.value = ''
+  formConfigCreateType.value = 'text'
+  formConfigCreateRequired.value = false
+  formConfigCreateOptions.value = ''
+  formConfigCreateSortOrder.value = 10
+}
+
+async function createFormConfigField() {
+  if (!token.value) {
+    return
+  }
+  formConfigSaving.value = true
+  formConfigError.value = ''
+  formConfigResult.value = ''
+  try {
+    const payload: FormFieldPayload = {
+      product_type: formConfigCreateProductType.value.trim(),
+      field_key: formConfigCreateKey.value.trim(),
+      field_label: formConfigCreateLabel.value.trim(),
+      field_type: formConfigCreateType.value,
+      is_required: formConfigCreateRequired.value,
+      options: parseFormConfigOptions(formConfigCreateOptions.value),
+      sort_order: formConfigCreateSortOrder.value
+    }
+    const response = await apiFetch<FormFieldConfig>('/form-configs', {
+      method: 'POST',
+      body: JSON.stringify(payload)
+    })
+    formConfigProductType.value = response.data.product_type
+    formConfigResult.value = `已创建字段 ${response.data.field_key}`
+    resetFormConfigCreateForm()
+    await loadFormConfigFields()
+    selectFormConfigField(response.data)
+  } catch (error) {
+    formConfigError.value = error instanceof Error ? error.message : '动态表单字段创建失败'
+  } finally {
+    formConfigSaving.value = false
+  }
+}
+
+async function updateFormConfigField(statusOverride?: string) {
+  if (!token.value || !selectedFormConfigFieldId.value) {
+    return
+  }
+  formConfigSaving.value = true
+  formConfigError.value = ''
+  formConfigResult.value = ''
+  try {
+    const payload: FormFieldPayload = {
+      field_label: formConfigEditLabel.value.trim(),
+      is_required: formConfigEditRequired.value,
+      options: parseFormConfigOptions(formConfigEditOptions.value),
+      sort_order: formConfigEditSortOrder.value,
+      status: statusOverride ?? formConfigEditStatus.value
+    }
+    const response = await apiFetch<FormFieldConfig>(`/form-configs/${selectedFormConfigFieldId.value}`, {
+      method: 'PUT',
+      body: JSON.stringify(payload)
+    })
+    formConfigResult.value = `已更新字段 ${response.data.field_key}`
+    await loadFormConfigFields()
+    if (response.data.status === 'ACTIVE') {
+      selectFormConfigField(response.data)
+    }
+  } catch (error) {
+    formConfigError.value = error instanceof Error ? error.message : '动态表单字段更新失败'
+  } finally {
+    formConfigSaving.value = false
   }
 }
 
@@ -3537,6 +3693,147 @@ onBeforeUnmount(() => {
                 </el-tab-pane>
               </el-tabs>
             </section>
+          </div>
+        </section>
+
+        <section v-else-if="isFormConfigsRoute" class="panel route-panel form-config-panel">
+          <div class="route-heading">
+            <h2>动态表单</h2>
+            <el-tag round>{{ formConfigProductType || 'ALL' }}</el-tag>
+          </div>
+
+          <div class="notification-toolbar">
+            <el-input
+              v-model="formConfigProductType"
+              data-testid="form-config-product-filter"
+              placeholder="产品类型"
+              style="max-width: 220px"
+            />
+            <el-button :loading="formConfigLoading" @click="loadFormConfigFields">刷新</el-button>
+          </div>
+
+          <el-alert
+            v-if="formConfigError"
+            :title="formConfigError"
+            type="error"
+            show-icon
+            :closable="false"
+          />
+          <el-alert
+            v-if="formConfigResult"
+            :title="formConfigResult"
+            type="success"
+            show-icon
+            :closable="false"
+          />
+
+          <div class="form-config-layout">
+            <section class="form-config-editor">
+              <h3>新增字段</h3>
+              <div class="form-grid">
+                <label>
+                  产品类型
+                  <el-input v-model="formConfigCreateProductType" data-testid="form-config-create-product" />
+                </label>
+                <label>
+                  字段 key
+                  <el-input v-model="formConfigCreateKey" data-testid="form-config-create-key" />
+                </label>
+                <label>
+                  字段名
+                  <el-input v-model="formConfigCreateLabel" data-testid="form-config-create-label" />
+                </label>
+                <label>
+                  类型
+                  <el-select v-model="formConfigCreateType" data-testid="form-config-create-type">
+                    <el-option v-for="type in formFieldTypeOptions" :key="type" :label="type" :value="type" />
+                  </el-select>
+                </label>
+                <label>
+                  排序
+                  <el-input-number v-model="formConfigCreateSortOrder" :min="0" :step="10" />
+                </label>
+                <label>
+                  选项
+                  <el-input v-model="formConfigCreateOptions" data-testid="form-config-create-options" />
+                </label>
+              </div>
+              <el-checkbox v-model="formConfigCreateRequired">必填</el-checkbox>
+              <div class="inline-actions">
+                <el-button
+                  type="primary"
+                  :loading="formConfigSaving"
+                  data-testid="form-config-create-button"
+                  @click="createFormConfigField"
+                >
+                  新增字段
+                </el-button>
+              </div>
+            </section>
+
+            <section class="form-config-editor">
+              <h3>编辑字段</h3>
+              <div v-if="selectedFormConfigField" class="form-grid">
+                <label>
+                  字段名
+                  <el-input v-model="formConfigEditLabel" data-testid="form-config-edit-label" />
+                </label>
+                <label>
+                  状态
+                  <el-select v-model="formConfigEditStatus" data-testid="form-config-edit-status">
+                    <el-option label="ACTIVE" value="ACTIVE" />
+                    <el-option label="INACTIVE" value="INACTIVE" />
+                  </el-select>
+                </label>
+                <label>
+                  排序
+                  <el-input-number v-model="formConfigEditSortOrder" :min="0" :step="10" />
+                </label>
+                <label>
+                  选项
+                  <el-input v-model="formConfigEditOptions" data-testid="form-config-edit-options" />
+                </label>
+              </div>
+              <div v-if="selectedFormConfigField" class="inline-actions">
+                <el-checkbox v-model="formConfigEditRequired">必填</el-checkbox>
+                <el-button
+                  type="primary"
+                  :loading="formConfigSaving"
+                  data-testid="form-config-update-button"
+                  @click="updateFormConfigField()"
+                >
+                  保存
+                </el-button>
+                <el-button
+                  type="danger"
+                  plain
+                  :loading="formConfigSaving"
+                  data-testid="form-config-deactivate-button"
+                  @click="updateFormConfigField('INACTIVE')"
+                >
+                  停用
+                </el-button>
+              </div>
+              <div v-else class="empty-state">
+                暂无可编辑字段
+              </div>
+            </section>
+          </div>
+
+          <div v-if="formConfigFields.length === 0" class="empty-state">
+            暂无字段
+          </div>
+          <div v-else class="compact-list" data-testid="form-config-field-list">
+            <article
+              v-for="field in formConfigFields"
+              :key="field.field_id"
+              :class="{ selected: field.field_id === selectedFormConfigFieldId }"
+              @click="selectFormConfigField(field)"
+            >
+              <strong>{{ field.field_label }} / {{ field.field_key }}</strong>
+              <p>{{ field.product_type }} / {{ field.field_type }} / {{ field.status }}</p>
+              <span>排序 {{ field.sort_order }} / {{ field.is_required ? '必填' : '选填' }}</span>
+            </article>
           </div>
         </section>
 

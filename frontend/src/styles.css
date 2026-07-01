@@ -259,10 +259,47 @@ body {
 .worker-task-panel,
 .check-record-panel,
 .worklog-panel,
-.performance-panel {
+.performance-panel,
+.form-config-panel {
   display: grid;
   align-content: start;
   gap: 16px;
+}
+
+
+.form-config-layout {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 14px;
+}
+
+.form-config-editor {
+  display: grid;
+  gap: 12px;
+  padding: 14px;
+  border: 1px solid #dbeafe;
+  border-radius: 8px;
+  background: #f8fbff;
+}
+
+.form-config-editor h3 {
+  margin: 0;
+  font-size: 16px;
+}
+
+.form-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 10px 12px;
+}
+
+.form-grid label {
+  display: grid;
+  gap: 6px;
+  min-width: 0;
+  color: #475569;
+  font-size: 13px;
+  font-weight: 600;
 }
 
 .doctor-order-toolbar {
@@ -398,6 +435,11 @@ body {
 .field-cell {
   display: grid;
   gap: 8px;
+}
+
+.compact-list article.selected {
+  border-color: #2563eb;
+  background: #eff6ff;
 }
 
 .field-grid {
@@ -721,6 +763,8 @@ p {
   .production-board-toolbar,
   .production-board-workspace,
   .production-board-stats,
+  .form-config-layout,
+  .form-grid,
   .portal-grid,
   .assignment-toolbar,
   .process-node-row,

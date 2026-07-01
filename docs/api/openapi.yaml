@@ -322,6 +322,11 @@ components:
             type: string
         sort_order:
           type: integer
+        status:
+          type: string
+          enum:
+          - ACTIVE
+          - INACTIVE
     CreateOrderRequest:
       type: object
       required:
@@ -1806,7 +1811,9 @@ paths:
       tags:
       - OrderForm
       summary: 新增表单字段
-      description: 权限：ADMIN
+      description: |
+        权限：ADMIN
+        任务 9D.12 第一增量：新增动态表单字段，创建后医生端 GET /form-configs 只读取 ACTIVE 字段。
       requestBody:
         required: true
         content:
@@ -1839,6 +1846,13 @@ paths:
       responses:
         '200':
           description: 创建成功
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data:
+                    "$ref": "#/components/schemas/FormFieldConfig"
         '400':
           "$ref": "#/components/responses/BadRequest"
         '401':
@@ -1859,7 +1873,9 @@ paths:
       tags:
       - OrderForm
       summary: 编辑表单字段
-      description: 权限：ADMIN
+      description: |
+        权限：ADMIN
+        任务 9D.12 第一增量：编辑字段展示名、必填、选项、排序和状态；删除采用 status=INACTIVE 逻辑停用，不物理删除历史字段。
       parameters:
       - name: fieldId
         in: path
@@ -1884,13 +1900,20 @@ paths:
                 sort_order:
                   type: integer
                 status:
-                  type: integer
+                  type: string
                   enum:
-                  - 0
-                  - 1
+                  - ACTIVE
+                  - INACTIVE
       responses:
         '200':
           description: 编辑成功
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data:
+                    "$ref": "#/components/schemas/FormFieldConfig"
         '400':
           "$ref": "#/components/responses/BadRequest"
         '401':

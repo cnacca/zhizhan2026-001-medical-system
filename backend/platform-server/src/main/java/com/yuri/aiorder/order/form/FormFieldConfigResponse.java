@@ -11,5 +11,6 @@ public record FormFieldConfigResponse(
         @JsonProperty("field_type") String fieldType,
         @JsonProperty("is_required") boolean required,
         List<String> options,
-        @JsonProperty("sort_order") int sortOrder) {
+        @JsonProperty("sort_order") int sortOrder,
+        String status) {
 }
