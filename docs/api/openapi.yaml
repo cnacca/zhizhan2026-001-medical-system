@@ -989,6 +989,24 @@ components:
         close_note:
           type: string
           description: 关闭备注。
+    ReworkDictionaryOption:
+      type: object
+      properties:
+        code:
+          type: string
+        label:
+          type: string
+    ReworkDictionariesResponse:
+      type: object
+      properties:
+        reason_categories:
+          type: array
+          items:
+            "$ref": "#/components/schemas/ReworkDictionaryOption"
+        responsibility_types:
+          type: array
+          items:
+            "$ref": "#/components/schemas/ReworkDictionaryOption"
     FinalInspectionReportRequest:
       type: object
       required:
@@ -3166,6 +3184,41 @@ paths:
         '503':
           "$ref": "#/components/responses/ServiceUnavailable"
       operationId: getReworks
+  "/reworks/dictionaries":
+    get:
+      tags:
+      - CheckRecord
+      summary: 查询返工原因和责任类型字典
+      description: |
+        任务 9D.18 第一增量：权限 WORKER / CS / ADMIN。
+        返回关闭返工时可用的原因分类和责任类型 code，POST /reworks/{reworkId}/close 只接受这些 code。
+      responses:
+        '200':
+          description: 返工字典
+          content:
+            application/json:
+              schema:
+                allOf:
+                - "$ref": "#/components/schemas/CommonResponse"
+                - type: object
+                  properties:
+                    data:
+                      "$ref": "#/components/schemas/ReworkDictionariesResponse"
+        '400':
+          "$ref": "#/components/responses/BadRequest"
+        '401':
+          "$ref": "#/components/responses/Unauthorized"
+        '403':
+          "$ref": "#/components/responses/Forbidden"
+        '404':
+          "$ref": "#/components/responses/NotFound"
+        '409':
+          "$ref": "#/components/responses/Conflict"
+        default:
+          "$ref": "#/components/responses/DefaultError"
+        '503':
+          "$ref": "#/components/responses/ServiceUnavailable"
+      operationId: getReworksDictionaries
   "/reworks/{reworkId}/close":
     post:
       tags:

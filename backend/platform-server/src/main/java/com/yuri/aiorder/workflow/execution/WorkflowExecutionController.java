@@ -48,6 +48,12 @@ public class WorkflowExecutionController {
         return new DataResponse<>(workflowExecutionService.getReworks(status, orderId, identity));
     }
 
+    @GetMapping("/reworks/dictionaries")
+    @RequirePermission(value = "check:read-internal", roles = {UserRole.ADMIN, UserRole.CS, UserRole.WORKER})
+    public DataResponse<ReworkDictionariesResponse> getReworkDictionaries(BootstrapIdentity identity) {
+        return new DataResponse<>(workflowExecutionService.getReworkDictionaries(identity));
+    }
+
     @PostMapping("/reworks/{reworkId}/close")
     @RequirePermission(value = "check:write", roles = {UserRole.ADMIN, UserRole.WORKER})
     public DataResponse<ReworkRecordResponse> closeRework(

@@ -252,6 +252,52 @@ class CheckWorklogPerformanceTests {
     }
 
     @Test
+    void reworkCloseUsesServerDictionaryAndRejectsUnsupportedClassification() throws Exception {
+        mockMvc.perform(get("/reworks/dictionaries")
+                        .header("X-Bootstrap-Role", "WORKER")
+                        .header("X-Bootstrap-User-Id", workerUserId))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.reason_categories[0].code").value("FIT_ISSUE"))
+                .andExpect(jsonPath("$.data.reason_categories[0].label").value("适配问题"))
+                .andExpect(jsonPath("$.data.responsibility_types[0].code").value("WORKER"))
+                .andExpect(jsonPath("$.data.responsibility_types[0].label").value("生产"));
+
+        submitCheck(nodeInstanceId, 1, true, null);
+        startNode(nodeInstanceId);
+        completeNode(nodeInstanceId);
+        long reworkId = submitCheck(nodeInstanceId, 2, false, nodeInstanceId).path("rework_id").asLong();
+        startNode(nodeInstanceId);
+        completeNode(nodeInstanceId);
+        submitCheck(nodeInstanceId, 2, true, null);
+
+        mockMvc.perform(post("/reworks/{reworkId}/close", reworkId)
+                        .header("X-Bootstrap-Role", "WORKER")
+                        .header("X-Bootstrap-User-Id", workerUserId)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("""
+                                {
+                                  "reason_category":"UNLISTED_REASON",
+                                  "responsibility_type":"WORKER",
+                                  "close_note":"非法字典值"
+                                }
+                                """))
+                .andExpect(status().isBadRequest());
+
+        mockMvc.perform(post("/reworks/{reworkId}/close", reworkId)
+                        .header("X-Bootstrap-Role", "WORKER")
+                        .header("X-Bootstrap-User-Id", workerUserId)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("""
+                                {
+                                  "reason_category":"FIT_ISSUE",
+                                  "responsibility_type":"UNLISTED_OWNER",
+                                  "close_note":"非法字典值"
+                                }
+                                """))
+                .andExpect(status().isBadRequest());
+    }
+
+    @Test
     void bearerCsCannotReadWorkerPerformance() throws Exception {
         String csToken = tokenService.issue(new BootstrapIdentity(UserRole.CS, 8001L, null));
 

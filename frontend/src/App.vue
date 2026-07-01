@@ -325,19 +325,15 @@ type ReworkRecordResponse = {
   created_at: string
 }
 
-const REWORK_REASON_CATEGORY_OPTIONS = [
-  { code: 'FIT_ISSUE', label: '适配问题' },
-  { code: 'MATERIAL_ISSUE', label: '材料问题' },
-  { code: 'DESIGN_ISSUE', label: '设计问题' },
-  { code: 'OTHER', label: '其他' }
-]
+type ReworkDictionaryOption = {
+  code: string
+  label: string
+}
 
-const REWORK_RESPONSIBILITY_TYPE_OPTIONS = [
-  { code: 'WORKER', label: '生产' },
-  { code: 'DOCTOR', label: '医生' },
-  { code: 'CS', label: '客服' },
-  { code: 'SYSTEM', label: '系统' }
-]
+type ReworkDictionariesResponse = {
+  reason_categories: ReworkDictionaryOption[]
+  responsibility_types: ReworkDictionaryOption[]
+}
 
 type FinalInspectionReportResponse = {
   report_id: number
@@ -487,6 +483,8 @@ const reworkCloseResponsibilityType = ref('WORKER')
 const reworkCloseNote = ref('')
 const reworkCloseLoading = ref(false)
 const reworkCloseResult = ref<ReworkRecordResponse | null>(null)
+const reworkReasonCategories = ref<ReworkDictionaryOption[]>([])
+const reworkResponsibilityTypes = ref<ReworkDictionaryOption[]>([])
 const finalInspectionTasks = ref<WorkerTaskItem[]>([])
 const selectedFinalInspectionTask = ref<WorkerTaskItem | null>(null)
 const finalInspectionRecords = ref<CheckRecordResponse[]>([])
@@ -1955,9 +1953,31 @@ async function submitCheckRecord() {
 
 async function loadReworkFinalPage() {
   await Promise.all([
+    loadReworkDictionaries(),
     loadReworkRecords(),
     loadFinalInspectionTasks()
   ])
+}
+
+async function loadReworkDictionaries() {
+  if (!token.value) {
+    return
+  }
+  try {
+    const payload = await apiFetch<ReworkDictionariesResponse>('/reworks/dictionaries')
+    reworkReasonCategories.value = payload.data.reason_categories
+    reworkResponsibilityTypes.value = payload.data.responsibility_types
+    if (!reworkCloseReasonCategory.value && payload.data.reason_categories.length > 0) {
+      reworkCloseReasonCategory.value = payload.data.reason_categories[0].code
+    }
+    if (!reworkCloseResponsibilityType.value && payload.data.responsibility_types.length > 0) {
+      reworkCloseResponsibilityType.value = payload.data.responsibility_types[0].code
+    }
+  } catch (error) {
+    reworkReasonCategories.value = []
+    reworkResponsibilityTypes.value = []
+    reworkError.value = error instanceof Error ? error.message : '返工字典加载失败'
+  }
 }
 
 async function loadReworkRecords() {
@@ -1996,8 +2016,8 @@ function selectReworkRecord(record: ReworkRecordResponse) {
 }
 
 function applyReworkCloseDefaults(record: ReworkRecordResponse) {
-  reworkCloseReasonCategory.value = record.reason_category ?? REWORK_REASON_CATEGORY_OPTIONS[0].code
-  reworkCloseResponsibilityType.value = record.responsibility_type ?? REWORK_RESPONSIBILITY_TYPE_OPTIONS[0].code
+  reworkCloseReasonCategory.value = record.reason_category ?? reworkReasonCategories.value[0]?.code ?? 'FIT_ISSUE'
+  reworkCloseResponsibilityType.value = record.responsibility_type ?? reworkResponsibilityTypes.value[0]?.code ?? 'WORKER'
   reworkCloseNote.value = record.close_note ?? ''
   reworkCloseResult.value = null
 }
@@ -3249,7 +3269,7 @@ onBeforeUnmount(() => {
                 <div class="doctor-order-toolbar">
                   <el-select v-model="reworkCloseReasonCategory" placeholder="原因分类">
                     <el-option
-                      v-for="option in REWORK_REASON_CATEGORY_OPTIONS"
+                      v-for="option in reworkReasonCategories"
                       :key="option.code"
                       :label="`${option.code} / ${option.label}`"
                       :value="option.code"
@@ -3257,7 +3277,7 @@ onBeforeUnmount(() => {
                   </el-select>
                   <el-select v-model="reworkCloseResponsibilityType" placeholder="责任类型">
                     <el-option
-                      v-for="option in REWORK_RESPONSIBILITY_TYPE_OPTIONS"
+                      v-for="option in reworkResponsibilityTypes"
                       :key="option.code"
                       :label="`${option.code} / ${option.label}`"
                       :value="option.code"

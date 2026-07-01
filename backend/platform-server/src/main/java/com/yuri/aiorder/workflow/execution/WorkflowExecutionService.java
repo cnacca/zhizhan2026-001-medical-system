@@ -4,7 +4,6 @@ import com.yuri.aiorder.common.BootstrapIdentity;
 import com.yuri.aiorder.common.auth.AccessControlService;
 import java.time.LocalDateTime;
 import java.util.List;
-import java.util.Set;
 import org.springframework.dao.EmptyResultDataAccessException;
 import org.springframework.http.HttpStatus;
 import org.springframework.jdbc.core.simple.JdbcClient;
@@ -15,10 +14,16 @@ import org.springframework.web.server.ResponseStatusException;
 @Service
 public class WorkflowExecutionService {
 
-    private static final Set<String> REWORK_REASON_CATEGORIES = Set.of(
-            "FIT_ISSUE", "MATERIAL_ISSUE", "DESIGN_ISSUE", "OTHER");
-    private static final Set<String> REWORK_RESPONSIBILITY_TYPES = Set.of(
-            "WORKER", "DOCTOR", "CS", "SYSTEM");
+    private static final List<ReworkDictionaryOption> REWORK_REASON_CATEGORIES = List.of(
+            new ReworkDictionaryOption("FIT_ISSUE", "适配问题"),
+            new ReworkDictionaryOption("MATERIAL_ISSUE", "材料问题"),
+            new ReworkDictionaryOption("DESIGN_ISSUE", "设计问题"),
+            new ReworkDictionaryOption("OTHER", "其他"));
+    private static final List<ReworkDictionaryOption> REWORK_RESPONSIBILITY_TYPES = List.of(
+            new ReworkDictionaryOption("WORKER", "生产"),
+            new ReworkDictionaryOption("DOCTOR", "医生"),
+            new ReworkDictionaryOption("CS", "客服"),
+            new ReworkDictionaryOption("SYSTEM", "系统"));
 
     private final JdbcClient jdbcClient;
     private final AccessControlService accessControlService;
@@ -155,6 +160,11 @@ public class WorkflowExecutionService {
                         rs.getString("status"),
                         rs.getObject("created_at", LocalDateTime.class)))
                 .list();
+    }
+
+    public ReworkDictionariesResponse getReworkDictionaries(BootstrapIdentity identity) {
+        accessControlService.requireCheckRecordRead(identity);
+        return new ReworkDictionariesResponse(REWORK_REASON_CATEGORIES, REWORK_RESPONSIBILITY_TYPES);
     }
 
     @Transactional
@@ -793,13 +803,15 @@ public class WorkflowExecutionService {
         return value == null || value.isBlank() ? null : value.trim();
     }
 
-    private String normalizeDictionaryValue(String value, Set<String> supportedValues, String unsupportedMessage) {
+    private String normalizeDictionaryValue(
+            String value, List<ReworkDictionaryOption> options, String unsupportedMessage) {
         String normalized = blankToNull(value);
         if (normalized == null) {
             return null;
         }
         String upper = normalized.toUpperCase();
-        if (!supportedValues.contains(upper)) {
+        boolean supported = options.stream().anyMatch((option) -> option.code().equals(upper));
+        if (!supported) {
             throw new ResponseStatusException(HttpStatus.BAD_REQUEST, unsupportedMessage);
         }
         return upper;
