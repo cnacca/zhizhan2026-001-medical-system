@@ -1163,6 +1163,15 @@ npm run acceptance
 
 说明：终检报告位于 `docs/deployment/task-8-final-readiness-report.md`，只整理上线前缺口，不把 Task 8 标完成。
 
+部署安全 / 环境变量 readiness 检查第一增量：
+
+```bash
+npm run check:deployment-env
+npm run acceptance
+```
+
+说明：正式环境必须外部注入数据库密码、Redis/MinIO 凭据、`APP_AUTH_TOKEN_SECRET`、`DEEPSEEK_API_KEY`、`AI_EXTERNAL_ALERT_WEBHOOK_URL`、`AI_EXTERNAL_ALERT_WEBHOOK_SIGNING_SECRET` 和 HTTPS/部署平台密钥。仓库只保留 `.env.example` 占位值，禁止提交真实密钥。AI 默认保持 `AI_PROVIDER=deterministic`、`AI_DEEPSEEK_ENABLED=false`、`AI_EXTERNAL_ALERT_WEBHOOK_ENABLED=false`、`AI_EXTERNAL_ALERT_SCHEDULER_ENABLED=false`，真实模型、外部 webhook 和调度器必须显式开启。
+
 说明：`smoke:task9d10-large-upload` 使用 Playwright Test + 本机 Chrome channel，默认生成 105MB 稀疏 STL 文件，通过医生浏览器登录、创建测试订单、选择附件、Multipart 上传、完成 `file_id` 回填和预览权限校验。快速排错可临时调小 `TASK9D10_UPLOAD_SIZE_BYTES`；正式验收保持默认 100MB+。`smoke:task9d10-server-resume` 默认生成 6MB 文件，预创建 pending Multipart 并清理本地上传会话，验证浏览器最终完成的 `file_id` 等于 pending `file_id`。`smoke:task9d10-interrupted-resume` 默认生成 6MB 文件，模拟第 2 个分片 PUT 断网，验证第二次点击上传可读取本地 session 和服务端 status，并复用同一 `file_id` 完成上传。
 
 任务 9D.3 客服初审第一增量检查：
@@ -1277,8 +1286,8 @@ Task 8A smoke 注意事项：
 
 优先处理 `tasks/README.md`：
 
-1. 下一轮唯一推荐目标：部署安全 / 环境变量 readiness 检查第一增量。
-2. 检查 `README.md`、`.env.example`、`application.yml`、`application-prod.yml` 和 readiness checklist，明确正式环境必须外部注入的变量、默认关闭能力、禁止提交的密钥，并补静态检查脚本。
+1. 下一轮唯一推荐目标：验收矩阵机器可读缺口清单第一增量。
+2. 从 `docs/acceptance/task-8-acceptance-matrix.md` 和 `docs/deployment/task-8-final-readiness-report.md` 提炼仍未 READY 的关键项，更新 `acceptance.json` 或新增静态检查，让后续能用命令发现上线缺口。
 3. 每补一个缺口，都要回写 `docs/acceptance/task-8-acceptance-matrix.md` 和 `docs/deployment/readiness-checklist.md` 的状态。
 
 ## 安全说明

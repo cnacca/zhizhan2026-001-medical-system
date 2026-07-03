@@ -1,5 +1,21 @@
 # DECISIONS
 
+## D-098 部署安全与环境变量 readiness 检查第一增量
+
+状态：已确认。
+
+决策：
+
+- 新增 `npm run check:deployment-env`，静态检查 README、`.env.example`、`application.yml`、`application-prod.yml` 和 readiness checklist 的生产安全门禁文本。
+- `.env.example` 只保留本地占位值，`DEEPSEEK_API_KEY` 在提交模板中保持空值，真实 key 只能通过本地 shell、部署平台或密钥系统外部注入。
+- 生产 profile 继续通过 `application-prod.yml` 固定 `allow-bootstrap-headers=false`，`APP_AUTH_TOKEN_SECRET` 不提供本地 fallback。
+- AI 真实模型、外部 webhook、外部告警调度器和 webhook 签名默认关闭，只有显式环境变量开启并安全注入相关 secret 后才启用。
+
+影响：
+
+- 该增量把生产环境必须外部注入变量、默认关闭能力和禁止提交真实密钥转成可运行检查。
+- Task 8 仍保持 `in-progress / NOT_READY`；下一轮唯一推荐目标是验收矩阵机器可读缺口清单第一增量。
+
 ## D-097 Task 8 readiness 终检报告第一增量
 
 状态：已确认。

@@ -21,14 +21,15 @@
 - 9D.48 AI 外部告警监控/运维可观察第一增量已完成。
 - 9D.48.1 AI 外部告警 outbox 列表/筛选第一增量已完成。
 - 9D.48.2 AI 外部告警失败/死信可见性第一增量已完成。
-- Task 8 readiness 终检报告第一增量已完成；下一轮唯一推荐目标是部署安全 / 环境变量 readiness 检查第一增量。
+- Task 8 readiness 终检报告第一增量已完成。
+- 部署安全 / 环境变量 readiness 检查第一增量已完成；下一轮唯一推荐目标是验收矩阵机器可读缺口清单第一增量。
 - 9D.49 生产端质量与返工汇总后端适配第一增量已完成；新增 `/production/quality/summary`，生产/客服/管理可读，医生端拒绝；前端生产端质量总览已接真实汇总，明确展示内返率和外返率。
 - 9D.50 生产端设备管理汇总后端适配第一增量已完成；新增 `/production/equipment/summary`，生产/客服/管理可读，医生端拒绝；前端生产端设备管理已接真实汇总，展示设备台账、设备状态、保养计划、故障报修、停机时长和设备稼动率。
 - 9D.51 生产端物料异常汇总后端适配第一增量已完成；新增 `/production/material-exceptions/summary`，生产/客服/管理可读，医生端拒绝；前端生产端物料异常已接真实汇总，展示缺料、错料、批次异常、材料损耗、处理状态和责任归属。
 - 9D.52 生产端安环管理汇总后端适配第一增量已完成；新增 `/production/safety-environment/summary`，生产/客服/管理可读，医生端拒绝；前端生产端安环管理已接真实汇总，展示安全巡检、隐患整改、环境记录、PPE/设备安全提醒、安环事件统计和高风险待办。
 - 9D.53 生产端成本管理汇总后端适配第一增量已完成；新增 `/production/cost-management/summary`，生产/客服/管理可读，医生端拒绝；前端生产端成本管理/外协成本已接真实汇总，展示工序成本、材料成本、人工成本、返工成本、外协成本和成本异常预警。
 - 9D.54 生产端奖惩管理汇总后端适配第一增量已完成；新增 `/production/reward-penalty/summary`，生产/客服/管理可读，医生端拒绝；前端生产端奖惩管理已接真实汇总，展示奖惩记录、奖惩原因、关联对象、审批状态、月度汇总和绩效影响。
-- 下一轮唯一推荐目标：部署安全 / 环境变量 readiness 检查第一增量，检查 README.md、.env.example、application.yml、application-prod.yml 和 readiness checklist，明确正式环境必须外部注入的变量、默认关闭能力、禁止提交的密钥，并补静态检查脚本。
+- 下一轮唯一推荐目标：验收矩阵机器可读缺口清单第一增量，从 acceptance matrix 和 Task 8 final readiness report 提炼仍未 READY 的关键项，更新 `acceptance.json` 或新增静态检查。
 - 继续开发前先复核 `STATUS.md`、`docs/acceptance/task-8-acceptance-matrix.md` 和 `docs/deployment/readiness-checklist.md`，并按 TDD 先补红灯测试。
 - 本轮 9D.25 状态：completed-first-increment；已通过 TDD 后端测试、Check/Worklog 模块回归、OpenAPI、frontend build、acceptance 和静态检查。本轮新增 `/performance/details` 绩效工时明细接口，并在绩效页展示最近完成明细。未完成原因：仍缺终检专用角色/附件、绩效完整公式/周期筛选/标准工时配置/申诉闭环、返工影响图形化、生产级 AI 治理、设计稿预览 URL 聚合、完整弱网/跨设备续传和部署交付材料。
 - 本轮 9D.24 状态：completed-first-increment；已通过 TDD 后端测试、四入口登录静态检查、OpenAPI、frontend build、acceptance 和登录相关后端回归。未完成原因：仍缺生产级 Spring Security/JWT、完整 RuoYi 管理 UI、refresh token 轮换、access token 黑名单、多设备会话策略和正式环境浏览器全链路验收。
@@ -178,6 +179,35 @@
 未完成原因：
 
 - 当前只是终检报告第一增量，不关闭报告中列出的生产级鉴权、完整业务前端、WebSocket/通知生产联调、文件上传真实弱网/跨设备、AI 真实环境联调、部署基础设施、操作手册和客户确认项。
+- Task 8 总体仍保持 `NOT READY`。
+
+## 任务 Task 8 readiness：部署安全 / 环境变量检查第一增量
+
+状态：completed-first-increment。
+
+目标：
+
+- 检查 README、`.env.example`、`application.yml`、`application-prod.yml` 和 readiness checklist 的生产环境变量边界。
+- 明确正式环境必须外部注入变量、默认关闭能力和禁止提交真实密钥。
+- 增加可运行静态检查命令。
+
+范围：
+
+- 新增 `scripts/check-deployment-env-readiness.mjs` 和 `npm run check:deployment-env`。
+- `.env.example` 保持本地模板属性，真实 DeepSeek key 留空。
+- `application-prod.yml` 明确 `APP_AUTH_TOKEN_SECRET` 必须外部注入，且 `allow-bootstrap-headers=false`。
+
+验收结果：
+
+- TDD 红灯：`test -f scripts/check-deployment-env-readiness.mjs` 首次返回失败，确认检查脚本缺口。
+- `npm run check:deployment-env`：PASS。
+- `npm run acceptance`：PASS。
+- `npm run check:openapi`：PASS，75 paths / 86 operations / 86 operationIds。
+- `git diff --check`：PASS。
+
+未完成原因：
+
+- 当前不构建真实 Docker 镜像、不配置真实 Nginx/HTTPS、不写真实密钥、不改生产真实配置。
 - Task 8 总体仍保持 `NOT READY`。
 
 ## 任务 9D.54：生产端奖惩管理汇总后端适配第一增量

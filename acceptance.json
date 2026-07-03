@@ -2033,6 +2033,33 @@
             "Task 8 readiness 终检报告第一增量",
             "check:task8-final-readiness"
           ]
+        },
+        {
+          "id": "task-deployment-env-readiness-required-text",
+          "type": "required_text",
+          "paths": [
+            "README.md",
+            ".env.example",
+            "backend/platform-server/src/main/resources/application.yml",
+            "backend/platform-server/src/main/resources/application-prod.yml",
+            "docs/deployment/readiness-checklist.md",
+            "DECISIONS.md",
+            "STATUS.md",
+            "tasks/README.md",
+            "scripts/check-deployment-env-readiness.mjs",
+            "package.json"
+          ],
+          "patterns": [
+            "部署安全 / 环境变量 readiness 检查第一增量",
+            "正式环境必须外部注入",
+            "禁止提交真实密钥",
+            "DEEPSEEK_API_KEY=",
+            "AI_PROVIDER=deterministic",
+            "AI_DEEPSEEK_ENABLED=false",
+            "AI_EXTERNAL_ALERT_WEBHOOK_ENABLED=false",
+            "AI_EXTERNAL_ALERT_SCHEDULER_ENABLED=false",
+            "check:deployment-env"
+          ]
         }
       ]
     }

@@ -8,6 +8,8 @@
 
 Task 8 readiness 终检报告第一增量已生成：`docs/deployment/task-8-final-readiness-report.md`。该报告把本 checklist 和 acceptance matrix 中仍为 PARTIAL / NOT_READY 的关键项整理为上线前缺口清单，Task 8 状态仍为 `NOT_READY`。
 
+部署安全 / 环境变量 readiness 检查第一增量已补：`npm run check:deployment-env` 会检查 README、`.env.example`、`application.yml`、`application-prod.yml` 和本 checklist 中的生产环境变量边界、默认关闭能力和禁止提交真实密钥说明。
+
 ## 必须完成后才能上线
 
 | 类别 | 当前状态 | 必须完成项 |
@@ -25,8 +27,8 @@ Task 8 readiness 终检报告第一增量已生成：`docs/deployment/task-8-fin
 
 ## 环境变量与密钥边界
 
-- 仓库只保留 `.env.example` 占位值，不提交真实密钥。
-- 正式环境需要通过部署平台或服务器安全注入以下变量：数据库账号密码、Redis、MinIO access/secret、DeepSeek API Key、`APP_AUTH_TOKEN_SECRET` 或正式 JWT 密钥、`APP_AUTH_REFRESH_TOKEN_TTL_SECONDS`、HTTPS 证书路径或托管配置。
+- 仓库只保留 `.env.example` 占位值，禁止提交真实密钥。
+- 正式环境必须外部注入以下变量：数据库账号密码、Redis、MinIO access/secret、DeepSeek API Key、`APP_AUTH_TOKEN_SECRET` 或正式 JWT 密钥、`APP_AUTH_REFRESH_TOKEN_TTL_SECONDS`、AI 外部 webhook URL、AI 外部 webhook signing secret、HTTPS 证书路径或托管配置。
 - DeepSeek 第一增量默认 `AI_PROVIDER=deterministic`、`AI_DEEPSEEK_ENABLED=false`；测试/正式环境启用真实模型时必须通过外部密钥系统注入 `DEEPSEEK_API_KEY`，不得把真实 key 写入 `.env.example`、README、测试或代码。
 - AI 外部 webhook 第一增量默认 `AI_EXTERNAL_ALERT_WEBHOOK_ENABLED=false`、`AI_EXTERNAL_ALERT_WEBHOOK_URL=`；测试/正式环境启用时只能通过部署平台安全配置 webhook URL，不得把带密钥或客户信息的真实 URL 提交到仓库。
 - AI 外部 webhook 签名第一增量默认 `AI_EXTERNAL_ALERT_WEBHOOK_SIGNING_ENABLED=false`、`AI_EXTERNAL_ALERT_WEBHOOK_SIGNING_SECRET=`；测试/正式环境启用时只能通过部署平台安全配置 signing secret，不得把真实 secret 提交到仓库。
