@@ -866,7 +866,6 @@ public class WorkflowExecutionService {
                 effectiveSeconds == 0 ? 0 : Math.toIntExact(Math.round((standardSeconds * 100.0) / effectiveSeconds)));
     }
 
-
     public List<PerformanceDetailResponse> getPerformanceDetails(Long requestedUserId, BootstrapIdentity identity) {
         Long targetUserId = accessControlService.resolvePerformanceTargetUserId(identity, requestedUserId);
         return jdbcClient.sql("""
@@ -994,7 +993,6 @@ public class WorkflowExecutionService {
                 .update();
     }
 
-
     private List<Long> findImpactedResettableDownstreamNodeIds(NodeRow target) {
         return jdbcClient.sql("""
                         WITH RECURSIVE impacted_nodes(node_instance_id) AS (
@@ -1035,215 +1033,6 @@ public class WorkflowExecutionService {
                         """)
                 .param("workLogId", workLogId)
                 .update();
-    }
-
-    private ReworkNotificationRow loadReworkNotification(long reworkId) {
-        return jdbcClient.sql("""
-                        SELECT
-                            r.rework_id,
-                            r.order_id,
-                            o.order_no,
-                            o.cs_user_id,
-                            r.target_node_instance_id
-                        FROM rework_record r
-                        JOIN orders o ON o.order_id = r.order_id
-                        WHERE r.rework_id = :reworkId
-                        """)
-                .param("reworkId", reworkId)
-                .query((rs, rowNum) -> new ReworkNotificationRow(
-                        rs.getLong("rework_id"),
-                        rs.getLong("order_id"),
-                        rs.getString("order_no"),
-                        rs.getObject("cs_user_id", Long.class),
-                        rs.getLong("target_node_instance_id")))
-                .single();
-    }
-
-    private void emitReworkNotification(
-            ReworkNotificationRow rework, String eventType, String audienceRole, Long userId, String message) {
-        String payload = reworkPayload(rework, eventType, message);
-        jdbcClient.sql("""
-                        INSERT INTO notification_event
-                            (order_id, event_type, audience_role, payload, delivery_status)
-                        VALUES
-                            (:orderId, :eventType, :audienceRole, CAST(:payload AS JSON), 'PENDING')
-                        """)
-                .param("orderId", rework.orderId())
-                .param("eventType", eventType)
-                .param("audienceRole", audienceRole)
-                .param("payload", payload)
-                .update();
-        long eventId = lastInsertId();
-        if (userId == null) {
-            return;
-        }
-        jdbcClient.sql("""
-                        INSERT IGNORE INTO user_notification (event_id, user_id)
-                        VALUES (:eventId, :userId)
-                        """)
-                .param("eventId", eventId)
-                .param("userId", userId)
-                .update();
-        notificationPushService.pushToUser(userId, eventId, payload);
-    }
-
-    private String reworkPayload(ReworkNotificationRow rework, String eventType, String message) {
-        try {
-            return objectMapper.writeValueAsString(new ReworkNotificationPayload(
-                    eventType,
-                    rework.orderId(),
-                    rework.orderNo(),
-                    message,
-                    rework.reworkId(),
-                    rework.targetNodeInstanceId()));
-        } catch (JsonProcessingException ex) {
-            throw new ResponseStatusException(
-                    HttpStatus.INTERNAL_SERVER_ERROR, "failed to build rework notification payload", ex);
-        }
-    }
-
-    private boolean hasOpenPause(long workLogId) {
-        return jdbcClient.sql("""
-                        SELECT COUNT(*)
-                        FROM work_log_pause_segment
-                        WHERE work_log_id = :workLogId
-                          AND resumed_at IS NULL
-                        """)
-                .param("workLogId", workLogId)
-                .query(Long.class)
-                .single() > 0;
-    }
-
-    private WorkLogResponse loadWorkLog(long workLogId, boolean requireExisting) {
-        try {
-            return jdbcClient.sql("""
-                            SELECT work_log_id, node_instance_id, worker_user_id, status,
-                                   pause_duration_seconds, effective_duration_seconds
-                            FROM work_log
-                            WHERE work_log_id = :workLogId
-                            """)
-                    .param("workLogId", workLogId)
-                    .query((rs, rowNum) -> new WorkLogResponse(
-                            rs.getLong("work_log_id"),
-                            rs.getLong("node_instance_id"),
-                            rs.getLong("worker_user_id"),
-                            rs.getString("status"),
-                            rs.getInt("pause_duration_seconds"),
-                            rs.getObject("effective_duration_seconds", Integer.class)))
-                    .single();
-        } catch (EmptyResultDataAccessException ex) {
-            if (requireExisting) {
-                throw new ResponseStatusException(HttpStatus.NOT_FOUND, "work log not found", ex);
-            }
-            return null;
-        }
-    }
-
-    private NodeRow lockNode(long nodeInstanceId) {
-        try {
-            return jdbcClient.sql("""
-                            SELECT
-                                n.node_instance_id,
-                                n.instance_id,
-                                i.order_id,
-                                n.assigned_user_id,
-                                n.node_status
-                            FROM order_process_node n
-                            JOIN order_process_instance i ON i.instance_id = n.instance_id
-                            WHERE n.node_instance_id = :nodeInstanceId
-                            FOR UPDATE
-                            """)
-                    .param("nodeInstanceId", nodeInstanceId)
-                    .query((rs, rowNum) -> new NodeRow(
-                            rs.getLong("node_instance_id"),
-                            rs.getLong("instance_id"),
-                            rs.getLong("order_id"),
-                            rs.getObject("assigned_user_id", Long.class),
-                            rs.getString("node_status")))
-                    .single();
-        } catch (EmptyResultDataAccessException ex) {
-            throw new ResponseStatusException(HttpStatus.NOT_FOUND, "process node not found", ex);
-        }
-    }
-
-    private ReworkRow lockRework(long reworkId) {
-        try {
-            return jdbcClient.sql("""
-                            SELECT rework_id, source_check_id, target_node_instance_id, status
-                            FROM rework_record
-                            WHERE rework_id = :reworkId
-                            FOR UPDATE
-                            """)
-                    .param("reworkId", reworkId)
-                    .query((rs, rowNum) -> new ReworkRow(
-                            rs.getLong("rework_id"),
-                            rs.getLong("source_check_id"),
-                            rs.getLong("target_node_instance_id"),
-                            rs.getString("status")))
-                    .single();
-        } catch (EmptyResultDataAccessException ex) {
-            throw new ResponseStatusException(HttpStatus.NOT_FOUND, "rework record not found", ex);
-        }
-    }
-
-    private ReworkRecordResponse loadRework(long reworkId) {
-        try {
-            return jdbcClient.sql("""
-                            SELECT
-                                r.rework_id,
-                                r.order_id,
-                                o.order_no,
-                                r.source_check_id,
-                                r.from_node_instance_id,
-                                from_node.process_name AS from_process_name,
-                                r.target_node_instance_id,
-                                target_node.process_name AS target_process_name,
-                                target_node.node_status AS target_node_status,
-                                r.impacted_node_count,
-                                CAST(r.impacted_node_instance_ids AS CHAR) AS impacted_node_instance_ids,
-                                target_node.assigned_user_id,
-                                r.reason_category,
-                                r.reason_detail,
-                                r.responsibility_type,
-                                r.close_note,
-                                r.closed_by_user_id,
-                                r.closed_at,
-                                r.status,
-                                r.created_at
-                            FROM rework_record r
-                            JOIN orders o ON o.order_id = r.order_id
-                            LEFT JOIN order_process_node from_node
-                              ON from_node.node_instance_id = r.from_node_instance_id
-                            LEFT JOIN order_process_node target_node
-                              ON target_node.node_instance_id = r.target_node_instance_id
-                            WHERE r.rework_id = :reworkId
-                            """)
-                    .param("reworkId", reworkId)
-                    .query((rs, rowNum) -> new ReworkRecordResponse(
-                            rs.getLong("rework_id"),
-                            rs.getLong("order_id"),
-                            rs.getString("order_no"),
-                            rs.getLong("source_check_id"),
-                            rs.getObject("from_node_instance_id", Long.class),
-                            rs.getString("from_process_name"),
-                            rs.getObject("target_node_instance_id", Long.class),
-                            rs.getString("target_process_name"),
-                            rs.getString("target_node_status"),
-                            rs.getInt("impacted_node_count"),
-                            parseImpactedNodeInstanceIds(rs.getString("impacted_node_instance_ids")),
-                            rs.getObject("assigned_user_id", Long.class),
-                            rs.getString("reason_category"),
-                            rs.getString("reason_detail"),
-                            rs.getString("responsibility_type"),
-                            rs.getString("close_note"),
-                            rs.getObject("closed_by_user_id", Long.class),
-                            rs.getObject("closed_at", LocalDateTime.class),
-                            rs.getString("status"),
-                            rs.getObject("created_at", LocalDateTime.class)))
-                    .single();
-        } catch (EmptyResultDataAccessException ex) {
-            throw new ResponseStatusException(HttpStatus.NOT_FOUND, "rework record not found", ex);
-        }
     }
 
     private NodeRow lockFinalNode(long orderId) {
@@ -1379,6 +1168,215 @@ public class WorkflowExecutionService {
                 .single();
     }
 
+    private ReworkRow lockRework(long reworkId) {
+        try {
+            return jdbcClient.sql("""
+                            SELECT rework_id, source_check_id, target_node_instance_id, status
+                            FROM rework_record
+                            WHERE rework_id = :reworkId
+                            FOR UPDATE
+                            """)
+                    .param("reworkId", reworkId)
+                    .query((rs, rowNum) -> new ReworkRow(
+                            rs.getLong("rework_id"),
+                            rs.getLong("source_check_id"),
+                            rs.getLong("target_node_instance_id"),
+                            rs.getString("status")))
+                    .single();
+        } catch (EmptyResultDataAccessException ex) {
+            throw new ResponseStatusException(HttpStatus.NOT_FOUND, "rework record not found", ex);
+        }
+    }
+
+    private ReworkRecordResponse loadRework(long reworkId) {
+        try {
+            return jdbcClient.sql("""
+                            SELECT
+                                r.rework_id,
+                                r.order_id,
+                                o.order_no,
+                                r.source_check_id,
+                                r.from_node_instance_id,
+                                from_node.process_name AS from_process_name,
+                            r.target_node_instance_id,
+                            target_node.process_name AS target_process_name,
+                            target_node.node_status AS target_node_status,
+                            r.impacted_node_count,
+                            CAST(r.impacted_node_instance_ids AS CHAR) AS impacted_node_instance_ids,
+                            target_node.assigned_user_id,
+                                r.reason_category,
+                                r.reason_detail,
+                                r.responsibility_type,
+                                r.close_note,
+                                r.closed_by_user_id,
+                                r.closed_at,
+                                r.status,
+                                r.created_at
+                            FROM rework_record r
+                            JOIN orders o ON o.order_id = r.order_id
+                            LEFT JOIN order_process_node from_node
+                              ON from_node.node_instance_id = r.from_node_instance_id
+                            LEFT JOIN order_process_node target_node
+                              ON target_node.node_instance_id = r.target_node_instance_id
+                            WHERE r.rework_id = :reworkId
+                            """)
+                    .param("reworkId", reworkId)
+                    .query((rs, rowNum) -> new ReworkRecordResponse(
+                            rs.getLong("rework_id"),
+                            rs.getLong("order_id"),
+                            rs.getString("order_no"),
+                            rs.getLong("source_check_id"),
+                            rs.getObject("from_node_instance_id", Long.class),
+                            rs.getString("from_process_name"),
+                            rs.getObject("target_node_instance_id", Long.class),
+                            rs.getString("target_process_name"),
+                            rs.getString("target_node_status"),
+                            rs.getInt("impacted_node_count"),
+                            parseImpactedNodeInstanceIds(rs.getString("impacted_node_instance_ids")),
+                            rs.getObject("assigned_user_id", Long.class),
+                            rs.getString("reason_category"),
+                            rs.getString("reason_detail"),
+                            rs.getString("responsibility_type"),
+                            rs.getString("close_note"),
+                            rs.getObject("closed_by_user_id", Long.class),
+                            rs.getObject("closed_at", LocalDateTime.class),
+                            rs.getString("status"),
+                            rs.getObject("created_at", LocalDateTime.class)))
+                    .single();
+        } catch (EmptyResultDataAccessException ex) {
+            throw new ResponseStatusException(HttpStatus.NOT_FOUND, "rework record not found", ex);
+        }
+    }
+
+    private ReworkNotificationRow loadReworkNotification(long reworkId) {
+        return jdbcClient.sql("""
+                        SELECT
+                            r.rework_id,
+                            r.order_id,
+                            o.order_no,
+                            o.cs_user_id,
+                            r.target_node_instance_id
+                        FROM rework_record r
+                        JOIN orders o ON o.order_id = r.order_id
+                        WHERE r.rework_id = :reworkId
+                        """)
+                .param("reworkId", reworkId)
+                .query((rs, rowNum) -> new ReworkNotificationRow(
+                        rs.getLong("rework_id"),
+                        rs.getLong("order_id"),
+                        rs.getString("order_no"),
+                        rs.getObject("cs_user_id", Long.class),
+                        rs.getLong("target_node_instance_id")))
+                .single();
+    }
+
+    private void emitReworkNotification(
+            ReworkNotificationRow rework, String eventType, String audienceRole, Long userId, String message) {
+        String payload = reworkPayload(rework, eventType, message);
+        jdbcClient.sql("""
+                        INSERT INTO notification_event
+                            (order_id, event_type, audience_role, payload, delivery_status)
+                        VALUES
+                            (:orderId, :eventType, :audienceRole, CAST(:payload AS JSON), 'PENDING')
+                        """)
+                .param("orderId", rework.orderId())
+                .param("eventType", eventType)
+                .param("audienceRole", audienceRole)
+                .param("payload", payload)
+                .update();
+        long eventId = lastInsertId();
+        if (userId == null) {
+            return;
+        }
+        jdbcClient.sql("""
+                        INSERT IGNORE INTO user_notification (event_id, user_id)
+                        VALUES (:eventId, :userId)
+                        """)
+                .param("eventId", eventId)
+                .param("userId", userId)
+                .update();
+        notificationPushService.pushToUser(userId, eventId, payload);
+    }
+
+    private String reworkPayload(ReworkNotificationRow rework, String eventType, String message) {
+        try {
+            return objectMapper.writeValueAsString(new ReworkNotificationPayload(
+                    eventType,
+                    rework.orderId(),
+                    rework.orderNo(),
+                    message,
+                    rework.reworkId(),
+                    rework.targetNodeInstanceId()));
+        } catch (JsonProcessingException ex) {
+            throw new ResponseStatusException(
+                    HttpStatus.INTERNAL_SERVER_ERROR, "failed to build rework notification payload", ex);
+        }
+    }
+
+    private boolean hasOpenPause(long workLogId) {
+        return jdbcClient.sql("""
+                        SELECT COUNT(*)
+                        FROM work_log_pause_segment
+                        WHERE work_log_id = :workLogId
+                          AND resumed_at IS NULL
+                        """)
+                .param("workLogId", workLogId)
+                .query(Long.class)
+                .single() > 0;
+    }
+
+    private WorkLogResponse loadWorkLog(long workLogId, boolean requireExisting) {
+        try {
+            return jdbcClient.sql("""
+                            SELECT work_log_id, node_instance_id, worker_user_id, status,
+                                   pause_duration_seconds, effective_duration_seconds
+                            FROM work_log
+                            WHERE work_log_id = :workLogId
+                            """)
+                    .param("workLogId", workLogId)
+                    .query((rs, rowNum) -> new WorkLogResponse(
+                            rs.getLong("work_log_id"),
+                            rs.getLong("node_instance_id"),
+                            rs.getLong("worker_user_id"),
+                            rs.getString("status"),
+                            rs.getInt("pause_duration_seconds"),
+                            rs.getObject("effective_duration_seconds", Integer.class)))
+                    .single();
+        } catch (EmptyResultDataAccessException ex) {
+            if (requireExisting) {
+                throw new ResponseStatusException(HttpStatus.NOT_FOUND, "work log not found", ex);
+            }
+            return null;
+        }
+    }
+
+    private NodeRow lockNode(long nodeInstanceId) {
+        try {
+            return jdbcClient.sql("""
+                            SELECT
+                                n.node_instance_id,
+                                n.instance_id,
+                                i.order_id,
+                                n.assigned_user_id,
+                                n.node_status
+                            FROM order_process_node n
+                            JOIN order_process_instance i ON i.instance_id = n.instance_id
+                            WHERE n.node_instance_id = :nodeInstanceId
+                            FOR UPDATE
+                            """)
+                    .param("nodeInstanceId", nodeInstanceId)
+                    .query((rs, rowNum) -> new NodeRow(
+                            rs.getLong("node_instance_id"),
+                            rs.getLong("instance_id"),
+                            rs.getLong("order_id"),
+                            rs.getObject("assigned_user_id", Long.class),
+                            rs.getString("node_status")))
+                    .single();
+        } catch (EmptyResultDataAccessException ex) {
+            throw new ResponseStatusException(HttpStatus.NOT_FOUND, "process node not found", ex);
+        }
+    }
+
     private WorkLogRow lockWorkLog(long workLogId) {
         try {
             return jdbcClient.sql("""
@@ -1429,7 +1427,6 @@ public class WorkflowExecutionService {
     private String blankToNull(String value) {
         return value == null || value.isBlank() ? null : value.trim();
     }
-
 
     private String serializeImpactedNodeInstanceIds(List<Long> nodeInstanceIds) {
         try {
