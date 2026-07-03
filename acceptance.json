@@ -2009,6 +2009,30 @@
             "9D.48.2 已补 AI 外部告警失败/死信可见性第一增量",
             "check:task9d48-2"
           ]
+        },
+        {
+          "id": "task-8-final-readiness-report-required-text",
+          "type": "required_text",
+          "paths": [
+            "docs/deployment/task-8-final-readiness-report.md",
+            "docs/deployment/readiness-checklist.md",
+            "docs/acceptance/task-8-acceptance-matrix.md",
+            "DECISIONS.md",
+            "STATUS.md",
+            "tasks/README.md",
+            "README.md",
+            "scripts/check-task8-final-readiness-report.mjs",
+            "package.json"
+          ],
+          "patterns": [
+            "Task 8 Final Readiness Report",
+            "状态：NOT_READY",
+            "上线前缺口清单",
+            "需要补的最小闭环",
+            "推荐验证命令或验收方式",
+            "Task 8 readiness 终检报告第一增量",
+            "check:task8-final-readiness"
+          ]
         }
       ]
     }

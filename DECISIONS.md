@@ -1,5 +1,20 @@
 # DECISIONS
 
+## D-097 Task 8 readiness 终检报告第一增量
+
+状态：已确认。
+
+决策：
+
+- 新增 `docs/deployment/task-8-final-readiness-report.md` 作为 Task 8 上线前缺口清单第一增量。
+- 报告只汇总 `docs/deployment/readiness-checklist.md` 和 `docs/acceptance/task-8-acceptance-matrix.md` 中仍为 PARTIAL / NOT_READY 的关键项，不新增业务功能。
+- 每个缺口必须包含缺口名称、当前证据、未完成原因、需要补的最小闭环和推荐验证方式。
+
+影响：
+
+- Task 8 仍保持 `in-progress / NOT_READY`，但上线前缺口从分散矩阵收敛为可接力的报告入口。
+- 下一轮唯一推荐目标是部署安全 / 环境变量 readiness 检查第一增量。
+
 ## D-096 AI 外部告警失败/死信只读可见性第一增量
 
 状态：已确认。

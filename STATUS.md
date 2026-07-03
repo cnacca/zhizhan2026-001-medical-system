@@ -11,8 +11,8 @@
 - 2026-07-01 上传交接状态：已确认本地 `feature/project-skeleton` 与 `origin/feature/project-skeleton` 对齐；上传后产生的未提交后续试验改动已撤回。本次只做文档总结回写，不继续推进业务代码。
 - 2026-07-01 新版 PRD/TRD/API 对齐决策已确认：以新资料为最新业务准绳，保留当前已验证增量，OpenAPI 后续按差异合并维护。
 - Active goal: `goals/GOAL-001-scope-clarified-for.md`
-- Active task: `tasks/README.md` 的「任务 8：专项验收矩阵与上线准备」，状态为 `in-progress/next-task-8-final-readiness-report`
-- 本轮 9D.48.2 AI 外部告警失败/死信可见性第一增量已完成；`GET /ai/governance/external-alerts` 在 9D.48.1 列表筛选基础上新增 `attempts`、脱敏 `last_error` 和 `last_attempted_at`，用于 CS / ADMIN 只读排查 FAILED / DEAD_LETTER。Task 8 总体仍保持 `NOT READY`。
+- Active task: `tasks/README.md` 的「任务 8：专项验收矩阵与上线准备」，状态为 `in-progress/next-deployment-env-readiness`
+- 本轮 Task 8 readiness 终检报告第一增量已完成；新增 `docs/deployment/task-8-final-readiness-report.md`，把 readiness checklist 和 acceptance matrix 中仍为 PARTIAL / NOT_READY 的关键项整理成上线前缺口清单。Task 8 总体仍保持 `NOT READY`。
 - 本轮提交边界：`1895f79 feat(production): add summary dashboards`、`f395584 feat(ai): add external alert governance controls`、`c781eae docs: refresh task 8 readiness handoff`、`5e9ee18 refactor(workflow): group final inspection helpers`。
 - 已按 RepoFrame + Yuri 工作流创建项目上下文文档。
 - 已完成任务 0：接口契约与项目基线。
@@ -48,6 +48,7 @@
 - 9D.48 已补 AI 外部告警监控/运维可观察第一增量：新增 `/ai/governance/external-alerts/summary`，CS / ADMIN 可只读查看 `PENDING/SENDING/SENT/FAILED/DEAD_LETTER` 数量分布、最近一条失败/死信错误和最老待发送时间；本轮不做 webhook 联调、真实渠道密钥、人工重放或告警抑制。
 - 9D.48.1 已补 AI 外部告警 outbox 列表/筛选第一增量：新增 `/ai/governance/external-alerts`，CS / ADMIN 可只读查看 `alert_id/event_type/send_status/created_at/updated_at` 安全元数据，并按状态、事件类型、创建时间范围和 limit 筛选；本轮不返回 payload、last_error、密钥、真实 webhook URL、prompt 原文或模型原始响应。
 - 9D.48.2 已补 AI 外部告警失败/死信可见性第一增量：`/ai/governance/external-alerts` 对 FAILED / DEAD_LETTER 记录返回 `attempts`、脱敏 `last_error` 和 `last_attempted_at`，不返回真实 webhook URL、密钥、Bearer token、prompt 原文、模型原始响应或上游敏感响应；本轮不做重试按钮、死信恢复、人工处理状态或生产 webhook 联调。
+- Task 8 readiness 终检报告第一增量已补：新增 `docs/deployment/task-8-final-readiness-report.md`，按缺口名称、当前证据、未完成原因、最小补齐闭环和推荐验证方式收敛上线前缺口；不改变 Task 8 `NOT_READY` 状态。
 - 9D.49 已补生产端质量与返工汇总后端适配第一增量：新增 `ProductionQualitySummaryResponse` 和 `/production/quality/summary`，按出检订单数汇总总返工率、内返率、外返率、一次通过率和终检通过率；投诉率/退货率因缺少事实表当前返回 0 并在 OpenAPI 说明；前端生产端质量总览接入真实接口，Vite 补 `/production` 代理。
 - 9D.50 已补生产端设备管理汇总后端适配第一增量：新增 `ProductionEquipmentSummaryResponse`、`/production/equipment/summary` 和 Flyway `V22__production_equipment_foundation.sql`，按设备台账和设备事件汇总设备状态、待处理保养、故障报修、停机时长和平均设备稼动率；前端生产端设备管理接入真实汇总，医生端访问该内部生产接口返回 403。
 - 9D.51 已补生产端物料异常汇总后端适配第一增量：新增 `ProductionMaterialExceptionSummaryResponse`、`/production/material-exceptions/summary` 和 Flyway `V23__production_material_exception_foundation.sql`，按物料异常事实表汇总缺料、错料、批次异常、材料损耗、处理状态和责任归属；前端生产端物料异常接入真实汇总，医生端访问该内部生产接口返回 403。
@@ -362,4 +363,4 @@ Task 8 已完成 8A readiness audit、8B OpenAPI 二次契约、9A/9B/9C 身份�
 
 ## 下一步
 
-下一轮唯一推荐目标：Task 8 readiness 终检报告第一增量。把 `docs/deployment/readiness-checklist.md` 和 `docs/acceptance/task-8-acceptance-matrix.md` 中仍为 PARTIAL / BLOCKED / NOT_READY 的项整理成上线前缺口清单，列出缺口名称、当前证据、未完成原因、最小补齐闭环和推荐验证方式。Task 8 总体仍保持 `NOT READY`，直到生产级防重放、真实弱网/跨设备续传、终检专用角色/附件、完整返工闭环、绩效完整公式/周期/申诉/标准工时配置、AI 治理闭环和部署交付材料补齐。
+下一轮唯一推荐目标：部署安全 / 环境变量 readiness 检查第一增量。检查 README.md、.env.example、application.yml、application-prod.yml 和 readiness checklist，明确正式环境必须外部注入的变量、默认关闭能力、禁止提交的密钥，并补一个可运行静态检查脚本。Task 8 总体仍保持 `NOT READY`，直到生产级防重放、真实弱网/跨设备续传、终检专用角色/附件、完整返工闭环、绩效完整公式/周期/申诉/标准工时配置、AI 治理闭环和部署交付材料补齐。

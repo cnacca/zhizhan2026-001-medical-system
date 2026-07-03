@@ -6,7 +6,7 @@
 
 当前已完成项目工作流初始化、任务 0：接口契约与项目基线、任务 0.1：TRD V1.1 对齐与开发计划冻结、任务 1：项目骨架初始化、任务 2：数据库模型与 9 条工序链初始化、任务 3：订单状态投影与医生端脱敏基础、任务 4：文件上传与访问权限、任务 5A：Workflow Runtime 与工序节点状态机、任务 5B：入检 / 出检 / 返工 / 工时绩效、任务 6：消息、设计稿、账单物流与通知、任务 7：AI Gateway 与 5 个 AI 智能体、任务 8A readiness audit、任务 8B OpenAPI 二次契约、任务 9A Bearer 身份基线、任务 9B.1 后端权限/DataScope 守卫第一增量、任务 9B.2 数据库化 RBAC/DataScope 基础、任务 9B.3 权限注解/统一拦截器、任务 9B.4 DataScope SQL 过滤第一增量、任务 9B.5 文件/协同/AI DataScope 扩展、任务 9B.6 菜单/部门/岗位/前端权限路由第一增量、任务 9B.7 生产鉴权启动门禁第一增量、任务 9B.8 Refresh Token/logout 第一增量、任务 9C.1 WebSocket 通知第一增量、任务 9C.2 通知未读/已读第一增量、任务 9C.3 通知实时前端/Redis 广播第一增量、任务 9D.1 医生订单工作台第一增量、任务 9D.2 医生下单第一增量、任务 9D.3 客服初审第一增量、任务 9D.4 生产审核第一增量、任务 9D.5 生产任务入口第一增量、任务 9D.6 入检/出检/工时操作页面第一增量、任务 9D.7 绩效管理页面第一增量、任务 9D.8 生产看板第一增量、任务 9D.9 返工终检第一增量、任务 9D.10 Multipart 上传第一增量、本地恢复上传第一增量、服务端候选恢复第一增量、服务端候选恢复浏览器 smoke、上传中断后恢复浏览器 smoke、100MB+ 浏览器上传 smoke、任务 9D.11 医生订单草稿/补资料第一增量、任务 9D.12 动态表单 CRUD 第一增量、任务 9D.13 设计稿多文件/多版本第一增量、任务 9D.14 终检发货拦截第一增量、任务 9D.15 真实 DeepSeek 接入第一增量、任务 9D.16 终检报告第一增量、任务 9D.17 返工关闭 / 责任分类第一增量、任务 9D.18 返工字典第一增量、任务 9D.19 返工通知联动第一增量、任务 9D.20 复杂返工影响范围第一增量、任务 9D.21 绩效归因联动第一增量、任务 9D.22 返工影响审计可视化第一增量、任务 9D.23 返工影响筛选第一增量、任务 9D.24 四入口登录页与角色端口校验第一增量、任务 9D.25 绩效明细第一增量、任务 9D.26 AI 调用限流第一增量、任务 9D.27 AI 成本审计第一增量、任务 9D.28 AI 模型重试第一增量、任务 9D.29 AI 模型失败审计第一增量、任务 9D.30 AI 治理摘要第一增量、任务 9D.31 AI 预算阈值第一增量、任务 9D.32 AI 预算超限审计第一增量、任务 9D.33 AI 预算超限内部通知第一增量、任务 9D.34 AI 预算通知策略开关第一增量、任务 9D.35 AI 预算熔断/降级第一增量、任务 9D.36 前端展示导航精修、任务 9D.37 AI 预算外部告警待发送事实第一增量、任务 9D.38 AI 分角色预算第一增量、任务 9D.39 AI 分模型预算第一增量、任务 9D.40 AI 提示词版本与输出防护第一增量、任务 9D.41 AI 外部告警发送器第一增量、任务 9D.42 AI 成本趋势第一增量、任务 9D.43 AI 真实外部渠道适配第一增量、任务 9D.44 AI 外部告警调度器第一增量、任务 9D.45 AI 外部告警重试/死信第一增量、任务 9D.46 AI 外部告警幂等/并发领取第一增量、任务 9D.47 AI 外部告警 webhook 签名/鉴权第一增量、任务 9D.48 AI 外部告警监控/运维可观察第一增量、任务 9D.48.1 AI 外部告警 outbox 列表/筛选第一增量、任务 9D.48.2 AI 外部告警失败/死信可见性第一增量。
 
-2026-07-04 交接摘要：Task 8 总体仍为 `NOT READY`；9D.48.2 已完成 AI 外部告警失败/死信可见性第一增量，CS / ADMIN 可通过 `/ai/governance/external-alerts` 只读查看安全元数据列表，并对 FAILED / DEAD_LETTER 查看 `attempts`、脱敏 `last_error` 和 `last_attempted_at`；9D.43 的 webhook 外呼和 9D.44 的调度器仍默认关闭，不提交真实密钥。下一轮唯一推荐目标是 Task 8 readiness 终检报告第一增量。继续开发前请从 `STATUS.md` 和 `tasks/README.md` 的当前交接摘要开始。
+2026-07-04 交接摘要：Task 8 总体仍为 `NOT_READY`；Task 8 readiness 终检报告第一增量已完成，新增 `docs/deployment/task-8-final-readiness-report.md`，把上线前缺口按证据、原因、最小闭环和验证方式收敛；9D.48.2 已完成 AI 外部告警失败/死信可见性第一增量。下一轮唯一推荐目标是部署安全 / 环境变量 readiness 检查第一增量。继续开发前请从 `STATUS.md` 和 `tasks/README.md` 的当前交接摘要开始。
 
 2026-07-04 上传交接摘要：`feature/project-skeleton` 已推送到 GitHub；本轮业务开发基线为 `5e9ee18`，后续文档回补提交不改变业务代码边界。本轮提交已按边界拆分：`1895f79` 生产汇总、`f395584` AI 治理、`c781eae` Task 8 文档回写、`5e9ee18` workflow helper 整理。当前工作区只剩未跟踪 `test-results/` 运行产物，未纳入提交。9D.49 到 9D.54 已完成生产端质量、设备、物料异常、安环、成本、奖惩六类真实只读汇总第一增量；后续仍缺录入/审批/CRUD、演示种子数据、工作台趋势真实统计和完整业务验收用例。
 
@@ -1154,6 +1154,15 @@ npm run smoke:task9d10-server-resume
 npm run smoke:task9d10-interrupted-resume
 ```
 
+Task 8 readiness 终检报告第一增量检查：
+
+```bash
+npm run check:task8-final-readiness
+npm run acceptance
+```
+
+说明：终检报告位于 `docs/deployment/task-8-final-readiness-report.md`，只整理上线前缺口，不把 Task 8 标完成。
+
 说明：`smoke:task9d10-large-upload` 使用 Playwright Test + 本机 Chrome channel，默认生成 105MB 稀疏 STL 文件，通过医生浏览器登录、创建测试订单、选择附件、Multipart 上传、完成 `file_id` 回填和预览权限校验。快速排错可临时调小 `TASK9D10_UPLOAD_SIZE_BYTES`；正式验收保持默认 100MB+。`smoke:task9d10-server-resume` 默认生成 6MB 文件，预创建 pending Multipart 并清理本地上传会话，验证浏览器最终完成的 `file_id` 等于 pending `file_id`。`smoke:task9d10-interrupted-resume` 默认生成 6MB 文件，模拟第 2 个分片 PUT 断网，验证第二次点击上传可读取本地 session 和服务端 status，并复用同一 `file_id` 完成上传。
 
 任务 9D.3 客服初审第一增量检查：
@@ -1268,8 +1277,8 @@ Task 8A smoke 注意事项：
 
 优先处理 `tasks/README.md`：
 
-1. 下一轮唯一推荐目标：Task 8 readiness 终检报告第一增量。
-2. 先从 `docs/deployment/readiness-checklist.md` 和 `docs/acceptance/task-8-acceptance-matrix.md` 提炼 PARTIAL / BLOCKED / NOT_READY 项，整理缺口名称、当前证据、未完成原因、最小补齐闭环和推荐验证方式。
+1. 下一轮唯一推荐目标：部署安全 / 环境变量 readiness 检查第一增量。
+2. 检查 `README.md`、`.env.example`、`application.yml`、`application-prod.yml` 和 readiness checklist，明确正式环境必须外部注入的变量、默认关闭能力、禁止提交的密钥，并补静态检查脚本。
 3. 每补一个缺口，都要回写 `docs/acceptance/task-8-acceptance-matrix.md` 和 `docs/deployment/readiness-checklist.md` 的状态。
 
 ## 安全说明

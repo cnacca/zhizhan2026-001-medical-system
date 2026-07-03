@@ -9,6 +9,7 @@
   "scripts": {
     "acceptance": "node -e \"const fs=require('fs'); JSON.parse(fs.readFileSync('acceptance.json','utf8')); console.log('acceptance.json valid')\"",
     "check:openapi": "ruby scripts/check-openapi-contract.rb && npx --yes @apidevtools/swagger-cli validate docs/api/openapi.yaml && npx --yes @redocly/cli lint docs/api/openapi.yaml",
+    "check:task8-final-readiness": "node scripts/check-task8-final-readiness-report.mjs",
     "check:task9d1": "node scripts/check-task-9d1-frontend.mjs",
     "check:task9d2": "node scripts/check-task-9d2-frontend.mjs",
     "check:task9d3": "node scripts/check-task-9d3-frontend.mjs",
