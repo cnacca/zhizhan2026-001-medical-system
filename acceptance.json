@@ -1920,6 +1920,36 @@
             "9D.47 已补 AI 外部告警 webhook 签名/鉴权第一增量",
             "check:task9d47"
           ]
+        },
+        {
+          "id": "task-9d48-ai-external-alert-observability-required-text",
+          "type": "required_text",
+          "paths": [
+            "backend/platform-server/src/main/java/com/yuri/aiorder/ai/AiGatewayController.java",
+            "backend/platform-server/src/main/java/com/yuri/aiorder/ai/AiGatewayService.java",
+            "backend/platform-server/src/main/java/com/yuri/aiorder/ai/AiExternalAlertSummaryResponse.java",
+            "backend/platform-server/src/test/java/com/yuri/aiorder/ai/AiGatewayTests.java",
+            "docs/api/openapi.yaml",
+            "docs/acceptance/task-8-acceptance-matrix.md",
+            "docs/deployment/readiness-checklist.md",
+            "DECISIONS.md",
+            "STATUS.md",
+            "tasks/README.md",
+            "README.md",
+            "scripts/check-task-9d48-ai-external-alert-observability.mjs",
+            "package.json"
+          ],
+          "patterns": [
+            "/ai/governance/external-alerts/summary",
+            "AiExternalAlertSummaryResponse",
+            "aiExternalAlertMonitorSummarizesOutboxForInternalUsers",
+            "getAiExternalAlertSummary",
+            "AI 外部告警监控/运维可观察第一增量",
+            "任务 9D.48：AI 外部告警监控/运维可观察第一增量",
+            "9D.48 AI 外部告警监控/运维可观察第一增量",
+            "9D.48 已补 AI 外部告警监控/运维可观察第一增量",
+            "check:task9d48"
+          ]
         }
       ]
     }

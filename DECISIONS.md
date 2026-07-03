@@ -1,5 +1,21 @@
 # DECISIONS
 
+## D-094 AI 外部告警监控只读化第一增量
+
+状态：已确认。
+
+决策：
+
+- 9D.48 新增 AI 外部告警 outbox 运维可观察第一增量，入口为 `GET /ai/governance/external-alerts/summary`。
+- 该入口仅允许 CS / ADMIN 只读访问，返回 `PENDING/SENDING/SENT/FAILED/DEAD_LETTER` 数量分布、最近一条 FAILED/DEAD_LETTER 错误和最老 PENDING 创建时间。
+- 返回的 `last_error` 只做基础错误摘要，服务端会脱敏 URL/token/secret/key/signature 形式内容；接口不返回真实 webhook URL、密钥、prompt 原文、模型原始响应或内部生产敏感详情。
+- 本增量不做真实 webhook 联调，不接短信、邮件、企业微信，不新增人工重放、人工关闭、告警抑制或复杂运维后台。
+
+影响：
+
+- 9D.48 把外部告警从发送侧状态机推进到上线前可观察的只读运维视图。
+- Task 8 仍保持 `in-progress / NOT READY`；后续继续补 outbox 列表/筛选、失败/死信可见性、接收端验签/防重放联调、生产 webhook 联调和部署安全检查。
+
 ## D-093 Task 8 后续提交按任务边界拆分并保持运行产物不入库
 
 状态：已确认。
@@ -14,7 +30,7 @@
 影响：
 
 - 新会话接手时以远程 `origin/feature/project-skeleton` 最新 HEAD 为当前上传基线，并以 `5e9ee18` 作为本轮业务开发边界核对点。
-- Task 8 仍保持 `in-progress / NOT READY`；下一轮唯一推荐目标是 9D.48 AI 外部告警监控/运维可观察第一增量。
+- Task 8 仍保持 `in-progress / NOT READY`；下一轮唯一推荐目标是 9D.48.1 AI 外部告警 outbox 列表/筛选第一增量。
 
 ## D-092 AI 外部告警 webhook 签名默认关闭
 

@@ -1653,6 +1653,73 @@ components:
           type: integer
           format: int64
           description: 当天出现过成功调用的模型数量。
+    AiExternalAlertSummaryResponse:
+      type: object
+      properties:
+        status_counts:
+          type: array
+          description: 按 send_status 聚合的 outbox 数量分布。
+          items:
+            "$ref": "#/components/schemas/AiExternalAlertStatusCount"
+        pending_count:
+          type: integer
+          format: int64
+        sending_count:
+          type: integer
+          format: int64
+        sent_count:
+          type: integer
+          format: int64
+        failed_count:
+          type: integer
+          format: int64
+        dead_letter_count:
+          type: integer
+          format: int64
+        latest_failure:
+          nullable: true
+          "$ref": "#/components/schemas/AiExternalAlertFailure"
+        oldest_pending_created_at:
+          type: string
+          format: date-time
+          nullable: true
+          description: 最老一条 PENDING outbox 的创建时间；无待发送记录时为空。
+    AiExternalAlertStatusCount:
+      type: object
+      properties:
+        send_status:
+          type: string
+          enum:
+          - PENDING
+          - SENDING
+          - SENT
+          - FAILED
+          - DEAD_LETTER
+        count:
+          type: integer
+          format: int64
+    AiExternalAlertFailure:
+      type: object
+      properties:
+        alert_id:
+          type: integer
+          format: int64
+        alert_type:
+          type: string
+        send_status:
+          type: string
+          enum:
+          - FAILED
+          - DEAD_LETTER
+        attempts:
+          type: integer
+        last_error:
+          type: string
+          nullable: true
+          description: 已做基础脱敏的最近错误摘要，不返回真实 webhook URL、密钥、prompt 原文或模型原始响应。
+        updated_at:
+          type: string
+          format: date-time
     MissingInfoResponse:
       type: object
       properties:
@@ -5083,6 +5150,42 @@ paths:
         '503':
           "$ref": "#/components/responses/ServiceUnavailable"
       operationId: getAiGovernanceCostTrend
+  "/ai/governance/external-alerts/summary":
+    get:
+      tags:
+      - AI
+      summary: AI 外部告警 outbox 监控摘要
+      description: |
+        权限：CS / ADMIN
+        任务 9D.48 第一增量：只读聚合 `ai_external_alert_outbox` 运维可观察信息，返回 `PENDING/SENDING/SENT/FAILED/DEAD_LETTER` 数量分布、最近一条 FAILED/DEAD_LETTER 错误和最老 PENDING 创建时间。
+        本接口不做真实 webhook 联调，不发送短信/邮件/企业微信，不返回真实 webhook URL、密钥、prompt 原文、模型原始响应或内部生产敏感详情，也不提供人工重放、关闭、抑制等运维动作。
+      responses:
+        '200':
+          description: AI 外部告警 outbox 监控摘要
+          content:
+            application/json:
+              schema:
+                allOf:
+                - "$ref": "#/components/schemas/CommonResponse"
+                - type: object
+                  properties:
+                    data:
+                      "$ref": "#/components/schemas/AiExternalAlertSummaryResponse"
+        '400':
+          "$ref": "#/components/responses/BadRequest"
+        '401':
+          "$ref": "#/components/responses/Unauthorized"
+        '403':
+          "$ref": "#/components/responses/Forbidden"
+        '404':
+          "$ref": "#/components/responses/NotFound"
+        '409':
+          "$ref": "#/components/responses/Conflict"
+        default:
+          "$ref": "#/components/responses/DefaultError"
+        '503':
+          "$ref": "#/components/responses/ServiceUnavailable"
+      operationId: getAiExternalAlertSummary
   "/notifications":
     get:
       tags:

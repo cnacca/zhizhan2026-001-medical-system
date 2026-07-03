@@ -56,6 +56,7 @@
     "check:task9d45": "node scripts/check-task-9d45-ai-external-alert-retry-dead-letter.mjs",
     "check:task9d46": "node scripts/check-task-9d46-ai-external-alert-claim-idempotency.mjs",
     "check:task9d47": "node scripts/check-task-9d47-ai-external-alert-webhook-signing.mjs",
+    "check:task9d48": "node scripts/check-task-9d48-ai-external-alert-observability.mjs",
     "check:task9d49": "node scripts/check-task-9d49-production-quality-summary.mjs",
     "check:task9d50": "node scripts/check-task-9d50-production-equipment-summary.mjs",
     "check:task9d51": "node scripts/check-task-9d51-production-material-summary.mjs",

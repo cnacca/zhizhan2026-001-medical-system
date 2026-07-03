@@ -61,6 +61,7 @@ class AiExternalAlertSenderTests {
 
     @BeforeEach
     void setUp() {
+        closeStaleSenderTestAlerts();
         webhookStub.reset();
         aiGatewayProperties.getExternalAlert().setWebhookEnabled(false);
         aiGatewayProperties.getExternalAlert().setWebhookUrl("");
@@ -95,6 +96,7 @@ class AiExternalAlertSenderTests {
 
     @AfterEach
     void tearDown() {
+        closeCurrentSenderTestAlerts();
         aiGatewayProperties.getExternalAlert().setWebhookEnabled(false);
         aiGatewayProperties.getExternalAlert().setWebhookUrl("");
         aiGatewayProperties.getExternalAlert().setSchedulerEnabled(false);
@@ -269,6 +271,35 @@ class AiExternalAlertSenderTests {
                 .param("attempts", attempts)
                 .update();
         return jdbcClient.sql("SELECT LAST_INSERT_ID()").query(Long.class).single();
+    }
+
+    private void closeCurrentSenderTestAlerts() {
+        if (orderId <= 0) {
+            return;
+        }
+        jdbcClient.sql("""
+                        UPDATE ai_external_alert_outbox
+                        SET send_status = 'SENT',
+                            last_error = NULL
+                        WHERE order_id = :orderId
+                          AND send_status IN ('PENDING', 'SENDING')
+                        """)
+                .param("orderId", orderId)
+                .update();
+    }
+
+    private void closeStaleSenderTestAlerts() {
+        jdbcClient.sql("""
+                        UPDATE ai_external_alert_outbox alerts
+                        JOIN orders o ON o.order_id = alerts.order_id
+                        JOIN clinic c ON c.clinic_id = o.clinic_id
+                        SET alerts.send_status = 'SENT',
+                            alerts.last_error = NULL
+                        WHERE (c.clinic_name LIKE '外部告警发送器测试诊所-%'
+                               OR c.clinic_name LIKE 'AI测试诊所-%')
+                          AND alerts.send_status IN ('PENDING', 'SENDING')
+                        """)
+                .update();
     }
 
     private String alertStatus(long alertId) {

@@ -4,7 +4,7 @@
 
 任务 8：专项验收矩阵与上线准备。
 
-当前目标是清理上线前硬缺口：已完成 readiness audit、OpenAPI 二次契约、Bearer 身份基线、后端权限守卫、数据库化 RBAC/DataScope 基础、权限注解/统一拦截器、订单/工序实例 DataScope SQL 第一增量、文件/协同/AI DataScope 扩展、菜单/部门/岗位/前端权限路由第一增量、生产鉴权启动门禁第一增量、Refresh Token/logout 第一增量、WebSocket 通知第一增量、通知未读/已读第一增量、通知实时前端/Redis 广播第一增量、医生订单工作台第一增量、医生下单/动态表单第一增量、客服初审第一增量、生产审核第一增量、生产任务入口第一增量、质检工时第一增量、绩效管理第一增量、生产看板第一增量、返工终检第一增量、Multipart 上传第一增量、本地恢复上传第一增量、服务端候选恢复第一增量、服务端候选恢复浏览器 smoke、上传中断后恢复浏览器 smoke、100MB+ 浏览器上传 smoke、医生订单草稿/补资料第一增量、动态表单 CRUD 第一增量、设计稿多文件多版本第一增量、终检发货拦截第一增量、真实 DeepSeek 接入第一增量、终检报告第一增量、返工关闭/责任分类第一增量、返工字典第一增量、返工通知联动第一增量、复杂返工影响范围第一增量、绩效归因联动第一增量、返工影响审计可视化第一增量、返工影响筛选第一增量、四入口登录页第一增量、绩效明细第一增量、AI 调用限流第一增量、AI 成本审计第一增量、AI 模型重试第一增量、AI 模型失败审计第一增量、AI 治理摘要第一增量、AI 预算阈值第一增量、AI 预算超限审计第一增量、AI 预算超限内部通知第一增量、AI 预算通知策略开关第一增量、AI 预算熔断/降级第一增量、AI 预算外部告警待发送事实第一增量、AI 分角色预算第一增量、AI 分模型预算第一增量、AI 提示词版本与输出防护第一增量、AI 外部告警发送器第一增量、AI 成本趋势第一增量、AI 真实外部渠道适配第一增量、AI 外部告警调度器第一增量、AI 外部告警重试/死信第一增量、AI 外部告警幂等/并发领取第一增量、AI 外部告警 webhook 签名/鉴权第一增量、生产端质量与返工汇总后端适配第一增量、生产端设备管理汇总后端适配第一增量、生产端物料异常汇总后端适配第一增量、生产端安环管理汇总后端适配第一增量、生产端成本管理汇总后端适配第一增量和生产端奖惩管理汇总后端适配第一增量。生产端新增展示模块第一轮真实汇总接口已收口；后续优先补演示种子数据、录入/审批/CRUD 闭环，或转回 9D.48 AI 外部告警监控/运维可观察第一增量。
+当前目标是清理上线前硬缺口：已完成 readiness audit、OpenAPI 二次契约、Bearer 身份基线、后端权限守卫、数据库化 RBAC/DataScope 基础、权限注解/统一拦截器、订单/工序实例 DataScope SQL 第一增量、文件/协同/AI DataScope 扩展、菜单/部门/岗位/前端权限路由第一增量、生产鉴权启动门禁第一增量、Refresh Token/logout 第一增量、WebSocket 通知第一增量、通知未读/已读第一增量、通知实时前端/Redis 广播第一增量、医生订单工作台第一增量、医生下单/动态表单第一增量、客服初审第一增量、生产审核第一增量、生产任务入口第一增量、质检工时第一增量、绩效管理第一增量、生产看板第一增量、返工终检第一增量、Multipart 上传第一增量、本地恢复上传第一增量、服务端候选恢复第一增量、服务端候选恢复浏览器 smoke、上传中断后恢复浏览器 smoke、100MB+ 浏览器上传 smoke、医生订单草稿/补资料第一增量、动态表单 CRUD 第一增量、设计稿多文件多版本第一增量、终检发货拦截第一增量、真实 DeepSeek 接入第一增量、终检报告第一增量、返工关闭/责任分类第一增量、返工字典第一增量、返工通知联动第一增量、复杂返工影响范围第一增量、绩效归因联动第一增量、返工影响审计可视化第一增量、返工影响筛选第一增量、四入口登录页第一增量、绩效明细第一增量、AI 调用限流第一增量、AI 成本审计第一增量、AI 模型重试第一增量、AI 模型失败审计第一增量、AI 治理摘要第一增量、AI 预算阈值第一增量、AI 预算超限审计第一增量、AI 预算超限内部通知第一增量、AI 预算通知策略开关第一增量、AI 预算熔断/降级第一增量、AI 预算外部告警待发送事实第一增量、AI 分角色预算第一增量、AI 分模型预算第一增量、AI 提示词版本与输出防护第一增量、AI 外部告警发送器第一增量、AI 成本趋势第一增量、AI 真实外部渠道适配第一增量、AI 外部告警调度器第一增量、AI 外部告警重试/死信第一增量、AI 外部告警幂等/并发领取第一增量、AI 外部告警 webhook 签名/鉴权第一增量、AI 外部告警监控/运维可观察第一增量、生产端质量与返工汇总后端适配第一增量、生产端设备管理汇总后端适配第一增量、生产端物料异常汇总后端适配第一增量、生产端安环管理汇总后端适配第一增量、生产端成本管理汇总后端适配第一增量和生产端奖惩管理汇总后端适配第一增量。生产端新增展示模块第一轮真实汇总接口已收口；下一步优先补 9D.48.1 AI 外部告警 outbox 列表/筛选第一增量。
 
 当前计划已按 TRD V1.1 深度研究优化版和 2026-07 新版资料差异重排。任务 0、0.1、1、2、3、4、5A、5B、6、7、8A、8B、9A 已完成；9B.1 到 9B.8、9C.1 到 9C.3、9D.1 到 9D.25 第一增量已完成；任务 8 总体仍进行中，正式上线缺口未完成。
 
@@ -17,14 +17,15 @@
 - 本轮提交边界：`1895f79 feat(production): add summary dashboards`、`f395584 feat(ai): add external alert governance controls`、`c781eae docs: refresh task 8 readiness handoff`、`5e9ee18 refactor(workflow): group final inspection helpers`。
 - Task 8 仍是 `in-progress / NOT READY`，不要标完成。
 - 9D.24 四入口登录页与角色端口校验第一增量已完成；登录页展示医生端、客服端、生产端、管理端四入口，登录请求携带 `portal`，后端拒绝账号角色与所选入口不匹配的登录。
-- 9D.47 AI 外部告警 webhook 签名/鉴权第一增量已完成；下一轮唯一推荐目标是 9D.48 AI 外部告警监控/运维可观察第一增量。
+- 9D.47 AI 外部告警 webhook 签名/鉴权第一增量已完成。
+- 9D.48 AI 外部告警监控/运维可观察第一增量已完成；下一轮唯一推荐目标是 9D.48.1 AI 外部告警 outbox 列表/筛选第一增量。
 - 9D.49 生产端质量与返工汇总后端适配第一增量已完成；新增 `/production/quality/summary`，生产/客服/管理可读，医生端拒绝；前端生产端质量总览已接真实汇总，明确展示内返率和外返率。
 - 9D.50 生产端设备管理汇总后端适配第一增量已完成；新增 `/production/equipment/summary`，生产/客服/管理可读，医生端拒绝；前端生产端设备管理已接真实汇总，展示设备台账、设备状态、保养计划、故障报修、停机时长和设备稼动率。
 - 9D.51 生产端物料异常汇总后端适配第一增量已完成；新增 `/production/material-exceptions/summary`，生产/客服/管理可读，医生端拒绝；前端生产端物料异常已接真实汇总，展示缺料、错料、批次异常、材料损耗、处理状态和责任归属。
 - 9D.52 生产端安环管理汇总后端适配第一增量已完成；新增 `/production/safety-environment/summary`，生产/客服/管理可读，医生端拒绝；前端生产端安环管理已接真实汇总，展示安全巡检、隐患整改、环境记录、PPE/设备安全提醒、安环事件统计和高风险待办。
 - 9D.53 生产端成本管理汇总后端适配第一增量已完成；新增 `/production/cost-management/summary`，生产/客服/管理可读，医生端拒绝；前端生产端成本管理/外协成本已接真实汇总，展示工序成本、材料成本、人工成本、返工成本、外协成本和成本异常预警。
 - 9D.54 生产端奖惩管理汇总后端适配第一增量已完成；新增 `/production/reward-penalty/summary`，生产/客服/管理可读，医生端拒绝；前端生产端奖惩管理已接真实汇总，展示奖惩记录、奖惩原因、关联对象、审批状态、月度汇总和绩效影响。
-- 下一轮唯一推荐目标：9D.48 AI 外部告警监控/运维可观察第一增量，先做 ADMIN/CS 只读 outbox 状态统计、最近错误和最老待发送时间，不做生产 webhook 联调、真实渠道密钥或人工重放。
+- 下一轮唯一推荐目标：9D.48.1 AI 外部告警 outbox 列表/筛选第一增量，先做 ADMIN/CS 只读最近记录列表和 `send_status` / `event_type` / `created_at` 起止范围 / `limit` 最小筛选，不做人工重放、编辑、生产 webhook 联调或真实渠道密钥。
 - 继续开发前先复核 `STATUS.md`、`docs/acceptance/task-8-acceptance-matrix.md` 和 `docs/deployment/readiness-checklist.md`，并按 TDD 先补红灯测试。
 - 本轮 9D.25 状态：completed-first-increment；已通过 TDD 后端测试、Check/Worklog 模块回归、OpenAPI、frontend build、acceptance 和静态检查。本轮新增 `/performance/details` 绩效工时明细接口，并在绩效页展示最近完成明细。未完成原因：仍缺终检专用角色/附件、绩效完整公式/周期筛选/标准工时配置/申诉闭环、返工影响图形化、生产级 AI 治理、设计稿预览 URL 聚合、完整弱网/跨设备续传和部署交付材料。
 - 本轮 9D.24 状态：completed-first-increment；已通过 TDD 后端测试、四入口登录静态检查、OpenAPI、frontend build、acceptance 和登录相关后端回归。未完成原因：仍缺生产级 Spring Security/JWT、完整 RuoYi 管理 UI、refresh token 轮换、access token 黑名单、多设备会话策略和正式环境浏览器全链路验收。
@@ -42,11 +43,44 @@
 - 本轮 9D.45 状态：completed-first-increment；已通过 TDD 红灯/绿灯、目标 AI 外部告警重试/死信测试、静态检查、OpenAPI、acceptance 和后端回归。本轮新增 `AI_EXTERNAL_ALERT_MAX_ATTEMPTS` 和 `DEAD_LETTER` 状态；webhook 失败未达上限保持 `PENDING`，达到上限进入死信，避免无限重试。未完成原因：幂等/并发领取第一增量已由 9D.46 补齐，发送侧签名第一增量已由 9D.47 补齐，仍缺接收端验签/防重放联调、生产 webhook 联调、真实 key 环境联调和部署交付材料。
 - 本轮 9D.46 状态：completed-first-increment；已通过 TDD 红灯/绿灯、目标 AI 外部告警幂等/并发领取测试、静态检查、OpenAPI、acceptance 和后端回归。本轮新增事务内 `SENDING` 领取态和 `claimAlert` 条件更新；sender 领取成功后才允许 dry-run 或 webhook 外呼，避免重复触发或并发 sender 重复发送同一条 outbox。未完成原因：发送侧签名第一增量已由 9D.47 补齐，仍缺接收端验签/防重放联调、生产 webhook 联调、真实 key 环境联调、监控告警和部署交付材料。
 - 本轮 9D.47 状态：completed-first-increment；已通过 TDD 红灯/绿灯、目标 AI 外部告警 webhook 签名测试、静态检查、OpenAPI、acceptance 和后端回归。本轮新增 `AI_EXTERNAL_ALERT_WEBHOOK_SIGNING_ENABLED` / `AI_EXTERNAL_ALERT_WEBHOOK_SIGNING_SECRET`，启用后 sender 会按 request body 发送 `X-AI-Alert-Signature: sha256=<HMAC-SHA256>`。未完成原因：仍缺接收端验签/防重放联调、生产 webhook 联调、真实 key 环境联调、监控告警和部署交付材料。
+- 本轮 9D.48 状态：completed-first-increment；已通过 TDD 红灯/绿灯、目标 AI 外部告警监控测试、静态检查、OpenAPI、acceptance 和后端目标测试。本轮新增 `/ai/governance/external-alerts/summary` 和 `AiExternalAlertSummaryResponse`，CS / ADMIN 可只读查看 outbox 状态分布、最近失败/死信错误和最老待发送时间，DOCTOR 访问 403。未完成原因：仍缺 outbox 列表/筛选、失败/死信详情可见性、接收端验签/防重放联调、生产 webhook 联调、真实 key 环境联调和部署交付材料。
 - 本轮 9D.49 状态：completed-first-increment；已通过 TDD 红灯/绿灯、目标质量汇总后端测试、静态检查、OpenAPI、frontend build 和真实浏览器点击。新增 `/production/quality/summary`、`ProductionQualitySummaryResponse`、OpenAPI schema/path、`npm run check:task9d49`，并让生产端质量总览加载真实总返工率、内返率、外返率、一次通过率和终检通过率。未完成原因：投诉率/退货率因缺少投诉/退货事实表当前返回 0；设备、物料、安环、成本、奖惩等生产展示模块后续已由 9D.50 到 9D.54 逐项补齐只读汇总接口。
 - 本轮 9D.50 状态：completed-first-increment；已通过 TDD 红灯/绿灯、目标设备汇总后端测试、静态检查、OpenAPI、frontend build、acceptance 和真实浏览器点击。新增 `/production/equipment/summary`、`ProductionEquipmentSummaryResponse`、Flyway `V22__production_equipment_foundation.sql`、OpenAPI schema/path、`npm run check:task9d50`，并让生产端设备管理加载真实设备台账、设备状态、保养计划、故障报修、停机时长和设备稼动率。未完成原因：当前只做设备只读汇总，不做设备 CRUD、保养/报修审批流或真实现场设备联动；物料、安环、成本、奖惩后续已由 9D.51 到 9D.54 逐项补齐只读汇总接口。
 - 本轮 9D.51 状态：completed-first-increment；已通过 TDD 红灯/绿灯、目标物料异常汇总后端测试、静态检查、OpenAPI、frontend build、acceptance 和真实浏览器点击。新增 `/production/material-exceptions/summary`、`ProductionMaterialExceptionSummaryResponse`、Flyway `V23__production_material_exception_foundation.sql`、OpenAPI schema/path、`npm run check:task9d51`，并让生产端物料异常加载真实缺料、错料、批次异常、材料损耗、处理状态和责任归属汇总。未完成原因：当前只做物料异常只读汇总，不做异常登记/编辑/审批流、库存扣减或供应商联动；安环、成本、奖惩后续已由 9D.52 到 9D.54 逐项补齐只读汇总接口。
 - 本轮 9D.52 状态：completed-first-increment；已通过 TDD 红灯/绿灯、目标安环汇总后端测试、静态检查、OpenAPI、frontend build、acceptance 和真实浏览器点击。新增 `/production/safety-environment/summary`、`ProductionSafetyEnvironmentSummaryResponse`、Flyway `V24__production_safety_event_foundation.sql`、OpenAPI schema/path、`npm run check:task9d52`，并让生产端安环管理加载真实安全巡检、隐患整改、环境记录、PPE/设备安全提醒、安环事件统计和高风险待办汇总。未完成原因：当前只做安环事件只读汇总，不做巡检登记、整改审批、复查闭环、PPE 发放或环境采集联动；成本和奖惩后续已由 9D.53、9D.54 补齐只读汇总接口。
 - 本轮 9D.53 状态：completed-first-increment；已通过 TDD 红灯/绿灯、目标成本汇总后端测试、静态检查、OpenAPI、frontend build、acceptance 和真实浏览器点击。新增 `/production/cost-management/summary`、`ProductionCostSummaryResponse`、Flyway `V25__production_cost_record_foundation.sql`、OpenAPI schema/path、`npm run check:task9d53`，并让生产端成本管理和外协成本加载真实工序成本、材料成本、人工成本、返工成本、外协成本和成本异常预警汇总。未完成原因：当前只做成本记录只读汇总，不做成本录入、核算规则配置、审批流、供应商结算或财务系统联动；奖惩管理真实汇总已由 9D.54 补齐。
+
+## 任务 9D.48：AI 外部告警监控/运维可观察第一增量
+
+状态：completed-first-increment。
+
+目标：
+
+- 让 ADMIN / CS 能只读查看 AI external alert outbox 的运维健康摘要。
+- 覆盖按 `send_status` 的数量统计、最近一条 FAILED / DEAD_LETTER 错误和最老 PENDING 创建时间。
+- 保持告警监控不暴露真实 webhook URL、密钥、prompt 原文、模型原始响应或内部生产敏感详情。
+
+范围：
+
+- 后端新增 `GET /ai/governance/external-alerts/summary`，权限为 CS / ADMIN，DOCTOR 访问返回 403。
+- 新增 `AiExternalAlertSummaryResponse`，返回 `status_counts`、`pending_count`、`sending_count`、`sent_count`、`failed_count`、`dead_letter_count`、`latest_failure`、`oldest_pending_created_at`。
+- `latest_failure.last_error` 做基础脱敏；本轮只做摘要，不做 outbox 列表、人工重放、人工关闭、告警抑制或复杂运维后台。
+
+验收结果：
+
+- TDD 红灯：`AiGatewayTests#aiExternalAlertMonitorSummarizesOutboxForInternalUsers` 首次失败于 `/ai/governance/external-alerts/summary` 404，确认接口缺口。
+- `./scripts/with-jdk21.sh mvn -f backend/pom.xml -pl platform-server -Dtest=AiGatewayTests#aiExternalAlertMonitorSummarizesOutboxForInternalUsers test`：PASS。
+- `npm run check:task9d48`：PASS。
+- `npm run check:openapi`：PASS，74 paths / 85 operations / 85 operationIds。
+- `npm run acceptance`：PASS。
+- `./scripts/with-jdk21.sh mvn -f backend/pom.xml -pl platform-server test`：PASS，111 tests / 0 failures / 0 errors。
+- `git diff --check`：PASS。
+
+未完成原因：
+
+- 当前只完成 outbox 监控摘要，不提供列表/筛选；9D.48.1 继续补最近记录列表和最小筛选。
+- 当前不做真实 webhook 联调、接收端验签/防重放、短信/邮件/企业微信、人工重放、人工关闭或告警抑制。
+- Task 8 总体仍保持 `NOT READY`。
 
 ## 任务 9D.54：生产端奖惩管理汇总后端适配第一增量
 

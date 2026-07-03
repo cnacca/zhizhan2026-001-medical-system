@@ -52,6 +52,10 @@ public class AiGatewayService {
     private static final String OUTPUT_GUARD_STATUS = "AI_OUTPUT_GUARDED";
     private static final String EXTERNAL_ALERT_CHANNEL = "EXTERNAL_ALERT";
     private static final String EXTERNAL_ALERT_PENDING_STATUS = "PENDING";
+    private static final String EXTERNAL_ALERT_SENDING_STATUS = "SENDING";
+    private static final String EXTERNAL_ALERT_SENT_STATUS = "SENT";
+    private static final String EXTERNAL_ALERT_FAILED_STATUS = "FAILED";
+    private static final String EXTERNAL_ALERT_DEAD_LETTER_STATUS = "DEAD_LETTER";
     private static final Set<UserRole> CS_AND_ADMIN = EnumSet.of(UserRole.CS, UserRole.ADMIN);
     private static final Set<UserRole> CHECK_MISSING_ROLES = EnumSet.of(UserRole.DOCTOR, UserRole.CS, UserRole.ADMIN);
     private static final Set<UserRole> PRODUCTION_NOTE_ROLES = EnumSet.of(UserRole.CS, UserRole.WORKER, UserRole.ADMIN);
@@ -310,6 +314,57 @@ public class AiGatewayService {
         return new AiGovernanceCostTrendResponse(days, points, totalSuccessCount, totalEstimatedCostMicrousd);
     }
 
+    @Transactional(readOnly = true)
+    public AiExternalAlertSummaryResponse externalAlertSummary(BootstrapIdentity identity) {
+        accessControlService.requireAnyRole(identity, CS_AND_ADMIN, "AI external alert summary is CS/ADMIN only");
+        List<AiExternalAlertSummaryResponse.StatusCount> statusCounts = jdbcClient.sql("""
+                        SELECT send_status, COUNT(*) AS status_count
+                        FROM ai_external_alert_outbox
+                        GROUP BY send_status
+                        ORDER BY send_status
+                        """)
+                .query((rs, rowNum) -> new AiExternalAlertSummaryResponse.StatusCount(
+                        rs.getString("send_status"),
+                        rs.getLong("status_count")))
+                .list();
+        AiExternalAlertSummaryResponse.Failure latestFailure = jdbcClient.sql("""
+                        SELECT alert_id, alert_type, send_status, attempts, last_error, updated_at
+                        FROM ai_external_alert_outbox
+                        WHERE send_status IN (:failedStatus, :deadLetterStatus)
+                        ORDER BY updated_at DESC, alert_id DESC
+                        LIMIT 1
+                        """)
+                .param("failedStatus", EXTERNAL_ALERT_FAILED_STATUS)
+                .param("deadLetterStatus", EXTERNAL_ALERT_DEAD_LETTER_STATUS)
+                .query((rs, rowNum) -> new AiExternalAlertSummaryResponse.Failure(
+                        rs.getLong("alert_id"),
+                        rs.getString("alert_type"),
+                        rs.getString("send_status"),
+                        rs.getInt("attempts"),
+                        sanitizeExternalAlertError(rs.getString("last_error")),
+                        rs.getObject("updated_at", LocalDateTime.class)))
+                .optional()
+                .orElse(null);
+        LocalDateTime oldestPendingCreatedAt = jdbcClient.sql("""
+                        SELECT MIN(created_at)
+                        FROM ai_external_alert_outbox
+                        WHERE send_status = :pendingStatus
+                        """)
+                .param("pendingStatus", EXTERNAL_ALERT_PENDING_STATUS)
+                .query(LocalDateTime.class)
+                .optional()
+                .orElse(null);
+        return new AiExternalAlertSummaryResponse(
+                statusCounts,
+                countStatus(statusCounts, EXTERNAL_ALERT_PENDING_STATUS),
+                countStatus(statusCounts, EXTERNAL_ALERT_SENDING_STATUS),
+                countStatus(statusCounts, EXTERNAL_ALERT_SENT_STATUS),
+                countStatus(statusCounts, EXTERNAL_ALERT_FAILED_STATUS),
+                countStatus(statusCounts, EXTERNAL_ALERT_DEAD_LETTER_STATUS),
+                latestFailure,
+                oldestPendingCreatedAt);
+    }
+
     private AiModelResult completeWithModel(
             String systemPrompt,
             String userPrompt,
@@ -360,6 +415,22 @@ public class AiGatewayService {
                 HttpStatus.SERVICE_UNAVAILABLE,
                 "AI model temporarily unavailable",
                 lastFailure == null ? new IllegalStateException("AI model retry failed") : lastFailure);
+    }
+
+    private long countStatus(List<AiExternalAlertSummaryResponse.StatusCount> statusCounts, String sendStatus) {
+        return statusCounts.stream()
+                .filter(statusCount -> sendStatus.equals(statusCount.sendStatus()))
+                .mapToLong(AiExternalAlertSummaryResponse.StatusCount::count)
+                .findFirst()
+                .orElse(0L);
+    }
+
+    private String sanitizeExternalAlertError(String error) {
+        if (error == null || error.isBlank()) {
+            return error;
+        }
+        String sanitized = error.replaceAll("(?i)(token|secret|key|signature)=([^\\s&]+)", "$1=[redacted]");
+        return sanitized.replaceAll("https?://\\S+", "[redacted-url]");
     }
 
     private void auditOutputGuarded(

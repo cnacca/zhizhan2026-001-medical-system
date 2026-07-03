@@ -74,6 +74,12 @@ public class AiGatewayController {
         return new DataResponse<>(aiGatewayService.governanceCostTrend(identity, days));
     }
 
+    @GetMapping("/ai/governance/external-alerts/summary")
+    @RequirePermission(value = "ai:cs", roles = {UserRole.ADMIN, UserRole.CS})
+    public DataResponse<AiExternalAlertSummaryResponse> externalAlertSummary(BootstrapIdentity identity) {
+        return new DataResponse<>(aiGatewayService.externalAlertSummary(identity));
+    }
+
     public record TranslateRequest(
             @JsonProperty("order_id") @NotNull Long orderId,
             @JsonProperty("source_text") @NotBlank String sourceText) {

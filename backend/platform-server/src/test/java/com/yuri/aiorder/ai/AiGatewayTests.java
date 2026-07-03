@@ -11,6 +11,7 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
 import java.util.UUID;
+import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -85,6 +86,19 @@ class AiGatewayTests {
                 .param("orderId", orderId)
                 .param("csUserId", CS_USER_ID)
                 .param("workerUserId", WORKER_USER_ID)
+                .update();
+    }
+
+    @AfterEach
+    void tearDown() {
+        jdbcClient.sql("""
+                        UPDATE ai_external_alert_outbox
+                        SET send_status = 'SENT',
+                            last_error = NULL
+                        WHERE order_id = :orderId
+                          AND send_status IN ('PENDING', 'SENDING')
+                        """)
+                .param("orderId", orderId)
                 .update();
     }
 
@@ -303,6 +317,73 @@ class AiGatewayTests {
                         .header("X-Bootstrap-User-Id", DOCTOR_USER_ID)
                         .header("X-Bootstrap-Clinic-Id", clinicId))
                 .andExpect(status().isForbidden());
+    }
+
+    @Test
+    void aiExternalAlertMonitorSummarizesOutboxForInternalUsers() throws Exception {
+        long pendingBaseline = externalAlertCount("PENDING");
+        long sendingBaseline = externalAlertCount("SENDING");
+        long sentBaseline = externalAlertCount("SENT");
+        long failedBaseline = externalAlertCount("FAILED");
+        long deadLetterBaseline = externalAlertCount("DEAD_LETTER");
+        jdbcClient.sql("""
+                        INSERT INTO ai_external_alert_outbox
+                            (order_id, alert_type, channel, payload, send_status, attempts,
+                             last_error, created_at, updated_at)
+                        VALUES
+                            (:orderId, 'AI_BUDGET_EXCEEDED', 'EXTERNAL_ALERT',
+                             CAST('{\"event\":\"pending\"}' AS JSON), 'PENDING', 0,
+                             NULL, '1970-01-01 00:00:00.000', '1970-01-01 00:00:00.000'),
+                            (:orderId, 'AI_MODEL_FAILED', 'EXTERNAL_ALERT',
+                             CAST('{\"event\":\"sending\"}' AS JSON), 'SENDING', 1,
+                             NULL, CURRENT_TIMESTAMP(3), CURRENT_TIMESTAMP(3)),
+                            (:orderId, 'AI_OUTPUT_GUARDED', 'EXTERNAL_ALERT',
+                             CAST('{\"event\":\"sent\"}' AS JSON), 'SENT', 1,
+                             NULL, CURRENT_TIMESTAMP(3), CURRENT_TIMESTAMP(3)),
+                            (:orderId, 'AI_BUDGET_EXCEEDED', 'EXTERNAL_ALERT',
+                             CAST('{\"event\":\"failed\"}' AS JSON), 'FAILED', 2,
+                             'webhook https://hooks.example.test/ai?token=secret-token returned 500',
+                             DATE_SUB(CURRENT_TIMESTAMP(3), INTERVAL 1 MINUTE),
+                             DATE_SUB(CURRENT_TIMESTAMP(3), INTERVAL 1 MINUTE)),
+                            (:orderId, 'AI_MODEL_FAILED', 'EXTERNAL_ALERT',
+                             CAST('{\"event\":\"dead\"}' AS JSON), 'DEAD_LETTER', 3,
+                             'upstream timeout',
+                             CURRENT_TIMESTAMP(3), CURRENT_TIMESTAMP(3))
+                        """)
+                .param("orderId", orderId)
+                .update();
+
+        mockMvc.perform(get("/ai/governance/external-alerts/summary")
+                        .header("X-Bootstrap-Role", "CS")
+                        .header("X-Bootstrap-User-Id", CS_USER_ID))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.pending_count").value(pendingBaseline + 1))
+                .andExpect(jsonPath("$.data.sending_count").value(sendingBaseline + 1))
+                .andExpect(jsonPath("$.data.sent_count").value(sentBaseline + 1))
+                .andExpect(jsonPath("$.data.failed_count").value(failedBaseline + 1))
+                .andExpect(jsonPath("$.data.dead_letter_count").value(deadLetterBaseline + 1))
+                .andExpect(jsonPath("$.data.status_counts[?(@.send_status == 'PENDING')].count")
+                        .value(hasItem((int) pendingBaseline + 1)))
+                .andExpect(jsonPath("$.data.latest_failure.send_status").value("DEAD_LETTER"))
+                .andExpect(jsonPath("$.data.latest_failure.last_error").value("upstream timeout"))
+                .andExpect(jsonPath("$.data.oldest_pending_created_at").value(containsString("1970-01-01")));
+
+        mockMvc.perform(get("/ai/governance/external-alerts/summary")
+                        .header("X-Bootstrap-Role", "DOCTOR")
+                        .header("X-Bootstrap-User-Id", DOCTOR_USER_ID)
+                        .header("X-Bootstrap-Clinic-Id", clinicId))
+                .andExpect(status().isForbidden());
+    }
+
+    private long externalAlertCount(String sendStatus) {
+        return jdbcClient.sql("""
+                        SELECT COUNT(*)
+                        FROM ai_external_alert_outbox
+                        WHERE send_status = :sendStatus
+                        """)
+                .param("sendStatus", sendStatus)
+                .query(Long.class)
+                .single();
     }
 
     private String currentDate() {
