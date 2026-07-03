@@ -13,6 +13,9 @@ public record AiExternalAlertListResponse(
             @JsonProperty("event_type") String eventType,
             @JsonProperty("send_status") String sendStatus,
             @JsonProperty("created_at") LocalDateTime createdAt,
-            @JsonProperty("updated_at") LocalDateTime updatedAt) {
+            @JsonProperty("updated_at") LocalDateTime updatedAt,
+            int attempts,
+            @JsonProperty("last_error") String lastError,
+            @JsonProperty("last_attempted_at") LocalDateTime lastAttemptedAt) {
     }
 }

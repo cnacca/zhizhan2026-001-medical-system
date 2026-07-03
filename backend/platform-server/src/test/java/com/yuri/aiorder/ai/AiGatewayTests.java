@@ -98,7 +98,7 @@ class AiGatewayTests {
                         SET send_status = 'SENT',
                             last_error = NULL
                         WHERE order_id = :orderId
-                          AND send_status IN ('PENDING', 'SENDING')
+                          AND send_status IN ('PENDING', 'SENDING', 'FAILED', 'DEAD_LETTER')
                         """)
                 .param("orderId", orderId)
                 .update();
@@ -423,6 +423,42 @@ class AiGatewayTests {
                         .header("X-Bootstrap-User-Id", DOCTOR_USER_ID)
                         .header("X-Bootstrap-Clinic-Id", clinicId))
                 .andExpect(status().isForbidden());
+    }
+
+    @Test
+    void aiExternalAlertListShowsSanitizedFailureMetadataForFailedAndDeadLetterRecords() throws Exception {
+        jdbcClient.sql("""
+                        INSERT INTO ai_external_alert_outbox
+                            (order_id, alert_type, channel, payload, send_status, attempts,
+                             last_error, created_at, updated_at)
+                        VALUES
+                            (:orderId, 'AI_MODEL_FAILED', 'EXTERNAL_ALERT',
+                             CAST('{\"event\":\"AI_MODEL_FAILED\",\"model_raw_response\":\"do not expose\"}' AS JSON),
+                             'DEAD_LETTER', 5,
+                             'POST https://hooks.example.test/ai?token=secret-token failed with Bearer sk-live-secret',
+                             '2099-07-04 03:00:00.000', '2099-07-04 03:05:00.000')
+                        """)
+                .param("orderId", orderId)
+                .update();
+
+        mockMvc.perform(get("/ai/governance/external-alerts")
+                        .param("send_status", "DEAD_LETTER")
+                        .param("event_type", "AI_MODEL_FAILED")
+                        .param("created_at_from", "2099-07-04T02:30:00")
+                        .param("created_at_to", "2099-07-04T03:30:00")
+                        .param("limit", "5")
+                        .header("X-Bootstrap-Role", "CS")
+                        .header("X-Bootstrap-User-Id", CS_USER_ID))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.records.length()").value(1))
+                .andExpect(jsonPath("$.data.records[0].send_status").value("DEAD_LETTER"))
+                .andExpect(jsonPath("$.data.records[0].attempts").value(5))
+                .andExpect(jsonPath("$.data.records[0].last_error").exists())
+                .andExpect(jsonPath("$.data.records[0].last_attempted_at").value(containsString("2099-07-04T03:05")))
+                .andExpect(content().string(not(containsString("secret-token"))))
+                .andExpect(content().string(not(containsString("sk-live-secret"))))
+                .andExpect(content().string(not(containsString("hooks.example.test"))))
+                .andExpect(content().string(not(containsString("model_raw_response"))));
     }
 
     private long externalAlertCount(String sendStatus) {

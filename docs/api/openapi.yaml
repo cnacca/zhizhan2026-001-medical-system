@@ -1753,6 +1753,18 @@ components:
         updated_at:
           type: string
           format: date-time
+        attempts:
+          type: integer
+          description: outbox 当前累计发送尝试次数。
+        last_error:
+          type: string
+          nullable: true
+          description: 仅 FAILED / DEAD_LETTER 记录返回已脱敏错误摘要；不返回真实 webhook URL、密钥、prompt 原文、模型原始响应或上游敏感响应。
+        last_attempted_at:
+          type: string
+          format: date-time
+          nullable: true
+          description: 最近一次发送尝试时间；无尝试记录时为 null。
     MissingInfoResponse:
       type: object
       properties:
@@ -5227,7 +5239,8 @@ paths:
       description: |
         权限：CS / ADMIN
         任务 9D.48.1 第一增量：只读查看 `ai_external_alert_outbox` 最近记录列表，支持 `send_status`、`event_type`、`created_at` 起止范围和 `limit` 最小筛选。
-        响应只返回安全元数据：`alert_id`、`event_type`、`send_status`、`created_at`、`updated_at`。不返回密钥、真实 webhook URL、payload、prompt 原文、模型原始响应、last_error 或内部生产敏感详情；本接口不提供人工重放或编辑。
+        任务 9D.48.2 第一增量：FAILED / DEAD_LETTER 记录额外返回 `attempts`、已脱敏 `last_error` 和 `last_attempted_at`，用于只读排查失败/死信原因。
+        响应不返回密钥、真实 webhook URL、payload、prompt 原文、模型原始响应、上游敏感响应或内部生产敏感详情；本接口不提供人工重放、编辑、死信恢复或人工处理状态。
       parameters:
       - name: send_status
         in: query

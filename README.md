@@ -4,9 +4,9 @@
 
 ## 当前仓库状态
 
-当前已完成项目工作流初始化、任务 0：接口契约与项目基线、任务 0.1：TRD V1.1 对齐与开发计划冻结、任务 1：项目骨架初始化、任务 2：数据库模型与 9 条工序链初始化、任务 3：订单状态投影与医生端脱敏基础、任务 4：文件上传与访问权限、任务 5A：Workflow Runtime 与工序节点状态机、任务 5B：入检 / 出检 / 返工 / 工时绩效、任务 6：消息、设计稿、账单物流与通知、任务 7：AI Gateway 与 5 个 AI 智能体、任务 8A readiness audit、任务 8B OpenAPI 二次契约、任务 9A Bearer 身份基线、任务 9B.1 后端权限/DataScope 守卫第一增量、任务 9B.2 数据库化 RBAC/DataScope 基础、任务 9B.3 权限注解/统一拦截器、任务 9B.4 DataScope SQL 过滤第一增量、任务 9B.5 文件/协同/AI DataScope 扩展、任务 9B.6 菜单/部门/岗位/前端权限路由第一增量、任务 9B.7 生产鉴权启动门禁第一增量、任务 9B.8 Refresh Token/logout 第一增量、任务 9C.1 WebSocket 通知第一增量、任务 9C.2 通知未读/已读第一增量、任务 9C.3 通知实时前端/Redis 广播第一增量、任务 9D.1 医生订单工作台第一增量、任务 9D.2 医生下单第一增量、任务 9D.3 客服初审第一增量、任务 9D.4 生产审核第一增量、任务 9D.5 生产任务入口第一增量、任务 9D.6 入检/出检/工时操作页面第一增量、任务 9D.7 绩效管理页面第一增量、任务 9D.8 生产看板第一增量、任务 9D.9 返工终检第一增量、任务 9D.10 Multipart 上传第一增量、本地恢复上传第一增量、服务端候选恢复第一增量、服务端候选恢复浏览器 smoke、上传中断后恢复浏览器 smoke、100MB+ 浏览器上传 smoke、任务 9D.11 医生订单草稿/补资料第一增量、任务 9D.12 动态表单 CRUD 第一增量、任务 9D.13 设计稿多文件/多版本第一增量、任务 9D.14 终检发货拦截第一增量、任务 9D.15 真实 DeepSeek 接入第一增量、任务 9D.16 终检报告第一增量、任务 9D.17 返工关闭 / 责任分类第一增量、任务 9D.18 返工字典第一增量、任务 9D.19 返工通知联动第一增量、任务 9D.20 复杂返工影响范围第一增量、任务 9D.21 绩效归因联动第一增量、任务 9D.22 返工影响审计可视化第一增量、任务 9D.23 返工影响筛选第一增量、任务 9D.24 四入口登录页与角色端口校验第一增量、任务 9D.25 绩效明细第一增量、任务 9D.26 AI 调用限流第一增量、任务 9D.27 AI 成本审计第一增量、任务 9D.28 AI 模型重试第一增量、任务 9D.29 AI 模型失败审计第一增量、任务 9D.30 AI 治理摘要第一增量、任务 9D.31 AI 预算阈值第一增量、任务 9D.32 AI 预算超限审计第一增量、任务 9D.33 AI 预算超限内部通知第一增量、任务 9D.34 AI 预算通知策略开关第一增量、任务 9D.35 AI 预算熔断/降级第一增量、任务 9D.36 前端展示导航精修、任务 9D.37 AI 预算外部告警待发送事实第一增量、任务 9D.38 AI 分角色预算第一增量、任务 9D.39 AI 分模型预算第一增量、任务 9D.40 AI 提示词版本与输出防护第一增量、任务 9D.41 AI 外部告警发送器第一增量、任务 9D.42 AI 成本趋势第一增量、任务 9D.43 AI 真实外部渠道适配第一增量、任务 9D.44 AI 外部告警调度器第一增量、任务 9D.45 AI 外部告警重试/死信第一增量、任务 9D.46 AI 外部告警幂等/并发领取第一增量、任务 9D.47 AI 外部告警 webhook 签名/鉴权第一增量、任务 9D.48 AI 外部告警监控/运维可观察第一增量、任务 9D.48.1 AI 外部告警 outbox 列表/筛选第一增量。
+当前已完成项目工作流初始化、任务 0：接口契约与项目基线、任务 0.1：TRD V1.1 对齐与开发计划冻结、任务 1：项目骨架初始化、任务 2：数据库模型与 9 条工序链初始化、任务 3：订单状态投影与医生端脱敏基础、任务 4：文件上传与访问权限、任务 5A：Workflow Runtime 与工序节点状态机、任务 5B：入检 / 出检 / 返工 / 工时绩效、任务 6：消息、设计稿、账单物流与通知、任务 7：AI Gateway 与 5 个 AI 智能体、任务 8A readiness audit、任务 8B OpenAPI 二次契约、任务 9A Bearer 身份基线、任务 9B.1 后端权限/DataScope 守卫第一增量、任务 9B.2 数据库化 RBAC/DataScope 基础、任务 9B.3 权限注解/统一拦截器、任务 9B.4 DataScope SQL 过滤第一增量、任务 9B.5 文件/协同/AI DataScope 扩展、任务 9B.6 菜单/部门/岗位/前端权限路由第一增量、任务 9B.7 生产鉴权启动门禁第一增量、任务 9B.8 Refresh Token/logout 第一增量、任务 9C.1 WebSocket 通知第一增量、任务 9C.2 通知未读/已读第一增量、任务 9C.3 通知实时前端/Redis 广播第一增量、任务 9D.1 医生订单工作台第一增量、任务 9D.2 医生下单第一增量、任务 9D.3 客服初审第一增量、任务 9D.4 生产审核第一增量、任务 9D.5 生产任务入口第一增量、任务 9D.6 入检/出检/工时操作页面第一增量、任务 9D.7 绩效管理页面第一增量、任务 9D.8 生产看板第一增量、任务 9D.9 返工终检第一增量、任务 9D.10 Multipart 上传第一增量、本地恢复上传第一增量、服务端候选恢复第一增量、服务端候选恢复浏览器 smoke、上传中断后恢复浏览器 smoke、100MB+ 浏览器上传 smoke、任务 9D.11 医生订单草稿/补资料第一增量、任务 9D.12 动态表单 CRUD 第一增量、任务 9D.13 设计稿多文件/多版本第一增量、任务 9D.14 终检发货拦截第一增量、任务 9D.15 真实 DeepSeek 接入第一增量、任务 9D.16 终检报告第一增量、任务 9D.17 返工关闭 / 责任分类第一增量、任务 9D.18 返工字典第一增量、任务 9D.19 返工通知联动第一增量、任务 9D.20 复杂返工影响范围第一增量、任务 9D.21 绩效归因联动第一增量、任务 9D.22 返工影响审计可视化第一增量、任务 9D.23 返工影响筛选第一增量、任务 9D.24 四入口登录页与角色端口校验第一增量、任务 9D.25 绩效明细第一增量、任务 9D.26 AI 调用限流第一增量、任务 9D.27 AI 成本审计第一增量、任务 9D.28 AI 模型重试第一增量、任务 9D.29 AI 模型失败审计第一增量、任务 9D.30 AI 治理摘要第一增量、任务 9D.31 AI 预算阈值第一增量、任务 9D.32 AI 预算超限审计第一增量、任务 9D.33 AI 预算超限内部通知第一增量、任务 9D.34 AI 预算通知策略开关第一增量、任务 9D.35 AI 预算熔断/降级第一增量、任务 9D.36 前端展示导航精修、任务 9D.37 AI 预算外部告警待发送事实第一增量、任务 9D.38 AI 分角色预算第一增量、任务 9D.39 AI 分模型预算第一增量、任务 9D.40 AI 提示词版本与输出防护第一增量、任务 9D.41 AI 外部告警发送器第一增量、任务 9D.42 AI 成本趋势第一增量、任务 9D.43 AI 真实外部渠道适配第一增量、任务 9D.44 AI 外部告警调度器第一增量、任务 9D.45 AI 外部告警重试/死信第一增量、任务 9D.46 AI 外部告警幂等/并发领取第一增量、任务 9D.47 AI 外部告警 webhook 签名/鉴权第一增量、任务 9D.48 AI 外部告警监控/运维可观察第一增量、任务 9D.48.1 AI 外部告警 outbox 列表/筛选第一增量、任务 9D.48.2 AI 外部告警失败/死信可见性第一增量。
 
-2026-07-04 交接摘要：Task 8 总体仍为 `NOT READY`；9D.48.1 已完成 AI 外部告警 outbox 列表/筛选第一增量，CS / ADMIN 可通过 `/ai/governance/external-alerts` 只读查看安全元数据列表并按状态、事件类型、创建时间范围和 limit 筛选；9D.43 的 webhook 外呼和 9D.44 的调度器仍默认关闭，不提交真实密钥。下一轮唯一推荐目标是 9D.48.2 AI 外部告警失败/死信可见性第一增量。继续开发前请从 `STATUS.md` 和 `tasks/README.md` 的当前交接摘要开始。
+2026-07-04 交接摘要：Task 8 总体仍为 `NOT READY`；9D.48.2 已完成 AI 外部告警失败/死信可见性第一增量，CS / ADMIN 可通过 `/ai/governance/external-alerts` 只读查看安全元数据列表，并对 FAILED / DEAD_LETTER 查看 `attempts`、脱敏 `last_error` 和 `last_attempted_at`；9D.43 的 webhook 外呼和 9D.44 的调度器仍默认关闭，不提交真实密钥。下一轮唯一推荐目标是 Task 8 readiness 终检报告第一增量。继续开发前请从 `STATUS.md` 和 `tasks/README.md` 的当前交接摘要开始。
 
 2026-07-04 上传交接摘要：`feature/project-skeleton` 已推送到 GitHub；本轮业务开发基线为 `5e9ee18`，后续文档回补提交不改变业务代码边界。本轮提交已按边界拆分：`1895f79` 生产汇总、`f395584` AI 治理、`c781eae` Task 8 文档回写、`5e9ee18` workflow helper 整理。当前工作区只剩未跟踪 `test-results/` 运行产物，未纳入提交。9D.49 到 9D.54 已完成生产端质量、设备、物料异常、安环、成本、奖惩六类真实只读汇总第一增量；后续仍缺录入/审批/CRUD、演示种子数据、工作台趋势真实统计和完整业务验收用例。
 
@@ -167,7 +167,7 @@ AI 外部告警调度器第一增量启用方式：默认 `AI_EXTERNAL_ALERT_SCH
 
 AI 外部告警监控第一增量：`GET /ai/governance/external-alerts/summary` 仅 CS / ADMIN 可读，用于查看 outbox 状态分布、最近失败/死信错误和最老待发送时间；本接口不触发外呼，不提供人工重放或编辑，不返回真实 webhook URL、密钥、prompt 原文、模型原始响应或内部生产敏感详情。
 
-AI 外部告警 outbox 列表第一增量：`GET /ai/governance/external-alerts` 仅 CS / ADMIN 可读，支持 `send_status`、`event_type`、`created_at_from`、`created_at_to`、`limit` 查询最近记录；响应只返回安全元数据，不返回 payload、last_error、真实 webhook URL、密钥、prompt 原文或模型原始响应。
+AI 外部告警 outbox 列表与失败/死信可见性第一增量：`GET /ai/governance/external-alerts` 仅 CS / ADMIN 可读，支持 `send_status`、`event_type`、`created_at_from`、`created_at_to`、`limit` 查询最近记录；FAILED / DEAD_LETTER 记录额外返回 `attempts`、脱敏 `last_error` 和 `last_attempted_at`。响应不返回 payload、真实 webhook URL、密钥、Bearer token、prompt 原文、模型原始响应或上游敏感响应。
 
 本地开发账号由 Flyway `V6__auth_rbac_datascope_foundation.sql` 初始化，仅用于本地验收：
 
@@ -1124,6 +1124,25 @@ npm run check:openapi
 4. 本轮不做人工重放、编辑、关闭、死信恢复、告警抑制或生产 webhook 联调。
 ```
 
+任务 9D.48.2 AI 外部告警失败/死信可见性第一增量检查：
+
+```bash
+npm run check:task9d48-2
+npm run acceptance
+npm run check:openapi
+./scripts/with-jdk21.sh mvn -f backend/pom.xml -pl platform-server -Dtest=AiGatewayTests#aiExternalAlertListShowsSanitizedFailureMetadataForFailedAndDeadLetterRecords test
+```
+
+说明：9D.48.2 在只读 outbox 列表中为 FAILED / DEAD_LETTER 增加安全失败排查字段。CS / ADMIN 可查看 `attempts`、脱敏 `last_error` 和 `last_attempted_at`；医生端仍无权访问。
+
+任务 9D.48.2 验收口径：
+
+```text
+1. CS / ADMIN 可在 outbox 列表中读取 FAILED / DEAD_LETTER 的 attempts、last_error 和 last_attempted_at。
+2. last_error 必须脱敏，不暴露真实 webhook URL、密钥、Bearer token、prompt 原文、模型原始响应或上游敏感响应。
+3. 本轮不做重试按钮、死信恢复、人工处理状态、编辑、关闭、告警抑制或生产 webhook 联调。
+```
+
 任务 9D.10 100MB+ Multipart 浏览器 smoke：
 
 ```bash
@@ -1249,8 +1268,8 @@ Task 8A smoke 注意事项：
 
 优先处理 `tasks/README.md`：
 
-1. 下一轮唯一推荐目标：9D.48.2 AI 外部告警失败/死信可见性第一增量。
-2. 先补红灯测试，再改后端、OpenAPI、acceptance 和必要文档；在 outbox 列表基础上只读展示 FAILED / DEAD_LETTER 的 `attempts`、脱敏 `last_error`、`updated_at` / last attempted 时间，不做重试按钮、死信恢复或人工处理状态。
+1. 下一轮唯一推荐目标：Task 8 readiness 终检报告第一增量。
+2. 先从 `docs/deployment/readiness-checklist.md` 和 `docs/acceptance/task-8-acceptance-matrix.md` 提炼 PARTIAL / BLOCKED / NOT_READY 项，整理缺口名称、当前证据、未完成原因、最小补齐闭环和推荐验证方式。
 3. 每补一个缺口，都要回写 `docs/acceptance/task-8-acceptance-matrix.md` 和 `docs/deployment/readiness-checklist.md` 的状态。
 
 ## 安全说明

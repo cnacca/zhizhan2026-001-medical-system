@@ -381,7 +381,7 @@ public class AiGatewayService {
         String normalizedSendStatus = blankToNull(sendStatus);
         String normalizedEventType = blankToNull(eventType);
         List<AiExternalAlertListResponse.Record> records = jdbcClient.sql("""
-                        SELECT alert_id, alert_type, send_status, created_at, updated_at
+                        SELECT alert_id, alert_type, send_status, attempts, last_error, created_at, updated_at
                         FROM ai_external_alert_outbox
                         WHERE (:sendStatus IS NULL OR send_status = :sendStatus)
                           AND (:eventType IS NULL OR alert_type = :eventType)
@@ -392,15 +392,25 @@ public class AiGatewayService {
                         """)
                 .param("sendStatus", normalizedSendStatus)
                 .param("eventType", normalizedEventType)
-                .param("createdAtFrom", from)
-                .param("createdAtTo", to)
-                .param("limit", limit)
-                .query((rs, rowNum) -> new AiExternalAlertListResponse.Record(
-                        rs.getLong("alert_id"),
-                        rs.getString("alert_type"),
-                        rs.getString("send_status"),
-                        rs.getObject("created_at", LocalDateTime.class),
-                        rs.getObject("updated_at", LocalDateTime.class)))
+                        .param("createdAtFrom", from)
+                        .param("createdAtTo", to)
+                        .param("limit", limit)
+                .query((rs, rowNum) -> {
+                    String rowSendStatus = rs.getString("send_status");
+                    int attempts = rs.getInt("attempts");
+                    LocalDateTime updatedAt = rs.getObject("updated_at", LocalDateTime.class);
+                    return new AiExternalAlertListResponse.Record(
+                            rs.getLong("alert_id"),
+                            rs.getString("alert_type"),
+                            rowSendStatus,
+                            rs.getObject("created_at", LocalDateTime.class),
+                            updatedAt,
+                            attempts,
+                            failedOrDeadLetter(rowSendStatus)
+                                    ? sanitizeExternalAlertError(rs.getString("last_error"))
+                                    : null,
+                            attempts > 0 ? updatedAt : null);
+                })
                 .list();
         return new AiExternalAlertListResponse(limit, records);
     }
@@ -469,8 +479,15 @@ public class AiGatewayService {
         if (error == null || error.isBlank()) {
             return error;
         }
-        String sanitized = error.replaceAll("(?i)(token|secret|key|signature)=([^\\s&]+)", "$1=[redacted]");
+        String sanitized = error.replaceAll("(?i)(bearer\\s+)[^\\s]+", "$1[redacted]");
+        sanitized = sanitized.replaceAll("(?i)sk-[a-z0-9._-]+", "[redacted-secret]");
+        sanitized = sanitized.replaceAll("(?i)(token|secret|key|signature)=([^\\s&]+)", "$1=[redacted]");
         return sanitized.replaceAll("https?://\\S+", "[redacted-url]");
+    }
+
+    private boolean failedOrDeadLetter(String sendStatus) {
+        return EXTERNAL_ALERT_FAILED_STATUS.equals(sendStatus)
+                || EXTERNAL_ALERT_DEAD_LETTER_STATUS.equals(sendStatus);
     }
 
     private LocalDateTime parseNullableDateTime(String value, String fieldName) {

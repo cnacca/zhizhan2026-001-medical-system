@@ -19,14 +19,15 @@
 - 9D.24 四入口登录页与角色端口校验第一增量已完成；登录页展示医生端、客服端、生产端、管理端四入口，登录请求携带 `portal`，后端拒绝账号角色与所选入口不匹配的登录。
 - 9D.47 AI 外部告警 webhook 签名/鉴权第一增量已完成。
 - 9D.48 AI 外部告警监控/运维可观察第一增量已完成。
-- 9D.48.1 AI 外部告警 outbox 列表/筛选第一增量已完成；下一轮唯一推荐目标是 9D.48.2 AI 外部告警失败/死信可见性第一增量。
+- 9D.48.1 AI 外部告警 outbox 列表/筛选第一增量已完成。
+- 9D.48.2 AI 外部告警失败/死信可见性第一增量已完成；下一轮唯一推荐目标是 Task 8 readiness 终检报告第一增量。
 - 9D.49 生产端质量与返工汇总后端适配第一增量已完成；新增 `/production/quality/summary`，生产/客服/管理可读，医生端拒绝；前端生产端质量总览已接真实汇总，明确展示内返率和外返率。
 - 9D.50 生产端设备管理汇总后端适配第一增量已完成；新增 `/production/equipment/summary`，生产/客服/管理可读，医生端拒绝；前端生产端设备管理已接真实汇总，展示设备台账、设备状态、保养计划、故障报修、停机时长和设备稼动率。
 - 9D.51 生产端物料异常汇总后端适配第一增量已完成；新增 `/production/material-exceptions/summary`，生产/客服/管理可读，医生端拒绝；前端生产端物料异常已接真实汇总，展示缺料、错料、批次异常、材料损耗、处理状态和责任归属。
 - 9D.52 生产端安环管理汇总后端适配第一增量已完成；新增 `/production/safety-environment/summary`，生产/客服/管理可读，医生端拒绝；前端生产端安环管理已接真实汇总，展示安全巡检、隐患整改、环境记录、PPE/设备安全提醒、安环事件统计和高风险待办。
 - 9D.53 生产端成本管理汇总后端适配第一增量已完成；新增 `/production/cost-management/summary`，生产/客服/管理可读，医生端拒绝；前端生产端成本管理/外协成本已接真实汇总，展示工序成本、材料成本、人工成本、返工成本、外协成本和成本异常预警。
 - 9D.54 生产端奖惩管理汇总后端适配第一增量已完成；新增 `/production/reward-penalty/summary`，生产/客服/管理可读，医生端拒绝；前端生产端奖惩管理已接真实汇总，展示奖惩记录、奖惩原因、关联对象、审批状态、月度汇总和绩效影响。
-- 下一轮唯一推荐目标：9D.48.2 AI 外部告警失败/死信可见性第一增量，先在列表基础上只读展示 FAILED / DEAD_LETTER 的 `attempts`、脱敏 `last_error`、`updated_at` / last attempted 时间，不做重试按钮、死信恢复或人工处理状态。
+- 下一轮唯一推荐目标：Task 8 readiness 终检报告第一增量，把 acceptance matrix 和 readiness checklist 中仍为 PARTIAL / BLOCKED / NOT_READY 的项整理成上线前缺口清单。
 - 继续开发前先复核 `STATUS.md`、`docs/acceptance/task-8-acceptance-matrix.md` 和 `docs/deployment/readiness-checklist.md`，并按 TDD 先补红灯测试。
 - 本轮 9D.25 状态：completed-first-increment；已通过 TDD 后端测试、Check/Worklog 模块回归、OpenAPI、frontend build、acceptance 和静态检查。本轮新增 `/performance/details` 绩效工时明细接口，并在绩效页展示最近完成明细。未完成原因：仍缺终检专用角色/附件、绩效完整公式/周期筛选/标准工时配置/申诉闭环、返工影响图形化、生产级 AI 治理、设计稿预览 URL 聚合、完整弱网/跨设备续传和部署交付材料。
 - 本轮 9D.24 状态：completed-first-increment；已通过 TDD 后端测试、四入口登录静态检查、OpenAPI、frontend build、acceptance 和登录相关后端回归。未完成原因：仍缺生产级 Spring Security/JWT、完整 RuoYi 管理 UI、refresh token 轮换、access token 黑名单、多设备会话策略和正式环境浏览器全链路验收。
@@ -46,6 +47,7 @@
 - 本轮 9D.47 状态：completed-first-increment；已通过 TDD 红灯/绿灯、目标 AI 外部告警 webhook 签名测试、静态检查、OpenAPI、acceptance 和后端回归。本轮新增 `AI_EXTERNAL_ALERT_WEBHOOK_SIGNING_ENABLED` / `AI_EXTERNAL_ALERT_WEBHOOK_SIGNING_SECRET`，启用后 sender 会按 request body 发送 `X-AI-Alert-Signature: sha256=<HMAC-SHA256>`。未完成原因：仍缺接收端验签/防重放联调、生产 webhook 联调、真实 key 环境联调、监控告警和部署交付材料。
 - 本轮 9D.48 状态：completed-first-increment；已通过 TDD 红灯/绿灯、目标 AI 外部告警监控测试、静态检查、OpenAPI、acceptance 和后端目标测试。本轮新增 `/ai/governance/external-alerts/summary` 和 `AiExternalAlertSummaryResponse`，CS / ADMIN 可只读查看 outbox 状态分布、最近失败/死信错误和最老待发送时间，DOCTOR 访问 403。未完成原因：仍缺 outbox 列表/筛选、失败/死信详情可见性、接收端验签/防重放联调、生产 webhook 联调、真实 key 环境联调和部署交付材料。
 - 本轮 9D.48.1 状态：completed-first-increment；已通过 TDD 红灯/绿灯、目标 AI 外部告警列表筛选测试、静态检查、OpenAPI、acceptance 和后端目标测试。本轮新增 `/ai/governance/external-alerts` 和 `AiExternalAlertListResponse`，CS / ADMIN 可按 `send_status`、`event_type`、`created_at` 范围和 `limit` 只读筛选最近记录；响应不返回 payload、last_error、真实 webhook URL、密钥、prompt 原文或模型原始响应。未完成原因：仍缺失败/死信详情可见性、接收端验签/防重放联调、生产 webhook 联调、真实 key 环境联调和部署交付材料。
+- 本轮 9D.48.2 状态：completed-first-increment；已通过 TDD 红灯/绿灯、目标 AI 外部告警失败/死信可见性测试、静态检查、OpenAPI、acceptance 和后端目标测试。本轮在 `/ai/governance/external-alerts` 列表中为 FAILED / DEAD_LETTER 返回 `attempts`、脱敏 `last_error` 和 `last_attempted_at`；响应不返回真实 webhook URL、密钥、Bearer token、prompt 原文、模型原始响应或上游敏感响应。未完成原因：仍缺接收端验签/防重放联调、生产 webhook 联调、真实 key 环境联调和部署交付材料。
 - 本轮 9D.49 状态：completed-first-increment；已通过 TDD 红灯/绿灯、目标质量汇总后端测试、静态检查、OpenAPI、frontend build 和真实浏览器点击。新增 `/production/quality/summary`、`ProductionQualitySummaryResponse`、OpenAPI schema/path、`npm run check:task9d49`，并让生产端质量总览加载真实总返工率、内返率、外返率、一次通过率和终检通过率。未完成原因：投诉率/退货率因缺少投诉/退货事实表当前返回 0；设备、物料、安环、成本、奖惩等生产展示模块后续已由 9D.50 到 9D.54 逐项补齐只读汇总接口。
 - 本轮 9D.50 状态：completed-first-increment；已通过 TDD 红灯/绿灯、目标设备汇总后端测试、静态检查、OpenAPI、frontend build、acceptance 和真实浏览器点击。新增 `/production/equipment/summary`、`ProductionEquipmentSummaryResponse`、Flyway `V22__production_equipment_foundation.sql`、OpenAPI schema/path、`npm run check:task9d50`，并让生产端设备管理加载真实设备台账、设备状态、保养计划、故障报修、停机时长和设备稼动率。未完成原因：当前只做设备只读汇总，不做设备 CRUD、保养/报修审批流或真实现场设备联动；物料、安环、成本、奖惩后续已由 9D.51 到 9D.54 逐项补齐只读汇总接口。
 - 本轮 9D.51 状态：completed-first-increment；已通过 TDD 红灯/绿灯、目标物料异常汇总后端测试、静态检查、OpenAPI、frontend build、acceptance 和真实浏览器点击。新增 `/production/material-exceptions/summary`、`ProductionMaterialExceptionSummaryResponse`、Flyway `V23__production_material_exception_foundation.sql`、OpenAPI schema/path、`npm run check:task9d51`，并让生产端物料异常加载真实缺料、错料、批次异常、材料损耗、处理状态和责任归属汇总。未完成原因：当前只做物料异常只读汇总，不做异常登记/编辑/审批流、库存扣减或供应商联动；安环、成本、奖惩后续已由 9D.52 到 9D.54 逐项补齐只读汇总接口。
@@ -112,8 +114,40 @@
 
 未完成原因：
 
-- 当前不返回 `attempts`、`last_error` 或 last attempted 信息；9D.48.2 继续补失败/死信可见性，并保持 `last_error` 脱敏。
+- `attempts`、`last_error` 和 last attempted 信息已由 9D.48.2 补齐；9D.48.1 本身仍只代表列表/筛选第一增量。
 - 当前不做人工重放、编辑、关闭、死信恢复、告警抑制或生产 webhook 联调。
+- Task 8 总体仍保持 `NOT READY`。
+
+## 任务 9D.48.2：AI 外部告警失败/死信可见性第一增量
+
+状态：completed-first-increment。
+
+目标：
+
+- 让 ADMIN / CS 在 outbox 列表中安全查看 FAILED / DEAD_LETTER 的失败排查信息。
+- 展示 `attempts`、脱敏 `last_error` 和 `last_attempted_at`。
+- `last_error` 不暴露真实 webhook URL、密钥、Bearer token、prompt 原文、模型原始响应或上游敏感响应。
+
+范围：
+
+- 复用 `GET /ai/governance/external-alerts`，不新增写接口。
+- `AiExternalAlertListResponse.Record` 新增 `attempts`、`last_error`、`last_attempted_at`。
+- `last_error` 仅对 FAILED / DEAD_LETTER 记录返回脱敏摘要；其他状态不作为错误详情出口。
+
+验收结果：
+
+- TDD 红灯：`AiGatewayTests#aiExternalAlertListShowsSanitizedFailureMetadataForFailedAndDeadLetterRecords` 首次失败于 `$.data.records[0].attempts` 缺失，确认可见性缺口。
+- `./scripts/with-jdk21.sh mvn -f backend/pom.xml -pl platform-server -Dtest=AiGatewayTests#aiExternalAlertListShowsSanitizedFailureMetadataForFailedAndDeadLetterRecords test`：PASS。
+- `npm run check:task9d48-2`：PASS。
+- `npm run check:openapi`：PASS，75 paths / 86 operations / 86 operationIds。
+- `npm run acceptance`：PASS。
+- `./scripts/with-jdk21.sh mvn -f backend/pom.xml -pl platform-server test`：PASS，113 tests / 0 failures / 0 errors。
+- `git diff --check`：PASS。
+
+未完成原因：
+
+- 当前不做重试按钮、死信恢复、人工处理状态、编辑、关闭或告警抑制。
+- 当前不做接收端验签/防重放联调、生产 webhook 联调或真实 key 环境联调。
 - Task 8 总体仍保持 `NOT READY`。
 
 ## 任务 9D.54：生产端奖惩管理汇总后端适配第一增量

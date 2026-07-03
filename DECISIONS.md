@@ -1,5 +1,20 @@
 # DECISIONS
 
+## D-096 AI 外部告警失败/死信只读可见性第一增量
+
+状态：已确认。
+
+决策：
+
+- 9D.48.2 在 `GET /ai/governance/external-alerts` 列表基础上，为 FAILED / DEAD_LETTER 排查补充只读可见信息。
+- 列表记录新增 `attempts`、脱敏 `last_error` 和 `last_attempted_at`；`last_error` 不返回真实 webhook URL、密钥、Bearer token、prompt 原文、模型原始响应或上游敏感响应。
+- `last_error` 仅作为失败/死信只读摘要使用；本增量不新增重试按钮、死信恢复、人工处理状态、人工关闭、编辑、告警抑制或真实 webhook 联调。
+
+影响：
+
+- 9D.48.2 把 outbox 运维视图从“知道有失败”推进到“能安全定位失败原因摘要”的最小上线准备闭环。
+- Task 8 仍保持 `in-progress / NOT READY`；下一轮唯一推荐目标是 Task 8 readiness 终检报告第一增量。
+
 ## D-095 AI 外部告警列表只读筛选第一增量
 
 状态：已确认。

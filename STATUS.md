@@ -11,8 +11,8 @@
 - 2026-07-01 上传交接状态：已确认本地 `feature/project-skeleton` 与 `origin/feature/project-skeleton` 对齐；上传后产生的未提交后续试验改动已撤回。本次只做文档总结回写，不继续推进业务代码。
 - 2026-07-01 新版 PRD/TRD/API 对齐决策已确认：以新资料为最新业务准绳，保留当前已验证增量，OpenAPI 后续按差异合并维护。
 - Active goal: `goals/GOAL-001-scope-clarified-for.md`
-- Active task: `tasks/README.md` 的「任务 8：专项验收矩阵与上线准备」，状态为 `in-progress/next-9d48-2-ai-external-alert-failure-visibility`
-- 本轮 9D.48.1 AI 外部告警 outbox 列表/筛选第一增量已完成；新增 `GET /ai/governance/external-alerts` 和 `AiExternalAlertListResponse`，CS / ADMIN 可只读查看最近 outbox 记录，并支持 `send_status`、`event_type`、`created_at` 起止范围和 `limit` 筛选。Task 8 总体仍保持 `NOT READY`。
+- Active task: `tasks/README.md` 的「任务 8：专项验收矩阵与上线准备」，状态为 `in-progress/next-task-8-final-readiness-report`
+- 本轮 9D.48.2 AI 外部告警失败/死信可见性第一增量已完成；`GET /ai/governance/external-alerts` 在 9D.48.1 列表筛选基础上新增 `attempts`、脱敏 `last_error` 和 `last_attempted_at`，用于 CS / ADMIN 只读排查 FAILED / DEAD_LETTER。Task 8 总体仍保持 `NOT READY`。
 - 本轮提交边界：`1895f79 feat(production): add summary dashboards`、`f395584 feat(ai): add external alert governance controls`、`c781eae docs: refresh task 8 readiness handoff`、`5e9ee18 refactor(workflow): group final inspection helpers`。
 - 已按 RepoFrame + Yuri 工作流创建项目上下文文档。
 - 已完成任务 0：接口契约与项目基线。
@@ -47,6 +47,7 @@
 - 9D.47 已补 AI 外部告警 webhook 签名/鉴权第一增量：签名默认关闭；启用签名且注入 secret 后，请求携带 `X-AI-Alert-Signature` HMAC-SHA256 签名；不提交真实 secret。
 - 9D.48 已补 AI 外部告警监控/运维可观察第一增量：新增 `/ai/governance/external-alerts/summary`，CS / ADMIN 可只读查看 `PENDING/SENDING/SENT/FAILED/DEAD_LETTER` 数量分布、最近一条失败/死信错误和最老待发送时间；本轮不做 webhook 联调、真实渠道密钥、人工重放或告警抑制。
 - 9D.48.1 已补 AI 外部告警 outbox 列表/筛选第一增量：新增 `/ai/governance/external-alerts`，CS / ADMIN 可只读查看 `alert_id/event_type/send_status/created_at/updated_at` 安全元数据，并按状态、事件类型、创建时间范围和 limit 筛选；本轮不返回 payload、last_error、密钥、真实 webhook URL、prompt 原文或模型原始响应。
+- 9D.48.2 已补 AI 外部告警失败/死信可见性第一增量：`/ai/governance/external-alerts` 对 FAILED / DEAD_LETTER 记录返回 `attempts`、脱敏 `last_error` 和 `last_attempted_at`，不返回真实 webhook URL、密钥、Bearer token、prompt 原文、模型原始响应或上游敏感响应；本轮不做重试按钮、死信恢复、人工处理状态或生产 webhook 联调。
 - 9D.49 已补生产端质量与返工汇总后端适配第一增量：新增 `ProductionQualitySummaryResponse` 和 `/production/quality/summary`，按出检订单数汇总总返工率、内返率、外返率、一次通过率和终检通过率；投诉率/退货率因缺少事实表当前返回 0 并在 OpenAPI 说明；前端生产端质量总览接入真实接口，Vite 补 `/production` 代理。
 - 9D.50 已补生产端设备管理汇总后端适配第一增量：新增 `ProductionEquipmentSummaryResponse`、`/production/equipment/summary` 和 Flyway `V22__production_equipment_foundation.sql`，按设备台账和设备事件汇总设备状态、待处理保养、故障报修、停机时长和平均设备稼动率；前端生产端设备管理接入真实汇总，医生端访问该内部生产接口返回 403。
 - 9D.51 已补生产端物料异常汇总后端适配第一增量：新增 `ProductionMaterialExceptionSummaryResponse`、`/production/material-exceptions/summary` 和 Flyway `V23__production_material_exception_foundation.sql`，按物料异常事实表汇总缺料、错料、批次异常、材料损耗、处理状态和责任归属；前端生产端物料异常接入真实汇总，医生端访问该内部生产接口返回 403。
@@ -226,6 +227,8 @@ Task 8 已完成 8A readiness audit、8B OpenAPI 二次契约、9A/9B/9C 身份�
 
 本轮已完成 9D.48.1 AI 外部告警 outbox 列表/筛选第一增量：新增 `GET /ai/governance/external-alerts`，复用 AI 治理权限，仅 CS / ADMIN 可访问；支持 `send_status`、`event_type`、`created_at_from`、`created_at_to` 和 `limit` 最小筛选。响应只返回安全元数据，不返回 payload、last_error、真实 webhook URL、密钥、prompt 原文、模型原始响应或内部生产敏感详情。本轮不做人工重放、编辑、关闭或告警抑制。
 
+本轮已完成 9D.48.2 AI 外部告警失败/死信可见性第一增量：`GET /ai/governance/external-alerts` 对 FAILED / DEAD_LETTER 记录返回 `attempts`、脱敏 `last_error` 和 `last_attempted_at`，用于 CS / ADMIN 安全排查失败/死信原因；脱敏覆盖真实 webhook URL、query token、Bearer token 和 `sk-*` 形式密钥。本轮不做重试按钮、死信恢复、人工处理状态、编辑、关闭、告警抑制或生产 webhook 联调。
+
 本轮已完成 9D.54 生产端奖惩管理汇总后端适配第一增量：新增 Flyway `V26__production_reward_penalty_foundation.sql`、`production_reward_penalty_record` 事实表、`GET /production/reward-penalty/summary`、`ProductionRewardPenaltySummaryResponse`、OpenAPI 契约、前端“真实奖惩汇总”卡片区和 `npm run check:task9d54` 静态检查。生产/客服/管理可读，医生端访问返回 403；真实浏览器已覆盖生产端入口登录、点击左侧“奖惩管理”，页面显示奖惩记录、奖惩原因、关联对象、审批状态、月度汇总和绩效影响，且无汇总加载失败或 HTML 解析错误。本轮只做只读汇总，不新增奖惩录入、审批流、申诉、绩效结算或正式演示种子数据。
 
 ## 未完成事项
@@ -234,7 +237,7 @@ Task 8 已完成 8A readiness audit、8B OpenAPI 二次契约、9A/9B/9C 身份�
 - 后续补完整返工处理台、返工影响图形化、绩效完整公式/周期/申诉/标准工时配置、终检专用角色/附件和完整生产看板；任务 5B 已完成后端最小执行接口和烟测，任务 9D.5 已补生产任务池和派工第一增量，任务 9D.6 已补入检/出检和工时操作页面第一增量，任务 9D.7 已补绩效管理页面第一增量，任务 9D.8 已补跨状态生产看板第一增量，任务 9D.9 已补返工记录只读和终检出检入口第一增量，任务 9D.14 已补发货前终检出检通过门禁第一增量，任务 9D.16 已补终检报告生成/读取第一增量，任务 9D.17 已补返工关闭/原因分类/责任类型第一增量，任务 9D.18 已补后端固定返工字典和关闭校验第一增量，任务 9D.19 已补返工创建/关闭内部通知第一增量，任务 9D.20 已补返工目标后续 `READY/COMPLETED` 节点重置第一增量，任务 9D.22 已补返工影响节点审计字段第一增量，任务 9D.23 已补返工影响筛选第一增量，任务 9D.25 已补绩效明细第一增量。
 - 后续把 WebSocket 通知接入生产级 Nginx/HTTPS、压测、监控和真实多实例联调；任务 6 已完成通知事实表和未读补偿的最小链路，任务 9C.1 已完成单实例 WebSocket 在线推送，任务 9C.2 已完成通知 REST 与前端入口，任务 9C.3 已完成前端实时刷新、Vite `/ws` 代理 smoke 和 Redis 广播代码路径第一增量。
 - 后续接入正式 RuoYi-Vue-Pro 权限体系；当前已支持数据库账号登录、服务端签发 Bearer token、refresh token 哈希存储/刷新/logout 吊销、权限码/data_scope、基础菜单/部门/岗位表、前端按菜单权限显示入口、集中式后端权限守卫、Controller 权限注解拦截，以及订单、工序实例、文件、协同订单范围、AI 内部上下文的部分 SQL DataScope 过滤；`X-Bootstrap-*` 仍作为统一解析器中的本地烟测兼容路径存在，但生产 profile 已新增启动门禁，要求关闭该兼容路径并配置真实 token secret。
-- 后续把 AI Gateway 的第一增量 DeepSeek 适配升级为生产级模型治理：9D.26 到 9D.48.1 已补每用户小时限流、单次成本审计、短暂失败重试、模型失败审计、治理摘要、预算阈值、预算跨线审计、内部通知第一增量、通知策略开关、预算熔断/降级第一增量、外部告警待发送事实第一增量、分角色预算第一增量、分模型预算第一增量、提示词版本审计、输出防护第一增量、外部告警发送器本地 dry-run 状态机、成本趋势第一增量、webhook 真实发送边界、默认关闭调度器、有限重试/死信、幂等/并发领取、webhook HMAC 签名、outbox 监控摘要和 outbox 列表筛选第一增量；仍缺失败/死信详情可见性、接收端验签/防重放联调、提示词后台管理、流式输出过滤和真实 key 环境验收。AI-3 必须继续只读 `DoctorOrderAssistantReadModel`。
+- 后续把 AI Gateway 的第一增量 DeepSeek 适配升级为生产级模型治理：9D.26 到 9D.48.2 已补每用户小时限流、单次成本审计、短暂失败重试、模型失败审计、治理摘要、预算阈值、预算跨线审计、内部通知第一增量、通知策略开关、预算熔断/降级第一增量、外部告警待发送事实第一增量、分角色预算第一增量、分模型预算第一增量、提示词版本审计、输出防护第一增量、外部告警发送器本地 dry-run 状态机、成本趋势第一增量、webhook 真实发送边界、默认关闭调度器、有限重试/死信、幂等/并发领取、webhook HMAC 签名、outbox 监控摘要、outbox 列表筛选和失败/死信只读可见性第一增量；仍缺接收端验签/防重放联调、提示词后台管理、流式输出过滤、生产 webhook 联调和真实 key 环境验收。AI-3 必须继续只读 `DoctorOrderAssistantReadModel`。
 - 后续补 AI-1/AI-2/AI-5 更完整的模板和人工确认页面；当前只返回草稿或查询结果，不自动写业务字段。
 - 后续补真实弱网限速/断网、完整跨设备续传、文件类型/数量最终限制和完整草稿上传体验；任务 9D.10 已完成 Multipart 第一增量、本地恢复上传第一增量、服务端候选恢复第一增量、服务端候选恢复浏览器 smoke、上传中断后恢复浏览器 smoke 和 100MB+ 浏览器 smoke，任务 9D.11 已补医生订单草稿/补资料第一增量，但仍不是完整大文件上传上线验收。
 - 后续把 Workflow Runtime 接入正式 RuoYi DataScope SQL 过滤、通知事件、前端任务池和生产看板。
@@ -359,4 +362,4 @@ Task 8 已完成 8A readiness audit、8B OpenAPI 二次契约、9A/9B/9C 身份�
 
 ## 下一步
 
-下一轮唯一推荐目标：9D.48.2 AI 外部告警失败/死信可见性第一增量。先补红灯测试，再在 outbox 列表/筛选基础上只读展示 FAILED / DEAD_LETTER 的 attempts、last_error、updated_at / last attempted 时间；last_error 必须脱敏，不做重试按钮、死信恢复或人工处理状态。Task 8 总体仍保持 `NOT READY`，直到生产级防重放、真实弱网/跨设备续传、终检专用角色/附件、完整返工闭环、绩效完整公式/周期/申诉/标准工时配置、AI 治理闭环和部署交付材料补齐。
+下一轮唯一推荐目标：Task 8 readiness 终检报告第一增量。把 `docs/deployment/readiness-checklist.md` 和 `docs/acceptance/task-8-acceptance-matrix.md` 中仍为 PARTIAL / BLOCKED / NOT_READY 的项整理成上线前缺口清单，列出缺口名称、当前证据、未完成原因、最小补齐闭环和推荐验证方式。Task 8 总体仍保持 `NOT READY`，直到生产级防重放、真实弱网/跨设备续传、终检专用角色/附件、完整返工闭环、绩效完整公式/周期/申诉/标准工时配置、AI 治理闭环和部署交付材料补齐。
