@@ -482,6 +482,72 @@ class CheckWorklogPerformanceTests {
                 .andExpect(jsonPath("$.data.unclassified_rework_count").value(0));
     }
 
+    @Test
+    void productionQualitySummarySplitsInternalAndExternalReworkRates() throws Exception {
+        String productType = "QUALITY_SUMMARY_" + UUID.randomUUID().toString().replace("-", "").substring(0, 12);
+        String orderSuffix = productType.replace("QUALITY_SUMMARY_", "");
+        long clinicId = createClinic("质量汇总测试诊所-" + productType);
+
+        long passOrderId = createOrder("QS_PASS_" + orderSuffix, clinicId, productType);
+        long internalReworkOrderId = createOrder("QS_IN_" + orderSuffix, clinicId, productType);
+        long externalReworkOrderId = createOrder("QS_OUT_" + orderSuffix, clinicId, productType);
+
+        long passNodeId = instantiateAndAssignAll(passOrderId, chainId).get(0);
+        submitCheck(passNodeId, 1, true, null);
+        startNode(passNodeId);
+        completeNode(passNodeId);
+        submitCheck(passNodeId, 2, true, null);
+
+        long internalNodeId = instantiateAndAssignAll(internalReworkOrderId, chainId).get(0);
+        submitCheck(internalNodeId, 1, true, null);
+        startNode(internalNodeId);
+        completeNode(internalNodeId);
+        long internalReworkId = submitCheck(internalNodeId, 2, false, internalNodeId)
+                .path("rework_id")
+                .asLong();
+        startNode(internalNodeId);
+        completeNode(internalNodeId);
+        submitCheck(internalNodeId, 2, true, null);
+        closeRework(internalReworkId, "WORKER");
+
+        long externalNodeId = instantiateAndAssignAll(externalReworkOrderId, chainId).get(0);
+        submitCheck(externalNodeId, 1, true, null);
+        startNode(externalNodeId);
+        completeNode(externalNodeId);
+        long externalReworkId = submitCheck(externalNodeId, 2, false, externalNodeId)
+                .path("rework_id")
+                .asLong();
+        startNode(externalNodeId);
+        completeNode(externalNodeId);
+        submitCheck(externalNodeId, 2, true, null);
+        closeRework(externalReworkId, "DOCTOR");
+
+        mockMvc.perform(get("/production/quality/summary")
+                        .header("X-Bootstrap-Role", "WORKER")
+                        .header("X-Bootstrap-User-Id", workerUserId)
+                        .param("product_type", productType))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.product_type").value(productType))
+                .andExpect(jsonPath("$.data.inspected_order_count").value(3))
+                .andExpect(jsonPath("$.data.total_rework_count").value(2))
+                .andExpect(jsonPath("$.data.internal_rework_count").value(1))
+                .andExpect(jsonPath("$.data.external_rework_count").value(1))
+                .andExpect(jsonPath("$.data.total_rework_rate").value(66.7))
+                .andExpect(jsonPath("$.data.internal_rework_rate").value(33.3))
+                .andExpect(jsonPath("$.data.external_rework_rate").value(33.3))
+                .andExpect(jsonPath("$.data.first_pass_rate").value(33.3))
+                .andExpect(jsonPath("$.data.final_pass_rate").value(100.0))
+                .andExpect(jsonPath("$.data.complaint_rate").value(0))
+                .andExpect(jsonPath("$.data.return_rate").value(0));
+    }
+
+    @Test
+    void doctorCannotReadProductionQualitySummary() throws Exception {
+        mockMvc.perform(get("/production/quality/summary")
+                        .header("X-Bootstrap-Role", "DOCTOR")
+                        .header("X-Bootstrap-User-Id", doctorUserId))
+                .andExpect(status().isForbidden());
+    }
 
     @Test
     void performanceDetailsListCompletedWorkLogsForResolvedUser() throws Exception {
@@ -550,18 +616,24 @@ class CheckWorklogPerformanceTests {
     }
 
     private long createOrder(String orderNo, long clinicId) {
+        return createOrder(orderNo, clinicId, "EXECUTION_TEST");
+    }
+
+    private long createOrder(String orderNo, long clinicId, String productType) {
         jdbcClient.sql("""
                         INSERT INTO orders
                             (order_no, clinic_id, doctor_user_id, cs_user_id,
                              product_type, internal_status, external_status)
                         VALUES
                             (:orderNo, :clinicId, :doctorUserId, :csUserId,
-                             'EXECUTION_TEST', 'PENDING_PRODUCTION_REVIEW', 'PENDING_REVIEW')
+                             :productType,
+                             'PENDING_PRODUCTION_REVIEW', 'PENDING_REVIEW')
                         """)
                 .param("orderNo", orderNo)
                 .param("clinicId", clinicId)
                 .param("doctorUserId", doctorUserId)
                 .param("csUserId", csUserId)
+                .param("productType", productType)
                 .update();
         return jdbcClient.sql("SELECT order_id FROM orders WHERE order_no = :orderNo")
                 .param("orderNo", orderNo)

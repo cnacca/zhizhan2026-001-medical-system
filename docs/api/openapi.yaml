@@ -526,6 +526,318 @@ components:
         duration_efficiency:
           type: number
           description: 工时效率（标准工时÷实际工时×100%）
+    ProductionQualitySummary:
+      type: object
+      description: 生产端质量与返工汇总；投诉率和退货率当前预留为 0，待投诉/退货事实表接入后更新。
+      properties:
+        product_type:
+          type: string
+          nullable: true
+          description: 筛选的产品类型；为空表示全局生产汇总。
+        inspected_order_count:
+          type: integer
+          format: int64
+          description: 已产生出检记录的订单数，作为通过率和返工率分母。
+        total_rework_count:
+          type: integer
+          format: int64
+          description: 返工总次数。
+        internal_rework_count:
+          type: integer
+          format: int64
+          description: 责任类型为 WORKER 的内返次数。
+        external_rework_count:
+          type: integer
+          format: int64
+          description: 责任类型为 DOCTOR/CS 的外返次数。
+        unclassified_rework_count:
+          type: integer
+          format: int64
+          description: 未归类、系统或尚未设置责任类型的返工次数。
+        total_rework_rate:
+          type: number
+          format: double
+          description: 总返工率，百分比数值。
+        internal_rework_rate:
+          type: number
+          format: double
+          description: 内返率，百分比数值。
+        external_rework_rate:
+          type: number
+          format: double
+          description: 外返率，百分比数值。
+        first_pass_rate:
+          type: number
+          format: double
+          description: 一次通过率，按每个订单首个出检结果统计。
+        final_pass_rate:
+          type: number
+          format: double
+          description: 终检通过率，按每个订单最新出检结果统计。
+        complaint_rate:
+          type: number
+          format: double
+          description: 投诉率；当前后端暂无投诉事实表，返回 0。
+        return_rate:
+          type: number
+          format: double
+          description: 退货率；当前后端暂无退货事实表，返回 0。
+        generated_at:
+          type: string
+          format: date-time
+          description: 汇总生成时间。
+    ProductionEquipmentSummary:
+      type: object
+      description: 生产端设备管理汇总，来自设备台账和设备事件基础表。
+      properties:
+        equipment_code_prefix:
+          type: string
+          nullable: true
+          description: 筛选的设备编号前缀；为空表示全局设备汇总。
+        total_equipment_count:
+          type: integer
+          format: int64
+          description: 设备台账总数。
+        running_count:
+          type: integer
+          format: int64
+          description: 运行中的设备数。
+        idle_count:
+          type: integer
+          format: int64
+          description: 待机设备数。
+        maintenance_count:
+          type: integer
+          format: int64
+          description: 保养中设备数。
+        fault_count:
+          type: integer
+          format: int64
+          description: 故障设备数。
+        pending_maintenance_count:
+          type: integer
+          format: int64
+          description: 待处理或进行中的保养计划数。
+        open_fault_count:
+          type: integer
+          format: int64
+          description: 待处理或进行中的故障报修数。
+        downtime_minutes:
+          type: integer
+          format: int64
+          description: 设备事件累计停机分钟数。
+        average_utilization_rate:
+          type: number
+          format: double
+          description: 平均设备稼动率，百分比数值。
+        generated_at:
+          type: string
+          format: date-time
+          description: 汇总生成时间。
+    ProductionMaterialExceptionSummary:
+      type: object
+      description: 生产端物料异常汇总，来自物料异常基础事实表。
+      properties:
+        exception_no_prefix:
+          type: string
+          nullable: true
+          description: 筛选的物料异常编号前缀；为空表示全局物料异常汇总。
+        total_exception_count:
+          type: integer
+          format: int64
+          description: 物料异常总数。
+        shortage_count:
+          type: integer
+          format: int64
+          description: 缺料异常数。
+        wrong_material_count:
+          type: integer
+          format: int64
+          description: 错料异常数。
+        batch_abnormal_count:
+          type: integer
+          format: int64
+          description: 批次异常数。
+        material_loss_count:
+          type: integer
+          format: int64
+          description: 材料损耗异常数。
+        pending_count:
+          type: integer
+          format: int64
+          description: 待处理异常数。
+        in_progress_count:
+          type: integer
+          format: int64
+          description: 处理中异常数。
+        closed_count:
+          type: integer
+          format: int64
+          description: 已关闭异常数。
+        responsibility_assigned_count:
+          type: integer
+          format: int64
+          description: 已填写责任归属的异常数。
+        total_loss_quantity:
+          type: number
+          format: double
+          description: 材料损耗数量合计。
+        generated_at:
+          type: string
+          format: date-time
+          description: 汇总生成时间。
+    ProductionSafetyEnvironmentSummary:
+      type: object
+      description: 生产端安环管理汇总，来自安环事件基础事实表。
+      properties:
+        event_no_prefix:
+          type: string
+          nullable: true
+          description: 筛选的安环事件编号前缀；为空表示全局安环事件汇总。
+        total_event_count:
+          type: integer
+          format: int64
+          description: 安环事件总数。
+        safety_inspection_count:
+          type: integer
+          format: int64
+          description: 安全巡检事件数。
+        hazard_rectification_count:
+          type: integer
+          format: int64
+          description: 隐患整改事件数。
+        environment_record_count:
+          type: integer
+          format: int64
+          description: 环境记录事件数。
+        ppe_device_reminder_count:
+          type: integer
+          format: int64
+          description: PPE 和设备安全提醒事件数。
+        pending_count:
+          type: integer
+          format: int64
+          description: 待处理事件数。
+        in_progress_count:
+          type: integer
+          format: int64
+          description: 处理中事件数。
+        closed_count:
+          type: integer
+          format: int64
+          description: 已关闭事件数。
+        overdue_count:
+          type: integer
+          format: int64
+          description: 已超期且未关闭的事件数。
+        high_risk_count:
+          type: integer
+          format: int64
+          description: HIGH 或 CRITICAL 风险等级事件数。
+        generated_at:
+          type: string
+          format: date-time
+          description: 汇总生成时间。
+    ProductionCostSummary:
+      type: object
+      description: 生产端成本管理汇总，来自成本记录基础事实表。
+      properties:
+        cost_no_prefix:
+          type: string
+          nullable: true
+          description: 筛选的成本记录编号前缀；为空表示全局成本汇总。
+        record_count:
+          type: integer
+          format: int64
+          description: 成本记录总数。
+        total_cost_amount:
+          type: number
+          format: double
+          description: 成本合计金额。
+        process_cost_amount:
+          type: number
+          format: double
+          description: 工序成本金额。
+        material_cost_amount:
+          type: number
+          format: double
+          description: 材料成本金额。
+        labor_cost_amount:
+          type: number
+          format: double
+          description: 人工成本金额。
+        rework_cost_amount:
+          type: number
+          format: double
+          description: 返工成本金额。
+        outsourcing_cost_amount:
+          type: number
+          format: double
+          description: 外协成本金额。
+        abnormal_warning_count:
+          type: integer
+          format: int64
+          description: 成本异常预警记录数。
+        generated_at:
+          type: string
+          format: date-time
+          description: 汇总生成时间。
+    ProductionRewardPenaltySummary:
+      type: object
+      description: 生产端奖惩管理汇总，来自奖惩记录基础事实表。
+      properties:
+        record_no_prefix:
+          type: string
+          nullable: true
+          description: 筛选的奖惩记录编号前缀；为空表示全局奖惩汇总。
+        total_record_count:
+          type: integer
+          format: int64
+          description: 奖惩记录总数。
+        reward_count:
+          type: integer
+          format: int64
+          description: 奖励记录数。
+        penalty_count:
+          type: integer
+          format: int64
+          description: 扣罚记录数。
+        pending_count:
+          type: integer
+          format: int64
+          description: 待审批记录数。
+        approved_count:
+          type: integer
+          format: int64
+          description: 已通过记录数。
+        rejected_count:
+          type: integer
+          format: int64
+          description: 已驳回记录数。
+        effective_count:
+          type: integer
+          format: int64
+          description: 已生效记录数。
+        related_order_count:
+          type: integer
+          format: int64
+          description: 已关联订单数。
+        related_process_count:
+          type: integer
+          format: int64
+          description: 已关联工序数。
+        related_employee_count:
+          type: integer
+          format: int64
+          description: 已关联员工数。
+        monthly_amount:
+          type: number
+          format: double
+          description: 本月奖惩金额合计，奖励为正数、扣罚为负数。
+        generated_at:
+          type: string
+          format: date-time
+          description: 汇总生成时间。
     PerformanceDetail:
       type: object
       properties:
@@ -3289,6 +3601,264 @@ paths:
         '503':
           "$ref": "#/components/responses/ServiceUnavailable"
       operationId: getReworks
+  "/production/quality/summary":
+    get:
+      tags:
+      - CheckRecord
+      summary: 获取生产端质量与返工汇总
+      description: |
+        权限：WORKER / CS / ADMIN。
+        用于生产端质量模块展示总返工率、内返率、外返率、一次通过率、终检通过率、投诉率和退货率。
+        医生端不能读取该内部生产质量汇总；投诉率和退货率当前因缺少事实表返回 0。
+      parameters:
+      - name: product_type
+        in: query
+        required: false
+        description: 可选产品类型筛选；前端默认不传，测试可用它隔离历史数据。
+        schema:
+          type: string
+      responses:
+        '200':
+          description: 生产质量汇总
+          content:
+            application/json:
+              schema:
+                allOf:
+                - "$ref": "#/components/schemas/CommonResponse"
+                - type: object
+                  properties:
+                    data:
+                      "$ref": "#/components/schemas/ProductionQualitySummary"
+        '400':
+          "$ref": "#/components/responses/BadRequest"
+        '401':
+          "$ref": "#/components/responses/Unauthorized"
+        '403':
+          "$ref": "#/components/responses/Forbidden"
+        '404':
+          "$ref": "#/components/responses/NotFound"
+        '409':
+          "$ref": "#/components/responses/Conflict"
+        default:
+          "$ref": "#/components/responses/DefaultError"
+        '503':
+          "$ref": "#/components/responses/ServiceUnavailable"
+      operationId: getProductionQualitySummary
+  "/production/equipment/summary":
+    get:
+      tags:
+      - CheckRecord
+      summary: 获取生产端设备管理汇总
+      description: |
+        权限：WORKER / CS / ADMIN。
+        用于生产端设备管理页展示设备台账、设备状态、保养计划、故障报修、停机时长和设备稼动率。
+        医生端不能读取该内部生产设备汇总。
+      parameters:
+      - name: equipment_code_prefix
+        in: query
+        required: false
+        description: 可选设备编号前缀筛选；前端默认不传，测试可用它隔离历史数据。
+        schema:
+          type: string
+      responses:
+        '200':
+          description: 生产设备汇总
+          content:
+            application/json:
+              schema:
+                allOf:
+                - "$ref": "#/components/schemas/CommonResponse"
+                - type: object
+                  properties:
+                    data:
+                      "$ref": "#/components/schemas/ProductionEquipmentSummary"
+        '400':
+          "$ref": "#/components/responses/BadRequest"
+        '401':
+          "$ref": "#/components/responses/Unauthorized"
+        '403':
+          "$ref": "#/components/responses/Forbidden"
+        '404':
+          "$ref": "#/components/responses/NotFound"
+        '409':
+          "$ref": "#/components/responses/Conflict"
+        default:
+          "$ref": "#/components/responses/DefaultError"
+        '503':
+          "$ref": "#/components/responses/ServiceUnavailable"
+      operationId: getProductionEquipmentSummary
+  "/production/material-exceptions/summary":
+    get:
+      tags:
+      - CheckRecord
+      summary: 获取生产端物料异常汇总
+      description: |
+        权限：WORKER / CS / ADMIN。
+        用于生产端物料异常页展示缺料、错料、批次异常、材料损耗、处理状态和责任归属。
+        医生端不能读取该内部生产物料异常汇总。
+      parameters:
+      - name: exception_no_prefix
+        in: query
+        required: false
+        description: 可选物料异常编号前缀筛选；前端默认不传，测试可用它隔离历史数据。
+        schema:
+          type: string
+      responses:
+        '200':
+          description: 生产物料异常汇总
+          content:
+            application/json:
+              schema:
+                allOf:
+                - "$ref": "#/components/schemas/CommonResponse"
+                - type: object
+                  properties:
+                    data:
+                      "$ref": "#/components/schemas/ProductionMaterialExceptionSummary"
+        '400':
+          "$ref": "#/components/responses/BadRequest"
+        '401':
+          "$ref": "#/components/responses/Unauthorized"
+        '403':
+          "$ref": "#/components/responses/Forbidden"
+        '404':
+          "$ref": "#/components/responses/NotFound"
+        '409':
+          "$ref": "#/components/responses/Conflict"
+        default:
+          "$ref": "#/components/responses/DefaultError"
+        '503':
+          "$ref": "#/components/responses/ServiceUnavailable"
+      operationId: getProductionMaterialExceptionSummary
+  "/production/safety-environment/summary":
+    get:
+      tags:
+      - CheckRecord
+      summary: 获取生产端安环管理汇总
+      description: |
+        权限：WORKER / CS / ADMIN。
+        用于生产端安环管理页展示安全巡检、隐患整改、环境记录、PPE/设备安全提醒和安环事件统计。
+        医生端不能读取该内部生产安环汇总。
+      parameters:
+      - name: event_no_prefix
+        in: query
+        required: false
+        description: 可选安环事件编号前缀筛选；前端默认不传，测试可用它隔离历史数据。
+        schema:
+          type: string
+      responses:
+        '200':
+          description: 生产安环汇总
+          content:
+            application/json:
+              schema:
+                allOf:
+                - "$ref": "#/components/schemas/CommonResponse"
+                - type: object
+                  properties:
+                    data:
+                      "$ref": "#/components/schemas/ProductionSafetyEnvironmentSummary"
+        '400':
+          "$ref": "#/components/responses/BadRequest"
+        '401':
+          "$ref": "#/components/responses/Unauthorized"
+        '403':
+          "$ref": "#/components/responses/Forbidden"
+        '404':
+          "$ref": "#/components/responses/NotFound"
+        '409':
+          "$ref": "#/components/responses/Conflict"
+        default:
+          "$ref": "#/components/responses/DefaultError"
+        '503':
+          "$ref": "#/components/responses/ServiceUnavailable"
+      operationId: getProductionSafetyEnvironmentSummary
+  "/production/cost-management/summary":
+    get:
+      tags:
+      - CheckRecord
+      summary: 获取生产端成本管理汇总
+      description: |
+        权限：WORKER / CS / ADMIN。
+        用于生产端成本管理页展示工序成本、材料成本、人工成本、返工成本、外协成本和成本异常预警。
+        医生端不能读取该内部生产成本汇总。
+      parameters:
+      - name: cost_no_prefix
+        in: query
+        required: false
+        description: 可选成本记录编号前缀筛选；前端默认不传，测试可用它隔离历史数据。
+        schema:
+          type: string
+      responses:
+        '200':
+          description: 生产成本汇总
+          content:
+            application/json:
+              schema:
+                allOf:
+                - "$ref": "#/components/schemas/CommonResponse"
+                - type: object
+                  properties:
+                    data:
+                      "$ref": "#/components/schemas/ProductionCostSummary"
+        '400':
+          "$ref": "#/components/responses/BadRequest"
+        '401':
+          "$ref": "#/components/responses/Unauthorized"
+        '403':
+          "$ref": "#/components/responses/Forbidden"
+        '404':
+          "$ref": "#/components/responses/NotFound"
+        '409':
+          "$ref": "#/components/responses/Conflict"
+        default:
+          "$ref": "#/components/responses/DefaultError"
+        '503':
+          "$ref": "#/components/responses/ServiceUnavailable"
+      operationId: getProductionCostSummary
+  "/production/reward-penalty/summary":
+    get:
+      tags:
+      - CheckRecord
+      summary: 获取生产端奖惩管理汇总
+      description: |
+        权限：WORKER / CS / ADMIN。
+        用于生产端奖惩管理页展示奖惩记录、奖惩原因、关联对象、审批状态、月度汇总和绩效影响。
+        医生端不能读取该内部生产奖惩汇总。
+      parameters:
+      - name: record_no_prefix
+        in: query
+        required: false
+        description: 可选奖惩记录编号前缀筛选；前端默认不传，测试可用它隔离历史数据。
+        schema:
+          type: string
+      responses:
+        '200':
+          description: 生产奖惩汇总
+          content:
+            application/json:
+              schema:
+                allOf:
+                - "$ref": "#/components/schemas/CommonResponse"
+                - type: object
+                  properties:
+                    data:
+                      "$ref": "#/components/schemas/ProductionRewardPenaltySummary"
+        '400':
+          "$ref": "#/components/responses/BadRequest"
+        '401':
+          "$ref": "#/components/responses/Unauthorized"
+        '403':
+          "$ref": "#/components/responses/Forbidden"
+        '404':
+          "$ref": "#/components/responses/NotFound"
+        '409':
+          "$ref": "#/components/responses/Conflict"
+        default:
+          "$ref": "#/components/responses/DefaultError"
+        '503':
+          "$ref": "#/components/responses/ServiceUnavailable"
+      operationId: getProductionRewardPenaltySummary
   "/reworks/dictionaries":
     get:
       tags:

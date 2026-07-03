@@ -55,6 +55,57 @@ public class WorkflowExecutionController {
         return new DataResponse<>(workflowExecutionService.getReworkDictionaries(identity));
     }
 
+    @GetMapping("/production/quality/summary")
+    @RequirePermission(value = "check:read-internal", roles = {UserRole.ADMIN, UserRole.CS, UserRole.WORKER})
+    public DataResponse<ProductionQualitySummaryResponse> getProductionQualitySummary(
+            BootstrapIdentity identity,
+            @RequestParam(name = "product_type", required = false) String productType) {
+        return new DataResponse<>(workflowExecutionService.getProductionQualitySummary(productType, identity));
+    }
+
+    @GetMapping("/production/equipment/summary")
+    @RequirePermission(value = "check:read-internal", roles = {UserRole.ADMIN, UserRole.CS, UserRole.WORKER})
+    public DataResponse<ProductionEquipmentSummaryResponse> getProductionEquipmentSummary(
+            BootstrapIdentity identity,
+            @RequestParam(name = "equipment_code_prefix", required = false) String equipmentCodePrefix) {
+        return new DataResponse<>(workflowExecutionService.getProductionEquipmentSummary(equipmentCodePrefix, identity));
+    }
+
+    @GetMapping("/production/material-exceptions/summary")
+    @RequirePermission(value = "check:read-internal", roles = {UserRole.ADMIN, UserRole.CS, UserRole.WORKER})
+    public DataResponse<ProductionMaterialExceptionSummaryResponse> getProductionMaterialExceptionSummary(
+            BootstrapIdentity identity,
+            @RequestParam(name = "exception_no_prefix", required = false) String exceptionNoPrefix) {
+        return new DataResponse<>(
+                workflowExecutionService.getProductionMaterialExceptionSummary(exceptionNoPrefix, identity));
+    }
+
+    @GetMapping("/production/safety-environment/summary")
+    @RequirePermission(value = "check:read-internal", roles = {UserRole.ADMIN, UserRole.CS, UserRole.WORKER})
+    public DataResponse<ProductionSafetyEnvironmentSummaryResponse> getProductionSafetyEnvironmentSummary(
+            BootstrapIdentity identity,
+            @RequestParam(name = "event_no_prefix", required = false) String eventNoPrefix) {
+        return new DataResponse<>(
+                workflowExecutionService.getProductionSafetyEnvironmentSummary(eventNoPrefix, identity));
+    }
+
+    @GetMapping("/production/cost-management/summary")
+    @RequirePermission(value = "check:read-internal", roles = {UserRole.ADMIN, UserRole.CS, UserRole.WORKER})
+    public DataResponse<ProductionCostSummaryResponse> getProductionCostSummary(
+            BootstrapIdentity identity,
+            @RequestParam(name = "cost_no_prefix", required = false) String costNoPrefix) {
+        return new DataResponse<>(workflowExecutionService.getProductionCostSummary(costNoPrefix, identity));
+    }
+
+    @GetMapping("/production/reward-penalty/summary")
+    @RequirePermission(value = "check:read-internal", roles = {UserRole.ADMIN, UserRole.CS, UserRole.WORKER})
+    public DataResponse<ProductionRewardPenaltySummaryResponse> getProductionRewardPenaltySummary(
+            BootstrapIdentity identity,
+            @RequestParam(name = "record_no_prefix", required = false) String recordNoPrefix) {
+        return new DataResponse<>(
+                workflowExecutionService.getProductionRewardPenaltySummary(recordNoPrefix, identity));
+    }
+
     @PostMapping("/reworks/{reworkId}/close")
     @RequirePermission(value = "check:write", roles = {UserRole.ADMIN, UserRole.WORKER})
     public DataResponse<ReworkRecordResponse> closeRework(

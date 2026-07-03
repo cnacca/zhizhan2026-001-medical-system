@@ -372,6 +372,96 @@ type PerformanceStatsResponse = {
   duration_efficiency: number
 }
 
+type ProductionQualitySummaryResponse = {
+  product_type: string | null
+  inspected_order_count: number
+  total_rework_count: number
+  internal_rework_count: number
+  external_rework_count: number
+  unclassified_rework_count: number
+  total_rework_rate: number
+  internal_rework_rate: number
+  external_rework_rate: number
+  first_pass_rate: number
+  final_pass_rate: number
+  complaint_rate: number
+  return_rate: number
+  generated_at: string
+}
+
+type ProductionEquipmentSummaryResponse = {
+  equipment_code_prefix: string | null
+  total_equipment_count: number
+  running_count: number
+  idle_count: number
+  maintenance_count: number
+  fault_count: number
+  pending_maintenance_count: number
+  open_fault_count: number
+  downtime_minutes: number
+  average_utilization_rate: number
+  generated_at: string
+}
+
+type ProductionMaterialExceptionSummaryResponse = {
+  exception_no_prefix: string | null
+  total_exception_count: number
+  shortage_count: number
+  wrong_material_count: number
+  batch_abnormal_count: number
+  material_loss_count: number
+  pending_count: number
+  in_progress_count: number
+  closed_count: number
+  responsibility_assigned_count: number
+  total_loss_quantity: number
+  generated_at: string
+}
+
+type ProductionSafetyEnvironmentSummaryResponse = {
+  event_no_prefix: string | null
+  total_event_count: number
+  safety_inspection_count: number
+  hazard_rectification_count: number
+  environment_record_count: number
+  ppe_device_reminder_count: number
+  pending_count: number
+  in_progress_count: number
+  closed_count: number
+  overdue_count: number
+  high_risk_count: number
+  generated_at: string
+}
+
+type ProductionCostSummaryResponse = {
+  cost_no_prefix: string | null
+  record_count: number
+  total_cost_amount: number
+  process_cost_amount: number
+  material_cost_amount: number
+  labor_cost_amount: number
+  rework_cost_amount: number
+  outsourcing_cost_amount: number
+  abnormal_warning_count: number
+  generated_at: string
+}
+
+type ProductionRewardPenaltySummaryResponse = {
+  record_no_prefix: string | null
+  total_record_count: number
+  reward_count: number
+  penalty_count: number
+  pending_count: number
+  approved_count: number
+  rejected_count: number
+  effective_count: number
+  related_order_count: number
+  related_process_count: number
+  related_employee_count: number
+  monthly_amount: number
+  generated_at: string
+}
+
 type PerformanceDetailResponse = {
   work_log_id: number
   order_id: number
@@ -666,6 +756,24 @@ const performanceDetails = ref<PerformanceDetailResponse[]>([])
 const performanceUserId = ref('')
 const performanceLoading = ref(false)
 const performanceError = ref('')
+const productionQualitySummary = ref<ProductionQualitySummaryResponse | null>(null)
+const productionQualitySummaryLoading = ref(false)
+const productionQualitySummaryError = ref('')
+const productionEquipmentSummary = ref<ProductionEquipmentSummaryResponse | null>(null)
+const productionEquipmentSummaryLoading = ref(false)
+const productionEquipmentSummaryError = ref('')
+const productionMaterialExceptionSummary = ref<ProductionMaterialExceptionSummaryResponse | null>(null)
+const productionMaterialExceptionSummaryLoading = ref(false)
+const productionMaterialExceptionSummaryError = ref('')
+const productionSafetyEnvironmentSummary = ref<ProductionSafetyEnvironmentSummaryResponse | null>(null)
+const productionSafetyEnvironmentSummaryLoading = ref(false)
+const productionSafetyEnvironmentSummaryError = ref('')
+const productionCostSummary = ref<ProductionCostSummaryResponse | null>(null)
+const productionCostSummaryLoading = ref(false)
+const productionCostSummaryError = ref('')
+const productionRewardPenaltySummary = ref<ProductionRewardPenaltySummaryResponse | null>(null)
+const productionRewardPenaltySummaryLoading = ref(false)
+const productionRewardPenaltySummaryError = ref('')
 const productionBoardOrders = ref<InternalOrderItem[]>([])
 const selectedProductionBoardOrder = ref<InternalOrderItem | null>(null)
 const productionBoardInstance = ref<ProcessInstanceDetail | null>(null)
@@ -1565,6 +1673,19 @@ const isReworkFinalRoute = computed(() => activeRoute.value === '/rework-final')
 const isWorklogsRoute = computed(() => activeRoute.value === '/worklogs/self')
 const isPerformanceRoute = computed(() => activeRoute.value === '/performance')
 const isProductionBoardRoute = computed(() => activeRoute.value === '/production/board')
+const isProductionQualitySummaryRoute = computed(() => [
+  'production-quality',
+  'production-quality-overview',
+  'production-rework-management'
+].includes(activeDisplayItem.value?.id ?? ''))
+const isProductionEquipmentSummaryRoute = computed(() => activeDisplayItem.value?.id === 'production-device')
+const isProductionMaterialExceptionSummaryRoute = computed(() => activeDisplayItem.value?.id === 'production-material')
+const isProductionSafetyEnvironmentSummaryRoute = computed(() => activeDisplayItem.value?.id === 'production-safety')
+const isProductionCostSummaryRoute = computed(() => [
+  'production-cost',
+  'production-outsourcing-cost'
+].includes(activeDisplayItem.value?.id ?? ''))
+const isProductionRewardPenaltySummaryRoute = computed(() => activeDisplayItem.value?.id === 'production-reward-penalty')
 const isFormConfigsRoute = computed(() => activeRoute.value === '/system/form-configs')
 const selectedOrderId = computed(() => selectedDoctorOrder.value?.order_id ?? doctorOrderWorkspace.value?.order.order_id ?? null)
 const selectedFormConfigField = computed(() => formConfigFields.value.find((field) => field.field_id === selectedFormConfigFieldId.value) ?? null)
@@ -1839,6 +1960,12 @@ function compactDateTime(value: string | undefined) {
   const pad = (num: number) => String(num).padStart(2, '0')
   return `${pad(parsed.getMonth() + 1)}-${pad(parsed.getDate())} ${pad(parsed.getHours())}:${pad(parsed.getMinutes())}`
 }
+function formatRate(value: number | null | undefined) {
+  return `${Number(value ?? 0).toFixed(1)}%`
+}
+function formatMoney(value: number | null | undefined) {
+  return `¥${Number(value ?? 0).toFixed(2)}`
+}
 const productionBoardNodeStats = computed(() => {
   const stats = {
     READY: 0,
@@ -1853,6 +1980,270 @@ const productionBoardNodeStats = computed(() => {
     }
   }
   return stats
+})
+const productionQualitySummaryCards = computed(() => {
+  const summary = productionQualitySummary.value
+  if (!summary) {
+    return []
+  }
+  return [
+    {
+      title: '总返工率',
+      value: formatRate(summary.total_rework_rate),
+      detail: `${summary.total_rework_count} 次返工 / ${summary.inspected_order_count} 个出检订单`,
+      tone: 'danger'
+    },
+    {
+      title: '内返率',
+      value: formatRate(summary.internal_rework_rate),
+      detail: `${summary.internal_rework_count} 次生产责任返工`,
+      tone: 'warning'
+    },
+    {
+      title: '外返率',
+      value: formatRate(summary.external_rework_rate),
+      detail: `${summary.external_rework_count} 次医生或客服侧返工`,
+      tone: 'purple'
+    },
+    {
+      title: '一次通过率',
+      value: formatRate(summary.first_pass_rate),
+      detail: '按订单首个出检结果统计',
+      tone: 'success'
+    },
+    {
+      title: '终检通过率',
+      value: formatRate(summary.final_pass_rate),
+      detail: '按订单最新出检结果统计',
+      tone: 'info'
+    },
+    {
+      title: '投诉率 / 退货率',
+      value: `${formatRate(summary.complaint_rate)} / ${formatRate(summary.return_rate)}`,
+      detail: '投诉和退货数据表待接入',
+      tone: 'neutral'
+    }
+  ]
+})
+const productionEquipmentSummaryCards = computed(() => {
+  const summary = productionEquipmentSummary.value
+  if (!summary) {
+    return []
+  }
+  return [
+    {
+      title: '设备台账',
+      value: `${summary.total_equipment_count}`,
+      detail: '当前纳入生产设备管理的设备总数',
+      tone: 'info'
+    },
+    {
+      title: '设备状态',
+      value: `${summary.running_count} / ${summary.idle_count}`,
+      detail: '运行中 / 待机设备',
+      tone: 'success'
+    },
+    {
+      title: '保养计划',
+      value: `${summary.pending_maintenance_count}`,
+      detail: `${summary.maintenance_count} 台设备处于保养状态`,
+      tone: 'warning'
+    },
+    {
+      title: '故障报修',
+      value: `${summary.open_fault_count}`,
+      detail: `${summary.fault_count} 台设备处于故障状态`,
+      tone: 'danger'
+    },
+    {
+      title: '停机时长',
+      value: `${summary.downtime_minutes} 分钟`,
+      detail: '按设备事件累计统计',
+      tone: 'neutral'
+    },
+    {
+      title: '设备稼动率',
+      value: formatRate(summary.average_utilization_rate),
+      detail: '按设备台账平均稼动率统计',
+      tone: 'purple'
+    }
+  ]
+})
+const productionMaterialExceptionSummaryCards = computed(() => {
+  const summary = productionMaterialExceptionSummary.value
+  if (!summary) {
+    return []
+  }
+  return [
+    {
+      title: '缺料',
+      value: `${summary.shortage_count}`,
+      detail: `${summary.total_exception_count} 条物料异常中的缺料记录`,
+      tone: 'warning'
+    },
+    {
+      title: '错料',
+      value: `${summary.wrong_material_count}`,
+      detail: '材料规格、型号或领用错误记录',
+      tone: 'danger'
+    },
+    {
+      title: '批次异常',
+      value: `${summary.batch_abnormal_count}`,
+      detail: '供应批次、检验结果或召回范围异常',
+      tone: 'purple'
+    },
+    {
+      title: '材料损耗',
+      value: `${summary.material_loss_count}`,
+      detail: `损耗数量合计 ${summary.total_loss_quantity}`,
+      tone: 'neutral'
+    },
+    {
+      title: '处理状态',
+      value: `${summary.pending_count} / ${summary.in_progress_count} / ${summary.closed_count}`,
+      detail: '待处理 / 处理中 / 已关闭',
+      tone: 'info'
+    },
+    {
+      title: '责任归属',
+      value: `${summary.responsibility_assigned_count}`,
+      detail: '已填写责任部门、班组或供应商的记录',
+      tone: 'success'
+    }
+  ]
+})
+const productionSafetyEnvironmentSummaryCards = computed(() => {
+  const summary = productionSafetyEnvironmentSummary.value
+  if (!summary) {
+    return []
+  }
+  return [
+    {
+      title: '安全巡检',
+      value: `${summary.safety_inspection_count}`,
+      detail: `${summary.total_event_count} 条安环事件中的巡检记录`,
+      tone: 'info'
+    },
+    {
+      title: '隐患整改',
+      value: `${summary.hazard_rectification_count}`,
+      detail: `超期待办 ${summary.overdue_count} 条`,
+      tone: 'warning'
+    },
+    {
+      title: '环境记录',
+      value: `${summary.environment_record_count}`,
+      detail: '温湿度、粉尘、通风和清洁记录',
+      tone: 'success'
+    },
+    {
+      title: 'PPE/设备安全提醒',
+      value: `${summary.ppe_device_reminder_count}`,
+      detail: '防护用品和设备安全提醒',
+      tone: 'purple'
+    },
+    {
+      title: '安环事件统计',
+      value: `${summary.pending_count} / ${summary.in_progress_count} / ${summary.closed_count}`,
+      detail: '待处理 / 处理中 / 已关闭',
+      tone: 'neutral'
+    },
+    {
+      title: '高风险待办',
+      value: `${summary.high_risk_count}`,
+      detail: 'HIGH / CRITICAL 风险等级事件',
+      tone: 'danger'
+    }
+  ]
+})
+const productionCostSummaryCards = computed(() => {
+  const summary = productionCostSummary.value
+  if (!summary) {
+    return []
+  }
+  return [
+    {
+      title: '工序成本',
+      value: formatMoney(summary.process_cost_amount),
+      detail: `${summary.record_count} 条成本记录中的工序成本`,
+      tone: 'info'
+    },
+    {
+      title: '材料成本',
+      value: formatMoney(summary.material_cost_amount),
+      detail: '材料领用、损耗和补料成本',
+      tone: 'warning'
+    },
+    {
+      title: '人工成本',
+      value: formatMoney(summary.labor_cost_amount),
+      detail: '按工时和岗位核算的人工成本',
+      tone: 'success'
+    },
+    {
+      title: '返工成本',
+      value: formatMoney(summary.rework_cost_amount),
+      detail: '内返、外返和终检返工成本',
+      tone: 'danger'
+    },
+    {
+      title: '外协成本',
+      value: formatMoney(summary.outsourcing_cost_amount),
+      detail: '外协订单、供应商费用和结算偏差',
+      tone: 'purple'
+    },
+    {
+      title: '成本异常预警',
+      value: `${summary.abnormal_warning_count}`,
+      detail: `当前累计成本 ${formatMoney(summary.total_cost_amount)}`,
+      tone: 'neutral'
+    }
+  ]
+})
+const productionRewardPenaltySummaryCards = computed(() => {
+  const summary = productionRewardPenaltySummary.value
+  if (!summary) {
+    return []
+  }
+  return [
+    {
+      title: '奖惩记录',
+      value: `${summary.total_record_count}`,
+      detail: `奖励 ${summary.reward_count} 条 / 扣罚 ${summary.penalty_count} 条`,
+      tone: 'info'
+    },
+    {
+      title: '奖惩原因',
+      value: `${summary.reward_count + summary.penalty_count}`,
+      detail: '质量、效率、纪律、安环和客户反馈等原因',
+      tone: 'warning'
+    },
+    {
+      title: '关联对象',
+      value: `${summary.related_order_count} / ${summary.related_process_count} / ${summary.related_employee_count}`,
+      detail: '关联订单 / 工序 / 员工',
+      tone: 'success'
+    },
+    {
+      title: '审批状态',
+      value: `${summary.pending_count} / ${summary.approved_count} / ${summary.rejected_count}`,
+      detail: '待审批 / 已通过 / 已驳回',
+      tone: 'purple'
+    },
+    {
+      title: '月度汇总',
+      value: formatMoney(summary.monthly_amount),
+      detail: `${summary.effective_count} 条已生效奖惩`,
+      tone: 'neutral'
+    },
+    {
+      title: '绩效影响',
+      value: formatMoney(summary.monthly_amount),
+      detail: '按本月奖惩金额纳入绩效影响预估',
+      tone: 'danger'
+    }
+  ]
 })
 
 async function checkHealth() {
@@ -1945,6 +2336,18 @@ async function loadActiveRouteData() {
     await loadPerformanceStats()
   } else if (activeRoute.value === '/production/board') {
     await loadProductionBoardOrders()
+  } else if (isProductionQualitySummaryRoute.value) {
+    await loadProductionQualitySummary()
+  } else if (isProductionEquipmentSummaryRoute.value) {
+    await loadProductionEquipmentSummary()
+  } else if (isProductionMaterialExceptionSummaryRoute.value) {
+    await loadProductionMaterialExceptionSummary()
+  } else if (isProductionSafetyEnvironmentSummaryRoute.value) {
+    await loadProductionSafetyEnvironmentSummary()
+  } else if (isProductionCostSummaryRoute.value) {
+    await loadProductionCostSummary()
+  } else if (isProductionRewardPenaltySummaryRoute.value) {
+    await loadProductionRewardPenaltySummary()
   } else if (activeRoute.value === '/system/form-configs') {
     await loadFormConfigFields()
   }
@@ -2039,6 +2442,21 @@ function navigateToRoute(routePath: string) {
     void loadPerformanceStats()
   } else if (routePath === '/production/board') {
     void loadProductionBoardOrders()
+  } else if ([
+    '/production/quality',
+    '/production/rework-management'
+  ].includes(routePath)) {
+    void loadProductionQualitySummary()
+  } else if (routePath === '/production/devices') {
+    void loadProductionEquipmentSummary()
+  } else if (routePath === '/production/material-exceptions') {
+    void loadProductionMaterialExceptionSummary()
+  } else if (routePath === '/production/safety-environment') {
+    void loadProductionSafetyEnvironmentSummary()
+  } else if (routePath === '/production/cost-management' || routePath === '/production/outsourcing-cost') {
+    void loadProductionCostSummary()
+  } else if (routePath === '/production/reward-penalty') {
+    void loadProductionRewardPenaltySummary()
   } else if (routePath === '/system/form-configs') {
     void loadFormConfigFields()
   }
@@ -3562,6 +3980,108 @@ async function loadPerformanceStats() {
     performanceError.value = error instanceof Error ? error.message : '绩效统计加载失败'
   } finally {
     performanceLoading.value = false
+  }
+}
+
+async function loadProductionQualitySummary() {
+  if (!token.value) {
+    return
+  }
+  productionQualitySummaryLoading.value = true
+  productionQualitySummaryError.value = ''
+  try {
+    const payload = await apiFetch<ProductionQualitySummaryResponse>('/production/quality/summary')
+    productionQualitySummary.value = payload.data
+  } catch (error) {
+    productionQualitySummary.value = null
+    productionQualitySummaryError.value = error instanceof Error ? error.message : '质量汇总加载失败'
+  } finally {
+    productionQualitySummaryLoading.value = false
+  }
+}
+
+async function loadProductionEquipmentSummary() {
+  if (!token.value) {
+    return
+  }
+  productionEquipmentSummaryLoading.value = true
+  productionEquipmentSummaryError.value = ''
+  try {
+    const payload = await apiFetch<ProductionEquipmentSummaryResponse>('/production/equipment/summary')
+    productionEquipmentSummary.value = payload.data
+  } catch (error) {
+    productionEquipmentSummary.value = null
+    productionEquipmentSummaryError.value = error instanceof Error ? error.message : '设备汇总加载失败'
+  } finally {
+    productionEquipmentSummaryLoading.value = false
+  }
+}
+
+async function loadProductionMaterialExceptionSummary() {
+  if (!token.value) {
+    return
+  }
+  productionMaterialExceptionSummaryLoading.value = true
+  productionMaterialExceptionSummaryError.value = ''
+  try {
+    const payload = await apiFetch<ProductionMaterialExceptionSummaryResponse>('/production/material-exceptions/summary')
+    productionMaterialExceptionSummary.value = payload.data
+  } catch (error) {
+    productionMaterialExceptionSummary.value = null
+    productionMaterialExceptionSummaryError.value = error instanceof Error ? error.message : '物料异常汇总加载失败'
+  } finally {
+    productionMaterialExceptionSummaryLoading.value = false
+  }
+}
+
+async function loadProductionSafetyEnvironmentSummary() {
+  if (!token.value) {
+    return
+  }
+  productionSafetyEnvironmentSummaryLoading.value = true
+  productionSafetyEnvironmentSummaryError.value = ''
+  try {
+    const payload = await apiFetch<ProductionSafetyEnvironmentSummaryResponse>('/production/safety-environment/summary')
+    productionSafetyEnvironmentSummary.value = payload.data
+  } catch (error) {
+    productionSafetyEnvironmentSummary.value = null
+    productionSafetyEnvironmentSummaryError.value = error instanceof Error ? error.message : '安环汇总加载失败'
+  } finally {
+    productionSafetyEnvironmentSummaryLoading.value = false
+  }
+}
+
+async function loadProductionCostSummary() {
+  if (!token.value) {
+    return
+  }
+  productionCostSummaryLoading.value = true
+  productionCostSummaryError.value = ''
+  try {
+    const payload = await apiFetch<ProductionCostSummaryResponse>('/production/cost-management/summary')
+    productionCostSummary.value = payload.data
+  } catch (error) {
+    productionCostSummary.value = null
+    productionCostSummaryError.value = error instanceof Error ? error.message : '成本汇总加载失败'
+  } finally {
+    productionCostSummaryLoading.value = false
+  }
+}
+
+async function loadProductionRewardPenaltySummary() {
+  if (!token.value) {
+    return
+  }
+  productionRewardPenaltySummaryLoading.value = true
+  productionRewardPenaltySummaryError.value = ''
+  try {
+    const payload = await apiFetch<ProductionRewardPenaltySummaryResponse>('/production/reward-penalty/summary')
+    productionRewardPenaltySummary.value = payload.data
+  } catch (error) {
+    productionRewardPenaltySummary.value = null
+    productionRewardPenaltySummaryError.value = error instanceof Error ? error.message : '奖惩汇总加载失败'
+  } finally {
+    productionRewardPenaltySummaryLoading.value = false
   }
 }
 
@@ -5982,11 +6502,265 @@ onBeforeUnmount(() => {
             </div>
           </div>
           <el-alert
-            title="该功能已纳入前端演示导航，后续确认正式范围后再接入接口、权限和数据表。"
+            :title="isProductionQualitySummaryRoute || isProductionEquipmentSummaryRoute || isProductionMaterialExceptionSummaryRoute || isProductionSafetyEnvironmentSummaryRoute || isProductionCostSummaryRoute || isProductionRewardPenaltySummaryRoute
+              ? '该功能已接入当前后端汇总数据，细项管理、编辑和审批流程后续确认正式范围后再补齐。'
+              : '该功能已纳入前端演示导航，后续确认正式范围后再接入接口、权限和数据表。'"
             type="info"
             show-icon
             :closable="false"
           />
+          <div v-if="isProductionQualitySummaryRoute" class="prototype-queue-card">
+            <div class="prototype-table-head">
+              <div>
+                <h3>真实质量汇总</h3>
+                <small>
+                  {{ productionQualitySummary?.generated_at ? `更新 ${compactDateTime(productionQualitySummary.generated_at)}` : '来自后端出检与返工记录' }}
+                </small>
+              </div>
+              <el-button
+                size="small"
+                :loading="productionQualitySummaryLoading"
+                @click="loadProductionQualitySummary"
+              >
+                刷新质量数据
+              </el-button>
+            </div>
+            <el-alert
+              v-if="productionQualitySummaryError"
+              :title="productionQualitySummaryError"
+              type="warning"
+              show-icon
+              :closable="false"
+            />
+            <div v-if="productionQualitySummaryCards.length" class="placeholder-content-grid">
+              <article
+                v-for="card in productionQualitySummaryCards"
+                :key="card.title"
+                class="placeholder-content-card"
+                :class="`tone-${card.tone}`"
+              >
+                <span class="placeholder-content-dot" />
+                <strong>{{ card.title }}</strong>
+                <b>{{ card.value }}</b>
+                <small>{{ card.detail }}</small>
+              </article>
+            </div>
+            <div v-else-if="!productionQualitySummaryLoading && !productionQualitySummaryError" class="empty-state">
+              暂无质量汇总数据
+            </div>
+          </div>
+          <div v-if="isProductionEquipmentSummaryRoute" class="prototype-queue-card">
+            <div class="prototype-table-head">
+              <div>
+                <h3>真实设备汇总</h3>
+                <small>
+                  {{ productionEquipmentSummary?.generated_at ? `更新 ${compactDateTime(productionEquipmentSummary.generated_at)}` : '来自后端设备台账和设备事件' }}
+                </small>
+              </div>
+              <el-button
+                size="small"
+                :loading="productionEquipmentSummaryLoading"
+                @click="loadProductionEquipmentSummary"
+              >
+                刷新设备数据
+              </el-button>
+            </div>
+            <el-alert
+              v-if="productionEquipmentSummaryError"
+              :title="productionEquipmentSummaryError"
+              type="warning"
+              show-icon
+              :closable="false"
+            />
+            <div v-if="productionEquipmentSummaryCards.length" class="placeholder-content-grid">
+              <article
+                v-for="card in productionEquipmentSummaryCards"
+                :key="card.title"
+                class="placeholder-content-card"
+                :class="`tone-${card.tone}`"
+              >
+                <span class="placeholder-content-dot" />
+                <strong>{{ card.title }}</strong>
+                <b>{{ card.value }}</b>
+                <small>{{ card.detail }}</small>
+              </article>
+            </div>
+            <div v-else-if="!productionEquipmentSummaryLoading && !productionEquipmentSummaryError" class="empty-state">
+              暂无设备汇总数据
+            </div>
+          </div>
+          <div v-if="isProductionMaterialExceptionSummaryRoute" class="prototype-queue-card">
+            <div class="prototype-table-head">
+              <div>
+                <h3>真实物料异常汇总</h3>
+                <small>
+                  {{ productionMaterialExceptionSummary?.generated_at ? `更新 ${compactDateTime(productionMaterialExceptionSummary.generated_at)}` : '来自后端物料异常事实表' }}
+                </small>
+              </div>
+              <el-button
+                size="small"
+                :loading="productionMaterialExceptionSummaryLoading"
+                @click="loadProductionMaterialExceptionSummary"
+              >
+                刷新物料数据
+              </el-button>
+            </div>
+            <el-alert
+              v-if="productionMaterialExceptionSummaryError"
+              :title="productionMaterialExceptionSummaryError"
+              type="warning"
+              show-icon
+              :closable="false"
+            />
+            <div v-if="productionMaterialExceptionSummaryCards.length" class="placeholder-content-grid">
+              <article
+                v-for="card in productionMaterialExceptionSummaryCards"
+                :key="card.title"
+                class="placeholder-content-card"
+                :class="`tone-${card.tone}`"
+              >
+                <span class="placeholder-content-dot" />
+                <strong>{{ card.title }}</strong>
+                <b>{{ card.value }}</b>
+                <small>{{ card.detail }}</small>
+              </article>
+            </div>
+            <div
+              v-else-if="!productionMaterialExceptionSummaryLoading && !productionMaterialExceptionSummaryError"
+              class="empty-state"
+            >
+              暂无物料异常汇总数据
+            </div>
+          </div>
+          <div v-if="isProductionSafetyEnvironmentSummaryRoute" class="prototype-queue-card">
+            <div class="prototype-table-head">
+              <div>
+                <h3>真实安环汇总</h3>
+                <small>
+                  {{ productionSafetyEnvironmentSummary?.generated_at ? `更新 ${compactDateTime(productionSafetyEnvironmentSummary.generated_at)}` : '来自后端安环事件事实表' }}
+                </small>
+              </div>
+              <el-button
+                size="small"
+                :loading="productionSafetyEnvironmentSummaryLoading"
+                @click="loadProductionSafetyEnvironmentSummary"
+              >
+                刷新安环数据
+              </el-button>
+            </div>
+            <el-alert
+              v-if="productionSafetyEnvironmentSummaryError"
+              :title="productionSafetyEnvironmentSummaryError"
+              type="warning"
+              show-icon
+              :closable="false"
+            />
+            <div v-if="productionSafetyEnvironmentSummaryCards.length" class="placeholder-content-grid">
+              <article
+                v-for="card in productionSafetyEnvironmentSummaryCards"
+                :key="card.title"
+                class="placeholder-content-card"
+                :class="`tone-${card.tone}`"
+              >
+                <span class="placeholder-content-dot" />
+                <strong>{{ card.title }}</strong>
+                <b>{{ card.value }}</b>
+                <small>{{ card.detail }}</small>
+              </article>
+            </div>
+            <div
+              v-else-if="!productionSafetyEnvironmentSummaryLoading && !productionSafetyEnvironmentSummaryError"
+              class="empty-state"
+            >
+              暂无安环汇总数据
+            </div>
+          </div>
+          <div v-if="isProductionCostSummaryRoute" class="prototype-queue-card">
+            <div class="prototype-table-head">
+              <div>
+                <h3>真实成本汇总</h3>
+                <small>
+                  {{ productionCostSummary?.generated_at ? `更新 ${compactDateTime(productionCostSummary.generated_at)}` : '来自后端成本事实表' }}
+                </small>
+              </div>
+              <el-button
+                size="small"
+                :loading="productionCostSummaryLoading"
+                @click="loadProductionCostSummary"
+              >
+                刷新成本数据
+              </el-button>
+            </div>
+            <el-alert
+              v-if="productionCostSummaryError"
+              :title="productionCostSummaryError"
+              type="warning"
+              show-icon
+              :closable="false"
+            />
+            <div v-if="productionCostSummaryCards.length" class="placeholder-content-grid">
+              <article
+                v-for="card in productionCostSummaryCards"
+                :key="card.title"
+                class="placeholder-content-card"
+                :class="`tone-${card.tone}`"
+              >
+                <span class="placeholder-content-dot" />
+                <strong>{{ card.title }}</strong>
+                <b>{{ card.value }}</b>
+                <small>{{ card.detail }}</small>
+              </article>
+            </div>
+            <div
+              v-else-if="!productionCostSummaryLoading && !productionCostSummaryError"
+              class="empty-state"
+            >
+              暂无成本汇总数据
+            </div>
+          </div>
+          <div v-if="isProductionRewardPenaltySummaryRoute" class="prototype-queue-card">
+            <div class="prototype-table-head">
+              <div>
+                <h3>真实奖惩汇总</h3>
+                <small>
+                  {{ productionRewardPenaltySummary?.generated_at ? `更新 ${compactDateTime(productionRewardPenaltySummary.generated_at)}` : '来自后端奖惩事实表' }}
+                </small>
+              </div>
+              <el-button
+                size="small"
+                :loading="productionRewardPenaltySummaryLoading"
+                @click="loadProductionRewardPenaltySummary"
+              >
+                刷新奖惩数据
+              </el-button>
+            </div>
+            <el-alert
+              v-if="productionRewardPenaltySummaryError"
+              :title="productionRewardPenaltySummaryError"
+              type="warning"
+              show-icon
+              :closable="false"
+            />
+            <div v-if="productionRewardPenaltySummaryCards.length" class="placeholder-content-grid">
+              <article
+                v-for="card in productionRewardPenaltySummaryCards"
+                :key="card.title"
+                class="placeholder-content-card"
+                :class="`tone-${card.tone}`"
+              >
+                <span class="placeholder-content-dot" />
+                <strong>{{ card.title }}</strong>
+                <b>{{ card.value }}</b>
+                <small>{{ card.detail }}</small>
+              </article>
+            </div>
+            <div
+              v-else-if="!productionRewardPenaltySummaryLoading && !productionRewardPenaltySummaryError"
+              class="empty-state"
+            >
+              暂无奖惩汇总数据
+            </div>
+          </div>
           <div v-if="activePlaceholderContentItems.length" class="placeholder-content-grid">
             <article
               v-for="item in activePlaceholderContentItems"

@@ -6,6 +6,8 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import com.yuri.aiorder.common.BootstrapIdentity;
 import com.yuri.aiorder.common.auth.AccessControlService;
 import com.yuri.aiorder.notification.NotificationPushService;
+import java.math.BigDecimal;
+import java.math.RoundingMode;
 import java.time.LocalDateTime;
 import java.util.List;
 import org.springframework.dao.EmptyResultDataAccessException;
@@ -191,6 +193,389 @@ public class WorkflowExecutionService {
     public ReworkDictionariesResponse getReworkDictionaries(BootstrapIdentity identity) {
         accessControlService.requireCheckRecordRead(identity);
         return new ReworkDictionariesResponse(REWORK_REASON_CATEGORIES, REWORK_RESPONSIBILITY_TYPES);
+    }
+
+    public ProductionQualitySummaryResponse getProductionQualitySummary(
+            String productType, BootstrapIdentity identity) {
+        accessControlService.requireCheckRecordRead(identity);
+        String normalizedProductType = blankToNull(productType);
+        String productTypeClause = normalizedProductType == null ? "" : " AND o.product_type = :productType";
+
+        JdbcClient.StatementSpec checkSpec = jdbcClient.sql("""
+                        WITH ranked_out_checks AS (
+                            SELECT
+                                c.order_id,
+                                c.result,
+                                ROW_NUMBER() OVER (
+                                    PARTITION BY c.order_id
+                                    ORDER BY c.created_at ASC, c.check_id ASC
+                                ) AS first_rank,
+                                ROW_NUMBER() OVER (
+                                    PARTITION BY c.order_id
+                                    ORDER BY c.created_at DESC, c.check_id DESC
+                                ) AS latest_rank
+                            FROM check_record c
+                            JOIN orders o ON o.order_id = c.order_id
+                            WHERE c.check_type = 'OUT'
+                        """ + productTypeClause + """
+                        )
+                        SELECT
+                            COUNT(DISTINCT order_id) AS inspected_order_count,
+                            COALESCE(SUM(CASE WHEN first_rank = 1 AND result = 'PASS' THEN 1 ELSE 0 END), 0)
+                                AS first_pass_count,
+                            COALESCE(SUM(CASE WHEN latest_rank = 1 AND result = 'PASS' THEN 1 ELSE 0 END), 0)
+                                AS final_pass_count
+                        FROM ranked_out_checks
+                        """);
+        if (normalizedProductType != null) {
+            checkSpec = checkSpec.param("productType", normalizedProductType);
+        }
+        QualityCheckSummaryRow checkSummary = checkSpec.query((rs, rowNum) -> new QualityCheckSummaryRow(
+                        rs.getLong("inspected_order_count"),
+                        rs.getLong("first_pass_count"),
+                        rs.getLong("final_pass_count")))
+                .single();
+
+        JdbcClient.StatementSpec reworkSpec = jdbcClient.sql("""
+                        SELECT
+                            COUNT(*) AS total_rework_count,
+                            COALESCE(SUM(CASE WHEN r.responsibility_type = 'WORKER' THEN 1 ELSE 0 END), 0)
+                                AS internal_rework_count,
+                            COALESCE(SUM(CASE WHEN r.responsibility_type IN ('DOCTOR', 'CS') THEN 1 ELSE 0 END), 0)
+                                AS external_rework_count,
+                            COALESCE(SUM(CASE
+                                WHEN r.responsibility_type IS NULL
+                                     OR r.responsibility_type NOT IN ('WORKER', 'DOCTOR', 'CS')
+                                THEN 1 ELSE 0 END), 0) AS unclassified_rework_count
+                        FROM rework_record r
+                        JOIN orders o ON o.order_id = r.order_id
+                        WHERE 1 = 1
+                        """ + productTypeClause);
+        if (normalizedProductType != null) {
+            reworkSpec = reworkSpec.param("productType", normalizedProductType);
+        }
+        QualityReworkSummaryRow reworkSummary = reworkSpec.query((rs, rowNum) -> new QualityReworkSummaryRow(
+                        rs.getLong("total_rework_count"),
+                        rs.getLong("internal_rework_count"),
+                        rs.getLong("external_rework_count"),
+                        rs.getLong("unclassified_rework_count")))
+                .single();
+
+        long inspectedOrderCount = checkSummary.inspectedOrderCount();
+        return new ProductionQualitySummaryResponse(
+                normalizedProductType,
+                inspectedOrderCount,
+                reworkSummary.totalReworkCount(),
+                reworkSummary.internalReworkCount(),
+                reworkSummary.externalReworkCount(),
+                reworkSummary.unclassifiedReworkCount(),
+                percentage(reworkSummary.totalReworkCount(), inspectedOrderCount),
+                percentage(reworkSummary.internalReworkCount(), inspectedOrderCount),
+                percentage(reworkSummary.externalReworkCount(), inspectedOrderCount),
+                percentage(checkSummary.firstPassCount(), inspectedOrderCount),
+                percentage(checkSummary.finalPassCount(), inspectedOrderCount),
+                0.0,
+                0.0,
+                LocalDateTime.now());
+    }
+
+    public ProductionEquipmentSummaryResponse getProductionEquipmentSummary(
+            String equipmentCodePrefix, BootstrapIdentity identity) {
+        accessControlService.requireCheckRecordRead(identity);
+        String normalizedPrefix = blankToNull(equipmentCodePrefix);
+        String prefixClause = normalizedPrefix == null ? "" : " WHERE e.equipment_code LIKE :equipmentCodePattern";
+
+        JdbcClient.StatementSpec equipmentSpec = jdbcClient.sql("""
+                        SELECT
+                            COUNT(*) AS total_equipment_count,
+                            COALESCE(SUM(CASE WHEN e.status = 'RUNNING' THEN 1 ELSE 0 END), 0) AS running_count,
+                            COALESCE(SUM(CASE WHEN e.status = 'IDLE' THEN 1 ELSE 0 END), 0) AS idle_count,
+                            COALESCE(SUM(CASE WHEN e.status = 'MAINTENANCE' THEN 1 ELSE 0 END), 0) AS maintenance_count,
+                            COALESCE(SUM(CASE WHEN e.status = 'FAULT' THEN 1 ELSE 0 END), 0) AS fault_count,
+                            COALESCE(AVG(e.utilization_rate), 0) AS average_utilization_rate
+                        FROM production_equipment e
+                        """ + prefixClause);
+        if (normalizedPrefix != null) {
+            equipmentSpec = equipmentSpec.param("equipmentCodePattern", normalizedPrefix + "%");
+        }
+        EquipmentSummaryRow equipmentSummary = equipmentSpec.query((rs, rowNum) -> new EquipmentSummaryRow(
+                        rs.getLong("total_equipment_count"),
+                        rs.getLong("running_count"),
+                        rs.getLong("idle_count"),
+                        rs.getLong("maintenance_count"),
+                        rs.getLong("fault_count"),
+                        roundedDecimal(rs.getBigDecimal("average_utilization_rate"))))
+                .single();
+
+        String eventPrefixClause = normalizedPrefix == null ? "" : " WHERE e.equipment_code LIKE :equipmentCodePattern";
+        JdbcClient.StatementSpec eventSpec = jdbcClient.sql("""
+                        SELECT
+                            COALESCE(SUM(CASE
+                                WHEN ev.event_type = 'MAINTENANCE_PLAN'
+                                     AND ev.status IN ('PENDING', 'IN_PROGRESS')
+                                THEN 1 ELSE 0 END), 0) AS pending_maintenance_count,
+                            COALESCE(SUM(CASE
+                                WHEN ev.event_type = 'FAULT_REPAIR'
+                                     AND ev.status IN ('PENDING', 'IN_PROGRESS')
+                                THEN 1 ELSE 0 END), 0) AS open_fault_count,
+                            COALESCE(SUM(ev.downtime_minutes), 0) AS downtime_minutes
+                        FROM production_equipment_event ev
+                        JOIN production_equipment e ON e.equipment_id = ev.equipment_id
+                        """ + eventPrefixClause);
+        if (normalizedPrefix != null) {
+            eventSpec = eventSpec.param("equipmentCodePattern", normalizedPrefix + "%");
+        }
+        EquipmentEventSummaryRow eventSummary = eventSpec.query((rs, rowNum) -> new EquipmentEventSummaryRow(
+                        rs.getLong("pending_maintenance_count"),
+                        rs.getLong("open_fault_count"),
+                        rs.getLong("downtime_minutes")))
+                .single();
+
+        return new ProductionEquipmentSummaryResponse(
+                normalizedPrefix,
+                equipmentSummary.totalEquipmentCount(),
+                equipmentSummary.runningCount(),
+                equipmentSummary.idleCount(),
+                equipmentSummary.maintenanceCount(),
+                equipmentSummary.faultCount(),
+                eventSummary.pendingMaintenanceCount(),
+                eventSummary.openFaultCount(),
+                eventSummary.downtimeMinutes(),
+                equipmentSummary.averageUtilizationRate(),
+                LocalDateTime.now());
+    }
+
+    public ProductionMaterialExceptionSummaryResponse getProductionMaterialExceptionSummary(
+            String exceptionNoPrefix, BootstrapIdentity identity) {
+        accessControlService.requireCheckRecordRead(identity);
+        String normalizedPrefix = blankToNull(exceptionNoPrefix);
+        String prefixClause = normalizedPrefix == null ? "" : " WHERE m.exception_no LIKE :exceptionNoPattern";
+
+        JdbcClient.StatementSpec spec = jdbcClient.sql("""
+                        SELECT
+                            COUNT(*) AS total_exception_count,
+                            COALESCE(SUM(CASE WHEN m.exception_type = 'SHORTAGE' THEN 1 ELSE 0 END), 0)
+                                AS shortage_count,
+                            COALESCE(SUM(CASE WHEN m.exception_type = 'WRONG_MATERIAL' THEN 1 ELSE 0 END), 0)
+                                AS wrong_material_count,
+                            COALESCE(SUM(CASE WHEN m.exception_type = 'BATCH_ABNORMAL' THEN 1 ELSE 0 END), 0)
+                                AS batch_abnormal_count,
+                            COALESCE(SUM(CASE WHEN m.exception_type = 'MATERIAL_LOSS' THEN 1 ELSE 0 END), 0)
+                                AS material_loss_count,
+                            COALESCE(SUM(CASE WHEN m.status = 'PENDING' THEN 1 ELSE 0 END), 0) AS pending_count,
+                            COALESCE(SUM(CASE WHEN m.status = 'IN_PROGRESS' THEN 1 ELSE 0 END), 0)
+                                AS in_progress_count,
+                            COALESCE(SUM(CASE WHEN m.status = 'CLOSED' THEN 1 ELSE 0 END), 0) AS closed_count,
+                            COALESCE(SUM(CASE
+                                WHEN m.responsibility_owner IS NOT NULL AND m.responsibility_owner <> ''
+                                THEN 1 ELSE 0 END), 0) AS responsibility_assigned_count,
+                            COALESCE(SUM(m.loss_quantity), 0) AS total_loss_quantity
+                        FROM production_material_exception m
+                        """ + prefixClause);
+        if (normalizedPrefix != null) {
+            spec = spec.param("exceptionNoPattern", normalizedPrefix + "%");
+        }
+        MaterialExceptionSummaryRow summary = spec.query((rs, rowNum) -> new MaterialExceptionSummaryRow(
+                        rs.getLong("total_exception_count"),
+                        rs.getLong("shortage_count"),
+                        rs.getLong("wrong_material_count"),
+                        rs.getLong("batch_abnormal_count"),
+                        rs.getLong("material_loss_count"),
+                        rs.getLong("pending_count"),
+                        rs.getLong("in_progress_count"),
+                        rs.getLong("closed_count"),
+                        rs.getLong("responsibility_assigned_count"),
+                        roundedDecimal(rs.getBigDecimal("total_loss_quantity"), 2)))
+                .single();
+
+        return new ProductionMaterialExceptionSummaryResponse(
+                normalizedPrefix,
+                summary.totalExceptionCount(),
+                summary.shortageCount(),
+                summary.wrongMaterialCount(),
+                summary.batchAbnormalCount(),
+                summary.materialLossCount(),
+                summary.pendingCount(),
+                summary.inProgressCount(),
+                summary.closedCount(),
+                summary.responsibilityAssignedCount(),
+                summary.totalLossQuantity(),
+                LocalDateTime.now());
+    }
+
+    public ProductionSafetyEnvironmentSummaryResponse getProductionSafetyEnvironmentSummary(
+            String eventNoPrefix, BootstrapIdentity identity) {
+        accessControlService.requireCheckRecordRead(identity);
+        String normalizedPrefix = blankToNull(eventNoPrefix);
+        String prefixClause = normalizedPrefix == null ? "" : " WHERE s.event_no LIKE :eventNoPattern";
+
+        JdbcClient.StatementSpec spec = jdbcClient.sql("""
+                        SELECT
+                            COUNT(*) AS total_event_count,
+                            COALESCE(SUM(CASE WHEN s.event_type = 'SAFETY_INSPECTION' THEN 1 ELSE 0 END), 0)
+                                AS safety_inspection_count,
+                            COALESCE(SUM(CASE WHEN s.event_type = 'HAZARD_RECTIFICATION' THEN 1 ELSE 0 END), 0)
+                                AS hazard_rectification_count,
+                            COALESCE(SUM(CASE WHEN s.event_type = 'ENVIRONMENT_RECORD' THEN 1 ELSE 0 END), 0)
+                                AS environment_record_count,
+                            COALESCE(SUM(CASE WHEN s.event_type = 'PPE_DEVICE_REMINDER' THEN 1 ELSE 0 END), 0)
+                                AS ppe_device_reminder_count,
+                            COALESCE(SUM(CASE WHEN s.status = 'PENDING' THEN 1 ELSE 0 END), 0) AS pending_count,
+                            COALESCE(SUM(CASE WHEN s.status = 'IN_PROGRESS' THEN 1 ELSE 0 END), 0)
+                                AS in_progress_count,
+                            COALESCE(SUM(CASE WHEN s.status = 'CLOSED' THEN 1 ELSE 0 END), 0) AS closed_count,
+                            COALESCE(SUM(CASE
+                                WHEN s.status <> 'CLOSED'
+                                     AND s.due_at IS NOT NULL
+                                     AND s.due_at < CURRENT_TIMESTAMP(3)
+                                THEN 1 ELSE 0 END), 0) AS overdue_count,
+                            COALESCE(SUM(CASE
+                                WHEN s.risk_level IN ('HIGH', 'CRITICAL') THEN 1 ELSE 0 END), 0)
+                                AS high_risk_count
+                        FROM production_safety_event s
+                        """ + prefixClause);
+        if (normalizedPrefix != null) {
+            spec = spec.param("eventNoPattern", normalizedPrefix + "%");
+        }
+        SafetyEnvironmentSummaryRow summary = spec.query((rs, rowNum) -> new SafetyEnvironmentSummaryRow(
+                        rs.getLong("total_event_count"),
+                        rs.getLong("safety_inspection_count"),
+                        rs.getLong("hazard_rectification_count"),
+                        rs.getLong("environment_record_count"),
+                        rs.getLong("ppe_device_reminder_count"),
+                        rs.getLong("pending_count"),
+                        rs.getLong("in_progress_count"),
+                        rs.getLong("closed_count"),
+                        rs.getLong("overdue_count"),
+                        rs.getLong("high_risk_count")))
+                .single();
+
+        return new ProductionSafetyEnvironmentSummaryResponse(
+                normalizedPrefix,
+                summary.totalEventCount(),
+                summary.safetyInspectionCount(),
+                summary.hazardRectificationCount(),
+                summary.environmentRecordCount(),
+                summary.ppeDeviceReminderCount(),
+                summary.pendingCount(),
+                summary.inProgressCount(),
+                summary.closedCount(),
+                summary.overdueCount(),
+                summary.highRiskCount(),
+                LocalDateTime.now());
+    }
+
+    public ProductionCostSummaryResponse getProductionCostSummary(String costNoPrefix, BootstrapIdentity identity) {
+        accessControlService.requireCheckRecordRead(identity);
+        String normalizedPrefix = blankToNull(costNoPrefix);
+        String prefixClause = normalizedPrefix == null ? "" : " WHERE c.cost_no LIKE :costNoPattern";
+
+        JdbcClient.StatementSpec spec = jdbcClient.sql("""
+                        SELECT
+                            COUNT(*) AS record_count,
+                            COALESCE(SUM(c.amount), 0) AS total_cost_amount,
+                            COALESCE(SUM(CASE WHEN c.cost_type = 'PROCESS' THEN c.amount ELSE 0 END), 0)
+                                AS process_cost_amount,
+                            COALESCE(SUM(CASE WHEN c.cost_type = 'MATERIAL' THEN c.amount ELSE 0 END), 0)
+                                AS material_cost_amount,
+                            COALESCE(SUM(CASE WHEN c.cost_type = 'LABOR' THEN c.amount ELSE 0 END), 0)
+                                AS labor_cost_amount,
+                            COALESCE(SUM(CASE WHEN c.cost_type = 'REWORK' THEN c.amount ELSE 0 END), 0)
+                                AS rework_cost_amount,
+                            COALESCE(SUM(CASE WHEN c.cost_type = 'OUTSOURCING' THEN c.amount ELSE 0 END), 0)
+                                AS outsourcing_cost_amount,
+                            COALESCE(SUM(CASE WHEN c.status = 'WARNING' THEN 1 ELSE 0 END), 0)
+                                AS abnormal_warning_count
+                        FROM production_cost_record c
+                        """ + prefixClause);
+        if (normalizedPrefix != null) {
+            spec = spec.param("costNoPattern", normalizedPrefix + "%");
+        }
+        CostSummaryRow summary = spec.query((rs, rowNum) -> new CostSummaryRow(
+                        rs.getLong("record_count"),
+                        roundedDecimal(rs.getBigDecimal("total_cost_amount"), 2),
+                        roundedDecimal(rs.getBigDecimal("process_cost_amount"), 2),
+                        roundedDecimal(rs.getBigDecimal("material_cost_amount"), 2),
+                        roundedDecimal(rs.getBigDecimal("labor_cost_amount"), 2),
+                        roundedDecimal(rs.getBigDecimal("rework_cost_amount"), 2),
+                        roundedDecimal(rs.getBigDecimal("outsourcing_cost_amount"), 2),
+                        rs.getLong("abnormal_warning_count")))
+                .single();
+
+        return new ProductionCostSummaryResponse(
+                normalizedPrefix,
+                summary.recordCount(),
+                summary.totalCostAmount(),
+                summary.processCostAmount(),
+                summary.materialCostAmount(),
+                summary.laborCostAmount(),
+                summary.reworkCostAmount(),
+                summary.outsourcingCostAmount(),
+                summary.abnormalWarningCount(),
+                LocalDateTime.now());
+    }
+
+    public ProductionRewardPenaltySummaryResponse getProductionRewardPenaltySummary(
+            String recordNoPrefix, BootstrapIdentity identity) {
+        accessControlService.requireCheckRecordRead(identity);
+        String normalizedPrefix = blankToNull(recordNoPrefix);
+        String prefixClause = normalizedPrefix == null ? "" : " WHERE r.record_no LIKE :recordNoPattern";
+
+        JdbcClient.StatementSpec spec = jdbcClient.sql("""
+                        SELECT
+                            COUNT(*) AS total_record_count,
+                            COALESCE(SUM(CASE WHEN r.record_type = 'REWARD' THEN 1 ELSE 0 END), 0)
+                                AS reward_count,
+                            COALESCE(SUM(CASE WHEN r.record_type = 'PENALTY' THEN 1 ELSE 0 END), 0)
+                                AS penalty_count,
+                            COALESCE(SUM(CASE WHEN r.status = 'PENDING' THEN 1 ELSE 0 END), 0)
+                                AS pending_count,
+                            COALESCE(SUM(CASE WHEN r.status = 'APPROVED' THEN 1 ELSE 0 END), 0)
+                                AS approved_count,
+                            COALESCE(SUM(CASE WHEN r.status = 'REJECTED' THEN 1 ELSE 0 END), 0)
+                                AS rejected_count,
+                            COALESCE(SUM(CASE WHEN r.status = 'EFFECTIVE' THEN 1 ELSE 0 END), 0)
+                                AS effective_count,
+                            COUNT(DISTINCT r.order_id) AS related_order_count,
+                            COUNT(DISTINCT r.node_instance_id) AS related_process_count,
+                            COUNT(DISTINCT r.employee_user_id) AS related_employee_count,
+                            COALESCE(SUM(CASE
+                                WHEN r.created_at >= DATE_FORMAT(CURRENT_DATE, '%Y-%m-01')
+                                     AND r.created_at < DATE_ADD(DATE_FORMAT(CURRENT_DATE, '%Y-%m-01'), INTERVAL 1 MONTH)
+                                THEN r.amount ELSE 0 END), 0) AS monthly_amount
+                        FROM production_reward_penalty_record r
+                        """ + prefixClause);
+        if (normalizedPrefix != null) {
+            spec = spec.param("recordNoPattern", normalizedPrefix + "%");
+        }
+        RewardPenaltySummaryRow summary = spec.query((rs, rowNum) -> new RewardPenaltySummaryRow(
+                        rs.getLong("total_record_count"),
+                        rs.getLong("reward_count"),
+                        rs.getLong("penalty_count"),
+                        rs.getLong("pending_count"),
+                        rs.getLong("approved_count"),
+                        rs.getLong("rejected_count"),
+                        rs.getLong("effective_count"),
+                        rs.getLong("related_order_count"),
+                        rs.getLong("related_process_count"),
+                        rs.getLong("related_employee_count"),
+                        roundedDecimal(rs.getBigDecimal("monthly_amount"), 2)))
+                .single();
+
+        return new ProductionRewardPenaltySummaryResponse(
+                normalizedPrefix,
+                summary.totalRecordCount(),
+                summary.rewardCount(),
+                summary.penaltyCount(),
+                summary.pendingCount(),
+                summary.approvedCount(),
+                summary.rejectedCount(),
+                summary.effectiveCount(),
+                summary.relatedOrderCount(),
+                summary.relatedProcessCount(),
+                summary.relatedEmployeeCount(),
+                summary.monthlyAmount(),
+                LocalDateTime.now());
     }
 
     @Transactional
@@ -1101,6 +1486,26 @@ public class WorkflowExecutionService {
         return Math.toIntExact(Math.round((part * 100.0) / total));
     }
 
+    private double percentage(long part, long total) {
+        if (total == 0) {
+            return 0.0;
+        }
+        return BigDecimal.valueOf(part * 100.0 / total)
+                .setScale(1, RoundingMode.HALF_UP)
+                .doubleValue();
+    }
+
+    private double roundedDecimal(BigDecimal value) {
+        return roundedDecimal(value, 1);
+    }
+
+    private double roundedDecimal(BigDecimal value, int scale) {
+        if (value == null) {
+            return 0.0;
+        }
+        return value.setScale(scale, RoundingMode.HALF_UP).doubleValue();
+    }
+
     private record NodeRow(
             long nodeInstanceId,
             long instanceId,
@@ -1121,6 +1526,85 @@ public class WorkflowExecutionService {
             long sourceCheckId,
             long targetNodeInstanceId,
             String status) {
+    }
+
+    private record QualityCheckSummaryRow(
+            long inspectedOrderCount,
+            long firstPassCount,
+            long finalPassCount) {
+    }
+
+    private record QualityReworkSummaryRow(
+            long totalReworkCount,
+            long internalReworkCount,
+            long externalReworkCount,
+            long unclassifiedReworkCount) {
+    }
+
+    private record EquipmentSummaryRow(
+            long totalEquipmentCount,
+            long runningCount,
+            long idleCount,
+            long maintenanceCount,
+            long faultCount,
+            double averageUtilizationRate) {
+    }
+
+    private record EquipmentEventSummaryRow(
+            long pendingMaintenanceCount,
+            long openFaultCount,
+            long downtimeMinutes) {
+    }
+
+    private record MaterialExceptionSummaryRow(
+            long totalExceptionCount,
+            long shortageCount,
+            long wrongMaterialCount,
+            long batchAbnormalCount,
+            long materialLossCount,
+            long pendingCount,
+            long inProgressCount,
+            long closedCount,
+            long responsibilityAssignedCount,
+            double totalLossQuantity) {
+    }
+
+    private record SafetyEnvironmentSummaryRow(
+            long totalEventCount,
+            long safetyInspectionCount,
+            long hazardRectificationCount,
+            long environmentRecordCount,
+            long ppeDeviceReminderCount,
+            long pendingCount,
+            long inProgressCount,
+            long closedCount,
+            long overdueCount,
+            long highRiskCount) {
+    }
+
+    private record CostSummaryRow(
+            long recordCount,
+            double totalCostAmount,
+            double processCostAmount,
+            double materialCostAmount,
+            double laborCostAmount,
+            double reworkCostAmount,
+            double outsourcingCostAmount,
+            long abnormalWarningCount) {
+    }
+
+    private record RewardPenaltySummaryRow(
+            long totalRecordCount,
+            long rewardCount,
+            long penaltyCount,
+            long pendingCount,
+            long approvedCount,
+            long rejectedCount,
+            long effectiveCount,
+            long relatedOrderCount,
+            long relatedProcessCount,
+            long relatedEmployeeCount,
+            double monthlyAmount) {
     }
 
     private record ReworkNotificationRow(
