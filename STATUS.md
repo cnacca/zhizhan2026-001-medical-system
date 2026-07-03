@@ -7,11 +7,13 @@
 ## 当前状态
 
 - 仓库是本地 Git 仓库，当前分支 `feature/project-skeleton`，跟踪远程 `origin/feature/project-skeleton`。
+- 2026-07-04 本轮上传状态：`feature/project-skeleton` 已推送到 GitHub，当前 HEAD 为 `5e9ee18`。本轮按边界拆分为生产汇总、AI 治理、Task 8 文档回写和 workflow helper 整理提交；工作区只剩未跟踪 `test-results/` 运行产物，未纳入提交。
 - 2026-07-01 上传交接状态：已确认本地 `feature/project-skeleton` 与 `origin/feature/project-skeleton` 对齐；上传后产生的未提交后续试验改动已撤回。本次只做文档总结回写，不继续推进业务代码。
 - 2026-07-01 新版 PRD/TRD/API 对齐决策已确认：以新资料为最新业务准绳，保留当前已验证增量，OpenAPI 后续按差异合并维护。
 - Active goal: `goals/GOAL-001-scope-clarified-for.md`
 - Active task: `tasks/README.md` 的「任务 8：专项验收矩阵与上线准备」，状态为 `in-progress/9d54-production-reward-penalty-summary`
 - 本轮 9D.54 生产端奖惩管理汇总后端适配第一增量已完成；新增 `/production/reward-penalty/summary` 和 `production_reward_penalty_record` 基础表，生产/客服/管理可读、医生端 403，前端生产端奖惩管理已接真实汇总，展示奖惩记录、奖惩原因、关联对象、审批状态、月度汇总和绩效影响。Task 8 总体仍保持 `NOT READY`。
+- 本轮提交边界：`1895f79 feat(production): add summary dashboards`、`f395584 feat(ai): add external alert governance controls`、`c781eae docs: refresh task 8 readiness handoff`、`5e9ee18 refactor(workflow): group final inspection helpers`。
 - 已按 RepoFrame + Yuri 工作流创建项目上下文文档。
 - 已完成任务 0：接口契约与项目基线。
 - 已完成任务 0.1：按 TRD V1.1 深度研究优化版对齐开发计划。
@@ -351,4 +353,4 @@ Task 8 已完成 8A readiness audit、8B OpenAPI 二次契约、9A/9B/9C 身份�
 
 ## 下一步
 
-下一轮唯一推荐目标：继续做生产端前端展示的后端适配队列，优先做奖惩管理的“真实只读汇总接口 + 前端接入 + 医生端隔离”闭环；若转回 AI 治理主线，则做 9D.48 AI 外部告警监控/运维可观察第一增量。Task 8 总体仍保持 `NOT READY`，直到生产级防重放、真实弱网/跨设备续传、终检专用角色/附件、完整返工闭环、绩效完整公式/周期/申诉/标准工时配置、生产端新增管理模块后端、AI 治理闭环和部署交付材料补齐。
+下一轮唯一推荐目标：9D.48 AI 外部告警监控/运维可观察第一增量。先补红灯测试，再做 ADMIN/CS 只读查看外部告警 outbox 状态统计、最近错误和最老待发送时间；不做生产 webhook 联调、真实短信/邮件/企业微信密钥、复杂告警抑制或人工重放。Task 8 总体仍保持 `NOT READY`，直到生产级防重放、真实弱网/跨设备续传、终检专用角色/附件、完整返工闭环、绩效完整公式/周期/申诉/标准工时配置、生产端新增管理模块后端、AI 治理闭环和部署交付材料补齐。

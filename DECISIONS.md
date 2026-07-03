@@ -1,5 +1,21 @@
 # DECISIONS
 
+## D-093 Task 8 后续提交按任务边界拆分并保持运行产物不入库
+
+状态：已确认。
+
+决策：
+
+- 2026-07-04 本轮将 `feature/project-skeleton` 推送到 GitHub，当前 HEAD 为 `5e9ee18`。
+- 提交按边界拆分：生产汇总组 `1895f79`、AI 治理组 `f395584`、Task 8 文档回写 `c781eae`、workflow helper 整理 `5e9ee18`。
+- 本轮只提交可复现的代码、配置、迁移、OpenAPI、检查脚本和项目文档；`test-results/` 作为本地运行产物保持未跟踪，不纳入提交。
+- 后续继续使用小提交边界，不把前端展示、AI 治理、生产模块和运行产物混成一个提交。
+
+影响：
+
+- 新会话接手时以远程 `origin/feature/project-skeleton` 的 `5e9ee18` 为当前上传基线。
+- Task 8 仍保持 `in-progress / NOT READY`；下一轮唯一推荐目标是 9D.48 AI 外部告警监控/运维可观察第一增量。
+
 ## D-092 AI 外部告警 webhook 签名默认关闭
 
 状态：已确认。

@@ -12,8 +12,9 @@
 
 ## 当前交接摘要
 
-- 2026-07-01 已确认上传基线为 `feature/project-skeleton`，本地分支与 `origin/feature/project-skeleton` 对齐。
-- 当前上传基线包含 9D.10 的同浏览器恢复、服务端 pending 候选恢复、上传中断后恢复和 100MB+ 浏览器上传 smoke；不包含后续未提交的返工关闭、发货拦截、责任分类、跨设备恢复 smoke 或限速上传 smoke。
+- 2026-07-04 已确认上传基线为 `feature/project-skeleton`，本地分支与 `origin/feature/project-skeleton` 对齐，当前 HEAD 为 `5e9ee18`。
+- 当前上传基线已包含四入口登录页最终版视觉、9D.33 到 9D.47 AI 治理第一轮、9D.49 到 9D.54 生产端质量/设备/物料异常/安环/成本/奖惩真实只读汇总，以及 Task 8 文档回写；`test-results/` 为本地运行产物，未纳入提交。
+- 本轮提交边界：`1895f79 feat(production): add summary dashboards`、`f395584 feat(ai): add external alert governance controls`、`c781eae docs: refresh task 8 readiness handoff`、`5e9ee18 refactor(workflow): group final inspection helpers`。
 - Task 8 仍是 `in-progress / NOT READY`，不要标完成。
 - 9D.24 四入口登录页与角色端口校验第一增量已完成；登录页展示医生端、客服端、生产端、管理端四入口，登录请求携带 `portal`，后端拒绝账号角色与所选入口不匹配的登录。
 - 9D.47 AI 外部告警 webhook 签名/鉴权第一增量已完成；下一轮唯一推荐目标是 9D.48 AI 外部告警监控/运维可观察第一增量。
@@ -23,6 +24,7 @@
 - 9D.52 生产端安环管理汇总后端适配第一增量已完成；新增 `/production/safety-environment/summary`，生产/客服/管理可读，医生端拒绝；前端生产端安环管理已接真实汇总，展示安全巡检、隐患整改、环境记录、PPE/设备安全提醒、安环事件统计和高风险待办。
 - 9D.53 生产端成本管理汇总后端适配第一增量已完成；新增 `/production/cost-management/summary`，生产/客服/管理可读，医生端拒绝；前端生产端成本管理/外协成本已接真实汇总，展示工序成本、材料成本、人工成本、返工成本、外协成本和成本异常预警。
 - 9D.54 生产端奖惩管理汇总后端适配第一增量已完成；新增 `/production/reward-penalty/summary`，生产/客服/管理可读，医生端拒绝；前端生产端奖惩管理已接真实汇总，展示奖惩记录、奖惩原因、关联对象、审批状态、月度汇总和绩效影响。
+- 下一轮唯一推荐目标：9D.48 AI 外部告警监控/运维可观察第一增量，先做 ADMIN/CS 只读 outbox 状态统计、最近错误和最老待发送时间，不做生产 webhook 联调、真实渠道密钥或人工重放。
 - 继续开发前先复核 `STATUS.md`、`docs/acceptance/task-8-acceptance-matrix.md` 和 `docs/deployment/readiness-checklist.md`，并按 TDD 先补红灯测试。
 - 本轮 9D.25 状态：completed-first-increment；已通过 TDD 后端测试、Check/Worklog 模块回归、OpenAPI、frontend build、acceptance 和静态检查。本轮新增 `/performance/details` 绩效工时明细接口，并在绩效页展示最近完成明细。未完成原因：仍缺终检专用角色/附件、绩效完整公式/周期筛选/标准工时配置/申诉闭环、返工影响图形化、生产级 AI 治理、设计稿预览 URL 聚合、完整弱网/跨设备续传和部署交付材料。
 - 本轮 9D.24 状态：completed-first-increment；已通过 TDD 后端测试、四入口登录静态检查、OpenAPI、frontend build、acceptance 和登录相关后端回归。未完成原因：仍缺生产级 Spring Security/JWT、完整 RuoYi 管理 UI、refresh token 轮换、access token 黑名单、多设备会话策略和正式环境浏览器全链路验收。
