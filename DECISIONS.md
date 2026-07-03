@@ -1,5 +1,20 @@
 # DECISIONS
 
+## D-099 验收矩阵机器可读缺口清单第一增量
+
+状态：已确认。
+
+决策：
+
+- 在 `acceptance.json` 新增 `task8_readiness_gaps`，把 Task 8 仍未 READY 的关键上线缺口转成机器可读结构。
+- 每个缺口记录 `id`、`status`、`source`、`current_evidence`、`remaining_reason`、`minimum_closure_loop` 和 `verification`。
+- 新增 `npm run check:task8-readiness-gaps`，用于校验缺口字段完整，并在命令输出中列出当前缺口。
+
+影响：
+
+- 后续开发可以通过命令直接发现 Task 8 仍未关闭的上线缺口，不再只靠人工阅读长矩阵。
+- Task 8 仍保持 `in-progress / NOT_READY`；下一轮唯一推荐目标是 AI 外部告警接收端 webhook 验签/防重放第一增量。
+
 ## D-098 部署安全与环境变量 readiness 检查第一增量
 
 状态：已确认。

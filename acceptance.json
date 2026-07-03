@@ -4,6 +4,80 @@
   "active_goal": "GOAL-001",
   "active_goal_file": "goals/GOAL-001-scope-clarified-for.md",
   "linter": "repo-init/scripts/lint_acceptance.py",
+  "task8_readiness_gaps": [
+    {
+      "id": "auth-datascope-prod",
+      "status": "PARTIAL",
+      "source": "docs/deployment/readiness-checklist.md#正式鉴权与数据范围",
+      "current_evidence": "数据库账号、权限码、data_scope、Bearer token、refresh/logout、权限注解和部分 SQL DataScope 已落地。",
+      "remaining_reason": "仍缺完整 RuoYi 管理 UI、生产级 Spring Security/JWT、通用 DataScope SQL、refresh token 轮换、access token 黑名单和多设备会话策略。",
+      "minimum_closure_loop": "先做生产级 JWT/Spring Security 第一增量并固定关闭 prod bootstrap headers。",
+      "verification": "./scripts/with-jdk21.sh mvn -f backend/pom.xml -pl platform-server test; 角色越权矩阵"
+    },
+    {
+      "id": "frontend-business-pages",
+      "status": "PARTIAL",
+      "source": "docs/deployment/readiness-checklist.md#前端业务页面",
+      "current_evidence": "四入口登录、医生下单、客服初审、生产审核、质检工时、绩效、生产看板、返工和终检报告第一增量已落地。",
+      "remaining_reason": "仍缺实时自动保存、完整客服协同、账单物流、设计稿预览 URL 聚合、返工影响图形化、终检专用角色/附件和绩效完整闭环。",
+      "minimum_closure_loop": "优先选择一个页面闭环，例如终检专用角色/附件或绩效周期筛选第一增量。",
+      "verification": "npm run build:frontend; 对应 smoke; platform-server 目标测试"
+    },
+    {
+      "id": "websocket-notification-prod",
+      "status": "PARTIAL",
+      "source": "docs/deployment/readiness-checklist.md#WebSocket / 通知",
+      "current_evidence": "单实例 WebSocket、通知 REST、前端通知中心、Redis 广播代码路径和 AI 外部告警 outbox 可观察链路已落地。",
+      "remaining_reason": "仍缺真实双后端实例 Redis 联调、心跳/重连压测、Nginx/HTTPS 生产网关验收、接收端 webhook 验签/防重放和生产 webhook 联调。",
+      "minimum_closure_loop": "先做 webhook 接收端验签/防重放第一增量或双实例 Redis WebSocket 联调脚本第一增量。",
+      "verification": "NotificationWebSocketTests; NotificationBroadcastTests; Nginx/HTTPS smoke"
+    },
+    {
+      "id": "file-upload-prod",
+      "status": "PARTIAL",
+      "source": "docs/deployment/readiness-checklist.md#文件上传",
+      "current_evidence": "105MB Multipart、本地恢复、服务端候选恢复和中断恢复浏览器 smoke 已通过。",
+      "remaining_reason": "仍缺真实弱网限速/断网、完整跨设备浏览器续传、文件大小/类型/数量最终限制和测试/正式 bucket 隔离验收。",
+      "minimum_closure_loop": "先补文件限制与 bucket 环境隔离第一增量，再补弱网/跨设备 smoke。",
+      "verification": "npm run smoke:task9d10-large-upload; npm run smoke:task9d10-server-resume; npm run smoke:task9d10-interrupted-resume"
+    },
+    {
+      "id": "ai-production-governance",
+      "status": "PARTIAL",
+      "source": "docs/deployment/readiness-checklist.md#AI 接入",
+      "current_evidence": "DeepSeek 默认关闭、限流、成本审计、重试、失败审计、预算、熔断、输出防护、外部告警发送/调度/死信/幂等/签名/监控/列表/失败可见性已落地。",
+      "remaining_reason": "仍缺真实 key 环境联调、接收端验签/防重放联调、生产 webhook 联调、提示词后台管理、流式输出过滤、生产级成本看板和更完整输出策略。",
+      "minimum_closure_loop": "先做 AI 外部告警接收端验签/防重放第一增量；真实 key 只能外部注入。",
+      "verification": "npm run check:openapi; AiGatewayTests; AiGatewayDeepSeekTests"
+    },
+    {
+      "id": "deployment-infrastructure",
+      "status": "NOT_READY",
+      "source": "docs/deployment/readiness-checklist.md#部署基础设施",
+      "current_evidence": "已有 compose、本地服务、prod auth token-secret 门禁和部署环境静态检查第一增量。",
+      "remaining_reason": "仍缺 Nginx HTTPS、Docker 镜像构建、测试/正式环境隔离、生产 .env 注入、数据库备份、日志留存和监控告警。",
+      "minimum_closure_loop": "先做 Docker 镜像构建与测试/正式环境变量隔离第一增量。",
+      "verification": "npm run check:deployment-env; docker compose config; prod profile startup smoke"
+    },
+    {
+      "id": "operations-manuals",
+      "status": "NOT_READY",
+      "source": "docs/deployment/readiness-checklist.md#操作手册",
+      "current_evidence": "暂无正式管理员、客服、生产、医生端操作手册和故障处理手册。",
+      "remaining_reason": "上线交付材料尚未编写，无法支撑客户培训和故障处理。",
+      "minimum_closure_loop": "先做四端最小操作手册目录和首版故障处理清单。",
+      "verification": "文档评审; 按手册完成一次本地演示; 客户/PM 确认"
+    },
+    {
+      "id": "customer-pm-confirmations",
+      "status": "BLOCKED",
+      "source": "docs/acceptance/task-8-acceptance-matrix.md#结论",
+      "current_evidence": "动态表单最终字段、AI-5 模板、标准工时、付款状态、Multipart 限制等仍在矩阵中标记需客户/PM 确认。",
+      "remaining_reason": "属于产品/业务口径决策，不能仅靠开发补齐。",
+      "minimum_closure_loop": "建立确认表，记录负责人、默认方案、决策日期和未决风险。",
+      "verification": "客户/PM 书面确认; 同步 PROJECT.md、DECISIONS.md、OpenAPI 和验收矩阵"
+    }
+  ],
   "goals": [
     {
       "id": "GOAL-001",
@@ -2059,6 +2133,33 @@
             "AI_EXTERNAL_ALERT_WEBHOOK_ENABLED=false",
             "AI_EXTERNAL_ALERT_SCHEDULER_ENABLED=false",
             "check:deployment-env"
+          ]
+        },
+        {
+          "id": "task8-readiness-gaps-required-text",
+          "type": "required_text",
+          "paths": [
+            "acceptance.json",
+            "docs/deployment/task-8-final-readiness-report.md",
+            "docs/acceptance/task-8-acceptance-matrix.md",
+            "docs/deployment/readiness-checklist.md",
+            "DECISIONS.md",
+            "STATUS.md",
+            "tasks/README.md",
+            "README.md",
+            "scripts/check-task8-readiness-gaps.mjs",
+            "package.json"
+          ],
+          "patterns": [
+            "task8_readiness_gaps",
+            "auth-datascope-prod",
+            "frontend-business-pages",
+            "ai-production-governance",
+            "deployment-infrastructure",
+            "operations-manuals",
+            "customer-pm-confirmations",
+            "验收矩阵机器可读缺口清单第一增量",
+            "check:task8-readiness-gaps"
           ]
         }
       ]

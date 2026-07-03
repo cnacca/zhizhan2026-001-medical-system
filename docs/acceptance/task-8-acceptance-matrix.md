@@ -17,6 +17,7 @@
 - TRD V1.1：12 步验收点、专项测试矩阵、M6 联调测试上线标准。
 - 团队执行文档：M6 要求“专项测试通过，回归通过，部署正式环境，12 步验收清单逐条过，操作手册交付”。
 - 当前实现证据：`OrderStatusProjectionTests`、`FileAccessTests`、`WorkflowRuntimeTests`、`CheckWorklogPerformanceTests`、`MessageDesignBillNotificationTests`、`AiGatewayTests`、`BearerIdentityTests`、`PermissionInterceptorTests`、9D.24 四入口登录页校验和既有 HTTP/SQL smoke 记录。
+- 机器可读缺口：`acceptance.json` 的 `task8_readiness_gaps` 提炼本矩阵和 readiness checklist 中仍未 READY 的关键上线缺口，可通过 `npm run check:task8-readiness-gaps` 查看。
 
 ## PRD / TRD 12 步主链路
 

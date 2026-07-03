@@ -10,6 +10,8 @@ Task 8 readiness 终检报告第一增量已生成：`docs/deployment/task-8-fin
 
 部署安全 / 环境变量 readiness 检查第一增量已补：`npm run check:deployment-env` 会检查 README、`.env.example`、`application.yml`、`application-prod.yml` 和本 checklist 中的生产环境变量边界、默认关闭能力和禁止提交真实密钥说明。
 
+验收矩阵机器可读缺口清单第一增量已补：`acceptance.json` 维护 `task8_readiness_gaps`，`npm run check:task8-readiness-gaps` 可列出当前仍未 READY 的关键上线缺口。本 checklist 仍保持 Task 8 `NOT_READY`。
+
 ## 必须完成后才能上线
 
 | 类别 | 当前状态 | 必须完成项 |
