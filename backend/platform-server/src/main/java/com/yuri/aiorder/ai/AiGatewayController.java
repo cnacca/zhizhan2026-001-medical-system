@@ -80,6 +80,24 @@ public class AiGatewayController {
         return new DataResponse<>(aiGatewayService.externalAlertSummary(identity));
     }
 
+    @GetMapping("/ai/governance/external-alerts")
+    @RequirePermission(value = "ai:cs", roles = {UserRole.ADMIN, UserRole.CS})
+    public DataResponse<AiExternalAlertListResponse> externalAlerts(
+            @RequestParam(name = "send_status", required = false) String sendStatus,
+            @RequestParam(name = "event_type", required = false) String eventType,
+            @RequestParam(name = "created_at_from", required = false) String createdAtFrom,
+            @RequestParam(name = "created_at_to", required = false) String createdAtTo,
+            @RequestParam(defaultValue = "20") int limit,
+            BootstrapIdentity identity) {
+        return new DataResponse<>(aiGatewayService.externalAlerts(
+                identity,
+                sendStatus,
+                eventType,
+                createdAtFrom,
+                createdAtTo,
+                limit));
+    }
+
     public record TranslateRequest(
             @JsonProperty("order_id") @NotNull Long orderId,
             @JsonProperty("source_text") @NotBlank String sourceText) {

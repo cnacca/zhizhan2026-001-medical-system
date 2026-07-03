@@ -13,6 +13,7 @@ import java.nio.charset.StandardCharsets;
 import java.security.MessageDigest;
 import java.security.NoSuchAlgorithmException;
 import java.time.LocalDateTime;
+import java.time.format.DateTimeParseException;
 import java.util.ArrayList;
 import java.util.EnumSet;
 import java.util.HexFormat;
@@ -365,6 +366,45 @@ public class AiGatewayService {
                 oldestPendingCreatedAt);
     }
 
+    @Transactional(readOnly = true)
+    public AiExternalAlertListResponse externalAlerts(
+            BootstrapIdentity identity,
+            String sendStatus,
+            String eventType,
+            String createdAtFrom,
+            String createdAtTo,
+            int requestedLimit) {
+        accessControlService.requireAnyRole(identity, CS_AND_ADMIN, "AI external alert list is CS/ADMIN only");
+        int limit = Math.max(1, Math.min(100, requestedLimit));
+        LocalDateTime from = parseNullableDateTime(createdAtFrom, "created_at_from");
+        LocalDateTime to = parseNullableDateTime(createdAtTo, "created_at_to");
+        String normalizedSendStatus = blankToNull(sendStatus);
+        String normalizedEventType = blankToNull(eventType);
+        List<AiExternalAlertListResponse.Record> records = jdbcClient.sql("""
+                        SELECT alert_id, alert_type, send_status, created_at, updated_at
+                        FROM ai_external_alert_outbox
+                        WHERE (:sendStatus IS NULL OR send_status = :sendStatus)
+                          AND (:eventType IS NULL OR alert_type = :eventType)
+                          AND (:createdAtFrom IS NULL OR created_at >= :createdAtFrom)
+                          AND (:createdAtTo IS NULL OR created_at <= :createdAtTo)
+                        ORDER BY created_at DESC, alert_id DESC
+                        LIMIT :limit
+                        """)
+                .param("sendStatus", normalizedSendStatus)
+                .param("eventType", normalizedEventType)
+                .param("createdAtFrom", from)
+                .param("createdAtTo", to)
+                .param("limit", limit)
+                .query((rs, rowNum) -> new AiExternalAlertListResponse.Record(
+                        rs.getLong("alert_id"),
+                        rs.getString("alert_type"),
+                        rs.getString("send_status"),
+                        rs.getObject("created_at", LocalDateTime.class),
+                        rs.getObject("updated_at", LocalDateTime.class)))
+                .list();
+        return new AiExternalAlertListResponse(limit, records);
+    }
+
     private AiModelResult completeWithModel(
             String systemPrompt,
             String userPrompt,
@@ -431,6 +471,25 @@ public class AiGatewayService {
         }
         String sanitized = error.replaceAll("(?i)(token|secret|key|signature)=([^\\s&]+)", "$1=[redacted]");
         return sanitized.replaceAll("https?://\\S+", "[redacted-url]");
+    }
+
+    private LocalDateTime parseNullableDateTime(String value, String fieldName) {
+        String normalized = blankToNull(value);
+        if (normalized == null) {
+            return null;
+        }
+        try {
+            return LocalDateTime.parse(normalized);
+        } catch (DateTimeParseException ex) {
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, fieldName + " must be ISO-8601 local datetime");
+        }
+    }
+
+    private String blankToNull(String value) {
+        if (value == null || value.isBlank()) {
+            return null;
+        }
+        return value.trim();
     }
 
     private void auditOutputGuarded(

@@ -1720,6 +1720,39 @@ components:
         updated_at:
           type: string
           format: date-time
+    AiExternalAlertListResponse:
+      type: object
+      properties:
+        limit:
+          type: integer
+          description: 本次查询使用的返回上限，服务端限制为 1 到 100。
+        records:
+          type: array
+          items:
+            "$ref": "#/components/schemas/AiExternalAlertRecord"
+    AiExternalAlertRecord:
+      type: object
+      properties:
+        alert_id:
+          type: integer
+          format: int64
+        event_type:
+          type: string
+          description: outbox 的 alert_type，对外按 event_type 呈现。
+        send_status:
+          type: string
+          enum:
+          - PENDING
+          - SENDING
+          - SENT
+          - FAILED
+          - DEAD_LETTER
+        created_at:
+          type: string
+          format: date-time
+        updated_at:
+          type: string
+          format: date-time
     MissingInfoResponse:
       type: object
       properties:
@@ -5186,6 +5219,84 @@ paths:
         '503':
           "$ref": "#/components/responses/ServiceUnavailable"
       operationId: getAiExternalAlertSummary
+  "/ai/governance/external-alerts":
+    get:
+      tags:
+      - AI
+      summary: AI 外部告警 outbox 列表
+      description: |
+        权限：CS / ADMIN
+        任务 9D.48.1 第一增量：只读查看 `ai_external_alert_outbox` 最近记录列表，支持 `send_status`、`event_type`、`created_at` 起止范围和 `limit` 最小筛选。
+        响应只返回安全元数据：`alert_id`、`event_type`、`send_status`、`created_at`、`updated_at`。不返回密钥、真实 webhook URL、payload、prompt 原文、模型原始响应、last_error 或内部生产敏感详情；本接口不提供人工重放或编辑。
+      parameters:
+      - name: send_status
+        in: query
+        required: false
+        schema:
+          type: string
+          enum:
+          - PENDING
+          - SENDING
+          - SENT
+          - FAILED
+          - DEAD_LETTER
+        description: 按 outbox send_status 精确筛选。
+      - name: event_type
+        in: query
+        required: false
+        schema:
+          type: string
+        description: 按 outbox alert_type 精确筛选。
+      - name: created_at_from
+        in: query
+        required: false
+        schema:
+          type: string
+          format: date-time
+        description: ISO-8601 本地时间下限，例如 2026-07-04T00:00:00。
+      - name: created_at_to
+        in: query
+        required: false
+        schema:
+          type: string
+          format: date-time
+        description: ISO-8601 本地时间上限，例如 2026-07-04T23:59:59。
+      - name: limit
+        in: query
+        required: false
+        schema:
+          type: integer
+          default: 20
+          minimum: 1
+          maximum: 100
+        description: 返回上限；服务端限制为 1 到 100。
+      responses:
+        '200':
+          description: AI 外部告警 outbox 最近记录
+          content:
+            application/json:
+              schema:
+                allOf:
+                - "$ref": "#/components/schemas/CommonResponse"
+                - type: object
+                  properties:
+                    data:
+                      "$ref": "#/components/schemas/AiExternalAlertListResponse"
+        '400':
+          "$ref": "#/components/responses/BadRequest"
+        '401':
+          "$ref": "#/components/responses/Unauthorized"
+        '403':
+          "$ref": "#/components/responses/Forbidden"
+        '404':
+          "$ref": "#/components/responses/NotFound"
+        '409':
+          "$ref": "#/components/responses/Conflict"
+        default:
+          "$ref": "#/components/responses/DefaultError"
+        '503':
+          "$ref": "#/components/responses/ServiceUnavailable"
+      operationId: getAiExternalAlerts
   "/notifications":
     get:
       tags:

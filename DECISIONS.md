@@ -1,5 +1,21 @@
 # DECISIONS
 
+## D-095 AI 外部告警列表只读筛选第一增量
+
+状态：已确认。
+
+决策：
+
+- 9D.48.1 新增 AI 外部告警 outbox 只读列表第一增量，入口为 `GET /ai/governance/external-alerts`。
+- 该入口仅允许 CS / ADMIN 访问，支持 `send_status`、`event_type`、`created_at_from`、`created_at_to` 和 `limit` 最小筛选。
+- 响应只返回 `alert_id`、`event_type`、`send_status`、`created_at`、`updated_at` 安全元数据；不返回 payload、last_error、真实 webhook URL、密钥、prompt 原文、模型原始响应或内部生产敏感详情。
+- 本增量不做人工重放、人工编辑、人工关闭、告警抑制、生产 webhook 联调或真实渠道密钥配置。
+
+影响：
+
+- 9D.48.1 把 9D.48 的聚合监控推进到可定位具体 outbox 记录的最小只读视图。
+- Task 8 仍保持 `in-progress / NOT READY`；下一轮唯一推荐目标是 9D.48.2 AI 外部告警失败/死信可见性第一增量。
+
 ## D-094 AI 外部告警监控只读化第一增量
 
 状态：已确认。

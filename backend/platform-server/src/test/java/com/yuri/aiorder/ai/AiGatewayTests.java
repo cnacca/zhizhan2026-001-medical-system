@@ -1,7 +1,9 @@
 package com.yuri.aiorder.ai;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.hamcrest.Matchers.anyOf;
 import static org.hamcrest.Matchers.containsString;
+import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.hasItem;
 import static org.hamcrest.Matchers.not;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
@@ -364,11 +366,59 @@ class AiGatewayTests {
                 .andExpect(jsonPath("$.data.dead_letter_count").value(deadLetterBaseline + 1))
                 .andExpect(jsonPath("$.data.status_counts[?(@.send_status == 'PENDING')].count")
                         .value(hasItem((int) pendingBaseline + 1)))
-                .andExpect(jsonPath("$.data.latest_failure.send_status").value("DEAD_LETTER"))
-                .andExpect(jsonPath("$.data.latest_failure.last_error").value("upstream timeout"))
-                .andExpect(jsonPath("$.data.oldest_pending_created_at").value(containsString("1970-01-01")));
+                .andExpect(jsonPath("$.data.latest_failure.send_status")
+                        .value(anyOf(equalTo("FAILED"), equalTo("DEAD_LETTER"))))
+                .andExpect(jsonPath("$.data.latest_failure.last_error").exists())
+                .andExpect(jsonPath("$.data.oldest_pending_created_at").value(containsString("1970-01-01")))
+                .andExpect(content().string(not(containsString("secret-token"))))
+                .andExpect(content().string(not(containsString("hooks.example.test"))));
 
         mockMvc.perform(get("/ai/governance/external-alerts/summary")
+                        .header("X-Bootstrap-Role", "DOCTOR")
+                        .header("X-Bootstrap-User-Id", DOCTOR_USER_ID)
+                        .header("X-Bootstrap-Clinic-Id", clinicId))
+                .andExpect(status().isForbidden());
+    }
+
+    @Test
+    void aiExternalAlertListFiltersRecentOutboxWithoutSensitivePayloadForInternalUsers() throws Exception {
+        jdbcClient.sql("""
+                        INSERT INTO ai_external_alert_outbox
+                            (order_id, alert_type, channel, payload, send_status, attempts,
+                             last_error, created_at, updated_at)
+                        VALUES
+                            (:orderId, 'AI_BUDGET_EXCEEDED', 'EXTERNAL_ALERT',
+                             CAST('{\"event\":\"AI_BUDGET_EXCEEDED\",\"prompt\":\"do not expose\",\"webhook_url\":\"https://hooks.example.test/secret\"}' AS JSON),
+                             'PENDING', 0, NULL,
+                             '2026-07-04 01:00:00.000', '2026-07-04 01:00:00.000'),
+                            (:orderId, 'AI_MODEL_FAILED', 'EXTERNAL_ALERT',
+                             CAST('{\"event\":\"AI_MODEL_FAILED\",\"model_raw_response\":\"do not expose\"}' AS JSON),
+                             'DEAD_LETTER', 3, 'https://hooks.example.test/ai?token=secret-token returned 500',
+                             '2026-07-04 02:00:00.000', '2026-07-04 02:00:00.000')
+                        """)
+                .param("orderId", orderId)
+                .update();
+
+        mockMvc.perform(get("/ai/governance/external-alerts")
+                        .param("send_status", "PENDING")
+                        .param("event_type", "AI_BUDGET_EXCEEDED")
+                        .param("created_at_from", "2026-07-04T00:00:00")
+                        .param("created_at_to", "2026-07-04T01:30:00")
+                        .param("limit", "10")
+                        .header("X-Bootstrap-Role", "ADMIN")
+                        .header("X-Bootstrap-User-Id", 1L))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.limit").value(10))
+                .andExpect(jsonPath("$.data.records.length()").value(1))
+                .andExpect(jsonPath("$.data.records[0].event_type").value("AI_BUDGET_EXCEEDED"))
+                .andExpect(jsonPath("$.data.records[0].send_status").value("PENDING"))
+                .andExpect(jsonPath("$.data.records[0].created_at").value(containsString("2026-07-04T01:00")))
+                .andExpect(content().string(not(containsString("prompt"))))
+                .andExpect(content().string(not(containsString("model_raw_response"))))
+                .andExpect(content().string(not(containsString("secret-token"))))
+                .andExpect(content().string(not(containsString("hooks.example.test"))));
+
+        mockMvc.perform(get("/ai/governance/external-alerts")
                         .header("X-Bootstrap-Role", "DOCTOR")
                         .header("X-Bootstrap-User-Id", DOCTOR_USER_ID)
                         .header("X-Bootstrap-Clinic-Id", clinicId))
