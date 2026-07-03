@@ -52,12 +52,31 @@ app:
     input-token-cost-microusd: ${AI_INPUT_TOKEN_COST_MICROUSD:0}
     output-token-cost-microusd: ${AI_OUTPUT_TOKEN_COST_MICROUSD:0}
     daily-budget-microusd: ${AI_DAILY_BUDGET_MICROUSD:0}
+    admin-daily-budget-microusd: ${AI_ADMIN_DAILY_BUDGET_MICROUSD:0}
+    cs-daily-budget-microusd: ${AI_CS_DAILY_BUDGET_MICROUSD:0}
+    doctor-daily-budget-microusd: ${AI_DOCTOR_DAILY_BUDGET_MICROUSD:0}
+    worker-daily-budget-microusd: ${AI_WORKER_DAILY_BUDGET_MICROUSD:0}
+    budget-notification-enabled: ${AI_BUDGET_NOTIFICATION_ENABLED:true}
+    budget-circuit-breaker-enabled: ${AI_BUDGET_CIRCUIT_BREAKER_ENABLED:false}
     deepseek:
       enabled: ${AI_DEEPSEEK_ENABLED:false}
       base-url: ${AI_DEEPSEEK_BASE_URL:https://api.deepseek.com}
       api-key: ${DEEPSEEK_API_KEY:}
       model: ${AI_DEEPSEEK_MODEL:deepseek-chat}
+      daily-budget-microusd: ${AI_DEEPSEEK_DAILY_BUDGET_MICROUSD:0}
       temperature: ${AI_DEEPSEEK_TEMPERATURE:0.2}
       max-tokens: ${AI_DEEPSEEK_MAX_TOKENS:800}
       connect-timeout-seconds: ${AI_DEEPSEEK_CONNECT_TIMEOUT_SECONDS:10}
       read-timeout-seconds: ${AI_DEEPSEEK_READ_TIMEOUT_SECONDS:45}
+    external-alert:
+      webhook-enabled: ${AI_EXTERNAL_ALERT_WEBHOOK_ENABLED:false}
+      webhook-url: ${AI_EXTERNAL_ALERT_WEBHOOK_URL:}
+      connect-timeout-seconds: ${AI_EXTERNAL_ALERT_WEBHOOK_CONNECT_TIMEOUT_SECONDS:5}
+      read-timeout-seconds: ${AI_EXTERNAL_ALERT_WEBHOOK_READ_TIMEOUT_SECONDS:10}
+      scheduler-enabled: ${AI_EXTERNAL_ALERT_SCHEDULER_ENABLED:false}
+      scheduler-batch-size: ${AI_EXTERNAL_ALERT_SCHEDULER_BATCH_SIZE:50}
+      scheduler-fixed-delay-millis: ${AI_EXTERNAL_ALERT_SCHEDULER_FIXED_DELAY_MILLIS:60000}
+      scheduler-initial-delay-millis: ${AI_EXTERNAL_ALERT_SCHEDULER_INITIAL_DELAY_MILLIS:60000}
+      max-attempts: ${AI_EXTERNAL_ALERT_MAX_ATTEMPTS:3}
+      webhook-signing-enabled: ${AI_EXTERNAL_ALERT_WEBHOOK_SIGNING_ENABLED:false}
+      webhook-signing-secret: ${AI_EXTERNAL_ALERT_WEBHOOK_SIGNING_SECRET:}

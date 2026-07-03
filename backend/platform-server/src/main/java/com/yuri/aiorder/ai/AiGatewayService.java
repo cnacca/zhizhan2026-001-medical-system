@@ -6,6 +6,7 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import com.yuri.aiorder.common.BootstrapIdentity;
 import com.yuri.aiorder.common.UserRole;
 import com.yuri.aiorder.common.auth.AccessControlService;
+import com.yuri.aiorder.notification.NotificationPushService;
 import com.yuri.aiorder.order.api.DoctorOrderAssistantReadModel;
 import com.yuri.aiorder.order.api.OrderProjectionQueryService;
 import java.nio.charset.StandardCharsets;
@@ -41,9 +42,32 @@ public class AiGatewayService {
     private static final String MODEL_FAILURE_STATUS = "AI_MODEL_FAILED";
     private static final String BUDGET_EXCEEDED_MODEL_NAME = "ai-governance-budget-exceeded";
     private static final String BUDGET_EXCEEDED_STATUS = "AI_BUDGET_EXCEEDED";
+    private static final String BUDGET_CIRCUIT_OPEN_MODEL_NAME = "ai-governance-budget-circuit-open";
+    private static final String BUDGET_CIRCUIT_OPEN_STATUS = "AI_BUDGET_CIRCUIT_OPEN";
+    private static final String BUDGET_ROLE_CIRCUIT_OPEN_MODEL_NAME = "ai-governance-budget-role-circuit-open";
+    private static final String BUDGET_ROLE_CIRCUIT_OPEN_STATUS = "AI_BUDGET_ROLE_CIRCUIT_OPEN";
+    private static final String BUDGET_MODEL_CIRCUIT_OPEN_MODEL_NAME = "ai-governance-budget-model-circuit-open";
+    private static final String BUDGET_MODEL_CIRCUIT_OPEN_STATUS = "AI_BUDGET_MODEL_CIRCUIT_OPEN";
+    private static final String OUTPUT_GUARD_MODEL_NAME = "ai-governance-output-guard";
+    private static final String OUTPUT_GUARD_STATUS = "AI_OUTPUT_GUARDED";
+    private static final String EXTERNAL_ALERT_CHANNEL = "EXTERNAL_ALERT";
+    private static final String EXTERNAL_ALERT_PENDING_STATUS = "PENDING";
     private static final Set<UserRole> CS_AND_ADMIN = EnumSet.of(UserRole.CS, UserRole.ADMIN);
     private static final Set<UserRole> CHECK_MISSING_ROLES = EnumSet.of(UserRole.DOCTOR, UserRole.CS, UserRole.ADMIN);
     private static final Set<UserRole> PRODUCTION_NOTE_ROLES = EnumSet.of(UserRole.CS, UserRole.WORKER, UserRole.ADMIN);
+    private static final List<String> OUTPUT_GUARD_PATTERNS = List.of(
+            "deepseek_api_key",
+            "app_auth_token_secret",
+            "minio_secret_key",
+            "api key",
+            "secret=",
+            "password=",
+            "token=",
+            "内部工序备注：不要泄露",
+            "file_resource",
+            "ai_audit_log",
+            "auth_refresh_token",
+            "system_user");
     private static final List<String> DOCTOR_INTERNAL_KEYWORDS = List.of(
             "工序", "员工", "技工", "谁在做", "返工", "工时", "绩效", "入检", "出检",
             "责任", "internal", "process", "work_log", "rework", "performance", "assigned");
@@ -54,6 +78,7 @@ public class AiGatewayService {
     private final AccessControlService accessControlService;
     private final AiModelClient aiModelClient;
     private final AiGatewayProperties properties;
+    private final NotificationPushService notificationPushService;
     private final TransactionTemplate aiGovernanceAuditTransaction;
 
     public AiGatewayService(
@@ -63,6 +88,7 @@ public class AiGatewayService {
             AccessControlService accessControlService,
             AiModelClient aiModelClient,
             AiGatewayProperties properties,
+            NotificationPushService notificationPushService,
             PlatformTransactionManager transactionManager) {
         this.jdbcClient = jdbcClient;
         this.objectMapper = objectMapper;
@@ -70,6 +96,7 @@ public class AiGatewayService {
         this.accessControlService = accessControlService;
         this.aiModelClient = aiModelClient;
         this.properties = properties;
+        this.notificationPushService = notificationPushService;
         this.aiGovernanceAuditTransaction = new TransactionTemplate(transactionManager);
         this.aiGovernanceAuditTransaction.setPropagationBehavior(TransactionDefinition.PROPAGATION_REQUIRES_NEW);
     }
@@ -245,6 +272,44 @@ public class AiGatewayService {
                 .single();
     }
 
+    @Transactional(readOnly = true)
+    public AiGovernanceCostTrendResponse governanceCostTrend(BootstrapIdentity identity, int requestedDays) {
+        accessControlService.requireAnyRole(identity, CS_AND_ADMIN, "AI governance cost trend is CS/ADMIN only");
+        int days = Math.max(1, Math.min(31, requestedDays));
+        List<AiGovernanceCostTrendResponse.Point> points = jdbcClient.sql("""
+                        SELECT
+                            cost_date,
+                            COUNT(*) AS success_count,
+                            COALESCE(SUM(estimated_cost_microusd), 0) AS estimated_cost_microusd,
+                            COUNT(DISTINCT model_name) AS model_count
+                        FROM (
+                            SELECT
+                                DATE_FORMAT(DATE(created_at), '%Y-%m-%d') AS cost_date,
+                                model_name,
+                                estimated_cost_microusd
+                            FROM ai_audit_log
+                            WHERE result_status = 'SUCCESS'
+                              AND created_at >= DATE_SUB(CURRENT_DATE, INTERVAL :lookbackDays DAY)
+                        ) daily_cost
+                        GROUP BY cost_date
+                        ORDER BY cost_date
+                        """)
+                .param("lookbackDays", days - 1)
+                .query((rs, rowNum) -> new AiGovernanceCostTrendResponse.Point(
+                        rs.getString("cost_date"),
+                        rs.getLong("success_count"),
+                        rs.getLong("estimated_cost_microusd"),
+                        rs.getLong("model_count")))
+                .list();
+        long totalSuccessCount = points.stream()
+                .mapToLong(AiGovernanceCostTrendResponse.Point::successCount)
+                .sum();
+        long totalEstimatedCostMicrousd = points.stream()
+                .mapToLong(AiGovernanceCostTrendResponse.Point::estimatedCostMicrousd)
+                .sum();
+        return new AiGovernanceCostTrendResponse(days, points, totalSuccessCount, totalEstimatedCostMicrousd);
+    }
+
     private AiModelResult completeWithModel(
             String systemPrompt,
             String userPrompt,
@@ -257,11 +322,28 @@ public class AiGatewayService {
         if (!aiModelClient.isEnabled()) {
             return fallback.get();
         }
+        if (roleBudgetCircuitBreakerOpen(identity.role())) {
+            auditBudgetRoleCircuitOpen(orderId, identity, agentCode, contextType, auditPrompt);
+            return fallback.get();
+        }
+        if (modelBudgetCircuitBreakerOpen()) {
+            auditBudgetModelCircuitOpen(orderId, identity, agentCode, contextType, auditPrompt);
+            return fallback.get();
+        }
+        if (budgetCircuitBreakerOpen()) {
+            auditBudgetCircuitOpen(orderId, identity, agentCode, contextType, auditPrompt);
+            return fallback.get();
+        }
         RuntimeException lastFailure = null;
         int maxAttempts = Math.max(1, properties.getMaxModelRetries() + 1);
         for (int attempt = 1; attempt <= maxAttempts; attempt++) {
             try {
-                return aiModelClient.complete(systemPrompt, userPrompt);
+                AiModelResult result = aiModelClient.complete(systemPrompt, userPrompt);
+                if (outputGuardTriggered(result.content())) {
+                    auditOutputGuarded(orderId, identity, agentCode, contextType, auditPrompt, result);
+                    return deterministic("AI 输出已触发安全保护，请人工复核后再使用。");
+                }
+                return result;
             } catch (RuntimeException ex) {
                 lastFailure = ex;
                 if (attempt == maxAttempts || !isRetryableModelFailure(ex)) {
@@ -280,6 +362,27 @@ public class AiGatewayService {
                 lastFailure == null ? new IllegalStateException("AI model retry failed") : lastFailure);
     }
 
+    private void auditOutputGuarded(
+            long orderId,
+            BootstrapIdentity identity,
+            String agentCode,
+            String contextType,
+            String prompt,
+            AiModelResult modelResult) {
+        aiGovernanceAuditTransaction.executeWithoutResult(status -> audit(
+                orderId,
+                identity,
+                agentCode,
+                contextType,
+                prompt,
+                OUTPUT_GUARD_STATUS,
+                new AiModelResult(
+                        "ai-output-guarded",
+                        OUTPUT_GUARD_MODEL_NAME,
+                        modelResult.inputTokenCount(),
+                        modelResult.outputTokenCount())));
+    }
+
     private void auditModelFailure(
             long orderId,
             BootstrapIdentity identity,
@@ -294,6 +397,115 @@ public class AiGatewayService {
                 prompt,
                 MODEL_FAILURE_STATUS,
                 new AiModelResult("ai-model-failed", MODEL_FAILURE_MODEL_NAME, 0, null)));
+    }
+
+    private boolean budgetCircuitBreakerOpen() {
+        long dailyBudgetMicrousd = Math.max(0, properties.getDailyBudgetMicrousd());
+        if (!properties.isBudgetCircuitBreakerEnabled() || dailyBudgetMicrousd <= 0) {
+            return false;
+        }
+        long currentWindowCost = currentSuccessCostMicrousd();
+        return currentWindowCost >= dailyBudgetMicrousd;
+    }
+
+    private boolean roleBudgetCircuitBreakerOpen(UserRole role) {
+        long roleBudgetMicrousd = Math.max(0, properties.dailyBudgetMicrousdForRole(role));
+        if (!properties.isBudgetCircuitBreakerEnabled() || roleBudgetMicrousd <= 0) {
+            return false;
+        }
+        return currentRoleSuccessCostMicrousd(role) >= roleBudgetMicrousd;
+    }
+
+    private boolean modelBudgetCircuitBreakerOpen() {
+        String modelName = configuredModelName();
+        long modelBudgetMicrousd = Math.max(0, properties.getDeepseek().getDailyBudgetMicrousd());
+        if (!properties.isBudgetCircuitBreakerEnabled() || modelBudgetMicrousd <= 0 || modelName.isBlank()) {
+            return false;
+        }
+        return currentModelSuccessCostMicrousd(modelName) >= modelBudgetMicrousd;
+    }
+
+    private void auditBudgetCircuitOpen(
+            long orderId,
+            BootstrapIdentity identity,
+            String agentCode,
+            String contextType,
+            String prompt) {
+        long currentWindowCost = currentSuccessCostMicrousd();
+        long dailyBudgetMicrousd = Math.max(0, properties.getDailyBudgetMicrousd());
+        aiGovernanceAuditTransaction.executeWithoutResult(status -> {
+            audit(
+                    orderId,
+                    identity,
+                    agentCode,
+                    contextType,
+                    prompt,
+                    BUDGET_CIRCUIT_OPEN_STATUS,
+                    new AiModelResult("ai-budget-circuit-open", BUDGET_CIRCUIT_OPEN_MODEL_NAME, 0, null));
+            emitExternalAlertOutbox(
+                    orderId,
+                    BUDGET_CIRCUIT_OPEN_STATUS,
+                    budgetCircuitOpenMessage(currentWindowCost, dailyBudgetMicrousd),
+                    currentWindowCost,
+                    dailyBudgetMicrousd);
+        });
+    }
+
+    private void auditBudgetRoleCircuitOpen(
+            long orderId,
+            BootstrapIdentity identity,
+            String agentCode,
+            String contextType,
+            String prompt) {
+        String actorRole = identity.role().name();
+        long currentWindowCost = currentRoleSuccessCostMicrousd(identity.role());
+        long roleBudgetMicrousd = Math.max(0, properties.dailyBudgetMicrousdForRole(identity.role()));
+        aiGovernanceAuditTransaction.executeWithoutResult(status -> {
+            audit(
+                    orderId,
+                    identity,
+                    agentCode,
+                    contextType,
+                    prompt,
+                    BUDGET_ROLE_CIRCUIT_OPEN_STATUS,
+                    new AiModelResult("ai-budget-role-circuit-open", BUDGET_ROLE_CIRCUIT_OPEN_MODEL_NAME, 0, null));
+            emitExternalAlertOutbox(
+                    orderId,
+                    BUDGET_ROLE_CIRCUIT_OPEN_STATUS,
+                    budgetRoleCircuitOpenMessage(actorRole, currentWindowCost, roleBudgetMicrousd),
+                    currentWindowCost,
+                    roleBudgetMicrousd,
+                    actorRole);
+        });
+    }
+
+    private void auditBudgetModelCircuitOpen(
+            long orderId,
+            BootstrapIdentity identity,
+            String agentCode,
+            String contextType,
+            String prompt) {
+        String modelName = configuredModelName();
+        long currentWindowCost = currentModelSuccessCostMicrousd(modelName);
+        long modelBudgetMicrousd = Math.max(0, properties.getDeepseek().getDailyBudgetMicrousd());
+        aiGovernanceAuditTransaction.executeWithoutResult(status -> {
+            audit(
+                    orderId,
+                    identity,
+                    agentCode,
+                    contextType,
+                    prompt,
+                    BUDGET_MODEL_CIRCUIT_OPEN_STATUS,
+                    new AiModelResult("ai-budget-model-circuit-open", BUDGET_MODEL_CIRCUIT_OPEN_MODEL_NAME, 0, null));
+            emitExternalAlertOutbox(
+                    orderId,
+                    BUDGET_MODEL_CIRCUIT_OPEN_STATUS,
+                    budgetModelCircuitOpenMessage(modelName, currentWindowCost, modelBudgetMicrousd),
+                    currentWindowCost,
+                    modelBudgetMicrousd,
+                    null,
+                    modelName);
+        });
     }
 
     private boolean isRetryableModelFailure(Throwable ex) {
@@ -453,6 +665,14 @@ public class AiGatewayService {
         return DOCTOR_INTERNAL_KEYWORDS.stream().anyMatch(normalized::contains);
     }
 
+    private boolean outputGuardTriggered(String content) {
+        if (content == null || content.isBlank()) {
+            return false;
+        }
+        String normalized = content.toLowerCase(Locale.ROOT);
+        return OUTPUT_GUARD_PATTERNS.stream().anyMatch(normalized::contains);
+    }
+
     private String publicSuffix(DoctorOrderAssistantReadModel readModel) {
         List<String> parts = new ArrayList<>();
         if (readModel.publicMessage() != null && !readModel.publicMessage().isBlank()) {
@@ -484,18 +704,20 @@ public class AiGatewayService {
         long estimatedCostMicrousd = estimatedCostMicrousd(modelResult);
         jdbcClient.sql("""
                         INSERT INTO ai_audit_log
-                            (order_id, actor_user_id, agent_code, request_context_type,
-                             prompt_hash, model_name, input_token_count, output_token_count,
+                            (order_id, actor_user_id, actor_role, agent_code, request_context_type,
+                             prompt_version, prompt_hash, model_name, input_token_count, output_token_count,
                              estimated_cost_microusd, result_status)
                         VALUES
-                            (:orderId, :actorUserId, :agentCode, :contextType,
-                             :promptHash, :modelName, :inputTokenCount, :outputTokenCount,
+                            (:orderId, :actorUserId, :actorRole, :agentCode, :contextType,
+                             :promptVersion, :promptHash, :modelName, :inputTokenCount, :outputTokenCount,
                              :estimatedCostMicrousd, :resultStatus)
                         """)
                 .param("orderId", orderId)
                 .param("actorUserId", identity.userId())
+                .param("actorRole", identity.role().name())
                 .param("agentCode", agentCode)
                 .param("contextType", contextType)
+                .param("promptVersion", promptVersionFor(agentCode))
                 .param("promptHash", sha256(prompt))
                 .param("modelName", modelResult.modelName())
                 .param("inputTokenCount", modelResult.inputTokenCount())
@@ -505,6 +727,17 @@ public class AiGatewayService {
                 .update();
         auditBudgetExceededIfCrossed(orderId, identity, agentCode, contextType, prompt, resultStatus, modelResult,
                 estimatedCostMicrousd);
+    }
+
+    private String promptVersionFor(String agentCode) {
+        return switch (agentCode) {
+            case "AI_TRANSLATE" -> "AI_TRANSLATE_V1";
+            case "AI_CS_QUERY" -> "AI_CS_QUERY_V1";
+            case "AI_DOCTOR_ORDER_QUERY" -> "AI_DOCTOR_ORDER_QUERY_V1";
+            case "AI_CHECK_MISSING" -> "AI_CHECK_MISSING_V1";
+            case "AI_PRODUCTION_NOTE" -> "AI_PRODUCTION_NOTE_V1";
+            default -> agentCode + "_V1";
+        };
     }
 
     private void auditBudgetExceededIfCrossed(
@@ -523,14 +756,7 @@ public class AiGatewayService {
                 || DETERMINISTIC_MODEL_NAME.equals(modelResult.modelName())) {
             return;
         }
-        long currentWindowCost = jdbcClient.sql("""
-                        SELECT COALESCE(SUM(estimated_cost_microusd), 0)
-                        FROM ai_audit_log
-                        WHERE result_status = 'SUCCESS'
-                          AND created_at >= DATE_SUB(CURRENT_TIMESTAMP(3), INTERVAL 24 HOUR)
-                        """)
-                .query(Long.class)
-                .single();
+        long currentWindowCost = currentSuccessCostMicrousd();
         long previousWindowCost = Math.max(0, currentWindowCost - estimatedCostMicrousd);
         if (previousWindowCost >= dailyBudgetMicrousd || currentWindowCost < dailyBudgetMicrousd) {
             return;
@@ -543,6 +769,231 @@ public class AiGatewayService {
                 prompt,
                 BUDGET_EXCEEDED_STATUS,
                 new AiModelResult("ai-budget-exceeded", BUDGET_EXCEEDED_MODEL_NAME, 0, null));
+        emitExternalAlertOutbox(
+                orderId,
+                BUDGET_EXCEEDED_STATUS,
+                budgetExceededMessage(currentWindowCost, dailyBudgetMicrousd),
+                currentWindowCost,
+                dailyBudgetMicrousd);
+        if (properties.isBudgetNotificationEnabled()) {
+            emitBudgetExceededNotification(orderId, currentWindowCost, dailyBudgetMicrousd);
+        }
+    }
+
+    private void emitBudgetExceededNotification(long orderId, long currentWindowCost, long dailyBudgetMicrousd) {
+        String orderNo = loadOrderNo(orderId);
+        String message = budgetExceededMessage(currentWindowCost, dailyBudgetMicrousd);
+        String payload = budgetNotificationPayload(orderId, orderNo, message, currentWindowCost, dailyBudgetMicrousd);
+        jdbcClient.sql("""
+                        INSERT INTO notification_event
+                            (order_id, event_type, audience_role, payload, delivery_status)
+                        VALUES
+                            (:orderId, :eventType, 'INTERNAL', CAST(:payload AS JSON), 'PENDING')
+                        """)
+                .param("orderId", orderId)
+                .param("eventType", BUDGET_EXCEEDED_STATUS)
+                .param("payload", payload)
+                .update();
+        long eventId = jdbcClient.sql("SELECT LAST_INSERT_ID()").query(Long.class).single();
+        List<Long> userIds = jdbcClient.sql("""
+                        SELECT DISTINCT u.user_id
+                        FROM system_user u
+                        JOIN system_user_role ur ON ur.user_id = u.user_id
+                        JOIN system_role r ON r.role_id = ur.role_id
+                        WHERE u.status = 'ACTIVE'
+                          AND r.status = 'ACTIVE'
+                          AND r.role_code IN ('ADMIN', 'CS')
+                        """)
+                .query(Long.class)
+                .list();
+        for (Long userId : userIds) {
+            jdbcClient.sql("""
+                            INSERT IGNORE INTO user_notification (event_id, user_id)
+                            VALUES (:eventId, :userId)
+                            """)
+                    .param("eventId", eventId)
+                    .param("userId", userId)
+                    .update();
+            notificationPushService.pushToUser(userId, eventId, payload);
+        }
+    }
+
+    private void emitExternalAlertOutbox(
+            long orderId,
+            String alertType,
+            String message,
+            long currentWindowCost,
+            long dailyBudgetMicrousd) {
+        emitExternalAlertOutbox(orderId, alertType, message, currentWindowCost, dailyBudgetMicrousd, null);
+    }
+
+    private void emitExternalAlertOutbox(
+            long orderId,
+            String alertType,
+            String message,
+            long currentWindowCost,
+            long dailyBudgetMicrousd,
+            String actorRole) {
+        emitExternalAlertOutbox(orderId, alertType, message, currentWindowCost, dailyBudgetMicrousd, actorRole, null);
+    }
+
+    private void emitExternalAlertOutbox(
+            long orderId,
+            String alertType,
+            String message,
+            long currentWindowCost,
+            long dailyBudgetMicrousd,
+            String actorRole,
+            String modelName) {
+        String orderNo = loadOrderNo(orderId);
+        String payload = externalAlertPayload(orderId, orderNo, alertType, actorRole, modelName, message, currentWindowCost,
+                dailyBudgetMicrousd);
+        jdbcClient.sql("""
+                        INSERT INTO ai_external_alert_outbox
+                            (order_id, alert_type, channel, payload, send_status, attempts)
+                        VALUES
+                            (:orderId, :alertType, :channel, CAST(:payload AS JSON), :sendStatus, 0)
+                        """)
+                .param("orderId", orderId)
+                .param("alertType", alertType)
+                .param("channel", EXTERNAL_ALERT_CHANNEL)
+                .param("payload", payload)
+                .param("sendStatus", EXTERNAL_ALERT_PENDING_STATUS)
+                .update();
+    }
+
+    private long currentSuccessCostMicrousd() {
+        return jdbcClient.sql("""
+                        SELECT COALESCE(SUM(estimated_cost_microusd), 0)
+                        FROM ai_audit_log
+                        WHERE result_status = 'SUCCESS'
+                          AND created_at >= DATE_SUB(CURRENT_TIMESTAMP(3), INTERVAL 24 HOUR)
+                        """)
+                .query(Long.class)
+                .single();
+    }
+
+    private long currentRoleSuccessCostMicrousd(UserRole role) {
+        if (role == null) {
+            return 0;
+        }
+        return jdbcClient.sql("""
+                        SELECT COALESCE(SUM(estimated_cost_microusd), 0)
+                        FROM ai_audit_log
+                        WHERE actor_role = :actorRole
+                          AND result_status = 'SUCCESS'
+                          AND created_at >= DATE_SUB(CURRENT_TIMESTAMP(3), INTERVAL 24 HOUR)
+                        """)
+                .param("actorRole", role.name())
+                .query(Long.class)
+                .single();
+    }
+
+    private long currentModelSuccessCostMicrousd(String modelName) {
+        if (modelName == null || modelName.isBlank()) {
+            return 0;
+        }
+        return jdbcClient.sql("""
+                        SELECT COALESCE(SUM(estimated_cost_microusd), 0)
+                        FROM ai_audit_log
+                        WHERE model_name = :modelName
+                          AND result_status = 'SUCCESS'
+                          AND created_at >= DATE_SUB(CURRENT_TIMESTAMP(3), INTERVAL 24 HOUR)
+                        """)
+                .param("modelName", modelName)
+                .query(Long.class)
+                .single();
+    }
+
+    private String loadOrderNo(long orderId) {
+        return jdbcClient.sql("SELECT order_no FROM orders WHERE order_id = :orderId")
+                .param("orderId", orderId)
+                .query(String.class)
+                .single();
+    }
+
+    private String budgetExceededMessage(long currentWindowCost, long dailyBudgetMicrousd) {
+        return "AI 预算已达到阈值：近 24 小时估算成本 "
+                + currentWindowCost
+                + " microUSD，阈值 "
+                + dailyBudgetMicrousd
+                + " microUSD。";
+    }
+
+    private String budgetCircuitOpenMessage(long currentWindowCost, long dailyBudgetMicrousd) {
+        return "AI 预算熔断已命中：近 24 小时估算成本 "
+                + currentWindowCost
+                + " microUSD，阈值 "
+                + dailyBudgetMicrousd
+                + " microUSD。";
+    }
+
+    private String budgetRoleCircuitOpenMessage(String actorRole, long currentWindowCost, long roleBudgetMicrousd) {
+        return "AI 角色预算熔断已命中：角色 "
+                + actorRole
+                + " 近 24 小时估算成本 "
+                + currentWindowCost
+                + " microUSD，角色阈值 "
+                + roleBudgetMicrousd
+                + " microUSD。";
+    }
+
+    private String budgetModelCircuitOpenMessage(String modelName, long currentWindowCost, long modelBudgetMicrousd) {
+        return "AI 模型预算熔断已命中：模型 "
+                + modelName
+                + " 近 24 小时估算成本 "
+                + currentWindowCost
+                + " microUSD，模型阈值 "
+                + modelBudgetMicrousd
+                + " microUSD。";
+    }
+
+    private String budgetNotificationPayload(
+            long orderId,
+            String orderNo,
+            String message,
+            long currentWindowCost,
+            long dailyBudgetMicrousd) {
+        try {
+            return objectMapper.writeValueAsString(new AiBudgetNotificationPayload(
+                    BUDGET_EXCEEDED_STATUS,
+                    orderId,
+                    orderNo,
+                    message,
+                    currentWindowCost,
+                    dailyBudgetMicrousd));
+        } catch (JsonProcessingException ex) {
+            throw new ResponseStatusException(HttpStatus.INTERNAL_SERVER_ERROR, "invalid AI budget payload", ex);
+        }
+    }
+
+    private String externalAlertPayload(
+            long orderId,
+            String orderNo,
+            String event,
+            String role,
+            String model,
+            String message,
+            long currentWindowCost,
+            long dailyBudgetMicrousd) {
+        try {
+            return objectMapper.writeValueAsString(new AiExternalAlertPayload(
+                    event,
+                    role,
+                    model,
+                    orderId,
+                    orderNo,
+                    message,
+                    currentWindowCost,
+                    dailyBudgetMicrousd));
+        } catch (JsonProcessingException ex) {
+            throw new ResponseStatusException(HttpStatus.INTERNAL_SERVER_ERROR, "invalid AI external alert payload", ex);
+        }
+    }
+
+    private String configuredModelName() {
+        String modelName = properties.getDeepseek().getModel();
+        return modelName == null ? "" : modelName.trim();
     }
 
     private long estimatedCostMicrousd(AiModelResult modelResult) {
@@ -582,5 +1033,25 @@ public class AiGatewayService {
     }
 
     private record RequiredField(String fieldKey, String fieldLabel) {
+    }
+
+    private record AiBudgetNotificationPayload(
+            String event,
+            long orderId,
+            String orderNo,
+            String message,
+            long estimatedCostMicrousd,
+            long dailyBudgetMicrousd) {
+    }
+
+    private record AiExternalAlertPayload(
+            String event,
+            String role,
+            String model,
+            long orderId,
+            String orderNo,
+            String message,
+            long estimatedCostMicrousd,
+            long dailyBudgetMicrousd) {
     }
 }

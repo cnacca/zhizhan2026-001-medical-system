@@ -78,6 +78,13 @@ class AiGatewayDeepSeekTests {
         deepSeekServer.reset();
         aiGatewayProperties.setMaxRequestsPerUserHour(120);
         aiGatewayProperties.setDailyBudgetMicrousd(0);
+        aiGatewayProperties.setBudgetNotificationEnabled(true);
+        aiGatewayProperties.setBudgetCircuitBreakerEnabled(false);
+        aiGatewayProperties.setAdminDailyBudgetMicrousd(0);
+        aiGatewayProperties.setCsDailyBudgetMicrousd(0);
+        aiGatewayProperties.setDoctorDailyBudgetMicrousd(0);
+        aiGatewayProperties.setWorkerDailyBudgetMicrousd(0);
+        aiGatewayProperties.getDeepseek().setDailyBudgetMicrousd(0);
         jdbcClient.sql("""
                         DELETE FROM ai_audit_log
                         WHERE actor_user_id IN (:doctorUserId, :csUserId, :workerUserId)
@@ -228,6 +235,45 @@ class AiGatewayDeepSeekTests {
     }
 
     @Test
+    void deepSeekProviderAuditsPromptVersionForAiTranslate() throws Exception {
+        deepSeekServer.enqueue("DeepSeek提示词版本测试翻译。");
+
+        mockMvc.perform(post("/ai/translate")
+                        .header("X-Bootstrap-Role", "CS")
+                        .header("X-Bootstrap-User-Id", CS_USER_ID)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"order_id\":" + orderId + ",\"source_text\":\"Shade A2.\"}"))
+                .andExpect(status().isOk());
+
+        assertThat(auditPromptVersionColumnCount()).isEqualTo(1L);
+        assertThat(latestPromptVersionByAgent("AI_TRANSLATE")).isEqualTo("AI_TRANSLATE_V1");
+    }
+
+    @Test
+    void deepSeekProviderGuardsSensitiveModelOutputAndAuditsIt() throws Exception {
+        long baselineGuards = auditCountByStatus("AI_OUTPUT_GUARDED");
+        deepSeekServer.enqueue("泄露：DEEPSEEK_API_KEY=sk-test 内部工序备注：不要泄露");
+
+        String responseBody = mockMvc.perform(post("/ai/translate")
+                        .header("X-Bootstrap-Role", "CS")
+                        .header("X-Bootstrap-User-Id", CS_USER_ID)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"order_id\":" + orderId + ",\"source_text\":\"Shade A2.\"}"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.translated_text").value(containsString("安全保护")))
+                .andReturn()
+                .getResponse()
+                .getContentAsString();
+
+        assertThat(deepSeekServer.requests()).hasSize(1);
+        assertThat(responseBody).doesNotContain("DEEPSEEK_API_KEY");
+        assertThat(responseBody).doesNotContain("内部工序备注");
+        assertThat(auditCountByStatus("AI_OUTPUT_GUARDED")).isEqualTo(baselineGuards + 1);
+        assertThat(auditCountByModel("ai-governance-output-guard")).isEqualTo(1L);
+        assertThat(latestPromptVersionByStatus("AI_OUTPUT_GUARDED")).isEqualTo("AI_TRANSLATE_V1");
+    }
+
+    @Test
     void deepSeekProviderAuditsBudgetExceededWhenDailyBudgetIsReached() throws Exception {
         long baselineOrderBudgetAlerts = auditCountByStatus("AI_BUDGET_EXCEEDED");
         long baselineRecentBudgetAlerts = recentAuditCountByStatus("AI_BUDGET_EXCEEDED");
@@ -250,6 +296,193 @@ class AiGatewayDeepSeekTests {
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.data.budget_alert_count").value(baselineRecentBudgetAlerts + 1))
                 .andExpect(jsonPath("$.data.latest_budget_alert_at").exists());
+    }
+
+    @Test
+    void deepSeekProviderNotifiesInternalUsersWhenDailyBudgetIsReached() throws Exception {
+        long baselineEvents = notificationEventCount("AI_BUDGET_EXCEEDED");
+        long baselineAdminNotifications = userNotificationCount(8001L, "AI_BUDGET_EXCEEDED");
+        long baselineCsNotifications = userNotificationCount(8002L, "AI_BUDGET_EXCEEDED");
+        long baselineDoctorNotifications = userNotificationCount(9701L, "AI_BUDGET_EXCEEDED");
+        long baselineWorkerNotifications = userNotificationCount(9601L, "AI_BUDGET_EXCEEDED");
+        aiGatewayProperties.setDailyBudgetMicrousd(recentSuccessCostMicrousd() + 50);
+        deepSeekServer.enqueue("DeepSeek预算通知测试翻译。");
+
+        mockMvc.perform(post("/ai/translate")
+                        .header("X-Bootstrap-Role", "CS")
+                        .header("X-Bootstrap-User-Id", CS_USER_ID)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"order_id\":" + orderId + ",\"source_text\":\"Shade A2.\"}"))
+                .andExpect(status().isOk());
+
+        assertThat(notificationEventCount("AI_BUDGET_EXCEEDED")).isEqualTo(baselineEvents + 1);
+        assertThat(userNotificationCount(8001L, "AI_BUDGET_EXCEEDED")).isEqualTo(baselineAdminNotifications + 1);
+        assertThat(userNotificationCount(8002L, "AI_BUDGET_EXCEEDED")).isEqualTo(baselineCsNotifications + 1);
+        assertThat(userNotificationCount(9701L, "AI_BUDGET_EXCEEDED")).isEqualTo(baselineDoctorNotifications);
+        assertThat(userNotificationCount(9601L, "AI_BUDGET_EXCEEDED")).isEqualTo(baselineWorkerNotifications);
+
+        mockMvc.perform(get("/notifications")
+                        .header("X-Bootstrap-Role", "ADMIN")
+                        .header("X-Bootstrap-User-Id", 8001L))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data[0].event").value("AI_BUDGET_EXCEEDED"))
+                .andExpect(jsonPath("$.data[0].order_id").value(orderId))
+                .andExpect(jsonPath("$.data[0].message").value(containsString("AI 预算")));
+    }
+
+    @Test
+    void deepSeekProviderSkipsBudgetNotificationWhenNotificationStrategyIsDisabled() throws Exception {
+        long baselineBudgetAlerts = auditCountByStatus("AI_BUDGET_EXCEEDED");
+        long baselineEvents = notificationEventCount("AI_BUDGET_EXCEEDED");
+        long baselineAdminNotifications = userNotificationCount(8001L, "AI_BUDGET_EXCEEDED");
+        long baselineCsNotifications = userNotificationCount(8002L, "AI_BUDGET_EXCEEDED");
+        aiGatewayProperties.setBudgetNotificationEnabled(false);
+        aiGatewayProperties.setDailyBudgetMicrousd(recentSuccessCostMicrousd() + 50);
+        deepSeekServer.enqueue("DeepSeek预算通知策略测试翻译。");
+
+        mockMvc.perform(post("/ai/translate")
+                        .header("X-Bootstrap-Role", "CS")
+                        .header("X-Bootstrap-User-Id", CS_USER_ID)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"order_id\":" + orderId + ",\"source_text\":\"Shade A2.\"}"))
+                .andExpect(status().isOk());
+
+        assertThat(auditCountByStatus("AI_BUDGET_EXCEEDED")).isEqualTo(baselineBudgetAlerts + 1);
+        assertThat(notificationEventCount("AI_BUDGET_EXCEEDED")).isEqualTo(baselineEvents);
+        assertThat(userNotificationCount(8001L, "AI_BUDGET_EXCEEDED")).isEqualTo(baselineAdminNotifications);
+        assertThat(userNotificationCount(8002L, "AI_BUDGET_EXCEEDED")).isEqualTo(baselineCsNotifications);
+    }
+
+    @Test
+    void deepSeekProviderFallsBackWhenBudgetCircuitBreakerIsEnabledAndBudgetAlreadyExceeded() throws Exception {
+        long baselineCircuitBreakers = auditCountByStatus("AI_BUDGET_CIRCUIT_OPEN");
+        aiGatewayProperties.setBudgetCircuitBreakerEnabled(true);
+        aiGatewayProperties.setDailyBudgetMicrousd(recentSuccessCostMicrousd() + 1);
+        insertRecentSuccessCost(5);
+        deepSeekServer.enqueue("DeepSeek should not be called when budget circuit is open.");
+
+        mockMvc.perform(post("/ai/translate")
+                        .header("X-Bootstrap-Role", "CS")
+                        .header("X-Bootstrap-User-Id", CS_USER_ID)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"order_id\":" + orderId + ",\"source_text\":\"Shade A2.\"}"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.translated_text").value(containsString("翻译草稿")));
+
+        assertThat(deepSeekServer.requests()).isEmpty();
+        assertThat(auditCountByStatus("AI_BUDGET_CIRCUIT_OPEN")).isEqualTo(baselineCircuitBreakers + 1);
+        assertThat(auditCountByModel("ai-governance-budget-circuit-open")).isEqualTo(1L);
+    }
+
+    @Test
+    void deepSeekProviderCreatesExternalAlertOutboxWhenDailyBudgetIsReached() throws Exception {
+        long baselineBudgetAlerts = auditCountByStatus("AI_BUDGET_EXCEEDED");
+        long baselineExternalAlerts = externalAlertCount("AI_BUDGET_EXCEEDED");
+        aiGatewayProperties.setDailyBudgetMicrousd(recentSuccessCostMicrousd() + 50);
+        deepSeekServer.enqueue("DeepSeek预算外部告警测试翻译。");
+
+        mockMvc.perform(post("/ai/translate")
+                        .header("X-Bootstrap-Role", "CS")
+                        .header("X-Bootstrap-User-Id", CS_USER_ID)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"order_id\":" + orderId + ",\"source_text\":\"Shade A2.\"}"))
+                .andExpect(status().isOk());
+
+        assertThat(deepSeekServer.requests()).hasSize(1);
+        assertThat(auditCountByStatus("AI_BUDGET_EXCEEDED")).isEqualTo(baselineBudgetAlerts + 1);
+        assertThat(externalAlertCount("AI_BUDGET_EXCEEDED")).isEqualTo(baselineExternalAlerts + 1);
+        assertThat(latestExternalAlertStatus("AI_BUDGET_EXCEEDED")).isEqualTo("PENDING");
+        assertThat(latestExternalAlertPayloadField("AI_BUDGET_EXCEEDED", "$.event"))
+                .isEqualTo("AI_BUDGET_EXCEEDED");
+        assertThat(latestExternalAlertPayloadField("AI_BUDGET_EXCEEDED", "$.orderNo"))
+                .startsWith("AIDS");
+        assertThat(latestExternalAlertPayloadText("AI_BUDGET_EXCEEDED"))
+                .doesNotContain("Shade A2");
+    }
+
+    @Test
+    void deepSeekProviderCreatesExternalAlertOutboxWhenBudgetCircuitBreakerOpens() throws Exception {
+        long baselineCircuitBreakers = auditCountByStatus("AI_BUDGET_CIRCUIT_OPEN");
+        long baselineExternalAlerts = externalAlertCount("AI_BUDGET_CIRCUIT_OPEN");
+        aiGatewayProperties.setBudgetCircuitBreakerEnabled(true);
+        aiGatewayProperties.setDailyBudgetMicrousd(recentSuccessCostMicrousd() + 1);
+        insertRecentSuccessCost(5);
+        deepSeekServer.enqueue("DeepSeek should not be called when budget circuit is open.");
+
+        mockMvc.perform(post("/ai/translate")
+                        .header("X-Bootstrap-Role", "CS")
+                        .header("X-Bootstrap-User-Id", CS_USER_ID)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"order_id\":" + orderId + ",\"source_text\":\"Shade A2.\"}"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.translated_text").value(containsString("翻译草稿")));
+
+        assertThat(deepSeekServer.requests()).isEmpty();
+        assertThat(auditCountByStatus("AI_BUDGET_CIRCUIT_OPEN")).isEqualTo(baselineCircuitBreakers + 1);
+        assertThat(externalAlertCount("AI_BUDGET_CIRCUIT_OPEN")).isEqualTo(baselineExternalAlerts + 1);
+        assertThat(latestExternalAlertStatus("AI_BUDGET_CIRCUIT_OPEN")).isEqualTo("PENDING");
+        assertThat(latestExternalAlertPayloadField("AI_BUDGET_CIRCUIT_OPEN", "$.event"))
+                .isEqualTo("AI_BUDGET_CIRCUIT_OPEN");
+        assertThat(latestExternalAlertPayloadText("AI_BUDGET_CIRCUIT_OPEN"))
+                .doesNotContain("Shade A2");
+    }
+
+    @Test
+    void deepSeekProviderFallsBackWhenCsRoleBudgetCircuitBreakerIsOpen() throws Exception {
+        long baselineRoleCircuitBreakers = auditCountByStatus("AI_BUDGET_ROLE_CIRCUIT_OPEN");
+        long baselineExternalAlerts = externalAlertCount("AI_BUDGET_ROLE_CIRCUIT_OPEN");
+        aiGatewayProperties.setBudgetCircuitBreakerEnabled(true);
+        aiGatewayProperties.setCsDailyBudgetMicrousd(recentSuccessCostMicrousdForRole("CS") + 1);
+        insertRecentSuccessCostForRole("CS", 5);
+        deepSeekServer.enqueue("DeepSeek should not be called when CS role budget circuit is open.");
+
+        mockMvc.perform(post("/ai/translate")
+                        .header("X-Bootstrap-Role", "CS")
+                        .header("X-Bootstrap-User-Id", CS_USER_ID)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"order_id\":" + orderId + ",\"source_text\":\"Shade A2.\"}"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.translated_text").value(containsString("翻译草稿")));
+
+        assertThat(deepSeekServer.requests()).isEmpty();
+        assertThat(auditCountByStatus("AI_BUDGET_ROLE_CIRCUIT_OPEN"))
+                .isEqualTo(baselineRoleCircuitBreakers + 1);
+        assertThat(auditCountByModel("ai-governance-budget-role-circuit-open")).isEqualTo(1L);
+        assertThat(externalAlertCount("AI_BUDGET_ROLE_CIRCUIT_OPEN")).isEqualTo(baselineExternalAlerts + 1);
+        assertThat(latestExternalAlertStatus("AI_BUDGET_ROLE_CIRCUIT_OPEN")).isEqualTo("PENDING");
+        assertThat(latestExternalAlertPayloadField("AI_BUDGET_ROLE_CIRCUIT_OPEN", "$.event"))
+                .isEqualTo("AI_BUDGET_ROLE_CIRCUIT_OPEN");
+        assertThat(latestExternalAlertPayloadField("AI_BUDGET_ROLE_CIRCUIT_OPEN", "$.role"))
+                .isEqualTo("CS");
+    }
+
+    @Test
+    void deepSeekProviderFallsBackWhenDeepSeekModelBudgetCircuitBreakerIsOpen() throws Exception {
+        long baselineModelCircuitBreakers = auditCountByStatus("AI_BUDGET_MODEL_CIRCUIT_OPEN");
+        long baselineExternalAlerts = externalAlertCount("AI_BUDGET_MODEL_CIRCUIT_OPEN");
+        aiGatewayProperties.setBudgetCircuitBreakerEnabled(true);
+        aiGatewayProperties.getDeepseek().setDailyBudgetMicrousd(recentSuccessCostMicrousdForModel("deepseek-chat") + 1);
+        insertRecentSuccessCostForModel("deepseek-chat", 5);
+        deepSeekServer.enqueue("DeepSeek should not be called when model budget circuit is open.");
+
+        mockMvc.perform(post("/ai/translate")
+                        .header("X-Bootstrap-Role", "CS")
+                        .header("X-Bootstrap-User-Id", CS_USER_ID)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"order_id\":" + orderId + ",\"source_text\":\"Shade A2.\"}"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.translated_text").value(containsString("翻译草稿")));
+
+        assertThat(deepSeekServer.requests()).isEmpty();
+        assertThat(auditCountByStatus("AI_BUDGET_MODEL_CIRCUIT_OPEN"))
+                .isEqualTo(baselineModelCircuitBreakers + 1);
+        assertThat(auditCountByModel("ai-governance-budget-model-circuit-open")).isEqualTo(1L);
+        assertThat(externalAlertCount("AI_BUDGET_MODEL_CIRCUIT_OPEN")).isEqualTo(baselineExternalAlerts + 1);
+        assertThat(latestExternalAlertStatus("AI_BUDGET_MODEL_CIRCUIT_OPEN")).isEqualTo("PENDING");
+        assertThat(latestExternalAlertPayloadField("AI_BUDGET_MODEL_CIRCUIT_OPEN", "$.event"))
+                .isEqualTo("AI_BUDGET_MODEL_CIRCUIT_OPEN");
+        assertThat(latestExternalAlertPayloadField("AI_BUDGET_MODEL_CIRCUIT_OPEN", "$.model"))
+                .isEqualTo("deepseek-chat");
     }
 
     @Test
@@ -334,6 +567,116 @@ class AiGatewayDeepSeekTests {
                 .single();
     }
 
+    private long recentSuccessCostMicrousdForRole(String actorRole) {
+        return jdbcClient.sql("""
+                        SELECT COALESCE(SUM(estimated_cost_microusd), 0)
+                        FROM ai_audit_log
+                        WHERE result_status = 'SUCCESS'
+                          AND actor_role = :actorRole
+                          AND created_at >= DATE_SUB(CURRENT_TIMESTAMP(3), INTERVAL 24 HOUR)
+                        """)
+                .param("actorRole", actorRole)
+                .query(Long.class)
+                .single();
+    }
+
+    private long recentSuccessCostMicrousdForModel(String modelName) {
+        return jdbcClient.sql("""
+                        SELECT COALESCE(SUM(estimated_cost_microusd), 0)
+                        FROM ai_audit_log
+                        WHERE result_status = 'SUCCESS'
+                          AND model_name = :modelName
+                          AND created_at >= DATE_SUB(CURRENT_TIMESTAMP(3), INTERVAL 24 HOUR)
+                        """)
+                .param("modelName", modelName)
+                .query(Long.class)
+                .single();
+    }
+
+    private long notificationEventCount(String eventType) {
+        return jdbcClient.sql("""
+                        SELECT COUNT(*)
+                        FROM notification_event
+                        WHERE event_type = :eventType
+                        """)
+                .param("eventType", eventType)
+                .query(Long.class)
+                .single();
+    }
+
+    private long userNotificationCount(long userId, String eventType) {
+        return jdbcClient.sql("""
+                        SELECT COUNT(*)
+                        FROM user_notification un
+                        JOIN notification_event ne ON ne.event_id = un.event_id
+                        WHERE un.user_id = :userId
+                          AND ne.event_type = :eventType
+                        """)
+                .param("userId", userId)
+                .param("eventType", eventType)
+                .query(Long.class)
+                .single();
+    }
+
+    private long externalAlertCount(String alertType) {
+        return jdbcClient.sql("""
+                        SELECT COUNT(*)
+                        FROM ai_external_alert_outbox
+                        WHERE order_id = :orderId
+                          AND alert_type = :alertType
+                        """)
+                .param("orderId", orderId)
+                .param("alertType", alertType)
+                .query(Long.class)
+                .single();
+    }
+
+    private String latestExternalAlertStatus(String alertType) {
+        return jdbcClient.sql("""
+                        SELECT send_status
+                        FROM ai_external_alert_outbox
+                        WHERE order_id = :orderId
+                          AND alert_type = :alertType
+                        ORDER BY alert_id DESC
+                        LIMIT 1
+                        """)
+                .param("orderId", orderId)
+                .param("alertType", alertType)
+                .query(String.class)
+                .single();
+    }
+
+    private String latestExternalAlertPayloadField(String alertType, String jsonPath) {
+        return jdbcClient.sql("""
+                        SELECT JSON_UNQUOTE(JSON_EXTRACT(payload, :jsonPath))
+                        FROM ai_external_alert_outbox
+                        WHERE order_id = :orderId
+                          AND alert_type = :alertType
+                        ORDER BY alert_id DESC
+                        LIMIT 1
+                        """)
+                .param("orderId", orderId)
+                .param("alertType", alertType)
+                .param("jsonPath", jsonPath)
+                .query(String.class)
+                .single();
+    }
+
+    private String latestExternalAlertPayloadText(String alertType) {
+        return jdbcClient.sql("""
+                        SELECT CAST(payload AS CHAR)
+                        FROM ai_external_alert_outbox
+                        WHERE order_id = :orderId
+                          AND alert_type = :alertType
+                        ORDER BY alert_id DESC
+                        LIMIT 1
+                        """)
+                .param("orderId", orderId)
+                .param("alertType", alertType)
+                .query(String.class)
+                .single();
+    }
+
     private long auditCostColumnCount() {
         return jdbcClient.sql("""
                         SELECT COUNT(*)
@@ -341,6 +684,18 @@ class AiGatewayDeepSeekTests {
                         WHERE table_schema = DATABASE()
                           AND table_name = 'ai_audit_log'
                           AND column_name = 'estimated_cost_microusd'
+                        """)
+                .query(Long.class)
+                .single();
+    }
+
+    private long auditPromptVersionColumnCount() {
+        return jdbcClient.sql("""
+                        SELECT COUNT(*)
+                        FROM information_schema.columns
+                        WHERE table_schema = DATABASE()
+                          AND table_name = 'ai_audit_log'
+                          AND column_name = 'prompt_version'
                         """)
                 .query(Long.class)
                 .single();
@@ -358,6 +713,89 @@ class AiGatewayDeepSeekTests {
                 .param("orderId", orderId)
                 .query(Long.class)
                 .single();
+    }
+
+    private String latestPromptVersionByAgent(String agentCode) {
+        return jdbcClient.sql("""
+                        SELECT prompt_version
+                        FROM ai_audit_log
+                        WHERE order_id = :orderId
+                          AND agent_code = :agentCode
+                        ORDER BY ai_audit_id DESC
+                        LIMIT 1
+                        """)
+                .param("orderId", orderId)
+                .param("agentCode", agentCode)
+                .query(String.class)
+                .single();
+    }
+
+    private String latestPromptVersionByStatus(String status) {
+        return jdbcClient.sql("""
+                        SELECT prompt_version
+                        FROM ai_audit_log
+                        WHERE order_id = :orderId
+                          AND result_status = :status
+                        ORDER BY ai_audit_id DESC
+                        LIMIT 1
+                        """)
+                .param("orderId", orderId)
+                .param("status", status)
+                .query(String.class)
+                .single();
+    }
+
+    private void insertRecentSuccessCost(long estimatedCostMicrousd) {
+        jdbcClient.sql("""
+                        INSERT INTO ai_audit_log
+                            (order_id, actor_user_id, agent_code, request_context_type,
+                             prompt_hash, model_name, input_token_count, output_token_count,
+                             estimated_cost_microusd, result_status)
+                        VALUES
+                            (:orderId, :actorUserId, 'AI_TEST', 'BUDGET_CIRCUIT_TEST',
+                             'hash-budget-circuit-open', 'deepseek-chat', 1, 1,
+                             :estimatedCostMicrousd, 'SUCCESS')
+                        """)
+                .param("orderId", orderId)
+                .param("actorUserId", CS_USER_ID)
+                .param("estimatedCostMicrousd", estimatedCostMicrousd)
+                .update();
+    }
+
+    private void insertRecentSuccessCostForRole(String actorRole, long estimatedCostMicrousd) {
+        jdbcClient.sql("""
+                        INSERT INTO ai_audit_log
+                            (order_id, actor_user_id, actor_role, agent_code, request_context_type,
+                             prompt_hash, model_name, input_token_count, output_token_count,
+                             estimated_cost_microusd, result_status)
+                        VALUES
+                            (:orderId, :actorUserId, :actorRole, 'AI_TEST', 'ROLE_BUDGET_CIRCUIT_TEST',
+                             'hash-role-budget-circuit-open', 'deepseek-chat', 1, 1,
+                             :estimatedCostMicrousd, 'SUCCESS')
+                        """)
+                .param("orderId", orderId)
+                .param("actorUserId", CS_USER_ID)
+                .param("actorRole", actorRole)
+                .param("estimatedCostMicrousd", estimatedCostMicrousd)
+                .update();
+    }
+
+    private void insertRecentSuccessCostForModel(String modelName, long estimatedCostMicrousd) {
+        jdbcClient.sql("""
+                        INSERT INTO ai_audit_log
+                            (order_id, actor_user_id, actor_role, agent_code, request_context_type,
+                             prompt_hash, model_name, input_token_count, output_token_count,
+                             estimated_cost_microusd, result_status)
+                        VALUES
+                            (:orderId, :actorUserId, 'CS', 'AI_TEST', 'MODEL_BUDGET_CIRCUIT_TEST',
+                             'hash-model-budget-circuit-open', :modelName, 1, 1,
+                             :estimatedCostMicrousd, 'SUCCESS')
+                        """)
+                .param("orderId", orderId)
+                .param("actorUserId", CS_USER_ID)
+                .param("modelName", modelName)
+                .param("estimatedCostMicrousd", estimatedCostMicrousd)
+                .update();
     }
 
     private static final class DeepSeekStubServer {

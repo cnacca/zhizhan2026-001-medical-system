@@ -1,5 +1,6 @@
 package com.yuri.aiorder.ai;
 
+import com.yuri.aiorder.common.UserRole;
 import org.springframework.boot.context.properties.ConfigurationProperties;
 
 @ConfigurationProperties(prefix = "app.ai")
@@ -11,7 +12,14 @@ public class AiGatewayProperties {
     private long inputTokenCostMicrousd = 0;
     private long outputTokenCostMicrousd = 0;
     private long dailyBudgetMicrousd = 0;
+    private long adminDailyBudgetMicrousd = 0;
+    private long csDailyBudgetMicrousd = 0;
+    private long doctorDailyBudgetMicrousd = 0;
+    private long workerDailyBudgetMicrousd = 0;
+    private boolean budgetNotificationEnabled = true;
+    private boolean budgetCircuitBreakerEnabled = false;
     private final DeepSeek deepseek = new DeepSeek();
+    private final ExternalAlert externalAlert = new ExternalAlert();
 
     public String getProvider() {
         return provider;
@@ -61,8 +69,72 @@ public class AiGatewayProperties {
         this.dailyBudgetMicrousd = dailyBudgetMicrousd;
     }
 
+    public long getCsDailyBudgetMicrousd() {
+        return csDailyBudgetMicrousd;
+    }
+
+    public void setCsDailyBudgetMicrousd(long csDailyBudgetMicrousd) {
+        this.csDailyBudgetMicrousd = csDailyBudgetMicrousd;
+    }
+
+    public long getAdminDailyBudgetMicrousd() {
+        return adminDailyBudgetMicrousd;
+    }
+
+    public void setAdminDailyBudgetMicrousd(long adminDailyBudgetMicrousd) {
+        this.adminDailyBudgetMicrousd = adminDailyBudgetMicrousd;
+    }
+
+    public long getDoctorDailyBudgetMicrousd() {
+        return doctorDailyBudgetMicrousd;
+    }
+
+    public void setDoctorDailyBudgetMicrousd(long doctorDailyBudgetMicrousd) {
+        this.doctorDailyBudgetMicrousd = doctorDailyBudgetMicrousd;
+    }
+
+    public long getWorkerDailyBudgetMicrousd() {
+        return workerDailyBudgetMicrousd;
+    }
+
+    public void setWorkerDailyBudgetMicrousd(long workerDailyBudgetMicrousd) {
+        this.workerDailyBudgetMicrousd = workerDailyBudgetMicrousd;
+    }
+
+    public long dailyBudgetMicrousdForRole(UserRole role) {
+        if (role == null) {
+            return 0;
+        }
+        return switch (role) {
+            case ADMIN -> adminDailyBudgetMicrousd;
+            case CS -> csDailyBudgetMicrousd;
+            case DOCTOR -> doctorDailyBudgetMicrousd;
+            case WORKER -> workerDailyBudgetMicrousd;
+        };
+    }
+
+    public boolean isBudgetNotificationEnabled() {
+        return budgetNotificationEnabled;
+    }
+
+    public void setBudgetNotificationEnabled(boolean budgetNotificationEnabled) {
+        this.budgetNotificationEnabled = budgetNotificationEnabled;
+    }
+
+    public boolean isBudgetCircuitBreakerEnabled() {
+        return budgetCircuitBreakerEnabled;
+    }
+
+    public void setBudgetCircuitBreakerEnabled(boolean budgetCircuitBreakerEnabled) {
+        this.budgetCircuitBreakerEnabled = budgetCircuitBreakerEnabled;
+    }
+
     public DeepSeek getDeepseek() {
         return deepseek;
+    }
+
+    public ExternalAlert getExternalAlert() {
+        return externalAlert;
     }
 
     public boolean deepSeekEnabled() {
@@ -78,6 +150,7 @@ public class AiGatewayProperties {
         private String baseUrl = "https://api.deepseek.com";
         private String apiKey = "";
         private String model = "deepseek-chat";
+        private long dailyBudgetMicrousd = 0;
         private double temperature = 0.2;
         private int maxTokens = 800;
         private int connectTimeoutSeconds = 10;
@@ -115,6 +188,14 @@ public class AiGatewayProperties {
             this.model = model;
         }
 
+        public long getDailyBudgetMicrousd() {
+            return dailyBudgetMicrousd;
+        }
+
+        public void setDailyBudgetMicrousd(long dailyBudgetMicrousd) {
+            this.dailyBudgetMicrousd = dailyBudgetMicrousd;
+        }
+
         public double getTemperature() {
             return temperature;
         }
@@ -145,6 +226,108 @@ public class AiGatewayProperties {
 
         public void setReadTimeoutSeconds(int readTimeoutSeconds) {
             this.readTimeoutSeconds = readTimeoutSeconds;
+        }
+    }
+
+    public static class ExternalAlert {
+        private boolean webhookEnabled = false;
+        private String webhookUrl = "";
+        private int connectTimeoutSeconds = 5;
+        private int readTimeoutSeconds = 10;
+        private boolean schedulerEnabled = false;
+        private int schedulerBatchSize = 50;
+        private long schedulerFixedDelayMillis = 60000;
+        private long schedulerInitialDelayMillis = 60000;
+        private int maxAttempts = 3;
+        private boolean webhookSigningEnabled = false;
+        private String webhookSigningSecret = "";
+
+        public boolean isWebhookEnabled() {
+            return webhookEnabled;
+        }
+
+        public void setWebhookEnabled(boolean webhookEnabled) {
+            this.webhookEnabled = webhookEnabled;
+        }
+
+        public String getWebhookUrl() {
+            return webhookUrl;
+        }
+
+        public void setWebhookUrl(String webhookUrl) {
+            this.webhookUrl = webhookUrl;
+        }
+
+        public int getConnectTimeoutSeconds() {
+            return connectTimeoutSeconds;
+        }
+
+        public void setConnectTimeoutSeconds(int connectTimeoutSeconds) {
+            this.connectTimeoutSeconds = connectTimeoutSeconds;
+        }
+
+        public int getReadTimeoutSeconds() {
+            return readTimeoutSeconds;
+        }
+
+        public void setReadTimeoutSeconds(int readTimeoutSeconds) {
+            this.readTimeoutSeconds = readTimeoutSeconds;
+        }
+
+        public boolean isSchedulerEnabled() {
+            return schedulerEnabled;
+        }
+
+        public void setSchedulerEnabled(boolean schedulerEnabled) {
+            this.schedulerEnabled = schedulerEnabled;
+        }
+
+        public int getSchedulerBatchSize() {
+            return schedulerBatchSize;
+        }
+
+        public void setSchedulerBatchSize(int schedulerBatchSize) {
+            this.schedulerBatchSize = schedulerBatchSize;
+        }
+
+        public long getSchedulerFixedDelayMillis() {
+            return schedulerFixedDelayMillis;
+        }
+
+        public void setSchedulerFixedDelayMillis(long schedulerFixedDelayMillis) {
+            this.schedulerFixedDelayMillis = schedulerFixedDelayMillis;
+        }
+
+        public long getSchedulerInitialDelayMillis() {
+            return schedulerInitialDelayMillis;
+        }
+
+        public void setSchedulerInitialDelayMillis(long schedulerInitialDelayMillis) {
+            this.schedulerInitialDelayMillis = schedulerInitialDelayMillis;
+        }
+
+        public int getMaxAttempts() {
+            return maxAttempts;
+        }
+
+        public void setMaxAttempts(int maxAttempts) {
+            this.maxAttempts = maxAttempts;
+        }
+
+        public boolean isWebhookSigningEnabled() {
+            return webhookSigningEnabled;
+        }
+
+        public void setWebhookSigningEnabled(boolean webhookSigningEnabled) {
+            this.webhookSigningEnabled = webhookSigningEnabled;
+        }
+
+        public String getWebhookSigningSecret() {
+            return webhookSigningSecret;
+        }
+
+        public void setWebhookSigningSecret(String webhookSigningSecret) {
+            this.webhookSigningSecret = webhookSigningSecret;
         }
     }
 }

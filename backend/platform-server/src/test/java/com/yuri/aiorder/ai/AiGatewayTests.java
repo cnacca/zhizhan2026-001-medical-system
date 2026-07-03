@@ -2,6 +2,7 @@ package com.yuri.aiorder.ai;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.hamcrest.Matchers.containsString;
+import static org.hamcrest.Matchers.hasItem;
 import static org.hamcrest.Matchers.not;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
@@ -242,6 +243,99 @@ class AiGatewayTests {
                 .andExpect(jsonPath("$.data.budget_exceeded").value(true));
     }
 
+    @Test
+    void aiGovernanceCostTrendGroupsRecentSuccessCostByDayForInternalUsers() throws Exception {
+        String today = currentDate();
+        String yesterday = dateDaysAgo(1);
+        String promptPrefix = "task-9d42-cost-trend-" + UUID.randomUUID();
+        String modelSuffix = UUID.randomUUID().toString().replace("-", "").substring(0, 12);
+        DailyCostTrend todayBaseline = dailyCostTrend(today);
+        DailyCostTrend yesterdayBaseline = dailyCostTrend(yesterday);
+        String modelA = "trend-a-" + modelSuffix;
+        String modelB = "trend-b-" + modelSuffix;
+        jdbcClient.sql("""
+                        INSERT INTO ai_audit_log
+                            (order_id, actor_user_id, actor_role, agent_code, request_context_type,
+                             prompt_hash, model_name, input_token_count, output_token_count,
+                             estimated_cost_microusd, result_status, created_at)
+                        VALUES
+                            (NULL, :csUserId, 'CS', 'AI_TRANSLATE', 'ORDER_TRANSLATION_DRAFT',
+                             :todayHash1, :modelA, 10, 5, 40, 'SUCCESS', CURRENT_TIMESTAMP(3)),
+                            (NULL, :csUserId, 'CS', 'AI_CS_QUERY', 'INTERNAL_ORDER_SUMMARY',
+                             :todayHash2, :modelB, 20, 10, 100, 'SUCCESS', CURRENT_TIMESTAMP(3)),
+                            (NULL, :csUserId, 'CS', 'AI_TRANSLATE', 'ORDER_TRANSLATION_DRAFT',
+                             :yesterdayHash, :modelA, 15, 5, 60, 'SUCCESS',
+                             DATE_SUB(CURRENT_TIMESTAMP(3), INTERVAL 1 DAY)),
+                            (NULL, :csUserId, 'CS', 'AI_TRANSLATE', 'ORDER_TRANSLATION_DRAFT',
+                             :failedHash, :modelA, 0, 0, 999, 'AI_MODEL_FAILED', CURRENT_TIMESTAMP(3))
+                        """)
+                .param("csUserId", CS_USER_ID)
+                .param("todayHash1", promptPrefix + "-today-1")
+                .param("todayHash2", promptPrefix + "-today-2")
+                .param("yesterdayHash", promptPrefix + "-yesterday")
+                .param("failedHash", promptPrefix + "-failed")
+                .param("modelA", modelA)
+                .param("modelB", modelB)
+                .update();
+
+        mockMvc.perform(get("/ai/governance/cost-trend")
+                        .param("days", "7")
+                        .header("X-Bootstrap-Role", "CS")
+                        .header("X-Bootstrap-User-Id", CS_USER_ID))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.days").value(7))
+                .andExpect(jsonPath("$.data.points[*].date").value(hasItem(today)))
+                .andExpect(jsonPath("$.data.points[*].date").value(hasItem(yesterday)))
+                .andExpect(jsonPath("$.data.points[?(@.date == '" + today
+                        + "')].estimated_cost_microusd").value(hasItem((int) todayBaseline.estimatedCostMicrousd() + 140)))
+                .andExpect(jsonPath("$.data.points[?(@.date == '" + today
+                        + "')].success_count").value(hasItem((int) todayBaseline.successCount() + 2)))
+                .andExpect(jsonPath("$.data.points[?(@.date == '" + today
+                        + "')].model_count").value(hasItem((int) todayBaseline.modelCount() + 2)))
+                .andExpect(jsonPath("$.data.points[?(@.date == '" + yesterday
+                        + "')].estimated_cost_microusd").value(hasItem((int) yesterdayBaseline.estimatedCostMicrousd() + 60)));
+    }
+
+    @Test
+    void aiGovernanceCostTrendRejectsDoctorUsers() throws Exception {
+        mockMvc.perform(get("/ai/governance/cost-trend")
+                        .header("X-Bootstrap-Role", "DOCTOR")
+                        .header("X-Bootstrap-User-Id", DOCTOR_USER_ID)
+                        .header("X-Bootstrap-Clinic-Id", clinicId))
+                .andExpect(status().isForbidden());
+    }
+
+    private String currentDate() {
+        return jdbcClient.sql("SELECT DATE_FORMAT(CURRENT_DATE, '%Y-%m-%d')")
+                .query(String.class)
+                .single();
+    }
+
+    private String dateDaysAgo(int days) {
+        return jdbcClient.sql("SELECT DATE_FORMAT(DATE_SUB(CURRENT_DATE, INTERVAL :days DAY), '%Y-%m-%d')")
+                .param("days", days)
+                .query(String.class)
+                .single();
+    }
+
+    private DailyCostTrend dailyCostTrend(String date) {
+        return jdbcClient.sql("""
+                        SELECT
+                            COALESCE(SUM(CASE WHEN result_status = 'SUCCESS' THEN 1 ELSE 0 END), 0) AS success_count,
+                            COALESCE(SUM(CASE WHEN result_status = 'SUCCESS' THEN estimated_cost_microusd ELSE 0 END), 0)
+                                AS estimated_cost_microusd,
+                            COUNT(DISTINCT CASE WHEN result_status = 'SUCCESS' THEN model_name ELSE NULL END) AS model_count
+                        FROM ai_audit_log
+                        WHERE DATE(created_at) = :date
+                        """)
+                .param("date", date)
+                .query((rs, rowNum) -> new DailyCostTrend(
+                        rs.getLong("success_count"),
+                        rs.getLong("estimated_cost_microusd"),
+                        rs.getLong("model_count")))
+                .single();
+    }
+
     private AuditSummary auditSummary() {
         return jdbcClient.sql("""
                         SELECT
@@ -349,5 +443,11 @@ class AiGatewayTests {
             long rateLimitedCount,
             long modelFailedCount,
             long estimatedCostMicrousd) {
+    }
+
+    private record DailyCostTrend(
+            long successCount,
+            long estimatedCostMicrousd,
+            long modelCount) {
     }
 }

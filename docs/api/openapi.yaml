@@ -1347,10 +1347,10 @@ components:
       properties:
         reason_category:
           type: string
-          description: 返工原因分类，支持 FIT_ISSUE / MATERIAL_ISSUE / DESIGN_ISSUE / OTHER。
+          description: 返工原因分类，必须使用 `/reworks/dictionaries` 返回的 code。
         responsibility_type:
           type: string
-          description: 责任类型，支持 WORKER / DOCTOR / CS / SYSTEM。
+          description: 责任类型，必须使用 `/reworks/dictionaries` 返回的 code。
         close_note:
           type: string
           description: 关闭备注。
@@ -1618,46 +1618,41 @@ components:
       properties:
         draft_note:
           type: string
-    AiGovernanceSummaryResponse:
+    AiGovernanceCostTrendResponse:
       type: object
       properties:
-        window_hours:
+        days:
           type: integer
-          example: 24
+          description: 查询窗口天数，默认 7，服务端限制为 1 到 31。
+        points:
+          type: array
+          items:
+            "$ref": "#/components/schemas/AiGovernanceCostTrendPoint"
+        total_success_count:
+          type: integer
+          format: int64
+        total_estimated_cost_microusd:
+          type: integer
+          format: int64
+    AiGovernanceCostTrendPoint:
+      type: object
+      properties:
+        date:
+          type: string
+          format: date
+          description: 聚合日期。
         success_count:
           type: integer
           format: int64
-        safe_refusal_count:
-          type: integer
-          format: int64
-        rate_limited_count:
-          type: integer
-          format: int64
-        model_failed_count:
-          type: integer
-          format: int64
-        budget_alert_count:
-          type: integer
-          format: int64
-          description: 近 24 小时 AI 预算跨线治理审计次数。
+          description: 当天成功模型调用次数。
         estimated_cost_microusd:
           type: integer
           format: int64
-        daily_budget_microusd:
+          description: 当天成功模型调用估算成本，单位 microUSD。
+        model_count:
           type: integer
           format: int64
-          description: 近 24 小时预算阈值，0 表示未启用预算阈值。
-        budget_exceeded:
-          type: boolean
-          description: 当 daily_budget_microusd 大于 0 且近 24 小时估算成本达到或超过阈值时为 true。
-        latest_model_failure_at:
-          type: string
-          format: date-time
-          nullable: true
-        latest_budget_alert_at:
-          type: string
-          format: date-time
-          nullable: true
+          description: 当天出现过成功调用的模型数量。
     MissingInfoResponse:
       type: object
       properties:
@@ -1685,6 +1680,7 @@ components:
           format: int64
         event:
           type: string
+          description: 预算超限通知使用 AI_BUDGET_EXCEEDED。
           example: BILL_UPLOADED
         order_id:
           type: integer
@@ -1750,12 +1746,6 @@ components:
             "$ref": "#/components/schemas/ErrorResponse"
     Conflict:
       description: 业务状态冲突或幂等冲突
-      content:
-        application/json:
-          schema:
-            "$ref": "#/components/schemas/ErrorResponse"
-    TooManyRequests:
-      description: 请求过于频繁或 AI 调用限流
       content:
         application/json:
           schema:
@@ -3866,7 +3856,7 @@ paths:
       summary: 查询返工原因和责任类型字典
       description: |
         任务 9D.18 第一增量：权限 WORKER / CS / ADMIN。
-        返回关闭返工时可用的原因分类和责任类型 code，POST /reworks/{reworkId}/close 只接受这些 code。
+        返回关闭返工时可用的原因分类和责任类型 code，`POST /reworks/{reworkId}/close` 只接受这些 code。
       responses:
         '200':
           description: 返工字典
@@ -4831,10 +4821,17 @@ paths:
         返回翻译草稿，客服确认后需调用 /orders/{orderId}/review 写入生产指令。
         本接口只负责生成草稿，不写入任何订单字段。
         任务 9D.15 第一增量：当后端配置 AI_PROVIDER=deepseek、AI_DEEPSEEK_ENABLED=true 且注入 DEEPSEEK_API_KEY 时，通过 OpenAI-compatible /chat/completions 调用 DeepSeek；未启用或未配置真实 key 时保持 deterministic-placeholder 安全占位输出。
-        任务 9D.26 第一增量：真实模型调用受 AI_MAX_REQUESTS_PER_USER_HOUR 限流，超额返回 429 并写 ai_audit_log.result_status=AI_RATE_LIMITED。
-        任务 9D.27 第一增量：可通过 AI_INPUT_TOKEN_COST_MICROUSD / AI_OUTPUT_TOKEN_COST_MICROUSD 配置估算成本，并写入 ai_audit_log.estimated_cost_microusd；仓库不内置真实供应商价格。
-        任务 9D.28 第一增量：真实模型短暂 5xx 或连接异常可按 AI_MODEL_MAX_RETRIES 重试；默认重试 1 次，成功后仍只写一条 SUCCESS 审计。
-        任务 9D.29 第一增量：真实模型重试耗尽或不可恢复失败时返回 503，并用独立事务写 ai_audit_log.result_status=AI_MODEL_FAILED。
+        任务 9D.35 第一增量：当 AI_BUDGET_CIRCUIT_BREAKER_ENABLED=true 且近 24 小时成功调用估算成本已达到 AI_DAILY_BUDGET_MICROUSD 时，本接口不再外呼真实模型，返回 deterministic fallback，并写入 AI_BUDGET_CIRCUIT_OPEN 治理审计。
+        任务 9D.37 第一增量：预算跨线 AI_BUDGET_EXCEEDED 或预算熔断 AI_BUDGET_CIRCUIT_OPEN 会写入 ai_external_alert_outbox 待发送事实，send_status=PENDING；当前不调用真实外部告警渠道。
+        任务 9D.38 第一增量：当 AI_BUDGET_CIRCUIT_BREAKER_ENABLED=true 且当前角色的 AI_ADMIN_DAILY_BUDGET_MICROUSD / AI_CS_DAILY_BUDGET_MICROUSD / AI_DOCTOR_DAILY_BUDGET_MICROUSD / AI_WORKER_DAILY_BUDGET_MICROUSD 已超限时，不再外呼真实模型，并写入 AI_BUDGET_ROLE_CIRCUIT_OPEN 治理审计和 outbox。
+        任务 9D.39 第一增量：当 AI_BUDGET_CIRCUIT_BREAKER_ENABLED=true 且当前 AI_DEEPSEEK_MODEL 的 AI_DEEPSEEK_DAILY_BUDGET_MICROUSD 已超限时，不再外呼真实模型，并写入 AI_BUDGET_MODEL_CIRCUIT_OPEN 治理审计和 outbox。
+        任务 9D.40 第一增量：AI 审计写入 prompt_version；真实模型输出命中敏感防护时，返回安全保护文案，并写入 AI_OUTPUT_GUARDED / ai-governance-output-guard 治理审计。
+        任务 9D.41 第一增量：ai_external_alert_outbox 的 PENDING 记录可由本地发送器推进为 SENT 或 FAILED，并累计 attempts / 记录 last_error。
+        任务 9D.43 第一增量：发送器默认仍是本地 dry-run；只有显式配置 AI_EXTERNAL_ALERT_WEBHOOK_ENABLED=true 且提供 AI_EXTERNAL_ALERT_WEBHOOK_URL 时，EXTERNAL_ALERT 通道才会把 outbox payload 以 application/json POST 到外部 webhook，不提交任何真实渠道密钥。
+        任务 9D.44 第一增量：AI 外部告警调度器默认关闭；只有显式配置 AI_EXTERNAL_ALERT_SCHEDULER_ENABLED=true 时，才会按 AI_EXTERNAL_ALERT_SCHEDULER_BATCH_SIZE 批量调用发送器处理 PENDING outbox。本增量不做分布式锁、复杂重试、死信或真实渠道密钥。
+        任务 9D.45 第一增量：webhook 非 2xx 或连接异常会累计 attempts 并写 last_error；未达到 AI_EXTERNAL_ALERT_MAX_ATTEMPTS 时保持 PENDING 等待下次调度，达到上限后标记 DEAD_LETTER。本增量不做分布式锁、退避调度、死信管理页面或生产 webhook 联调。
+        任务 9D.46 第一增量：发送器会先用条件更新把 PENDING outbox 领取为事务内 SENDING，领取成功后才允许外呼 webhook；重复触发或并发 sender 不能对同一条 outbox 造成重复外呼。本增量不做签名/鉴权、退避调度、告警抑制、监控指标或生产 webhook 联调。
+        任务 9D.47 第一增量：默认不签名；显式设置 AI_EXTERNAL_ALERT_WEBHOOK_SIGNING_ENABLED=true 并通过安全渠道注入 AI_EXTERNAL_ALERT_WEBHOOK_SIGNING_SECRET 后，webhook 请求会携带 X-AI-Alert-Signature: sha256=<HMAC-SHA256(request body)>。本增量不提交真实 secret，不做 timestamp/nonce 防重放、接收端验签服务或生产 webhook 联调。
       requestBody:
         required: true
         content:
@@ -4863,8 +4860,6 @@ paths:
           "$ref": "#/components/responses/NotFound"
         '409':
           "$ref": "#/components/responses/Conflict"
-        '429':
-          "$ref": "#/components/responses/TooManyRequests"
         default:
           "$ref": "#/components/responses/DefaultError"
         '503':
@@ -4922,10 +4917,6 @@ paths:
         返回自然语言回答，对外发送前客服必须确认。
         本接口不写入任何数据，不发送任何消息。
         任务 9D.15 第一增量：可通过后端 DeepSeek 适配层生成草稿；所有调用写 ai_audit_log.model_name，未启用真实模型时保持 deterministic-placeholder。
-        任务 9D.26 第一增量：真实模型调用受 AI_MAX_REQUESTS_PER_USER_HOUR 限流，超额返回 429 并写 ai_audit_log.result_status=AI_RATE_LIMITED。
-        任务 9D.27 第一增量：可通过 AI_INPUT_TOKEN_COST_MICROUSD / AI_OUTPUT_TOKEN_COST_MICROUSD 配置估算成本，并写入 ai_audit_log.estimated_cost_microusd；仓库不内置真实供应商价格。
-        任务 9D.28 第一增量：真实模型短暂 5xx 或连接异常可按 AI_MODEL_MAX_RETRIES 重试；默认重试 1 次，成功后仍只写一条 SUCCESS 审计。
-        任务 9D.29 第一增量：真实模型重试耗尽或不可恢复失败时返回 503，并用独立事务写 ai_audit_log.result_status=AI_MODEL_FAILED。
       requestBody:
         required: true
         content:
@@ -4954,8 +4945,6 @@ paths:
           "$ref": "#/components/responses/NotFound"
         '409':
           "$ref": "#/components/responses/Conflict"
-        '429':
-          "$ref": "#/components/responses/TooManyRequests"
         default:
           "$ref": "#/components/responses/DefaultError"
         '503':
@@ -4968,14 +4957,10 @@ paths:
       summary: AI-3 客户订单助手（医生端）
       description: |
         权限：DOCTOR
-        服务端专用查询层：只从 orders 表读取 external_status 和 logistics 表读取运单号。
-        禁止读取 internal_status / process_instance / check_record / work_log 等内部表。
-        此规则在服务端数据查询层强制执行，不依赖前端。
+        服务端专用查询层：只使用 DoctorOrderAssistantReadModel 的外部状态、公开消息、账单和物流字段。
+        禁止读取或传递 internal_status / process_instance / check_record / work_log / performance / rework 等内部字段。
+        此规则在服务端数据查询层和模型上下文构造层强制执行，不依赖前端。
         任务 9D.15 第一增量：公开问题可通过 DeepSeek 适配层生成回答；内部问题继续本地 SAFE_REFUSAL，不向模型发送内部问题上下文。
-        任务 9D.26 第一增量：真实模型调用受 AI_MAX_REQUESTS_PER_USER_HOUR 限流，超额返回 429 并写 ai_audit_log.result_status=AI_RATE_LIMITED。
-        任务 9D.27 第一增量：可通过 AI_INPUT_TOKEN_COST_MICROUSD / AI_OUTPUT_TOKEN_COST_MICROUSD 配置估算成本，并写入 ai_audit_log.estimated_cost_microusd；仓库不内置真实供应商价格。
-        任务 9D.28 第一增量：真实模型短暂 5xx 或连接异常可按 AI_MODEL_MAX_RETRIES 重试；默认重试 1 次，成功后仍只写一条 SUCCESS 审计。
-        任务 9D.29 第一增量：真实模型重试耗尽或不可恢复失败时返回 503，并用独立事务写 ai_audit_log.result_status=AI_MODEL_FAILED。
       requestBody:
         required: true
         content:
@@ -5004,8 +4989,6 @@ paths:
           "$ref": "#/components/responses/NotFound"
         '409':
           "$ref": "#/components/responses/Conflict"
-        '429':
-          "$ref": "#/components/responses/TooManyRequests"
         default:
           "$ref": "#/components/responses/DefaultError"
         '503':
@@ -5021,10 +5004,6 @@ paths:
         返回生产备注草稿，格式按客户提供的标准模板（由全栈另行实现）。
         本接口不写入任何数据，草稿需人工确认后通过订单编辑接口保存。
         任务 9D.15 第一增量：可通过后端 DeepSeek 适配层生成草稿；本接口仍不自动写入订单字段。
-        任务 9D.26 第一增量：真实模型调用受 AI_MAX_REQUESTS_PER_USER_HOUR 限流，超额返回 429 并写 ai_audit_log.result_status=AI_RATE_LIMITED。
-        任务 9D.27 第一增量：可通过 AI_INPUT_TOKEN_COST_MICROUSD / AI_OUTPUT_TOKEN_COST_MICROUSD 配置估算成本，并写入 ai_audit_log.estimated_cost_microusd；仓库不内置真实供应商价格。
-        任务 9D.28 第一增量：真实模型短暂 5xx 或连接异常可按 AI_MODEL_MAX_RETRIES 重试；默认重试 1 次，成功后仍只写一条 SUCCESS 审计。
-        任务 9D.29 第一增量：真实模型重试耗尽或不可恢复失败时返回 503，并用独立事务写 ai_audit_log.result_status=AI_MODEL_FAILED。
       requestBody:
         required: true
         content:
@@ -5053,27 +5032,33 @@ paths:
           "$ref": "#/components/responses/NotFound"
         '409':
           "$ref": "#/components/responses/Conflict"
-        '429':
-          "$ref": "#/components/responses/TooManyRequests"
         default:
           "$ref": "#/components/responses/DefaultError"
         '503':
           "$ref": "#/components/responses/ServiceUnavailable"
       operationId: postAiProductionNote
-  "/ai/governance/summary":
+  "/ai/governance/cost-trend":
     get:
       tags:
       - AI
-      summary: AI 治理摘要（内部端）
+      summary: AI 成本趋势
       description: |
         权限：CS / ADMIN
-        任务 9D.30 第一增量：基于 ai_audit_log 返回近 24 小时 AI 调用治理摘要，包含成功、安全拒绝、限流、模型失败、估算成本和最近模型失败时间。
-        任务 9D.31 第一增量：可通过 AI_DAILY_BUDGET_MICROUSD / app.ai.daily-budget-microusd 配置近 24 小时预算阈值，并返回 budget_exceeded；默认 0 表示不启用预算阈值。
-        任务 9D.32 第一增量：真实模型成功调用导致近 24 小时估算成本跨过预算阈值时写入 AI_BUDGET_EXCEEDED 审计，并在摘要中返回 budget_alert_count / latest_budget_alert_at。
-        本接口只读，不修改模型配置、不暴露 prompt 原文或上游供应商错误正文。
+        任务 9D.42 第一增量：按天聚合 ai_audit_log 中 result_status=SUCCESS 的成功模型调用，返回成功次数、估算成本 microUSD 和当日模型数量，用于上线前观察 AI 成本变化。
+        当前只读取已有审计表，不接真实计费账单、不做预算策略管理页面、不导出报表，也不向医生端/生产端开放。
+      parameters:
+      - name: days
+        in: query
+        required: false
+        schema:
+          type: integer
+          default: 7
+          minimum: 1
+          maximum: 31
+        description: 查询最近多少天；服务端会限制到 1 到 31 天。
       responses:
         '200':
-          description: 返回 AI 治理摘要
+          description: 最近 N 天 AI 成本趋势
           content:
             application/json:
               schema:
@@ -5082,7 +5067,7 @@ paths:
                 - type: object
                   properties:
                     data:
-                      "$ref": "#/components/schemas/AiGovernanceSummaryResponse"
+                      "$ref": "#/components/schemas/AiGovernanceCostTrendResponse"
         '400':
           "$ref": "#/components/responses/BadRequest"
         '401':
@@ -5097,7 +5082,7 @@ paths:
           "$ref": "#/components/responses/DefaultError"
         '503':
           "$ref": "#/components/responses/ServiceUnavailable"
-      operationId: getAiGovernanceSummary
+      operationId: getAiGovernanceCostTrend
   "/notifications":
     get:
       tags:
@@ -5106,6 +5091,16 @@ paths:
       description: |
         权限：DOCTOR / CS / WORKER / ADMIN
         仅返回当前登录用户自己的 `user_notification` 记录。响应只包含通知事件的公开 payload 字段，不返回内部备注、内部状态、员工绩效或工序敏感信息。
+        任务 9D.33 第一增量：AI 预算超限内部通知通过本接口返回给 ADMIN / CS，事件类型为 AI_BUDGET_EXCEEDED。
+        任务 9D.34 第一增量：当 AI_BUDGET_NOTIFICATION_ENABLED=false 时，预算跨线只保留治理审计，不写入内部通知事实。
+        任务 9D.35 第一增量：AI_BUDGET_CIRCUIT_OPEN 只写 ai_audit_log 治理审计，不写通知事实。
+        任务 9D.37 第一增量：外部告警待发送事实写入 ai_external_alert_outbox，不通过本通知列表返回。
+        任务 9D.41 第一增量：本地外部告警发送器可把 outbox 从 PENDING 推进为 SENT / FAILED，并记录 attempts 和 last_error。
+        任务 9D.43 第一增量：默认不外呼；显式设置 AI_EXTERNAL_ALERT_WEBHOOK_ENABLED=true 和 AI_EXTERNAL_ALERT_WEBHOOK_URL 后，EXTERNAL_ALERT 会 POST webhook。
+        任务 9D.44 第一增量：默认不自动调度；显式设置 AI_EXTERNAL_ALERT_SCHEDULER_ENABLED=true 后，调度器会按配置批量触发现有 sender。
+        任务 9D.45 第一增量：webhook 失败时按 AI_EXTERNAL_ALERT_MAX_ATTEMPTS 控制重试；未达上限保持 PENDING，达到上限进入 DEAD_LETTER，并保留 last_error。
+        任务 9D.46 第一增量：sender 先领取 PENDING 为事务内 SENDING，再执行 webhook 发送，避免重复触发或并发 sender 对同一条 outbox 重复外呼。
+        任务 9D.47 第一增量：显式启用 AI_EXTERNAL_ALERT_WEBHOOK_SIGNING_ENABLED 且注入 AI_EXTERNAL_ALERT_WEBHOOK_SIGNING_SECRET 后，sender 会给 webhook 请求增加 X-AI-Alert-Signature HMAC-SHA256 签名头。
       parameters:
       - name: unread_only
         in: query

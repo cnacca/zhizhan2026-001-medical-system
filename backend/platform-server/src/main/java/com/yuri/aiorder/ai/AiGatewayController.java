@@ -12,6 +12,7 @@ import org.springframework.web.bind.annotation.CrossOrigin;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
+import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
 
 @RestController
@@ -63,6 +64,14 @@ public class AiGatewayController {
     @RequirePermission(value = "ai:cs", roles = {UserRole.ADMIN, UserRole.CS})
     public DataResponse<AiGovernanceSummaryResponse> governanceSummary(BootstrapIdentity identity) {
         return new DataResponse<>(aiGatewayService.governanceSummary(identity));
+    }
+
+    @GetMapping("/ai/governance/cost-trend")
+    @RequirePermission(value = "ai:cs", roles = {UserRole.ADMIN, UserRole.CS})
+    public DataResponse<AiGovernanceCostTrendResponse> governanceCostTrend(
+            @RequestParam(defaultValue = "7") int days,
+            BootstrapIdentity identity) {
+        return new DataResponse<>(aiGatewayService.governanceCostTrend(identity, days));
     }
 
     public record TranslateRequest(
