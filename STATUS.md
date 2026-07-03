@@ -7,7 +7,7 @@
 ## 当前状态
 
 - 仓库是本地 Git 仓库，当前分支 `feature/project-skeleton`，跟踪远程 `origin/feature/project-skeleton`。
-- 2026-07-04 本轮上传状态：`feature/project-skeleton` 已推送到 GitHub，当前 HEAD 为 `5e9ee18`。本轮按边界拆分为生产汇总、AI 治理、Task 8 文档回写和 workflow helper 整理提交；工作区只剩未跟踪 `test-results/` 运行产物，未纳入提交。
+- 2026-07-04 本轮上传状态：`feature/project-skeleton` 已推送到 GitHub；本轮业务开发基线为 `5e9ee18`，后续文档回补提交不改变业务代码边界。本轮按边界拆分为生产汇总、AI 治理、Task 8 文档回写和 workflow helper 整理提交；工作区只剩未跟踪 `test-results/` 运行产物，未纳入提交。
 - 2026-07-01 上传交接状态：已确认本地 `feature/project-skeleton` 与 `origin/feature/project-skeleton` 对齐；上传后产生的未提交后续试验改动已撤回。本次只做文档总结回写，不继续推进业务代码。
 - 2026-07-01 新版 PRD/TRD/API 对齐决策已确认：以新资料为最新业务准绳，保留当前已验证增量，OpenAPI 后续按差异合并维护。
 - Active goal: `goals/GOAL-001-scope-clarified-for.md`

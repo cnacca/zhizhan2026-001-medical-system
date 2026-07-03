@@ -12,7 +12,7 @@
 
 ## 当前交接摘要
 
-- 2026-07-04 已确认上传基线为 `feature/project-skeleton`，本地分支与 `origin/feature/project-skeleton` 对齐，当前 HEAD 为 `5e9ee18`。
+- 2026-07-04 已确认上传基线为 `feature/project-skeleton`，本地分支与 `origin/feature/project-skeleton` 对齐；本轮业务开发基线为 `5e9ee18`，后续文档回补提交不改变业务代码边界。
 - 当前上传基线已包含四入口登录页最终版视觉、9D.33 到 9D.47 AI 治理第一轮、9D.49 到 9D.54 生产端质量/设备/物料异常/安环/成本/奖惩真实只读汇总，以及 Task 8 文档回写；`test-results/` 为本地运行产物，未纳入提交。
 - 本轮提交边界：`1895f79 feat(production): add summary dashboards`、`f395584 feat(ai): add external alert governance controls`、`c781eae docs: refresh task 8 readiness handoff`、`5e9ee18 refactor(workflow): group final inspection helpers`。
 - Task 8 仍是 `in-progress / NOT READY`，不要标完成。
