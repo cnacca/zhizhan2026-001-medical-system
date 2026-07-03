@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import Uppy from '@uppy/core'
-import { computed, onBeforeUnmount, ref } from 'vue'
+import { computed, onBeforeUnmount, ref, watch } from 'vue'
 
 type AuthMenu = {
   menuCode: string
@@ -402,13 +402,146 @@ type PortalOption = {
   defaultPassword: string
 }
 
+type PortalTone = PortalOption['tone']
+
+type RouteChrome = {
+  eyebrow: string
+  title: string
+  description: string
+  icon: string
+}
+
+type NavigationGroup = {
+  title: string
+  items: DisplayNavigationItem[]
+}
+
+type BusinessCard = {
+  title: string
+  value: string
+  note: string
+  icon: string
+}
+
+type PrototypeTone = 'blue' | 'sky' | 'green' | 'amber' | 'rose' | 'violet' | 'orange' | 'teal' | 'slate'
+
+type DashboardMetric = {
+  title: string
+  value: string
+  note: string
+  icon: string
+  tone: PrototypeTone
+}
+
+type DashboardAction = {
+  title: string
+  detail: string
+  meta: string
+  tone: PrototypeTone
+  actionLabel: string
+  routePath?: string
+  navId?: string
+  doctorSection?: string
+  doctorDetailTab?: string
+}
+
+type DashboardPanel = {
+  title: string
+  badge?: string
+  tone?: PrototypeTone
+  items: DashboardAction[]
+}
+
+type DashboardTrend = {
+  label: string
+  value: string
+  percent: number
+  tone: PrototypeTone
+}
+
+type PrototypeDashboard = {
+  greeting: string
+  subtitle: string
+  primaryAction?: DashboardAction
+  syncBanner?: string
+  metrics: DashboardMetric[]
+  panels: DashboardPanel[]
+  trends: DashboardTrend[]
+}
+
+type QueueChip = {
+  label: string
+  count: string
+  tone: PrototypeTone
+  active?: boolean
+  filter?: string
+  doctorSection?: string
+  doctorDetailTab?: string
+}
+
+type PrototypeQueueRow = {
+  orderNo: string
+  patient: string
+  product: string
+  status: string
+  statusTone: PrototypeTone
+  checklist: string
+  checklistTone: PrototypeTone
+  reviewType: string
+  awaiting: string
+  awaitingTone: PrototypeTone
+  days: string
+  daysTone: PrototypeTone
+  action: string
+}
+
+type BusinessShortcut = {
+  id: string
+  title: string
+  description: string
+  icon: string
+  routePath?: string
+  placeholder?: boolean
+  doctorSection?: string
+  doctorDetailTab?: string
+}
+
+type DisplayNavigationItem = {
+  id: string
+  title: string
+  description: string
+  icon: string
+  routePath: string
+  placeholder?: boolean
+  doctorSection?: string
+  doctorDetailTab?: string
+  children?: DisplayNavigationItem[]
+}
+
+type PlaceholderContentItem = {
+  title: string
+  detail: string
+  tone: PrototypeTone
+}
+
+type AccountProfile = {
+  username: string
+  role: string
+  organization: string
+  scope: string
+  summary: string
+}
+
 const username = ref('admin')
 const password = ref('change-me-admin')
 const selectedPortal = ref<LoginPortal | null>(null)
 const token = ref('')
 const refreshToken = ref('')
 const currentUser = ref<LoginResponse | null>(null)
+const activePortalTone = ref<PortalTone | null>(null)
 const activeRoute = ref('/dashboard')
+const activeNavId = ref('dashboard')
+const activePrototypeChip = ref('')
 const loginError = ref('')
 const health = ref('未检查')
 const loading = ref(false)
@@ -445,9 +578,12 @@ const doctorUploadLoading = ref(false)
 const doctorOrderCreateLoading = ref(false)
 const doctorOrderCreateError = ref('')
 const doctorOrderCreateResult = ref<CreateOrderResponse | null>(null)
+const activeDoctorOrderSection = ref('list')
+const activeDoctorDetailTab = ref('info')
 const internalOrders = ref<InternalOrderItem[]>([])
 const selectedInternalOrder = ref<InternalOrderItem | null>(null)
 const internalOrderKeyword = ref('')
+const internalOrderStatus = ref('PENDING_CS_REVIEW')
 const internalOrdersLoading = ref(false)
 const internalOrderError = ref('')
 const csProductionNote = ref('')
@@ -459,6 +595,7 @@ const csDesignDraftResult = ref('')
 const productionReviewOrders = ref<InternalOrderItem[]>([])
 const selectedProductionReviewOrder = ref<InternalOrderItem | null>(null)
 const productionReviewKeyword = ref('')
+const productionReviewStatus = ref('PENDING_PRODUCTION_REVIEW')
 const productionReviewLoading = ref(false)
 const productionReviewError = ref('')
 const productionReviewActionLoading = ref(false)
@@ -564,17 +701,24 @@ let notificationReconnectTimer: number | null = null
 const productionBoardStatusOptions: ProductionBoardStatusOption[] = [
   { label: '全部生产状态', value: 'ALL' },
   { label: '待生产审核', value: 'PENDING_PRODUCTION_REVIEW' },
-  { label: '已生成工序实例', value: 'PROCESS_INSTANCE_CREATED' },
+  { label: '医生待确认', value: 'PENDING_DOCTOR_CONFIRM' },
+  { label: '已生成工序', value: 'PROCESS_INSTANCE_CREATED' },
   { label: '生产中', value: 'PRODUCING' },
   { label: '已发货', value: 'SHIPPED' },
   { label: '已完成', value: 'COMPLETED' }
 ]
 const formFieldTypeOptions = ['text', 'textarea', 'select', 'multi-select', 'number', 'date', 'file']
 const portalDefaultRoute: Record<LoginPortal, string> = {
-  DOCTOR: '/doctor/orders',
-  CS: '/orders/internal',
-  PRODUCTION: '/tasks/mine',
+  DOCTOR: '/dashboard',
+  CS: '/dashboard',
+  PRODUCTION: '/dashboard',
   ADMIN: '/dashboard'
+}
+const portalToneByLoginPortal: Record<LoginPortal, PortalTone> = {
+  DOCTOR: 'doctor',
+  CS: 'cs',
+  PRODUCTION: 'production',
+  ADMIN: 'admin'
 }
 const portalOptions: PortalOption[] = [
   {
@@ -589,7 +733,7 @@ const portalOptions: PortalOption[] = [
   {
     value: 'CS',
     title: '客服端',
-    subtitle: '客服 / CS 中台',
+    subtitle: '客服中台',
     icon: 'support_agent',
     tone: 'cs',
     defaultUsername: 'cs',
@@ -637,8 +781,779 @@ const navigationMenus = computed(() => {
   return menus
 })
 const activeMenu = computed(() => navigationMenus.value.find((menu) => menu.routePath === activeRoute.value) ?? navigationMenus.value[0] ?? null)
+const displayNavigationConfig: Record<PortalTone, NavigationGroup[]> = {
+  doctor: [
+    {
+      title: '医生端',
+      items: [
+        { id: 'doctor-dashboard', title: '工作台', description: '查看医生端待办、通知和业务概览。', icon: 'dashboard', routePath: '/dashboard' },
+        {
+          id: 'doctor-orders',
+          title: '订单管理',
+          description: '下单、查单、补资料、确认设计稿和查看账单物流。',
+          icon: 'doctorOrder',
+          routePath: '/doctor/orders',
+          doctorSection: 'list',
+          children: [
+            { id: 'doctor-order-create', title: '新建订单', description: '选择产品类型、填写动态表单并上传病例资料。', icon: 'doctorOrder', routePath: '/doctor/orders', doctorSection: 'create' },
+            { id: 'doctor-order-list', title: '我的订单', description: '查看订单列表、公开进度和补资料事项。', icon: 'order', routePath: '/doctor/orders', doctorSection: 'list', doctorDetailTab: 'info' },
+            { id: 'doctor-order-design', title: '设计稿确认', description: '查看设计稿版本并确认或驳回。', icon: 'design', routePath: '/doctor/orders', doctorSection: 'design', doctorDetailTab: 'design' },
+            { id: 'doctor-order-bill', title: '账单物流', description: '查看账单、承运商和运单号。', icon: 'delivery', routePath: '/doctor/orders', doctorSection: 'bill', doctorDetailTab: 'bill' },
+            { id: 'doctor-order-message', title: '沟通留言', description: '在订单内与客服沟通。', icon: 'chat', routePath: '/doctor/orders', doctorSection: 'messages', doctorDetailTab: 'messages' }
+          ]
+        },
+        { id: 'doctor-files', title: '文件资料', description: '查看病例、口扫、图片和处方等订单资料。', icon: 'file', routePath: '/doctor/files', placeholder: true },
+        { id: 'doctor-ai', title: '订单助手', description: '查询订单进度、预计发货和物流信息。', icon: 'ai', routePath: '/doctor/orders', doctorSection: 'ai', doctorDetailTab: 'ai' },
+        { id: 'doctor-notifications', title: '通知中心', description: '查看设计稿、账单、发货和收货通知。', icon: 'notification', routePath: '/notifications' }
+      ]
+    }
+  ],
+  cs: [
+    {
+      title: '客服端',
+      items: [
+        { id: 'cs-dashboard', title: '工作台', description: '集中查看审核、沟通、发货和客户待办。', icon: 'dashboard', routePath: '/dashboard' },
+        {
+          id: 'cs-orders',
+          title: '订单管理',
+          description: '处理待审核订单、补资料、生产备注和内部订单详情。',
+          icon: 'order',
+          routePath: '/orders/internal',
+          children: [
+            { id: 'cs-order-review', title: '待审核订单', description: '审核医生提交资料并通过或驳回。', icon: 'order', routePath: '/orders/internal' },
+            { id: 'cs-order-all', title: '全部订单', description: '查看客服权限内的内部订单。', icon: 'doctorOrder', routePath: '/orders/internal' }
+          ]
+        },
+        {
+          id: 'cs-communication',
+          title: '沟通中心',
+          description: '处理医生沟通、生产沟通和待审核消息队列。',
+          icon: 'chat',
+          routePath: '/collaboration',
+          placeholder: true,
+          children: [
+            { id: 'cs-order-messages', title: '订单消息', description: '查看订单内医生、客服、生产沟通。', icon: 'chat', routePath: '/collaboration', placeholder: true },
+            { id: 'cs-message-review', title: '待审核消息', description: '审核生产端发给医生的消息。', icon: 'audit', routePath: '/collaboration', placeholder: true }
+          ]
+        },
+        { id: 'cs-customers', title: '客户管理', description: '维护诊所档案、联系人、历史订单和客户偏好。', icon: 'customer', routePath: '/customers', placeholder: true },
+        { id: 'cs-products', title: '产品管理', description: '查看产品类型、产品资料和动态表单字段。', icon: 'product', routePath: '/system/form-configs' },
+        { id: 'cs-designs', title: '设计稿管理', description: '审核生产端上传的设计稿并发给医生确认。', icon: 'design', routePath: '/design-drafts', placeholder: true },
+        { id: 'cs-billing', title: '账单管理', description: '上传账单文件、查看订单费用和客户账单。', icon: 'bill', routePath: '/billing', placeholder: true },
+        { id: 'cs-delivery', title: '配送管理', description: '录入承运商、运单号并跟进待发货订单。', icon: 'delivery', routePath: '/delivery', placeholder: true },
+        { id: 'cs-outsourcing', title: '外协管理', description: '跟踪外协订单、外协工厂、外协进度和费用。', icon: 'partner', routePath: '/outsourcing', placeholder: true },
+        {
+          id: 'cs-ai',
+          title: '智能助手',
+          description: '使用翻译、资料缺失检查和客服查询能力。',
+          icon: 'ai',
+          routePath: '/ai/cs',
+          placeholder: true,
+          children: [
+            { id: 'cs-ai-translate', title: '翻译助手', description: '把外文描述整理成中文生产指令草稿。', icon: 'ai', routePath: '/ai/cs', placeholder: true },
+            { id: 'cs-ai-query', title: '客服查询助手', description: '查询内部订单、工序、客户偏好和物流。', icon: 'ai', routePath: '/ai/cs', placeholder: true },
+            { id: 'cs-ai-note', title: '生产备注助手', description: '整理客户要求并生成生产备注草稿。', icon: 'ai', routePath: '/ai/production', placeholder: true }
+          ]
+        },
+        { id: 'cs-notifications', title: '通知中心', description: '查看订单、消息、设计稿和预算通知。', icon: 'notification', routePath: '/notifications' }
+      ]
+    }
+  ],
+  production: [
+    {
+      title: '生产执行',
+      items: [
+        { id: 'production-dashboard', title: '工作台', description: '集中查看本人任务、异常提醒和生产待办。', icon: 'dashboard', routePath: '/dashboard' },
+        { id: 'production-orders', title: '生产订单', description: '查看待生产、生产中和待发货订单。', icon: 'order', routePath: '/production/board' },
+        { id: 'production-board', title: '生产看板', description: '跨状态查看生产订单、节点进度和终检发货门禁。', icon: 'dashboard', routePath: '/production/board' },
+        { id: 'production-work-orders', title: '工作单', description: '查看工序工作单、操作要求、交付时间和当前负责人。', icon: 'workorder', routePath: '/production/work-orders', placeholder: true },
+        { id: 'production-tasks', title: '我的任务', description: '处理分配给当前员工的工序任务。', icon: 'task', routePath: '/tasks/mine' },
+        { id: 'production-scan', title: '扫码登记', description: '通过扫码记录入检、开工、暂停、完工和流转节点。', icon: 'scan', routePath: '/production/scan', placeholder: true }
+      ]
+    },
+    {
+      title: '质量与返工',
+      items: [
+        {
+          id: 'production-quality',
+          title: '质量与返工',
+          description: '查看质量总览、返工处理和终检报告。',
+          icon: 'quality',
+          routePath: '/production/quality',
+          placeholder: true,
+          children: [
+            { id: 'production-quality-overview', title: '质量总览', description: '查看总返工率、一次通过率、终检通过率、投诉率和退货率。', icon: 'quality', routePath: '/production/quality', placeholder: true },
+            { id: 'production-rework-management', title: '返工管理', description: '统一处理内返、外返、原因、责任归属和处理状态。', icon: 'quality', routePath: '/production/rework-management', placeholder: true },
+            { id: 'production-final-report', title: '终检报告', description: '查看终检报告生成、结论、摘要和报告状态。', icon: 'report', routePath: '/production/final-inspection-reports', placeholder: true }
+          ]
+        }
+      ]
+    },
+    {
+      title: '人员绩效',
+      items: [
+        { id: 'production-staff', title: '员工管理', description: '查看生产人员、岗位能力、在岗状态和任务负载。', icon: 'staff', routePath: '/production/staff', placeholder: true },
+        { id: 'production-performance', title: '绩效管理', description: '查看有效工时、完成数量、返工次数和通过率。', icon: 'performance', routePath: '/performance' },
+        { id: 'production-reward-penalty', title: '奖惩管理', description: '维护奖惩记录、原因、关联订单/工序/员工和审批状态。', icon: 'reward', routePath: '/production/reward-penalty', placeholder: true }
+      ]
+    },
+    {
+      title: '设备物料',
+      items: [
+        { id: 'production-device', title: '设备管理', description: '查看设备台账、设备状态、保养计划、故障报修和稼动率。', icon: 'device', routePath: '/production/devices', placeholder: true },
+        { id: 'production-material', title: '物料异常', description: '登记缺料、错料、批次异常、材料损耗和处理状态。', icon: 'material', routePath: '/production/material-exceptions', placeholder: true }
+      ]
+    },
+    {
+      title: '经营成本',
+      items: [
+        { id: 'production-cost', title: '成本管理', description: '查看工序、材料、人工、返工、外协成本和异常预警。', icon: 'cost', routePath: '/production/cost-management', placeholder: true },
+        { id: 'production-outsourcing-cost', title: '外协成本', description: '跟踪外协订单成本、外协供应商费用和成本偏差。', icon: 'partner', routePath: '/production/outsourcing-cost', placeholder: true }
+      ]
+    },
+    {
+      title: '安全合规',
+      items: [
+        { id: 'production-safety', title: '安环管理', description: '管理安全巡检、隐患整改、环境记录和安环事件统计。', icon: 'safety', routePath: '/production/safety-environment', placeholder: true }
+      ]
+    },
+    {
+      title: '协同消息',
+      items: [
+        { id: 'production-message', title: '消息中心', description: '查看客服消息、订单消息和审核状态。', icon: 'chat', routePath: '/production/messages', placeholder: true },
+        { id: 'production-cloud-data', title: '云端数据中心', description: '查看设计稿、口扫数据、生产附件和云端同步状态。', icon: 'cloud', routePath: '/production/cloud-data', placeholder: true }
+      ]
+    }
+  ],
+  admin: [
+    {
+      title: '管理端',
+      items: [
+        { id: 'admin-dashboard', title: '工作台', description: '查看平台管理总览和关键待办。', icon: 'dashboard', routePath: '/dashboard' },
+        {
+          id: 'admin-account',
+          title: '账号权限',
+          description: '管理用户、角色、权限范围和菜单可见性。',
+          icon: 'system',
+          routePath: '/system/rbac',
+          placeholder: true,
+          children: [
+            { id: 'admin-users', title: '用户管理', description: '创建账号、维护账号状态和所属诊所。', icon: 'customer', routePath: '/system/rbac/users', placeholder: true },
+            { id: 'admin-roles', title: '角色权限', description: '维护角色、权限范围和菜单可见性。', icon: 'system', routePath: '/system/rbac/roles', placeholder: true }
+          ]
+        },
+        { id: 'admin-customers', title: '客户诊所', description: '管理诊所档案、客户偏好和联系人。', icon: 'customer', routePath: '/admin/clinics', placeholder: true },
+        { id: 'admin-products', title: '产品配置', description: '维护产品类型、动态表单和产品资料。', icon: 'product', routePath: '/system/form-configs' },
+        {
+          id: 'admin-workflow',
+          title: '工艺生产',
+          description: '查看工序链、工序进度并执行员工派工。',
+          icon: 'process',
+          routePath: '/workflow/process-instance',
+          children: [
+            { id: 'admin-workflow-chain', title: '工序链查看', description: '查看九条预定义工序链和节点顺序。', icon: 'process', routePath: '/workflow/process-instance' },
+            { id: 'admin-process-progress', title: '工序进度', description: '查看订单实例化后的节点状态。', icon: 'account_tree', routePath: '/workflow/process-instance' },
+            { id: 'admin-workflow-assign', title: '员工派工', description: '为工序节点绑定员工或调整执行人。', icon: 'staff', routePath: '/workflow/assign' }
+          ]
+        },
+        { id: 'admin-staff', title: '人员管理', description: '管理生产人员、岗位能力和任务负载。', icon: 'staff', routePath: '/admin/staff', placeholder: true },
+        { id: 'admin-device', title: '设备管理', description: '管理设备档案、运行状态和维护记录。', icon: 'device', routePath: '/admin/devices', placeholder: true },
+        { id: 'admin-material', title: '物料异常', description: '查看物料缺失、材料不符和异常处理。', icon: 'material', routePath: '/admin/material-exceptions', placeholder: true },
+        { id: 'admin-outsourcing', title: '外协管理', description: '管理外协工厂、外协订单和外协费用。', icon: 'partner', routePath: '/admin/outsourcing', placeholder: true },
+        { id: 'admin-billing-delivery', title: '账单配送', description: '查看账单、物流和发货协同状态。', icon: 'delivery', routePath: '/admin/billing-delivery', placeholder: true },
+        { id: 'admin-performance', title: '绩效统计', description: '查看全员工时、绩效指标和返工归因。', icon: 'performance', routePath: '/performance' },
+        { id: 'admin-audit', title: '审计通知', description: '查看关键操作、通知和系统安全事件。', icon: 'audit', routePath: '/notifications' },
+        { id: 'admin-ai', title: 'AI 治理', description: '查看模型调用、预算、失败和治理摘要。', icon: 'ai', routePath: '/admin/ai-governance', placeholder: true }
+      ]
+    }
+  ]
+}
+const accountNavigationConfig: Record<PortalTone, NavigationGroup[]> = {
+  doctor: [
+    {
+      title: '账号管理',
+      items: [
+        { id: 'doctor-account-clinic', title: '诊所信息', description: '查看所属诊所、联系人、地址和开票资料。', icon: 'customer', routePath: '/doctor/account/clinic', placeholder: true },
+        { id: 'doctor-account-members', title: '医生/成员账号', description: '查看诊所医生、助手和成员账号状态。', icon: 'person', routePath: '/doctor/account/members', placeholder: true },
+        { id: 'doctor-account-notifications', title: '通知偏好', description: '设置设计稿、账单、物流和收货提醒偏好。', icon: 'notification', routePath: '/doctor/account/notifications', placeholder: true },
+        { id: 'doctor-account-security', title: '密码安全', description: '维护登录密码、账号安全和登录记录。', icon: 'lock', routePath: '/doctor/account/security', placeholder: true }
+      ]
+    }
+  ],
+  cs: [
+    {
+      title: '账号管理',
+      items: [
+        { id: 'cs-account-profile', title: '客服账号', description: '查看客服账号资料、团队和服务范围。', icon: 'support_agent', routePath: '/cs/account/profile', placeholder: true },
+        { id: 'cs-account-assignment', title: '客户分配', description: '查看负责诊所、客户分层和跟进负责人。', icon: 'customer', routePath: '/cs/account/assignment', placeholder: true },
+        { id: 'cs-account-replies', title: '常用回复', description: '维护客服沟通模板、补资料提醒和账单通知话术。', icon: 'chat', routePath: '/cs/account/replies', placeholder: true },
+        { id: 'cs-account-notifications', title: '通知偏好', description: '设置订单审核、客户消息和预算通知提醒。', icon: 'notification', routePath: '/cs/account/notifications', placeholder: true }
+      ]
+    }
+  ],
+  production: [
+    {
+      title: '账号管理',
+      items: [
+        { id: 'production-account-profile', title: '员工资料', description: '查看员工编号、班组、联系方式和在岗状态。', icon: 'staff', routePath: '/production/account/profile', placeholder: true },
+        { id: 'production-account-department', title: '所属部门', description: '查看生产部门、班组和现场负责人。', icon: 'factory', routePath: '/production/account/department', placeholder: true },
+        { id: 'production-account-position', title: '岗位/工序', description: '查看岗位能力、可执行工序和当前任务范围。', icon: 'process', routePath: '/production/account/position', placeholder: true },
+        { id: 'production-account-performance', title: '绩效入口', description: '进入本人绩效、工时、质量和奖惩摘要。', icon: 'performance', routePath: '/performance' },
+        { id: 'production-account-security', title: '账号安全', description: '维护密码安全、登录记录和账号状态。', icon: 'lock', routePath: '/production/account/security', placeholder: true }
+      ]
+    }
+  ],
+  admin: [
+    {
+      title: '账号管理',
+      items: [
+        { id: 'admin-account-users', title: '用户管理', description: '管理医生、客服、生产和管理账号。', icon: 'customer', routePath: '/system/rbac/users', placeholder: true },
+        { id: 'admin-account-roles', title: '角色权限', description: '维护角色、权限范围、菜单和数据范围。', icon: 'system', routePath: '/system/rbac/roles', placeholder: true },
+        { id: 'admin-account-departments', title: '部门岗位', description: '维护组织、部门、岗位和员工归属。', icon: 'staff', routePath: '/system/rbac/departments', placeholder: true },
+        { id: 'admin-account-status', title: '账号状态', description: '查看账号启停、锁定、异常登录和安全状态。', icon: 'audit', routePath: '/system/rbac/status', placeholder: true }
+      ]
+    }
+  ]
+}
+const placeholderContentMap: Record<string, PlaceholderContentItem[]> = {
+  'production-work-orders': [
+    { title: '工序工作单', detail: '展示订单号、产品类型、工序节点、标准工时和交付时间。', tone: 'teal' },
+    { title: '操作要求', detail: '沉淀每个节点的操作规范、注意事项和质检要求。', tone: 'sky' },
+    { title: '负责人', detail: '显示当前员工、班组负责人和待交接状态。', tone: 'green' }
+  ],
+  'production-scan': [
+    { title: '扫码入检', detail: '扫码登记入检、开工、暂停、完工和出检节点。', tone: 'teal' },
+    { title: '流转追踪', detail: '记录订单在工序间的流转时间和异常停留。', tone: 'sky' },
+    { title: '异常提示', detail: '对错扫、漏扫、重复扫码和超时节点给出提醒。', tone: 'amber' }
+  ],
+  'production-quality': [
+    { title: '总返工率', detail: '汇总内部返修与外部退回返修的总体比例。', tone: 'rose' },
+    { title: '内返率', detail: '统计工厂内部发现并返修的比例、原因和责任归属。', tone: 'amber' },
+    { title: '外返率', detail: '统计医生或客户退回返修的比例、投诉和退货关联情况。', tone: 'orange' },
+    { title: '一次通过率', detail: '查看各工序一次通过情况和低通过率环节。', tone: 'green' },
+    { title: '终检通过率', detail: '查看终检出检通过比例和未通过原因。', tone: 'teal' },
+    { title: '投诉率 / 退货率', detail: '关联客户投诉、退货和质量复盘记录。', tone: 'violet' }
+  ],
+  'production-quality-overview': [
+    { title: '总返工率', detail: '同时统计内返率与外返率，不把两类返工混成单一指标。', tone: 'rose' },
+    { title: '内返率', detail: '统计工厂内部发现并返修的比例、原因和责任归属。', tone: 'amber' },
+    { title: '外返率', detail: '统计医生或客户退回返修的比例、投诉和退货关联情况。', tone: 'orange' },
+    { title: '一次通过率', detail: '按工序、员工和产品类型查看一次通过表现。', tone: 'green' },
+    { title: '终检通过率', detail: '查看终检出检通过比例和异常趋势。', tone: 'teal' },
+    { title: '投诉率 / 退货率', detail: '追踪客户投诉、退货原因和质量闭环。', tone: 'violet' }
+  ],
+  'production-rework-management': [
+    { title: '内返率', detail: '内部质检发现返修的订单数 / 内部完成订单数。', tone: 'amber' },
+    { title: '外返率', detail: '医生或客户退回返修的订单数 / 已交付订单数。', tone: 'rose' },
+    { title: '返工记录', detail: '统一查看内返、外返、返工原因、责任归属和处理状态。', tone: 'orange' },
+    { title: '责任归属', detail: '关联责任分类、返工记录和绩效扣减依据。', tone: 'violet' },
+    { title: '闭环处理', detail: '跟踪返工处理状态、补救方案和医生/客户确认结果。', tone: 'teal' }
+  ],
+  'production-final-report': [
+    { title: '报告状态', detail: '展示待生成、已生成、已复核和已归档终检报告。', tone: 'teal' },
+    { title: '终检结论', detail: '记录终检通过结论、摘要、异常项和附件。', tone: 'green' },
+    { title: '报告追溯', detail: '关联最终节点、终检记录、订单和发货状态。', tone: 'sky' }
+  ],
+  'production-reward-penalty': [
+    { title: '奖惩记录', detail: '记录奖励、扣罚、表扬、警示和整改事项。', tone: 'green' },
+    { title: '奖惩原因', detail: '维护质量、效率、纪律、安环和客户反馈等原因。', tone: 'amber' },
+    { title: '关联对象', detail: '关联订单、工序、员工、班组和审批人。', tone: 'sky' },
+    { title: '审批状态', detail: '跟踪草稿、待审批、已通过、已驳回和已生效。', tone: 'violet' },
+    { title: '月度汇总', detail: '按员工和班组汇总奖惩次数、金额和绩效影响。', tone: 'teal' }
+  ],
+  'production-device': [
+    { title: '设备台账', detail: '维护设备编号、型号、位置、责任人和启用状态。', tone: 'teal' },
+    { title: '设备状态', detail: '查看运行、待机、保养、故障和停机状态。', tone: 'sky' },
+    { title: '保养计划', detail: '安排周期保养、点检项目和保养提醒。', tone: 'green' },
+    { title: '故障报修', detail: '记录故障原因、报修进度、维修结果和停机时长。', tone: 'rose' },
+    { title: '设备稼动率', detail: '按设备统计开机时间、有效加工时间和利用率。', tone: 'violet' }
+  ],
+  'production-material': [
+    { title: '缺料', detail: '记录缺料订单、影响工序和预计到料时间。', tone: 'amber' },
+    { title: '错料', detail: '登记材料不符、规格错误和纠正处理。', tone: 'rose' },
+    { title: '批次异常', detail: '追踪批次号、供应商、检测结果和召回范围。', tone: 'orange' },
+    { title: '材料损耗', detail: '统计工序损耗、返工损耗和异常消耗。', tone: 'violet' },
+    { title: '处理状态 / 责任归属', detail: '跟踪待处理、处理中、已关闭以及责任部门。', tone: 'teal' }
+  ],
+  'production-cost': [
+    { title: '工序成本', detail: '按工序统计标准成本、实际成本和偏差。', tone: 'teal' },
+    { title: '材料成本', detail: '统计材料用量、损耗和批次成本。', tone: 'amber' },
+    { title: '人工成本', detail: '关联工时记录、岗位工价和绩效成本。', tone: 'sky' },
+    { title: '返工成本', detail: '拆分内返成本、外返成本和责任归因。', tone: 'rose' },
+    { title: '外协成本', detail: '跟踪外协供应商、外协订单和结算偏差。', tone: 'violet' },
+    { title: '成本异常预警', detail: '识别超预算、异常损耗和高返工成本订单。', tone: 'orange' }
+  ],
+  'production-outsourcing-cost': [
+    { title: '外协订单成本', detail: '记录外协项目、供应商报价和实际结算成本。', tone: 'violet' },
+    { title: '供应商费用', detail: '按供应商查看加工费、物流费和异常扣款。', tone: 'sky' },
+    { title: '成本偏差', detail: '追踪预计成本与实际结算差异。', tone: 'amber' }
+  ],
+  'production-safety': [
+    { title: '安全巡检', detail: '记录班前、班中、班后安全巡检事项。', tone: 'sky' },
+    { title: '隐患整改', detail: '跟踪隐患描述、责任人、整改期限和复查结果。', tone: 'orange' },
+    { title: '环境记录', detail: '登记温湿度、粉尘、噪音和清洁消毒记录。', tone: 'teal' },
+    { title: 'PPE/设备安全提醒', detail: '提醒防护用品佩戴、设备防护和操作安全。', tone: 'green' },
+    { title: '安环事件统计', detail: '按事件类型、班组、设备和整改状态汇总。', tone: 'rose' }
+  ],
+  'production-cloud-data': [
+    { title: '云端病例资料', detail: '查看口扫、照片、处方和生产附件同步状态。', tone: 'sky' },
+    { title: '设计数据', detail: '跟踪设计稿上传、审核、医生确认和版本记录。', tone: 'violet' },
+    { title: '同步异常', detail: '提示文件缺失、同步失败和待重新上传项目。', tone: 'rose' }
+  ],
+  'doctor-account-clinic': [
+    { title: '诊所信息', detail: '展示诊所名称、联系人、地址、开票资料和服务偏好。', tone: 'blue' },
+    { title: '成员范围', detail: '仅展示诊所成员账号，不展示生产员工、工序或绩效信息。', tone: 'green' }
+  ],
+  'doctor-account-members': [
+    { title: '医生/成员账号', detail: '查看医生、助手和诊所成员账号状态。', tone: 'blue' },
+    { title: '权限说明', detail: '仅管理诊所端可见资料和通知偏好。', tone: 'green' }
+  ],
+  'doctor-account-notifications': [
+    { title: '通知偏好', detail: '设置设计稿确认、账单、物流和收货提醒。', tone: 'blue' },
+    { title: '消息渠道', detail: '后续接入短信、邮件或企业微信前先保留占位。', tone: 'sky' }
+  ],
+  'doctor-account-security': [
+    { title: '密码安全', detail: '维护密码、登录记录和账号安全提醒。', tone: 'blue' },
+    { title: '账号保护', detail: '不展示内部生产角色、工序、员工或绩效信息。', tone: 'green' }
+  ],
+  'cs-account-profile': [
+    { title: '客服账号', detail: '查看客服资料、团队和服务范围。', tone: 'violet' },
+    { title: '客户服务', detail: '展示客户分配、常用回复和通知偏好入口。', tone: 'sky' }
+  ],
+  'cs-account-assignment': [
+    { title: '客户分配', detail: '查看负责诊所、客户分层和跟进负责人。', tone: 'violet' },
+    { title: '服务范围', detail: '后续可按客服团队和客户类型配置。', tone: 'sky' }
+  ],
+  'cs-account-replies': [
+    { title: '常用回复', detail: '维护补资料提醒、账单通知和设计稿确认话术。', tone: 'violet' },
+    { title: '模板分类', detail: '按订单、资料、设计、账单和物流分类管理。', tone: 'amber' }
+  ],
+  'cs-account-notifications': [
+    { title: '通知偏好', detail: '设置审核、客户消息、设计稿和预算通知提醒。', tone: 'violet' },
+    { title: '提醒范围', detail: '后续可按客户、订单类型和异常级别配置。', tone: 'sky' }
+  ],
+  'production-account-profile': [
+    { title: '员工资料', detail: '展示员工编号、班组、联系方式和在岗状态。', tone: 'teal' },
+    { title: '生产身份', detail: '展示生产部门、岗位工序和当前任务范围。', tone: 'sky' }
+  ],
+  'production-account-department': [
+    { title: '所属部门', detail: '查看生产部门、班组、现场负责人和排班信息。', tone: 'teal' },
+    { title: '班组协同', detail: '后续关联班组任务、设备和产能负载。', tone: 'green' }
+  ],
+  'production-account-position': [
+    { title: '岗位/工序', detail: '展示岗位能力、可执行工序和授权操作范围。', tone: 'teal' },
+    { title: '当前任务', detail: '后续关联本人任务、扫码登记和质量记录。', tone: 'amber' }
+  ],
+  'production-account-security': [
+    { title: '账号安全', detail: '维护密码、安全提醒、登录记录和账号状态。', tone: 'teal' },
+    { title: '操作边界', detail: '生产账号仍按当前登录权限和菜单范围访问。', tone: 'green' }
+  ],
+  'admin-account-users': [
+    { title: '用户管理', detail: '管理医生、客服、生产和管理账号。', tone: 'blue' },
+    { title: '账号状态', detail: '维护启用、停用、锁定和异常账号。', tone: 'amber' }
+  ],
+  'admin-account-roles': [
+    { title: '角色权限', detail: '维护角色、权限范围、菜单和数据范围。', tone: 'blue' },
+    { title: '权限审计', detail: '后续联动账号、部门和菜单授权记录。', tone: 'violet' }
+  ],
+  'admin-account-departments': [
+    { title: '部门岗位', detail: '维护组织、部门、岗位和员工归属。', tone: 'blue' },
+    { title: '岗位能力', detail: '后续联动生产工序、人员排班和绩效归属。', tone: 'green' }
+  ],
+  'admin-account-status': [
+    { title: '账号状态', detail: '查看账号启停、锁定、异常登录和安全状态。', tone: 'blue' },
+    { title: '安全处理', detail: '后续接入风险账号提醒和处理记录。', tone: 'rose' }
+  ]
+}
+const navigationGroups = computed<NavigationGroup[]>(() => displayNavigationConfig[portalTone.value])
+const accountNavigationGroups = computed<NavigationGroup[]>(() => accountNavigationConfig[portalTone.value])
 const visiblePermissions = computed(() => currentUser.value?.permissions.slice().sort() ?? [])
 const hasUnreadNotifications = computed(() => unreadCount.value > 0)
+const businessOverviewCards = computed<BusinessCard[]>(() => {
+  const roleText = roleLabels(currentUser.value?.roles)
+  const menuCount = String(businessShortcuts.value.length)
+  const unreadText = String(unreadCount.value)
+  const systemState = notificationSocketStatus.value === '已连接' ? '在线' : '待连接'
+  const base: Record<PortalTone, BusinessCard[]> = {
+    doctor: [
+      { title: '账号角色', value: roleText, note: dataScopeLabel(currentUser.value?.dataScope), icon: 'customer' },
+      { title: '可办业务', value: menuCount, note: '按当前账号展示', icon: 'dashboard' },
+      { title: '未读通知', value: unreadText, note: notificationSocketStatus.value, icon: 'notification' },
+      { title: '重点事项', value: '设计稿', note: '关注确认、账单与物流', icon: 'design' }
+    ],
+    cs: [
+      { title: '账号角色', value: roleText, note: dataScopeLabel(currentUser.value?.dataScope), icon: 'customer' },
+      { title: '订单协同', value: menuCount, note: '审核、沟通、发货联动', icon: 'order' },
+      { title: '未读通知', value: unreadText, note: notificationSocketStatus.value, icon: 'notification' },
+      { title: '客户服务', value: '跟进中', note: '客户、账单、外协统一处理', icon: 'chat' }
+    ],
+    production: [
+      { title: '账号角色', value: roleText, note: dataScopeLabel(currentUser.value?.dataScope), icon: 'staff' },
+      { title: '生产任务', value: menuCount, note: '任务、工序、质检联动', icon: 'task' },
+      { title: '未读通知', value: unreadText, note: notificationSocketStatus.value, icon: 'notification' },
+      { title: '现场状态', value: systemState, note: '人员、设备、物料异常待接入', icon: 'device' }
+    ],
+    admin: [
+      { title: '账号角色', value: roleText, note: dataScopeLabel(currentUser.value?.dataScope), icon: 'system' },
+      { title: '管理模块', value: menuCount, note: '按后台权限展示', icon: 'dashboard' },
+      { title: '未读通知', value: unreadText, note: notificationSocketStatus.value, icon: 'notification' },
+      { title: '系统状态', value: systemState, note: '权限、工序、人员统一管理', icon: 'audit' }
+    ]
+  }
+  return base[portalTone.value]
+})
+
+const prototypeDashboards = computed<Record<PortalTone, PrototypeDashboard>>(() => {
+  const unreadText = String(unreadCount.value)
+  return {
+    doctor: {
+      greeting: '早上好，医生',
+      subtitle: '今日订单、设计稿、账单物流和补资料事项集中查看。',
+      primaryAction: {
+        title: '新建订单',
+        detail: '填写动态表单并上传病例资料',
+        meta: '医生端主操作',
+        tone: 'blue',
+        actionLabel: '进入',
+        routePath: '/doctor/orders',
+        navId: 'doctor-order-create',
+        doctorSection: 'create'
+      },
+      metrics: [
+        { title: '今日订单', value: String(Math.max(doctorOrders.value.length, 2)), note: '今日提交与草稿', icon: 'doctorOrder', tone: 'blue' },
+        { title: '生产中', value: '7', note: '公开进度更新', icon: 'process', tone: 'sky' },
+        { title: '即将送达', value: '3', note: '3 日内到达', icon: 'delivery', tone: 'amber' },
+        { title: '待回复', value: unreadText, note: '消息与通知', icon: 'chat', tone: 'rose' },
+        { title: '设计待确认', value: '1', note: '确认后继续生产', icon: 'design', tone: 'violet' },
+        { title: '延期提醒', value: '2', note: '生产或物流延期', icon: 'timer', tone: 'orange' }
+      ],
+      panels: [
+        {
+          title: '需要处理',
+          badge: '4 项',
+          tone: 'rose',
+          items: [
+            { title: '设计稿确认', detail: 'PDL-0471 种植冠设计稿待确认', meta: '影响生产继续', tone: 'violet', actionLabel: '去确认', routePath: '/doctor/orders', navId: 'doctor-order-design', doctorSection: 'design', doctorDetailTab: 'design' },
+            { title: '沟通留言', detail: '实验室询问咬合方案，请医生回复', meta: '2 小时前', tone: 'rose', actionLabel: '回复', routePath: '/doctor/orders', navId: 'doctor-order-message', doctorSection: 'messages', doctorDetailTab: 'messages' },
+            { title: '补充资料', detail: 'PDL-0475 缺少比色照片', meta: '开工前必需', tone: 'amber', actionLabel: '补资料', routePath: '/doctor/orders', navId: 'doctor-order-create', doctorSection: 'create' }
+          ]
+        },
+        {
+          title: '即将送达 / 延期',
+          badge: '5 单',
+          tone: 'amber',
+          items: [
+            { title: '明日送达', detail: 'PDL-0461 氧化锆冠，DHL 派送中', meta: '预计明天', tone: 'green', actionLabel: '查看物流', routePath: '/doctor/orders', navId: 'doctor-order-bill', doctorSection: 'bill', doctorDetailTab: 'bill' },
+            { title: '生产延期', detail: 'PDL-0474 设备维护，预计顺延 2 天', meta: '工厂已通知', tone: 'orange', actionLabel: '查看说明', routePath: '/doctor/orders', navId: 'doctor-order-list', doctorSection: 'list' }
+          ]
+        }
+      ],
+      trends: [
+        { label: '本月订单', value: '24', percent: 72, tone: 'blue' },
+        { label: '按时交付', value: '91%', percent: 91, tone: 'green' },
+        { label: '设计确认', value: '1 待办', percent: 36, tone: 'violet' },
+        { label: '返工率', value: '4.2%', percent: 18, tone: 'rose' }
+      ]
+    },
+    cs: {
+      greeting: '客服工作台',
+      subtitle: '订单审核、资料处理、客户沟通、账单物流和异常跟进集中处理。',
+      primaryAction: {
+        title: '新建内部订单',
+        detail: '客服协助客户录入订单',
+        meta: '快速录单',
+        tone: 'violet',
+        actionLabel: '进入订单',
+        routePath: '/orders/internal',
+        navId: 'cs-order-review'
+      },
+      metrics: [
+        { title: '今日新订单', value: '12', note: '较昨日 +3', icon: 'order', tone: 'violet' },
+        { title: '待审核', value: String(Math.max(internalOrders.value.length, 5)), note: '资料和生产备注', icon: 'audit', tone: 'amber' },
+        { title: '待回复', value: '8', note: '医生/生产沟通', icon: 'chat', tone: 'sky' },
+        { title: '设计更新', value: '5', note: '待通知客户', icon: 'design', tone: 'green' },
+        { title: '延期提醒', value: '2', note: '需主动说明', icon: 'timer', tone: 'orange' },
+        { title: '今日发货', value: '4', note: '物流单待确认', icon: 'delivery', tone: 'teal' },
+        { title: '账单异常', value: '3', note: '逾期或待付款', icon: 'bill', tone: 'rose' },
+        { title: '投诉/返工', value: '1', note: '需客服跟进', icon: 'quality', tone: 'rose' }
+      ],
+      panels: [
+        {
+          title: '需要关注',
+          badge: '8 项',
+          tone: 'rose',
+          items: [
+            { title: '资料缺失', detail: 'PDL-0475 缺少比色照片，医生未补传', meta: '等待医生', tone: 'amber', actionLabel: '发送提醒', routePath: '/orders/internal', navId: 'cs-order-review' },
+            { title: '设计确认', detail: 'PDL-0474 设计检查完成，等待医生确认', meta: '0.5 天', tone: 'violet', actionLabel: '追问医生', routePath: '/design-drafts', navId: 'cs-designs' },
+            { title: '账单逾期', detail: '客户账单已逾期 31 天，发货需拦截', meta: '高优先级', tone: 'rose', actionLabel: '去处理', routePath: '/billing', navId: 'cs-billing' }
+          ]
+        },
+        {
+          title: '今日发货 / 客户账单',
+          badge: '6 单',
+          tone: 'teal',
+          items: [
+            { title: '今日发货', detail: '4 个订单等待物流单号确认', meta: 'DHL / FedEx', tone: 'green', actionLabel: '录入物流', routePath: '/delivery', navId: 'cs-delivery' },
+            { title: '客户到期', detail: '2 个客户合同或账期需要跟进', meta: '客户管理', tone: 'orange', actionLabel: '查看客户', routePath: '/customers', navId: 'cs-customers' }
+          ]
+        }
+      ],
+      trends: [
+        { label: '本月订单', value: '24', percent: 74, tone: 'violet' },
+        { label: '本月收入', value: '8.6 万', percent: 68, tone: 'green' },
+        { label: '今日发货', value: '4', percent: 42, tone: 'teal' },
+        { label: '返工投诉', value: '1', percent: 14, tone: 'rose' }
+      ]
+    },
+    production: {
+      greeting: '生产仪表盘',
+      subtitle: '全工序、人员、设备、物料与异常状态实时汇总。',
+      syncBanner: '医生端与客服端实时同步：7 单生产中，2 单等待医生确认，1 单发货前需客服复核。',
+      primaryAction: {
+        title: '查看生产看板',
+        detail: '按工序队列查看订单状态',
+        meta: '13 个生产队列',
+        tone: 'teal',
+        actionLabel: '看板',
+        routePath: '/production/board',
+        navId: 'production-orders'
+      },
+      metrics: [
+        { title: '生产中', value: '7', note: '当前活跃订单', icon: 'process', tone: 'teal' },
+        { title: '质量与返工', value: '3', note: '内返 2 / 外返 1', icon: 'quality', tone: 'rose' },
+        { title: '设备异常', value: '2', note: '保养或停机待处理', icon: 'device', tone: 'orange' },
+        { title: '物料异常', value: '4', note: '缺料、错料、批次异常', icon: 'material', tone: 'amber' },
+        { title: '成本预警', value: '2', note: '返工与外协成本偏高', icon: 'cost', tone: 'violet' },
+        { title: '安环待办', value: '5', note: '巡检、整改、PPE 提醒', icon: 'safety', tone: 'sky' },
+        { title: '奖惩待审', value: '3', note: '关联订单/工序/员工', icon: 'reward', tone: 'green' }
+      ],
+      panels: [
+        {
+          title: '生产经营待办',
+          badge: '12 项',
+          tone: 'rose',
+          items: [
+            { title: '安环巡检', detail: '本班次 3 项安全巡检未完成', meta: '安全合规', tone: 'sky', actionLabel: '查看安环', routePath: '/production/safety-environment', navId: 'production-safety' },
+            { title: '成本异常', detail: '返工成本和外协成本超过预警线', meta: '经营成本', tone: 'violet', actionLabel: '查看成本', routePath: '/production/cost-management', navId: 'production-cost' },
+            { title: '奖惩审批', detail: '3 条奖惩记录等待主管确认', meta: '人员绩效', tone: 'green', actionLabel: '查看奖惩', routePath: '/production/reward-penalty', navId: 'production-reward-penalty' }
+          ]
+        },
+        {
+          title: '质量 / 设备 / 物料',
+          badge: '9 项',
+          tone: 'green',
+          items: [
+            { title: '内返率', detail: '内部返修 2 单，集中在入检与修整环节', meta: '质量与返工', tone: 'rose', actionLabel: '看返工', routePath: '/production/rework-management', navId: 'production-rework-management' },
+            { title: '外返率', detail: '客户退回返修 1 单，需追踪投诉和退货原因', meta: '质量与返工', tone: 'orange', actionLabel: '看返工', routePath: '/production/rework-management', navId: 'production-rework-management' },
+            { title: '设备维护', detail: '切削设备维护，影响 PDL-0474', meta: '预计 +2 天', tone: 'amber', actionLabel: '看设备', routePath: '/production/devices', navId: 'production-device' },
+            { title: '物料缺失', detail: '透明保持器材料库存低于安全线', meta: '需补料', tone: 'rose', actionLabel: '处理物料', routePath: '/production/material-exceptions', navId: 'production-material' }
+          ]
+        }
+      ],
+      trends: [
+        { label: '一次通过率', value: '91%', percent: 91, tone: 'green' },
+        { label: '终检通过率', value: '96%', percent: 96, tone: 'teal' },
+        { label: '内返率', value: '3.2%', percent: 32, tone: 'amber' },
+        { label: '外返率', value: '1.1%', percent: 18, tone: 'rose' }
+      ]
+    },
+    admin: {
+      greeting: '管理控制台',
+      subtitle: '平台账号、订单、工艺、生产、账单配送和 AI 治理统一总览。',
+      primaryAction: {
+        title: '检查系统治理',
+        detail: '查看 AI、预算、通知和审计状态',
+        meta: '管理端',
+        tone: 'blue',
+        actionLabel: '查看',
+        routePath: '/admin/ai-governance',
+        navId: 'admin-ai'
+      },
+      metrics: [
+        { title: '总订单', value: '148', note: '本月业务量', icon: 'order', tone: 'blue' },
+        { title: '待处理异常', value: '11', note: '跨端待办', icon: 'audit', tone: 'rose' },
+        { title: '活跃账号', value: '32', note: '医生/客服/生产', icon: 'customer', tone: 'green' },
+        { title: '今日生产', value: '27', note: '节点流转', icon: 'process', tone: 'teal' },
+        { title: 'AI 调用', value: '86', note: '近 24 小时', icon: 'ai', tone: 'violet' },
+        { title: '预算告警', value: '2', note: '待治理', icon: 'bill', tone: 'amber' }
+      ],
+      panels: [
+        {
+          title: '系统待办',
+          badge: '11 项',
+          tone: 'rose',
+          items: [
+            { title: '权限检查', detail: '2 个账号权限范围需复核', meta: '账号权限', tone: 'amber', actionLabel: '查看角色', routePath: '/system/rbac/roles', navId: 'admin-roles' },
+            { title: '生产瓶颈', detail: '切削与染色部门负载偏高', meta: '产能风险', tone: 'orange', actionLabel: '查看工序', routePath: '/workflow/process-instance', navId: 'admin-process-progress' },
+            { title: 'AI 预算告警', detail: '模型预算接近阈值，需确认策略', meta: 'AI 治理', tone: 'violet', actionLabel: '去治理', routePath: '/admin/ai-governance', navId: 'admin-ai' }
+          ]
+        },
+        {
+          title: '业务健康',
+          badge: '今日',
+          tone: 'blue',
+          items: [
+            { title: '账单配送', detail: '3 单账单/物流状态需客服跟进', meta: '跨端协同', tone: 'rose', actionLabel: '查看', routePath: '/admin/billing-delivery', navId: 'admin-billing-delivery' },
+            { title: '外协订单', detail: '2 单外协正在等待回传资料', meta: '外协管理', tone: 'teal', actionLabel: '查看外协', routePath: '/admin/outsourcing', navId: 'admin-outsourcing' }
+          ]
+        }
+      ],
+      trends: [
+        { label: '订单增长', value: '+16%', percent: 68, tone: 'blue' },
+        { label: '生产效率', value: '88%', percent: 88, tone: 'teal' },
+        { label: '权限健康', value: '94%', percent: 94, tone: 'green' },
+        { label: 'AI 预算', value: '72%', percent: 72, tone: 'amber' }
+      ]
+    }
+  }
+})
+const activePrototypeDashboard = computed(() => prototypeDashboards.value[portalTone.value])
+
+const prototypeQueueChips = computed<QueueChip[]>(() => {
+  if (isDoctorOrderRoute.value) {
+    return [
+      { label: '全部订单', count: String(Math.max(doctorOrders.value.length, 8)), tone: 'blue', active: true, doctorSection: 'list', doctorDetailTab: 'info' },
+      { label: '待确认设计', count: '1', tone: 'violet', doctorSection: 'design', doctorDetailTab: 'design' },
+      { label: '待补资料', count: '2', tone: 'amber', doctorSection: 'create' },
+      { label: '账单物流', count: '3', tone: 'teal', doctorSection: 'bill', doctorDetailTab: 'bill' },
+      { label: '延期提醒', count: '2', tone: 'orange', doctorSection: 'messages', doctorDetailTab: 'messages' }
+    ]
+  }
+  if (isInternalOrdersRoute.value) {
+    return [
+      { label: '全部队列', count: String(Math.max(internalOrders.value.length, 8)), tone: 'violet', active: true, filter: 'ALL' },
+      { label: '待客服初审', count: '5', tone: 'amber', filter: 'PENDING_CS_REVIEW' },
+      { label: '资料缺失', count: '2', tone: 'orange', filter: 'CS_REJECTED' },
+      { label: '等待医生确认', count: '1', tone: 'sky', filter: 'PENDING_DOCTOR_CONFIRM' },
+      { label: '账单异常', count: '3', tone: 'rose', filter: 'ALL' }
+    ]
+  }
+  if (isWorkerTasksRoute.value) {
+    return [
+      { label: '全部任务', count: String(Math.max(workerTasks.value.length, 8)), tone: 'teal', active: true, filter: 'ALL' },
+      { label: '待开工', count: '6', tone: 'sky', filter: 'READY' },
+      { label: '进行中', count: '7', tone: 'teal', filter: 'IN_PROGRESS' },
+      { label: '已完成', count: '4', tone: 'green', filter: 'COMPLETED' },
+      { label: '待处理', count: '2', tone: 'rose', filter: 'PENDING' }
+    ]
+  }
+  if (isProductionBoardRoute.value || isProductionReviewRoute.value) {
+    return [
+      { label: '全部生产订单', count: '8', tone: 'teal', active: true, filter: 'ALL' },
+      { label: '待派工', count: '6', tone: 'sky', filter: 'PROCESS_INSTANCE_CREATED' },
+      { label: '生产中', count: '7', tone: 'teal', filter: 'PRODUCING' },
+      { label: '超时风险', count: '2', tone: 'rose' },
+      { label: '医生待确认', count: '2', tone: 'violet', filter: 'PENDING_DOCTOR_CONFIRM' }
+    ]
+  }
+  return [
+    { label: '全部队列', count: '8', tone: 'blue', active: true },
+    { label: '待处理', count: '5', tone: 'amber' },
+    { label: '异常', count: '2', tone: 'rose' },
+    { label: '已完成', count: '4', tone: 'green' }
+  ]
+})
+
+const prototypeDataQueueRows: PrototypeQueueRow[] = [
+  { orderNo: 'PDL-0476', patient: 'Emma W.', product: '种植冠 #19', status: '资料审核', statusTone: 'amber', checklist: '资料齐全', checklistTone: 'green', reviewType: '资料审核', awaiting: '客服 / 生产', awaitingTone: 'violet', days: '0d', daysTone: 'green', action: '分配技师' },
+  { orderNo: 'PDL-0475', patient: 'Robert K.', product: '贴面套装 #6-11', status: '等待资料', statusTone: 'amber', checklist: '缺少比色照片', checklistTone: 'orange', reviewType: '生产前检查', awaiting: '医生补资料', awaitingTone: 'sky', days: '1d', daysTone: 'orange', action: '发送提醒' },
+  { orderNo: 'PDL-0474', patient: 'David L.', product: 'PFM 桥 #18-20', status: '设计检查', statusTone: 'violet', checklist: '资料齐全', checklistTone: 'green', reviewType: '设计检查', awaiting: '医生确认', awaitingTone: 'sky', days: '0.5d', daysTone: 'orange', action: '追问医生' },
+  { orderNo: 'PDL-0473', patient: 'Nancy P.', product: '隐形矫治全套', status: '数据复核', statusTone: 'amber', checklist: '口扫已接收', checklistTone: 'green', reviewType: '数据复核', awaiting: '设计师', awaitingTone: 'amber', days: '2d', daysTone: 'rose', action: '跟进设计' },
+  { orderNo: 'PDL-0472', patient: 'Tom A.', product: '氧化锆冠 #30', status: '等待付款', statusTone: 'orange', checklist: '资料齐全', checklistTone: 'green', reviewType: '账单确认', awaiting: '医生付款', awaitingTone: 'sky', days: '3d', daysTone: 'rose', action: '发送账单' }
+]
+function isPrototypeChipActive(chip: QueueChip) {
+  return activePrototypeChip.value ? activePrototypeChip.value === chip.label : Boolean(chip.active)
+}
+async function selectPrototypeQueueChip(chip: QueueChip) {
+  activePrototypeChip.value = chip.label
+  if (isDoctorOrderRoute.value) {
+    activeDoctorOrderSection.value = chip.doctorSection ?? 'list'
+    activeDoctorDetailTab.value = chip.doctorDetailTab ?? 'info'
+    return
+  }
+  if (isInternalOrdersRoute.value) {
+    internalOrderStatus.value = chip.filter ?? 'PENDING_CS_REVIEW'
+    await loadInternalOrders()
+    return
+  }
+  if (isWorkerTasksRoute.value) {
+    workerTaskStatus.value = chip.filter === 'ALL' ? '' : (chip.filter ?? 'READY')
+    await loadWorkerTasks()
+    return
+  }
+  if (isProductionBoardRoute.value || isProductionReviewRoute.value) {
+    if (chip.filter) {
+      if (isProductionBoardRoute.value) {
+        productionBoardStatus.value = chip.filter
+        await loadProductionBoardOrders()
+      } else {
+        productionReviewStatus.value = chip.filter
+        await loadProductionReviewOrders()
+      }
+    }
+  }
+}
+function flattenDisplayItems(items: DisplayNavigationItem[]): DisplayNavigationItem[] {
+  return items.flatMap((item) => [item, ...(item.children ? flattenDisplayItems(item.children) : [])])
+}
+const businessShortcuts = computed<BusinessShortcut[]>(() => {
+  return navigationGroups.value.flatMap((group) => flattenDisplayItems(group.items)).map((item) => ({
+    id: item.id,
+    title: item.title,
+    description: item.description,
+    icon: item.icon,
+    routePath: item.routePath,
+    placeholder: item.placeholder,
+    doctorSection: item.doctorSection,
+    doctorDetailTab: item.doctorDetailTab
+  }))
+})
+function allDisplayItems(tone = portalTone.value) {
+  return displayNavigationConfig[tone].flatMap((group) => flattenDisplayItems(group.items))
+}
+function allAccountItems(tone = portalTone.value) {
+  return accountNavigationConfig[tone].flatMap((group) => flattenDisplayItems(group.items))
+}
+function findDisplayItemById(id: string) {
+  return allDisplayItems().find((item) => item.id === id) ?? allAccountItems().find((item) => item.id === id) ?? null
+}
+function findDisplayItemByRoute(routePath: string) {
+  return allDisplayItems().find((item) => item.routePath === routePath) ?? allAccountItems().find((item) => item.routePath === routePath) ?? null
+}
+const activeDisplayItem = computed(() => findDisplayItemById(activeNavId.value) ?? findDisplayItemByRoute(activeRoute.value))
+const displayActiveIndex = computed(() => activeDisplayItem.value?.id ?? activeNavId.value)
+const isPlaceholderRoute = computed(() => Boolean(activeDisplayItem.value?.placeholder))
+const activePlaceholderContentItems = computed(() => activeDisplayItem.value ? (placeholderContentMap[activeDisplayItem.value.id] ?? []) : [])
+const accountProfile = computed<AccountProfile>(() => {
+  const usernameText = currentUser.value?.username ?? '未登录账号'
+  const roleText = roleLabels(currentUser.value?.roles)
+  const scopeText = dataScopeLabel(currentUser.value?.dataScope)
+  const profileByPortal: Record<PortalTone, Pick<AccountProfile, 'organization' | 'summary'>> = {
+    doctor: {
+      organization: currentUser.value?.clinicId ? `诊所 #${currentUser.value.clinicId}` : '所属诊所待接入',
+      summary: '仅展示诊所、医生账号、通知偏好和密码安全。'
+    },
+    cs: {
+      organization: '客服中心 / 客户分配待接入',
+      summary: '展示客服账号、客户分配、常用回复和通知偏好。'
+    },
+    production: {
+      organization: '生产部 / 岗位工序待接入',
+      summary: '展示员工资料、所属部门、岗位工序、绩效入口和账号安全。'
+    },
+    admin: {
+      organization: '平台管理部 / 部门岗位待接入',
+      summary: '展示用户管理、角色权限、部门岗位和账号状态。'
+    }
+  }
+  return {
+    username: usernameText,
+    role: roleText,
+    organization: profileByPortal[portalTone.value].organization,
+    scope: scopeText,
+    summary: profileByPortal[portalTone.value].summary
+  }
+})
 const isDoctorOrderRoute = computed(() => activeRoute.value === '/doctor/orders')
 const isInternalOrdersRoute = computed(() => activeRoute.value === '/orders/internal')
 const isProductionReviewRoute = computed(() => activeRoute.value === '/workflow/review')
@@ -656,6 +1571,274 @@ const selectedFormConfigField = computed(() => formConfigFields.value.find((fiel
 const selectedProductionReviewChain = computed(() => workflowChains.value.find((chain) => chain.chain_id === productionReviewChainId.value) ?? null)
 const selectedProcessNode = computed(() => selectedProcessInstance.value?.nodes.find((node) => node.node_instance_id === selectedProcessNodeId.value) ?? null)
 const selectedPortalOption = computed(() => portalOptions.find((option) => option.value === selectedPortal.value) ?? null)
+const portalTone = computed<PortalTone>(() => {
+  if (activePortalTone.value) {
+    return activePortalTone.value
+  }
+  const roles = currentUser.value?.roles ?? []
+  if (roles.includes('DOCTOR')) {
+    return 'doctor'
+  }
+  if (roles.includes('WORKER')) {
+    return 'production'
+  }
+  if (roles.includes('CS')) {
+    return 'cs'
+  }
+  return 'admin'
+})
+const portalTitle = computed(() => {
+  if (portalTone.value === 'doctor') {
+    return '医生工作台'
+  }
+  if (portalTone.value === 'cs') {
+    return '客服协同台'
+  }
+  if (portalTone.value === 'production') {
+    return '生产管理台'
+  }
+  return '管理控制台'
+})
+const routeChrome = computed<RouteChrome>(() => {
+  const route = activeRoute.value
+  if (route === '/doctor/orders') {
+    return { eyebrow: '医生端 / 订单与病例', title: '医生订单工作台', description: '下单、补资料、查看公开进度、确认设计稿、查看账单物流和订单助手。', icon: 'clinical_notes' }
+  }
+  if (route === '/orders/internal') {
+    return { eyebrow: '客服端 / 审核与沟通', title: '客服初审', description: '核对医生提交资料，整理生产备注，并作为医生与工厂之间的审核中枢。', icon: 'support_agent' }
+  }
+  if (route === '/workflow/review') {
+    return { eyebrow: '生产端 / 审核入口', title: '生产审核', description: '选择工序链与入口路线，通过后生成订单工序。', icon: 'fact_check' }
+  }
+  if (route === '/workflow/process-instance') {
+    return { eyebrow: '管理端 / 工序进度', title: '工序进度', description: '查看订单生产链路、节点状态、执行员工与标准工时。', icon: 'account_tree' }
+  }
+  if (route === '/workflow/assign') {
+    return { eyebrow: '管理端 / 员工派工', title: '员工派工', description: '为生产节点绑定或调整执行员工，并保留转派记录。', icon: 'assignment_ind' }
+  }
+  if (route === '/tasks/mine') {
+    return { eyebrow: '生产端 / 我的工单', title: '我的任务', description: '按待开工、进行中、已完成等状态处理本人生产任务。', icon: 'task_alt' }
+  }
+  if (route === '/checks') {
+    return { eyebrow: '生产端 / 入检出检', title: '入检出检', description: '执行节点入检、出检，出检不通过时进入返工链路。', icon: 'rule' }
+  }
+  if (route === '/rework-final') {
+    return { eyebrow: '生产端 / 返工终检', title: '返工终检', description: '跟踪返工影响范围、关闭返工，并生成终检报告。', icon: 'published_with_changes' }
+  }
+  if (route === '/worklogs/self') {
+    return { eyebrow: '生产端 / 工时', title: '工时记录', description: '记录本人任务的开始、暂停、继续和完成工时。', icon: 'timer' }
+  }
+  if (route === '/performance') {
+    return { eyebrow: '生产端 / 绩效', title: '绩效统计', description: '查看有效工时、通过率、准时率、返工归因和工时明细。', icon: 'monitoring' }
+  }
+  if (route === '/production/board') {
+    return { eyebrow: '生产端 / 看板', title: '生产看板', description: '跨状态查看生产订单、节点进度和终检发货门禁。', icon: 'view_kanban' }
+  }
+  if (route === '/system/form-configs') {
+    return { eyebrow: '管理端 / 动态表单', title: '动态表单', description: '维护医生下单表单字段，医生端只读取启用字段。', icon: 'dynamic_form' }
+  }
+  if (route === '/notifications') {
+    return { eyebrow: '平台 / 通知中心', title: '通知中心', description: '查看未读通知、实时推送状态和系统消息。', icon: 'notifications_active' }
+  }
+  if (activeDisplayItem.value) {
+    return {
+      eyebrow: `${portalTitle.value} / ${activeDisplayItem.value.placeholder ? '待接入功能' : '业务功能'}`,
+      title: activeDisplayItem.value.title,
+      description: activeDisplayItem.value.description,
+      icon: activeDisplayItem.value.icon
+    }
+  }
+  return {
+    eyebrow: `${portalTitle.value} / 总览`,
+    title: activeMenu.value?.menuName ?? '工作台',
+    description: '按当前账号角色和菜单权限展示可访问功能。',
+    icon: 'dashboard'
+  }
+})
+const menuIconSvgMap: Record<string, string> = {
+  '/dashboard': '<svg viewBox="0 0 24 24"><path d="M4 4h7v7H4zM13 4h7v7h-7zM4 13h7v7H4zM13 13h7v7h-7z"/></svg>',
+  '/doctor/orders': '<svg viewBox="0 0 24 24"><path d="M6 3h9l3 3v15H6z"/><path d="M15 3v4h4M9 12h6M12 9v6"/></svg>',
+  '/doctor/files': '<svg viewBox="0 0 24 24"><path d="M5 5h5l2 3h7v11H5z"/><path d="M9 13h6M12 10v6"/></svg>',
+  '/doctor/ai': '<svg viewBox="0 0 24 24"><path d="M8 5h8a4 4 0 0 1 4 4v3a4 4 0 0 1-4 4h-3l-4 3v-3H8a4 4 0 0 1-4-4V9a4 4 0 0 1 4-4z"/><path d="M9 10h.01M12 10h.01M15 10h.01"/></svg>',
+  '/orders/internal': '<svg viewBox="0 0 24 24"><path d="M5 5h14v14H5z"/><path d="M8 10h8M8 14h5M16 15l2 2 3-4"/></svg>',
+  '/workflow/review': '<svg viewBox="0 0 24 24"><path d="M5 4h14v16H5z"/><path d="M8 8h8M8 12h5M9 16l2 2 4-5"/></svg>',
+  '/workflow/process-instance': '<svg viewBox="0 0 24 24"><path d="M12 4v5M7 9h10M7 9v5M17 9v5M5 14h4v4H5zM10 3h4v4h-4zM15 14h4v4h-4z"/></svg>',
+  '/workflow/assign': '<svg viewBox="0 0 24 24"><path d="M8 11a4 4 0 1 1 8 0"/><path d="M5 20a7 7 0 0 1 14 0M17 4h4v4M21 4l-5 5"/></svg>',
+  '/tasks/mine': '<svg viewBox="0 0 24 24"><path d="M5 4h14v16H5z"/><path d="M8 9l2 2 4-5M8 15h8"/></svg>',
+  '/checks': '<svg viewBox="0 0 24 24"><path d="M4 5h16v14H4z"/><path d="M8 12l3 3 5-6"/></svg>',
+  '/rework-final': '<svg viewBox="0 0 24 24"><path d="M7 7h9a4 4 0 0 1 0 8H9"/><path d="M7 7l3-3M7 7l3 3M17 17l2 2 3-4"/></svg>',
+  '/worklogs/self': '<svg viewBox="0 0 24 24"><circle cx="12" cy="13" r="7"/><path d="M12 6V3M9 3h6M12 13l3-3"/></svg>',
+  '/performance': '<svg viewBox="0 0 24 24"><path d="M4 19h16"/><path d="M6 16l4-4 3 3 5-8"/><path d="M18 7h2v2"/></svg>',
+  '/production/board': '<svg viewBox="0 0 24 24"><path d="M4 5h16v14H4z"/><path d="M8 5v14M16 5v14M4 11h16"/></svg>',
+  '/files': '<svg viewBox="0 0 24 24"><path d="M4 6h6l2 3h8v10H4z"/><path d="M7 13h10M7 16h7"/></svg>',
+  '/collaboration': '<svg viewBox="0 0 24 24"><path d="M4 6h10v8H8l-4 4z"/><path d="M14 9h6v8h-3l-3 3v-3h-2"/></svg>',
+  '/ai/cs': '<svg viewBox="0 0 24 24"><path d="M7 10a5 5 0 0 1 10 0v4"/><path d="M5 13h3v4H5zM16 13h3v4h-3zM9 19h4M13 19c3 0 5-2 5-5"/></svg>',
+  '/ai/production': '<svg viewBox="0 0 24 24"><path d="M4 18V9l5 3V8l5 4V7l6 4v7z"/><path d="M8 18v-3M12 18v-3M16 18v-3"/></svg>',
+  '/system/rbac': '<svg viewBox="0 0 24 24"><path d="M12 3l7 3v5c0 5-3 8-7 10-4-2-7-5-7-10V6z"/><path d="M9 12l2 2 4-5"/></svg>',
+  '/system/form-configs': '<svg viewBox="0 0 24 24"><path d="M6 4h12v16H6z"/><path d="M9 8h6M9 12h6M9 16h3"/></svg>',
+  '/notifications': '<svg viewBox="0 0 24 24"><path d="M6 17h12l-1-2v-4a5 5 0 0 0-10 0v4z"/><path d="M10 19a2 2 0 0 0 4 0"/></svg>'
+}
+const fallbackMenuIconSvg = '<svg viewBox="0 0 24 24"><path d="M12 4l8 8-8 8-8-8z"/></svg>'
+const businessIconSvgMap: Record<string, string> = {
+  dashboard: menuIconSvgMap['/dashboard'],
+  clinical_notes: menuIconSvgMap['/doctor/orders'],
+  support_agent: menuIconSvgMap['/ai/cs'],
+  factory: menuIconSvgMap['/ai/production'],
+  admin_panel_settings: menuIconSvgMap['/system/rbac'],
+  precision_manufacturing: '<svg viewBox="0 0 24 24"><path d="M4 18V9l5 3V8l5 4V7l6 4v7z"/><path d="M7 18v-4M11 18v-4M15 18v-4"/></svg>',
+  stethoscope: '<svg viewBox="0 0 24 24"><path d="M7 4v5a5 5 0 0 0 10 0V4"/><path d="M17 9v4a4 4 0 0 0 8 0"/><circle cx="21" cy="13" r="2"/></svg>',
+  person: '<svg viewBox="0 0 24 24"><circle cx="12" cy="8" r="4"/><path d="M4 21a8 8 0 0 1 16 0"/></svg>',
+  lock: '<svg viewBox="0 0 24 24"><rect x="5" y="10" width="14" height="10" rx="2"/><path d="M8 10V7a4 4 0 0 1 8 0v3"/></svg>',
+  arrow_forward: '<svg viewBox="0 0 24 24"><path d="M5 12h14"/><path d="M13 6l6 6-6 6"/></svg>',
+  gpp_maybe: '<svg viewBox="0 0 24 24"><path d="M12 3l7 3v5c0 5-3 8-7 10-4-2-7-5-7-10V6z"/><path d="M12 8v5M12 16h.01"/></svg>',
+  fact_check: menuIconSvgMap['/workflow/review'],
+  account_tree: menuIconSvgMap['/workflow/process-instance'],
+  assignment_ind: menuIconSvgMap['/workflow/assign'],
+  task_alt: menuIconSvgMap['/tasks/mine'],
+  rule: menuIconSvgMap['/checks'],
+  published_with_changes: menuIconSvgMap['/rework-final'],
+  timer: menuIconSvgMap['/worklogs/self'],
+  monitoring: menuIconSvgMap['/performance'],
+  view_kanban: menuIconSvgMap['/production/board'],
+  dynamic_form: menuIconSvgMap['/system/form-configs'],
+  notifications_active: menuIconSvgMap['/notifications'],
+  order: menuIconSvgMap['/orders/internal'],
+  doctorOrder: menuIconSvgMap['/doctor/orders'],
+  chat: menuIconSvgMap['/collaboration'],
+  customer: '<svg viewBox="0 0 24 24"><path d="M8 11a4 4 0 1 1 8 0"/><path d="M4 21a8 8 0 0 1 16 0"/></svg>',
+  product: menuIconSvgMap['/system/form-configs'],
+  delivery: '<svg viewBox="0 0 24 24"><path d="M3 7h11v10H3z"/><path d="M14 10h4l3 3v4h-7z"/><circle cx="7" cy="18" r="2"/><circle cx="18" cy="18" r="2"/></svg>',
+  bill: '<svg viewBox="0 0 24 24"><path d="M6 3h12v18l-3-2-3 2-3-2-3 2z"/><path d="M9 8h6M9 12h6M9 16h4"/></svg>',
+  partner: '<svg viewBox="0 0 24 24"><path d="M8 12l3 3 5-6"/><path d="M4 19V5h16v14z"/></svg>',
+  task: menuIconSvgMap['/tasks/mine'],
+  process: menuIconSvgMap['/checks'],
+  quality: menuIconSvgMap['/rework-final'],
+  staff: menuIconSvgMap['/workflow/assign'],
+  device: '<svg viewBox="0 0 24 24"><path d="M6 4h12v10H6z"/><path d="M9 18h6M12 14v4M8 8h8"/></svg>',
+  material: '<svg viewBox="0 0 24 24"><path d="M12 3l8 4v10l-8 4-8-4V7z"/><path d="M4 7l8 4 8-4M12 11v10"/></svg>',
+  performance: menuIconSvgMap['/performance'],
+  design: '<svg viewBox="0 0 24 24"><path d="M5 4h14v16H5z"/><path d="M8 15l3-3 2 2 3-4 2 5z"/></svg>',
+  workorder: '<svg viewBox="0 0 24 24"><path d="M7 3h10v18H7z"/><path d="M9 7h6M9 11h6M9 15h4"/><path d="M10 3h4v3h-4z"/></svg>',
+  scan: '<svg viewBox="0 0 24 24"><path d="M4 8V4h4M16 4h4v4M20 16v4h-4M8 20H4v-4"/><path d="M7 12h10M8 9h2M12 9h4M8 15h4M15 15h1"/></svg>',
+  report: '<svg viewBox="0 0 24 24"><path d="M6 3h9l3 3v15H6z"/><path d="M15 3v4h4M9 11h6M9 15h6M9 19h3"/></svg>',
+  reward: '<svg viewBox="0 0 24 24"><path d="M12 3l2.5 5 5.5.8-4 3.9.9 5.5L12 15.6 7.1 18.2l.9-5.5-4-3.9 5.5-.8z"/></svg>',
+  cost: '<svg viewBox="0 0 24 24"><path d="M5 5h14v14H5z"/><path d="M9 9h6M9 13h6M9 17h3"/><path d="M16 7v12"/></svg>',
+  safety: '<svg viewBox="0 0 24 24"><path d="M12 3l7 3v5c0 5-3 8-7 10-4-2-7-5-7-10V6z"/><path d="M9 12l2 2 4-5"/></svg>',
+  cloud: '<svg viewBox="0 0 24 24"><path d="M7 18h10a4 4 0 0 0 0-8 6 6 0 0 0-11.5 2A3 3 0 0 0 7 18z"/><path d="M12 8v7M9 12l3 3 3-3"/></svg>',
+  system: menuIconSvgMap['/system/rbac'],
+  audit: '<svg viewBox="0 0 24 24"><path d="M6 4h12v16H6z"/><path d="M9 8h6M9 12h6M9 16h3"/><path d="M16 16l2 2 3-4"/></svg>',
+  ai: menuIconSvgMap['/ai/cs'],
+  notification: menuIconSvgMap['/notifications']
+}
+function menuIconSvg(menu: AuthMenu) {
+  return menuIconSvgMap[menu.routePath ?? ''] ?? fallbackMenuIconSvg
+}
+function businessIconSvg(icon: string) {
+  return businessIconSvgMap[icon] ?? fallbackMenuIconSvg
+}
+const roleLabelMap: Record<string, string> = {
+  ADMIN: '管理员',
+  DOCTOR: '医生',
+  CS: '客服',
+  WORKER: '生产人员'
+}
+const dataScopeLabelMap: Record<string, string> = {
+  ALL: '全部数据',
+  CLINIC: '诊所数据',
+  SELF: '本人数据',
+  NONE: '无数据范围'
+}
+const statusLabelMap: Record<string, string> = {
+  PENDING: '待处理',
+  READY: '待开工',
+  IN_PROGRESS: '进行中',
+  COMPLETED: '已完成',
+  SKIPPED: '已跳过',
+  FAILED: '失败',
+  PENDING_REVIEW: '待审核',
+  PENDING_CS_REVIEW: '待客服初审',
+  PENDING_PRODUCTION_REVIEW: '待生产审核',
+  PROCESS_INSTANCE_CREATED: '已生成工序',
+  PRODUCING: '生产中',
+  CS_REJECTED: '客服驳回',
+  PRODUCTION_REJECTED: '生产驳回',
+  SHIPPED: '已发货',
+  DELIVERED: '已签收',
+  PENDING_DOCTOR_CONFIRM: '待医生确认',
+  CONFIRMED: '已确认',
+  REJECTED: '已驳回',
+  APPROVED: '已通过',
+  OPEN: '处理中',
+  CLOSED: '已关闭',
+  UPLOADING: '上传中',
+  UPLOADED: '已上传',
+  COMPLETE: '已完成',
+  PAUSED: '已暂停',
+  DONE: '已完成',
+  ACTIVE: '启用',
+  INACTIVE: '停用'
+}
+const productTypeLabelMap: Record<string, string> = {
+  REGULAR_CROWN: '普通牙冠',
+  PFM_BRIDGE: '烤瓷桥',
+  VENEER_SET: '贴面套装',
+  IMPLANT_CROWN: '种植牙冠',
+  CLEAR_ALIGNER: '隐形矫治',
+  NIGHT_GUARD: '夜磨牙垫',
+  RUNTIME_TEST: '测试订单'
+}
+const fieldTypeLabelMap: Record<string, string> = {
+  text: '文本',
+  textarea: '多行文本',
+  number: '数字',
+  select: '单选',
+  'multi-select': '多选',
+  date: '日期',
+  file: '文件'
+}
+function roleLabel(role: string) {
+  return roleLabelMap[role] ?? role
+}
+function roleLabels(roles: string[] | undefined) {
+  return roles?.map(roleLabel).join('、') || '未识别角色'
+}
+function dataScopeLabel(scope: string | null | undefined) {
+  return scope ? (dataScopeLabelMap[scope] ?? scope) : '无数据范围'
+}
+function menuLabel(menu: AuthMenu) {
+  if (menu.menuName.includes('AI')) {
+    if (menu.menuName.startsWith('医生')) {
+      return '订单助手'
+    }
+    if (menu.menuName.startsWith('客服')) {
+      return '智能助手'
+    }
+    if (menu.menuName.startsWith('生产')) {
+      return '生产助手'
+    }
+  }
+  return menu.menuName
+}
+function statusLabel(status: string | null | undefined) {
+  return status ? (statusLabelMap[status] ?? status.replaceAll('_', ' ')) : '待处理'
+}
+function productTypeLabel(type: string | null | undefined) {
+  return type ? (productTypeLabelMap[type] ?? type.replaceAll('_', ' ')) : '未分类'
+}
+function fieldTypeLabel(type: string | null | undefined) {
+  return type ? (fieldTypeLabelMap[type] ?? type) : '未设置'
+}
+function compactDateTime(value: string | undefined) {
+  if (!value) {
+    return '-'
+  }
+  const parsed = new Date(value)
+  if (Number.isNaN(parsed.getTime())) {
+    return value.replace('T', ' ').replace('Z', '')
+  }
+  const pad = (num: number) => String(num).padStart(2, '0')
+  return `${pad(parsed.getMonth() + 1)}-${pad(parsed.getDate())} ${pad(parsed.getHours())}:${pad(parsed.getMinutes())}`
+}
 const productionBoardNodeStats = computed(() => {
   const stats = {
     READY: 0,
@@ -732,7 +1915,10 @@ async function applyLoginSession(payload: LoginResponse, nextRoute: string) {
   token.value = payload.accessToken
   refreshToken.value = payload.refreshToken
   currentUser.value = payload
+  activePortalTone.value = selectedPortal.value ? portalToneByLoginPortal[selectedPortal.value] : activePortalTone.value
   activeRoute.value = nextRoute
+  activePrototypeChip.value = ''
+  activeNavId.value = findDisplayItemByRoute(nextRoute)?.id ?? `${portalTone.value}-dashboard`
   await loadNotifications()
   await loadActiveRouteData()
 }
@@ -817,42 +2003,95 @@ function clearLoginSession() {
   token.value = ''
   refreshToken.value = ''
   currentUser.value = null
+  activePortalTone.value = null
   activeRoute.value = '/dashboard'
+  activeNavId.value = 'dashboard'
+  activePrototypeChip.value = ''
   unreadCount.value = 0
   notifications.value = []
   lastRealtimeNotification.value = null
   closeNotificationSocket()
 }
 
+function navigateToRoute(routePath: string) {
+  activeRoute.value = routePath
+  activePrototypeChip.value = ''
+  if (routePath === '/notifications') {
+    void loadNotifications()
+  } else if (routePath === '/doctor/orders') {
+    void loadDoctorOrderForm()
+    void loadDoctorOrders()
+  } else if (routePath === '/orders/internal') {
+    void loadInternalOrders()
+  } else if (routePath === '/workflow/review') {
+    void loadProductionReviewPage()
+  } else if (routePath === '/workflow/process-instance' || routePath === '/workflow/assign') {
+    void loadProcessInstancePage()
+  } else if (routePath === '/tasks/mine') {
+    void loadWorkerTasks()
+  } else if (routePath === '/checks') {
+    void loadCheckTasks()
+  } else if (routePath === '/rework-final') {
+    void loadReworkFinalPage()
+  } else if (routePath === '/worklogs/self') {
+    void loadWorklogTasks()
+  } else if (routePath === '/performance') {
+    void loadPerformanceStats()
+  } else if (routePath === '/production/board') {
+    void loadProductionBoardOrders()
+  } else if (routePath === '/system/form-configs') {
+    void loadFormConfigFields()
+  }
+}
+
+function selectDisplayNavigationItem(item: DisplayNavigationItem | BusinessShortcut) {
+  activeNavId.value = item.id
+  if (item.doctorSection) {
+    activeDoctorOrderSection.value = item.doctorSection
+  }
+  if (item.doctorDetailTab) {
+    activeDoctorDetailTab.value = item.doctorDetailTab
+  }
+  if (item.routePath) {
+    navigateToRoute(item.routePath)
+  }
+}
+
 function selectMenu(menu: AuthMenu) {
   if (menu.routePath) {
-    activeRoute.value = menu.routePath
-    if (menu.routePath === '/notifications') {
-      void loadNotifications()
-    } else if (menu.routePath === '/doctor/orders') {
-      void loadDoctorOrderForm()
-      void loadDoctorOrders()
-    } else if (menu.routePath === '/orders/internal') {
-      void loadInternalOrders()
-    } else if (menu.routePath === '/workflow/review') {
-      void loadProductionReviewPage()
-    } else if (menu.routePath === '/workflow/process-instance' || menu.routePath === '/workflow/assign') {
-      void loadProcessInstancePage()
-    } else if (menu.routePath === '/tasks/mine') {
-      void loadWorkerTasks()
-    } else if (menu.routePath === '/checks') {
-      void loadCheckTasks()
-    } else if (menu.routePath === '/rework-final') {
-      void loadReworkFinalPage()
-    } else if (menu.routePath === '/worklogs/self') {
-      void loadWorklogTasks()
-    } else if (menu.routePath === '/performance') {
-      void loadPerformanceStats()
-    } else if (menu.routePath === '/production/board') {
-      void loadProductionBoardOrders()
-    } else if (menu.routePath === '/system/form-configs') {
-      void loadFormConfigFields()
+    const displayItem = findDisplayItemByRoute(menu.routePath)
+    if (displayItem) {
+      selectDisplayNavigationItem(displayItem)
+    } else {
+      navigateToRoute(menu.routePath)
     }
+  }
+}
+
+function selectBusinessShortcut(shortcut: BusinessShortcut) {
+  selectDisplayNavigationItem(shortcut)
+}
+
+function selectDashboardAction(action: DashboardAction) {
+  if (action.navId) {
+    const displayItem = findDisplayItemById(action.navId)
+    if (displayItem) {
+      selectDisplayNavigationItem({
+        ...displayItem,
+        doctorSection: action.doctorSection ?? displayItem.doctorSection,
+        doctorDetailTab: action.doctorDetailTab ?? displayItem.doctorDetailTab
+      })
+      return
+    }
+  }
+  if (action.doctorSection) {
+    activeDoctorOrderSection.value = action.doctorSection
+  }
+  if (action.doctorDetailTab) {
+    activeDoctorDetailTab.value = action.doctorDetailTab
+  }
+  if (action.routePath) {
+    navigateToRoute(action.routePath)
   }
 }
 
@@ -1540,7 +2779,7 @@ async function askDoctorAi() {
     })
     doctorAiAnswer.value = payload.data.answer
   } catch (error) {
-    doctorOrderError.value = error instanceof Error ? error.message : '医生 AI 查询失败'
+    doctorOrderError.value = error instanceof Error ? error.message : '订单助手查询失败'
   } finally {
     doctorActionLoading.value = false
   }
@@ -1555,9 +2794,11 @@ async function loadInternalOrders() {
   try {
     const params = new URLSearchParams({
       page: '1',
-      size: '20',
-      internal_status: 'PENDING_CS_REVIEW'
+      size: '20'
     })
+    if (internalOrderStatus.value !== 'ALL') {
+      params.set('internal_status', internalOrderStatus.value)
+    }
     if (internalOrderKeyword.value.trim()) {
       params.set('keyword', internalOrderKeyword.value.trim())
     }
@@ -1681,9 +2922,11 @@ async function loadProductionReviewOrders() {
   try {
     const params = new URLSearchParams({
       page: '1',
-      size: '20',
-      internal_status: 'PENDING_PRODUCTION_REVIEW'
+      size: '20'
     })
+    if (productionReviewStatus.value !== 'ALL') {
+      params.set('internal_status', productionReviewStatus.value)
+    }
     if (productionReviewKeyword.value.trim()) {
       params.set('keyword', productionReviewKeyword.value.trim())
     }
@@ -1794,7 +3037,7 @@ async function loadProcessInstanceOrders() {
       await loadProcessInstanceDetail(selectedProcessInstanceOrder.value.order_id)
     }
   } catch (error) {
-    processInstanceError.value = error instanceof Error ? error.message : '工序实例订单加载失败'
+    processInstanceError.value = error instanceof Error ? error.message : '工序进度订单加载失败'
   } finally {
     processInstanceLoading.value = false
   }
@@ -1818,7 +3061,7 @@ async function loadProcessInstanceDetail(orderId: number) {
   } catch (error) {
     selectedProcessInstance.value = null
     selectedProcessNodeId.value = null
-    processInstanceError.value = error instanceof Error ? error.message : '工序实例加载失败'
+    processInstanceError.value = error instanceof Error ? error.message : '工序进度加载失败'
   }
 }
 
@@ -1837,13 +3080,13 @@ async function assignSelectedProcessNode(mode: 'ASSIGN' | 'REASSIGN') {
   try {
     const targetUserId = Number(processAssignmentUserId.value.trim())
     if (!Number.isInteger(targetUserId) || targetUserId <= 0) {
-      throw new Error('员工 user_id 必须是正整数')
+      throw new Error('员工编号必须是正整数')
     }
     const path = mode === 'REASSIGN'
       ? `/orders/${selectedProcessInstanceOrder.value.order_id}/process-instance/nodes/${selectedProcessNode.value.node_instance_id}/reassign`
       : `/orders/${selectedProcessInstanceOrder.value.order_id}/process-instance/assign`
     const body = mode === 'REASSIGN'
-      ? { new_user_id: targetUserId, reason: '前端派工转派第一增量' }
+      ? { new_user_id: targetUserId, reason: '前端员工派工第一增量' }
       : { assignments: [{ node_instance_id: selectedProcessNode.value.node_instance_id, user_id: targetUserId }] }
     const payload = await apiFetch<ProcessInstanceDetail>(path, {
       method: 'POST',
@@ -2099,8 +3342,6 @@ async function loadFinalInspectionTasks() {
     if (payload.data.length === 0) {
       selectedFinalInspectionTask.value = null
       finalInspectionRecords.value = []
-      finalInspectionReport.value = null
-      finalInspectionReportSummary.value = ''
       return
     }
     if (!selectedStillVisible) {
@@ -2166,7 +3407,6 @@ async function submitFinalInspectionCheck() {
     finalInspectionResult.value = payload.data
     finalInspectionRemark.value = ''
     await loadFinalInspectionRecords(selectedFinalInspectionTask.value.node_instance_id)
-    await loadFinalInspectionReport(selectedFinalInspectionTask.value.order_id)
     await loadFinalInspectionTasks()
     await loadReworkRecords()
   } catch (error) {
@@ -2306,7 +3546,7 @@ async function loadPerformanceStats() {
     if (performanceUserId.value.trim()) {
       const userId = Number(performanceUserId.value.trim())
       if (!Number.isInteger(userId) || userId <= 0) {
-        throw new Error('user_id 必须是正整数')
+        throw new Error('员工编号必须是正整数')
       }
       params.set('user_id', String(userId))
     }
@@ -2376,14 +3616,14 @@ async function loadProductionBoardInstance(orderId: number) {
   productionBoardError.value = ''
   productionBoardInstance.value = null
   if (selectedProductionBoardOrder.value?.internal_status === 'PENDING_PRODUCTION_REVIEW') {
-    productionBoardError.value = '该订单仍待生产审核，尚未生成工序实例'
+    productionBoardError.value = '该订单仍待生产审核，尚未生成工序'
     return
   }
   try {
     const payload = await apiFetch<ProcessInstanceDetail>(`/orders/${orderId}/process-instance`)
     productionBoardInstance.value = payload.data
   } catch (error) {
-    productionBoardError.value = error instanceof Error ? error.message : '生产看板工序实例加载失败'
+    productionBoardError.value = error instanceof Error ? error.message : '生产看板工序进度加载失败'
   }
 }
 
@@ -2431,12 +3671,7 @@ function fieldEntries(formData: Record<string, unknown> | null | undefined) {
 }
 
 function parseDoctorOrderFileIds() {
-  return doctorOrderFileIds.value
-    .split(',')
-    .map((item) => item.trim())
-    .filter(Boolean)
-    .map((item) => Number(item))
-    .filter((item) => Number.isInteger(item) && item > 0)
+  return parseFileIds(doctorOrderFileIds.value)
 }
 
 function parseFileIds(value: string) {
@@ -2508,79 +3743,175 @@ function parsePushPayload(payload: string): PushNotificationPayload {
   }
 }
 
+watch(activeDoctorOrderSection, (section) => {
+  if (['design', 'bill', 'messages', 'ai'].includes(section)) {
+    activeDoctorDetailTab.value = section
+  } else if (section === 'list') {
+    activeDoctorDetailTab.value = 'info'
+  }
+})
+
 onBeforeUnmount(() => {
   closeNotificationSocket()
 })
 </script>
 
 <template>
-  <main class="app-shell" :class="{ 'login-shell': !isLoggedIn }">
+  <main
+    class="app-shell"
+    :class="[
+      { 'login-shell': !isLoggedIn },
+      isLoggedIn ? `portal-${portalTone}` : ''
+    ]"
+  >
     <section class="workspace" :class="{ 'login-workspace': !isLoggedIn }">
       <div v-if="isLoggedIn" class="status-bar">
-        <span>AI 智能下单与生产协同平台</span>
-        <el-tag :type="isLoggedIn ? 'success' : 'info'" round>
-          {{ isLoggedIn ? `${currentUser?.username ?? '用户'} 已登录` : '骨架烟测' }}
-        </el-tag>
+        <div>
+          <strong>{{ portalTitle }}</strong>
+        </div>
+        <div class="status-actions">
+          <el-tag type="success" round>{{ roleLabels(currentUser?.roles) }}已登录</el-tag>
+          <el-tag effect="plain" round>{{ roleLabels(currentUser?.roles) }}</el-tag>
+        </div>
       </div>
 
       <div class="content-grid" :class="{ 'with-nav': isLoggedIn, 'login-only': !isLoggedIn }">
         <aside v-if="isLoggedIn" class="panel nav-panel">
-          <div class="user-block">
-            <strong>{{ currentUser?.username }}</strong>
-            <span>{{ currentUser?.roles.join(', ') }} / {{ currentUser?.dataScope ?? 'NONE' }}</span>
-            <span>Access {{ currentUser?.expiresAt ?? '-' }}</span>
-            <div class="inline-actions">
-              <el-button
-                size="small"
-                plain
-                :loading="authActionLoading"
-                data-testid="auth-refresh-button"
-                @click="refreshSession"
-              >
-                刷新 Token
-              </el-button>
-              <el-button
-                size="small"
-                type="danger"
-                plain
-                :loading="authActionLoading"
-                data-testid="auth-logout-button"
-                @click="logout"
-              >
-                退出登录
-              </el-button>
+          <div class="portal-brand">
+            <span class="portal-brand-mark" aria-hidden="true">单</span>
+            <div>
+              <strong>AI智能下单平台</strong>
+              <small>下单 · 审核 · 生产</small>
             </div>
           </div>
-          <el-menu :default-active="activeRoute" class="route-menu">
-            <el-menu-item
-              v-for="menu in navigationMenus"
-              :key="menu.menuCode"
-              :index="menu.routePath ?? menu.menuCode"
-              @click="selectMenu(menu)"
-            >
-              <el-badge
-                v-if="menu.menuCode === 'notifications' && hasUnreadNotifications"
-                :value="unreadCount"
-                :max="99"
-                class="menu-badge"
-              >
-                <span>{{ menu.menuName }}</span>
-              </el-badge>
-              <span v-else>{{ menu.menuName }}</span>
-            </el-menu-item>
+          <el-popover
+            placement="right-start"
+            trigger="click"
+            width="330"
+            popper-class="account-popover"
+          >
+            <template #reference>
+              <button class="user-block account-trigger" type="button" data-testid="account-menu-trigger">
+                <span class="account-avatar" aria-hidden="true">{{ accountProfile.username.slice(0, 1).toUpperCase() }}</span>
+                <span class="account-identity">
+                  <strong>{{ accountProfile.username }}</strong>
+                  <span>{{ accountProfile.role }} / {{ accountProfile.organization }}</span>
+                  <span>{{ accountProfile.scope }} · 有效期 {{ compactDateTime(currentUser?.expiresAt) }}</span>
+                </span>
+                <span class="account-caret">账号</span>
+              </button>
+            </template>
+            <div class="account-panel" data-testid="account-menu-panel">
+              <div class="account-panel-head">
+                <span class="account-avatar" aria-hidden="true">{{ accountProfile.username.slice(0, 1).toUpperCase() }}</span>
+                <div>
+                  <strong>{{ accountProfile.username }}</strong>
+                  <small>{{ accountProfile.role }} / {{ accountProfile.organization }}</small>
+                  <small>{{ accountProfile.summary }}</small>
+                </div>
+              </div>
+              <div class="account-panel-section" v-for="group in accountNavigationGroups" :key="group.title">
+                <span class="account-section-title">{{ group.title }}</span>
+                <button
+                  v-for="item in group.items"
+                  :key="item.id"
+                  class="account-menu-item"
+                  type="button"
+                  @click="selectDisplayNavigationItem(item)"
+                >
+                  <span class="admin-menu-icon" aria-hidden="true" v-html="businessIconSvg(item.icon)" />
+                  <span>
+                    <strong>{{ item.title }}</strong>
+                    <small>{{ item.description }}</small>
+                  </span>
+                </button>
+              </div>
+              <div class="account-panel-actions">
+                <el-button
+                  size="small"
+                  plain
+                  :loading="authActionLoading"
+                  data-testid="auth-refresh-button"
+                  @click="refreshSession"
+                >
+                  刷新令牌
+                </el-button>
+                <el-button
+                  size="small"
+                  type="primary"
+                  plain
+                  :loading="authActionLoading"
+                  data-testid="auth-logout-button"
+                  @click="logout"
+                >
+                  <span data-testid="account-switch-button">账号切换</span>
+                </el-button>
+              </div>
+            </div>
+          </el-popover>
+          <el-menu :default-active="displayActiveIndex" class="route-menu">
+            <template v-for="group in navigationGroups" :key="group.title">
+              <div class="nav-section-title">{{ group.title }}</div>
+              <template v-for="item in group.items" :key="item.id">
+                <el-sub-menu v-if="item.children?.length" :index="item.id">
+                  <template #title>
+                    <span class="menu-icon" aria-hidden="true" v-html="businessIconSvg(item.icon)" />
+                    <span>{{ item.title }}</span>
+                  </template>
+                  <el-menu-item
+                    v-for="child in item.children"
+                    :key="child.id"
+                    :index="child.id"
+                    @click="selectDisplayNavigationItem(child)"
+                  >
+                    <span class="menu-icon" aria-hidden="true" v-html="businessIconSvg(child.icon)" />
+                    <span>{{ child.title }}</span>
+                  </el-menu-item>
+                </el-sub-menu>
+                <el-menu-item
+                  v-else
+                  :index="item.id"
+                  @click="selectDisplayNavigationItem(item)"
+                >
+                  <span class="menu-icon" aria-hidden="true" v-html="businessIconSvg(item.icon)" />
+                  <el-badge
+                    v-if="item.routePath === '/notifications' && hasUnreadNotifications"
+                    :value="unreadCount"
+                    :max="99"
+                    class="menu-badge"
+                  >
+                    <span>{{ item.title }}</span>
+                  </el-badge>
+                  <span v-else>{{ item.title }}</span>
+                </el-menu-item>
+              </template>
+            </template>
           </el-menu>
+          <div class="nav-footnote">
+            <span class="nav-note-mark" aria-hidden="true">权</span>
+            <span>医生端仅展示外部安全进度，内部工序与绩效由服务端隔离。</span>
+          </div>
         </aside>
 
         <section v-if="isLoggedIn" class="panel health-panel">
-          <h1>项目骨架</h1>
-          <el-button type="primary" @click="checkHealth">检查后端</el-button>
-          <p class="result">后端状态：{{ health }}</p>
+          <div class="route-hero-icon">
+            <span class="svg-symbol" aria-hidden="true" v-html="businessIconSvg(routeChrome.icon)" />
+          </div>
+          <div class="route-hero-copy">
+            <span>{{ routeChrome.eyebrow }}</span>
+            <h1>{{ routeChrome.title }}</h1>
+            <p>{{ routeChrome.description }}</p>
+          </div>
+          <div class="health-actions">
+            <el-button type="primary" @click="checkHealth">检查后端</el-button>
+            <p class="result">后端状态：{{ health }}</p>
+          </div>
         </section>
 
         <section v-if="!isLoggedIn" class="login-page">
           <div class="login-brand">
             <div class="brand-mark" aria-hidden="true">
-              <span class="material-symbols-outlined">precision_manufacturing</span>
+              <span class="svg-symbol" v-html="businessIconSvg('precision_manufacturing')" />
             </div>
             <h1>AI智能下单平台</h1>
             <p>智能下单与生产协同平台</p>
@@ -2590,14 +3921,15 @@ onBeforeUnmount(() => {
             <div class="login-card-header">
               <div>
                 <h2>{{ selectedPortalOption ? `${selectedPortalOption.title}登录` : '选择登录入口' }}</h2>
-                <span>{{ selectedPortalOption?.subtitle ?? '医生端 / 客服端 / 生产端 / 管理端' }}</span>
+                <span>{{ selectedPortalOption?.subtitle ?? '请选择授权端口，再输入账号密码' }}</span>
               </div>
               <button v-if="selectedPortal" class="ghost-icon-button" type="button" @click="selectedPortal = null">
                 返回入口
               </button>
             </div>
 
-            <div v-if="!selectedPortal" class="portal-grid" aria-label="快速登录通道">
+            <div v-if="!selectedPortal" class="portal-grid" aria-label="登录入口">
+              <div class="portal-section-label">端口入口</div>
               <button
                 v-for="option in portalOptions"
                 :key="option.value"
@@ -2608,7 +3940,7 @@ onBeforeUnmount(() => {
                 @click="selectPortal(option)"
               >
                 <span class="portal-icon" aria-hidden="true">
-                  <span class="material-symbols-outlined">{{ option.icon }}</span>
+                  <span class="svg-symbol" v-html="businessIconSvg(option.icon)" />
                 </span>
                 <strong>{{ option.title }}</strong>
                 <span>{{ option.subtitle }}</span>
@@ -2616,9 +3948,9 @@ onBeforeUnmount(() => {
             </div>
 
             <form v-else class="login-form" @submit.prevent="login">
-              <label class="login-field">
-                <span class="sr-only">用户名</span>
-                <span class="material-symbols-outlined field-icon" aria-hidden="true">person</span>
+	              <label class="login-field">
+	                <span class="field-label">用户名</span>
+	                <span class="field-icon svg-symbol" aria-hidden="true" v-html="businessIconSvg('person')" />
                 <input
                   v-model="username"
                   name="username"
@@ -2628,9 +3960,9 @@ onBeforeUnmount(() => {
                   aria-label="用户名"
                 >
               </label>
-              <label class="login-field">
-                <span class="sr-only">密码</span>
-                <span class="material-symbols-outlined field-icon" aria-hidden="true">lock</span>
+	              <label class="login-field">
+	                <span class="field-label">密码</span>
+	                <span class="field-icon svg-symbol" aria-hidden="true" v-html="businessIconSvg('lock')" />
                 <input
                   v-model="password"
                   name="password"
@@ -2649,7 +3981,7 @@ onBeforeUnmount(() => {
               </div>
               <button class="login-submit" type="submit" :disabled="loading" aria-label="登录">
                 <span>{{ loading ? '登录中...' : '登录系统' }}</span>
-                <span class="material-symbols-outlined" aria-hidden="true">arrow_forward</span>
+                <span class="svg-symbol" aria-hidden="true" v-html="businessIconSvg('arrow_forward')" />
               </button>
             </form>
 
@@ -2658,14 +3990,14 @@ onBeforeUnmount(() => {
             </div>
 
             <p v-if="token" class="result success">
-              登录成功：{{ currentUser?.roles.join(', ') }} / {{ currentUser?.dataScope ?? 'NONE' }}
+              登录成功：{{ roleLabels(currentUser?.roles) }} / {{ dataScopeLabel(currentUser?.dataScope) }}
             </p>
             <p v-if="loginError" class="result error">{{ loginError }}</p>
           </div>
 
           <div class="login-footer">
             <div class="auth-note">
-              <span class="material-symbols-outlined" aria-hidden="true">gpp_maybe</span>
+              <span class="svg-symbol" aria-hidden="true" v-html="businessIconSvg('gpp_maybe')" />
               <span>仅用于授权账号访问</span>
             </div>
             <p>© 2026 AI智能下单平台</p>
@@ -2676,6 +4008,20 @@ onBeforeUnmount(() => {
           <div class="route-heading">
             <h2>客服初审</h2>
             <el-tag round>{{ internalOrders.length }} 单</el-tag>
+          </div>
+
+          <div class="prototype-chip-row">
+            <button
+              v-for="chip in prototypeQueueChips"
+              :key="`internal-${chip.label}`"
+              class="prototype-chip"
+              :class="[`tone-${chip.tone}`, { active: isPrototypeChipActive(chip) }]"
+              type="button"
+              @click="selectPrototypeQueueChip(chip)"
+            >
+              {{ chip.label }}
+              <span>{{ chip.count }}</span>
+            </button>
           </div>
 
           <div class="doctor-order-toolbar">
@@ -2709,8 +4055,8 @@ onBeforeUnmount(() => {
                 @click="selectInternalOrder(order)"
               >
                 <strong>{{ order.order_no }}</strong>
-                <span>{{ order.clinic_name }} / {{ order.product_type }}</span>
-                <small>{{ order.internal_status }} / {{ order.external_status }}</small>
+                <span>{{ order.clinic_name }} / {{ productTypeLabel(order.product_type) }}</span>
+                <small>{{ statusLabel(order.internal_status) }} / {{ statusLabel(order.external_status) }}</small>
               </button>
               <div v-if="internalOrders.length === 0" class="empty-state">
                 暂无待初审订单
@@ -2729,11 +4075,11 @@ onBeforeUnmount(() => {
                 </div>
                 <div>
                   <span>内部状态</span>
-                  <strong>{{ selectedInternalOrder.internal_status }}</strong>
+                  <strong>{{ statusLabel(selectedInternalOrder.internal_status) }}</strong>
                 </div>
                 <div>
                   <span>医生状态</span>
-                  <strong>{{ selectedInternalOrder.external_status }}</strong>
+                  <strong>{{ statusLabel(selectedInternalOrder.external_status) }}</strong>
                 </div>
               </div>
 
@@ -2832,6 +4178,20 @@ onBeforeUnmount(() => {
             <el-tag round>{{ productionReviewOrders.length }} 单</el-tag>
           </div>
 
+          <div class="prototype-chip-row">
+            <button
+              v-for="chip in prototypeQueueChips"
+              :key="`review-${chip.label}`"
+              class="prototype-chip"
+              :class="[`tone-${chip.tone}`, { active: isPrototypeChipActive(chip) }]"
+              type="button"
+              @click="selectPrototypeQueueChip(chip)"
+            >
+              {{ chip.label }}
+              <span>{{ chip.count }}</span>
+            </button>
+          </div>
+
           <div class="doctor-order-toolbar">
             <el-input
               v-model="productionReviewKeyword"
@@ -2854,7 +4214,7 @@ onBeforeUnmount(() => {
 
           <el-alert
             v-if="productionReviewResult"
-            :title="`已处理订单 ${productionReviewResult.order_id}，状态 ${productionReviewResult.internal_status}`"
+            :title="`已处理订单 ${productionReviewResult.order_id}，状态 ${statusLabel(productionReviewResult.internal_status)}`"
             type="success"
             show-icon
             :closable="false"
@@ -2871,8 +4231,8 @@ onBeforeUnmount(() => {
                 @click="selectProductionReviewOrder(order)"
               >
                 <strong>{{ order.order_no }}</strong>
-                <span>{{ order.clinic_name }} / {{ order.product_type }}</span>
-                <small>{{ order.internal_status }} / {{ order.external_status }}</small>
+                <span>{{ order.clinic_name }} / {{ productTypeLabel(order.product_type) }}</span>
+                <small>{{ statusLabel(order.internal_status) }} / {{ statusLabel(order.external_status) }}</small>
               </button>
               <div v-if="productionReviewOrders.length === 0" class="empty-state">
                 暂无待生产审核订单
@@ -2891,11 +4251,11 @@ onBeforeUnmount(() => {
                 </div>
                 <div>
                   <span>内部状态</span>
-                  <strong>{{ selectedProductionReviewOrder.internal_status }}</strong>
+                  <strong>{{ statusLabel(selectedProductionReviewOrder.internal_status) }}</strong>
                 </div>
                 <div>
                   <span>医生状态</span>
-                  <strong>{{ selectedProductionReviewOrder.external_status }}</strong>
+                  <strong>{{ statusLabel(selectedProductionReviewOrder.external_status) }}</strong>
                 </div>
               </div>
 
@@ -2979,7 +4339,7 @@ onBeforeUnmount(() => {
           class="panel route-panel process-instance-panel"
         >
           <div class="route-heading">
-            <h2>{{ isWorkflowAssignRoute ? '派工转派' : '工序实例' }}</h2>
+            <h2>{{ isWorkflowAssignRoute ? '员工派工' : '工序进度' }}</h2>
             <el-tag round>{{ processInstanceOrders.length }} 单</el-tag>
           </div>
 
@@ -3022,8 +4382,8 @@ onBeforeUnmount(() => {
                 @click="selectProcessInstanceOrder(order)"
               >
                 <strong>{{ order.order_no }}</strong>
-                <span>{{ order.clinic_name }} / {{ order.product_type }}</span>
-                <small>{{ order.internal_status }} / {{ order.external_status }}</small>
+                <span>{{ order.clinic_name }} / {{ productTypeLabel(order.product_type) }}</span>
+                <small>{{ statusLabel(order.internal_status) }} / {{ statusLabel(order.external_status) }}</small>
               </button>
               <div v-if="processInstanceOrders.length === 0" class="empty-state">
                 暂无已实例化订单
@@ -3042,7 +4402,7 @@ onBeforeUnmount(() => {
                 </div>
                 <div>
                   <span>实例状态</span>
-                  <strong>{{ selectedProcessInstance.instance_status }}</strong>
+                  <strong>{{ statusLabel(selectedProcessInstance.instance_status) }}</strong>
                 </div>
                 <div>
                   <span>节点 / 边</span>
@@ -3051,7 +4411,7 @@ onBeforeUnmount(() => {
               </div>
 
               <div v-if="isWorkflowAssignRoute" class="assignment-toolbar">
-                <el-form-item label="员工 user_id">
+                <el-form-item label="员工编号">
                   <el-input v-model="processAssignmentUserId" />
                 </el-form-item>
                 <div class="inline-actions">
@@ -3085,7 +4445,7 @@ onBeforeUnmount(() => {
                   <span class="node-order">{{ node.step_order }}</span>
                   <strong>{{ node.process_name }}</strong>
                   <span>{{ node.node_code }}</span>
-                  <span>{{ node.node_status }}</span>
+                  <span>{{ statusLabel(node.node_status) }}</span>
                   <span>员工 {{ node.assigned_user_id ?? '-' }}</span>
                   <span>{{ node.standard_duration ?? '-' }} 分钟</span>
                 </button>
@@ -3100,12 +4460,26 @@ onBeforeUnmount(() => {
             <el-tag round>{{ workerTasks.length }} 项</el-tag>
           </div>
 
+          <div class="prototype-chip-row">
+            <button
+              v-for="chip in prototypeQueueChips"
+              :key="`worker-${chip.label}`"
+              class="prototype-chip"
+              :class="[`tone-${chip.tone}`, { active: isPrototypeChipActive(chip) }]"
+              type="button"
+              @click="selectPrototypeQueueChip(chip)"
+            >
+              {{ chip.label }}
+              <span>{{ chip.count }}</span>
+            </button>
+          </div>
+
           <div class="doctor-order-toolbar">
             <el-select v-model="workerTaskStatus">
-              <el-option label="READY" value="READY" />
-              <el-option label="IN_PROGRESS" value="IN_PROGRESS" />
-              <el-option label="COMPLETED" value="COMPLETED" />
-              <el-option label="PENDING" value="PENDING" />
+              <el-option label="待开工" value="READY" />
+              <el-option label="进行中" value="IN_PROGRESS" />
+              <el-option label="已完成" value="COMPLETED" />
+              <el-option label="待处理" value="PENDING" />
             </el-select>
             <el-button type="primary" :loading="workerTasksLoading" @click="loadWorkerTasks">
               刷新
@@ -3124,7 +4498,7 @@ onBeforeUnmount(() => {
             <article v-for="task in workerTasks" :key="task.node_instance_id" class="worker-task-card">
               <div>
                 <strong>{{ task.process_name }}</strong>
-                <span>{{ task.order_no }} / {{ task.node_status }}</span>
+                <span>{{ task.order_no }} / {{ statusLabel(task.node_status) }}</span>
               </div>
               <small>节点 {{ task.node_instance_id }} / 标准 {{ task.standard_duration ?? '-' }} 分钟</small>
               <div class="inline-actions">
@@ -3162,10 +4536,10 @@ onBeforeUnmount(() => {
 
           <div class="doctor-order-toolbar">
             <el-select v-model="checkTaskStatus" @change="loadCheckTasks">
-              <el-option label="READY / 入检" value="READY" />
-              <el-option label="COMPLETED / 出检" value="COMPLETED" />
-              <el-option label="IN_PROGRESS" value="IN_PROGRESS" />
-              <el-option label="PENDING" value="PENDING" />
+              <el-option label="待开工 / 入检" value="READY" />
+              <el-option label="已完成 / 出检" value="COMPLETED" />
+              <el-option label="进行中" value="IN_PROGRESS" />
+              <el-option label="待处理" value="PENDING" />
             </el-select>
             <el-button type="primary" :loading="checkTasksLoading" @click="loadCheckTasks">
               刷新
@@ -3199,7 +4573,7 @@ onBeforeUnmount(() => {
                 @click="selectCheckTask(task)"
               >
                 <strong>{{ task.process_name }}</strong>
-                <span>{{ task.order_no }} / {{ task.node_status }}</span>
+                <span>{{ task.order_no }} / {{ statusLabel(task.node_status) }}</span>
                 <small>节点 {{ task.node_instance_id }} / 标准 {{ task.standard_duration ?? '-' }} 分钟</small>
               </button>
               <div v-if="checkTasks.length === 0" class="empty-state">
@@ -3223,7 +4597,7 @@ onBeforeUnmount(() => {
                 </div>
                 <div>
                   <span>状态</span>
-                  <strong>{{ selectedCheckTask.node_status }}</strong>
+                  <strong>{{ statusLabel(selectedCheckTask.node_status) }}</strong>
                 </div>
               </div>
 
@@ -3278,9 +4652,9 @@ onBeforeUnmount(() => {
 
           <div class="doctor-order-toolbar">
             <el-select v-model="reworkStatus" @change="loadReworkRecords">
-              <el-option label="PENDING / 待返工记录" value="PENDING" />
-              <el-option label="IN_PROGRESS" value="IN_PROGRESS" />
-              <el-option label="DONE" value="DONE" />
+              <el-option label="待处理 / 待返工记录" value="PENDING" />
+              <el-option label="进行中" value="IN_PROGRESS" />
+              <el-option label="已完成" value="DONE" />
             </el-select>
             <el-checkbox v-model="reworkOnlyImpacted" @change="loadReworkRecords">
               仅看影响后续工序
@@ -3299,16 +4673,16 @@ onBeforeUnmount(() => {
           />
 
           <el-alert
-            v-if="reworkCloseResult"
-            :title="`已关闭返工：${reworkCloseResult.rework_id} / ${reworkCloseResult.status}`"
+            v-if="finalInspectionResult"
+            :title="`已提交终检出检：${finalInspectionResult.result}`"
             type="success"
             show-icon
             :closable="false"
           />
 
           <el-alert
-            v-if="finalInspectionResult"
-            :title="`已提交终检出检：${finalInspectionResult.result}`"
+            v-if="reworkCloseResult"
+            :title="`已关闭返工：${reworkCloseResult.rework_id} / ${statusLabel(reworkCloseResult.status)}`"
             type="success"
             show-icon
             :closable="false"
@@ -3326,7 +4700,7 @@ onBeforeUnmount(() => {
               >
                 <strong>{{ record.order_no }} / 返工 {{ record.rework_id }}</strong>
                 <span>{{ record.from_process_name ?? '-' }} -> {{ record.target_process_name ?? '-' }}</span>
-                <small>返工目标节点 {{ record.target_node_instance_id ?? '-' }} / {{ record.target_node_status ?? '-' }}</small>
+                <small>返工目标节点 {{ record.target_node_instance_id ?? '-' }} / {{ statusLabel(record.target_node_status) }}</small>
                 <small>影响后续节点 {{ record.impacted_node_count }} 个</small>
                 <small v-if="record.responsibility_type">责任 {{ record.responsibility_type }} / {{ record.reason_category ?? '-' }}</small>
               </button>
@@ -3356,7 +4730,7 @@ onBeforeUnmount(() => {
                 </div>
                 <div>
                   <span>状态</span>
-                  <strong>{{ selectedRework.status }}</strong>
+                  <strong>{{ statusLabel(selectedRework.status) }}</strong>
                 </div>
                 <div>
                   <span>影响后续节点</span>
@@ -3449,7 +4823,7 @@ onBeforeUnmount(() => {
                   </div>
                   <div>
                     <span>状态</span>
-                    <strong>{{ selectedFinalInspectionTask.node_status }}</strong>
+                    <strong>{{ statusLabel(selectedFinalInspectionTask.node_status) }}</strong>
                   </div>
                 </div>
                 <el-form-item label="终检备注">
@@ -3487,7 +4861,9 @@ onBeforeUnmount(() => {
                   show-icon
                   :closable="false"
                 >
-                  <p>{{ finalInspectionReport.summary }}</p>
+                  <template #default>
+                    节点 {{ finalInspectionReport.final_node_instance_id }} / 检查 {{ finalInspectionReport.final_check_id }} / {{ statusLabel(finalInspectionReport.status) }}
+                  </template>
                 </el-alert>
               </div>
 
@@ -3513,9 +4889,9 @@ onBeforeUnmount(() => {
 
           <div class="doctor-order-toolbar">
             <el-select v-model="worklogTaskStatus" @change="loadWorklogTasks">
-              <el-option label="IN_PROGRESS / 计时" value="IN_PROGRESS" />
-              <el-option label="READY" value="READY" />
-              <el-option label="COMPLETED" value="COMPLETED" />
+              <el-option label="进行中 / 计时" value="IN_PROGRESS" />
+              <el-option label="待开工" value="READY" />
+              <el-option label="已完成" value="COMPLETED" />
             </el-select>
             <el-button type="primary" :loading="worklogTasksLoading" @click="loadWorklogTasks">
               刷新
@@ -3541,7 +4917,7 @@ onBeforeUnmount(() => {
                 @click="selectWorklogTask(task)"
               >
                 <strong>{{ task.process_name }}</strong>
-                <span>{{ task.order_no }} / {{ task.node_status }}</span>
+                <span>{{ task.order_no }} / {{ statusLabel(task.node_status) }}</span>
                 <small>节点 {{ task.node_instance_id }} / 标准 {{ task.standard_duration ?? '-' }} 分钟</small>
               </button>
               <div v-if="worklogTasks.length === 0" class="empty-state">
@@ -3565,14 +4941,14 @@ onBeforeUnmount(() => {
                 </div>
                 <div>
                   <span>状态</span>
-                  <strong>{{ selectedWorklogTask.node_status }}</strong>
+                  <strong>{{ statusLabel(selectedWorklogTask.node_status) }}</strong>
                 </div>
               </div>
 
               <div class="worklog-status-card">
                 <div>
                   <span>当前工时</span>
-                  <strong>{{ activeWorkLog ? `#${activeWorkLog.work_log_id} / ${activeWorkLog.status}` : '未开始' }}</strong>
+                  <strong>{{ activeWorkLog ? `#${activeWorkLog.work_log_id} / ${statusLabel(activeWorkLog.status)}` : '未开始' }}</strong>
                 </div>
                 <div>
                   <span>暂停秒数</span>
@@ -3629,7 +5005,7 @@ onBeforeUnmount(() => {
           <div class="performance-toolbar">
             <el-input
               v-model="performanceUserId"
-              placeholder="ADMIN 可填 user_id；WORKER 留空查本人"
+              placeholder="管理员可输入员工编号；生产人员留空查看本人"
               clearable
               @keyup.enter="loadPerformanceStats"
             />
@@ -3650,7 +5026,7 @@ onBeforeUnmount(() => {
             <article class="performance-card">
               <span>完成工序</span>
               <strong>{{ performanceStats.completed_count }}</strong>
-              <small>已完成 work log 数</small>
+              <small>已完成工时记录数</small>
             </article>
             <article class="performance-card">
               <span>有效工时</span>
@@ -3665,7 +5041,7 @@ onBeforeUnmount(() => {
             <article class="performance-card">
               <span>生产责任返工</span>
               <strong>{{ performanceStats.responsible_rework_count }}</strong>
-              <small>责任类型 WORKER</small>
+              <small>责任类型：生产人员</small>
             </article>
             <article class="performance-card">
               <span>非生产责任返工</span>
@@ -3724,6 +5100,20 @@ onBeforeUnmount(() => {
             <el-tag round>{{ productionBoardOrders.length }} 单</el-tag>
           </div>
 
+          <div class="prototype-chip-row">
+            <button
+              v-for="chip in prototypeQueueChips"
+              :key="`board-${chip.label}`"
+              class="prototype-chip"
+              :class="[`tone-${chip.tone}`, { active: isPrototypeChipActive(chip) }]"
+              type="button"
+              @click="selectPrototypeQueueChip(chip)"
+            >
+              {{ chip.label }}
+              <span>{{ chip.count }}</span>
+            </button>
+          </div>
+
           <div class="production-board-toolbar">
             <el-select v-model="productionBoardStatus" @change="loadProductionBoardOrders">
               <el-option
@@ -3763,8 +5153,8 @@ onBeforeUnmount(() => {
                 @click="selectProductionBoardOrder(order)"
               >
                 <strong>{{ order.order_no }}</strong>
-                <span>{{ order.clinic_name }} / {{ order.product_type }}</span>
-                <small>{{ order.internal_status }} / {{ order.external_status }}</small>
+                <span>{{ order.clinic_name }} / {{ productTypeLabel(order.product_type) }}</span>
+                <small>{{ statusLabel(order.internal_status) }} / {{ statusLabel(order.external_status) }}</small>
               </button>
               <div v-if="productionBoardOrders.length === 0" class="empty-state">
                 暂无生产订单
@@ -3779,11 +5169,11 @@ onBeforeUnmount(() => {
                 </div>
                 <div>
                   <span>内部状态</span>
-                  <strong>{{ selectedProductionBoardOrder.internal_status }}</strong>
+                  <strong>{{ statusLabel(selectedProductionBoardOrder.internal_status) }}</strong>
                 </div>
                 <div>
                   <span>外部状态</span>
-                  <strong>{{ selectedProductionBoardOrder.external_status }}</strong>
+                  <strong>{{ statusLabel(selectedProductionBoardOrder.external_status) }}</strong>
                 </div>
                 <div>
                   <span>诊所</span>
@@ -3793,22 +5183,22 @@ onBeforeUnmount(() => {
 
               <div v-if="productionBoardInstance" class="production-board-stats">
                 <article class="performance-card">
-                  <span>READY</span>
+                  <span>待开工</span>
                   <strong>{{ productionBoardNodeStats.READY }}</strong>
                   <small>待执行节点</small>
                 </article>
                 <article class="performance-card">
-                  <span>IN_PROGRESS</span>
+                  <span>进行中</span>
                   <strong>{{ productionBoardNodeStats.IN_PROGRESS }}</strong>
                   <small>进行中节点</small>
                 </article>
                 <article class="performance-card">
-                  <span>COMPLETED</span>
+                  <span>已完成</span>
                   <strong>{{ productionBoardNodeStats.COMPLETED }}</strong>
                   <small>已完成节点</small>
                 </article>
                 <article class="performance-card">
-                  <span>SKIPPED / PENDING</span>
+                  <span>已跳过 / 待处理</span>
                   <strong>{{ productionBoardNodeStats.SKIPPED }} / {{ productionBoardNodeStats.PENDING }}</strong>
                   <small>跳过或未激活节点</small>
                 </article>
@@ -3868,14 +5258,14 @@ onBeforeUnmount(() => {
                   <span class="node-order">{{ node.step_order }}</span>
                   <strong>{{ node.process_name }}</strong>
                   <span>{{ node.node_code }}</span>
-                  <span>{{ node.node_status }}</span>
+                  <span>{{ statusLabel(node.node_status) }}</span>
                   <span>员工 {{ node.assigned_user_id ?? '-' }}</span>
                   <span>{{ node.standard_duration ?? '-' }} 分钟</span>
                 </button>
               </div>
 
               <div v-else class="empty-state">
-                该订单暂无可展示的工序实例
+                该订单暂无可展示的工序进度
               </div>
             </section>
           </div>
@@ -3887,7 +5277,30 @@ onBeforeUnmount(() => {
             <el-tag round>{{ doctorOrders.length }} 单</el-tag>
           </div>
 
-          <section class="doctor-order-create">
+          <el-tabs v-model="activeDoctorOrderSection" class="doctor-tabs doctor-section-tabs">
+            <el-tab-pane label="新建订单" name="create" />
+            <el-tab-pane label="我的订单" name="list" />
+            <el-tab-pane label="设计稿确认" name="design" />
+            <el-tab-pane label="账单物流" name="bill" />
+            <el-tab-pane label="沟通留言" name="messages" />
+            <el-tab-pane label="订单助手" name="ai" />
+          </el-tabs>
+
+          <div v-show="activeDoctorOrderSection !== 'create'" class="prototype-chip-row">
+            <button
+              v-for="chip in prototypeQueueChips"
+              :key="`doctor-${chip.label}`"
+              class="prototype-chip"
+              :class="[`tone-${chip.tone}`, { active: isPrototypeChipActive(chip) }]"
+              type="button"
+              @click="selectPrototypeQueueChip(chip)"
+            >
+              {{ chip.label }}
+              <span>{{ chip.count }}</span>
+            </button>
+          </div>
+
+          <section v-show="activeDoctorOrderSection === 'create'" class="doctor-order-create">
             <div class="subheading-row">
               <h3>{{ doctorOrderEditingId ? '编辑草稿/补资料' : '新建订单' }}</h3>
               <el-button :loading="doctorOrderCreateLoading" @click="loadDoctorOrderForm">刷新表单</el-button>
@@ -4028,7 +5441,7 @@ onBeforeUnmount(() => {
                 取消编辑
               </el-button>
               <el-tag v-if="doctorOrderCreateResult" data-testid="doctor-order-create-result" type="success" round>
-                {{ doctorOrderCreateResult.order_no }} / {{ doctorOrderCreateResult.external_status }}
+                {{ doctorOrderCreateResult.order_no }} / {{ statusLabel(doctorOrderCreateResult.external_status) }}
               </el-tag>
             </div>
             <el-alert
@@ -4040,7 +5453,7 @@ onBeforeUnmount(() => {
             />
           </section>
 
-          <div class="doctor-order-toolbar">
+          <div v-show="activeDoctorOrderSection !== 'create'" class="doctor-order-toolbar">
             <el-input
               v-model="doctorOrderKeyword"
               placeholder="搜索订单号或患者"
@@ -4060,7 +5473,7 @@ onBeforeUnmount(() => {
             :closable="false"
           />
 
-          <div class="doctor-order-workspace">
+          <div v-show="activeDoctorOrderSection !== 'create'" class="doctor-order-workspace">
             <aside class="doctor-order-list">
               <button
                 v-for="order in doctorOrders"
@@ -4071,7 +5484,7 @@ onBeforeUnmount(() => {
                 @click="loadDoctorOrderWorkspace(order.order_id)"
               >
                 <strong>{{ order.order_no }}</strong>
-                <span>{{ order.product_type }} / {{ order.external_status }}</span>
+                <span>{{ productTypeLabel(order.product_type) }} / {{ statusLabel(order.external_status) }}</span>
                 <small>{{ order.public_message ?? '暂无公开进度说明' }}</small>
               </button>
               <div v-if="doctorOrders.length === 0" class="empty-state">
@@ -4096,20 +5509,20 @@ onBeforeUnmount(() => {
                 </div>
                 <div>
                   <span>外部状态</span>
-                  <strong>{{ doctorOrderWorkspace.order.external_status }}</strong>
+                  <strong>{{ statusLabel(doctorOrderWorkspace.order.external_status) }}</strong>
                 </div>
                 <div>
                   <span>账单</span>
-                  <strong>{{ doctorOrderWorkspace.bill.bill_status ?? 'PENDING' }}</strong>
+                  <strong>{{ statusLabel(doctorOrderWorkspace.bill.bill_status) }}</strong>
                 </div>
                 <div>
                   <span>物流</span>
-                  <strong>{{ doctorOrderWorkspace.logistics.logistics_status ?? 'PENDING' }}</strong>
+                  <strong>{{ statusLabel(doctorOrderWorkspace.logistics.logistics_status) }}</strong>
                 </div>
               </div>
 
-              <el-tabs class="doctor-tabs">
-                <el-tab-pane label="订单资料">
+              <el-tabs v-model="activeDoctorDetailTab" class="doctor-tabs">
+                <el-tab-pane label="订单资料" name="info">
                   <div class="field-grid">
                     <div
                       v-for="field in fieldEntries(doctorOrderWorkspace.order.form_data)"
@@ -4133,7 +5546,7 @@ onBeforeUnmount(() => {
                   </el-button>
                 </el-tab-pane>
 
-                <el-tab-pane label="消息">
+                <el-tab-pane label="消息" name="messages">
                   <div class="message-composer">
                     <el-input
                       v-model="doctorMessageDraft"
@@ -4152,7 +5565,7 @@ onBeforeUnmount(() => {
                   </div>
                   <div class="compact-list">
                     <article v-for="message in doctorOrderWorkspace.messages" :key="message.msg_id">
-                      <strong>{{ message.sender_role }} / {{ message.review_status }}</strong>
+                      <strong>{{ roleLabel(message.sender_role) }} / {{ statusLabel(message.review_status) }}</strong>
                       <p>{{ message.content }}</p>
                     </article>
                     <div v-if="doctorOrderWorkspace.messages.length === 0" class="empty-state">
@@ -4161,10 +5574,10 @@ onBeforeUnmount(() => {
                   </div>
                 </el-tab-pane>
 
-                <el-tab-pane label="设计稿">
+                <el-tab-pane label="设计稿" name="design">
                   <div class="compact-list">
                     <article v-for="draft in doctorOrderWorkspace.drafts" :key="draft.draft_id">
-                      <strong>V{{ draft.version }} / {{ draft.status }}</strong>
+                      <strong>V{{ draft.version }} / {{ statusLabel(draft.status) }}</strong>
                       <p>文件 ID：{{ draft.file_ids?.length ? draft.file_ids.join(', ') : (draft.file_id ?? '-') }}</p>
                       <span>文件数：{{ draft.file_count ?? draft.file_ids?.length ?? (draft.file_id ? 1 : 0) }}</span>
                       <div v-if="draft.status === 'PENDING_DOCTOR_CONFIRM'" class="inline-actions">
@@ -4189,11 +5602,11 @@ onBeforeUnmount(() => {
                   </div>
                 </el-tab-pane>
 
-                <el-tab-pane label="账单物流">
+                <el-tab-pane label="账单物流" name="bill">
                   <div class="doctor-order-summary">
                     <div>
                       <span>账单状态</span>
-                      <strong>{{ doctorOrderWorkspace.bill.bill_status ?? 'PENDING' }}</strong>
+                      <strong>{{ statusLabel(doctorOrderWorkspace.bill.bill_status) }}</strong>
                     </div>
                     <div>
                       <span>账单文件</span>
@@ -4210,7 +5623,7 @@ onBeforeUnmount(() => {
                   </div>
                 </el-tab-pane>
 
-                <el-tab-pane label="医生 AI">
+                <el-tab-pane label="订单助手" name="ai">
                   <div class="message-composer">
                     <el-input
                       v-model="doctorAiQuestion"
@@ -4321,8 +5734,8 @@ onBeforeUnmount(() => {
                 <label>
                   状态
                   <el-select v-model="formConfigEditStatus" data-testid="form-config-edit-status">
-                    <el-option label="ACTIVE" value="ACTIVE" />
-                    <el-option label="INACTIVE" value="INACTIVE" />
+                    <el-option label="启用" value="ACTIVE" />
+                    <el-option label="停用" value="INACTIVE" />
                   </el-select>
                 </label>
                 <label>
@@ -4371,7 +5784,7 @@ onBeforeUnmount(() => {
               @click="selectFormConfigField(field)"
             >
               <strong>{{ field.field_label }} / {{ field.field_key }}</strong>
-              <p>{{ field.product_type }} / {{ field.field_type }} / {{ field.status }}</p>
+              <p>{{ productTypeLabel(field.product_type) }} / {{ fieldTypeLabel(field.field_type) }} / {{ statusLabel(field.status) }}</p>
               <span>排序 {{ field.sort_order }} / {{ field.is_required ? '必填' : '选填' }}</span>
             </article>
           </div>
@@ -4441,25 +5854,256 @@ onBeforeUnmount(() => {
           </div>
         </section>
 
+        <section v-else-if="activeRoute === '/dashboard'" class="route-panel prototype-dashboard-panel">
+          <div v-if="activePrototypeDashboard.syncBanner" class="prototype-sync-banner">
+            <span class="sync-dot" aria-hidden="true" />
+            <span>{{ activePrototypeDashboard.syncBanner }}</span>
+          </div>
+
+          <div class="prototype-page-heading">
+            <div>
+              <h2>{{ activePrototypeDashboard.greeting }}</h2>
+              <p>{{ activePrototypeDashboard.subtitle }}</p>
+            </div>
+            <button
+              v-if="activePrototypeDashboard.primaryAction"
+              class="prototype-primary-button"
+              type="button"
+              @click="selectDashboardAction(activePrototypeDashboard.primaryAction)"
+            >
+              {{ activePrototypeDashboard.primaryAction.actionLabel }}
+            </button>
+          </div>
+
+          <div class="prototype-metric-grid" :class="`metric-count-${activePrototypeDashboard.metrics.length}`">
+            <article
+              v-for="metric in activePrototypeDashboard.metrics"
+              :key="metric.title"
+              class="prototype-stat-card"
+              :class="`tone-${metric.tone}`"
+            >
+              <span class="prototype-card-accent" />
+              <span class="prototype-stat-label">{{ metric.title }}</span>
+              <strong>{{ metric.value }}</strong>
+              <small>{{ metric.note }}</small>
+            </article>
+          </div>
+
+          <div class="prototype-dashboard-layout">
+            <section
+              v-for="panel in activePrototypeDashboard.panels"
+              :key="panel.title"
+              class="prototype-panel-card"
+            >
+              <div class="prototype-panel-head">
+                <h3>{{ panel.title }}</h3>
+                <span v-if="panel.badge" class="prototype-badge" :class="`tone-${panel.tone ?? 'slate'}`">
+                  {{ panel.badge }}
+                </span>
+              </div>
+              <button
+                v-for="item in panel.items"
+                :key="`${panel.title}-${item.title}`"
+                type="button"
+                class="prototype-attention-item"
+                @click="selectDashboardAction(item)"
+              >
+                <span class="attention-dot" :class="`tone-${item.tone}`" />
+                <span>
+                  <strong>{{ item.title }}</strong>
+                  <small>{{ item.detail }}</small>
+                </span>
+                <em>{{ item.meta }}</em>
+                <b>{{ item.actionLabel }}</b>
+              </button>
+            </section>
+          </div>
+
+          <section class="prototype-panel-card prototype-chart-card">
+            <div class="prototype-panel-head">
+              <h3>{{ portalTitle }}趋势图</h3>
+              <span class="prototype-badge tone-slate">近 6 周</span>
+            </div>
+            <div class="prototype-chart-body">
+              <svg class="prototype-line-chart" viewBox="0 0 760 210" role="img" aria-label="近六周趋势图">
+                <line x1="42" y1="34" x2="42" y2="170" />
+                <line x1="42" y1="170" x2="720" y2="170" />
+                <line x1="42" y1="124" x2="720" y2="124" class="chart-grid" />
+                <line x1="42" y1="80" x2="720" y2="80" class="chart-grid" />
+                <path class="chart-area-primary" d="M42 142 L176 126 L310 132 L444 96 L578 108 L720 70 L720 170 L42 170 Z" />
+                <path class="chart-line-primary" d="M42 142 L176 126 L310 132 L444 96 L578 108 L720 70" />
+                <path class="chart-line-secondary" d="M42 154 L176 146 L310 118 L444 132 L578 92 L720 104" />
+                <g class="chart-points">
+                  <circle cx="42" cy="142" r="4" />
+                  <circle cx="176" cy="126" r="4" />
+                  <circle cx="310" cy="132" r="4" />
+                  <circle cx="444" cy="96" r="4" />
+                  <circle cx="578" cy="108" r="4" />
+                  <circle cx="720" cy="70" r="4" />
+                </g>
+                <g class="chart-labels">
+                  <text x="42" y="195">第1周</text>
+                  <text x="176" y="195">第2周</text>
+                  <text x="310" y="195">第3周</text>
+                  <text x="444" y="195">第4周</text>
+                  <text x="578" y="195">第5周</text>
+                  <text x="720" y="195">本周</text>
+                </g>
+              </svg>
+              <div class="prototype-trend-grid">
+                <article
+                  v-for="trend in activePrototypeDashboard.trends"
+                  :key="trend.label"
+                  class="prototype-trend-row"
+                >
+                  <div>
+                    <span>{{ trend.label }}</span>
+                    <strong>{{ trend.value }}</strong>
+                  </div>
+                  <div class="prototype-progress">
+                    <i :class="`tone-${trend.tone}`" :style="{ width: `${trend.percent}%` }" />
+                  </div>
+                </article>
+              </div>
+            </div>
+          </section>
+        </section>
+
+        <section v-else-if="isPlaceholderRoute && activeDisplayItem" class="panel route-panel placeholder-panel">
+          <div class="route-heading">
+            <h2>{{ activeDisplayItem.title }}</h2>
+            <el-tag round>演示入口</el-tag>
+          </div>
+          <div class="placeholder-hero">
+            <span class="admin-menu-icon" aria-hidden="true" v-html="businessIconSvg(activeDisplayItem.icon)" />
+            <div>
+              <strong>{{ activeDisplayItem.title }}</strong>
+              <p>{{ activeDisplayItem.description }}</p>
+            </div>
+          </div>
+          <el-alert
+            title="该功能已纳入前端演示导航，后续确认正式范围后再接入接口、权限和数据表。"
+            type="info"
+            show-icon
+            :closable="false"
+          />
+          <div v-if="activePlaceholderContentItems.length" class="placeholder-content-grid">
+            <article
+              v-for="item in activePlaceholderContentItems"
+              :key="`${activeDisplayItem.id}-${item.title}`"
+              class="placeholder-content-card"
+              :class="`tone-${item.tone}`"
+            >
+              <span class="placeholder-content-dot" />
+              <strong>{{ item.title }}</strong>
+              <small>{{ item.detail }}</small>
+            </article>
+          </div>
+          <div
+            v-if="['cs-designs', 'cs-order-messages', 'cs-message-review', 'production-design'].includes(activeDisplayItem.id)"
+            class="prototype-queue-card"
+          >
+            <div class="prototype-table-head">
+              <h3>{{ activeDisplayItem.title }}队列</h3>
+              <div class="prototype-search-box">搜索队列...</div>
+            </div>
+            <div class="prototype-chip-row">
+              <button
+                v-for="chip in prototypeQueueChips"
+                :key="`placeholder-${chip.label}`"
+                class="prototype-chip"
+                :class="[`tone-${chip.tone}`, { active: isPrototypeChipActive(chip) }]"
+                type="button"
+                @click="selectPrototypeQueueChip(chip)"
+              >
+                {{ chip.label }}
+                <span>{{ chip.count }}</span>
+              </button>
+            </div>
+            <div class="prototype-table-wrap">
+              <table class="prototype-table">
+                <thead>
+                  <tr>
+                    <th>订单号</th>
+                    <th>患者</th>
+                    <th>产品</th>
+                    <th>资料状态</th>
+                    <th>文件清单</th>
+                    <th>审核类型</th>
+                    <th>等待对象</th>
+                    <th>等待天数</th>
+                    <th>处理动作</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  <tr v-for="row in prototypeDataQueueRows" :key="row.orderNo">
+                    <td>
+                      <strong class="prototype-order-no">{{ row.orderNo }}</strong>
+                    </td>
+                    <td>{{ row.patient }}</td>
+                    <td>{{ row.product }}</td>
+                    <td>
+                      <span class="prototype-badge" :class="`tone-${row.statusTone}`">{{ row.status }}</span>
+                    </td>
+                    <td>
+                      <span class="prototype-inline-status" :class="`tone-${row.checklistTone}`">{{ row.checklist }}</span>
+                    </td>
+                    <td>{{ row.reviewType }}</td>
+                    <td>
+                      <span class="prototype-badge" :class="`tone-${row.awaitingTone}`">{{ row.awaiting }}</span>
+                    </td>
+                    <td>
+                      <strong class="prototype-days" :class="`tone-${row.daysTone}`">{{ row.days }}</strong>
+                    </td>
+                    <td>
+                      <button class="prototype-row-action" type="button">{{ row.action }}</button>
+                    </td>
+                  </tr>
+                </tbody>
+              </table>
+            </div>
+          </div>
+          <div v-if="activeDisplayItem.children?.length" class="admin-menu-grid">
+            <button
+              v-for="child in activeDisplayItem.children"
+              :key="child.id"
+              class="admin-menu-card is-preview"
+              type="button"
+              @click="selectDisplayNavigationItem(child)"
+            >
+              <span class="admin-menu-icon" aria-hidden="true" v-html="businessIconSvg(child.icon)" />
+              <strong>{{ child.title }}</strong>
+              <small>{{ child.description }}</small>
+            </button>
+          </div>
+        </section>
+
         <section v-else class="panel route-panel">
           <div class="route-heading">
-            <h2>{{ activeMenu?.menuName ?? '工作台' }}</h2>
-            <el-tag round>{{ activeMenu?.routePath ?? '/dashboard' }}</el-tag>
+            <h2>{{ routeChrome.title }}</h2>
+            <el-tag round>{{ portalTitle }}</el-tag>
           </div>
-          <dl class="route-meta">
-            <div>
-              <dt>权限码</dt>
-              <dd>{{ activeMenu?.permissionCode ?? '公共入口' }}</dd>
-            </div>
-            <div>
-              <dt>组件</dt>
-              <dd>{{ activeMenu?.componentPath ?? 'DashboardView' }}</dd>
-            </div>
-          </dl>
-          <div class="permission-strip">
-            <el-tag v-for="permission in visiblePermissions" :key="permission" effect="plain">
-              {{ permission }}
-            </el-tag>
+          <div class="admin-overview-grid">
+            <article v-for="card in businessOverviewCards" :key="card.title">
+              <span class="admin-menu-icon" aria-hidden="true" v-html="businessIconSvg(card.icon)" />
+              <span>{{ card.title }}</span>
+              <strong>{{ card.value }}</strong>
+              <small>{{ card.note }}</small>
+            </article>
+          </div>
+          <div class="admin-menu-grid">
+            <button
+              v-for="shortcut in businessShortcuts"
+              :key="`quick-${shortcut.title}`"
+              class="admin-menu-card"
+              :class="{ 'is-preview': !shortcut.routePath }"
+              type="button"
+              @click="selectBusinessShortcut(shortcut)"
+            >
+              <span class="admin-menu-icon" aria-hidden="true" v-html="businessIconSvg(shortcut.icon)" />
+              <strong>{{ shortcut.title }}</strong>
+              <small>{{ shortcut.description }}</small>
+            </button>
           </div>
         </section>
       </div>

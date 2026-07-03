@@ -10,28 +10,32 @@ const portalCases = [
     testId: 'portal-card-DOCTOR',
     username: process.env.TASK9D24_DOCTOR_USERNAME ?? 'doctor',
     password: process.env.TASK9D24_DOCTOR_PASSWORD ?? 'change-me-doctor',
-    heading: '医生订单工作台'
+    loggedInText: '医生已登录',
+    heading: '早上好，医生'
   },
   {
     title: '客服端',
     testId: 'portal-card-CS',
     username: process.env.TASK9D24_CS_USERNAME ?? 'cs',
     password: process.env.TASK9D24_CS_PASSWORD ?? 'change-me-cs',
-    heading: '客服初审'
+    loggedInText: '客服已登录',
+    heading: '客服工作台'
   },
   {
     title: '生产端',
     testId: 'portal-card-PRODUCTION',
     username: process.env.TASK9D24_WORKER_USERNAME ?? 'worker',
     password: process.env.TASK9D24_WORKER_PASSWORD ?? 'change-me-worker',
-    heading: '我的任务'
+    loggedInText: '生产人员已登录',
+    heading: '生产仪表盘'
   },
   {
     title: '管理端',
     testId: 'portal-card-ADMIN',
     username: process.env.TASK9D24_ADMIN_USERNAME ?? 'admin',
     password: process.env.TASK9D24_ADMIN_PASSWORD ?? 'change-me-admin',
-    heading: '项目骨架'
+    loggedInText: '管理员已登录',
+    heading: '管理控制台'
   }
 ]
 
@@ -60,7 +64,8 @@ async function loginViaPortal(page, portal) {
   await page.getByLabel('用户名').fill(portal.username)
   await page.getByLabel('密码').fill(portal.password)
   await page.getByRole('button', { name: '登录' }).click()
-  await expect(page.getByText(`${portal.username} 已登录`)).toBeVisible({ timeout: 10_000 })
+  await expect(page.getByText(portal.loggedInText)).toBeVisible({ timeout: 10_000 })
+  await expect(page.locator('.prototype-dashboard-panel')).toBeVisible({ timeout: 10_000 })
   await expect(page.getByRole('heading', { name: portal.heading }).first()).toBeVisible({ timeout: 10_000 })
 }
 

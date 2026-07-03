@@ -28,9 +28,9 @@ const requiredAppFragments = [
   'selectPortal',
   'portalDefaultRoute',
   'body: JSON.stringify({ username: username.value, password: password.value, portal: selectedPortal.value })',
-  "DOCTOR: '/doctor/orders'",
-  "CS: '/orders/internal'",
-  "PRODUCTION: '/tasks/mine'",
+  "DOCTOR: '/dashboard'",
+  "CS: '/dashboard'",
+  "PRODUCTION: '/dashboard'",
   "ADMIN: '/dashboard'"
 ]
 
