@@ -7,8 +7,11 @@
 ## 当前状态
 
 - 仓库是本地 Git 仓库，当前分支 `feature/project-skeleton`，跟踪远程 `origin/feature/project-skeleton`。
+- 2026-07-01 上传交接状态：已确认本地 `feature/project-skeleton` 与 `origin/feature/project-skeleton` 对齐；上传后产生的未提交后续试验改动已撤回。本次只做文档总结回写，不继续推进业务代码。
+- 2026-07-01 新版 PRD/TRD/API 对齐决策已确认：以新资料为最新业务准绳，保留当前已验证增量，OpenAPI 后续按差异合并维护。
 - Active goal: `goals/GOAL-001-scope-clarified-for.md`
-- Active task: `tasks/README.md` 的「任务 8：专项验收矩阵与上线准备」，状态为 `in-progress/rework-final-entry-added`
+- Active task: `tasks/README.md` 的「任务 8：专项验收矩阵与上线准备」，状态为 `in-progress/9d54-production-reward-penalty-summary`
+- 本轮 9D.54 生产端奖惩管理汇总后端适配第一增量已完成；新增 `/production/reward-penalty/summary` 和 `production_reward_penalty_record` 基础表，生产/客服/管理可读、医生端 403，前端生产端奖惩管理已接真实汇总，展示奖惩记录、奖惩原因、关联对象、审批状态、月度汇总和绩效影响。Task 8 总体仍保持 `NOT READY`。
 - 已按 RepoFrame + Yuri 工作流创建项目上下文文档。
 - 已完成任务 0：接口契约与项目基线。
 - 已完成任务 0.1：按 TRD V1.1 深度研究优化版对齐开发计划。
@@ -18,12 +21,34 @@
 
 ## 已完成
 
-- 9D.29 AI 模型失败审计第一增量：真实模型重试耗尽或不可恢复失败时返回受控 503，并用独立事务写入 `AI_MODEL_FAILED` 审计；不暴露上游供应商原始错误正文。
-- 9D.30 已补 AI 治理摘要第一增量：新增 `GET /ai/governance/summary`，CS / ADMIN 可查看近 24 小时成功、安全拒绝、限流、模型失败、估算成本和最近模型失败时间；Task 8 仍保持 `NOT READY`。
-- 9D.31 已补 AI 预算阈值第一增量：新增 `AI_DAILY_BUDGET_MICROUSD`，治理摘要返回 `daily_budget_microusd` 和 `budget_exceeded`；默认 0 不启用阈值，不拦截请求、不发送告警。
-- 9D.32 已补 AI 预算超限审计第一增量：真实模型成功调用导致近 24 小时成本跨过预算阈值时，写入 `AI_BUDGET_EXCEEDED` 审计，并在治理摘要返回 `budget_alert_count` / `latest_budget_alert_at`；不拦截请求、不发送外部通知。
-- 9D.28 AI 模型重试第一增量：真实 DeepSeek 调用遇到短暂 5xx 或连接类异常时按 `AI_MODEL_MAX_RETRIES` 有限重试，默认 1 次；TDD 覆盖首次 500、第二次成功且只写一条成功审计。
-- 9D.19 返工通知联动第一增量：出检失败生成返工记录时写入 REWORK_CREATED 给目标 WORKER，返工关闭后写入 REWORK_CLOSED 给订单 CS，并验证医生用户不会收到返工内部通知。
+- 9D.33 已补 AI 预算超限内部通知第一增量：预算跨线后写入 `AI_BUDGET_EXCEEDED` 通知事实，只通知 ACTIVE 的 ADMIN / CS 数据库账号，并复用现有通知中心和 WebSocket 本地推送；不通知 DOCTOR / WORKER，不做外部告警或熔断。
+- 9D.34 已补 AI 预算通知策略开关第一增量：新增 `AI_BUDGET_NOTIFICATION_ENABLED`，默认开启；关闭后预算跨线仍写 `AI_BUDGET_EXCEEDED` 治理审计，但不写内部通知事实、不触发本地推送。
+- 9D.35 AI 预算熔断/降级第一增量已补：新增 `AI_BUDGET_CIRCUIT_BREAKER_ENABLED`，默认关闭；开启后预算已超限时真实模型调用返回 deterministic fallback，并写入 `AI_BUDGET_CIRCUIT_OPEN` 治理审计。
+- 9D.36 已按客户旧版医生端、客服端、生产端 HTML 原型完成前端全页面视觉第一增量，并已追加 product design 精修：登录页改为深蓝窄卡片端口入口，登录后侧栏改为品牌区/身份块/分组菜单/底部说明，业务状态码和产品类型前端显示中文化；保留现有 Vue 路由、RBAC 菜单、接口调用和服务端权限边界。
+- 9D.36 已按客户展示视频反馈追加前端展示清理：工作台不再展示 `ADMIN/WORKER` 等角色码、路由路径、组件名、权限码条或图标字体英文兜底；客服端工作台补订单管理、沟通中心、客户管理、产品管理、配送管理、账单管理、外协管理；生产端工作台补人员管理、设备管理、物料异常等客户反馈入口。
+- 9D.36 已按客户二次反馈追加导航结构修正：四个端口的工作台卡片与左侧栏共用 `displayNavigationConfig`，主功能含子功能；工作台名称与左侧栏一致；未接接口的新功能进入中文占位页；医生端订单管理拆成新建订单、我的订单、设计稿确认、账单物流、沟通留言、订单助手子栏目；管理端点击工艺、权限、人员、设备、外协等功能时保持管理端菜单模板。
+- 9D.36 已按客户三次反馈追加版式修正：左侧栏固定到页面顶部并合并为单一“AI智能下单平台”标题；登录后右侧内容网格改为自然内容高度，避免侧栏高度撑开顶部说明卡和功能卡之间的间距。
+- 9D.36 已按客户旧版三端 HTML 原型追加四端视觉主题锁定：医生端复刻医生蓝，客服端复刻客服紫，生产端复刻生产青，管理端采用深石墨管理蓝；入口主题由登录端口决定，点击左侧任一功能后侧栏结构、颜色和整体版式保持不变。
+- 9D.36 已按客户确认追加原型工作台复刻：工作台不再重复左侧栏功能入口，改为医生/客服/生产/管理四端业务仪表盘；订单、生产、设计稿/数据处理类页面补原型式快速筛选 chip、队列卡片、彩色状态 badge 和高密度表格视觉。
+- 9D.36 已按客户最新反馈追加工作台交互修正：四入口登录后默认进入工作台；工作台 KPI 卡片移除黑色图标；快速筛选 chip 增加点击选中态，并在生产看板、我的任务、内部订单等已有筛选接口上联动加载；工作台新增演示级趋势图表。
+- 9D.36 已按客户生产端展示反馈追加模块陈列并二次收敛命名：生产端左侧导航保留安环管理、成本管理、质量与返工、奖惩管理、设备管理、物料异常等正式入口；质量与返工子功能收敛为质量总览、返工管理、终检报告，内返率和外返率放入页面指标与工作台趋势展示；生产工作台 7 个指标卡改为紧凑网格，避免长条卡片撑高页面；四端左上角身份区新增账号管理/账号切换弹出面板，账号切换复用现有退出登录逻辑，不改后端接口和权限校验。
+- 9D.37 已补 AI 预算外部告警待发送事实第一增量：新增 `ai_external_alert_outbox`，预算跨线和预算熔断命中后分别写入 `AI_BUDGET_EXCEEDED` / `AI_BUDGET_CIRCUIT_OPEN` 的 `PENDING` 外部告警事实；本轮不接真实外部发送器。
+- 9D.38 已补 AI 分角色预算第一增量：新增 `ai_audit_log.actor_role` 和四个角色日预算变量，预算熔断开启且角色预算超限时返回 deterministic fallback，写入 `AI_BUDGET_ROLE_CIRCUIT_OPEN` 治理审计和外部告警 outbox。
+- 9D.39 已补 AI 分模型预算第一增量：新增 `AI_DEEPSEEK_DAILY_BUDGET_MICROUSD`，预算熔断开启且当前 `AI_DEEPSEEK_MODEL` 预算超限时返回 deterministic fallback，写入 `AI_BUDGET_MODEL_CIRCUIT_OPEN` 治理审计和外部告警 outbox。
+- 9D.40 已补 AI 提示词版本与输出防护第一增量：新增 Flyway `V21__ai_prompt_version_output_guard.sql`，AI 审计写入 `prompt_version`；真实模型输出命中敏感密钥、审计表、文件表、系统账号等模式时返回安全保护文案，并写入 `AI_OUTPUT_GUARDED`。
+- 9D.41 已补 AI 外部告警发送器第一增量：新增本地 dry-run 发送器，`PENDING` outbox 可推进到 `SENT` / `FAILED`，并记录 `attempts` 和 `last_error`；本轮不接真实短信、邮件、企业微信或其他外部渠道密钥。
+- 9D.42 已补 AI 成本趋势第一增量：新增 `/ai/governance/cost-trend` 和 `AiGovernanceCostTrendResponse`，按天聚合成功模型调用的 `estimated_cost_microusd`、`success_count` 与 `model_count`；本轮不做图表 UI、导出、真实账单对账或预算策略管理。
+- 9D.43 已补 AI 真实外部渠道适配第一增量：`EXTERNAL_ALERT` 默认仍 dry-run；显式启用 `AI_EXTERNAL_ALERT_WEBHOOK_ENABLED=true` 并配置 `AI_EXTERNAL_ALERT_WEBHOOK_URL` 后，发送器会以 `application/json` POST outbox payload；9D.45 后，非 2xx 或连接异常进入有限重试/死信链路。本轮不提交真实 webhook、短信、邮件或企业微信密钥，不做签名或生产联调。
+- 9D.44 已补 AI 外部告警调度器第一增量：新增默认关闭的调度器、`AI_EXTERNAL_ALERT_SCHEDULER_*` 环境变量和调度器测试；显式启用后按批次调用既有 sender，默认不自动处理 outbox；本轮不做分布式锁、复杂重试、死信、真实渠道密钥或生产 webhook 联调。
+- 9D.45 已补 AI 外部告警重试/死信第一增量：新增 `AI_EXTERNAL_ALERT_MAX_ATTEMPTS`，webhook 失败会累计 `attempts/last_error`；未达上限保持 `PENDING`，达到上限进入 `DEAD_LETTER`，避免无限重试。
+- 9D.46 已补 AI 外部告警幂等/并发领取第一增量：sender 先领取 `PENDING -> SENDING` 后再 dry-run 或 webhook 外呼，重复触发和并发 sender 不会重复发送同一条 outbox。
+- 9D.47 已补 AI 外部告警 webhook 签名/鉴权第一增量：签名默认关闭；启用签名且注入 secret 后，请求携带 `X-AI-Alert-Signature` HMAC-SHA256 签名；不提交真实 secret。
+- 9D.49 已补生产端质量与返工汇总后端适配第一增量：新增 `ProductionQualitySummaryResponse` 和 `/production/quality/summary`，按出检订单数汇总总返工率、内返率、外返率、一次通过率和终检通过率；投诉率/退货率因缺少事实表当前返回 0 并在 OpenAPI 说明；前端生产端质量总览接入真实接口，Vite 补 `/production` 代理。
+- 9D.50 已补生产端设备管理汇总后端适配第一增量：新增 `ProductionEquipmentSummaryResponse`、`/production/equipment/summary` 和 Flyway `V22__production_equipment_foundation.sql`，按设备台账和设备事件汇总设备状态、待处理保养、故障报修、停机时长和平均设备稼动率；前端生产端设备管理接入真实汇总，医生端访问该内部生产接口返回 403。
+- 9D.51 已补生产端物料异常汇总后端适配第一增量：新增 `ProductionMaterialExceptionSummaryResponse`、`/production/material-exceptions/summary` 和 Flyway `V23__production_material_exception_foundation.sql`，按物料异常事实表汇总缺料、错料、批次异常、材料损耗、处理状态和责任归属；前端生产端物料异常接入真实汇总，医生端访问该内部生产接口返回 403。
+- 9D.52 已补生产端安环管理汇总后端适配第一增量：新增 `ProductionSafetyEnvironmentSummaryResponse`、`/production/safety-environment/summary` 和 Flyway `V24__production_safety_event_foundation.sql`，按安环事件事实表汇总安全巡检、隐患整改、环境记录、PPE/设备安全提醒、待办状态、超期和高风险事件；前端生产端安环管理接入真实汇总，医生端访问该内部生产接口返回 403。
+- 9D.53 已补生产端成本管理汇总后端适配第一增量：新增 `ProductionCostSummaryResponse`、`/production/cost-management/summary` 和 Flyway `V25__production_cost_record_foundation.sql`，按成本记录事实表汇总工序成本、材料成本、人工成本、返工成本、外协成本和成本异常预警；前端生产端成本管理/外协成本接入真实汇总，医生端访问该内部生产接口返回 403。
+- 9D.54 已补生产端奖惩管理汇总后端适配第一增量：新增 `ProductionRewardPenaltySummaryResponse`、`/production/reward-penalty/summary` 和 Flyway `V26__production_reward_penalty_foundation.sql`，按奖惩记录事实表汇总奖励、扣罚、待审批、已通过、已驳回、已生效、关联订单/工序/员工和本月金额；前端生产端奖惩管理接入真实汇总，医生端访问该内部生产接口返回 403。
 - 明确项目技术方向：Vue3 + Element Plus + Spring Boot + RuoYi-Vue-Pro + MySQL + Redis + MinIO + Uppy + 后端 ai-gateway + DeepSeek。
 - 明确一期口径：9 条预定义工序链写入数据库，不做后台拖拽编辑器。
 - 从 `.local-context/API规范_OpenAPI3.0.yaml` 修复并冻结稳定 OpenAPI 契约到 `docs/api/openapi.yaml`。
@@ -102,7 +127,7 @@
 - 已完成任务 9C.2 第一增量：新增通知列表、未读数、单条已读、全部已读 REST 接口，并按当前用户 `user_notification.user_id` 强制隔离。
 - 已新增 `NotificationRestTests`，覆盖当前用户只读本人通知、未读数、单条已读、全部已读和他人通知隔离。
 - 前端骨架已新增登录后的「通知中心」入口，支持未读徽标、刷新、单条已读和全部已读。
-- `docs/api/openapi.yaml` 已同步 9C.2 通知 REST 契约；9D.10 后当前为 61 个 path / 72 个 operation / 72 个唯一 `operationId`。
+- `docs/api/openapi.yaml` 已同步 9B.8 Refresh Token/logout 契约；当前为 61 个 path / 72 个 operation / 72 个唯一 `operationId`。
 - 已完成任务 9C.3 第一增量：前端通知中心登录后建立 `/ws/connect` WebSocket，收到实时通知后刷新通知列表和未读数，并显示连接状态。
 - 已新增 Redis 通知广播第一增量：`NotificationBroadcaster`、`NotificationRedisBroadcaster`、`NotificationRedisBroadcastListener` 和条件化 Redis listener container；默认关闭，通过 `NOTIFICATION_REDIS_BROADCAST_ENABLED=true` 开启。
 - 已新增 `NotificationBroadcastTests`，覆盖本机无在线 session 时仍发布广播、远端广播不会自回环且会触发本机投递。
@@ -136,35 +161,87 @@
 - 已修复本地浏览器 smoke 阻塞：默认 CORS 同时允许 `http://localhost:5173` 与 `http://127.0.0.1:5173`，避免 Vite Local URL 登录时返回 `Invalid CORS request`；`BearerIdentityTests#databaseLoginAllowsLocalhostAndLoopbackViteOrigins` 已覆盖。
 - 已修复 9D.2 动态表单浏览器读取缺口：`/form-configs` 已加入 Vite proxy，`npm run check:task9d2` 和 `acceptance.json` 已纳入代理检查。
 - 本轮浏览器 smoke 已覆盖 doctor 在 `http://127.0.0.1:5173` 登录、进入「医生订单」、读取 REGULAR_CROWN 动态表单，并创建订单 `ORD20260630-9D94797093`，页面显示 `PENDING_REVIEW` 和医生端脱敏资料。
+- 已确认 2026-07 新版资料默认对齐方案：不直接覆盖当前 OpenAPI/实现，保留 `/auth/me`、通知 REST、Multipart 断点恢复、返工接口、节点 start/complete/skip 等已验证增量；下一阶段优先补草稿/补资料闭环。
+- 已完成任务 9D.11 第一增量：`POST /orders` 支持医生保存草稿，`PUT /orders/{orderId}` 支持医生本人编辑草稿、提交草稿和对 `CS_REJECTED / PRODUCTION_REJECTED` 订单补资料重新提交；前端医生订单工作台新增保存草稿、继续编辑/补资料和提交草稿/补资料入口。
+- 9D.11 浏览器 smoke 已覆盖 doctor 在 `http://127.0.0.1:5173` 登录、保存草稿并提交草稿，测试订单 `ORD20260701-E172DF6DD8` 从 `DRAFT` 进入 `PENDING_REVIEW`。
+- 已完成任务 9B.8 Refresh Token/logout 第一增量：新增 `auth_refresh_token` 哈希存储表；登录返回 `refreshToken` / `refreshExpiresAt`；`POST /api/auth/refresh` 可用有效 refresh token 换新 access token；`POST /api/auth/logout` 可吊销 refresh token；前端骨架新增「刷新 Token」和「退出登录」入口；浏览器 smoke 已覆盖 doctor 登录后刷新 Token 并退出回登录页。
+- 已完成任务 9D.12 动态表单 CRUD 第一增量：新增 ADMIN `form:manage` 权限、`POST /form-configs`、`PUT /form-configs/{fieldId}`、逻辑停用 `status=INACTIVE`、后台「动态表单」菜单和前端最小新增/编辑/停用入口；医生端仍只读取 `ACTIVE` 字段。
+- 9D.12 浏览器 smoke 已覆盖 admin 在 `http://127.0.0.1:5173` 登录、进入「动态表单」、创建字段、更新字段并停用字段，测试产品 `SMOKE_1782885092995` / 字段 `smoke_field_1782885092995` 最终从医生可读活动列表移除。
+- 已完成任务 9D.13 设计稿多文件/多版本第一增量：新增 `design_draft_file` 关联表，保留 `design_draft.file_id` 作为兼容主文件；`POST /orders/{orderId}/design-drafts` 可把多个 `file_ids` 绑定到同一版本，响应新增 `file_ids` / `file_count`。
+- 9D.13 前端第一增量已补：内部订单页可输入多个已完成 `file_id` 上传新版设计稿，医生订单工作台可显示同一版本多个文件 ID 和文件数；浏览器 smoke 已覆盖订单 `9D13-1782887063685`、文件 `761/762`，医生端可见且未泄露 `9D13_INTERNAL_NOTE_DO_NOT_LEAK`。
+- 已完成任务 9D.14 终检发货拦截第一增量：`POST /orders/{orderId}/logistics` 发货前必须存在订单最后一道工序节点的 `OUT/PASS` 终检出检记录；缺失时返回 409，且不写物流、不更新 `SHIPPED`、不发送发货通知。
+- 9D.14 前端第一增量已补：生产看板详情新增承运商、物流单号和「录入物流并发货」入口，后端 409 时展示“终检出检通过后才能发货”。
+- 9D.14 浏览器 smoke 已覆盖 admin 在生产看板搜索订单 `9D14-1939db70751a`，录入物流 `SF-1782889291788` 后页面显示发货成功，数据库核验订单和物流均为 `SHIPPED`。
+- 已完成任务 9D.15 真实 DeepSeek 接入第一增量：新增 `app.ai` 配置、`DeepSeekAiModelClient`、OpenAI-compatible `/chat/completions` 调用、AI-1/AI-2/AI-3 公开问答/AI-5 的真实模型适配，以及无 key/未启用时的 deterministic 安全回退。
+- 9D.15 安全边界已补：AI-3 仍只使用 `DoctorOrderAssistantReadModel` 的外部状态、公开消息、账单和物流字段；医生询问内部工序/员工/工时等问题时继续本地 `SAFE_REFUSAL`，不向模型发送内部上下文。
+- 9D.15 验收已补：`AiGatewayDeepSeekTests` 使用本地 stub 验证 DeepSeek 请求、Bearer key、模型名审计、completion tokens 和 AI-3 脱敏上下文；`npm run check:task9d15` 已纳入静态验收。
+- 已完成任务 9D.16 终检报告第一增量：新增 `final_inspection_report` 表、`POST /final-inspection-reports` 和 `GET /final-inspection-reports/{orderId}`，生成报告前必须存在订单最后一道工序节点 `OUT/PASS` 终检出检记录。
+- 9D.16 前端第一增量已补：在「返工终检」页面的终检入口增加报告摘要、生成终检报告按钮和报告结果展示；本地 Vite 已代理 `/final-inspection-reports`。
+- 9D.16 验收已补：`CheckWorklogPerformanceTests#finalInspectionReportRequiresFinalOutPassAndIsInternalOnly` 先红后绿，覆盖缺终检通过 409、终检后生成报告、内部读取和医生端 403；`npm run check:task9d16` 已纳入静态验收。
+- 已完成任务 9D.17 返工关闭 / 责任分类第一增量：新增 `V16__rework_close_metadata.sql`、`POST /reworks/{reworkId}/close` 和前端「关闭返工」最小入口；关闭前必须存在返工目标节点在来源失败检查之后重新 `OUT/PASS`。
+- 9D.17 验收已补：`CheckWorklogPerformanceTests#reworkCanCloseOnlyAfterTargetOutPassAndKeepsResponsibilityClassification` 先红后绿，覆盖未重新出检通过 409、重新出检通过后关闭、写入原因分类/责任类型/关闭备注和 `DONE` 列表查询；`npm run check:task9d17` 已纳入静态验收。
+- 已完成任务 9D.18 返工原因 / 责任类型字典第一增量：新增 `GET /reworks/dictionaries`，后端固定返回关闭返工可用 code，并在 `closeRework` 中拒绝未列入字典的原因分类或责任类型。
+- 9D.18 前端第一增量已补：`/rework-final` 页面加载后端返工字典，关闭返工下拉选项不再硬编码在模板里；`npm run check:task9d18` 已纳入静态验收。
+- 已完成任务 9D.19 返工通知联动第一增量：出检失败生成返工记录时写入 `REWORK_CREATED` 通知给目标 WORKER，返工关闭后写入 `REWORK_CLOSED` 通知给订单 CS。
+- 9D.19 安全边界已补：返工通知只进入内部 `notification_event` / `user_notification`，测试覆盖医生用户不收到 `REWORK_CREATED` / `REWORK_CLOSED`。
+- 已完成任务 9D.20 复杂返工影响范围第一增量：后道出检失败返到前道节点时，沿 `order_process_edge` 递归重置返工目标后续 `READY/COMPLETED` 节点为 `PENDING`，保留历史检查、工时和返工记录。
 
 ## 正在做什么
 
 项目处于任务 8 上线准备阶段：接口契约、数据库基线、状态投影、文件权限、Workflow Runtime、入检/出检、返工、工时绩效、消息、设计稿、账单物流、通知事实表和最小 AI Gateway 已完成后端 smoke 基线；OpenAPI 二次契约硬缺口已关闭；当前结论仍是“后端最小链路可回归，产品级正式上线仍 NOT READY”。
 
-Task 8 已完成 8A readiness audit、8B OpenAPI 二次契约、9A Bearer 身份基线、9B.1 后端权限守卫、9B.2 数据库化 RBAC/DataScope 基础、9B.3 权限注解/统一拦截器、9B.4 DataScope SQL 过滤第一增量、9B.5 文件/协同/AI DataScope 扩展、9B.6 菜单/部门/岗位/前端权限路由第一增量、9B.7 生产鉴权门禁第一增量、9C.1 WebSocket 通知第一增量、9C.2 通知未读/已读第一增量、9C.3 通知实时前端/Redis 广播第一增量、9D.1 医生订单工作台第一增量、9D.2 医生下单第一增量、9D.3 客服初审第一增量、9D.4 生产审核第一增量、9D.5 生产任务入口第一增量、9D.6 入检/出检/工时操作页面第一增量、9D.7 绩效管理页面第一增量、9D.8 生产看板第一增量、9D.9 返工终检第一增量、9D.10 Multipart 上传第一增量、本地恢复上传第一增量、服务端候选恢复第一增量、服务端候选恢复浏览器 smoke、上传中断后恢复浏览器 smoke 和 100MB+ 浏览器 smoke；任务 8 总体不标完成，后续需要继续补真实弱网限速/断网、完整跨设备续传、完整返工处理闭环、终检发货拦截、通用 DataScope 覆盖、真实 DeepSeek、部署/操作手册等上线硬缺口。
+Task 8 已完成 8A readiness audit、8B OpenAPI 二次契约、9A/9B/9C 身份权限与通知基线、9D.1 到 9D.25 的核心业务第一增量、9D.26 到 9D.47 的 AI 治理第一轮，以及 9D.49 到 9D.54 的生产端质量、设备、物料异常、安环、成本、奖惩六类展示模块真实汇总接口第一轮适配。任务 8 总体不标完成，后续仍需补完整 CRUD/审批/录入路径、演示种子数据、真实弱网限速/断网、完整跨设备续传、返工影响图形化、绩效完整公式/周期、终检专用角色/附件、通用 DataScope 覆盖、外部告警监控/防重放/生产 webhook 联调、提示词后台管理、流式输出过滤、真实 key 联调、部署/操作手册等上线硬缺口。
+
+当前已上传基线停在上述 9D.10 范围：同浏览器恢复、服务端 pending 候选恢复、上传中断后恢复和 100MB+ 浏览器 smoke 已作为可追溯结果保留；返工关闭/发货拦截、责任分类、跨设备恢复 smoke、限速上传 smoke 等后续尝试没有纳入当前上传基线。
+
+本轮已完成 9D.36 三端/管理端前端视觉改造第一增量：依据客户旧版医生端、客服端、生产端 HTML 原型，把当前 Vue 单文件前端的登录后全页面统一为深色侧栏、顶部状态栏、角色主题色、页面说明区、业务卡片/列表/表单的工作台风格；2026-07-02 追加 product design 精修后，登录页更接近旧原型的深蓝窄卡片入口，侧栏增加中文分组菜单，主体常见后端状态码和产品类型已显示为中文。医生端、客服端、生产端、管理端四入口真实浏览器点击均已通过，错入口登录仍被服务端拒绝。本轮不新增后端接口、不调整权限、不搬运旧原型 mock/localStorage 逻辑；下一项开发入口建议继续做客户演示级业务细节、图表/空状态/录屏，或转回绩效周期筛选、返工影响图形化、生产级 AI 治理和部署交付材料。
+
+本轮已完成 9D.37 AI 预算外部告警待发送事实第一增量：新增 Flyway `V19__ai_external_alert_outbox.sql` 和 `ai_external_alert_outbox` 表；预算跨线写入 `AI_BUDGET_EXCEEDED` 后、预算熔断命中写入 `AI_BUDGET_CIRCUIT_OPEN` 后，均生成 `send_status=PENDING` 的外部告警事实。payload 仅包含订单号、事件类型、预算阈值、近 24 小时估算成本和脱敏消息，不包含 prompt、模型响应、密钥或内部生产详情。本轮不接真实外部渠道、不写发送器、不新增环境变量。
+
+本轮已完成 9D.38 AI 分角色预算第一增量：新增 Flyway `V20__ai_audit_actor_role.sql`，AI 审计开始记录 `actor_role`；新增 ADMIN / CS / DOCTOR / WORKER 四个角色日预算环境变量，默认 0 不启用；当 `AI_BUDGET_CIRCUIT_BREAKER_ENABLED=true` 且对应角色近 24 小时成功调用估算成本达到角色阈值时，不外呼真实模型，返回 deterministic fallback，并写入 `AI_BUDGET_ROLE_CIRCUIT_OPEN` 治理审计和 `ai_external_alert_outbox` 待发送事实。本轮只做角色预算，不做分模型预算或管理 UI。
+
+本轮已完成 9D.39 AI 分模型预算第一增量：新增 `AI_DEEPSEEK_DAILY_BUDGET_MICROUSD`，默认 0 不启用；当 `AI_BUDGET_CIRCUIT_BREAKER_ENABLED=true` 且当前 `AI_DEEPSEEK_MODEL` 近 24 小时成功调用估算成本达到模型阈值时，不外呼真实模型，返回 deterministic fallback，并写入 `AI_BUDGET_MODEL_CIRCUIT_OPEN` 治理审计和 `ai_external_alert_outbox` 待发送事实。本轮只做 DeepSeek 当前配置模型的预算熔断，不做预算策略管理页面、成本趋势、真实外部发送器或真实 key 联调。
+
+本轮已完成 9D.40 AI 提示词版本与输出防护第一增量：新增 `ai_audit_log.prompt_version` 和索引，AI-1/AI-2/AI-3/AI-4/AI-5 的审计均写入固定版本号；真实模型输出命中密钥、token、系统表、文件表或明确内部泄露模式时，不向调用方返回原文，改为“AI 输出已触发安全保护，请人工复核后再使用。”，并写入 `AI_OUTPUT_GUARDED` / `ai-governance-output-guard` 治理审计。本轮只做服务端固定版本和输出出口防护，不做提示词后台管理、流式输出过滤或真实外部告警发送器。
+
+本轮已完成 9D.41 AI 外部告警发送器第一增量：新增 `AiExternalAlertSenderService#sendPendingAlerts`，按 `created_at, alert_id` 领取 `ai_external_alert_outbox` 的 `PENDING` 记录；`EXTERNAL_ALERT` 通道作为本地 dry-run 标记 `SENT` 并清空 `last_error`，未知通道标记 `FAILED` 并写入 `unsupported external alert channel` 错误，同时两类结果都会累计 `attempts`。本轮不接真实外部渠道、不新增密钥或环境变量、不做定时调度。
+
+本轮已完成 9D.42 AI 成本趋势第一增量：新增 `GET /ai/governance/cost-trend?days=7`，复用 AI 治理权限，仅 CS / ADMIN 可访问；服务端按 `ai_audit_log.result_status=SUCCESS` 的成功模型调用聚合最近 1-31 天的 `success_count`、`estimated_cost_microusd` 和 `model_count`，并返回窗口总成功次数和总估算成本。本轮只做后端只读聚合和 OpenAPI 契约，不新增前端图表、不做导出、不接真实计费账单、不调整预算策略。
+
+本轮已完成 9D.43 AI 真实外部渠道适配第一增量：新增 `app.ai.external-alert` 配置和 `AI_EXTERNAL_ALERT_WEBHOOK_*` 环境变量；`EXTERNAL_ALERT` 默认仍不外呼，显式启用 webhook 后才 POST outbox payload，发送成功标记 `SENT`。9D.45 后，非 2xx 或连接异常已改为有限重试/死信状态机。本轮只做通用 webhook 边界，不提交真实 webhook URL 或密钥，不接短信、邮件、企业微信 SDK，不做签名认证或生产联调。
+
+本轮已完成 9D.44 AI 外部告警调度器第一增量：新增 `AiExternalAlertScheduler`、`@EnableScheduling` 和 `AI_EXTERNAL_ALERT_SCHEDULER_*` 配置。默认 `AI_EXTERNAL_ALERT_SCHEDULER_ENABLED=false`，即使调度方法被调用也不处理 outbox；显式启用后按 `AI_EXTERNAL_ALERT_SCHEDULER_BATCH_SIZE` 调用既有 sender 处理 `PENDING` outbox。本轮不做分布式锁、复杂重试、死信、签名认证、真实渠道密钥或生产 webhook 联调。
+
+本轮已完成 9D.45 AI 外部告警重试/死信第一增量：新增 `AI_EXTERNAL_ALERT_MAX_ATTEMPTS`，默认 3；webhook 失败时累计 `attempts` 并写 `last_error`，未达上限保持 `PENDING`，达到上限标记 `DEAD_LETTER`，避免调度器无限重复发送。本轮不做分布式锁、退避调度、死信管理页面、真实渠道密钥或生产 webhook 联调。
+
+本轮已完成 9D.46 AI 外部告警幂等/并发领取第一增量：新增事务内 `SENDING` 领取态和 `claimAlert` 条件更新；sender 只有成功把 `PENDING` 领取为 `SENDING` 后才会 dry-run 或 webhook 外呼。并发测试覆盖第一条 webhook 被阻塞时第二个 sender 不会重复发送同一条 outbox。本轮不做签名/鉴权、退避调度、告警抑制、监控指标、真实渠道密钥或生产 webhook 联调。
+
+本轮已完成 9D.47 AI 外部告警 webhook 签名/鉴权第一增量：新增 `AI_EXTERNAL_ALERT_WEBHOOK_SIGNING_ENABLED` 和 `AI_EXTERNAL_ALERT_WEBHOOK_SIGNING_SECRET`；默认关闭签名，启用签名且 secret 非空时，sender 会按 request body 生成 `X-AI-Alert-Signature: sha256=<HMAC-SHA256>`。签名开启但 secret 为空时不会发送未签名 webhook，而是进入既有失败/重试/死信链路。本轮不提交真实 secret，不做 timestamp/nonce 防重放、接收端验签服务、生产 webhook 联调或真实外部渠道 SDK。
+
+本轮已完成 9D.54 生产端奖惩管理汇总后端适配第一增量：新增 Flyway `V26__production_reward_penalty_foundation.sql`、`production_reward_penalty_record` 事实表、`GET /production/reward-penalty/summary`、`ProductionRewardPenaltySummaryResponse`、OpenAPI 契约、前端“真实奖惩汇总”卡片区和 `npm run check:task9d54` 静态检查。生产/客服/管理可读，医生端访问返回 403；真实浏览器已覆盖生产端入口登录、点击左侧“奖惩管理”，页面显示奖惩记录、奖惩原因、关联对象、审批状态、月度汇总和绩效影响，且无汇总加载失败或 HTML 解析错误。本轮只做只读汇总，不新增奖惩录入、审批流、申诉、绩效结算或正式演示种子数据。
 
 ## 未完成事项
 
-- 明确 Multipart 阈值、动态表单字段最终清单、AI-5 模板等客户/PM 仍需确认项。
-- 后续补完整返工处理台、责任分类、返工关闭、绩效明细、终检发货拦截和完整生产看板；任务 5B 已完成后端最小执行接口和烟测，任务 9D.5 已补生产任务池和派工第一增量，任务 9D.6 已补入检/出检和工时操作页面第一增量，任务 9D.7 已补绩效管理页面第一增量，任务 9D.8 已补跨状态生产看板第一增量，任务 9D.9 已补返工记录只读和终检出检入口第一增量。
+- 明确 Multipart 阈值、动态表单字段最终清单、AI-5 模板等客户/PM 仍需确认项；动态表单后台 CRUD 第一增量已完成，但字段最终清单和复杂表单设计器不在本轮范围。
+- 后续补完整返工处理台、返工影响图形化、绩效完整公式/周期/申诉/标准工时配置、终检专用角色/附件和完整生产看板；任务 5B 已完成后端最小执行接口和烟测，任务 9D.5 已补生产任务池和派工第一增量，任务 9D.6 已补入检/出检和工时操作页面第一增量，任务 9D.7 已补绩效管理页面第一增量，任务 9D.8 已补跨状态生产看板第一增量，任务 9D.9 已补返工记录只读和终检出检入口第一增量，任务 9D.14 已补发货前终检出检通过门禁第一增量，任务 9D.16 已补终检报告生成/读取第一增量，任务 9D.17 已补返工关闭/原因分类/责任类型第一增量，任务 9D.18 已补后端固定返工字典和关闭校验第一增量，任务 9D.19 已补返工创建/关闭内部通知第一增量，任务 9D.20 已补返工目标后续 `READY/COMPLETED` 节点重置第一增量，任务 9D.22 已补返工影响节点审计字段第一增量，任务 9D.23 已补返工影响筛选第一增量，任务 9D.25 已补绩效明细第一增量。
 - 后续把 WebSocket 通知接入生产级 Nginx/HTTPS、压测、监控和真实多实例联调；任务 6 已完成通知事实表和未读补偿的最小链路，任务 9C.1 已完成单实例 WebSocket 在线推送，任务 9C.2 已完成通知 REST 与前端入口，任务 9C.3 已完成前端实时刷新、Vite `/ws` 代理 smoke 和 Redis 广播代码路径第一增量。
-- 后续接入正式 RuoYi-Vue-Pro 权限体系；当前已支持数据库账号登录、服务端签发 Bearer token、权限码/data_scope、基础菜单/部门/岗位表、前端按菜单权限显示入口、集中式后端权限守卫、Controller 权限注解拦截，以及订单、工序实例、文件、协同订单范围、AI 内部上下文的部分 SQL DataScope 过滤；`X-Bootstrap-*` 仍作为统一解析器中的本地烟测兼容路径存在，但生产 profile 已新增启动门禁，要求关闭该兼容路径并配置真实 token secret。
-- 后续把 AI Gateway 从 deterministic 安全占位回答接入正式 DeepSeek/模型适配，但 AI-3 必须继续只读 `DoctorOrderAssistantReadModel`。
-- 后续补 AI-1/AI-2/AI-5 更完整的模板、提示词、输出校验和人工确认页面；当前只返回草稿或查询结果，不自动写业务字段。
-- 后续补真实弱网限速/断网、完整跨设备续传、文件类型/数量最终限制和草稿上传；任务 9D.10 已完成 Multipart 第一增量、本地恢复上传第一增量、服务端候选恢复第一增量、服务端候选恢复浏览器 smoke、上传中断后恢复浏览器 smoke 和 100MB+ 浏览器 smoke，但仍不是完整大文件上传上线验收。
+- 后续接入正式 RuoYi-Vue-Pro 权限体系；当前已支持数据库账号登录、服务端签发 Bearer token、refresh token 哈希存储/刷新/logout 吊销、权限码/data_scope、基础菜单/部门/岗位表、前端按菜单权限显示入口、集中式后端权限守卫、Controller 权限注解拦截，以及订单、工序实例、文件、协同订单范围、AI 内部上下文的部分 SQL DataScope 过滤；`X-Bootstrap-*` 仍作为统一解析器中的本地烟测兼容路径存在，但生产 profile 已新增启动门禁，要求关闭该兼容路径并配置真实 token secret。
+- 后续把 AI Gateway 的第一增量 DeepSeek 适配升级为生产级模型治理：9D.26 到 9D.47 已补每用户小时限流、单次成本审计、短暂失败重试、模型失败审计、治理摘要、预算阈值、预算跨线审计、内部通知第一增量、通知策略开关、预算熔断/降级第一增量、外部告警待发送事实第一增量、分角色预算第一增量、分模型预算第一增量、提示词版本审计、输出防护第一增量、外部告警发送器本地 dry-run 状态机、成本趋势第一增量、webhook 真实发送边界、默认关闭调度器、有限重试/死信、幂等/并发领取和 webhook HMAC 签名第一增量；仍缺接收端验签/防重放联调、提示词后台管理、流式输出过滤和真实 key 环境验收。AI-3 必须继续只读 `DoctorOrderAssistantReadModel`。
+- 后续补 AI-1/AI-2/AI-5 更完整的模板和人工确认页面；当前只返回草稿或查询结果，不自动写业务字段。
+- 后续补真实弱网限速/断网、完整跨设备续传、文件类型/数量最终限制和完整草稿上传体验；任务 9D.10 已完成 Multipart 第一增量、本地恢复上传第一增量、服务端候选恢复第一增量、服务端候选恢复浏览器 smoke、上传中断后恢复浏览器 smoke 和 100MB+ 浏览器 smoke，任务 9D.11 已补医生订单草稿/补资料第一增量，但仍不是完整大文件上传上线验收。
 - 后续把 Workflow Runtime 接入正式 RuoYi DataScope SQL 过滤、通知事件、前端任务池和生产看板。
 - 后续把 Check/WorkLog/Performance 接入正式 RuoYi DataScope SQL 过滤、通知事件和更完整的绩效维度。
-- 后续补完整客服协同页面、完整返工/终检闭环和正式生产看板等业务页面；任务 9D.1 已补医生订单读取工作台，任务 9D.2 已补医生下单第一增量，任务 9D.3 已补客服初审第一增量，任务 9D.4 已补生产审核第一增量，任务 9D.5 已补生产任务入口第一增量，任务 9D.6 已补质检工时第一增量，任务 9D.7 已补绩效管理第一增量，任务 9D.8 已补生产看板第一增量，任务 9D.9 已补返工终检第一增量，任务 9D.10 已补 Multipart 上传第一增量、本地恢复上传第一增量和服务端候选恢复第一增量，但仍不是完整业务前端。
-- 任务 9D.2/9D.10 尚未覆盖草稿上传、真实弱网限速/断网、完整跨设备浏览器验收和完整 Uppy Dashboard；100MB+ 本地浏览器 smoke、无本地会话服务端候选恢复浏览器 smoke 与上传中断后恢复浏览器 smoke 已补。
-- 任务 9D.3 尚未覆盖 AI 翻译草稿写入生产指令、资料缺失提示页面、补资料重新提交和完整客服消息/账单物流页面。
-- 任务 9D.7 尚未覆盖绩效明细列表、周期筛选、标准工时配置、绩效申诉/补录和生产通知联动；任务 9D.8 尚未覆盖拖拽/泳道生产看板、复杂筛选、实时刷新和排产；任务 9D.9 尚未覆盖返工责任分类、返工关闭、终检报告、出货前拦截和生产通知联动。
-- 后续清理 Task 8A 矩阵里的 `PARTIAL`、`BLOCKED`、`NOT_STARTED` 项，优先级建议为正式 RBAC/DataScope、WebSocket 通知、医生/客服/生产/管理端页面和真实 DeepSeek 接入。
+- 后续补完整客服协同页面、完整返工/终检闭环和正式生产看板等业务页面；任务 9D.1 已补医生订单读取工作台，任务 9D.2 已补医生下单第一增量，任务 9D.3 已补客服初审第一增量，任务 9D.4 已补生产审核第一增量，任务 9D.5 已补生产任务入口第一增量，任务 9D.6 已补质检工时第一增量，任务 9D.7 已补绩效管理第一增量，任务 9D.8 已补生产看板第一增量，任务 9D.9 已补返工终检第一增量，任务 9D.10 已补 Multipart 上传第一增量、本地恢复上传第一增量和服务端候选恢复第一增量，任务 9D.12 已补动态表单后台 CRUD 第一增量，任务 9D.13 已补设计稿多文件/多版本第一增量，任务 9D.14 已补生产看板最小发货入口和服务端终检门禁，但仍不是完整业务前端。
+- 任务 9D.2/9D.10/9D.11 尚未覆盖真实弱网限速/断网、完整跨设备浏览器验收、实时自动保存和完整 Uppy Dashboard；100MB+ 本地浏览器 smoke、无本地会话服务端候选恢复浏览器 smoke、上传中断后恢复浏览器 smoke、医生草稿和补资料重新提交第一增量已补。
+- 任务 9D.3 尚未覆盖 AI 翻译草稿写入生产指令、资料缺失提示页面和完整客服消息/账单物流页面；补资料再提交第一增量已由 9D.11 补齐。
+- 任务 9D.7/9D.21/9D.25 已覆盖绩效汇总、责任归因和最近完成工时明细第一增量，尚未覆盖周期筛选、标准工时配置、绩效申诉/补录、完整奖金/扣罚公式和生产通知联动；任务 9D.8 尚未覆盖拖拽/泳道生产看板、复杂筛选、实时刷新和排产；任务 9D.9/9D.14/9D.16 尚未覆盖返工责任分类、返工关闭、终检附件、终检专用角色和生产通知联动。
+- 后续清理 Task 8A 矩阵里的 `PARTIAL`、`BLOCKED`、`NOT_STARTED` 项，优先级建议为正式 RBAC/DataScope、WebSocket 通知、医生/客服/生产/管理端页面、终检报告/完整返工闭环和生产级 AI 治理。
 - 后续把 `docs/acceptance/task-8-acceptance-matrix.md` 转成测试工程师可逐项执行的浏览器用例和缺陷追踪清单。
 
 ## 已知问题 / 阻塞
 
 - 本机已安装 Homebrew `openjdk@21` 和 `maven`；同时 Homebrew 也安装了 `openjdk` 26 作为 Maven 依赖。项目命令通过 `scripts/with-jdk21.sh` 显式使用 JDK 21。
-- 浏览器点击级验收已覆盖医生菜单权限、通知中心、9D.1 医生订单工作台、9D.2 医生动态表单/下单、9D.7 绩效统计和 9D.8 生产看板第一增量；完整 12 步主链路浏览器验收仍未完成。
+- 浏览器点击级验收已覆盖医生菜单权限、通知中心、9D.1 医生订单工作台、9D.2 医生动态表单/下单、9D.7 绩效统计、9D.8 生产看板、9D.11 医生草稿/补资料和 9D.12 动态表单 CRUD 第一增量；完整 12 步主链路浏览器验收仍未完成。
 - Docker Compose 基础服务使用占位密码，仅用于本地开发；真实凭据不得提交。
 - Flyway 启动时提示 MySQL 8.4 新于当前 Flyway 已测试版本，属于兼容性 warning；本轮迁移与测试已在本机 MySQL 8.4 通过。
 - `standard_duration` 暂无客户真实标准工时，本轮迁移允许为空，不伪造工时。
@@ -175,16 +252,16 @@ Task 8 已完成 8A readiness audit、8B OpenAPI 二次契约、9A Bearer 身份
 - `POST /orders/{orderId}/messages`、`POST /messages/{msgId}/review`、`POST /orders/{orderId}/design-drafts`、`POST /orders/{orderId}/bill`、`POST /orders/{orderId}/logistics` 已实现后端最小链路；业务 Controller 不再直接解析 `X-Bootstrap-*`，协同类订单范围已加入查询级 DataScope 过滤，但仍未接入通用 RuoYi DataScope SQL 拦截器。
 - Multipart 阈值、文件大小/类型/数量限制仍需 PM/客户最终确认；当前本地默认最大文件 200MB，预签名上传/预览 15 分钟，下载 2 小时。
 - 任务 9C.1 已实现单实例 WebSocket 长连接推送，任务 9C.2 已实现通知列表、未读/已读 REST 接口和前端通知中心入口，任务 9C.3 已实现浏览器 WebSocket 实时接入、Vite `/ws` 代理 smoke 和 Redis 广播代码路径；仍未完成真实双后端实例 Redis 联调、生产 Nginx/HTTPS、心跳策略、监控和压测，正式在线通知仍为 `PARTIAL`。
-- 任务 9D.1 已实现 `GET /orders` 列表和医生订单工作台第一增量；任务 9D.2 已实现医生读取动态表单、提交订单和绑定本人已完成文件的第一增量；任务 9D.3 已实现客服待审过滤、通过/驳回和前端客服初审入口第一增量；任务 9D.4 已实现生产待审过滤页面、工序链选择和生产审核触发工序实例化第一增量；任务 9D.5 已实现工序实例详情、派工/转派和工人任务池第一增量；任务 9D.6 已实现入检/出检和工时操作页面第一增量；任务 9D.7 已实现绩效统计页面第一增量；任务 9D.8 已实现生产看板跨状态检索和节点进度第一增量；任务 9D.9 已实现返工记录只读列表和终检出检入口第一增量；任务 9D.10 已实现 Multipart 上传第一增量、本地恢复上传第一增量、服务端候选恢复第一增量、服务端候选恢复浏览器 smoke、上传中断后恢复浏览器 smoke 和 100MB+ 浏览器 smoke；医生列表/详情/下单、上传、客服初审、生产审核、派工任务池、质检工时、绩效、生产看板、返工终检入口、OpenAPI、前端构建和浏览器 smoke 部分已通过，但完整弱网/跨设备续传、返工闭环、终检发货拦截和正式生产看板仍未完成。
-- 本轮任务 7 未接入真实 DeepSeek API、流式输出、重试、限流、成本统计和提示词版本管理；当前模型名记录为 `deterministic-placeholder`。
+- 任务 9D.1 已实现 `GET /orders` 列表和医生订单工作台第一增量；任务 9D.2 已实现医生读取动态表单、提交订单和绑定本人已完成文件的第一增量；任务 9D.3 已实现客服待审过滤、通过/驳回和前端客服初审入口第一增量；任务 9D.4 已实现生产待审过滤页面、工序链选择和生产审核触发工序实例化第一增量；任务 9D.5 已实现工序实例详情、派工/转派和工人任务池第一增量；任务 9D.6 已实现入检/出检和工时操作页面第一增量；任务 9D.7 已实现绩效统计页面第一增量；任务 9D.8 已实现生产看板跨状态检索和节点进度第一增量；任务 9D.9 已实现返工记录只读列表和终检出检入口第一增量；任务 9D.10 已实现 Multipart 上传第一增量、本地恢复上传第一增量、服务端候选恢复第一增量、服务端候选恢复浏览器 smoke、上传中断后恢复浏览器 smoke 和 100MB+ 浏览器 smoke；任务 9D.11 已实现医生草稿/补资料第一增量；任务 9D.12 已实现动态表单后台 CRUD 第一增量；任务 9D.13 已实现设计稿多文件/多版本第一增量；任务 9D.14 已实现发货前终检出检通过门禁第一增量；任务 9D.15 已实现真实 DeepSeek 接入第一增量；任务 9D.16 已实现终检报告第一增量；任务 9D.17 已实现返工关闭/原因分类/责任类型第一增量；任务 9D.18 已实现返工字典接口和关闭校验第一增量；任务 9D.19 已实现返工创建/关闭内部通知第一增量；任务 9D.20 已实现返工目标后续节点影响范围重置第一增量；任务 9D.21 已实现绩效归因联动第一增量；任务 9D.22 已实现返工影响审计可视化第一增量；任务 9D.23 已实现返工影响筛选第一增量；任务 9D.25 已实现绩效明细第一增量；医生列表/详情/下单、上传、客服初审、生产审核、派工任务池、质检工时、绩效、绩效责任归因、绩效工时明细、返工影响审计字段、返工影响筛选、生产看板、返工终检入口、返工关闭、返工通知、返工影响范围重置、终检报告、动态表单后台管理、设计稿多文件版本、发货门禁、AI DeepSeek 适配、OpenAPI、前端构建和浏览器 smoke 部分已通过，但完整弱网/跨设备续传、设计稿预览 URL 聚合、返工影响图形化、绩效完整公式/周期/申诉/标准工时配置、终检专用角色/附件、生产级 AI 治理和正式生产看板仍未完成。
+- 任务 9D.15 已补 DeepSeek OpenAI-compatible 适配和 model_name/token 审计第一增量；9D.26 到 9D.47 已补限流、成本、重试、失败审计、治理摘要、预算阈值、预算跨线审计、内部通知第一增量、通知策略开关、预算熔断/降级、外部告警待发送事实第一增量、分角色预算第一增量、分模型预算第一增量、提示词版本审计、输出防护第一增量、外部告警发送器本地 dry-run 状态机、成本趋势第一增量、webhook 真实发送边界、默认关闭调度器、有限重试/死信、幂等/并发领取和 webhook HMAC 签名第一增量；仍未实现流式输出、提示词后台管理、真实 key 联调记录和更完整的生产级输出策略。
 - 本轮任务 7 的 AI-2 内部查询仍是最小订单摘要，尚未接入完整客服知识上下文、工序实例明细聚合或消息/文件预览 URL 聚合。
 - 本轮任务 7 的 AI-5 生产备注模板仍未收到客户最终版，当前只生成通用草稿，不写入订单字段。
-- Task 8A 已明确当前不能正式上线：仍缺完整 RuoYi RBAC/DataScope、完整前端业务页面、WebSocket 生产网关/真实多实例验收、终检发货拦截、真实 DeepSeek、完整弱网/跨设备续传、生产级部署配置和操作手册；9D.1/9D.2/9D.3/9D.4/9D.5/9D.6/9D.7/9D.8/9D.9/9D.10 只推进了医生端订单读取、医生下单、客服初审、生产审核、生产任务入口、质检工时、绩效管理、生产看板、返工终检、Multipart 上传、本地恢复上传、服务端候选恢复、上传中断后恢复和 100MB+ 浏览器 smoke 第一增量。
-- 任务 9A/9B.1/9B.2/9B.3/9B.4/9B.5/9B.6/9B.7 第一增量已完成服务端 Bearer 身份基线、后端集中权限守卫、数据库化账号/角色/权限/DataScope 基础、基础菜单/部门/岗位、前端权限路由、权限注解统一拦截器、统一身份参数解析、部分查询级 DataScope 过滤和生产鉴权启动门禁；尚未接入完整 RuoYi 管理 UI、通用 SQL 拦截器和生产级 Spring Security/JWT，正式环境必须关闭 `APP_AUTH_ALLOW_BOOTSTRAP_HEADERS` 并配置真实 `APP_AUTH_TOKEN_SECRET`。
+- Task 8A 已明确当前不能正式上线：仍缺完整 RuoYi RBAC/DataScope、完整前端业务页面、WebSocket 生产网关/真实多实例验收、生产级 AI 治理、完整弱网/跨设备续传、生产级部署配置和操作手册；9D.1/9D.2/9D.3/9D.4/9D.5/9D.6/9D.7/9D.8/9D.9/9D.10/9D.11/9D.12/9D.13/9D.14/9D.15/9D.16 只推进了医生端订单读取、医生下单、客服初审、生产审核、生产任务入口、质检工时、绩效管理、生产看板、返工终检、Multipart 上传、本地恢复上传、服务端候选恢复、上传中断后恢复、100MB+ 浏览器 smoke、医生草稿/补资料、动态表单 CRUD、设计稿多文件/多版本、终检发货拦截、DeepSeek 适配和终检报告第一增量。
+- 任务 9A/9B.1/9B.2/9B.3/9B.4/9B.5/9B.6/9B.7/9B.8 第一增量已完成服务端 Bearer 身份基线、后端集中权限守卫、数据库化账号/角色/权限/DataScope 基础、基础菜单/部门/岗位、前端权限路由、权限注解统一拦截器、统一身份参数解析、部分查询级 DataScope 过滤、生产鉴权启动门禁和 refresh token/logout 第一增量；尚未接入完整 RuoYi 管理 UI、通用 SQL 拦截器、refresh token 轮换/accessToken 黑名单/多设备会话管理和生产级 Spring Security/JWT，正式环境必须关闭 `APP_AUTH_ALLOW_BOOTSTRAP_HEADERS` 并配置真实 `APP_AUTH_TOKEN_SECRET`。
 - 本机数据库保留历史 smoke/测试追加数据，`GET /workflow-chains` 当前总数大于 9；Task 8A 已按“不清理数据库”的约束验收 9 条预定义链存在，正式验收应在干净测试库或固定快照库复跑。
 - 动态表单字段最终清单、设计稿阻塞关系、AI-5 模板、标准工时和预计发货算法仍需 PM/客户确认。
 - 进行中订单是否允许 ADMIN 调整节点仍需确认；默认不允许增删节点，只允许员工绑定/转派。
-- `docs/api/openapi.yaml` 当前已通过自定义契约检查、Swagger validate 和 Redocly lint；9D.10 后当前为 61 个 path / 72 个 operation / 72 个唯一 `operationId`，并已补 Multipart 上传、status 恢复、pending 恢复候选接口和 schema；后续新增接口时必须继续同步契约并保持 `npm run check:openapi` 通过。
+- `docs/api/openapi.yaml` 当前已通过自定义契约检查、Swagger validate 和 Redocly lint；9D.47 后当前为 67 个 path / 78 个 operation / 78 个唯一 `operationId`，并已补 Multipart 上传、status 恢复、pending 恢复候选接口、refresh/logout 接口、`LoginRequest.portal` 登录入口枚举、动态表单 create/update/status schema、设计稿多文件、终检发货门禁、DeepSeek 适配、终检报告接口、返工关闭接口、返工字典接口、`REWORK_CREATED` / `REWORK_CLOSED` 通知事件说明、`AI_BUDGET_EXCEEDED` 预算通知、`AI_BUDGET_NOTIFICATION_ENABLED=false` 策略说明、`AI_BUDGET_CIRCUIT_BREAKER_ENABLED=true` 熔断降级说明、`AI_BUDGET_CIRCUIT_OPEN` 治理审计说明、`ai_external_alert_outbox` 外部告警待发送事实和 `SENT/FAILED/DEAD_LETTER/SENDING`、`attempts`、`last_error` 发送器状态机说明、`AI_BUDGET_ROLE_CIRCUIT_OPEN` 和角色预算环境变量说明、`AI_BUDGET_MODEL_CIRCUIT_OPEN` 和 `AI_DEEPSEEK_DAILY_BUDGET_MICROUSD` 模型预算说明、`prompt_version` 与 `AI_OUTPUT_GUARDED` 输出防护说明、`/ai/governance/cost-trend` 成本趋势接口、`AI_EXTERNAL_ALERT_WEBHOOK_ENABLED` / `AI_EXTERNAL_ALERT_WEBHOOK_URL` webhook 发送说明、`AI_EXTERNAL_ALERT_SCHEDULER_ENABLED` 调度器说明、`AI_EXTERNAL_ALERT_MAX_ATTEMPTS` 重试/死信说明、AI 外部告警幂等/并发领取说明、`AI_EXTERNAL_ALERT_WEBHOOK_SIGNING_ENABLED` / `AI_EXTERNAL_ALERT_WEBHOOK_SIGNING_SECRET` 和 `X-AI-Alert-Signature` HMAC 签名说明、`PerformanceStats` 绩效责任归因字段、`ReworkRecordResponse` 返工影响审计字段、`/reworks` 的 `has_impacted_nodes` 筛选参数、`/performance/details` 绩效明细接口，以及 AI 治理摘要的 `daily_budget_microusd`、`budget_exceeded`、`budget_alert_count`、`latest_budget_alert_at` 字段；后续新增接口时必须继续同步契约并保持 `npm run check:openapi` 通过。
 
 ## 重要文件
 
@@ -255,6 +332,9 @@ Task 8 已完成 8A readiness audit、8B OpenAPI 二次契约、9A Bearer 身份
 - `backend/platform-server/src/main/java/com/yuri/aiorder/common/auth/AuthStartupValidator.java`：任务 9B.7 生产鉴权启动门禁。
 - `backend/platform-server/src/main/resources/application-prod.yml`：任务 9B.7 生产 profile 鉴权配置。
 - `backend/platform-server/src/test/java/com/yuri/aiorder/auth/AuthStartupValidatorTests.java`：任务 9B.7 生产门禁回归测试。
+- `backend/platform-server/src/main/java/com/yuri/aiorder/common/auth/RefreshTokenService.java`：任务 9B.8 refresh token 哈希存储、刷新和 logout 吊销服务。
+- `backend/platform-server/src/main/resources/db/migration/V12__auth_refresh_token.sql`：任务 9B.8 refresh token 持久化表迁移。
+- `scripts/check-auth-refresh.mjs`：任务 9B.8 Refresh Token/logout 关键文本检查。
 - `backend/platform-server/src/main/java/com/yuri/aiorder/notification/`：任务 9C.1 WebSocket 通知配置、鉴权拦截器、连接处理器和在线推送服务。
 - `backend/platform-server/src/test/java/com/yuri/aiorder/notification/NotificationWebSocketTests.java`：任务 9C.1 WebSocket 在线推送回归测试。
 - `backend/platform-server/src/main/java/com/yuri/aiorder/notification/NotificationController.java`：任务 9C.2 通知列表、未读数、单条已读和全部已读 REST 接口。
@@ -271,28 +351,4 @@ Task 8 已完成 8A readiness audit、8B OpenAPI 二次契约、9A Bearer 身份
 
 ## 下一步
 
-建议下一轮继续做真实弱网限速/断网和跨设备浏览器续传验收，或扩展 9D.9 后续的返工关闭 / 责任分类 / 终检发货拦截；同时保留 Task 8 总体 `NOT READY` 结论，直到完整前端业务页面、真实 DeepSeek 和部署交付材料补齐。
-
-- 已完成任务 9D.20 复杂返工影响范围第一增量：后道出检失败返到前道节点时，沿 `order_process_edge` 递归重置返工目标后续 `READY/COMPLETED` 节点为 `PENDING`。
-
-- 已完成任务 9D.21 绩效归因联动第一增量：`/performance` 新增生产责任、非生产责任和未归因返工拆分统计；Task 8 仍 NOT READY。
-
-- 2026-07-02 9D.22 返工影响审计可视化第一增量：已在返工记录中保存并展示受影响后续节点数量和 ID；Task 8 总体仍保持 NOT READY。
-
-- 2026-07-02 9D.23 返工影响筛选第一增量：已在 `/reworks` 增加 `has_impacted_nodes` 筛选并在返工终检页提供“仅看影响后续工序”入口；Task 8 总体仍保持 NOT READY。
-
-- 2026-07-02 9D.25 绩效明细第一增量：已新增 `/performance/details` 和前端“工时明细”表，用于核对绩效汇总来源；Task 8 总体仍保持 NOT READY，仍缺绩效周期筛选/完整公式/申诉闭环、生产级 AI 治理和生产部署。
-
-- 2026-07-02 9D.26 AI 调用限流第一增量：已为真实模型调用新增 `AI_MAX_REQUESTS_PER_USER_HOUR` 每用户小时限流，超额返回 429 且写 `AI_RATE_LIMITED` 审计；Task 8 总体仍保持 NOT READY，仍缺成本统计、提示词版本、输出防护、降级告警和生产部署。
-
-- 2026-07-02 9D.27 AI 成本审计第一增量：已新增 `estimated_cost_microusd` 审计字段和 `AI_INPUT_TOKEN_COST_MICROUSD` / `AI_OUTPUT_TOKEN_COST_MICROUSD` 配置，用 token usage 估算单次调用成本；Task 8 总体仍保持 NOT READY，仍缺成本汇总、提示词版本、输出防护、重试/熔断和生产部署。
-
-- 2026-07-02 9D.28 AI 模型重试第一增量：已新增 `AI_MODEL_MAX_RETRIES`，真实模型短暂 5xx 或连接异常默认重试 1 次；Task 8 总体仍保持 NOT READY，仍缺熔断/降级告警、提示词版本、输出防护、预算告警、真实 key 联调和生产部署。
-
-- 2026-07-02 9D.29 AI 模型失败审计第一增量：已新增 `AI_MODEL_FAILED` 失败审计，真实模型重试耗尽后返回 503；Task 8 总体仍保持 NOT READY，仍缺熔断/降级告警、失败聚合、提示词版本、输出防护、预算告警、真实 key 联调和生产部署。
-
-- 2026-07-02 9D.30 AI 治理摘要第一增量：已新增 `/ai/governance/summary` 近 24 小时治理摘要，只读聚合 `ai_audit_log`；Task 8 总体仍保持 NOT READY，仍缺预算阈值、告警推送、熔断/降级、提示词版本、输出防护、真实 key 联调和生产部署。
-
-- 2026-07-02 9D.31 AI 预算阈值第一增量：已新增 `AI_DAILY_BUDGET_MICROUSD` 和治理摘要 `budget_exceeded` 标记；Task 8 总体仍保持 NOT READY，仍缺预算告警推送、分角色/分模型预算、熔断/降级、提示词版本、输出防护、真实 key 联调和生产部署。
-
-- 2026-07-02 9D.32 AI 预算超限审计第一增量：已新增 `AI_BUDGET_EXCEEDED` 跨线审计和治理摘要 `budget_alert_count` / `latest_budget_alert_at`；Task 8 总体仍保持 NOT READY，仍缺预算通知推送、分角色/分模型预算、熔断/降级、提示词版本、输出防护、真实 key 联调和生产部署。
+下一轮唯一推荐目标：继续做生产端前端展示的后端适配队列，优先做奖惩管理的“真实只读汇总接口 + 前端接入 + 医生端隔离”闭环；若转回 AI 治理主线，则做 9D.48 AI 外部告警监控/运维可观察第一增量。Task 8 总体仍保持 `NOT READY`，直到生产级防重放、真实弱网/跨设备续传、终检专用角色/附件、完整返工闭环、绩效完整公式/周期/申诉/标准工时配置、生产端新增管理模块后端、AI 治理闭环和部署交付材料补齐。

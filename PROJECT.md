@@ -8,10 +8,11 @@
 
 ## 当前依据
 
-- PRD V1.0：一期产品范围边界。
-- TRD V1.1 深度研究优化版：当前技术执行口径。
+- 2026-07 新版 PRD V1.0：最新一期产品范围边界。
+- 2026-07 新版 TRD V1.0.1：最新技术执行口径。
+- 2026-07 新版 API 规范：最新业务接口口径，不直接覆盖仓库当前稳定契约。
 - 生产流程文档：9 类牙科产品工艺路线来源。
-- OpenAPI YAML：接口契约，稳定版位于 `docs/api/openapi.yaml`。
+- OpenAPI YAML：接口契约，稳定版位于 `docs/api/openapi.yaml`，后续按“新版 API 业务口径 + 当前已实现增量”合并维护。
 
 ## 目标用户
 
@@ -29,7 +30,7 @@
 - 管理端 9 条工序链只读查看、订单工序实例查看、派工、转派、审计。
 - 5 个 AI 智能体：翻译助手、客服查询助手、客户订单助手、资料缺失助手、生产备注助手。
 - MinIO 私有桶、短时效签名 URL、WebSocket 通知、Docker 部署。
-- TRD V1.1 技术红线：订单外部投影、AI-3 安全读模型、文件服务端鉴权后签名、AI 工具白名单、通知先落库再推送、权限/文件/AI/状态专项测试。
+- 既有技术红线：订单外部投影、AI-3 安全读模型、文件服务端鉴权后签名、AI 工具白名单、通知先落库再推送、权限/文件/AI/状态专项测试。
 
 ## 一期明确不做
 
@@ -49,14 +50,19 @@
 ## 关键技术边界
 
 - 订单必须维护 `internal_status` 和 `external_status` 两套状态。
+- 登录当前采用短时效 HMAC Bearer access token + 可吊销 refresh token 第一增量；refresh token 只保存 hash，logout 吊销 refresh token，后续仍需确认 refresh token 轮换、access token 黑名单或完整 Spring Security/JWT 策略。
 - 医生端只能使用 `external_status`。
 - 状态更新必须统一封装在 `OrderStatusService`。
 - 所有内部状态和工序节点状态变化后，由 `OrderStatusProjector` 统一刷新 `external_status` 与 `order_external_projection`。
 - 医生端订单详情、医生端 AI、医生端 WebSocket 必须读取 `order_external_projection` 或医生端安全读模型。
 - 工艺流采用「定义表 + 边表 + 订单快照表」表达 DAG、分支、并联、可选节点。
+- Workflow Runtime 内部保留 `READY` 作为可执行技术状态；对外业务文案和 API 评审可映射为 `PENDING/待处理`。
+- 生产节点默认强制入检/出检；除非客户给出明确免检清单，否则不跳过检查流程。
 - 生产审核通过时生成订单工序实例，订单实例必须和后续模板修改解耦。
 - AI 默认以后端 `ai-gateway` 模块承载；如 PM 指定独立 LangChain 服务，再独立容器部署。AI 服务不得直连 MySQL。
 - 文件上传默认 Uppy + MinIO 私有桶 + 服务端预签名参数；大文件按阈值启用 S3 Multipart，上传完成后必须调用后端 complete 并校验对象存在、大小、类型、etag。
+- 动态表单后台 CRUD 第一增量采用 ADMIN `form:manage` 管理权限；医生端只读 `ACTIVE` 字段，字段停用采用 `status=INACTIVE` 逻辑停用，不物理删除历史配置。
+- 设计稿多文件第一增量保留 `design_draft.file_id` 作为兼容主文件，同时使用 `design_draft_file` 关联表保存同一版本的多个文件。
 - WebSocket 推送不是事实来源；通知事件先写 `notification_event`，再在线推送并通过 `user_notification` 做未读补偿。
 
 ## 验收红线
@@ -80,3 +86,10 @@
 - 设计稿医生确认是否阻塞后续生产节点。
 - AI-5 生产备注模板何时由客户提供；未提供前仅做通用规范化草稿。
 - 标准工时、预计发货算法、付款状态仍需确认。
+
+## 下一阶段优先级
+
+1. 完整返工闭环后续：返工影响范围图形化、绩效周期筛选/完整公式、责任字典后台维护，以及终检专用角色/附件。
+2. 生产级 AI 治理：限流、重试、成本统计、提示词版本、真实 key 环境联调和输出防护。
+3. 生产级鉴权细化。
+4. 生产部署、备份、真实弱网/跨设备验收。

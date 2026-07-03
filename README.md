@@ -4,7 +4,11 @@
 
 ## 当前仓库状态
 
-当前已完成项目工作流初始化、任务 0：接口契约与项目基线、任务 0.1：TRD V1.1 对齐与开发计划冻结、任务 1：项目骨架初始化、任务 2：数据库模型与 9 条工序链初始化、任务 3：订单状态投影与医生端脱敏基础、任务 4：文件上传与访问权限、任务 5A：Workflow Runtime 与工序节点状态机、任务 5B：入检 / 出检 / 返工 / 工时绩效、任务 6：消息、设计稿、账单物流与通知、任务 7：AI Gateway 与 5 个 AI 智能体、任务 8A readiness audit、任务 8B OpenAPI 二次契约、任务 9A Bearer 身份基线、任务 9B.1 后端权限/DataScope 守卫第一增量、任务 9B.2 数据库化 RBAC/DataScope 基础、任务 9B.3 权限注解/统一拦截器、任务 9B.4 DataScope SQL 过滤第一增量、任务 9B.5 文件/协同/AI DataScope 扩展、任务 9B.6 菜单/部门/岗位/前端权限路由第一增量、任务 9B.7 生产鉴权启动门禁第一增量、任务 9C.1 WebSocket 通知第一增量、任务 9C.2 通知未读/已读第一增量、任务 9C.3 通知实时前端/Redis 广播第一增量、任务 9D.1 医生订单工作台第一增量、任务 9D.2 医生下单第一增量、任务 9D.3 客服初审第一增量、任务 9D.4 生产审核第一增量、任务 9D.5 生产任务入口第一增量、任务 9D.6 入检/出检/工时操作页面第一增量、任务 9D.7 绩效管理页面第一增量、任务 9D.8 生产看板第一增量、任务 9D.9 返工终检第一增量、任务 9D.10 Multipart 上传第一增量、本地恢复上传第一增量、服务端候选恢复第一增量、服务端候选恢复浏览器 smoke、上传中断后恢复浏览器 smoke 和 100MB+ 浏览器上传 smoke。
+当前已完成项目工作流初始化、任务 0：接口契约与项目基线、任务 0.1：TRD V1.1 对齐与开发计划冻结、任务 1：项目骨架初始化、任务 2：数据库模型与 9 条工序链初始化、任务 3：订单状态投影与医生端脱敏基础、任务 4：文件上传与访问权限、任务 5A：Workflow Runtime 与工序节点状态机、任务 5B：入检 / 出检 / 返工 / 工时绩效、任务 6：消息、设计稿、账单物流与通知、任务 7：AI Gateway 与 5 个 AI 智能体、任务 8A readiness audit、任务 8B OpenAPI 二次契约、任务 9A Bearer 身份基线、任务 9B.1 后端权限/DataScope 守卫第一增量、任务 9B.2 数据库化 RBAC/DataScope 基础、任务 9B.3 权限注解/统一拦截器、任务 9B.4 DataScope SQL 过滤第一增量、任务 9B.5 文件/协同/AI DataScope 扩展、任务 9B.6 菜单/部门/岗位/前端权限路由第一增量、任务 9B.7 生产鉴权启动门禁第一增量、任务 9B.8 Refresh Token/logout 第一增量、任务 9C.1 WebSocket 通知第一增量、任务 9C.2 通知未读/已读第一增量、任务 9C.3 通知实时前端/Redis 广播第一增量、任务 9D.1 医生订单工作台第一增量、任务 9D.2 医生下单第一增量、任务 9D.3 客服初审第一增量、任务 9D.4 生产审核第一增量、任务 9D.5 生产任务入口第一增量、任务 9D.6 入检/出检/工时操作页面第一增量、任务 9D.7 绩效管理页面第一增量、任务 9D.8 生产看板第一增量、任务 9D.9 返工终检第一增量、任务 9D.10 Multipart 上传第一增量、本地恢复上传第一增量、服务端候选恢复第一增量、服务端候选恢复浏览器 smoke、上传中断后恢复浏览器 smoke、100MB+ 浏览器上传 smoke、任务 9D.11 医生订单草稿/补资料第一增量、任务 9D.12 动态表单 CRUD 第一增量、任务 9D.13 设计稿多文件/多版本第一增量、任务 9D.14 终检发货拦截第一增量、任务 9D.15 真实 DeepSeek 接入第一增量、任务 9D.16 终检报告第一增量、任务 9D.17 返工关闭 / 责任分类第一增量、任务 9D.18 返工字典第一增量、任务 9D.19 返工通知联动第一增量、任务 9D.20 复杂返工影响范围第一增量、任务 9D.21 绩效归因联动第一增量、任务 9D.22 返工影响审计可视化第一增量、任务 9D.23 返工影响筛选第一增量、任务 9D.24 四入口登录页与角色端口校验第一增量、任务 9D.25 绩效明细第一增量、任务 9D.26 AI 调用限流第一增量、任务 9D.27 AI 成本审计第一增量、任务 9D.28 AI 模型重试第一增量、任务 9D.29 AI 模型失败审计第一增量、任务 9D.30 AI 治理摘要第一增量、任务 9D.31 AI 预算阈值第一增量、任务 9D.32 AI 预算超限审计第一增量、任务 9D.33 AI 预算超限内部通知第一增量、任务 9D.34 AI 预算通知策略开关第一增量、任务 9D.35 AI 预算熔断/降级第一增量、任务 9D.36 前端展示导航精修、任务 9D.37 AI 预算外部告警待发送事实第一增量、任务 9D.38 AI 分角色预算第一增量、任务 9D.39 AI 分模型预算第一增量、任务 9D.40 AI 提示词版本与输出防护第一增量、任务 9D.41 AI 外部告警发送器第一增量、任务 9D.42 AI 成本趋势第一增量、任务 9D.43 AI 真实外部渠道适配第一增量、任务 9D.44 AI 外部告警调度器第一增量、任务 9D.45 AI 外部告警重试/死信第一增量、任务 9D.46 AI 外部告警幂等/并发领取第一增量、任务 9D.47 AI 外部告警 webhook 签名/鉴权第一增量。
+
+2026-07-04 交接摘要：Task 8 总体仍为 `NOT READY`；9D.47 已完成 AI 外部告警 webhook 签名/鉴权第一增量，默认不签名，显式启用并安全注入 secret 后请求携带 `X-AI-Alert-Signature: sha256=<HMAC-SHA256>`；9D.43 的 webhook 外呼和 9D.44 的调度器仍默认关闭，不提交真实密钥。下一轮唯一推荐目标是 9D.48 AI 外部告警监控/运维可观察第一增量。继续开发前请从 `STATUS.md` 和 `tasks/README.md` 的当前交接摘要开始。
+
+2026-07-03 前端演示交接摘要：9D.36 已按客户反馈完成四端导航结构修正，左侧栏和工作台快捷入口同源，主功能包含子功能；医生端订单页已拆出新建订单、我的订单、设计稿确认、账单物流、沟通留言、订单助手子栏目；客服端、生产端、管理端新增演示入口走中文占位页，管理端点击复用业务 route 时仍保持管理端菜单模板。追加按旧版 HTML 原型锁定四端主题：医生蓝、客服紫、生产青、管理端深石墨管理蓝；点击侧栏功能不会改变当前端口的侧栏结构和颜色。最新追加：四入口登录后默认进入工作台；工作台不再重复左侧栏功能入口，改为四端业务仪表盘；KPI 黑色图标已移除；工作台新增演示级趋势图；订单、生产、设计稿/数据处理类页面补快速筛选 chip、队列卡片、彩色状态 badge 和高密度表格视觉，chip 已补点击选中态和已有接口筛选联动。已通过 `npm run check:task9d36`、`npm run check:task9d24`、`npm run acceptance`、`npm run build:frontend`、`npm run smoke:task9d24`、`npm run smoke:task9d36`、`git diff --check` 和四端真实点击矩阵。
 
 接手请先读：
 
@@ -86,7 +90,9 @@ WebSocket notification: ws://localhost:8080/ws/connect?token={access_token}
 
 ## 环境变量
 
-环境变量模板位于 `.env.example`。该文件只包含本地占位值；任何真实数据库密码、MinIO 密钥、DeepSeek API Key、生产 JWT/Token 密钥都不得提交进仓库。AI Gateway 当前使用 deterministic 安全占位，不读取真实模型密钥。
+环境变量模板位于 `.env.example`。该文件只包含本地占位值；任何真实数据库密码、MinIO 密钥、DeepSeek API Key、生产 JWT/Token 密钥都不得提交进仓库。AI Gateway 默认使用 deterministic 安全占位；只有显式启用 DeepSeek 并通过环境安全注入真实 key 时才外呼模型。
+
+2026-07-01 Refresh Token/logout 第一增量新增 `APP_AUTH_REFRESH_TOKEN_TTL_SECONDS`；当前启动方式仍沿用 `.env.example` 和下列本地占位配置。
 
 后端当前会在启动时通过 Flyway 连接 MySQL；Docker Compose 同时使用 Redis、MinIO 变量启动本地基础服务。常用本地变量：
 
@@ -98,6 +104,7 @@ MYSQL_USER=ai_order
 MYSQL_PASSWORD=change-me
 APP_AUTH_TOKEN_SECRET=local-dev-change-me-auth-secret
 APP_AUTH_TOKEN_TTL_SECONDS=7200
+APP_AUTH_REFRESH_TOKEN_TTL_SECONDS=2592000
 APP_AUTH_ALLOW_BOOTSTRAP_HEADERS=true
 REDIS_PORT=6379
 REDIS_HOST=127.0.0.1
@@ -114,7 +121,47 @@ FILE_UPLOAD_URL_TTL_SECONDS=900
 FILE_PREVIEW_URL_TTL_SECONDS=900
 FILE_DOWNLOAD_URL_TTL_SECONDS=7200
 FILE_MAX_FILE_SIZE_BYTES=209715200
+AI_PROVIDER=deterministic
+AI_MAX_REQUESTS_PER_USER_HOUR=120
+AI_MODEL_MAX_RETRIES=1
+AI_INPUT_TOKEN_COST_MICROUSD=0
+AI_OUTPUT_TOKEN_COST_MICROUSD=0
+AI_DAILY_BUDGET_MICROUSD=0
+AI_ADMIN_DAILY_BUDGET_MICROUSD=0
+AI_CS_DAILY_BUDGET_MICROUSD=0
+AI_DOCTOR_DAILY_BUDGET_MICROUSD=0
+AI_WORKER_DAILY_BUDGET_MICROUSD=0
+AI_BUDGET_NOTIFICATION_ENABLED=true
+AI_BUDGET_CIRCUIT_BREAKER_ENABLED=false
+AI_DEEPSEEK_ENABLED=false
+AI_DEEPSEEK_BASE_URL=https://api.deepseek.com
+AI_DEEPSEEK_MODEL=deepseek-chat
+AI_DEEPSEEK_DAILY_BUDGET_MICROUSD=0
+AI_DEEPSEEK_TEMPERATURE=0.2
+AI_DEEPSEEK_MAX_TOKENS=800
+AI_DEEPSEEK_CONNECT_TIMEOUT_SECONDS=10
+AI_DEEPSEEK_READ_TIMEOUT_SECONDS=45
+DEEPSEEK_API_KEY=replace-with-local-dev-key
+AI_EXTERNAL_ALERT_WEBHOOK_ENABLED=false
+AI_EXTERNAL_ALERT_WEBHOOK_URL=
+AI_EXTERNAL_ALERT_WEBHOOK_CONNECT_TIMEOUT_SECONDS=5
+AI_EXTERNAL_ALERT_WEBHOOK_READ_TIMEOUT_SECONDS=10
+AI_EXTERNAL_ALERT_SCHEDULER_ENABLED=false
+AI_EXTERNAL_ALERT_SCHEDULER_BATCH_SIZE=50
+AI_EXTERNAL_ALERT_SCHEDULER_FIXED_DELAY_MILLIS=60000
+AI_EXTERNAL_ALERT_SCHEDULER_INITIAL_DELAY_MILLIS=60000
+AI_EXTERNAL_ALERT_MAX_ATTEMPTS=3
+AI_EXTERNAL_ALERT_WEBHOOK_SIGNING_ENABLED=false
+AI_EXTERNAL_ALERT_WEBHOOK_SIGNING_SECRET=
 ```
+
+DeepSeek 第一增量启用方式：设置 `AI_PROVIDER=deepseek`、`AI_DEEPSEEK_ENABLED=true`，并通过安全渠道注入真实 `DEEPSEEK_API_KEY`。本地/CI 默认保持 `deterministic`，不依赖外部网络或真实 key。
+
+AI 外部告警 webhook 第一增量启用方式：默认 `AI_EXTERNAL_ALERT_WEBHOOK_ENABLED=false`，发送器只做本地 dry-run；测试/正式环境需要真实 webhook 时，设置 `AI_EXTERNAL_ALERT_WEBHOOK_ENABLED=true` 并通过安全渠道注入 `AI_EXTERNAL_ALERT_WEBHOOK_URL`。不要把带密钥、签名或客户信息的真实 URL 写入仓库。
+
+AI 外部告警 webhook 签名第一增量启用方式：默认 `AI_EXTERNAL_ALERT_WEBHOOK_SIGNING_ENABLED=false`；测试/正式环境需要接收端验签时，设置 `AI_EXTERNAL_ALERT_WEBHOOK_SIGNING_ENABLED=true` 并通过安全渠道注入 `AI_EXTERNAL_ALERT_WEBHOOK_SIGNING_SECRET`。sender 会按 request body 生成 `X-AI-Alert-Signature: sha256=<HMAC-SHA256>`；不要把真实 signing secret 写入仓库。
+
+AI 外部告警调度器第一增量启用方式：默认 `AI_EXTERNAL_ALERT_SCHEDULER_ENABLED=false`，不会自动消费 `PENDING` outbox；测试/正式环境确认 webhook、重试和监控策略后，才可显式设置 `AI_EXTERNAL_ALERT_SCHEDULER_ENABLED=true`，并按容量配置批量大小和调度间隔。9D.45 后 webhook 失败会按 `AI_EXTERNAL_ALERT_MAX_ATTEMPTS` 控制重试，达到上限后进入 `DEAD_LETTER`；第一增量不包含分布式锁、退避调度或生产 webhook 联调。
 
 本地开发账号由 Flyway `V6__auth_rbac_datascope_foundation.sql` 初始化，仅用于本地验收：
 
@@ -145,7 +192,7 @@ docs/api/openapi.yaml
 npm run check:openapi
 ```
 
-说明：任务 9D.10 后，当前契约已覆盖 61 个 path / 72 个 operation，包含唯一 `operationId`、统一错误响应、`/auth/me` 菜单权限响应、通知未读/已读 REST、`/reworks`、Multipart 文件上传、status 恢复和 pending 恢复候选接口；Swagger validate 与 Redocly lint 均通过。
+说明：任务 9D.47 后，当前契约已覆盖 auth refresh/logout、`LoginRequest.portal` 登录入口枚举、`refreshToken` / `refreshExpiresAt`、动态表单 create/update/status、设计稿 `file_ids/file_count`、发货前终检 `OUT/PASS` 门禁说明、DeepSeek 适配与 AI-3 `SAFE_REFUSAL` 语义、终检报告生成/读取接口、返工关闭接口、返工字典接口、返工通知事件说明、`AI_BUDGET_EXCEEDED` 预算通知说明、`AI_BUDGET_NOTIFICATION_ENABLED=false` 通知策略说明、`AI_BUDGET_CIRCUIT_BREAKER_ENABLED=true` 熔断降级说明、`AI_BUDGET_CIRCUIT_OPEN` / `AI_BUDGET_ROLE_CIRCUIT_OPEN` / `AI_BUDGET_MODEL_CIRCUIT_OPEN` / `AI_OUTPUT_GUARDED` 治理审计说明、`AI_ADMIN_DAILY_BUDGET_MICROUSD` / `AI_CS_DAILY_BUDGET_MICROUSD` / `AI_DOCTOR_DAILY_BUDGET_MICROUSD` / `AI_WORKER_DAILY_BUDGET_MICROUSD` 角色预算说明、`AI_DEEPSEEK_DAILY_BUDGET_MICROUSD` 模型预算说明、`prompt_version` 提示词版本审计、`ai_external_alert_outbox` 外部告警待发送事实和 `SENT/FAILED/DEAD_LETTER/SENDING`、`attempts`、`last_error` 发送器状态机说明、`/ai/governance/cost-trend` 成本趋势接口、`AiGovernanceCostTrendResponse`、`AI_EXTERNAL_ALERT_WEBHOOK_ENABLED` / `AI_EXTERNAL_ALERT_WEBHOOK_URL` webhook 发送说明、`AI_EXTERNAL_ALERT_SCHEDULER_ENABLED` 调度器说明、`AI_EXTERNAL_ALERT_MAX_ATTEMPTS` 重试/死信说明、AI 外部告警幂等/并发领取说明、`AI_EXTERNAL_ALERT_WEBHOOK_SIGNING_ENABLED` / `AI_EXTERNAL_ALERT_WEBHOOK_SIGNING_SECRET` 与 `X-AI-Alert-Signature` HMAC 签名说明、`PerformanceStats` 绩效责任归因字段、`PerformanceDetail` 绩效明细 schema、`ReworkRecordResponse` 返工影响审计字段、`/reworks` 的 `has_impacted_nodes` 筛选参数、`/performance/details` 绩效明细接口、AI 治理摘要的 `daily_budget_microusd` / `budget_exceeded` / `budget_alert_count` / `latest_budget_alert_at` 字段、67 个 path / 78 个 operation，包含唯一 `operationId`、统一错误响应、`/auth/me` 菜单权限响应、通知未读/已读 REST、Multipart 文件上传、status 恢复和 pending 恢复候选接口；Swagger validate 与 Redocly lint 均通过。
 
 ## 检查命令
 
@@ -153,13 +200,45 @@ npm run check:openapi
 npm run acceptance
 npm run compose:up
 npm run check:openapi
+npm run check:auth-refresh
+npm run check:task9d12
+npm run check:task9d13
+npm run check:task9d14
+npm run check:task9d15
+npm run check:task9d16
+npm run check:task9d17
+npm run check:task9d18
+npm run check:task9d19
+npm run check:task9d20
+npm run check:task9d21
+npm run check:task9d22
+npm run check:task9d23
+npm run check:task9d24
+npm run check:task9d25
+npm run check:task9d36
+npm run check:task9d35
+npm run check:task9d37
+npm run check:task9d38
+npm run check:task9d39
+npm run check:task9d40
+npm run check:task9d41
+npm run check:task9d42
+npm run check:task9d43
+npm run check:task9d44
+npm run check:task9d45
+npm run check:task9d46
+npm run check:task9d47
+npm run smoke:task9d24
 npm run smoke:task9d10-large-upload
+npm run smoke:task9d10-server-resume
+npm run smoke:task9d10-interrupted-resume
+npm run check:task9d11
 npm run test:backend
 npm run build:frontend
 npm run compose:config
 ```
 
-说明：`npm run test:backend` 会加载 Spring Boot 上下文并执行 Flyway 校验，运行前需要本地 MySQL 可用。
+说明：`npm run test:backend` 会加载 Spring Boot 上下文并执行 Flyway 校验，运行前需要本地 MySQL 可用。三条 `smoke:task9d10-*` 命令需要本地后端、前端、MySQL、Redis、MinIO 和系统 Chrome 可用；它们会追加本地测试订单/文件，不会清理数据。
 
 任务 9A/9B 权限专项回归：
 
@@ -379,6 +458,626 @@ npm run build:frontend
 5. 新订单进入 PENDING_REVIEW，页面可读取订单详情，响应不得出现 internal_status、production_note、cs_user_id。
 ```
 
+任务 9B.8 Refresh Token/logout 第一增量检查：
+
+```bash
+npm run check:auth-refresh
+./scripts/with-jdk21.sh mvn -f backend/pom.xml -pl platform-server -Dtest=BearerIdentityTests,AuthStartupValidatorTests,PermissionInterceptorTests test
+npm run check:openapi
+npm run build:frontend
+```
+
+任务 9D.11 医生订单草稿/补资料第一增量检查：
+
+```bash
+npm run check:task9d11
+./scripts/with-jdk21.sh mvn -f backend/pom.xml -pl platform-server -Dtest=OrderStatusProjectionTests,PermissionInterceptorTests test
+npm run check:openapi
+npm run build:frontend
+```
+
+任务 9D.11 本地 smoke 验收方式：
+
+```text
+1. 启动 MySQL / Redis / MinIO、后端和 Vite。
+2. doctor 通过 http://127.0.0.1:5173 登录。
+3. 进入「医生订单」，填写患者姓名后点击「保存草稿」，页面显示 DRAFT。
+4. 补齐牙位后点击「提交草稿/补资料」，页面显示 PENDING_REVIEW。
+5. 本轮 smoke 订单：ORD20260701-E172DF6DD8。
+```
+
+任务 9D.12 动态表单 CRUD 第一增量检查：
+
+```bash
+npm run check:task9d12
+./scripts/with-jdk21.sh mvn -f backend/pom.xml -pl platform-server -Dtest=FormConfigManagementTests test
+npm run check:openapi
+npm run build:frontend
+```
+
+任务 9D.12 本地 smoke 验收方式：
+
+```text
+1. 启动 MySQL / Redis / MinIO、后端和 Vite。
+2. admin 通过 http://127.0.0.1:5173 登录。
+3. 进入「动态表单」，筛选或填写产品类型。
+4. 新增字段后列表出现 ACTIVE 字段；编辑字段名后列表更新。
+5. 点击「停用」后字段变为 INACTIVE，并从医生端只读 ACTIVE 列表移除。
+6. 本轮 smoke 字段：SMOKE_1782885092995 / smoke_field_1782885092995。
+```
+
+任务 9D.13 设计稿多文件/多版本第一增量检查：
+
+```bash
+npm run check:task9d13
+./scripts/with-jdk21.sh mvn -f backend/pom.xml -pl platform-server -Dtest=MessageDesignBillNotificationTests test
+npm run check:openapi
+npm run build:frontend
+```
+
+任务 9D.13 本地 smoke 验收方式：
+
+```text
+1. 启动 MySQL / Redis / MinIO、后端和 Vite。
+2. 准备一条医生可见订单和两个已完成 DESIGN_DRAFT / DOCTOR_CS 文件。
+3. cs 通过 http://127.0.0.1:5173 登录，进入「内部订单」，搜索订单并在「设计稿」页签输入多个 file_id。
+4. 上传后接口返回新版设计稿，file_count 为 2；客服审核通过后医生可见。
+5. doctor 登录「医生订单」，进入同一订单的「设计稿」页签，可看到两个文件 ID 和文件数。
+6. 本轮 smoke：订单 9D13-1782887063685，文件 761/762。
+```
+
+任务 9D.14 终检发货拦截第一增量检查：
+
+```bash
+npm run check:task9d14
+./scripts/with-jdk21.sh mvn -f backend/pom.xml -pl platform-server -Dtest=MessageDesignBillNotificationTests test
+npm run check:openapi
+npm run build:frontend
+```
+
+任务 9D.14 验收口径：
+
+```text
+1. CS/ADMIN 调用 POST /orders/{orderId}/logistics 前，订单最后一道工序节点必须已有 OUT/PASS 检查记录。
+2. 缺少终检通过记录时返回 409，不写物流、不更新 SHIPPED、不发送 ORDER_SHIPPED 通知。
+3. 生产看板详情提供承运商、物流单号和「录入物流并发货」入口；遇到 409 时显示“终检出检通过后才能发货”。
+4. 本轮浏览器 smoke：admin 搜索订单 `9D14-1939db70751a`，录入物流 `SF-1782889291788` 后页面显示发货成功，数据库核验订单与物流均为 `SHIPPED`。
+```
+
+任务 9D.15 真实 DeepSeek 接入第一增量检查：
+
+```bash
+npm run check:task9d15
+./scripts/with-jdk21.sh mvn -f backend/pom.xml -pl platform-server -Dtest=AiGatewayDeepSeekTests test
+./scripts/with-jdk21.sh mvn -f backend/pom.xml -pl platform-server -Dtest=AiGatewayTests,AiGatewayDeepSeekTests test
+npm run check:openapi
+npm run build:frontend
+```
+
+任务 9D.15 验收口径：
+
+```text
+1. 默认配置 AI_PROVIDER=deterministic / AI_DEEPSEEK_ENABLED=false，本地无真实 key 时不外呼模型。
+2. 启用 AI_PROVIDER=deepseek、AI_DEEPSEEK_ENABLED=true 并注入 DEEPSEEK_API_KEY 后，AI-1/AI-2/AI-3 公开问答/AI-5 通过 OpenAI-compatible /chat/completions 调用 DeepSeek。
+3. AI-3 发送给模型的上下文只包含 DoctorOrderAssistantReadModel 公开字段；医生问内部工序/员工/工时等问题时返回 SAFE_REFUSAL，且不调用模型。
+4. ai_audit_log 记录真实 model_name、输入 token 和输出 token；AI-4 资料缺失检查继续走规则判断。
+```
+
+任务 9D.16 终检报告第一增量检查：
+
+```bash
+npm run check:task9d16
+./scripts/with-jdk21.sh mvn -f backend/pom.xml -pl platform-server -Dtest=CheckWorklogPerformanceTests test
+npm run check:openapi
+npm run build:frontend
+```
+
+任务 9D.16 验收口径：
+
+```text
+1. POST /final-inspection-reports 生成报告前，订单最后一道工序节点必须已有 OUT/PASS 终检出检记录；缺失时返回 409。
+2. 终检通过后可生成一单一份终检报告，返回 report_no、final_node_instance_id、final_check_id 和 conclusion=PASS。
+3. GET /final-inspection-reports/{orderId} 只允许内部角色读取；医生 Bearer token 返回 403。
+4. 返工终检页面提供报告摘要和「生成终检报告」最小入口。
+```
+
+任务 9D.17 返工关闭 / 责任分类第一增量检查：
+
+```bash
+npm run check:task9d17
+./scripts/with-jdk21.sh mvn -f backend/pom.xml -pl platform-server -Dtest=CheckWorklogPerformanceTests#reworkCanCloseOnlyAfterTargetOutPassAndKeepsResponsibilityClassification test
+npm run check:openapi
+npm run build:frontend
+```
+
+任务 9D.17 验收口径：
+
+```text
+1. POST /reworks/{reworkId}/close 关闭返工前，目标节点必须在来源失败检查之后重新 OUT/PASS；缺失时返回 409。
+2. 关闭成功后返回 status=DONE，并写入 reason_category、responsibility_type、close_note、closed_by_user_id 和 closed_at。
+3. GET /reworks?status=DONE 可读到关闭后的原因分类和责任类型。
+4. 返工终检页面提供原因分类、责任类型、关闭备注和「关闭返工」最小入口。
+```
+
+任务 9D.18 返工原因 / 责任类型字典第一增量检查：
+
+```bash
+npm run check:task9d18
+./scripts/with-jdk21.sh mvn -f backend/pom.xml -pl platform-server -Dtest=CheckWorklogPerformanceTests#reworkCloseUsesServerDictionaryAndRejectsUnsupportedClassification test
+npm run check:openapi
+npm run build:frontend
+```
+
+任务 9D.18 验收口径：
+
+```text
+1. GET /reworks/dictionaries 返回 reason_categories 和 responsibility_types。
+2. POST /reworks/{reworkId}/close 使用未列入字典的 reason_category 或 responsibility_type 时返回 400。
+3. 返工终检页面关闭返工的原因分类和责任类型下拉来自后端字典。
+4. 当前第一增量是后端固定字典，不是后台可维护字典。
+```
+
+任务 9D.19 返工通知联动第一增量检查：
+
+```bash
+npm run check:task9d19
+./scripts/with-jdk21.sh mvn -f backend/pom.xml -pl platform-server -Dtest=CheckWorklogPerformanceTests#reworkLifecycleEmitsInternalNotificationsWithoutDoctorRecipient test
+npm run check:openapi
+```
+
+任务 9D.19 验收口径：
+
+```text
+1. 出检失败生成返工记录后，写入 REWORK_CREATED / WORKER 通知事件，并给目标技工写 user_notification。
+2. 返工关闭后，写入 REWORK_CLOSED / CS 通知事件，并给订单客服写 user_notification。
+3. 医生用户不收到 REWORK_CREATED / REWORK_CLOSED。
+4. 当前第一增量只做内部通知事实，不做复杂 DAG 影响范围、绩效归因或生产网关验收。
+```
+
+任务 9D.20 复杂返工影响范围第一增量检查：
+
+```bash
+npm run check:task9d20
+./scripts/with-jdk21.sh mvn -f backend/pom.xml -pl platform-server -Dtest=CheckWorklogPerformanceTests#failedOutCheckResetsTargetAndCompletedDownstreamNodesForReworkImpact test
+./scripts/with-jdk21.sh mvn -f backend/pom.xml -pl platform-server -Dtest=CheckWorklogPerformanceTests test
+```
+
+任务 9D.20 验收口径：
+
+```text
+1. 后道出检失败返到前道节点时，返工目标节点进入 READY。
+2. 同一实例内从返工目标可达且已 READY/COMPLETED 的后续节点重置为 PENDING。
+3. 返工目标重新完成后，后续节点通过既有 DAG 激活规则重新 READY。
+4. 当前第一增量不删除历史检查、工时或返工记录，不新增公开 API，不处理 IN_PROGRESS 后续节点冲突确认。
+```
+
+任务 9D.21 绩效归因联动第一增量检查：
+
+```bash
+npm run check:task9d21
+./scripts/with-jdk21.sh mvn -f backend/pom.xml -pl platform-server -Dtest=CheckWorklogPerformanceTests#performanceSeparatesReworkResponsibilityAttribution test
+./scripts/with-jdk21.sh mvn -f backend/pom.xml -pl platform-server -Dtest=CheckWorklogPerformanceTests test
+```
+
+任务 9D.21 验收口径：
+
+```text
+1. /performance 保留 rework_count 作为目标节点返工总数。
+2. responsible_rework_count 统计责任类型 WORKER 的返工。
+3. non_worker_responsibility_rework_count 统计 DOCTOR / CS / SYSTEM 责任返工。
+4. unclassified_rework_count 统计未关闭或未设置责任类型的返工。
+5. 当前第一增量不做奖金公式、周期筛选、明细报表或申诉闭环。
+```
+
+任务 9D.22 返工影响审计可视化第一增量检查：
+
+```bash
+npm run check:task9d22
+./scripts/with-jdk21.sh mvn -f backend/pom.xml -pl platform-server -Dtest=CheckWorklogPerformanceTests#reworkListExposesImpactedDownstreamNodesForAudit test
+./scripts/with-jdk21.sh mvn -f backend/pom.xml -pl platform-server -Dtest=CheckWorklogPerformanceTests test
+```
+
+任务 9D.22 验收口径：
+
+```text
+1. 创建返工时记录本次实际受影响的后续节点数量和节点 ID。
+2. /reworks 返回 impacted_node_count 和 impacted_node_instance_ids。
+3. 返工终检页面展示影响后续节点数量和 ID。
+4. 当前第一增量不做图形化 DAG、筛选、导出或 IN_PROGRESS 后续节点冲突确认。
+```
+
+任务 9D.23 返工影响筛选第一增量检查：
+
+```bash
+npm run check:task9d23
+./scripts/with-jdk21.sh mvn -f backend/pom.xml -pl platform-server -Dtest=CheckWorklogPerformanceTests#reworkListCanFilterRecordsThatImpactedDownstreamNodes test
+./scripts/with-jdk21.sh mvn -f backend/pom.xml -pl platform-server -Dtest=CheckWorklogPerformanceTests test
+```
+
+任务 9D.23 验收口径：
+
+```text
+1. /reworks?has_impacted_nodes=true 只返回 impacted_node_count > 0 的返工。
+2. /reworks?has_impacted_nodes=false 只返回 impacted_node_count = 0 的返工。
+3. 返工终检页面提供“仅看影响后续工序”筛选开关。
+4. 当前第一增量不做图形化 DAG、导出或 IN_PROGRESS 后续节点冲突确认。
+```
+
+任务 9D.24 四入口登录页与角色端口校验检查：
+
+```bash
+npm run check:task9d24
+npm run smoke:task9d24
+./scripts/with-jdk21.sh mvn -f backend/pom.xml -pl platform-server -Dtest=BearerIdentityTests#databaseLoginRequiresPortalAndMatchesRoleToPortal test
+./scripts/with-jdk21.sh mvn -f backend/pom.xml -pl platform-server -Dtest=BearerIdentityTests test
+```
+
+任务 9D.24 验收口径：
+
+```text
+1. 登录页显示医生端、客服端、生产端、管理端四入口。
+2. 登录请求必须携带 portal，缺失或非法 portal 返回 400。
+3. 账号角色与入口不匹配返回 403，前端提示“账号角色与所选入口不匹配”。
+4. 登录成功后继续复用现有 RBAC 菜单，并统一默认进入工作台。
+5. `npm run smoke:task9d24` 通过真实 Chrome 依次点击四入口，并验证 doctor 不能从管理端入口登录。
+```
+
+任务 9D.36 客户演示前端展示清理检查：
+
+```bash
+npm run check:task9d36
+npm run smoke:task9d36
+npm run build:frontend
+```
+
+任务 9D.36 追加验收口径：
+
+```text
+1. 工作台不展示权限码、组件名、路由路径或角色英文码。
+2. 客服端工作台展示订单管理、沟通中心、客户管理、产品管理、配送管理、账单管理、外协管理。
+3. 生产端工作台展示人员管理、设备管理、物料异常等客户反馈入口。
+4. 登录后页头和登录页图标使用内置 SVG，不依赖图标字体英文 ligature 兜底。
+5. 医生端、客服端、生产端、管理端主题由登录入口锁定；点击侧栏功能后侧栏结构和颜色不变。
+6. 工作台不重复左侧栏功能入口，必须呈现业务仪表盘和趋势图；KPI 卡片不得显示黑色 SVG 图标；订单/队列类页面使用可点击快速筛选 chip、高密度表格和彩色状态 badge。
+```
+
+任务 9D.25 绩效明细第一增量检查：
+
+```bash
+npm run check:task9d25
+./scripts/with-jdk21.sh mvn -f backend/pom.xml -pl platform-server -Dtest=CheckWorklogPerformanceTests#performanceDetailsListCompletedWorkLogsForResolvedUser test
+./scripts/with-jdk21.sh mvn -f backend/pom.xml -pl platform-server -Dtest=CheckWorklogPerformanceTests test
+```
+
+任务 9D.25 验收口径：
+
+```text
+1. /performance/details 返回最近 100 条已完成 work log 明细。
+2. WORKER 即使传入他人 user_id，也只返回本人绩效明细。
+3. 明细包含订单号、工序、有效工时、标准工时、准时判断和完成时间。
+4. 绩效页在汇总卡片下展示“工时明细”表。
+5. 当前第一增量不做周期筛选、完整奖金/扣罚公式、标准工时后台配置或申诉闭环。
+```
+
+任务 9D.32 AI 预算超限审计第一增量检查：
+
+```bash
+npm run check:task9d32
+./scripts/with-jdk21.sh mvn -f backend/pom.xml -pl platform-server -Dtest=AiGatewayDeepSeekTests#deepSeekProviderAuditsBudgetExceededWhenDailyBudgetIsReached test
+./scripts/with-jdk21.sh mvn -f backend/pom.xml -pl platform-server -Dtest=AiGatewayTests,AiGatewayDeepSeekTests test
+./scripts/with-jdk21.sh mvn -f backend/pom.xml -pl platform-server test
+```
+
+任务 9D.32 环境变量：
+
+```text
+AI_DAILY_BUDGET_MICROUSD=0
+```
+
+说明：默认 0 不启用预算阈值。配置为正整数后，真实模型成功调用如果让近 24 小时估算成本从低于阈值跨到达到或超过阈值，会写入 `AI_BUDGET_EXCEEDED` 治理审计。该审计成本为 0，不拦截请求、不发送外部通知、不自动降级模型。
+
+任务 9D.32 验收口径：
+
+```text
+1. 配置预算阈值后，真实模型成功调用跨过近 24 小时预算阈值，会额外写入 AI_BUDGET_EXCEEDED。
+2. AI_BUDGET_EXCEEDED 使用 ai-governance-budget-exceeded 虚拟模型名，estimated_cost_microusd 为 0。
+3. /ai/governance/summary 返回 budget_alert_count 和 latest_budget_alert_at。
+4. 本轮不发送 WebSocket/外部通知，不做分角色/分模型预算，不做熔断/降级。
+```
+
+任务 9D.33 AI 预算超限内部通知第一增量检查：
+
+```bash
+npm run check:task9d33
+npm run acceptance
+npm run check:openapi
+./scripts/with-jdk21.sh mvn -f backend/pom.xml -pl platform-server -Dtest=AiGatewayDeepSeekTests#deepSeekProviderNotifiesInternalUsersWhenDailyBudgetIsReached test
+./scripts/with-jdk21.sh mvn -f backend/pom.xml -pl platform-server -Dtest=AiGatewayTests,AiGatewayDeepSeekTests,NotificationRestTests,NotificationWebSocketTests,NotificationBroadcastTests test
+```
+
+任务 9D.33 环境变量：
+
+```text
+AI_DAILY_BUDGET_MICROUSD=0
+```
+
+说明：默认 0 不启用预算阈值。配置为正整数后，真实模型成功调用如果让近 24 小时估算成本从低于阈值跨到达到或超过阈值，会先写入 `AI_BUDGET_EXCEEDED` 治理审计，再写入内部通知事实。真实模型仍需显式 `AI_PROVIDER=deepseek`、`AI_DEEPSEEK_ENABLED=true` 和外部注入 `DEEPSEEK_API_KEY`；不要把真实 key 写入仓库。
+
+任务 9D.33 验收口径：
+
+```text
+1. 预算跨线后写入 AI_BUDGET_EXCEEDED 内部通知事件。
+2. ACTIVE ADMIN / CS 可在 /notifications 看到该通知。
+3. DOCTOR / WORKER 不会收到该通知。
+4. 本轮不发送短信、邮件、企业微信等外部告警，不做熔断/降级，不新增管理页面。
+```
+
+任务 9D.34 AI 预算通知策略开关第一增量检查：
+
+```bash
+npm run check:task9d34
+npm run acceptance
+npm run check:openapi
+./scripts/with-jdk21.sh mvn -f backend/pom.xml -pl platform-server -Dtest=AiGatewayDeepSeekTests#deepSeekProviderSkipsBudgetNotificationWhenNotificationStrategyIsDisabled test
+./scripts/with-jdk21.sh mvn -f backend/pom.xml -pl platform-server -Dtest=AiGatewayDeepSeekTests test
+```
+
+任务 9D.34 环境变量：
+
+```text
+AI_BUDGET_NOTIFICATION_ENABLED=true
+```
+
+说明：默认 `true`，预算跨线按 9D.33 写内部通知。配置为 `false` 时，预算跨线仍写 `AI_BUDGET_EXCEEDED` 治理审计，但不写 `notification_event` / `user_notification`，也不触发本地 WebSocket 推送。
+
+任务 9D.34 验收口径：
+
+```text
+1. 默认配置下，预算跨线仍写内部通知。
+2. AI_BUDGET_NOTIFICATION_ENABLED=false 时，预算跨线仍写 AI_BUDGET_EXCEEDED 审计。
+3. AI_BUDGET_NOTIFICATION_ENABLED=false 时，不新增 notification_event / user_notification。
+4. 本轮不发送短信、邮件、企业微信等外部告警，不做熔断/降级，不新增管理页面。
+```
+
+任务 9D.37 AI 预算外部告警待发送事实第一增量检查：
+
+```bash
+npm run check:task9d37
+npm run acceptance
+npm run check:openapi
+./scripts/with-jdk21.sh mvn -f backend/pom.xml -pl platform-server -Dtest=AiGatewayDeepSeekTests#deepSeekProviderCreatesExternalAlertOutboxWhenDailyBudgetIsReached+deepSeekProviderCreatesExternalAlertOutboxWhenBudgetCircuitBreakerOpens test
+./scripts/with-jdk21.sh mvn -f backend/pom.xml -pl platform-server -Dtest=AiGatewayDeepSeekTests test
+```
+
+说明：9D.37 不新增环境变量，不调用真实外部渠道。预算跨线和预算熔断命中后会写入 `ai_external_alert_outbox`，`send_status=PENDING`，供后续真实外部发送器消费。payload 不包含 prompt、模型原始响应、密钥或内部生产详情。
+
+任务 9D.37 验收口径：
+
+```text
+1. 预算跨线时写入 AI_BUDGET_EXCEEDED 治理审计，并新增 AI_BUDGET_EXCEEDED 外部告警 outbox。
+2. 预算熔断命中时不访问 DeepSeek，写入 AI_BUDGET_CIRCUIT_OPEN 治理审计，并新增 AI_BUDGET_CIRCUIT_OPEN 外部告警 outbox。
+3. outbox 记录 send_status=PENDING。
+4. 本轮不发送短信、邮件、企业微信等真实外部告警，不新增发送器或管理页面。
+```
+
+任务 9D.38 AI 分角色预算第一增量检查：
+
+```bash
+npm run check:task9d38
+npm run acceptance
+npm run check:openapi
+./scripts/with-jdk21.sh mvn -f backend/pom.xml -pl platform-server -Dtest=AiGatewayDeepSeekTests#deepSeekProviderFallsBackWhenCsRoleBudgetCircuitBreakerIsOpen test
+./scripts/with-jdk21.sh mvn -f backend/pom.xml -pl platform-server -Dtest=AiGatewayDeepSeekTests test
+```
+
+说明：四个角色日预算变量默认均为 0，不启用角色预算。启用 `AI_BUDGET_CIRCUIT_BREAKER_ENABLED=true` 且对应角色预算为正数时，后端按 `ai_audit_log.actor_role` 聚合近 24 小时成功调用成本；当前角色超限后不访问 DeepSeek，返回 deterministic fallback，并写 `AI_BUDGET_ROLE_CIRCUIT_OPEN` 审计和 outbox。
+
+任务 9D.38 验收口径：
+
+```text
+1. 新 AI 审计记录写入 actor_role。
+2. CS 角色预算超限且预算熔断开启时，不访问 DeepSeek。
+3. 角色预算熔断写入 AI_BUDGET_ROLE_CIRCUIT_OPEN 和 ai-governance-budget-role-circuit-open。
+4. 角色预算熔断写入 ai_external_alert_outbox，payload 包含 role=CS。
+5. 本轮不做分模型预算、不新增管理页面、不接真实外部发送器。
+```
+
+任务 9D.39 AI 分模型预算第一增量检查：
+
+```bash
+npm run check:task9d39
+npm run acceptance
+npm run check:openapi
+./scripts/with-jdk21.sh mvn -f backend/pom.xml -pl platform-server -Dtest=AiGatewayDeepSeekTests#deepSeekProviderFallsBackWhenDeepSeekModelBudgetCircuitBreakerIsOpen test
+./scripts/with-jdk21.sh mvn -f backend/pom.xml -pl platform-server -Dtest=AiGatewayDeepSeekTests test
+```
+
+说明：DeepSeek 模型日预算变量默认 0，不启用模型预算。启用 `AI_BUDGET_CIRCUIT_BREAKER_ENABLED=true` 且 `AI_DEEPSEEK_DAILY_BUDGET_MICROUSD` 为正数时，后端按当前 `AI_DEEPSEEK_MODEL` 聚合 `ai_audit_log.model_name` 近 24 小时成功调用成本；当前模型超限后不访问 DeepSeek，返回 deterministic fallback，并写 `AI_BUDGET_MODEL_CIRCUIT_OPEN` 审计和 outbox。
+
+任务 9D.39 验收口径：
+
+```text
+1. DeepSeek 模型预算默认 0，不改变现有调用行为。
+2. deepseek-chat 模型预算超限且预算熔断开启时，不访问 DeepSeek。
+3. 模型预算熔断写入 AI_BUDGET_MODEL_CIRCUIT_OPEN 和 ai-governance-budget-model-circuit-open。
+4. 模型预算熔断写入 ai_external_alert_outbox，payload 包含 model=deepseek-chat。
+5. 本轮不做预算策略管理页面、不接真实外部发送器、不提交真实 key。
+```
+
+任务 9D.40 AI 提示词版本与输出防护第一增量检查：
+
+```bash
+npm run check:task9d40
+npm run acceptance
+npm run check:openapi
+./scripts/with-jdk21.sh mvn -f backend/pom.xml -pl platform-server -Dtest=AiGatewayDeepSeekTests#deepSeekProviderAuditsPromptVersionForAiTranslate+deepSeekProviderGuardsSensitiveModelOutputAndAuditsIt test
+./scripts/with-jdk21.sh mvn -f backend/pom.xml -pl platform-server -Dtest=AiGatewayDeepSeekTests test
+```
+
+说明：9D.40 新增 `ai_audit_log.prompt_version`，AI 审计按 `agent_code` 写入固定版本号。真实模型输出命中密钥、token、系统表、文件表、审计表或明确内部泄露模式时，后端不返回原始模型文本，改为安全保护文案，并写入 `AI_OUTPUT_GUARDED` / `ai-governance-output-guard` 治理审计。
+
+任务 9D.40 验收口径：
+
+```text
+1. AI 审计存在 prompt_version。
+2. AI_TRANSLATE 成功审计写入 AI_TRANSLATE_V1。
+3. 敏感模型输出不进入 HTTP 响应。
+4. 输出防护命中写入 AI_OUTPUT_GUARDED 和 ai-governance-output-guard。
+5. 本轮不做提示词后台管理、不做流式输出过滤、不接真实外部发送器。
+```
+
+任务 9D.41 AI 外部告警发送器第一增量检查：
+
+```bash
+npm run check:task9d41
+npm run acceptance
+npm run check:openapi
+./scripts/with-jdk21.sh mvn -f backend/pom.xml -pl platform-server -Dtest=AiExternalAlertSenderTests test
+./scripts/with-jdk21.sh mvn -f backend/pom.xml -pl platform-server test
+```
+
+说明：9D.41 新增 `AiExternalAlertSenderService#sendPendingAlerts`。本地 `EXTERNAL_ALERT` 通道作为 dry-run 发送成功，标记 `SENT`、累计 `attempts` 并清空 `last_error`；未知通道标记 `FAILED`、累计 `attempts` 并写入 `last_error`。本轮不调用真实外部渠道，不需要短信、邮件、企业微信或其他密钥。
+
+任务 9D.41 验收口径：
+
+```text
+1. PENDING + EXTERNAL_ALERT outbox 可推进为 SENT。
+2. SENT 时 attempts 累计，last_error 清空。
+3. 未支持通道推进为 FAILED。
+4. FAILED 时 attempts 累计，last_error 记录错误原因。
+5. 本轮不接真实外部渠道、不新增密钥、不做定时调度。
+```
+
+任务 9D.42 AI 成本趋势第一增量检查：
+
+```bash
+npm run check:task9d42
+npm run acceptance
+npm run check:openapi
+./scripts/with-jdk21.sh mvn -f backend/pom.xml -pl platform-server -Dtest=AiGatewayTests#aiGovernanceCostTrendGroupsRecentSuccessCostByDayForInternalUsers+aiGovernanceCostTrendRejectsDoctorUsers test
+./scripts/with-jdk21.sh mvn -f backend/pom.xml -pl platform-server test
+```
+
+说明：9D.42 新增 `GET /ai/governance/cost-trend?days=7`。接口只对 CS / ADMIN 开放，按 `ai_audit_log.result_status=SUCCESS` 的成功模型调用聚合最近 1-31 天每日 `success_count`、`estimated_cost_microusd` 和 `model_count`，并返回窗口总成功次数和总估算成本。
+
+任务 9D.42 验收口径：
+
+```text
+1. CS / ADMIN 可读取 AI 成本趋势。
+2. DOCTOR 访问成本趋势返回 403。
+3. points 按日期聚合成功调用成本、成功次数和模型数量。
+4. 失败、限流、熔断等治理审计不计入成本趋势。
+5. 本轮不做前端图表、不接真实账单、不新增密钥。
+```
+
+任务 9D.43 AI 真实外部渠道适配第一增量检查：
+
+```bash
+npm run check:task9d43
+npm run acceptance
+npm run check:openapi
+./scripts/with-jdk21.sh mvn -f backend/pom.xml -pl platform-server -Dtest=AiExternalAlertSenderTests test
+./scripts/with-jdk21.sh mvn -f backend/pom.xml -pl platform-server test
+```
+
+说明：9D.43 新增默认关闭的外部告警 webhook 配置。`EXTERNAL_ALERT` 默认仍按本地 dry-run 标记 `SENT`；只有设置 `AI_EXTERNAL_ALERT_WEBHOOK_ENABLED=true` 且提供 `AI_EXTERNAL_ALERT_WEBHOOK_URL` 时，发送器才会把 outbox payload 以 `application/json` POST 到 webhook。9D.45 后，非 2xx 或连接异常会写入 `last_error`，未达 `AI_EXTERNAL_ALERT_MAX_ATTEMPTS` 保持 `PENDING`，达到上限进入 `DEAD_LETTER`。
+
+任务 9D.43 验收口径：
+
+```text
+1. 默认配置不外呼，仍兼容 9D.41 dry-run。
+2. 显式启用 webhook 后会发送 outbox payload。
+3. webhook 2xx 时 outbox 标记 SENT。
+4. webhook 非 2xx 或连接异常时写 last_error，并由 9D.45 负责有限重试/死信。
+5. 本轮不提交真实 webhook、短信、邮件、企业微信密钥，不做调度器或死信。
+```
+
+任务 9D.44 AI 外部告警调度器第一增量检查：
+
+```bash
+npm run check:task9d44
+npm run acceptance
+npm run check:openapi
+./scripts/with-jdk21.sh mvn -f backend/pom.xml -pl platform-server -Dtest=AiExternalAlertSenderTests test
+./scripts/with-jdk21.sh mvn -f backend/pom.xml -pl platform-server test
+```
+
+说明：9D.44 新增默认关闭的 `AiExternalAlertScheduler`。`AI_EXTERNAL_ALERT_SCHEDULER_ENABLED=false` 时，即使调度方法被调用也不处理 outbox；显式设置为 `true` 后，调度器按 `AI_EXTERNAL_ALERT_SCHEDULER_BATCH_SIZE` 批量调用既有 sender。实际发送仍复用 9D.43 的 dry-run/webhook 门禁。
+
+任务 9D.44 验收口径：
+
+```text
+1. 默认配置不自动调度 PENDING outbox。
+2. 显式启用 scheduler 后按批次调用既有 sender。
+3. 调度器不绕过 9D.43 的 webhook 默认关闭与外部 URL 安全注入边界。
+4. `.env.example`、application.yml、OpenAPI、acceptance 和 README 均同步 scheduler 配置。
+5. 本轮不做分布式锁、复杂重试、死信、真实短信/邮件/企业微信密钥或生产 webhook 联调。
+```
+
+任务 9D.45 AI 外部告警重试/死信第一增量检查：
+
+```bash
+npm run check:task9d45
+npm run acceptance
+npm run check:openapi
+./scripts/with-jdk21.sh mvn -f backend/pom.xml -pl platform-server -Dtest=AiExternalAlertSenderTests test
+./scripts/with-jdk21.sh mvn -f backend/pom.xml -pl platform-server test
+```
+
+说明：9D.45 新增 `AI_EXTERNAL_ALERT_MAX_ATTEMPTS`，默认 3。webhook 失败时会累计 `attempts` 并写 `last_error`；未达到最大尝试次数时保持 `PENDING` 等待下次调度，达到上限后标记 `DEAD_LETTER`，避免调度器无限重复发送。
+
+任务 9D.45 验收口径：
+
+```text
+1. webhook 失败且未达最大尝试次数时，outbox 保持 PENDING。
+2. webhook 失败达到最大尝试次数时，outbox 进入 DEAD_LETTER。
+3. 每次失败都会累计 attempts 并记录 last_error。
+4. 默认 dry-run 和 webhook 成功路径仍保持 SENT。
+5. 本轮不做分布式锁、退避调度、死信管理页面、真实短信/邮件/企业微信密钥或生产 webhook 联调。
+```
+
+任务 9D.46 AI 外部告警幂等/并发领取第一增量检查：
+
+```bash
+npm run check:task9d46
+npm run acceptance
+npm run check:openapi
+./scripts/with-jdk21.sh mvn -f backend/pom.xml -pl platform-server -Dtest=AiExternalAlertSenderTests test
+./scripts/with-jdk21.sh mvn -f backend/pom.xml -pl platform-server test
+```
+
+说明：9D.46 新增事务内 `SENDING` 领取态。sender 会先用条件更新把 `PENDING` outbox 领取为 `SENDING`，领取成功后才允许 dry-run 或 webhook 外呼；重复触发或并发 sender 不会重复发送同一条 outbox。
+
+任务 9D.46 验收口径：
+
+```text
+1. 第一个 sender 已开始 webhook 发送但未结束时，第二个 sender 不会对同一条 outbox 发起第二次 webhook。
+2. 并发后 outbox 最终只累计一次 attempts，成功路径为 SENT。
+3. 默认 dry-run、unsupported channel、webhook 失败重试和死信路径仍保持原语义。
+4. 本轮不做签名/鉴权、退避调度、告警抑制、监控指标、真实短信/邮件/企业微信密钥或生产 webhook 联调。
+```
+
+任务 9D.47 AI 外部告警 webhook 签名/鉴权第一增量检查：
+
+```bash
+npm run check:task9d47
+npm run acceptance
+npm run check:openapi
+./scripts/with-jdk21.sh mvn -f backend/pom.xml -pl platform-server -Dtest=AiExternalAlertSenderTests test
+./scripts/with-jdk21.sh mvn -f backend/pom.xml -pl platform-server test
+```
+
+说明：9D.47 新增默认关闭的 webhook HMAC 签名。显式设置 `AI_EXTERNAL_ALERT_WEBHOOK_SIGNING_ENABLED=true` 并通过安全渠道注入 `AI_EXTERNAL_ALERT_WEBHOOK_SIGNING_SECRET` 后，sender 会按 request body 发送 `X-AI-Alert-Signature: sha256=<HMAC-SHA256>`；签名开启但 secret 为空时，不发送未签名 webhook，而是进入既有失败/重试/死信链路。
+
+任务 9D.47 验收口径：
+
+```text
+1. 默认关闭签名时，既有 webhook 成功路径不携带 X-AI-Alert-Signature。
+2. 开启签名并提供 secret 时，webhook 请求携带 X-AI-Alert-Signature。
+3. 签名值等于 sha256= + HMAC-SHA256(secret, requestBody)。
+4. 本轮不做 timestamp/nonce 防重放、接收端验签服务、真实短信/邮件/企业微信密钥或生产 webhook 联调。
+```
+
 任务 9D.10 100MB+ Multipart 浏览器 smoke：
 
 ```bash
@@ -463,15 +1162,16 @@ npm run build:frontend
 
 ```text
 NOT READY。
-后端最小链路已有 smoke 基线，OpenAPI 当前后端基线已二次冻结，Bearer 身份基线、后端集中权限守卫、数据库化 RBAC/DataScope 基础、菜单/部门/岗位与前端权限路由第一增量、权限注解/统一拦截器、订单/工序实例 DataScope SQL 第一增量、文件/协同/AI DataScope 扩展、生产鉴权启动门禁第一增量、WebSocket 通知第一增量、通知未读/已读第一增量、通知实时前端/Redis 广播第一增量、医生订单工作台第一增量、医生下单第一增量、客服初审第一增量、生产审核第一增量、生产任务入口第一增量、入检/出检/工时操作页面第一增量、绩效管理页面第一增量、生产看板第一增量、返工终检第一增量、Multipart 上传第一增量、本地恢复上传第一增量、服务端候选恢复第一增量、服务端候选恢复浏览器 smoke、上传中断后恢复浏览器 smoke 和 100MB+ 浏览器上传 smoke 已落地。
-正式上线仍缺完整 RuoYi 管理 UI、通用 DataScope SQL 拦截器、真实弱网/跨设备续传、返工关闭/责任分类/终检发货拦截/管理绩效等完整前端业务页面、WebSocket 生产网关/真实多实例验收、真实 DeepSeek、HTTPS/备份/监控/操作手册等硬条件。
+后端最小链路已有 smoke 基线，OpenAPI 当前后端基线已二次冻结，Bearer 身份基线、后端集中权限守卫、数据库化 RBAC/DataScope 基础、菜单/部门/岗位与前端权限路由第一增量、权限注解/统一拦截器、订单/工序实例 DataScope SQL 第一增量、文件/协同/AI DataScope 扩展、生产鉴权启动门禁第一增量、Refresh Token/logout 第一增量、WebSocket 通知第一增量、通知未读/已读第一增量、通知实时前端/Redis 广播第一增量、医生订单工作台第一增量、医生下单第一增量、客服初审第一增量、生产审核第一增量、生产任务入口第一增量、入检/出检/工时操作页面第一增量、绩效管理页面第一增量、生产看板第一增量、返工终检第一增量、Multipart 上传第一增量、本地恢复上传第一增量、服务端候选恢复第一增量、服务端候选恢复浏览器 smoke、上传中断后恢复浏览器 smoke、100MB+ 浏览器上传 smoke、医生订单草稿/补资料第一增量、动态表单 CRUD 第一增量、设计稿多文件/多版本第一增量、终检发货拦截第一增量、真实 DeepSeek 接入第一增量、终检报告第一增量、返工关闭/责任分类第一增量、返工字典第一增量、返工通知联动第一增量、复杂返工影响范围第一增量、绩效归因联动第一增量、返工影响审计可视化第一增量、返工影响筛选第一增量、绩效明细第一增量、AI 分角色预算第一增量、AI 分模型预算第一增量、AI 提示词版本与输出防护第一增量、AI 外部告警发送器第一增量、AI 成本趋势第一增量、AI 真实外部渠道适配第一增量、AI 外部告警调度器第一增量、AI 外部告警重试/死信第一增量、AI 外部告警幂等/并发领取第一增量和 AI 外部告警 webhook 签名/鉴权第一增量已落地。
+正式上线仍缺完整 RuoYi 管理 UI、通用 DataScope SQL 拦截器、真实弱网/跨设备续传、设计稿预览 URL 聚合、返工影响图形化、绩效完整公式/周期/申诉/标准工时配置、终检专用角色/附件/管理绩效等完整前端业务页面、WebSocket 生产网关/真实多实例验收、外部告警接收端验签/防重放/生产联调、提示词后台管理、流式输出过滤、真实 key 联调、HTTPS/备份/监控/操作手册等硬条件。
 ```
 
 鉴权说明：
 
 ```text
-登录接口当前返回服务端签发的 Bearer token。
+登录接口当前返回服务端签发的 Bearer access token、refresh token 和 `refreshExpiresAt`。
 登录接口当前读取数据库账号、角色、权限、data scope 和可见菜单；Bearer token payload 包含 `username`、`user_id`、`clinic_id`、`permissions` 和 `data_scope`。
+Refresh token 只以 SHA-256 hash 形式保存到 `auth_refresh_token`；`/api/auth/refresh` 可换发新的 access token，`/api/auth/logout` 会吊销 refresh token。第一增量不轮换 refresh token，也不做 access token 服务端黑名单，已签发 access token 等待自然过期。
 后端已有 `AccessControlService` 集中守卫，覆盖派工/转派/跳过节点、医生检查记录拒绝、WORKER/ADMIN 绩效范围等高风险点。
 后端已有 `@RequirePermission` 与 `PermissionInterceptor`，对当前业务 Controller 入口做权限码校验；本地 `X-Bootstrap-*` 兼容路径仅作为 smoke 角色 fallback。
 后端已有 `BootstrapIdentityArgumentResolver`，业务 Controller 不再直接解析 `X-Bootstrap-*`；订单详情、AI-3 安全读模型、工序实例、文件读取、协同订单范围和 AI 内部上下文读取已加入 SQL DataScope 过滤；前端骨架会按后端 `menus` 渲染入口。
@@ -481,14 +1181,14 @@ WebSocket 通知使用 /ws/connect?token={accessToken}；服务端校验 Bearer 
 通知 REST 已提供 /notifications、/notifications/unread-count、/notifications/{notificationId}/read、/notifications/read-all；前端骨架登录后有「通知中心」入口，支持未读数、列表、单条已读和全部已读。
 本地 Vite 已代理 `/notifications` 和 `/ws` 到后端，通知中心不走 `/api/notifications`。
 Redis 多实例广播默认关闭；需要联调多实例时设置 `NOTIFICATION_REDIS_BROADCAST_ENABLED=true`，并为每个后端实例配置不同 `APP_INSTANCE_ID`。
-医生订单工作台使用 `/orders`、`/form-configs`、`/files/multipart/*`、`/files/{fileId}/multipart/status`、`/orders/{orderId}/messages`、`/orders/{orderId}/design-drafts`、`/orders/{orderId}/bill`、`/orders/{orderId}/logistics` 和 `/ai/order-query`；客服初审入口使用 `/orders?internal_status=PENDING_CS_REVIEW` 和 `/orders/{orderId}/review`；生产审核入口使用 `/orders?internal_status=PENDING_PRODUCTION_REVIEW`、`/workflow-chains` 和 `/orders/{orderId}/production-review`；生产任务入口使用 `/orders?internal_status=PROCESS_INSTANCE_CREATED`、`/orders/{orderId}/process-instance`、派工/转派接口、`/tasks/mine` 和 `/process-instance/nodes/{nodeInstanceId}/start|complete`；质检工时入口使用 `/tasks/mine`、`/check-records` 和 `/work-logs/*`；绩效入口使用 `/performance`；生产看板入口使用 `/orders` 跨内部状态检索和 `/orders/{orderId}/process-instance` 查看节点进度；返工终检入口使用 `/reworks`、`/tasks/mine?status=COMPLETED` 和 `/check-records`；本地 Vite 已代理 `/api`、`/notifications`、`/ws`、`/orders`、`/files`、`/form-configs`、`/workflow-chains`、`/tasks`、`/process-instance`、`/check-records`、`/reworks`、`/work-logs`、`/performance` 与 `/ai`。
+医生订单工作台使用 `/orders`、`/form-configs`、`/files/multipart/*`、`/files/{fileId}/multipart/status`、`/orders/{orderId}/messages`、`/orders/{orderId}/design-drafts`、`/orders/{orderId}/bill`、`/orders/{orderId}/logistics` 和 `/ai/order-query`；客服初审入口使用 `/orders?internal_status=PENDING_CS_REVIEW`、`/orders/{orderId}/review` 和 `/orders/{orderId}/design-drafts` 多文件设计稿上传；生产审核入口使用 `/orders?internal_status=PENDING_PRODUCTION_REVIEW`、`/workflow-chains` 和 `/orders/{orderId}/production-review`；生产任务入口使用 `/orders?internal_status=PROCESS_INSTANCE_CREATED`、`/orders/{orderId}/process-instance`、派工/转派接口、`/tasks/mine` 和 `/process-instance/nodes/{nodeInstanceId}/start|complete`；质检工时入口使用 `/tasks/mine`、`/check-records` 和 `/work-logs/*`；绩效入口使用 `/performance` 和 `/performance/details`；生产看板入口使用 `/orders` 跨内部状态检索和 `/orders/{orderId}/process-instance` 查看节点进度；返工终检入口使用 `/reworks`、`/reworks/{reworkId}/close`、`/tasks/mine?status=COMPLETED`、`/check-records` 和 `/final-inspection-reports`；AI-1/AI-2/AI-3/AI-5 的真实模型由后端 `app.ai` 配置切换，前端不接触 DeepSeek Key；本地 Vite 已代理 `/api`、`/notifications`、`/ws`、`/orders`、`/files`、`/form-configs`、`/workflow-chains`、`/tasks`、`/process-instance`、`/check-records`、`/reworks`、`/final-inspection-reports`、`/work-logs`、`/performance` 与 `/ai`。
 ```
 
 OpenAPI 二次契约验收口径：
 
 ```text
 npm run check:openapi 会执行自定义契约检查、Swagger validate 和 Redocly lint。
-当前契约为 61 个 path、72 个 operation、72 个唯一 operationId，Redocly warning 已清零；9D.1 已补 `/orders` 当前实现的 `OrderListResponse` / `DoctorOrderSummary` schema，9D.2 已补 `FormFieldConfig` / `CreateOrderRequest` / `CreateOrderResponse`，9D.3 已补 `OrderReviewRequest`、`internal_status` 列表过滤参数和 `/orders/{orderId}/review` 响应 schema，9D.4 已校正生产审核状态门禁和权限描述，9D.5 已校正派工/转派权限说明和 `tasks/mine` 的 `READY` 状态过滤；9D.6 复用既有 `/check-records` 与 `/work-logs/*` 契约，9D.7 复用既有 `/performance` 契约，9D.8 复用既有 `/orders` 与 `/orders/{orderId}/process-instance` 契约，9D.9 新增 `/reworks` 和 `ReworkRecordResponse` 契约，9D.10 新增 Multipart 文件上传、status 恢复、pending 恢复候选接口和 schema。
+当前契约为 67 个 path、78 个 operation、78 个唯一 operationId，Redocly warning 已清零；9B.8 已补 `/auth/refresh`、`/auth/logout`、`RefreshTokenRequest`、`refreshToken` 和 `refreshExpiresAt`；9D.1 已补 `/orders` 当前实现的 `OrderListResponse` / `DoctorOrderSummary` schema，9D.2 已补 `FormFieldConfig` / `CreateOrderRequest` / `CreateOrderResponse`，9D.3 已补 `OrderReviewRequest`、`internal_status` 列表过滤参数和 `/orders/{orderId}/review` 响应 schema，9D.4 已校正生产审核状态门禁和权限描述，9D.5 已校正派工/转派权限说明和 `tasks/mine` 的 `READY` 状态过滤；9D.6 复用既有 `/check-records` 与 `/work-logs/*` 契约，9D.7 复用既有 `/performance` 契约，9D.8 复用既有 `/orders` 与 `/orders/{orderId}/process-instance` 契约，9D.9 新增 `/reworks` 和 `ReworkRecordResponse` 契约，9D.10 新增 Multipart 文件上传、status 恢复、pending 恢复候选接口和 schema，9D.11 已校正 `DRAFT` 外部状态、`UpdateOrderRequest` 和 `PUT /orders/{orderId}` 草稿/补资料契约，9D.12 已补动态表单 `status`、create/update 响应和 `status=INACTIVE` 逻辑停用描述，9D.14 已补 `/orders/{orderId}/logistics` 发货前终检 `OUT/PASS` 门禁描述，9D.15 已补 AI 端点 DeepSeek 适配、deterministic fallback 和 AI-3 `SAFE_REFUSAL` 描述，9D.16 已补 `/final-inspection-reports`、`/final-inspection-reports/{orderId}` 和终检报告 schema，9D.17 已补 `/reworks/{reworkId}/close` 和 `ReworkCloseRequest`，9D.18 已补 `/reworks/dictionaries` 和 `ReworkDictionariesResponse`，9D.19 已补 `REWORK_CREATED` / `REWORK_CLOSED` 通知事件说明，9D.21 已补 `PerformanceStats` 绩效责任归因字段，9D.22 已补 `ReworkRecordResponse` 返工影响审计字段，9D.23 已补 `/reworks` 的 `has_impacted_nodes` 筛选参数，9D.25 已补 `/performance/details` 和 `PerformanceDetail` schema，9D.42 已补 `/ai/governance/cost-trend`，9D.43 已补 AI 外部告警 webhook 配置说明，9D.44 已补 AI 外部告警调度器配置说明，9D.45 已补 AI 外部告警重试/死信说明，9D.46 已补 AI 外部告警幂等/并发领取说明，9D.47 已补 AI 外部告警 webhook HMAC 签名说明。
 ```
 
 Task 8A smoke 注意事项：
@@ -503,179 +1203,10 @@ Task 8A smoke 注意事项：
 
 优先处理 `tasks/README.md`：
 
-1. 基于「任务 8A」矩阵选择一个上线硬缺口继续。
-2. 推荐继续「任务 9D.10 后续：真实弱网限速/断网 / 跨设备浏览器续传验收」，或扩展「任务 9D.9 后续：返工关闭 / 责任分类 / 终检发货拦截」；如果先处理安全硬缺口，则切回「任务 9B.8：补正式 RBAC/DataScope 的下一块硬缺口」。
+1. 下一轮唯一推荐目标：9D.48 AI 外部告警监控/运维可观察第一增量。
+2. 先补红灯测试，再改后端、OpenAPI、acceptance 和必要文档；第一增量固定 ADMIN/CS 可只读查看外部告警 outbox 的状态统计、最近错误和最老待发送时间，不做生产 webhook 联调、真实短信/邮件/企业微信密钥、复杂告警抑制或人工重放。
 3. 每补一个缺口，都要回写 `docs/acceptance/task-8-acceptance-matrix.md` 和 `docs/deployment/readiness-checklist.md` 的状态。
 
 ## 安全说明
 
 不要提交任何真实密钥、Token、数据库连接串、MinIO 凭据、DeepSeek API Key 或客户隐私数据。
-
-## 任务 9D.21 绩效归因联动第一增量检查
-
-```bash
-npm run check:task9d21
-./scripts/with-jdk21.sh mvn -f backend/pom.xml -pl platform-server -Dtest=CheckWorklogPerformanceTests#performanceSeparatesReworkResponsibilityAttribution test
-```
-
-验收口径：`/performance` 新增 `responsible_rework_count`、`non_worker_responsibility_rework_count` 和 `unclassified_rework_count`，Task 8 仍保持 NOT READY。
-
-
-任务 9D.22 返工影响审计可视化第一增量检查：
-
-```bash
-npm run check:task9d22
-./scripts/with-jdk21.sh mvn -f backend/pom.xml -pl platform-server -Dtest=CheckWorklogPerformanceTests#reworkListExposesImpactedDownstreamNodesForAudit test
-./scripts/with-jdk21.sh mvn -f backend/pom.xml -pl platform-server -Dtest=CheckWorklogPerformanceTests test
-```
-
-任务 9D.22 验收口径：
-
-```text
-1. 创建返工时记录本次实际受影响的后续节点数量和节点 ID。
-2. /reworks 返回 impacted_node_count 和 impacted_node_instance_ids。
-3. 返工终检页面展示影响后续节点数量和 ID。
-4. 当前第一增量不做图形化 DAG、筛选、导出或 IN_PROGRESS 后续节点冲突确认。
-```
-
-
-任务 9D.23 返工影响筛选第一增量检查：
-
-```bash
-npm run check:task9d23
-./scripts/with-jdk21.sh mvn -f backend/pom.xml -pl platform-server -Dtest=CheckWorklogPerformanceTests#reworkListCanFilterRecordsThatImpactedDownstreamNodes test
-./scripts/with-jdk21.sh mvn -f backend/pom.xml -pl platform-server -Dtest=CheckWorklogPerformanceTests test
-```
-
-任务 9D.23 验收口径：
-
-```text
-1. /reworks?has_impacted_nodes=true 只返回 impacted_node_count > 0 的返工。
-2. /reworks?has_impacted_nodes=false 只返回 impacted_node_count = 0 的返工。
-3. 返工终检页面提供“仅看影响后续工序”筛选开关。
-4. 当前第一增量不做图形化 DAG、导出或 IN_PROGRESS 后续节点冲突确认。
-```
-
-任务 9D.24 四入口登录页与角色端口校验检查：
-
-```bash
-npm run check:task9d24
-npm run smoke:task9d24
-./scripts/with-jdk21.sh mvn -f backend/pom.xml -pl platform-server -Dtest=BearerIdentityTests#databaseLoginRequiresPortalAndMatchesRoleToPortal test
-./scripts/with-jdk21.sh mvn -f backend/pom.xml -pl platform-server -Dtest=BearerIdentityTests test
-```
-
-任务 9D.24 验收口径：
-
-```text
-1. 登录页显示医生端、客服端、生产端、管理端四入口。
-2. 登录请求必须携带 portal，缺失或非法 portal 返回 400。
-3. 账号角色与入口不匹配返回 403，前端提示“账号角色与所选入口不匹配”。
-4. 登录成功后继续复用现有 RBAC 菜单，并按入口优先跳转到默认页面。
-5. `npm run smoke:task9d24` 通过真实 Chrome 依次点击四入口，并验证 doctor 不能从管理端入口登录。
-```
-
-## 任务 9D.25 绩效明细第一增量检查
-
-任务 9D.25 新增 `/performance/details` 和前端绩效页“工时明细”表，用于核对最近 100 条已完成工时来源。Task 8 仍保持 `NOT READY`。
-
-建议验证：
-
-```bash
-npm run check:task9d25
-npm run acceptance
-npm run check:openapi
-npm run build:frontend
-./scripts/with-jdk21.sh mvn -f backend/pom.xml -pl platform-server -Dtest=CheckWorklogPerformanceTests#performanceDetailsListCompletedWorkLogsForResolvedUser test
-```
-
-## 任务 9D.26 AI 调用限流第一增量检查
-
-任务 9D.26 新增 `AI_MAX_REQUESTS_PER_USER_HOUR`，对真实模型调用做每用户每小时限流；超额返回 429，并写入 `ai_audit_log.result_status=AI_RATE_LIMITED`。Task 8 仍保持 `NOT READY`。
-
-建议验证：
-
-```bash
-npm run check:task9d26
-npm run acceptance
-npm run check:openapi
-./scripts/with-jdk21.sh mvn -f backend/pom.xml -pl platform-server -Dtest=AiGatewayDeepSeekTests test
-```
-
-## 任务 9D.27 AI 成本审计第一增量检查
-
-任务 9D.27 新增 `ai_audit_log.estimated_cost_microusd`，并通过 `AI_INPUT_TOKEN_COST_MICROUSD` / `AI_OUTPUT_TOKEN_COST_MICROUSD` 配置按 token usage 估算单次调用成本。仓库不内置真实供应商价格，Task 8 仍保持 `NOT READY`。
-
-建议验证：
-
-```bash
-npm run check:task9d27
-npm run acceptance
-npm run check:openapi
-./scripts/with-jdk21.sh mvn -f backend/pom.xml -pl platform-server -Dtest=AiGatewayDeepSeekTests test
-```
-
-## 任务 9D.28 AI 模型重试第一增量检查
-
-任务 9D.28 新增 `AI_MODEL_MAX_RETRIES`，真实模型调用遇到短暂 5xx 或连接类异常时可有限重试；默认重试 1 次，成功后仍只写一条 `SUCCESS` 审计。Task 8 仍保持 `NOT READY`。
-
-建议验证：
-
-```bash
-npm run check:task9d28
-npm run acceptance
-npm run check:openapi
-./scripts/with-jdk21.sh mvn -f backend/pom.xml -pl platform-server -Dtest=AiGatewayDeepSeekTests test
-```
-
-## 任务 9D.29 AI 模型失败审计第一增量检查
-
-任务 9D.29 新增 `AI_MODEL_FAILED` 审计：真实模型重试耗尽或不可恢复失败时返回 503，并用独立事务保留失败记录。Task 8 仍保持 `NOT READY`。
-
-建议验证：
-
-```bash
-npm run check:task9d29
-npm run acceptance
-npm run check:openapi
-./scripts/with-jdk21.sh mvn -f backend/pom.xml -pl platform-server -Dtest=AiGatewayDeepSeekTests test
-```
-
-## 任务 9D.30 AI 治理摘要第一增量检查
-
-任务 9D.30 新增 `GET /ai/governance/summary`：CS / ADMIN 可查看近 24 小时 AI 审计摘要，包括成功、安全拒绝、限流、模型失败、估算成本和最近模型失败时间。Task 8 仍保持 `NOT READY`。
-
-建议验证：
-
-```bash
-npm run check:task9d30
-npm run acceptance
-npm run check:openapi
-./scripts/with-jdk21.sh mvn -f backend/pom.xml -pl platform-server -Dtest=AiGatewayTests#aiGovernanceSummaryCountsRecentAuditOutcomesForInternalUsers test
-```
-
-## 任务 9D.31 AI 预算阈值第一增量检查
-
-任务 9D.31 新增 `AI_DAILY_BUDGET_MICROUSD`：治理摘要返回 `daily_budget_microusd` 和 `budget_exceeded`，用于标记近 24 小时估算成本是否达到阈值。默认 0 不启用阈值，Task 8 仍保持 `NOT READY`。
-
-建议验证：
-
-```bash
-npm run check:task9d31
-npm run acceptance
-npm run check:openapi
-./scripts/with-jdk21.sh mvn -f backend/pom.xml -pl platform-server -Dtest=AiGatewayTests#aiGovernanceSummaryFlagsDailyBudgetThreshold test
-```
-
-## 任务 9D.32 AI 预算超限审计第一增量检查
-
-任务 9D.32 新增 `AI_BUDGET_EXCEEDED`：真实模型成功调用导致近 24 小时估算成本跨过 `AI_DAILY_BUDGET_MICROUSD` 阈值时，写入一条成本为 0 的治理审计，并在 `/ai/governance/summary` 返回 `budget_alert_count` 和 `latest_budget_alert_at`。本轮不拦截请求、不发送外部通知，Task 8 仍保持 `NOT READY`。
-
-建议验证：
-
-```bash
-npm run check:task9d32
-npm run acceptance
-npm run check:openapi
-./scripts/with-jdk21.sh mvn -f backend/pom.xml -pl platform-server -Dtest=AiGatewayDeepSeekTests#deepSeekProviderAuditsBudgetExceededWhenDailyBudgetIsReached test
-```

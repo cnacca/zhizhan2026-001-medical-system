@@ -546,7 +546,86 @@
             "FormFieldConfig",
             "CreateOrderRequest",
             "CreateOrderResponse",
-            "9D.2 第一增量暂不支持草稿"
+            "保存医生草稿"
+          ]
+        },
+        {
+          "id": "task-9d11-draft-supplement-required-text",
+          "type": "required_text",
+          "paths": [
+            "backend/platform-server/src/main/java/com/yuri/aiorder/order/api/OrderController.java",
+            "backend/platform-server/src/main/java/com/yuri/aiorder/order/api/OrderCreationService.java",
+            "backend/platform-server/src/main/java/com/yuri/aiorder/order/api/UpdateOrderRequest.java",
+            "backend/platform-server/src/test/java/com/yuri/aiorder/order/OrderStatusProjectionTests.java",
+            "frontend/src/App.vue",
+            "docs/api/openapi.yaml",
+            "scripts/check-task-9d11-frontend.mjs",
+            "package.json"
+          ],
+          "patterns": [
+            "UpdateOrderRequest",
+            "doctorOrderEditingId",
+            "保存草稿",
+            "提交草稿/补资料",
+            "DOCTOR_RESUBMIT_ORDER",
+            "check:task9d11",
+            "UpdateOrderRequest"
+          ]
+        },
+        {
+          "id": "auth-refresh-logout-required-text",
+          "type": "required_text",
+          "paths": [
+            "backend/platform-server/src/main/java/com/yuri/aiorder/bootstrap/BootstrapAuthController.java",
+            "backend/platform-server/src/main/java/com/yuri/aiorder/common/auth/RefreshTokenService.java",
+            "backend/platform-server/src/main/resources/db/migration/V12__auth_refresh_token.sql",
+            "backend/platform-server/src/test/java/com/yuri/aiorder/auth/BearerIdentityTests.java",
+            "frontend/src/App.vue",
+            "docs/api/openapi.yaml",
+            "scripts/check-auth-refresh.mjs",
+            "package.json",
+            ".env.example"
+          ],
+          "patterns": [
+            "refreshToken",
+            "refreshExpiresAt",
+            "auth_refresh_token",
+            "refreshTokenCanIssueNewAccessTokenAndLogoutRevokesIt",
+            "auth-refresh-button",
+            "auth-logout-button",
+            "RefreshTokenRequest",
+            "check:auth-refresh",
+            "APP_AUTH_REFRESH_TOKEN_TTL_SECONDS"
+          ]
+        },
+        {
+          "id": "task-9d12-form-crud-required-text",
+          "type": "required_text",
+          "paths": [
+            "backend/platform-server/src/main/java/com/yuri/aiorder/order/form/FormConfigController.java",
+            "backend/platform-server/src/main/java/com/yuri/aiorder/order/form/FormConfigService.java",
+            "backend/platform-server/src/main/java/com/yuri/aiorder/order/form/FormFieldConfigResponse.java",
+            "backend/platform-server/src/main/java/com/yuri/aiorder/order/form/CreateFormFieldRequest.java",
+            "backend/platform-server/src/main/java/com/yuri/aiorder/order/form/UpdateFormFieldRequest.java",
+            "backend/platform-server/src/main/resources/db/migration/V13__form_config_management_menu.sql",
+            "backend/platform-server/src/test/java/com/yuri/aiorder/order/FormConfigManagementTests.java",
+            "frontend/src/App.vue",
+            "frontend/src/styles.css",
+            "docs/api/openapi.yaml",
+            "scripts/check-task-9d12-form-crud.mjs",
+            "package.json"
+          ],
+          "patterns": [
+            "form:manage",
+            "createField",
+            "updateField",
+            "INACTIVE",
+            "adminCanCreateUpdateAndDeactivateFormFieldWhileDoctorCannotManageIt",
+            "form-config-create-button",
+            "form-config-update-button",
+            "form-config-deactivate-button",
+            "任务 9D.12 第一增量",
+            "check:task9d12"
           ]
         },
         {
@@ -1023,113 +1102,6 @@
           ]
         },
         {
-          "id": "task-9d24-four-portal-login-required-text",
-          "type": "required_text",
-          "paths": [
-            "backend/platform-server/src/main/java/com/yuri/aiorder/bootstrap/BootstrapAuthController.java",
-            "backend/platform-server/src/test/java/com/yuri/aiorder/auth/BearerIdentityTests.java",
-            "backend/platform-server/src/test/java/com/yuri/aiorder/auth/PermissionInterceptorTests.java",
-            "frontend/src/App.vue",
-            "frontend/src/styles.css",
-            "docs/api/openapi.yaml",
-            "scripts/check-task-9d24-four-portal-login.mjs",
-            "scripts/smoke-task-9d24-four-portal-login.spec.mjs",
-            "package.json"
-          ],
-          "patterns": [
-            "LoginPortal",
-            "portalDefaultRoute",
-            "portal-card-",
-            "账号角色与所选入口不匹配",
-            "account role does not match login portal",
-            "databaseLoginRequiresPortalAndMatchesRoleToPortal",
-            "登录入口",
-            "check:task9d24",
-            "smoke:task9d24",
-            "task 9D.24 mismatched portal smoke ok"
-          ]
-        },
-        {
-          "id": "auth-refresh-logout-required-text",
-          "type": "required_text",
-          "paths": [
-            "backend/platform-server/src/main/java/com/yuri/aiorder/bootstrap/BootstrapAuthController.java",
-            "backend/platform-server/src/main/java/com/yuri/aiorder/common/auth/RefreshTokenService.java",
-            "backend/platform-server/src/main/resources/db/migration/V12__auth_refresh_token.sql",
-            "backend/platform-server/src/test/java/com/yuri/aiorder/auth/BearerIdentityTests.java",
-            "frontend/src/App.vue",
-            "docs/api/openapi.yaml",
-            "scripts/check-auth-refresh.mjs",
-            ".env.example",
-            "package.json"
-          ],
-          "patterns": [
-            "@PostMapping(\"/refresh\")",
-            "@PostMapping(\"/logout\")",
-            "auth-refresh-button",
-            "auth-logout-button",
-            "RefreshTokenRequest",
-            "check:auth-refresh",
-            "APP_AUTH_REFRESH_TOKEN_TTL_SECONDS"
-          ]
-        },
-        {
-          "id": "task-9d11-doctor-draft-supplement-required-text",
-          "type": "required_text",
-          "paths": [
-            "backend/platform-server/src/main/java/com/yuri/aiorder/order/api/OrderController.java",
-            "backend/platform-server/src/main/java/com/yuri/aiorder/order/api/OrderCreationService.java",
-            "backend/platform-server/src/main/java/com/yuri/aiorder/order/api/UpdateOrderRequest.java",
-            "backend/platform-server/src/test/java/com/yuri/aiorder/order/OrderStatusProjectionTests.java",
-            "frontend/src/App.vue",
-            "docs/api/openapi.yaml",
-            "scripts/check-task-9d11-frontend.mjs",
-            "package.json"
-          ],
-          "patterns": [
-            "@PutMapping(\"/orders/{orderId}\")",
-            "UpdateOrderRequest",
-            "updateDoctorOrder",
-            "DOCTOR_RESUBMIT_ORDER",
-            "doctorOrderEditingId",
-            "保存草稿",
-            "提交草稿/补资料",
-            "doctor-order-save-draft-button",
-            "DRAFT=草稿",
-            "check:task9d11"
-          ]
-        },
-        {
-          "id": "task-9d12-form-crud-required-text",
-          "type": "required_text",
-          "paths": [
-            "backend/platform-server/src/main/java/com/yuri/aiorder/order/form/FormConfigController.java",
-            "backend/platform-server/src/main/java/com/yuri/aiorder/order/form/FormConfigService.java",
-            "backend/platform-server/src/main/java/com/yuri/aiorder/order/form/FormFieldConfigResponse.java",
-            "backend/platform-server/src/main/java/com/yuri/aiorder/order/form/CreateFormFieldRequest.java",
-            "backend/platform-server/src/main/java/com/yuri/aiorder/order/form/UpdateFormFieldRequest.java",
-            "backend/platform-server/src/main/resources/db/migration/V13__form_config_management_menu.sql",
-            "backend/platform-server/src/test/java/com/yuri/aiorder/order/FormConfigManagementTests.java",
-            "frontend/src/App.vue",
-            "frontend/src/styles.css",
-            "docs/api/openapi.yaml",
-            "scripts/check-task-9d12-form-crud.mjs",
-            "package.json"
-          ],
-          "patterns": [
-            "form:manage",
-            "createField",
-            "updateField",
-            "INACTIVE",
-            "adminCanCreateUpdateAndDeactivateFormFieldWhileDoctorCannotManageIt",
-            "form-config-create-button",
-            "form-config-update-button",
-            "form-config-deactivate-button",
-            "任务 9D.12 第一增量",
-            "check:task9d12"
-          ]
-        },
-        {
           "id": "task-9d13-design-draft-multi-file-required-text",
           "type": "required_text",
           "paths": [
@@ -1321,6 +1293,31 @@
           ]
         },
         {
+          "id": "task-9d20-rework-impact-required-text",
+          "type": "required_text",
+          "paths": [
+            "backend/platform-server/src/main/java/com/yuri/aiorder/workflow/execution/WorkflowExecutionService.java",
+            "backend/platform-server/src/test/java/com/yuri/aiorder/workflow/execution/CheckWorklogPerformanceTests.java",
+            "tasks/README.md",
+            "STATUS.md",
+            "docs/acceptance/task-8-acceptance-matrix.md",
+            "docs/deployment/readiness-checklist.md",
+            "scripts/check-task-9d20-rework-impact.mjs",
+            "package.json"
+          ],
+          "patterns": [
+            "resetImpactedDownstreamNodes",
+            "WITH RECURSIVE impacted_nodes",
+            "failedOutCheckResetsTargetAndCompletedDownstreamNodesForReworkImpact",
+            "createTwoNodeChain",
+            "任务 9D.20：复杂返工影响范围第一增量",
+            "9D.20 复杂返工影响范围第一增量",
+            "9D.20 已补复杂返工影响范围第一增量",
+            "复杂返工影响范围第一增量",
+            "check:task9d20"
+          ]
+        },
+        {
           "id": "task-9d21-performance-attribution-required-text",
           "type": "required_text",
           "paths": [
@@ -1414,6 +1411,39 @@
           ]
         },
         {
+          "id": "task-9d24-four-portal-login-required-text",
+          "type": "required_text",
+          "paths": [
+            "backend/platform-server/src/main/java/com/yuri/aiorder/bootstrap/BootstrapAuthController.java",
+            "backend/platform-server/src/test/java/com/yuri/aiorder/auth/BearerIdentityTests.java",
+            "frontend/src/App.vue",
+            "frontend/src/styles.css",
+            "docs/api/openapi.yaml",
+            "tasks/README.md",
+            "STATUS.md",
+            "docs/acceptance/task-8-acceptance-matrix.md",
+            "docs/deployment/readiness-checklist.md",
+            "scripts/check-task-9d24-four-portal-login.mjs",
+            "scripts/smoke-task-9d24-four-portal-login.spec.mjs",
+            "package.json"
+          ],
+          "patterns": [
+            "LoginPortal",
+            "portalDefaultRoute",
+            "portal-card-",
+            "账号角色与所选入口不匹配",
+            "account role does not match login portal",
+            "databaseLoginRequiresPortalAndMatchesRoleToPortal",
+            "登录入口",
+            "任务 9D.24：四入口登录页与角色端口校验",
+            "9D.24 四入口登录页",
+            "9D.24 已补四入口登录页",
+            "check:task9d24",
+            "smoke:task9d24",
+            "task 9D.24 mismatched portal smoke ok"
+          ]
+        },
+        {
           "id": "task-9d25-performance-details-required-text",
           "type": "required_text",
           "paths": [
@@ -1447,106 +1477,7 @@
           ]
         },
         {
-          "id": "task-9d26-ai-rate-limit-required-text",
-          "type": "required_text",
-          "paths": [
-            "backend/platform-server/src/main/java/com/yuri/aiorder/ai/AiGatewayProperties.java",
-            "backend/platform-server/src/main/java/com/yuri/aiorder/ai/AiGatewayService.java",
-            "backend/platform-server/src/main/resources/application.yml",
-            ".env.example",
-            "backend/platform-server/src/test/java/com/yuri/aiorder/ai/AiGatewayDeepSeekTests.java",
-            "docs/api/openapi.yaml",
-            "tasks/README.md",
-            "STATUS.md",
-            "docs/acceptance/task-8-acceptance-matrix.md",
-            "docs/deployment/readiness-checklist.md",
-            "scripts/check-task-9d26-ai-rate-limit.mjs",
-            "package.json"
-          ],
-          "patterns": [
-            "maxRequestsPerUserHour",
-            "AI_MAX_REQUESTS_PER_USER_HOUR",
-            "enforceAiRateLimit",
-            "AI_RATE_LIMITED",
-            "HttpStatus.TOO_MANY_REQUESTS",
-            "PROPAGATION_REQUIRES_NEW",
-            "deepSeekProviderRateLimitsRealModelCallsPerUserAndAuditsRejection",
-            "TooManyRequests",
-            "任务 9D.26：AI 调用限流第一增量",
-            "9D.26 AI 调用限流第一增量",
-            "9D.26 已补 AI 调用限流第一增量",
-            "AI 调用限流第一增量",
-            "check:task9d26"
-          ]
-        },
-        {
-          "id": "task-9d27-ai-cost-audit-required-text",
-          "type": "required_text",
-          "paths": [
-            "backend/platform-server/src/main/resources/db/migration/V18__ai_audit_cost.sql",
-            "backend/platform-server/src/main/java/com/yuri/aiorder/ai/AiGatewayProperties.java",
-            "backend/platform-server/src/main/java/com/yuri/aiorder/ai/AiGatewayService.java",
-            "backend/platform-server/src/main/resources/application.yml",
-            ".env.example",
-            "backend/platform-server/src/test/java/com/yuri/aiorder/ai/AiGatewayDeepSeekTests.java",
-            "docs/api/openapi.yaml",
-            "tasks/README.md",
-            "STATUS.md",
-            "docs/acceptance/task-8-acceptance-matrix.md",
-            "docs/deployment/readiness-checklist.md",
-            "scripts/check-task-9d27-ai-cost-audit.mjs",
-            "package.json"
-          ],
-          "patterns": [
-            "estimated_cost_microusd",
-            "inputTokenCostMicrousd",
-            "outputTokenCostMicrousd",
-            "AI_INPUT_TOKEN_COST_MICROUSD",
-            "AI_OUTPUT_TOKEN_COST_MICROUSD",
-            "estimatedCostMicrousd",
-            "deepSeekProviderAuditsEstimatedCostMicrousdFromTokenUsage",
-            "任务 9D.27：AI 成本审计第一增量",
-            "9D.27 AI 成本审计第一增量",
-            "9D.27 已补 AI 成本审计第一增量",
-            "AI 成本审计第一增量",
-            "check:task9d27"
-          ]
-        },
-        {
-          "id": "task-9d28-ai-model-retry-required-text",
-          "type": "required_text",
-          "paths": [
-            ".env.example",
-            "backend/platform-server/src/main/java/com/yuri/aiorder/ai/AiGatewayProperties.java",
-            "backend/platform-server/src/main/java/com/yuri/aiorder/ai/AiGatewayService.java",
-            "backend/platform-server/src/main/resources/application.yml",
-            "backend/platform-server/src/test/java/com/yuri/aiorder/ai/AiGatewayDeepSeekTests.java",
-            "docs/api/openapi.yaml",
-            "docs/acceptance/task-8-acceptance-matrix.md",
-            "docs/deployment/readiness-checklist.md",
-            "STATUS.md",
-            "tasks/README.md",
-            "README.md",
-            "scripts/check-task-9d28-ai-model-retry.mjs",
-            "package.json"
-          ],
-          "patterns": [
-            "maxModelRetries",
-            "AI_MODEL_MAX_RETRIES",
-            "isRetryableModelFailure",
-            "HttpServerErrorException",
-            "ResourceAccessException",
-            "deepSeekProviderRetriesTransientServerFailureBeforeAuditingSuccess",
-            "enqueueFailure(500)",
-            "任务 9D.28：AI 模型重试第一增量",
-            "9D.28 AI 模型重试第一增量",
-            "9D.28 已补 AI 模型重试第一增量",
-            "AI 模型重试第一增量",
-            "check:task9d28"
-          ]
-        },
-        {
-          "id": "task-9d29-ai-model-failure-audit-required-text",
+          "id": "task-9d33-ai-budget-notifications-required-text",
           "type": "required_text",
           "paths": [
             "backend/platform-server/src/main/java/com/yuri/aiorder/ai/AiGatewayService.java",
@@ -1557,31 +1488,253 @@
             "STATUS.md",
             "tasks/README.md",
             "README.md",
-            "scripts/check-task-9d29-ai-model-failure-audit.mjs",
+            "scripts/check-task-9d33-ai-budget-notifications.mjs",
             "package.json"
           ],
           "patterns": [
-            "MODEL_FAILURE_STATUS",
-            "AI_MODEL_FAILED",
-            "MODEL_FAILURE_MODEL_NAME",
-            "ai-governance-model-failure",
-            "auditModelFailure",
-            "HttpStatus.SERVICE_UNAVAILABLE",
-            "deepSeekProviderAuditsModelFailureWhenRetriesAreExhausted",
-            "任务 9D.29：AI 模型失败审计第一增量",
-            "9D.29 AI 模型失败审计第一增量",
-            "9D.29 已补 AI 模型失败审计第一增量",
-            "AI 模型失败审计第一增量",
-            "check:task9d29"
+            "NotificationPushService",
+            "emitBudgetExceededNotification",
+            "AI_BUDGET_EXCEEDED",
+            "AiBudgetNotificationPayload",
+            "deepSeekProviderNotifiesInternalUsersWhenDailyBudgetIsReached",
+            "notificationEventCount",
+            "userNotificationCount",
+            "任务 9D.33：AI 预算超限内部通知第一增量",
+            "9D.33 AI 预算超限内部通知第一增量",
+            "9D.33 已补 AI 预算超限内部通知第一增量",
+            "预算超限内部通知第一增量",
+            "check:task9d33"
           ]
         },
         {
-          "id": "task-9d30-ai-governance-summary-required-text",
+          "id": "task-9d34-ai-budget-notification-strategy-required-text",
           "type": "required_text",
           "paths": [
+            ".env.example",
+            "backend/platform-server/src/main/resources/application.yml",
+            "backend/platform-server/src/main/java/com/yuri/aiorder/ai/AiGatewayProperties.java",
+            "backend/platform-server/src/main/java/com/yuri/aiorder/ai/AiGatewayService.java",
+            "backend/platform-server/src/test/java/com/yuri/aiorder/ai/AiGatewayDeepSeekTests.java",
+            "docs/api/openapi.yaml",
+            "docs/acceptance/task-8-acceptance-matrix.md",
+            "docs/deployment/readiness-checklist.md",
+            "STATUS.md",
+            "tasks/README.md",
+            "README.md",
+            "scripts/check-task-9d34-ai-budget-notification-strategy.mjs",
+            "package.json"
+          ],
+          "patterns": [
+            "AI_BUDGET_NOTIFICATION_ENABLED",
+            "budget-notification-enabled",
+            "budgetNotificationEnabled",
+            "isBudgetNotificationEnabled",
+            "deepSeekProviderSkipsBudgetNotificationWhenNotificationStrategyIsDisabled",
+            "任务 9D.34：AI 预算通知策略开关第一增量",
+            "9D.34 AI 预算通知策略开关第一增量",
+            "9D.34 已补 AI 预算通知策略开关第一增量",
+            "预算通知策略开关第一增量",
+            "check:task9d34"
+          ]
+        },
+        {
+          "id": "task-9d35-ai-budget-circuit-breaker-required-text",
+          "type": "required_text",
+          "paths": [
+            ".env.example",
+            "backend/platform-server/src/main/resources/application.yml",
+            "backend/platform-server/src/main/java/com/yuri/aiorder/ai/AiGatewayProperties.java",
+            "backend/platform-server/src/main/java/com/yuri/aiorder/ai/AiGatewayService.java",
+            "backend/platform-server/src/test/java/com/yuri/aiorder/ai/AiGatewayDeepSeekTests.java",
+            "docs/api/openapi.yaml",
+            "docs/acceptance/task-8-acceptance-matrix.md",
+            "docs/deployment/readiness-checklist.md",
+            "STATUS.md",
+            "tasks/README.md",
+            "README.md",
+            "scripts/check-task-9d35-ai-budget-circuit-breaker.mjs",
+            "package.json"
+          ],
+          "patterns": [
+            "AI_BUDGET_CIRCUIT_BREAKER_ENABLED",
+            "budget-circuit-breaker-enabled",
+            "budgetCircuitBreakerEnabled",
+            "AI_BUDGET_CIRCUIT_OPEN",
+            "ai-governance-budget-circuit-open",
+            "deepSeekProviderFallsBackWhenBudgetCircuitBreakerIsEnabledAndBudgetAlreadyExceeded",
+            "任务 9D.35：AI 预算熔断/降级第一增量",
+            "9D.35 AI 预算熔断/降级第一增量",
+            "9D.35 已补 AI 预算熔断/降级第一增量",
+            "预算熔断/降级第一增量",
+            "check:task9d35"
+          ]
+        },
+        {
+          "id": "task-9d37-ai-external-alert-outbox-required-text",
+          "type": "required_text",
+          "paths": [
+            "backend/platform-server/src/main/resources/db/migration/V19__ai_external_alert_outbox.sql",
+            "backend/platform-server/src/main/java/com/yuri/aiorder/ai/AiGatewayService.java",
+            "backend/platform-server/src/test/java/com/yuri/aiorder/ai/AiGatewayDeepSeekTests.java",
+            "docs/api/openapi.yaml",
+            "docs/acceptance/task-8-acceptance-matrix.md",
+            "docs/deployment/readiness-checklist.md",
+            "STATUS.md",
+            "tasks/README.md",
+            "README.md",
+            "scripts/check-task-9d37-ai-external-alert-outbox.mjs",
+            "package.json"
+          ],
+          "patterns": [
+            "ai_external_alert_outbox",
+            "EXTERNAL_ALERT_CHANNEL",
+            "EXTERNAL_ALERT_PENDING_STATUS",
+            "emitExternalAlertOutbox",
+            "AiExternalAlertPayload",
+            "deepSeekProviderCreatesExternalAlertOutboxWhenDailyBudgetIsReached",
+            "deepSeekProviderCreatesExternalAlertOutboxWhenBudgetCircuitBreakerOpens",
+            "任务 9D.37：AI 预算外部告警待发送事实第一增量",
+            "9D.37 AI 预算外部告警待发送事实第一增量",
+            "9D.37 已补 AI 预算外部告警待发送事实第一增量",
+            "外部告警待发送事实第一增量",
+            "check:task9d37"
+          ]
+        },
+        {
+          "id": "task-9d38-ai-role-budget-required-text",
+          "type": "required_text",
+          "paths": [
+            ".env.example",
+            "backend/platform-server/src/main/resources/application.yml",
+            "backend/platform-server/src/main/resources/db/migration/V20__ai_audit_actor_role.sql",
+            "backend/platform-server/src/main/java/com/yuri/aiorder/ai/AiGatewayProperties.java",
+            "backend/platform-server/src/main/java/com/yuri/aiorder/ai/AiGatewayService.java",
+            "backend/platform-server/src/test/java/com/yuri/aiorder/ai/AiGatewayDeepSeekTests.java",
+            "docs/api/openapi.yaml",
+            "docs/acceptance/task-8-acceptance-matrix.md",
+            "docs/deployment/readiness-checklist.md",
+            "STATUS.md",
+            "tasks/README.md",
+            "README.md",
+            "scripts/check-task-9d38-ai-role-budget.mjs",
+            "package.json"
+          ],
+          "patterns": [
+            "AI_CS_DAILY_BUDGET_MICROUSD",
+            "actor_role",
+            "AI_BUDGET_ROLE_CIRCUIT_OPEN",
+            "ai-governance-budget-role-circuit-open",
+            "roleBudgetCircuitBreakerOpen",
+            "dailyBudgetMicrousdForRole",
+            "deepSeekProviderFallsBackWhenCsRoleBudgetCircuitBreakerIsOpen",
+            "任务 9D.38：AI 分角色预算第一增量",
+            "9D.38 AI 分角色预算第一增量",
+            "9D.38 已补 AI 分角色预算第一增量",
+            "分角色预算第一增量",
+            "check:task9d38"
+          ]
+        },
+        {
+          "id": "task-9d39-ai-model-budget-required-text",
+          "type": "required_text",
+          "paths": [
+            ".env.example",
+            "backend/platform-server/src/main/resources/application.yml",
+            "backend/platform-server/src/main/java/com/yuri/aiorder/ai/AiGatewayProperties.java",
+            "backend/platform-server/src/main/java/com/yuri/aiorder/ai/AiGatewayService.java",
+            "backend/platform-server/src/test/java/com/yuri/aiorder/ai/AiGatewayDeepSeekTests.java",
+            "docs/api/openapi.yaml",
+            "docs/acceptance/task-8-acceptance-matrix.md",
+            "docs/deployment/readiness-checklist.md",
+            "STATUS.md",
+            "tasks/README.md",
+            "README.md",
+            "scripts/check-task-9d39-ai-model-budget.mjs",
+            "package.json"
+          ],
+          "patterns": [
+            "AI_DEEPSEEK_DAILY_BUDGET_MICROUSD",
+            "AI_BUDGET_MODEL_CIRCUIT_OPEN",
+            "ai-governance-budget-model-circuit-open",
+            "modelBudgetCircuitBreakerOpen",
+            "currentModelSuccessCostMicrousd",
+            "deepSeekProviderFallsBackWhenDeepSeekModelBudgetCircuitBreakerIsOpen",
+            "任务 9D.39：AI 分模型预算第一增量",
+            "9D.39 AI 分模型预算第一增量",
+            "9D.39 已补 AI 分模型预算第一增量",
+            "分模型预算第一增量",
+            "check:task9d39"
+          ]
+        },
+        {
+          "id": "task-9d40-ai-prompt-output-guard-required-text",
+          "type": "required_text",
+          "paths": [
+            "backend/platform-server/src/main/resources/db/migration/V21__ai_prompt_version_output_guard.sql",
+            "backend/platform-server/src/main/java/com/yuri/aiorder/ai/AiGatewayService.java",
+            "backend/platform-server/src/test/java/com/yuri/aiorder/ai/AiGatewayDeepSeekTests.java",
+            "docs/api/openapi.yaml",
+            "docs/acceptance/task-8-acceptance-matrix.md",
+            "docs/deployment/readiness-checklist.md",
+            "STATUS.md",
+            "tasks/README.md",
+            "README.md",
+            "scripts/check-task-9d40-ai-prompt-output-guard.mjs",
+            "package.json"
+          ],
+          "patterns": [
+            "prompt_version",
+            "AI_OUTPUT_GUARDED",
+            "ai-governance-output-guard",
+            "outputGuardTriggered",
+            "promptVersionFor",
+            "deepSeekProviderAuditsPromptVersionForAiTranslate",
+            "deepSeekProviderGuardsSensitiveModelOutputAndAuditsIt",
+            "任务 9D.40：AI 提示词版本与输出防护第一增量",
+            "9D.40 AI 提示词版本与输出防护第一增量",
+            "9D.40 已补 AI 提示词版本与输出防护第一增量",
+            "提示词版本与输出防护第一增量",
+            "check:task9d40"
+          ]
+        },
+        {
+          "id": "task-9d41-ai-external-alert-sender-required-text",
+          "type": "required_text",
+          "paths": [
+            "backend/platform-server/src/main/java/com/yuri/aiorder/ai/AiExternalAlertSenderService.java",
+            "backend/platform-server/src/test/java/com/yuri/aiorder/ai/AiExternalAlertSenderTests.java",
+            "docs/api/openapi.yaml",
+            "docs/acceptance/task-8-acceptance-matrix.md",
+            "docs/deployment/readiness-checklist.md",
+            "STATUS.md",
+            "tasks/README.md",
+            "README.md",
+            "scripts/check-task-9d41-ai-external-alert-sender.mjs",
+            "package.json"
+          ],
+          "patterns": [
+            "AiExternalAlertSenderService",
+            "sendPendingAlerts",
+            "senderMarksPendingExternalAlertAsSentWithoutRealChannel",
+            "senderMarksUnsupportedPendingAlertFailedAndRecordsError",
+            "AI 外部告警发送器第一增量",
+            "任务 9D.41：AI 外部告警发送器第一增量",
+            "9D.41 AI 外部告警发送器第一增量",
+            "9D.41 已补 AI 外部告警发送器第一增量",
+            "SENT",
+            "FAILED",
+            "attempts",
+            "last_error",
+            "check:task9d41"
+          ]
+        },
+        {
+          "id": "task-9d42-ai-cost-trend-required-text",
+          "type": "required_text",
+          "paths": [
+            "backend/platform-server/src/main/java/com/yuri/aiorder/ai/AiGovernanceCostTrendResponse.java",
             "backend/platform-server/src/main/java/com/yuri/aiorder/ai/AiGatewayController.java",
             "backend/platform-server/src/main/java/com/yuri/aiorder/ai/AiGatewayService.java",
-            "backend/platform-server/src/main/java/com/yuri/aiorder/ai/AiGovernanceSummaryResponse.java",
             "backend/platform-server/src/test/java/com/yuri/aiorder/ai/AiGatewayTests.java",
             "docs/api/openapi.yaml",
             "docs/acceptance/task-8-acceptance-matrix.md",
@@ -1589,85 +1742,183 @@
             "STATUS.md",
             "tasks/README.md",
             "README.md",
-            "scripts/check-task-9d30-ai-governance-summary.mjs",
+            "scripts/check-task-9d42-ai-cost-trend.mjs",
             "package.json"
           ],
           "patterns": [
-            "/ai/governance/summary",
-            "AiGovernanceSummaryResponse",
-            "governanceSummary",
-            "AI_RATE_LIMITED",
-            "AI_MODEL_FAILED",
-            "estimated_cost_microusd",
-            "latest_model_failure_at",
-            "aiGovernanceSummaryCountsRecentAuditOutcomesForInternalUsers",
-            "任务 9D.30：AI 治理摘要第一增量",
-            "9D.30 AI 治理摘要第一增量",
-            "9D.30 已补 AI 治理摘要第一增量",
-            "AI 治理摘要第一增量",
-            "check:task9d30"
+            "AiGovernanceCostTrendResponse",
+            "/ai/governance/cost-trend",
+            "governanceCostTrend",
+            "aiGovernanceCostTrendGroupsRecentSuccessCostByDayForInternalUsers",
+            "aiGovernanceCostTrendRejectsDoctorUsers",
+            "AI 成本趋势第一增量",
+            "任务 9D.42：AI 成本趋势第一增量",
+            "9D.42 AI 成本趋势第一增量",
+            "9D.42 已补 AI 成本趋势第一增量",
+            "total_estimated_cost_microusd",
+            "model_count",
+            "check:task9d42"
           ]
         },
         {
-          "id": "task-9d31-ai-budget-threshold-required-text",
+          "id": "task-9d43-ai-external-alert-webhook-required-text",
           "type": "required_text",
           "paths": [
-            ".env.example",
-            "backend/platform-server/src/main/resources/application.yml",
             "backend/platform-server/src/main/java/com/yuri/aiorder/ai/AiGatewayProperties.java",
-            "backend/platform-server/src/main/java/com/yuri/aiorder/ai/AiGatewayService.java",
-            "backend/platform-server/src/main/java/com/yuri/aiorder/ai/AiGovernanceSummaryResponse.java",
-            "backend/platform-server/src/test/java/com/yuri/aiorder/ai/AiGatewayTests.java",
+            "backend/platform-server/src/main/java/com/yuri/aiorder/ai/AiExternalAlertSenderService.java",
+            "backend/platform-server/src/main/resources/application.yml",
+            "backend/platform-server/src/test/java/com/yuri/aiorder/ai/AiExternalAlertSenderTests.java",
+            ".env.example",
             "docs/api/openapi.yaml",
             "docs/acceptance/task-8-acceptance-matrix.md",
             "docs/deployment/readiness-checklist.md",
             "STATUS.md",
             "tasks/README.md",
             "README.md",
-            "scripts/check-task-9d31-ai-budget-threshold.mjs",
+            "scripts/check-task-9d43-ai-external-alert-webhook.mjs",
             "package.json"
           ],
           "patterns": [
-            "AI_DAILY_BUDGET_MICROUSD",
-            "dailyBudgetMicrousd",
-            "daily_budget_microusd",
-            "budget_exceeded",
-            "aiGovernanceSummaryFlagsDailyBudgetThreshold",
-            "任务 9D.31：AI 预算阈值第一增量",
-            "9D.31 AI 预算阈值第一增量",
-            "9D.31 已补 AI 预算阈值第一增量",
-            "AI 预算阈值第一增量",
-            "check:task9d31"
+            "ExternalAlert",
+            "webhookEnabled",
+            "sendWebhook",
+            "AI_EXTERNAL_ALERT_WEBHOOK_ENABLED",
+            "AI_EXTERNAL_ALERT_WEBHOOK_URL",
+            "senderPostsPendingExternalAlertToConfiguredWebhookWhenEnabled",
+            "senderKeepsWebhookFailurePendingBeforeMaxAttempts",
+            "AI 真实外部渠道适配第一增量",
+            "任务 9D.43：AI 真实外部渠道适配第一增量",
+            "9D.43 AI 真实外部渠道适配第一增量",
+            "9D.43 已补 AI 真实外部渠道适配第一增量",
+            "external alert webhook failed",
+            "check:task9d43"
           ]
         },
         {
-          "id": "task-9d32-ai-budget-alert-required-text",
+          "id": "task-9d44-ai-external-alert-scheduler-required-text",
           "type": "required_text",
           "paths": [
-            "backend/platform-server/src/main/java/com/yuri/aiorder/ai/AiGatewayService.java",
-            "backend/platform-server/src/main/java/com/yuri/aiorder/ai/AiGovernanceSummaryResponse.java",
-            "backend/platform-server/src/test/java/com/yuri/aiorder/ai/AiGatewayDeepSeekTests.java",
+            "backend/platform-server/src/main/java/com/yuri/aiorder/AiOrderPlatformApplication.java",
+            "backend/platform-server/src/main/java/com/yuri/aiorder/ai/AiExternalAlertScheduler.java",
+            "backend/platform-server/src/main/java/com/yuri/aiorder/ai/AiGatewayProperties.java",
+            "backend/platform-server/src/main/resources/application.yml",
+            "backend/platform-server/src/test/java/com/yuri/aiorder/ai/AiExternalAlertSenderTests.java",
+            ".env.example",
             "docs/api/openapi.yaml",
             "docs/acceptance/task-8-acceptance-matrix.md",
             "docs/deployment/readiness-checklist.md",
             "STATUS.md",
             "tasks/README.md",
             "README.md",
-            "scripts/check-task-9d32-ai-budget-alert.mjs",
+            "scripts/check-task-9d44-ai-external-alert-scheduler.mjs",
             "package.json"
           ],
           "patterns": [
-            "AI_BUDGET_EXCEEDED",
-            "ai-governance-budget-exceeded",
-            "auditBudgetExceededIfCrossed",
-            "budget_alert_count",
-            "latest_budget_alert_at",
-            "deepSeekProviderAuditsBudgetExceededWhenDailyBudgetIsReached",
-            "任务 9D.32：AI 预算超限审计第一增量",
-            "9D.32 AI 预算超限审计第一增量",
-            "9D.32 已补 AI 预算超限审计第一增量",
-            "预算超限审计第一增量",
-            "check:task9d32"
+            "AiExternalAlertScheduler",
+            "@EnableScheduling",
+            "@Scheduled",
+            "schedulerEnabled",
+            "schedulerBatchSize",
+            "AI_EXTERNAL_ALERT_SCHEDULER_ENABLED",
+            "schedulerDoesNothingWhenExternalAlertSchedulingIsDisabled",
+            "schedulerDispatchesPendingAlertsWhenExternalAlertSchedulingIsEnabled",
+            "AI 外部告警调度器第一增量",
+            "任务 9D.44：AI 外部告警调度器第一增量",
+            "9D.44 AI 外部告警调度器第一增量",
+            "9D.44 已补 AI 外部告警调度器第一增量",
+            "check:task9d44"
+          ]
+        },
+        {
+          "id": "task-9d45-ai-external-alert-retry-dead-letter-required-text",
+          "type": "required_text",
+          "paths": [
+            "backend/platform-server/src/main/java/com/yuri/aiorder/ai/AiGatewayProperties.java",
+            "backend/platform-server/src/main/java/com/yuri/aiorder/ai/AiExternalAlertSenderService.java",
+            "backend/platform-server/src/main/resources/application.yml",
+            "backend/platform-server/src/test/java/com/yuri/aiorder/ai/AiExternalAlertSenderTests.java",
+            ".env.example",
+            "docs/api/openapi.yaml",
+            "docs/acceptance/task-8-acceptance-matrix.md",
+            "docs/deployment/readiness-checklist.md",
+            "STATUS.md",
+            "tasks/README.md",
+            "README.md",
+            "scripts/check-task-9d45-ai-external-alert-retry-dead-letter.mjs",
+            "package.json"
+          ],
+          "patterns": [
+            "maxAttempts",
+            "AI_EXTERNAL_ALERT_MAX_ATTEMPTS",
+            "DEAD_LETTER",
+            "senderKeepsWebhookFailurePendingBeforeMaxAttempts",
+            "senderMovesWebhookFailureToDeadLetterAtMaxAttempts",
+            "AI 外部告警重试/死信第一增量",
+            "任务 9D.45：AI 外部告警重试/死信第一增量",
+            "9D.45 AI 外部告警重试/死信第一增量",
+            "9D.45 已补 AI 外部告警重试/死信第一增量",
+            "check:task9d45"
+          ]
+        },
+        {
+          "id": "task-9d46-ai-external-alert-claim-idempotency-required-text",
+          "type": "required_text",
+          "paths": [
+            "backend/platform-server/src/main/java/com/yuri/aiorder/ai/AiExternalAlertSenderService.java",
+            "backend/platform-server/src/test/java/com/yuri/aiorder/ai/AiExternalAlertSenderTests.java",
+            "docs/api/openapi.yaml",
+            "docs/acceptance/task-8-acceptance-matrix.md",
+            "docs/deployment/readiness-checklist.md",
+            "DECISIONS.md",
+            "STATUS.md",
+            "tasks/README.md",
+            "README.md",
+            "scripts/check-task-9d46-ai-external-alert-claim-idempotency.mjs",
+            "package.json"
+          ],
+          "patterns": [
+            "claimAlert",
+            "SENDING",
+            "senderClaimsPendingAlertBeforeWebhookCallToAvoidDuplicateExternalSend",
+            "AI 外部告警幂等/并发领取第一增量",
+            "任务 9D.46：AI 外部告警幂等/并发领取第一增量",
+            "9D.46 AI 外部告警幂等/并发领取第一增量",
+            "9D.46 已补 AI 外部告警幂等/并发领取第一增量",
+            "check:task9d46"
+          ]
+        },
+        {
+          "id": "task-9d47-ai-external-alert-webhook-signing-required-text",
+          "type": "required_text",
+          "paths": [
+            "backend/platform-server/src/main/java/com/yuri/aiorder/ai/AiGatewayProperties.java",
+            "backend/platform-server/src/main/java/com/yuri/aiorder/ai/AiExternalAlertSenderService.java",
+            "backend/platform-server/src/test/java/com/yuri/aiorder/ai/AiExternalAlertSenderTests.java",
+            "backend/platform-server/src/main/resources/application.yml",
+            ".env.example",
+            "docs/api/openapi.yaml",
+            "docs/acceptance/task-8-acceptance-matrix.md",
+            "docs/deployment/readiness-checklist.md",
+            "DECISIONS.md",
+            "STATUS.md",
+            "tasks/README.md",
+            "README.md",
+            "scripts/check-task-9d47-ai-external-alert-webhook-signing.mjs",
+            "package.json"
+          ],
+          "patterns": [
+            "webhookSigningEnabled",
+            "webhookSigningSecret",
+            "X-AI-Alert-Signature",
+            "HmacSHA256",
+            "AI_EXTERNAL_ALERT_WEBHOOK_SIGNING_ENABLED",
+            "AI_EXTERNAL_ALERT_WEBHOOK_SIGNING_SECRET",
+            "senderSignsWebhookRequestWhenSigningIsEnabled",
+            "AI 外部告警 webhook 签名/鉴权第一增量",
+            "任务 9D.47：AI 外部告警 webhook 签名/鉴权第一增量",
+            "9D.47 AI 外部告警 webhook 签名/鉴权第一增量",
+            "9D.47 已补 AI 外部告警 webhook 签名/鉴权第一增量",
+            "check:task9d47"
           ]
         }
       ]
