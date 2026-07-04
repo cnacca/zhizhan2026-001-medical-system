@@ -4487,6 +4487,7 @@ paths:
       - Performance
       summary: 获取绩效统计
       description: |
+        任务 9D.66 第一增量：支持 start_date / end_date 按完成日期筛选绩效统计。
         权限：WORKER（只返回本人数据）/ ADMIN（可查全部）
         绩效计算公式：
         - 完成数量 = 完成工序数（node_status=COMPLETED）
@@ -4503,11 +4504,13 @@ paths:
           description: ADMIN 专用，不传则返回当前登录人
       - name: start_date
         in: query
+        description: 按 work_log.finished_at 日期筛选，闭区间开始日期
         schema:
           type: string
           format: date
       - name: end_date
         in: query
+        description: 按 work_log.finished_at 日期筛选，闭区间结束日期；早于 start_date 时返回 400
         schema:
           type: string
           format: date
@@ -4542,6 +4545,7 @@ paths:
       - Performance
       summary: 获取绩效工时明细
       description: |
+        任务 9D.66 第一增量：支持 start_date / end_date 按完成日期筛选绩效明细。
         权限：WORKER（只返回本人数据）/ ADMIN（可查全部）。
         返回最近 100 条已完成 work_log 明细，用于管理端核对绩效汇总来源。
       parameters:
@@ -4550,6 +4554,18 @@ paths:
         schema:
           type: integer
           description: ADMIN 专用，不传则返回当前登录人；WORKER 传入也只返回本人
+      - name: start_date
+        in: query
+        description: 按 work_log.finished_at 日期筛选，闭区间开始日期
+        schema:
+          type: string
+          format: date
+      - name: end_date
+        in: query
+        description: 按 work_log.finished_at 日期筛选，闭区间结束日期；早于 start_date 时返回 400
+        schema:
+          type: string
+          format: date
       responses:
         '200':
           description: 绩效工时明细

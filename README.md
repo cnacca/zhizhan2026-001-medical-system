@@ -1370,3 +1370,16 @@ npm run build:frontend
 ```
 
 Task 8 仍保持 NOT_READY。
+
+## 9D.66 绩效周期筛选第一段
+
+绩效统计和明细支持 `start_date` / `end_date` 查询参数。
+
+检查命令：
+
+```bash
+npm run check:task9d66
+npm run check:openapi
+```
+
+Task 8 仍保持 NOT_READY。

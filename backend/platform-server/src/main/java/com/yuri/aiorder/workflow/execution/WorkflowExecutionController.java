@@ -4,7 +4,9 @@ import com.yuri.aiorder.common.BootstrapIdentity;
 import com.yuri.aiorder.common.DataResponse;
 import com.yuri.aiorder.common.UserRole;
 import com.yuri.aiorder.common.auth.RequirePermission;
+import java.time.LocalDate;
 import java.util.List;
+import org.springframework.format.annotation.DateTimeFormat;
 import org.springframework.web.bind.annotation.CrossOrigin;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
@@ -191,8 +193,12 @@ public class WorkflowExecutionController {
             UserRole.ADMIN, UserRole.WORKER})
     public DataResponse<PerformanceStatsResponse> getPerformance(
             BootstrapIdentity identity,
-            @RequestParam(name = "user_id", required = false) Long requestedUserId) {
-        return new DataResponse<>(workflowExecutionService.getPerformance(requestedUserId, identity));
+            @RequestParam(name = "user_id", required = false) Long requestedUserId,
+            @RequestParam(name = "start_date", required = false)
+            @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate startDate,
+            @RequestParam(name = "end_date", required = false)
+            @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate endDate) {
+        return new DataResponse<>(workflowExecutionService.getPerformance(requestedUserId, startDate, endDate, identity));
     }
 
     @GetMapping("/performance/details")
@@ -200,7 +206,11 @@ public class WorkflowExecutionController {
             UserRole.ADMIN, UserRole.WORKER})
     public DataResponse<List<PerformanceDetailResponse>> getPerformanceDetails(
             BootstrapIdentity identity,
-            @RequestParam(name = "user_id", required = false) Long requestedUserId) {
-        return new DataResponse<>(workflowExecutionService.getPerformanceDetails(requestedUserId, identity));
+            @RequestParam(name = "user_id", required = false) Long requestedUserId,
+            @RequestParam(name = "start_date", required = false)
+            @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate startDate,
+            @RequestParam(name = "end_date", required = false)
+            @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate endDate) {
+        return new DataResponse<>(workflowExecutionService.getPerformanceDetails(requestedUserId, startDate, endDate, identity));
     }
 }

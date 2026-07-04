@@ -2476,6 +2476,34 @@
             "任务 9D.64",
             "check:task9d64"
           ]
+        },
+        {
+          "id": "task-9d66-performance-period-filter-required-text",
+          "type": "required_text",
+          "paths": [
+            "backend/platform-server/src/main/java/com/yuri/aiorder/workflow/execution/WorkflowExecutionController.java",
+            "backend/platform-server/src/main/java/com/yuri/aiorder/workflow/execution/WorkflowExecutionService.java",
+            "backend/platform-server/src/test/java/com/yuri/aiorder/workflow/execution/CheckWorklogPerformanceTests.java",
+            "frontend/src/App.vue",
+            "docs/api/openapi.yaml",
+            "acceptance.json",
+            "docs/acceptance/task-8-acceptance-matrix.md",
+            "docs/deployment/readiness-checklist.md",
+            "DECISIONS.md",
+            "STATUS.md",
+            "tasks/README.md",
+            "README.md",
+            "scripts/check-task-9d66-performance-period-filter.mjs",
+            "package.json"
+          ],
+          "patterns": [
+            "任务 9D.66",
+            "绩效周期筛选第一段",
+            "start_date",
+            "end_date",
+            "performancePeriodFilter",
+            "check:task9d66"
+          ]
         }
       ]
     }

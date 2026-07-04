@@ -1872,3 +1872,13 @@
 - 9D.64 不新增后端接口、不新增数据库字段、不新增 OpenAPI 契约，直接复用既有 `GET /orders/{orderId}/design-drafts` 和 `GET /files/{fileId}/preview-url`。
 - 客服初审 / 内部订单设计稿页在选中订单后加载设计稿版本列表，客服可按设计稿文件 ID 获取短时效授权预览链接。
 - Task 8 仍保持 `NOT_READY`。
+
+## D-117 任务 9D.66 绩效周期筛选第一段
+
+状态：已确认并执行第一增量。
+
+决策：
+
+- 绩效周期筛选先扩展既有 `/performance` 和 `/performance/details`，新增可选 `start_date` / `end_date` 查询参数。
+- 周期口径按 `work_log.finished_at` 做日期闭区间过滤；`end_date` 早于 `start_date` 返回 400。
+- 权限边界不变：WORKER 只能看本人绩效，ADMIN 可按 `user_id` 查询指定员工。Task 8 仍保持 `NOT_READY`。

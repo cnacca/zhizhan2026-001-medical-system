@@ -838,6 +838,8 @@ const worklogError = ref('')
 const performanceStats = ref<PerformanceStatsResponse | null>(null)
 const performanceDetails = ref<PerformanceDetailResponse[]>([])
 const performanceUserId = ref('')
+const performanceStartDate = ref('')
+const performanceEndDate = ref('')
 const performanceLoading = ref(false)
 const performanceError = ref('')
 const productionQualitySummary = ref<ProductionQualitySummaryResponse | null>(null)
@@ -4505,6 +4507,12 @@ async function loadPerformanceStats() {
       }
       params.set('user_id', String(userId))
     }
+    if (performanceStartDate.value.trim()) {
+      params.set('start_date', performanceStartDate.value.trim())
+    }
+    if (performanceEndDate.value.trim()) {
+      params.set('end_date', performanceEndDate.value.trim())
+    }
     const query = params.toString()
     const [statsPayload, detailPayload] = await Promise.all([
       apiFetch<PerformanceStatsResponse>(query ? `/performance?${query}` : '/performance'),
@@ -6253,6 +6261,20 @@ onBeforeUnmount(() => {
             <el-input
               v-model="performanceUserId"
               placeholder="管理员可输入员工编号；生产人员留空查看本人"
+              clearable
+              @keyup.enter="loadPerformanceStats"
+            />
+            <el-input
+              v-model="performanceStartDate"
+              data-testid="performance-start-date"
+              placeholder="开始日期 YYYY-MM-DD"
+              clearable
+              @keyup.enter="loadPerformanceStats"
+            />
+            <el-input
+              v-model="performanceEndDate"
+              data-testid="performance-end-date"
+              placeholder="结束日期 YYYY-MM-DD"
               clearable
               @keyup.enter="loadPerformanceStats"
             />

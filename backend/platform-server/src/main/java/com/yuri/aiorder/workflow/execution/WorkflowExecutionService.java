@@ -8,6 +8,7 @@ import com.yuri.aiorder.common.auth.AccessControlService;
 import com.yuri.aiorder.notification.NotificationPushService;
 import java.math.BigDecimal;
 import java.math.RoundingMode;
+import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.util.List;
 import java.util.Locale;
@@ -854,54 +855,56 @@ public class WorkflowExecutionService {
         return loadWorkLog(workLogId, true);
     }
 
-    public PerformanceStatsResponse getPerformance(Long requestedUserId, BootstrapIdentity identity) {
+    public PerformanceStatsResponse getPerformance(
+            Long requestedUserId, LocalDate startDate, LocalDate endDate, BootstrapIdentity identity) {
         Long targetUserId = accessControlService.resolvePerformanceTargetUserId(identity, requestedUserId);
+        PerformancePeriodFilter period = performancePeriodFilter(startDate, endDate);
         long completedCount = countLong("""
                         SELECT COUNT(*)
-                        FROM work_log
-                        WHERE worker_user_id = :userId
-                          AND status = 'COMPLETED'
-                        """, targetUserId);
+                        FROM work_log w
+                        WHERE w.worker_user_id = :userId
+                          AND w.status = 'COMPLETED'
+                        """ + periodSql(period, "w.finished_at"), targetUserId, period);
         long effectiveSeconds = countLong("""
-                        SELECT COALESCE(SUM(effective_duration_seconds), 0)
-                        FROM work_log
-                        WHERE worker_user_id = :userId
-                          AND status = 'COMPLETED'
-                        """, targetUserId);
+                        SELECT COALESCE(SUM(w.effective_duration_seconds), 0)
+                        FROM work_log w
+                        WHERE w.worker_user_id = :userId
+                          AND w.status = 'COMPLETED'
+                        """ + periodSql(period, "w.finished_at"), targetUserId, period);
         long reworkCount = countLong("""
                         SELECT COUNT(*)
                         FROM rework_record r
                         JOIN order_process_node n ON n.node_instance_id = r.target_node_instance_id
                         WHERE n.assigned_user_id = :userId
-                        """, targetUserId);
+                        """ + periodSql(period, "r.created_at"), targetUserId, period);
         long responsibleReworkCount = countLong("""
                         SELECT COUNT(*)
                         FROM rework_record r
                         JOIN order_process_node n ON n.node_instance_id = r.target_node_instance_id
                         WHERE n.assigned_user_id = :userId
                           AND r.responsibility_type = 'WORKER'
-                        """, targetUserId);
+                        """ + periodSql(period, "r.created_at"), targetUserId, period);
         long nonWorkerResponsibilityReworkCount = countLong("""
                         SELECT COUNT(*)
                         FROM rework_record r
                         JOIN order_process_node n ON n.node_instance_id = r.target_node_instance_id
                         WHERE n.assigned_user_id = :userId
                           AND r.responsibility_type IN ('DOCTOR', 'CS', 'SYSTEM')
-                        """, targetUserId);
+                        """ + periodSql(period, "r.created_at"), targetUserId, period);
         long unclassifiedReworkCount = countLong("""
                         SELECT COUNT(*)
                         FROM rework_record r
                         JOIN order_process_node n ON n.node_instance_id = r.target_node_instance_id
                         WHERE n.assigned_user_id = :userId
                           AND r.responsibility_type IS NULL
-                        """, targetUserId);
+                        """ + periodSql(period, "r.created_at"), targetUserId, period);
         long outCheckTotal = countLong("""
                         SELECT COUNT(*)
                         FROM check_record c
                         JOIN order_process_node n ON n.node_instance_id = c.node_instance_id
                         WHERE n.assigned_user_id = :userId
                           AND c.check_type = 'OUT'
-                        """, targetUserId);
+                        """ + periodSql(period, "c.created_at"), targetUserId, period);
         long outCheckPass = countLong("""
                         SELECT COUNT(*)
                         FROM check_record c
@@ -909,7 +912,7 @@ public class WorkflowExecutionService {
                         WHERE n.assigned_user_id = :userId
                           AND c.check_type = 'OUT'
                           AND c.result = 'PASS'
-                        """, targetUserId);
+                        """ + periodSql(period, "c.created_at"), targetUserId, period);
         long onTimeCount = countLong("""
                         SELECT COUNT(*)
                         FROM work_log w
@@ -918,7 +921,7 @@ public class WorkflowExecutionService {
                           AND w.status = 'COMPLETED'
                           AND n.standard_duration IS NOT NULL
                           AND w.effective_duration_seconds <= n.standard_duration
-                        """, targetUserId);
+                        """ + periodSql(period, "w.finished_at"), targetUserId, period);
         long standardSeconds = countLong("""
                         SELECT COALESCE(SUM(n.standard_duration), 0)
                         FROM work_log w
@@ -926,7 +929,7 @@ public class WorkflowExecutionService {
                         WHERE w.worker_user_id = :userId
                           AND w.status = 'COMPLETED'
                           AND n.standard_duration IS NOT NULL
-                        """, targetUserId);
+                        """ + periodSql(period, "w.finished_at"), targetUserId, period);
         return new PerformanceStatsResponse(
                 targetUserId,
                 completedCount,
@@ -940,9 +943,11 @@ public class WorkflowExecutionService {
                 effectiveSeconds == 0 ? 0 : Math.toIntExact(Math.round((standardSeconds * 100.0) / effectiveSeconds)));
     }
 
-    public List<PerformanceDetailResponse> getPerformanceDetails(Long requestedUserId, BootstrapIdentity identity) {
+    public List<PerformanceDetailResponse> getPerformanceDetails(
+            Long requestedUserId, LocalDate startDate, LocalDate endDate, BootstrapIdentity identity) {
         Long targetUserId = accessControlService.resolvePerformanceTargetUserId(identity, requestedUserId);
-        return jdbcClient.sql("""
+        PerformancePeriodFilter period = performancePeriodFilter(startDate, endDate);
+        var statement = jdbcClient.sql("""
                         SELECT
                             w.work_log_id,
                             w.order_id,
@@ -960,11 +965,13 @@ public class WorkflowExecutionService {
                         JOIN order_process_node n ON n.node_instance_id = w.node_instance_id
                         WHERE w.worker_user_id = :userId
                           AND w.status = 'COMPLETED'
+                        """ + periodSql(period, "w.finished_at") + """
                         ORDER BY w.finished_at DESC, w.work_log_id DESC
                         LIMIT 100
                         """)
-                .param("userId", targetUserId)
-                .query((rs, rowNum) -> {
+                .param("userId", targetUserId);
+        statement = bindPeriod(statement, period);
+        return statement.query((rs, rowNum) -> {
                     Integer effectiveSeconds = rs.getObject("effective_duration_seconds", Integer.class);
                     Integer standardSeconds = rs.getObject("standard_duration", Integer.class);
                     Boolean onTime = standardSeconds == null || effectiveSeconds == null
@@ -1679,6 +1686,45 @@ public class WorkflowExecutionService {
                 .single();
     }
 
+
+    private long countLong(String sql, Long userId, PerformancePeriodFilter period) {
+        JdbcClient.StatementSpec statement = jdbcClient.sql(sql)
+                .param("userId", userId);
+        statement = bindPeriod(statement, period);
+        return statement.query(Long.class)
+                .single();
+    }
+
+    private PerformancePeriodFilter performancePeriodFilter(LocalDate startDate, LocalDate endDate) {
+        if (startDate != null && endDate != null && endDate.isBefore(startDate)) {
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "end_date cannot be before start_date");
+        }
+        LocalDateTime startAt = startDate == null ? null : startDate.atStartOfDay();
+        LocalDateTime endExclusive = endDate == null ? null : endDate.plusDays(1).atStartOfDay();
+        return new PerformancePeriodFilter(startAt, endExclusive);
+    }
+
+    private String periodSql(PerformancePeriodFilter period, String columnName) {
+        StringBuilder sql = new StringBuilder();
+        if (period.startAt() != null) {
+            sql.append(" AND ").append(columnName).append(" >= :periodStartAt\n");
+        }
+        if (period.endExclusive() != null) {
+            sql.append(" AND ").append(columnName).append(" < :periodEndExclusive\n");
+        }
+        return sql.toString();
+    }
+
+    private JdbcClient.StatementSpec bindPeriod(JdbcClient.StatementSpec statement, PerformancePeriodFilter period) {
+        if (period.startAt() != null) {
+            statement = statement.param("periodStartAt", period.startAt());
+        }
+        if (period.endExclusive() != null) {
+            statement = statement.param("periodEndExclusive", period.endExclusive());
+        }
+        return statement;
+    }
+
     private int percent(long part, long total) {
         if (total == 0) {
             return 0;
@@ -1704,6 +1750,11 @@ public class WorkflowExecutionService {
             return 0.0;
         }
         return value.setScale(scale, RoundingMode.HALF_UP).doubleValue();
+    }
+
+    private record PerformancePeriodFilter(
+            LocalDateTime startAt,
+            LocalDateTime endExclusive) {
     }
 
     private record NodeRow(

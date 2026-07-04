@@ -4497,3 +4497,13 @@ npm run check:openapi
 完成记录：新增 `csDesignDrafts`、`loadInternalDesignDrafts`、`loadCsDesignDraftPreviewUrls` 和 `npm run check:task9d64`。
 
 未完成原因：本轮不做复杂在线审稿、批注或多轮驳回/重传完整回归。Task 8 仍保持 NOT_READY。
+
+## 任务 9D.66：绩效周期筛选第一段
+
+状态：completed-first-increment。
+
+目标：WORKER / ADMIN 可按开始日期和结束日期查看绩效统计与工时明细。
+
+完成记录：新增周期查询参数、period filter、目标后端测试、前端日期输入、OpenAPI 和 `npm run check:task9d66`。
+
+未完成原因：本轮不做标准工时后台配置、完整公式、申诉、导出或工资发放。Task 8 仍保持 NOT_READY。

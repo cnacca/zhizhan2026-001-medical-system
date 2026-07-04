@@ -107,3 +107,7 @@
 ## 9D.64 客服端设计稿审核预览增强第一段
 
 9D.64 已补客服端设计稿版本列表和客服设计稿预览链接，复用既有文件签名 URL 权限边界。Task 8 仍保持 NOT_READY。
+
+## 9D.66 绩效周期筛选第一段
+
+9D.66 已补绩效周期筛选第一段，`/performance` 和 `/performance/details` 支持 `start_date` / `end_date`。Task 8 仍保持 NOT_READY。

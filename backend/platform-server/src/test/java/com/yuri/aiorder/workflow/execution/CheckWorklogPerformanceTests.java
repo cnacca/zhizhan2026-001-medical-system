@@ -645,6 +645,44 @@ class CheckWorklogPerformanceTests {
                 .andExpect(jsonPath("$.data[0].finished_at").isString());
     }
 
+
+    @Test
+    void performancePeriodFilterAppliesToStatsAndDetails() throws Exception {
+        submitCheck(nodeInstanceId, 1, true, null);
+        startNode(nodeInstanceId);
+        long inPeriodWorkLogId = startWorkLog(nodeInstanceId);
+        finishWorkLog(inPeriodWorkLogId)
+                .andExpect(status().isOk());
+        setWorkLogEffectiveSeconds(inPeriodWorkLogId, 600);
+        setWorkLogFinishedAt(inPeriodWorkLogId, "2026-07-10 10:00:00.000");
+
+        submitCheck(nodeInstanceId, 1, true, null);
+        startNode(nodeInstanceId);
+        long outsidePeriodWorkLogId = startWorkLog(nodeInstanceId);
+        finishWorkLog(outsidePeriodWorkLogId)
+                .andExpect(status().isOk());
+        setWorkLogEffectiveSeconds(outsidePeriodWorkLogId, 1200);
+        setWorkLogFinishedAt(outsidePeriodWorkLogId, "2026-06-20 10:00:00.000");
+
+        mockMvc.perform(get("/performance")
+                        .header("X-Bootstrap-Role", "WORKER")
+                        .header("X-Bootstrap-User-Id", workerUserId)
+                        .param("start_date", "2026-07-01")
+                        .param("end_date", "2026-07-31"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.completed_count").value(1))
+                .andExpect(jsonPath("$.data.effective_duration").value(10));
+
+        mockMvc.perform(get("/performance/details")
+                        .header("X-Bootstrap-Role", "WORKER")
+                        .header("X-Bootstrap-User-Id", workerUserId)
+                        .param("start_date", "2026-07-01")
+                        .param("end_date", "2026-07-31"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.length()").value(1))
+                .andExpect(jsonPath("$.data[0].work_log_id").value(inPeriodWorkLogId));
+    }
+
     @Test
     void bearerCsCannotReadWorkerPerformance() throws Exception {
         String csToken = tokenService.issue(new BootstrapIdentity(UserRole.CS, 8001L, null));
@@ -1070,6 +1108,18 @@ class CheckWorklogPerformanceTests {
                         WHERE work_log_id = :workLogId
                         """)
                 .param("effectiveSeconds", effectiveSeconds)
+                .param("workLogId", workLogId)
+                .update();
+    }
+
+
+    private void setWorkLogFinishedAt(long workLogId, String finishedAt) {
+        jdbcClient.sql("""
+                        UPDATE work_log
+                        SET finished_at = :finishedAt
+                        WHERE work_log_id = :workLogId
+                        """)
+                .param("finishedAt", finishedAt)
                 .param("workLogId", workLogId)
                 .update();
     }
