@@ -722,22 +722,25 @@ public class WorkflowExecutionService {
         String summary = request.summary() == null || request.summary().isBlank()
                 ? "终检通过"
                 : request.summary().trim();
+        Long pdfFileId = normalizePdfFileId(request.pdfFileId());
+        validateFinalInspectionPdfFile(request.orderId(), pdfFileId);
         List<Long> attachmentFileIds = normalizeAttachmentFileIds(request.attachmentFileIds());
         validateFinalInspectionAttachmentFiles(request.orderId(), attachmentFileIds);
         String reportNo = "FIR-" + request.orderId() + "-" + finalCheck.checkId();
         jdbcClient.sql("""
                         INSERT INTO final_inspection_report
                             (order_id, report_no, final_node_instance_id, final_check_id,
-                             conclusion, summary, inspector_user_id, status)
+                             conclusion, summary, pdf_file_id, inspector_user_id, status, signature_status)
                         VALUES
                             (:orderId, :reportNo, :finalNodeInstanceId, :finalCheckId,
-                             'PASS', :summary, :inspectorUserId, 'ISSUED')
+                             'PASS', :summary, :pdfFileId, :inspectorUserId, 'ISSUED', 'PENDING')
                         """)
                 .param("orderId", request.orderId())
                 .param("reportNo", reportNo)
                 .param("finalNodeInstanceId", finalNode.nodeInstanceId())
                 .param("finalCheckId", finalCheck.checkId())
                 .param("summary", summary)
+                .param("pdfFileId", pdfFileId)
                 .param("inspectorUserId", identity.userId())
                 .update();
         long reportId = lastInsertId();
@@ -1229,7 +1232,8 @@ public class WorkflowExecutionService {
     private FinalInspectionReportResponse findFinalInspectionReport(long orderId) {
         return jdbcClient.sql("""
                         SELECT report_id, order_id, report_no, final_node_instance_id, final_check_id,
-                               conclusion, summary, inspector_user_id, status, created_at
+                               conclusion, summary, pdf_file_id, inspector_user_id, status,
+                               signature_status, signed_by_user_id, signed_at, created_at
                         FROM final_inspection_report
                         WHERE order_id = :orderId
                         """)
@@ -1242,8 +1246,12 @@ public class WorkflowExecutionService {
                         rs.getLong("final_check_id"),
                         rs.getString("conclusion"),
                         rs.getString("summary"),
+                        rs.getObject("pdf_file_id", Long.class),
                         rs.getObject("inspector_user_id", Long.class),
                         rs.getString("status"),
+                        rs.getString("signature_status"),
+                        rs.getObject("signed_by_user_id", Long.class),
+                        rs.getObject("signed_at", LocalDateTime.class),
                         rs.getObject("created_at", LocalDateTime.class),
                         loadFinalInspectionAttachmentFileIds(rs.getLong("report_id"))))
                 .optional()
@@ -1253,7 +1261,8 @@ public class WorkflowExecutionService {
     private FinalInspectionReportResponse loadFinalInspectionReportById(long reportId) {
         return jdbcClient.sql("""
                         SELECT report_id, order_id, report_no, final_node_instance_id, final_check_id,
-                               conclusion, summary, inspector_user_id, status, created_at
+                               conclusion, summary, pdf_file_id, inspector_user_id, status,
+                               signature_status, signed_by_user_id, signed_at, created_at
                         FROM final_inspection_report
                         WHERE report_id = :reportId
                         """)
@@ -1266,11 +1275,44 @@ public class WorkflowExecutionService {
                         rs.getLong("final_check_id"),
                         rs.getString("conclusion"),
                         rs.getString("summary"),
+                        rs.getObject("pdf_file_id", Long.class),
                         rs.getObject("inspector_user_id", Long.class),
                         rs.getString("status"),
+                        rs.getString("signature_status"),
+                        rs.getObject("signed_by_user_id", Long.class),
+                        rs.getObject("signed_at", LocalDateTime.class),
                         rs.getObject("created_at", LocalDateTime.class),
                         loadFinalInspectionAttachmentFileIds(rs.getLong("report_id"))))
                 .single();
+    }
+
+    private Long normalizePdfFileId(Long pdfFileId) {
+        return pdfFileId == null || pdfFileId <= 0 ? null : pdfFileId;
+    }
+
+    private void validateFinalInspectionPdfFile(long orderId, Long pdfFileId) {
+        if (pdfFileId == null) {
+            return;
+        }
+        long validCount = jdbcClient.sql("""
+                        SELECT COUNT(*)
+                        FROM file_resource
+                        WHERE order_id = :orderId
+                          AND status = 'ACTIVE'
+                          AND upload_status = 'COMPLETED'
+                          AND visibility = 'INTERNAL'
+                          AND content_type = 'application/pdf'
+                          AND file_id = :pdfFileId
+                        """)
+                .param("orderId", orderId)
+                .param("pdfFileId", pdfFileId)
+                .query(Long.class)
+                .single();
+        if (validCount != 1) {
+            throw new ResponseStatusException(
+                    HttpStatus.BAD_REQUEST,
+                    "final inspection pdf must be a completed internal PDF file for this order");
+        }
     }
 
     private List<Long> normalizeAttachmentFileIds(List<Long> attachmentFileIds) {

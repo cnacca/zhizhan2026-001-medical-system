@@ -751,6 +751,7 @@ class CheckWorklogPerformanceTests {
     @Test
     void finalInspectionReportRequiresFinalOutPassAndIsInternalOnly() throws Exception {
         long attachmentFileId = createCompletedInternalFile("终检附件.txt");
+        long pdfFileId = createCompletedInternalPdfFile("终检报告.pdf");
         String workerWithoutFinalInspectionPermission = tokenService.issue(
                 new BootstrapIdentity(UserRole.WORKER, workerUserId, null, null, Set.of("check:write"), "SELF"));
         String finalInspectorToken = tokenService.issue(new BootstrapIdentity(
@@ -786,8 +787,8 @@ class CheckWorklogPerformanceTests {
                         .header("Authorization", "Bearer " + finalInspectorToken)
                         .contentType(MediaType.APPLICATION_JSON)
                         .content("""
-                                {"order_id":%d,"summary":"终检报告第一增量","attachment_file_ids":[%d]}
-                                """.formatted(orderId, attachmentFileId)))
+                                {"order_id":%d,"summary":"终检报告第一增量","pdf_file_id":%d,"attachment_file_ids":[%d]}
+                                """.formatted(orderId, pdfFileId, attachmentFileId)))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.data.report_id").isNumber())
                 .andExpect(jsonPath("$.data.order_id").value(orderId))
@@ -795,6 +796,10 @@ class CheckWorklogPerformanceTests {
                 .andExpect(jsonPath("$.data.final_check_id").value(finalCheckId))
                 .andExpect(jsonPath("$.data.conclusion").value("PASS"))
                 .andExpect(jsonPath("$.data.summary").value("终检报告第一增量"))
+                .andExpect(jsonPath("$.data.pdf_file_id").value(pdfFileId))
+                .andExpect(jsonPath("$.data.signature_status").value("PENDING"))
+                .andExpect(jsonPath("$.data.signed_by_user_id").doesNotExist())
+                .andExpect(jsonPath("$.data.signed_at").doesNotExist())
                 .andExpect(jsonPath("$.data.attachment_file_ids[0]").value(attachmentFileId))
                 .andReturn();
         long reportId = objectMapper.readTree(created.getResponse().getContentAsString())
@@ -807,15 +812,41 @@ class CheckWorklogPerformanceTests {
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.data.report_id").value(reportId))
                 .andExpect(jsonPath("$.data.report_no").isNotEmpty())
+                .andExpect(jsonPath("$.data.pdf_file_id").value(pdfFileId))
+                .andExpect(jsonPath("$.data.signature_status").value("PENDING"))
                 .andExpect(jsonPath("$.data.attachment_file_ids[0]").value(attachmentFileId));
 
         String doctorToken = tokenService.issue(new BootstrapIdentity(UserRole.DOCTOR, doctorUserId, clinicId));
         mockMvc.perform(get("/final-inspection-reports/{orderId}", orderId)
                         .header("Authorization", "Bearer " + doctorToken))
                 .andExpect(status().isForbidden());
+        mockMvc.perform(get("/files/{fileId}/preview-url", pdfFileId)
+                        .header("Authorization", "Bearer " + doctorToken))
+                .andExpect(status().isForbidden());
         mockMvc.perform(get("/files/{fileId}/preview-url", attachmentFileId)
                         .header("Authorization", "Bearer " + doctorToken))
                 .andExpect(status().isForbidden());
+    }
+
+    private long createCompletedInternalPdfFile(String filename) {
+        String objectKey = "test/final-inspection/" + UUID.randomUUID() + "/" + filename;
+        jdbcClient.sql("""
+                        INSERT INTO file_resource
+                            (order_id, owner_user_id, source_type, visibility, bucket_name, object_key,
+                             original_filename, content_type, file_size, upload_status, status)
+                        VALUES
+                            (:orderId, :ownerUserId, 'FINAL_INSPECTION', 'INTERNAL', 'ai-order-files',
+                             :objectKey, :filename, 'application/pdf', 256, 'COMPLETED', 'ACTIVE')
+                        """)
+                .param("orderId", orderId)
+                .param("ownerUserId", workerUserId)
+                .param("objectKey", objectKey)
+                .param("filename", filename)
+                .update();
+        return jdbcClient.sql("SELECT file_id FROM file_resource WHERE object_key = :objectKey")
+                .param("objectKey", objectKey)
+                .query(Long.class)
+                .single();
     }
 
     private long createCompletedInternalFile(String filename) {

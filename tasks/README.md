@@ -4488,6 +4488,28 @@ npm run check:openapi
 
 未完成原因：所有确认项仍需客户 / PM 书面确认，本清单不替代签字。Task 8 仍保持 NOT_READY。
 
+## 任务 9D.65：终检 PDF/签名第一段
+
+状态：completed-first-increment。
+
+目标：终检报告可绑定内部 PDF file_id，并返回 `signature_status=PENDING` 签名占位，医生端仍不可读取终检报告或内部 PDF 预览。
+
+范围：新增 V29 迁移、`pdf_file_id` 请求/响应字段、签名占位字段、PDF 文件安全校验、前端返工终检页 PDF file_id 输入、OpenAPI 和静态检查。
+
+非目标：不接真实第三方电子签章，不把 `PENDING` 表述成已签署，不新增 V29 之外的新迁移，不新增医生端终检报告可见性。
+
+验收命令：
+
+```bash
+npm run check:task9d65
+npm run check:openapi
+./scripts/with-jdk21.sh mvn -f backend/pom.xml -pl platform-server -Dtest=CheckWorklogPerformanceTests test
+```
+
+完成记录：已补 `V29__final_inspection_pdf_signature_placeholder.sql`、终检报告请求/响应字段、`validateFinalInspectionPdfFile`、目标后端测试、前端输入/展示和 `npm run check:task9d65`。
+
+未完成原因：真实电子签章平台、复杂报告模板、签章流转/归档状态机和客户/PM 对真实签章模板确认仍未完成。Task 8 仍保持 NOT_READY。
+
 ## 任务 9D.64：客服端设计稿审核预览增强第一段
 
 状态：completed-first-increment。

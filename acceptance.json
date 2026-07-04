@@ -2226,6 +2226,37 @@
           ]
         },
         {
+          "id": "task-9d65-final-inspection-pdf-signature-required-text",
+          "type": "required_text",
+          "paths": [
+            "backend/platform-server/src/main/resources/db/migration/V29__final_inspection_pdf_signature_placeholder.sql",
+            "backend/platform-server/src/main/java/com/yuri/aiorder/workflow/execution/WorkflowExecutionService.java",
+            "backend/platform-server/src/main/java/com/yuri/aiorder/workflow/execution/FinalInspectionReportRequest.java",
+            "backend/platform-server/src/main/java/com/yuri/aiorder/workflow/execution/FinalInspectionReportResponse.java",
+            "backend/platform-server/src/test/java/com/yuri/aiorder/workflow/execution/CheckWorklogPerformanceTests.java",
+            "frontend/src/App.vue",
+            "docs/api/openapi.yaml",
+            "docs/acceptance/task-8-acceptance-matrix.md",
+            "docs/deployment/readiness-checklist.md",
+            "DECISIONS.md",
+            "STATUS.md",
+            "tasks/README.md",
+            "README.md",
+            "scripts/check-task-9d65-final-inspection-pdf-signature.mjs",
+            "package.json"
+          ],
+          "patterns": [
+            "pdf_file_id",
+            "signature_status",
+            "signed_by_user_id",
+            "signed_at",
+            "validateFinalInspectionPdfFile",
+            "finalInspectionPdfFileId",
+            "任务 9D.65",
+            "check:task9d65"
+          ]
+        },
+        {
           "id": "task-9d57-rework-impact-visualization-required-text",
           "type": "required_text",
           "paths": [

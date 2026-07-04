@@ -392,8 +392,12 @@ type FinalInspectionReportResponse = {
   final_check_id: number
   conclusion: string
   summary: string | null
+  pdf_file_id: number | null
   inspector_user_id: number | null
   status: string
+  signature_status: string
+  signed_by_user_id: number | null
+  signed_at: string | null
   attachment_file_ids: number[]
   created_at: string
 }
@@ -845,6 +849,7 @@ const finalInspectionLoading = ref(false)
 const finalInspectionResult = ref<CheckRecordResponse | null>(null)
 const finalInspectionReport = ref<FinalInspectionReportResponse | null>(null)
 const finalInspectionReportSummary = ref('')
+const finalInspectionPdfFileId = ref('')
 const finalInspectionAttachmentFileIds = ref('')
 const finalInspectionReportLoading = ref(false)
 const worklogTaskStatus = ref('IN_PROGRESS')
@@ -4358,6 +4363,7 @@ async function selectFinalInspectionTask(task: WorkerTaskItem) {
   finalInspectionRemark.value = ''
   finalInspectionResult.value = null
   finalInspectionReportSummary.value = ''
+  finalInspectionPdfFileId.value = ''
   finalInspectionAttachmentFileIds.value = ''
   await loadFinalInspectionRecords(task.node_instance_id)
   await loadFinalInspectionReport(task.order_id)
@@ -4417,6 +4423,7 @@ async function loadFinalInspectionReport(orderId: number) {
     const payload = await apiFetch<FinalInspectionReportResponse>(`/final-inspection-reports/${orderId}`)
     finalInspectionReport.value = payload.data
     finalInspectionReportSummary.value = payload.data.summary ?? ''
+    finalInspectionPdfFileId.value = payload.data.pdf_file_id ? String(payload.data.pdf_file_id) : ''
     finalInspectionAttachmentFileIds.value = payload.data.attachment_file_ids?.join(', ') ?? ''
   } catch (error) {
     if (error instanceof Error && error.message.includes('404')) {
@@ -4438,11 +4445,13 @@ async function createFinalInspectionReport() {
       body: JSON.stringify({
         order_id: selectedFinalInspectionTask.value.order_id,
         summary: finalInspectionReportSummary.value.trim() || '终检通过',
+        pdf_file_id: parseOptionalFileId(finalInspectionPdfFileId.value),
         attachment_file_ids: parseFileIds(finalInspectionAttachmentFileIds.value)
       })
     })
     finalInspectionReport.value = payload.data
     finalInspectionReportSummary.value = payload.data.summary ?? ''
+    finalInspectionPdfFileId.value = payload.data.pdf_file_id ? String(payload.data.pdf_file_id) : ''
     finalInspectionAttachmentFileIds.value = payload.data.attachment_file_ids?.join(', ') ?? ''
   } catch (error) {
     const message = error instanceof Error ? error.message : '生成终检报告失败'
@@ -4787,6 +4796,11 @@ function parseFileIds(value: string) {
     .filter(Boolean)
     .map((item) => Number(item))
     .filter((item) => Number.isInteger(item) && item > 0)
+}
+
+function parseOptionalFileId(value: string) {
+  const fileId = Number(value.trim())
+  return Number.isInteger(fileId) && fileId > 0 ? fileId : null
 }
 
 function connectNotificationSocket() {
@@ -6138,6 +6152,13 @@ onBeforeUnmount(() => {
                     placeholder="多个 ID 用逗号分隔"
                   />
                 </el-form-item>
+                <el-form-item label="终检 PDF file_id">
+                  <el-input
+                    v-model="finalInspectionPdfFileId"
+                    data-testid="final-inspection-pdf-file-id"
+                    placeholder="同订单 INTERNAL PDF 文件 ID"
+                  />
+                </el-form-item>
                 <el-button
                   type="primary"
                   plain
@@ -6156,6 +6177,12 @@ onBeforeUnmount(() => {
                 >
                   <template #default>
                     节点 {{ finalInspectionReport.final_node_instance_id }} / 检查 {{ finalInspectionReport.final_check_id }} / {{ statusLabel(finalInspectionReport.status) }}
+                    <span v-if="finalInspectionReport.pdf_file_id">
+                      / PDF {{ finalInspectionReport.pdf_file_id }}
+                    </span>
+                    <span>
+                      / 签名 {{ statusLabel(finalInspectionReport.signature_status) }}
+                    </span>
                     <span v-if="finalInspectionReport.attachment_file_ids.length">
                       / 附件 {{ finalInspectionReport.attachment_file_ids.join(', ') }}
                     </span>

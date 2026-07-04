@@ -1360,6 +1360,20 @@ npm run acceptance
 
 该清单只是待确认事项入口，不代表客户 / PM 已签字。Task 8 仍保持 NOT_READY。
 
+## 9D.65 终检 PDF/签名第一段
+
+终检报告可绑定同订单已完成上传、`INTERNAL` 可见且 `application/pdf` 的内部 PDF file_id，并返回 `signature_status=PENDING` 签名占位。该能力不代表真实电子签章完成，医生端仍不能读取终检报告或内部 PDF 预览 URL。
+
+检查命令：
+
+```bash
+npm run check:task9d65
+npm run check:openapi
+./scripts/with-jdk21.sh mvn -f backend/pom.xml -pl platform-server -Dtest=CheckWorklogPerformanceTests test
+```
+
+Task 8 仍保持 NOT_READY。
+
 ## 9D.64 客服端设计稿审核预览增强第一段
 
 客服端设计稿审核预览入口已补，检查命令：

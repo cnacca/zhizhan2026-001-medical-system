@@ -12,8 +12,12 @@ public record FinalInspectionReportResponse(
         @JsonProperty("final_check_id") long finalCheckId,
         String conclusion,
         String summary,
+        @JsonProperty("pdf_file_id") Long pdfFileId,
         @JsonProperty("inspector_user_id") Long inspectorUserId,
         String status,
+        @JsonProperty("signature_status") String signatureStatus,
+        @JsonProperty("signed_by_user_id") Long signedByUserId,
+        @JsonProperty("signed_at") LocalDateTime signedAt,
         @JsonProperty("created_at") LocalDateTime createdAt,
         @JsonProperty("attachment_file_ids") List<Long> attachmentFileIds) {
 }

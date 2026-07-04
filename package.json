@@ -81,6 +81,7 @@
     "check:task9d66": "node scripts/check-task-9d66-performance-period-filter.mjs",
     "check:task9d64": "node scripts/check-task-9d64-cs-design-draft-preview.mjs",
     "check:task9d72": "node scripts/check-task-9d72-customer-pm-confirmations.mjs",
+    "check:task9d65": "node scripts/check-task-9d65-final-inspection-pdf-signature.mjs",
     "check:task9d68": "node scripts/check-task-9d68-main-chain-customer-acceptance.mjs",
     "check:task9d70": "node scripts/check-task-9d70-operations-manuals.mjs",
     "check:auth-refresh": "node scripts/check-auth-refresh.mjs",
