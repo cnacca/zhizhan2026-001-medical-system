@@ -25,11 +25,12 @@
 - 后续项目文档和开发优先级默认围绕「完成一期交付」组织，不再把 9D 编号本身当成目标。
 - 一期完成口径以 `PROJECT.md` 的 P0 主业务链路、`docs/acceptance/task-8-acceptance-matrix.md` 的 12 步验收链路和 `docs/deployment/readiness-checklist.md` 的上线硬缺口为准。
 - 新增 `docs/acceptance/phase-one-frontend-alignment.md`，专门记录前端与一期范围的匹配情况，区分真实接口链路、第一增量、只读汇总和演示占位。
+- 新增 `docs/acceptance/phase-one-frontend-task-scope.md`，作为后续按医生端、客服端、生产端、管理端拆一期前端任务的入口，并记录已完成、演示增强、超过一期范围内容的处理方式。
 - 前端验收不能只看导航是否有入口；必须看真实用户路径、接口接入、权限边界和 12 步主链路是否可完成。
 
 影响：
 
-- 后续前端开发优先补终检专用角色 / 附件、12 步主链路浏览器 smoke、客服协同、返工影响图形化与绩效周期筛选等一期硬缺口。
+- 后续前端开发按 `phase-one-frontend-task-scope.md` 收口，优先补返工影响图形化、客服协同、12 步主链路浏览器 smoke、文件与设计稿体验、绩效与管理侧收口等一期硬缺口。
 - `STATUS.md`、`tasks/README.md` 和 `README.md` 已增加该口径入口；Task 8 仍保持 `in-progress / NOT_READY`。
 
 ## D-100 任务 9D.55 返工字典后台维护采用底座字典管理第一增量

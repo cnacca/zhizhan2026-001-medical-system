@@ -4,7 +4,7 @@
 
 ## 当前仓库状态
 
-当前总目标是完成一期交付。后续所有 9D 小任务都只作为补齐一期 12 步主链路和上线硬缺口的执行单元；前端是否匹配一期范围的最新整理见 `docs/acceptance/phase-one-frontend-alignment.md`。
+当前总目标是完成一期交付。后续所有 9D 小任务都只作为补齐一期 12 步主链路和上线硬缺口的执行单元；前端是否匹配一期范围见 `docs/acceptance/phase-one-frontend-alignment.md`，按端口拆任务、处理已完成和超一期入口时使用 `docs/acceptance/phase-one-frontend-task-scope.md`。
 
 当前已完成项目工作流初始化、任务 0 到任务 8B 基线、任务 9A 到 9B.8 权限/DataScope 第一轮、任务 9C.1 到 9C.3 通知第一轮，以及任务 9D.1 到 9D.56 的多条一期硬缺口第一增量；其中 9D.55 已补返工字典后台维护，任务 9D.56 终检专用角色 / 附件第一增量已补终检专用权限和内部附件绑定。Task 8 总体仍为 `NOT_READY`。
 
@@ -32,6 +32,8 @@ RepoFrame 生成的 `AGENT.md` 和 `.agent/` 保留为协作细则入口；Codex
 ```text
 tasks/README.md -> 任务 8：专项验收矩阵与上线准备
 docs/acceptance/task-8-acceptance-matrix.md
+docs/acceptance/phase-one-frontend-alignment.md
+docs/acceptance/phase-one-frontend-task-scope.md
 docs/deployment/readiness-checklist.md
 ```
 

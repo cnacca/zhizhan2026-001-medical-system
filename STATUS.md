@@ -12,7 +12,7 @@
 - 2026-07-01 新版 PRD/TRD/API 对齐决策已确认：以新资料为最新业务准绳，保留当前已验证增量，OpenAPI 后续按差异合并维护。
 - Active goal: `goals/GOAL-001-scope-clarified-for.md`
 - Active task: `tasks/README.md` 的「任务 8：专项验收矩阵与上线准备」，状态为 `in-progress/9d56-final-inspection-attachments`
-- 当前总目标已从“继续推进 9D 小增量”收束为“完成一期交付”；9D 任务只作为补齐一期上线缺口的执行单元。前端匹配一期范围的最新整理见 `docs/acceptance/phase-one-frontend-alignment.md`。
+- 当前总目标已从“继续推进 9D 小增量”收束为“完成一期交付”；9D 任务只作为补齐一期上线缺口的执行单元。前端匹配一期范围见 `docs/acceptance/phase-one-frontend-alignment.md`；后续按端口拆一期任务、处理已完成和超一期入口时使用 `docs/acceptance/phase-one-frontend-task-scope.md`。
 - 本轮 9D.56 终检专用角色 / 附件第一增量已完成：新增 `final-inspection:manage` 专用权限、`final_inspection_report_file` 绑定表和终检报告附件 `attachment_file_ids`；终检报告生成只允许具备专用权限的内部账号，附件必须是同订单、已完成上传、`INTERNAL` 可见文件，医生端不能读取终检报告或内部附件预览 URL。Task 8 总体仍保持 `NOT READY`。
 - 9D.55 开源底座复用清单与返工字典后台维护第一增量已完成：新增 `docs/development/open-source-foundation-reuse-gap-list.md`，按 RuoYi-Vue-Pro / 若依 Pro 的字典/CRUD/菜单/权限范式，把返工原因和责任类型从后端固定字典推进到 ADMIN 后台可维护、可停用的数据库字典。
 - 本轮验收矩阵机器可读缺口清单第一增量已完成；`acceptance.json` 新增 `task8_readiness_gaps`，并新增 `npm run check:task8-readiness-gaps` 列出当前上线缺口。Task 8 总体仍保持 `NOT READY`。
