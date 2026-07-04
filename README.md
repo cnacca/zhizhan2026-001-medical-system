@@ -6,9 +6,9 @@
 
 当前总目标是完成一期交付。后续所有 9D 小任务都只作为补齐一期 12 步主链路和上线硬缺口的执行单元；前端是否匹配一期范围见 `docs/acceptance/phase-one-frontend-alignment.md`，按端口拆任务、处理已完成和超一期入口时使用 `docs/acceptance/phase-one-frontend-task-scope.md`。
 
-当前已完成项目工作流初始化、任务 0 到任务 8B 基线、任务 9A 到 9B.8 权限/DataScope 第一轮、任务 9C.1 到 9C.3 通知第一轮，以及任务 9D.1 到 9D.58 的多条一期硬缺口第一增量；其中 9D.55 已补返工字典后台维护，9D.56 已补终检专用角色 / 附件第一增量，9D.57 返工影响图形化第一增量已把生产端返工终检页的影响节点转为只读影响图，9D.58 已把客服端 `/collaboration` 从占位入口升级为客服协同台第一增量。Task 8 总体仍为 `NOT_READY`。
+当前已完成项目工作流初始化、任务 0 到任务 8B 基线、任务 9A 到 9B.8 权限/DataScope 第一轮、任务 9C.1 到 9C.3 通知第一轮，以及任务 9D.1 到 9D.59 的多条一期硬缺口第一增量；其中 9D.55 已补返工字典后台维护，9D.56 已补终检专用角色 / 附件第一增量，9D.57 返工影响图形化第一增量已把生产端返工终检页的影响节点转为只读影响图，9D.58 已把客服端 `/collaboration` 从占位入口升级为客服协同台第一增量，9D.59 已把资料缺失提示和 AI 翻译草稿确认嵌入客服初审页。Task 8 总体仍为 `NOT_READY`。
 
-2026-07-04 交接摘要：Task 8 总体仍为 `NOT_READY`；9D.48、9D.48.1、9D.48.2 已完成 AI 外部告警 outbox 监控、列表筛选和失败/死信可见性第一增量；Task 8 readiness 终检报告、部署安全 / 环境变量 readiness 检查和验收矩阵机器可读缺口清单第一增量已完成；9D.55 已按 RuoYi-Vue-Pro / 若依 Pro 的字典、CRUD、菜单、权限码范式补返工字典后台维护第一增量；9D.56 已补 `final-inspection:manage`、`final_inspection_report_file` 和终检报告 `attachment_file_ids`；9D.57 已补 `/rework-final` 返工影响只读图；9D.58 客服协同闭环第一增量已补客服端 `/collaboration` 待审核消息、订单消息上下文和消息通过/驳回入口。`acceptance.json` 现在维护 `task8_readiness_gaps`、9D.55、9D.56、9D.57 和 9D.58 必备文本检查，可通过 `npm run check:task8-readiness-gaps` 查看当前上线缺口。下一轮唯一推荐目标是客服资料缺失提示与 AI 翻译草稿确认第一增量。继续开发前请从 `STATUS.md` 和 `tasks/README.md` 的当前交接摘要开始。
+2026-07-04 交接摘要：Task 8 总体仍为 `NOT_READY`；9D.48、9D.48.1、9D.48.2 已完成 AI 外部告警 outbox 监控、列表筛选和失败/死信可见性第一增量；Task 8 readiness 终检报告、部署安全 / 环境变量 readiness 检查和验收矩阵机器可读缺口清单第一增量已完成；9D.55 已按 RuoYi-Vue-Pro / 若依 Pro 的字典、CRUD、菜单、权限码范式补返工字典后台维护第一增量；9D.56 已补 `final-inspection:manage`、`final_inspection_report_file` 和终检报告 `attachment_file_ids`；9D.57 已补 `/rework-final` 返工影响只读图；9D.58 客服协同闭环第一增量已补客服端 `/collaboration` 待审核消息、订单消息上下文和消息通过/驳回入口；9D.59 客服资料缺失提示与 AI 翻译草稿确认第一增量已补客服初审页资料缺失提示、AI 翻译草稿和人工写入生产备注入口。`acceptance.json` 现在维护 `task8_readiness_gaps`、9D.55、9D.56、9D.57、9D.58 和 9D.59 必备文本检查，可通过 `npm run check:task8-readiness-gaps` 查看当前上线缺口。下一轮唯一推荐目标是设计稿预览 URL 聚合第一增量。继续开发前请从 `STATUS.md` 和 `tasks/README.md` 的当前交接摘要开始。
 
 2026-07-04 上传交接摘要：`feature/project-skeleton` 已推送到 GitHub；本轮业务开发基线为 `5e9ee18`，后续文档回补提交不改变业务代码边界。本轮提交已按边界拆分：`1895f79` 生产汇总、`f395584` AI 治理、`c781eae` Task 8 文档回写、`5e9ee18` workflow helper 整理。当前工作区只剩未跟踪 `test-results/` 运行产物，未纳入提交。9D.49 到 9D.54 已完成生产端质量、设备、物料异常、安环、成本、奖惩六类真实只读汇总第一增量；后续仍缺录入/审批/CRUD、演示种子数据、工作台趋势真实统计和完整业务验收用例。
 
@@ -242,6 +242,7 @@ npm run check:task9d55
 npm run check:task9d56
 npm run check:task9d57
 npm run check:task9d58
+npm run check:task9d59
 npm run smoke:task9d24
 npm run smoke:task9d10-large-upload
 npm run smoke:task9d10-server-resume
@@ -1303,8 +1304,8 @@ Task 8A smoke 注意事项：
 
 优先处理 `tasks/README.md`：
 
-1. 下一轮唯一推荐目标：客服资料缺失提示与 AI 翻译草稿确认第一增量。
-2. 优先把客服确认后的翻译草稿写入生产指令，并把资料缺失提示嵌入客服初审/协同台。
+1. 下一轮唯一推荐目标：设计稿预览 URL 聚合第一增量。
+2. 优先让医生端/客服端设计稿版本展示授权预览链接；不做完整设计稿审批重构、在线标注或外部 CAD 预览器。
 3. 不做完整 CRM、物流平台 API 自动同步或 AI 自动审核/发送；每补一个缺口，都要回写 `docs/acceptance/task-8-acceptance-matrix.md` 和 `docs/deployment/readiness-checklist.md` 的状态。
 
 ## 安全说明

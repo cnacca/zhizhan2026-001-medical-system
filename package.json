@@ -72,6 +72,7 @@
     "check:task9d56": "node scripts/check-task-9d56-final-inspection-attachments.mjs",
     "check:task9d57": "node scripts/check-task-9d57-rework-impact-visualization.mjs",
     "check:task9d58": "node scripts/check-task-9d58-customer-collaboration.mjs",
+    "check:task9d59": "node scripts/check-task-9d59-cs-ai-missing-translation.mjs",
     "check:auth-refresh": "node scripts/check-auth-refresh.mjs",
     "smoke:task9d10-large-upload": "playwright test scripts/smoke-task-9d10-large-upload.spec.mjs --browser=chromium --workers=1",
     "smoke:task9d10-server-resume": "playwright test scripts/smoke-task-9d10-server-resume.spec.mjs --browser=chromium --workers=1",

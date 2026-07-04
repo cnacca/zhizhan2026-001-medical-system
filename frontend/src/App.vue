@@ -150,6 +150,21 @@ type DoctorAiAnswer = {
   answer: string
 }
 
+type MissingInfoItem = {
+  field_key: string
+  field_label: string
+  tip: string
+}
+
+type MissingInfoResponse = {
+  is_complete: boolean
+  missing_items: MissingInfoItem[]
+}
+
+type AiTranslateResponse = {
+  translated_text: string
+}
+
 type FormFieldConfig = {
   field_id: number
   product_type: string
@@ -708,6 +723,12 @@ const csReviewActionLoading = ref(false)
 const csDesignDraftFileIds = ref('')
 const csDesignDraftUploadNote = ref('')
 const csDesignDraftResult = ref('')
+const csMissingInfoItems = ref<MissingInfoItem[]>([])
+const csMissingInfoComplete = ref<boolean | null>(null)
+const csTranslationSourceText = ref('')
+const csTranslationDraft = ref('')
+const csAiActionLoading = ref(false)
+const csAiResult = ref('')
 const customerCollaborationPendingMessages = ref<MessageItem[]>([])
 const customerCollaborationOrderMessages = ref<MessageItem[]>([])
 const customerCollaborationOrderId = ref('')
@@ -3456,6 +3477,11 @@ function selectInternalOrder(order: InternalOrderItem) {
   csDesignDraftFileIds.value = ''
   csDesignDraftUploadNote.value = ''
   csDesignDraftResult.value = ''
+  csMissingInfoItems.value = []
+  csMissingInfoComplete.value = null
+  csTranslationSourceText.value = order.production_note?.trim() || JSON.stringify(order.form_data, null, 2)
+  csTranslationDraft.value = ''
+  csAiResult.value = ''
 }
 
 async function reviewInternalOrder(action: 'APPROVE' | 'REJECT') {
@@ -3483,6 +3509,71 @@ async function reviewInternalOrder(action: 'APPROVE' | 'REJECT') {
   } finally {
     csReviewActionLoading.value = false
   }
+}
+
+async function checkCsMissingInfo() {
+  if (!selectedInternalOrder.value) {
+    return
+  }
+  csAiActionLoading.value = true
+  internalOrderError.value = ''
+  csAiResult.value = ''
+  try {
+    const payload = await apiFetch<MissingInfoResponse>('/ai/check-missing', {
+      method: 'POST',
+      body: JSON.stringify({
+        order_id: selectedInternalOrder.value.order_id
+      })
+    })
+    csMissingInfoComplete.value = payload.data.is_complete
+    csMissingInfoItems.value = payload.data.missing_items
+    csAiResult.value = payload.data.is_complete ? '资料缺失提示：当前必填资料完整' : '资料缺失提示：请客服确认后驳回补资料'
+  } catch (error) {
+    internalOrderError.value = error instanceof Error ? error.message : '资料缺失检查失败'
+  } finally {
+    csAiActionLoading.value = false
+  }
+}
+
+function applyCsMissingInfoToRejectReason() {
+  if (csMissingInfoItems.value.length === 0) {
+    return
+  }
+  csRejectReason.value = csMissingInfoItems.value.map((item) => item.tip).join('\n')
+}
+
+async function generateCsTranslationDraft() {
+  if (!selectedInternalOrder.value || !csTranslationSourceText.value.trim()) {
+    return
+  }
+  csAiActionLoading.value = true
+  internalOrderError.value = ''
+  csAiResult.value = ''
+  try {
+    const payload = await apiFetch<AiTranslateResponse>('/ai/translate', {
+      method: 'POST',
+      body: JSON.stringify({
+        order_id: selectedInternalOrder.value.order_id,
+        source_text: csTranslationSourceText.value.trim()
+      })
+    })
+    csTranslationDraft.value = payload.data.translated_text
+    csAiResult.value = 'AI 翻译草稿已生成，需客服确认后写入生产备注'
+  } catch (error) {
+    internalOrderError.value = error instanceof Error ? error.message : 'AI 翻译草稿生成失败'
+  } finally {
+    csAiActionLoading.value = false
+  }
+}
+
+function applyCsTranslationDraftToProductionNote() {
+  if (!csTranslationDraft.value.trim()) {
+    return
+  }
+  const currentNote = csProductionNote.value.trim()
+  const draftBlock = `AI 翻译草稿（客服已确认）：\n${csTranslationDraft.value.trim()}`
+  csProductionNote.value = currentNote ? `${currentNote}\n\n${draftBlock}` : draftBlock
+  csAiResult.value = 'AI 翻译草稿已写入生产备注，点击通过初审后保存'
 }
 
 async function uploadInternalDesignDraft() {
@@ -4924,6 +5015,83 @@ onBeforeUnmount(() => {
 
                 <el-tab-pane label="审核">
                   <div class="review-form">
+                    <section class="doctor-order-create">
+                      <div class="subheading-row">
+                        <h3>资料缺失提示</h3>
+                        <el-tag v-if="csMissingInfoComplete !== null" :type="csMissingInfoComplete ? 'success' : 'warning'" round>
+                          {{ csMissingInfoComplete ? '资料完整' : `${csMissingInfoItems.length} 项缺失` }}
+                        </el-tag>
+                      </div>
+                      <div class="inline-actions">
+                        <el-button
+                          :loading="csAiActionLoading"
+                          data-testid="cs-missing-info-check"
+                          @click="checkCsMissingInfo"
+                        >
+                          检查资料缺失
+                        </el-button>
+                        <el-button
+                          :disabled="csMissingInfoItems.length === 0"
+                          data-testid="cs-missing-info-apply-reject"
+                          @click="applyCsMissingInfoToRejectReason"
+                        >
+                          填入驳回原因
+                        </el-button>
+                      </div>
+                      <div v-if="csMissingInfoItems.length > 0" class="compact-list">
+                        <article v-for="item in csMissingInfoItems" :key="item.field_key">
+                          <strong>{{ item.field_label }}</strong>
+                          <p>{{ item.tip }}</p>
+                          <span>{{ item.field_key }}</span>
+                        </article>
+                      </div>
+                    </section>
+
+                    <section class="doctor-order-create">
+                      <div class="subheading-row">
+                        <h3>AI 翻译草稿</h3>
+                        <el-tag type="info" round>人工确认后写入</el-tag>
+                      </div>
+                      <el-form-item label="待翻译内容">
+                        <el-input
+                          v-model="csTranslationSourceText"
+                          data-testid="cs-translation-source-text"
+                          type="textarea"
+                          :rows="3"
+                          placeholder="粘贴外文描述或订单要求"
+                        />
+                      </el-form-item>
+                      <div class="inline-actions">
+                        <el-button
+                          :loading="csAiActionLoading"
+                          :disabled="!csTranslationSourceText.trim()"
+                          data-testid="cs-translation-generate"
+                          @click="generateCsTranslationDraft"
+                        >
+                          生成翻译草稿
+                        </el-button>
+                        <el-button
+                          type="primary"
+                          plain
+                          :disabled="!csTranslationDraft.trim()"
+                          data-testid="cs-translation-apply-note"
+                          @click="applyCsTranslationDraftToProductionNote"
+                        >
+                          写入生产备注
+                        </el-button>
+                      </div>
+                      <div v-if="csTranslationDraft" class="ai-answer" data-testid="cs-translation-draft">
+                        {{ csTranslationDraft }}
+                      </div>
+                    </section>
+
+                    <el-alert
+                      v-if="csAiResult"
+                      :title="csAiResult"
+                      type="success"
+                      show-icon
+                      :closable="false"
+                    />
                     <el-form-item label="生产备注">
                       <el-input
                         v-model="csProductionNote"

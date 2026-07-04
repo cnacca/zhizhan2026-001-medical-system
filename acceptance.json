@@ -2275,6 +2275,32 @@
             "任务 9D.58",
             "check:task9d58"
           ]
+        },
+        {
+          "id": "task-9d59-cs-ai-missing-translation-required-text",
+          "type": "required_text",
+          "paths": [
+            "frontend/src/App.vue",
+            "docs/acceptance/task-8-acceptance-matrix.md",
+            "docs/deployment/readiness-checklist.md",
+            "DECISIONS.md",
+            "STATUS.md",
+            "tasks/README.md",
+            "README.md",
+            "scripts/check-task-9d59-cs-ai-missing-translation.mjs",
+            "package.json"
+          ],
+          "patterns": [
+            "csMissingInfoItems",
+            "csTranslationDraft",
+            "checkCsMissingInfo",
+            "generateCsTranslationDraft",
+            "applyCsTranslationDraftToProductionNote",
+            "/ai/check-missing",
+            "/ai/translate",
+            "任务 9D.59",
+            "check:task9d59"
+          ]
         }
       ]
     }
