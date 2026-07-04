@@ -12,6 +12,8 @@ Task 8 readiness 终检报告第一增量已生成：`docs/deployment/task-8-fin
 
 验收矩阵机器可读缺口清单第一增量已补：`acceptance.json` 维护 `task8_readiness_gaps`，`npm run check:task8-readiness-gaps` 可列出当前仍未 READY 的关键上线缺口。本 checklist 仍保持 Task 8 `NOT_READY`。
 
+12 步主链路浏览器 smoke 第一增量已补：`npm run smoke:task9d62` 固定 PRD/TRD 12 步主链路的四端浏览器入口和页面/控件可达断言；当前仍是入口 smoke，不代表完整业务数据端到端已全部跑通。
+
 ## 必须完成后才能上线
 
 | 类别 | 当前状态 | 必须完成项 |
@@ -77,6 +79,8 @@ npm run check:task9d48
 npm run check:task9d48-1
 npm run check:task9d58
 npm run check:task9d59
+npm run check:task9d62
+npm run smoke:task9d62
 npm run smoke:task9d10-large-upload
 npm run smoke:task9d10-server-resume
 npm run smoke:task9d10-interrupted-resume

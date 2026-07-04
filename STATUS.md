@@ -13,6 +13,7 @@
 - Active goal: `goals/GOAL-001-scope-clarified-for.md`
 - Active task: `tasks/README.md` 的「任务 8：专项验收矩阵与上线准备」，状态为 `next/t2-customer-service-collaboration`
 - 当前总目标已从“继续推进 9D 小增量”收束为“完成一期交付”；9D 任务只作为补齐一期上线缺口的执行单元。前端匹配一期范围见 `docs/acceptance/phase-one-frontend-alignment.md`；后续按端口拆一期任务、处理已完成和超一期入口时使用 `docs/acceptance/phase-one-frontend-task-scope.md`。
+- 本轮 9D.62 12 步主链路浏览器 smoke 第一增量已完成：新增 `scripts/smoke-task-9d62-main-chain.spec.mjs`、`scripts/check-task-9d62-main-chain-browser-smoke.mjs`、`npm run check:task9d62` 和 `npm run smoke:task9d62`，先固定 PRD/TRD 12 步主链路的四端浏览器入口和页面/控件可达断言。本轮不新增后端接口、不新增演示种子数据、不做真实物流平台、支付系统或财务审批流。Task 8 总体仍保持 `NOT_READY`。
 - 本轮 9D.61 账单物流预览/录入闭环第一增量已完成：客服/内部订单页新增最小账单 `file_id` 上传入口，医生端账单物流页新增“获取账单预览链接”，复用既有 `/orders/{orderId}/bill`、`/orders/{orderId}/logistics` 和 `/files/{fileId}/preview-url`；物流录入继续走生产看板并保留终检发货门禁。本轮不新增后端接口、不做真实物流平台、支付系统或财务审批流。Task 8 总体仍保持 `NOT READY`。
 - 本轮 9D.60 设计稿预览 URL 聚合第一增量已完成：医生端设计稿版本列表新增“获取设计稿预览链接”，按设计稿 `file_ids` 调用既有 `/files/{fileId}/preview-url` 获取短时效签名 URL 并展示为外链；本轮不新增后端接口、不把预览 URL 固化进设计稿响应、不做在线 CAD 预览器或完整设计稿审批重构。Task 8 总体仍保持 `NOT READY`。
 - 本轮 9D.59 客服资料缺失提示与 AI 翻译草稿确认第一增量已完成：客服初审页新增资料缺失提示、AI 翻译草稿和“写入生产备注”人工确认入口，复用既有 `/ai/check-missing`、`/ai/translate` 和 `/orders/{orderId}/review`；本轮不新增后端 schema、不做 AI 自动审核/发送/驳回。Task 8 总体仍保持 `NOT READY`。
@@ -71,6 +72,7 @@
 - 9D.59 已补客服资料缺失提示与 AI 翻译草稿确认第一增量：客服初审页复用 `/ai/check-missing` 展示资料缺失提示，复用 `/ai/translate` 生成翻译草稿，并要求客服点击“写入生产备注”后才随通过初审写入 `production_note`。
 - 9D.60 已补设计稿预览 URL 聚合第一增量：医生端设计稿版本列表复用 `/files/{fileId}/preview-url` 按需为 `file_ids` 获取短时效预览链接；本轮不新增后端接口或在线 CAD 预览器。
 - 9D.61 已补账单物流预览/录入闭环第一增量：客服/内部订单页可上传账单 `file_id`，医生端可按需获取账单短时效预览链接；物流发货仍由生产看板执行并保留终检门禁。
+- 9D.62 已补 12 步主链路浏览器 smoke 第一增量：新增 `phaseOneMainChainSteps`、`npm run smoke:task9d62` 和 `npm run check:task9d62`，先覆盖四端主链路入口可达；完整数据动作仍留作下一增量。
 - 9D.56 已补终检专用角色 / 附件第一增量：新增 `final-inspection:manage`、`final_inspection_report_file`、终检报告 `attachment_file_ids` 请求/响应和前端最小 file_id 输入；终检报告生成前仍要求最后工序 `OUT/PASS`，生成报告只允许专用权限内部账号，医生端读取报告和内部附件预览均返回 403。
 - 明确项目技术方向：Vue3 + Element Plus + Spring Boot + RuoYi-Vue-Pro + MySQL + Redis + MinIO + Uppy + 后端 ai-gateway + DeepSeek。
 - 明确一期口径：9 条预定义工序链写入数据库，不做后台拖拽编辑器。
