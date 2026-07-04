@@ -127,6 +127,7 @@ type BillInfo = {
   bill_id: number | null
   order_id: number
   bill_status: string
+  payment_status: string
   file_id: number | null
 }
 
@@ -758,6 +759,7 @@ const csDesignDraftResult = ref('')
 const csDesignDrafts = ref<DesignDraftItem[]>([])
 const csDesignDraftPreviewUrls = ref<Record<string, string>>({})
 const csBillFileId = ref('')
+const csPaymentStatus = ref('PENDING_PAYMENT')
 const csBillResult = ref('')
 const csMissingInfoItems = ref<MissingInfoItem[]>([])
 const csMissingInfoComplete = ref<boolean | null>(null)
@@ -2028,6 +2030,10 @@ const statusLabelMap: Record<string, string> = {
   CLOSED: '已关闭',
   UPLOADING: '上传中',
   UPLOADED: '已上传',
+  PENDING_PAYMENT: '待付款',
+  PARTIALLY_PAID: '部分付款',
+  PAID: '已付款',
+  NOT_REQUIRED: '无需付款',
   COMPLETE: '已完成',
   PAUSED: '已暂停',
   DONE: '已完成',
@@ -3810,6 +3816,32 @@ async function uploadInternalBill() {
   }
 }
 
+async function updateInternalPaymentStatus() {
+  if (!selectedInternalOrder.value) {
+    return
+  }
+  csReviewActionLoading.value = true
+  internalOrderError.value = ''
+  csBillResult.value = ''
+  try {
+    const payload = await apiFetch<BillInfo>(
+      `/orders/${selectedInternalOrder.value.order_id}/bill/payment-status`,
+      {
+        method: 'POST',
+        body: JSON.stringify({
+          payment_status: csPaymentStatus.value
+        })
+      }
+    )
+    csBillResult.value = `付款状态已更新：${statusLabel(payload.data.payment_status)}`
+    await loadNotifications()
+  } catch (error) {
+    internalOrderError.value = error instanceof Error ? error.message : '付款状态更新失败'
+  } finally {
+    csReviewActionLoading.value = false
+  }
+}
+
 async function loadCustomerCollaborationPendingMessages() {
   if (!token.value) {
     return
@@ -5429,6 +5461,26 @@ onBeforeUnmount(() => {
                         {{ csBillResult }}
                       </el-tag>
                     </div>
+                    <el-form-item label="付款状态">
+                      <el-select
+                        v-model="csPaymentStatus"
+                        data-testid="internal-payment-status-select"
+                      >
+                        <el-option label="待付款" value="PENDING_PAYMENT" />
+                        <el-option label="部分付款" value="PARTIALLY_PAID" />
+                        <el-option label="已付款" value="PAID" />
+                        <el-option label="无需付款" value="NOT_REQUIRED" />
+                      </el-select>
+                    </el-form-item>
+                    <div class="inline-actions">
+                      <el-button
+                        :loading="csReviewActionLoading"
+                        data-testid="internal-payment-status-button"
+                        @click="updateInternalPaymentStatus"
+                      >
+                        保存付款状态
+                      </el-button>
+                    </div>
                     <p class="public-message">
                       物流录入仍在生产看板执行，并继续受终检出检通过后才能发货的既有门禁约束。
                     </p>
@@ -6997,6 +7049,10 @@ onBeforeUnmount(() => {
                     <div>
                       <span>账单状态</span>
                       <strong>{{ statusLabel(doctorOrderWorkspace.bill.bill_status) }}</strong>
+                    </div>
+                    <div>
+                      <span>付款状态</span>
+                      <strong data-testid="doctor-payment-status">{{ statusLabel(doctorOrderWorkspace.bill.payment_status) }}</strong>
                     </div>
                     <div>
                       <span>账单文件</span>

@@ -1330,6 +1330,7 @@ docs/operations/phase-one-delivery-materials-index.md
 
 ```bash
 npm run check:task9d70
+npm run check:task9d73
 ```
 
 Task 8 仍保持 NOT_READY；这些材料不代表客户 / PM 已签字。
@@ -1359,6 +1360,18 @@ npm run acceptance
 ```
 
 该清单只是待确认事项入口，不代表客户 / PM 已签字。Task 8 仍保持 NOT_READY。
+
+## 9D.73 账单 / 付款状态 / 物流一期闭环第一段
+
+9D.73 已补人工付款状态第一段：CS / ADMIN 可通过 `/orders/{orderId}/bill/payment-status` 维护 `payment_status`，医生端只读查看付款状态；本轮不接真实支付系统、不改变既有物流发货门禁。
+
+建议验证：
+
+```bash
+npm run check:task9d73
+npm run check:openapi
+./scripts/with-jdk21.sh mvn -f backend/pom.xml -pl platform-server -Dtest=MessageDesignBillNotificationTests test
+```
 
 ## 9D.65 终检 PDF/签名第一段
 

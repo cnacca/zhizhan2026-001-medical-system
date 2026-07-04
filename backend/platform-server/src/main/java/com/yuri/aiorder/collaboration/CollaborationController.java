@@ -113,6 +113,15 @@ public class CollaborationController {
         return new DataResponse<>(collaborationService.uploadBill(orderId, request, identity));
     }
 
+    @PostMapping("/orders/{orderId}/bill/payment-status")
+    @RequirePermission(value = "message:manage", roles = {UserRole.ADMIN, UserRole.CS})
+    public DataResponse<BillResponse> updatePaymentStatus(
+            @PathVariable long orderId,
+            @RequestBody PaymentStatusRequest request,
+            BootstrapIdentity identity) {
+        return new DataResponse<>(collaborationService.updatePaymentStatus(orderId, request, identity));
+    }
+
     @GetMapping("/orders/{orderId}/logistics")
     @RequirePermission(value = {"message:manage", "order:read-doctor"}, roles = {
             UserRole.ADMIN, UserRole.CS, UserRole.DOCTOR})

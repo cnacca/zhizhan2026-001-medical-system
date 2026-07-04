@@ -2600,6 +2600,42 @@
             "MINIO_BUCKET",
             "check:task9d67"
           ]
+        },
+        {
+          "id": "task-9d73-bill-payment-status-required-text",
+          "type": "required_text",
+          "paths": [
+            "backend/platform-server/src/main/resources/db/migration/V30__bill_payment_status.sql",
+            "backend/platform-server/src/main/java/com/yuri/aiorder/collaboration/PaymentStatusRequest.java",
+            "backend/platform-server/src/main/java/com/yuri/aiorder/collaboration/BillResponse.java",
+            "backend/platform-server/src/main/java/com/yuri/aiorder/collaboration/CollaborationController.java",
+            "backend/platform-server/src/main/java/com/yuri/aiorder/collaboration/CollaborationService.java",
+            "backend/platform-server/src/test/java/com/yuri/aiorder/collaboration/MessageDesignBillNotificationTests.java",
+            "frontend/src/App.vue",
+            "docs/api/openapi.yaml",
+            "docs/acceptance/task-8-acceptance-matrix.md",
+            "docs/deployment/readiness-checklist.md",
+            "docs/deployment/task-8-final-readiness-report.md",
+            "docs/acceptance/phase-one-frontend-alignment.md",
+            "docs/acceptance/phase-one-frontend-task-scope.md",
+            "acceptance.json",
+            "DECISIONS.md",
+            "STATUS.md",
+            "tasks/README.md",
+            "README.md",
+            "scripts/check-task-9d73-bill-payment-status.mjs",
+            "package.json"
+          ],
+          "patterns": [
+            "任务 9D.73",
+            "账单 / 付款状态 / 物流一期闭环第一段",
+            "payment_status",
+            "PENDING_PAYMENT",
+            "PARTIALLY_PAID",
+            "/orders/{orderId}/bill/payment-status",
+            "付款状态第一段",
+            "check:task9d73"
+          ]
         }
       ]
     }

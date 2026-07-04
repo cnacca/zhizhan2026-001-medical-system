@@ -23,6 +23,12 @@ import org.springframework.web.server.ResponseStatusException;
 @Service
 public class CollaborationService {
 
+    private static final Set<String> ALLOWED_PAYMENT_STATUSES = Set.of(
+            "PENDING_PAYMENT",
+            "PARTIALLY_PAID",
+            "PAID",
+            "NOT_REQUIRED");
+
     private final JdbcClient jdbcClient;
     private final ObjectMapper objectMapper;
     private final OrderStatusService orderStatusService;
@@ -288,7 +294,7 @@ public class CollaborationService {
         OrderRow order = loadOrder(orderId, identity, "identity cannot access this order");
         requireDoctorScopeIfNeeded(order, identity);
         return jdbcClient.sql("""
-                        SELECT bill_id, order_id, bill_status, file_id
+                        SELECT bill_id, order_id, bill_status, payment_status, file_id
                         FROM order_bill
                         WHERE order_id = :orderId
                         """)
@@ -297,9 +303,10 @@ public class CollaborationService {
                         rs.getObject("bill_id", Long.class),
                         rs.getLong("order_id"),
                         rs.getString("bill_status"),
+                        rs.getString("payment_status"),
                         rs.getObject("file_id", Long.class)))
                 .optional()
-                .orElse(new BillResponse(null, orderId, "PENDING", null));
+                .orElse(new BillResponse(null, orderId, "PENDING", "PENDING_PAYMENT", null));
     }
 
     @Transactional
@@ -321,6 +328,28 @@ public class CollaborationService {
                 .param("fileId", request.fileId())
                 .update();
         emit(order, "BILL_UPLOADED", "DOCTOR", order.doctorUserId(), "账单已上传");
+        return getBill(orderId, identity);
+    }
+
+    @Transactional
+    public BillResponse updatePaymentStatus(long orderId, PaymentStatusRequest request, BootstrapIdentity identity) {
+        requireCsOrAdmin(identity);
+        String paymentStatus = normalizeOrDefault(request.paymentStatus(), "");
+        if (!ALLOWED_PAYMENT_STATUSES.contains(paymentStatus)) {
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "unsupported payment_status");
+        }
+        OrderRow order = loadOrder(orderId, identity, "identity cannot access this order");
+        jdbcClient.sql("""
+                        INSERT INTO order_bill (order_id, bill_status, payment_status)
+                        VALUES (:orderId, 'PENDING', :paymentStatus)
+                        ON DUPLICATE KEY UPDATE
+                            payment_status = VALUES(payment_status),
+                            updated_at = CURRENT_TIMESTAMP(3)
+                        """)
+                .param("orderId", orderId)
+                .param("paymentStatus", paymentStatus)
+                .update();
+        emit(order, "PAYMENT_STATUS_UPDATED", "DOCTOR", order.doctorUserId(), "付款状态已更新");
         return getBill(orderId, identity);
     }
 

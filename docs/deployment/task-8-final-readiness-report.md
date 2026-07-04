@@ -1,5 +1,9 @@
 # Task 8 Final Readiness Report
 
+## 9D.73 账单 / 付款状态 / 物流一期闭环第一段
+
+9D.73 已补 `order_bill.payment_status`、`/orders/{orderId}/bill/payment-status` 和前端付款状态入口，付款状态第一段为人工维护口径：CS / ADMIN 可维护，医生端只读展示。本轮不接真实支付系统、不做财务审批、支付流水、退款、对账、发票或真实物流平台，Task 8 仍保持 NOT_READY。
+
 状态：NOT_READY。
 
 生成时间：2026-07-04。

@@ -4,6 +4,8 @@
 
 ## 当前目标理解
 
+9D.73 付款状态第一段已落地：客服端可人工维护账单 `payment_status`，医生端账单物流页只读展示付款状态；本轮不接真实支付系统或真实物流平台。
+
 当前目标不是继续堆叠零散 9D 编号，而是完成「AI 智能下单与生产协同平台」一期交付。
 
 一期完成口径以 `PROJECT.md` 的 P0 主业务链路、`docs/acceptance/task-8-acceptance-matrix.md` 的 12 步主链路、`docs/deployment/readiness-checklist.md` 的上线缺口为准。Task 8 / 9D 小任务只是补齐一期上线缺口的执行拆分。

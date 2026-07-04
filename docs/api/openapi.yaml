@@ -1654,9 +1654,29 @@ components:
           type: integer
         bill_status:
           type: string
+        payment_status:
+          type: string
+          enum:
+          - PENDING_PAYMENT
+          - PARTIALLY_PAID
+          - PAID
+          - NOT_REQUIRED
         file_id:
           type: integer
           nullable: true
+    PaymentStatusRequest:
+      type: object
+      required:
+      - payment_status
+      properties:
+        payment_status:
+          type: string
+          enum:
+          - PENDING_PAYMENT
+          - PARTIALLY_PAID
+          - PAID
+          - NOT_REQUIRED
+          description: 一期人工维护的对外付款状态；不代表接入真实支付系统。
     LogisticsRequest:
       type: object
       required:
@@ -5101,6 +5121,51 @@ paths:
         '503':
           "$ref": "#/components/responses/ServiceUnavailable"
       operationId: postOrdersByOrderIdBill
+  "/orders/{orderId}/bill/payment-status":
+    post:
+      tags:
+      - Bill
+      summary: 人工维护付款状态
+      description: 权限：CS / ADMIN；一期只维护对外付款状态，不接真实支付系统。
+      parameters:
+      - name: orderId
+        in: path
+        required: true
+        schema:
+          type: integer
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              "$ref": "#/components/schemas/PaymentStatusRequest"
+      responses:
+        '200':
+          description: 成功
+          content:
+            application/json:
+              schema:
+                allOf:
+                - "$ref": "#/components/schemas/CommonResponse"
+                - type: object
+                  properties:
+                    data:
+                      "$ref": "#/components/schemas/BillResponse"
+        '400':
+          "$ref": "#/components/responses/BadRequest"
+        '401':
+          "$ref": "#/components/responses/Unauthorized"
+        '403':
+          "$ref": "#/components/responses/Forbidden"
+        '404':
+          "$ref": "#/components/responses/NotFound"
+        '409':
+          "$ref": "#/components/responses/Conflict"
+        default:
+          "$ref": "#/components/responses/DefaultError"
+        '503':
+          "$ref": "#/components/responses/ServiceUnavailable"
+      operationId: postOrdersByOrderIdBillPaymentStatus
   "/orders/{orderId}/logistics":
     get:
       tags:

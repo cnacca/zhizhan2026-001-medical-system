@@ -4488,6 +4488,28 @@ npm run check:openapi
 
 未完成原因：所有确认项仍需客户 / PM 书面确认，本清单不替代签字。Task 8 仍保持 NOT_READY。
 
+## 任务 9D.73：账单 / 付款状态 / 物流一期闭环第一段
+
+状态：completed-first-increment。
+
+目标：在既有账单文件和物流发货门禁基础上，补一期人工维护付款状态。
+
+范围：新增 `order_bill.payment_status`、`PaymentStatusRequest`、`BillResponse.payment_status`、`POST /orders/{orderId}/bill/payment-status`、客服端付款状态 select/button、医生端付款状态只读展示、OpenAPI、acceptance 和 `npm run check:task9d73`。
+
+非目标：不接真实支付系统，不做财务审批、支付流水、退款、对账、发票或真实物流平台，不改变既有终检发货门禁。
+
+验收命令：
+
+```bash
+npm run check:task9d73
+npm run check:openapi
+./scripts/with-jdk21.sh mvn -f backend/pom.xml -pl platform-server -Dtest=MessageDesignBillNotificationTests test
+```
+
+完成记录：已补 V30 迁移、付款状态白名单、CS / ADMIN 更新接口、医生端只读边界、目标后端测试、前端入口、OpenAPI 和静态检查。
+
+未完成原因：真实支付系统、财务审批、支付流水、对账、发票、真实物流平台和客户 / PM 对付款状态最终口径确认仍未完成。Task 8 仍保持 NOT_READY。
+
 ## 任务 9D.65：终检 PDF/签名第一段
 
 状态：completed-first-increment。

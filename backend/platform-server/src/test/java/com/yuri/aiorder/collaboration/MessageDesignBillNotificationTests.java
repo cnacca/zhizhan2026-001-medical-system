@@ -273,6 +273,50 @@ class MessageDesignBillNotificationTests {
     }
 
     @Test
+    void csCanMaintainExternalPaymentStatusAndDoctorCanOnlyReadIt() throws Exception {
+        mockMvc.perform(post("/orders/{orderId}/bill", orderId)
+                        .header("X-Bootstrap-Role", "CS")
+                        .header("X-Bootstrap-User-Id", CS_USER_ID)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"file_id\":" + fileId + "}"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.bill_status").value("UPLOADED"))
+                .andExpect(jsonPath("$.data.payment_status").value("PENDING_PAYMENT"));
+
+        mockMvc.perform(post("/orders/{orderId}/bill/payment-status", orderId)
+                        .header("X-Bootstrap-Role", "CS")
+                        .header("X-Bootstrap-User-Id", CS_USER_ID)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"payment_status\":\"PARTIALLY_PAID\"}"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.bill_status").value("UPLOADED"))
+                .andExpect(jsonPath("$.data.payment_status").value("PARTIALLY_PAID"));
+
+        mockMvc.perform(get("/orders/{orderId}/bill", orderId)
+                        .header("X-Bootstrap-Role", "DOCTOR")
+                        .header("X-Bootstrap-User-Id", DOCTOR_USER_ID)
+                        .header("X-Bootstrap-Clinic-Id", clinicId))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.payment_status").value("PARTIALLY_PAID"))
+                .andExpect(content().string(not(containsString("内部协同备注"))));
+
+        mockMvc.perform(post("/orders/{orderId}/bill/payment-status", orderId)
+                        .header("X-Bootstrap-Role", "DOCTOR")
+                        .header("X-Bootstrap-User-Id", DOCTOR_USER_ID)
+                        .header("X-Bootstrap-Clinic-Id", clinicId)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"payment_status\":\"PAID\"}"))
+                .andExpect(status().isForbidden());
+
+        mockMvc.perform(post("/orders/{orderId}/bill/payment-status", orderId)
+                        .header("X-Bootstrap-Role", "CS")
+                        .header("X-Bootstrap-User-Id", CS_USER_ID)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"payment_status\":\"EXTERNAL_GATEWAY_PAID\"}"))
+                .andExpect(status().isBadRequest());
+    }
+
+    @Test
     void shipmentRequiresFinalOutCheckPassBeforeUpdatingExternalProjection() throws Exception {
         mockMvc.perform(post("/orders/{orderId}/logistics", orderId)
                         .header("X-Bootstrap-Role", "CS")
