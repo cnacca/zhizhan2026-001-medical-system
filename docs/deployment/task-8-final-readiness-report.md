@@ -18,7 +18,7 @@
 | 缺口名称 | 当前证据 | 未完成原因 | 需要补的最小闭环 | 推荐验证命令或验收方式 |
 | --- | --- | --- | --- | --- |
 | 正式鉴权与 DataScope 收口 | readiness checklist 中“正式鉴权与数据范围”为 PARTIAL；已具备数据库账号、权限码、data_scope、Bearer token、refresh/logout、Controller 权限注解和部分 SQL DataScope。 | 尚未完整接入 RuoYi-Vue-Pro 管理 UI、生产级 Spring Security/JWT、通用 DataScope SQL、refresh token 轮换、access token 黑名单和多设备会话策略。 | 先做生产级 JWT/Spring Security 第一增量：关闭生产 profile 下 `X-Bootstrap-*` 兼容路径，保留本地 smoke 兼容，补关键接口 Bearer 回归。 | `./scripts/with-jdk21.sh mvn -f backend/pom.xml -pl platform-server test`；生产 profile 启动门禁 smoke；医生/客服/生产/管理四角色越权矩阵。 |
-| 前端业务页面完整度 | readiness checklist 中“前端业务页面”为 PARTIAL；已具备四入口登录、医生下单、客服初审、客服协同台消息审核、客服资料缺失提示、AI 翻译草稿确认、设计稿预览 URL 聚合、生产审核、工序实例、质检工时、绩效、生产看板、返工、返工影响图形化、终检报告和终检专用角色 / 附件第一增量。 | 仍缺实时自动保存、完整账单物流、客服端设计稿审核预览增强、绩效周期筛选/公式/申诉等完整页面闭环。 | 下一步做账单物流预览/录入闭环第一增量，让医生端可预览账单文件、生产/客服端可补最小账单文件入口和物流状态可见。 | `npm run build:frontend`；对应 smoke；后端目标测试；客户按 12 步主链路点击验收。 |
+| 前端业务页面完整度 | readiness checklist 中“前端业务页面”为 PARTIAL；已具备四入口登录、医生下单、客服初审、客服协同台消息审核、客服资料缺失提示、AI 翻译草稿确认、设计稿预览 URL 聚合、账单物流预览/录入、生产审核、工序实例、质检工时、绩效、生产看板、返工、返工影响图形化、终检报告和终检专用角色 / 附件第一增量。 | 仍缺实时自动保存、客服端设计稿审核预览增强、付款状态、真实物流平台、绩效周期筛选/公式/申诉等完整页面闭环。 | 下一步做 12 步主链路浏览器 smoke 第一增量，固定最小演示数据并把医生下单到确认收货跑成可复验证据。 | `npm run build:frontend`；对应 smoke；后端目标测试；客户按 12 步主链路点击验收。 |
 | WebSocket / 通知生产验收 | readiness checklist 和 acceptance matrix 中 WebSocket / 通知仍为 PARTIAL；已完成单实例 WebSocket、通知 REST、前端通知中心、Redis 广播代码路径、AI 外部告警 outbox 监控/列表/失败可见性。 | 缺真实双后端实例 Redis 联调、心跳/重连压测、Nginx/HTTPS 生产网关验收、接收端 webhook 验签/防重放和生产 webhook 联调。 | 先做 webhook 接收端验签/防重放第一增量，或双实例 Redis WebSocket 联调脚本第一增量。 | `NotificationWebSocketTests`、`NotificationBroadcastTests`、AI external alert sender tests；双实例本地 compose 验收记录；Nginx/HTTPS smoke。 |
 | 文件上传真实上线边界 | readiness checklist 中“文件上传”为 PARTIAL；105MB Multipart、本地恢复、服务端候选恢复和中断恢复浏览器 smoke 已通过。 | 缺真实弱网限速/断网、完整跨设备浏览器续传、文件大小/类型/数量最终限制和测试/正式 bucket 隔离验收。 | 先补文件限制与 bucket 环境隔离第一增量，再补弱网/跨设备 smoke。 | `npm run smoke:task9d10-large-upload`、`npm run smoke:task9d10-server-resume`、`npm run smoke:task9d10-interrupted-resume`；新增弱网/跨设备记录。 |
 | AI 生产治理剩余项 | readiness checklist 中“AI 接入”为 PARTIAL；已完成 DeepSeek 默认关闭、限流、成本审计、重试、失败审计、治理摘要、预算阈值、熔断、分角色/分模型预算、提示词版本、输出防护、外部告警发送/调度/重试/死信/幂等/签名/监控/列表/失败可见性。 | 仍缺真实 key 环境联调、接收端验签/防重放联调、生产 webhook 联调、提示词后台管理、流式输出过滤、生产级成本看板和更完整输出策略。 | 先做 AI 外部告警接收端验签/防重放第一增量；真实 key 仍只允许外部注入，不提交。 | `npm run check:openapi`、AI gateway tests、DeepSeek tests；启用环境变量的本地 dry-run/联调记录；确认无真实 key 入库。 |
@@ -32,4 +32,4 @@
 
 Task 8 仍为 `in-progress / NOT_READY`。当前代码和文档已经具备多条最小链路的自动化证据，但正式上线仍卡在生产级鉴权、完整业务前端、真实环境联调、文件/AI/通知生产验收、部署安全和操作交付材料。
 
-下一轮唯一推荐目标：账单物流预览/录入闭环第一增量。
+下一轮唯一推荐目标：12 步主链路浏览器 smoke 第一增量。

@@ -1,5 +1,21 @@
 # DECISIONS
 
+## D-107 任务 9D.61 账单预览复用文件签名 URL 且物流继续走既有发货门禁
+
+状态：已确认并执行。
+
+决策：
+
+- 账单物流预览/录入闭环第一增量不新增后端接口，复用既有 `POST /orders/{orderId}/bill`、`GET /orders/{orderId}/bill`、`GET /orders/{orderId}/logistics` 和 `GET /files/{fileId}/preview-url`。
+- 客服/内部订单页先提供最小账单 `file_id` 上传入口；医生端账单物流页按需生成短时效账单预览链接。
+- 物流录入继续复用生产看板既有 `POST /orders/{orderId}/logistics`，并保留 9D.14 的终检 `OUT/PASS` 发货门禁。
+- 本轮不做真实物流平台、支付系统、付款状态流转、财务审批、账单金额结构化或自动对账。
+
+影响：
+
+- T4 账单物流闭环进入第一增量，医生端可查看账单文件预览链接，客服/内部端可绑定账单文件。
+- Task 8 仍保持 `in-progress / NOT_READY`；后续仍需账单金额/付款状态、完整物流页面、终检 PDF/签名和 12 步浏览器验收。
+
 ## D-106 任务 9D.60 复用文件预览签名 URL 聚合设计稿预览入口
 
 状态：已确认并执行。

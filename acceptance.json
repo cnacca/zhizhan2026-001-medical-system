@@ -18,9 +18,9 @@
       "id": "frontend-business-pages",
       "status": "PARTIAL",
       "source": "docs/deployment/readiness-checklist.md#前端业务页面",
-      "current_evidence": "四入口登录、医生下单、客服初审、客服协同、客服资料缺失提示、AI 翻译草稿确认、设计稿预览 URL 聚合、生产审核、质检工时、绩效、生产看板、返工、终检报告和终检专用角色 / 附件第一增量已落地。",
-      "remaining_reason": "仍缺实时自动保存、账单物流、客服端设计稿审核预览增强、终检 PDF/签名和绩效完整闭环。",
-      "minimum_closure_loop": "优先选择账单物流预览/录入闭环第一增量，把账单文件预览和物流状态可见补齐到主链路。",
+      "current_evidence": "四入口登录、医生下单、客服初审、客服协同、客服资料缺失提示、AI 翻译草稿确认、设计稿预览 URL 聚合、账单物流预览/录入、生产审核、质检工时、绩效、生产看板、返工、终检报告和终检专用角色 / 附件第一增量已落地。",
+      "remaining_reason": "仍缺实时自动保存、客服端设计稿审核预览增强、终检 PDF/签名、绩效完整闭环和完整 12 步主链路浏览器 smoke。",
+      "minimum_closure_loop": "优先选择 12 步主链路浏览器 smoke 第一增量，固定最小演示数据和可复跑真实点击证据。",
       "verification": "npm run build:frontend; 对应 smoke; platform-server 目标测试"
     },
     {
@@ -2324,6 +2324,30 @@
             "设计稿预览链接",
             "任务 9D.60",
             "check:task9d60"
+          ]
+        },
+        {
+          "id": "task-9d61-bill-logistics-preview-entry-required-text",
+          "type": "required_text",
+          "paths": [
+            "frontend/src/App.vue",
+            "docs/acceptance/task-8-acceptance-matrix.md",
+            "docs/deployment/readiness-checklist.md",
+            "DECISIONS.md",
+            "STATUS.md",
+            "tasks/README.md",
+            "README.md",
+            "scripts/check-task-9d61-bill-logistics-preview-entry.mjs",
+            "package.json"
+          ],
+          "patterns": [
+            "doctorBillPreviewUrl",
+            "loadDoctorBillPreviewUrl",
+            "uploadInternalBill",
+            "doctor-bill-preview-link",
+            "internal-bill-upload-button",
+            "任务 9D.61",
+            "check:task9d61"
           ]
         }
       ]

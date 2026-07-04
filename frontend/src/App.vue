@@ -702,6 +702,7 @@ const doctorMessageDraft = ref('')
 const doctorAiQuestion = ref('我的订单现在到哪一步了？')
 const doctorAiAnswer = ref('')
 const designDraftPreviewUrls = ref<Record<string, string>>({})
+const doctorBillPreviewUrl = ref('')
 const doctorOrderFormProductType = ref('REGULAR_CROWN')
 const doctorOrderFormFields = ref<FormFieldConfig[]>([])
 const doctorOrderFormData = ref<Record<string, string | string[]>>({})
@@ -731,6 +732,8 @@ const csReviewActionLoading = ref(false)
 const csDesignDraftFileIds = ref('')
 const csDesignDraftUploadNote = ref('')
 const csDesignDraftResult = ref('')
+const csBillFileId = ref('')
+const csBillResult = ref('')
 const csMissingInfoItems = ref<MissingInfoItem[]>([])
 const csMissingInfoComplete = ref<boolean | null>(null)
 const csTranslationSourceText = ref('')
@@ -3333,6 +3336,7 @@ async function loadDoctorOrderWorkspace(orderId: number) {
   doctorOrderError.value = ''
   doctorAiAnswer.value = ''
   designDraftPreviewUrls.value = {}
+  doctorBillPreviewUrl.value = ''
   try {
     const [orderPayload, messagesPayload, draftsPayload, billPayload, logisticsPayload] = await Promise.all([
       apiFetch<DoctorOrderItem>(`/orders/${orderId}`),
@@ -3455,6 +3459,24 @@ async function confirmDoctorReceipt() {
   }
 }
 
+async function loadDoctorBillPreviewUrl() {
+  if (!doctorOrderWorkspace.value?.bill.file_id) {
+    doctorOrderError.value = '暂无可预览的账单文件'
+    return
+  }
+  doctorActionLoading.value = true
+  doctorOrderError.value = ''
+  doctorBillPreviewUrl.value = ''
+  try {
+    const payload = await apiFetch<FilePreviewUrlResponse>(`/files/${doctorOrderWorkspace.value.bill.file_id}/preview-url`)
+    doctorBillPreviewUrl.value = payload.data.preview_url
+  } catch (error) {
+    doctorOrderError.value = error instanceof Error ? error.message : '账单预览链接加载失败'
+  } finally {
+    doctorActionLoading.value = false
+  }
+}
+
 async function askDoctorAi() {
   if (!selectedOrderId.value || !doctorAiQuestion.value.trim()) {
     return
@@ -3520,6 +3542,8 @@ function selectInternalOrder(order: InternalOrderItem) {
   csDesignDraftFileIds.value = ''
   csDesignDraftUploadNote.value = ''
   csDesignDraftResult.value = ''
+  csBillFileId.value = ''
+  csBillResult.value = ''
   csMissingInfoItems.value = []
   csMissingInfoComplete.value = null
   csTranslationSourceText.value = order.production_note?.trim() || JSON.stringify(order.form_data, null, 2)
@@ -3661,6 +3685,38 @@ async function loadCustomerCollaborationPage() {
   await loadCustomerCollaborationPendingMessages()
   if (customerCollaborationOrderId.value.trim()) {
     await loadCustomerCollaborationOrderMessages()
+  }
+}
+
+async function uploadInternalBill() {
+  if (!selectedInternalOrder.value) {
+    return
+  }
+  const fileId = Number(csBillFileId.value.trim())
+  if (!Number.isInteger(fileId) || fileId <= 0) {
+    internalOrderError.value = '请填写账单 file_id'
+    return
+  }
+  csReviewActionLoading.value = true
+  internalOrderError.value = ''
+  csBillResult.value = ''
+  try {
+    const payload = await apiFetch<BillInfo>(
+      `/orders/${selectedInternalOrder.value.order_id}/bill`,
+      {
+        method: 'POST',
+        body: JSON.stringify({
+          file_id: fileId
+        })
+      }
+    )
+    csBillResult.value = `账单已上传：文件 ${payload.data.file_id ?? '-'} / ${statusLabel(payload.data.bill_status)}`
+    csBillFileId.value = ''
+    await loadNotifications()
+  } catch (error) {
+    internalOrderError.value = error instanceof Error ? error.message : '账单上传失败'
+  } finally {
+    csReviewActionLoading.value = false
   }
 }
 
@@ -5203,6 +5259,34 @@ onBeforeUnmount(() => {
                     </div>
                   </div>
                 </el-tab-pane>
+
+                <el-tab-pane label="账单物流">
+                  <div class="review-form">
+                    <el-form-item label="账单 file_id">
+                      <el-input
+                        v-model="csBillFileId"
+                        data-testid="internal-bill-file-id"
+                        placeholder="填写已完成上传的账单文件 file_id"
+                      />
+                    </el-form-item>
+                    <div class="inline-actions">
+                      <el-button
+                        type="primary"
+                        :loading="csReviewActionLoading"
+                        data-testid="internal-bill-upload-button"
+                        @click="uploadInternalBill"
+                      >
+                        上传账单文件
+                      </el-button>
+                      <el-tag v-if="csBillResult" data-testid="internal-bill-result" type="success" round>
+                        {{ csBillResult }}
+                      </el-tag>
+                    </div>
+                    <p class="public-message">
+                      物流录入仍在生产看板执行，并继续受终检出检通过后才能发货的既有门禁约束。
+                    </p>
+                  </div>
+                </el-tab-pane>
               </el-tabs>
             </section>
           </div>
@@ -6727,6 +6811,25 @@ onBeforeUnmount(() => {
                       <span>物流单号</span>
                       <strong>{{ doctorOrderWorkspace.logistics.tracking_no ?? '-' }}</strong>
                     </div>
+                  </div>
+                  <div class="inline-actions">
+                    <el-button
+                      :loading="doctorActionLoading"
+                      :disabled="!doctorOrderWorkspace.bill.file_id"
+                      data-testid="doctor-bill-preview-button"
+                      @click="loadDoctorBillPreviewUrl"
+                    >
+                      获取账单预览链接
+                    </el-button>
+                    <a
+                      v-if="doctorBillPreviewUrl"
+                      :href="doctorBillPreviewUrl"
+                      data-testid="doctor-bill-preview-link"
+                      target="_blank"
+                      rel="noreferrer"
+                    >
+                      账单预览链接
+                    </a>
                   </div>
                 </el-tab-pane>
 
