@@ -18,9 +18,9 @@
       "id": "frontend-business-pages",
       "status": "PARTIAL",
       "source": "docs/deployment/readiness-checklist.md#前端业务页面",
-      "current_evidence": "四入口登录、医生下单、客服初审、生产审核、质检工时、绩效、生产看板、返工和终检报告第一增量已落地。",
-      "remaining_reason": "仍缺实时自动保存、完整客服协同、账单物流、设计稿预览 URL 聚合、返工影响图形化、终检专用角色/附件和绩效完整闭环。",
-      "minimum_closure_loop": "优先选择一个页面闭环，例如终检专用角色/附件或绩效周期筛选第一增量。",
+      "current_evidence": "四入口登录、医生下单、客服初审、生产审核、质检工时、绩效、生产看板、返工、终检报告和终检专用角色 / 附件第一增量已落地。",
+      "remaining_reason": "仍缺实时自动保存、完整客服协同、账单物流、设计稿预览 URL 聚合、返工影响图形化、终检 PDF/签名和绩效完整闭环。",
+      "minimum_closure_loop": "优先选择返工影响图形化第一增量，把既有返工影响节点审计字段转成可读工序影响图。",
       "verification": "npm run build:frontend; 对应 smoke; platform-server 目标测试"
     },
     {
@@ -2160,6 +2160,69 @@
             "customer-pm-confirmations",
             "验收矩阵机器可读缺口清单第一增量",
             "check:task8-readiness-gaps"
+          ]
+        },
+        {
+          "id": "task-9d55-rework-dictionary-management-required-text",
+          "type": "required_text",
+          "paths": [
+            "backend/platform-server/src/main/resources/db/migration/V27__rework_dictionary_management.sql",
+            "backend/platform-server/src/main/java/com/yuri/aiorder/workflow/execution/WorkflowExecutionController.java",
+            "backend/platform-server/src/main/java/com/yuri/aiorder/workflow/execution/WorkflowExecutionService.java",
+            "backend/platform-server/src/test/java/com/yuri/aiorder/workflow/execution/CheckWorklogPerformanceTests.java",
+            "frontend/src/App.vue",
+            "docs/api/openapi.yaml",
+            "docs/development/open-source-foundation-reuse-gap-list.md",
+            "docs/acceptance/task-8-acceptance-matrix.md",
+            "docs/deployment/readiness-checklist.md",
+            "DECISIONS.md",
+            "STATUS.md",
+            "tasks/README.md",
+            "README.md",
+            "scripts/check-task-9d55-rework-dictionary-management.mjs",
+            "package.json"
+          ],
+          "patterns": [
+            "rework_dictionary_item",
+            "rework:dictionary:manage",
+            "/system/rework-dictionaries",
+            "/reworks/dictionaries/items",
+            "adminCanManageReworkDictionaryItemsAndCloseOnlyUsesActiveItems",
+            "Open Source Foundation Reuse Gap List",
+            "RuoYi-Vue-Pro",
+            "任务 9D.55",
+            "check:task9d55"
+          ]
+        },
+        {
+          "id": "task-9d56-final-inspection-attachments-required-text",
+          "type": "required_text",
+          "paths": [
+            "backend/platform-server/src/main/resources/db/migration/V28__final_inspection_attachment_permission.sql",
+            "backend/platform-server/src/main/java/com/yuri/aiorder/workflow/execution/WorkflowExecutionController.java",
+            "backend/platform-server/src/main/java/com/yuri/aiorder/workflow/execution/WorkflowExecutionService.java",
+            "backend/platform-server/src/main/java/com/yuri/aiorder/workflow/execution/FinalInspectionReportRequest.java",
+            "backend/platform-server/src/main/java/com/yuri/aiorder/workflow/execution/FinalInspectionReportResponse.java",
+            "backend/platform-server/src/test/java/com/yuri/aiorder/workflow/execution/CheckWorklogPerformanceTests.java",
+            "frontend/src/App.vue",
+            "docs/api/openapi.yaml",
+            "docs/acceptance/task-8-acceptance-matrix.md",
+            "docs/deployment/readiness-checklist.md",
+            "DECISIONS.md",
+            "STATUS.md",
+            "tasks/README.md",
+            "README.md",
+            "scripts/check-task-9d56-final-inspection-attachments.mjs",
+            "package.json"
+          ],
+          "patterns": [
+            "final_inspection_report_file",
+            "final-inspection:manage",
+            "attachment_file_ids",
+            "finalInspectionReportRequiresFinalOutPassAndIsInternalOnly",
+            "finalInspectionAttachmentFileIds",
+            "任务 9D.56",
+            "check:task9d56"
           ]
         }
       ]

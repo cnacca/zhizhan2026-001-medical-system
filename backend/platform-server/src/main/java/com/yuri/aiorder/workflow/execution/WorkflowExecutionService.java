@@ -719,6 +719,8 @@ public class WorkflowExecutionService {
         String summary = request.summary() == null || request.summary().isBlank()
                 ? "终检通过"
                 : request.summary().trim();
+        List<Long> attachmentFileIds = normalizeAttachmentFileIds(request.attachmentFileIds());
+        validateFinalInspectionAttachmentFiles(request.orderId(), attachmentFileIds);
         String reportNo = "FIR-" + request.orderId() + "-" + finalCheck.checkId();
         jdbcClient.sql("""
                         INSERT INTO final_inspection_report
@@ -735,7 +737,9 @@ public class WorkflowExecutionService {
                 .param("summary", summary)
                 .param("inspectorUserId", identity.userId())
                 .update();
-        return loadFinalInspectionReportById(lastInsertId());
+        long reportId = lastInsertId();
+        insertFinalInspectionReportFiles(reportId, attachmentFileIds);
+        return loadFinalInspectionReportById(reportId);
     }
 
     public FinalInspectionReportResponse getFinalInspectionReport(long orderId, BootstrapIdentity identity) {
@@ -1211,7 +1215,8 @@ public class WorkflowExecutionService {
                         rs.getString("summary"),
                         rs.getObject("inspector_user_id", Long.class),
                         rs.getString("status"),
-                        rs.getObject("created_at", LocalDateTime.class)))
+                        rs.getObject("created_at", LocalDateTime.class),
+                        loadFinalInspectionAttachmentFileIds(rs.getLong("report_id"))))
                 .optional()
                 .orElse(null);
     }
@@ -1234,8 +1239,68 @@ public class WorkflowExecutionService {
                         rs.getString("summary"),
                         rs.getObject("inspector_user_id", Long.class),
                         rs.getString("status"),
-                        rs.getObject("created_at", LocalDateTime.class)))
+                        rs.getObject("created_at", LocalDateTime.class),
+                        loadFinalInspectionAttachmentFileIds(rs.getLong("report_id"))))
                 .single();
+    }
+
+    private List<Long> normalizeAttachmentFileIds(List<Long> attachmentFileIds) {
+        if (attachmentFileIds == null || attachmentFileIds.isEmpty()) {
+            return List.of();
+        }
+        return attachmentFileIds.stream()
+                .filter(fileId -> fileId != null && fileId > 0)
+                .distinct()
+                .toList();
+    }
+
+    private void validateFinalInspectionAttachmentFiles(long orderId, List<Long> attachmentFileIds) {
+        if (attachmentFileIds.isEmpty()) {
+            return;
+        }
+        long validCount = jdbcClient.sql("""
+                        SELECT COUNT(*)
+                        FROM file_resource
+                        WHERE order_id = :orderId
+                          AND status = 'ACTIVE'
+                          AND upload_status = 'COMPLETED'
+                          AND visibility = 'INTERNAL'
+                          AND file_id IN (:fileIds)
+                        """)
+                .param("orderId", orderId)
+                .param("fileIds", attachmentFileIds)
+                .query(Long.class)
+                .single();
+        if (validCount != attachmentFileIds.size()) {
+            throw new ResponseStatusException(
+                    HttpStatus.BAD_REQUEST,
+                    "final inspection attachments must be completed internal files for this order");
+        }
+    }
+
+    private void insertFinalInspectionReportFiles(long reportId, List<Long> attachmentFileIds) {
+        for (int index = 0; index < attachmentFileIds.size(); index++) {
+            jdbcClient.sql("""
+                            INSERT INTO final_inspection_report_file (report_id, file_id, sort_order)
+                            VALUES (:reportId, :fileId, :sortOrder)
+                            """)
+                    .param("reportId", reportId)
+                    .param("fileId", attachmentFileIds.get(index))
+                    .param("sortOrder", index + 1)
+                    .update();
+        }
+    }
+
+    private List<Long> loadFinalInspectionAttachmentFileIds(long reportId) {
+        return jdbcClient.sql("""
+                        SELECT file_id
+                        FROM final_inspection_report_file
+                        WHERE report_id = :reportId
+                        ORDER BY sort_order, file_id
+                        """)
+                .param("reportId", reportId)
+                .query(Long.class)
+                .list();
     }
 
     private ReworkRow lockRework(long reworkId) {

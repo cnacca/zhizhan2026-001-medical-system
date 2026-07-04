@@ -364,6 +364,7 @@ type FinalInspectionReportResponse = {
   summary: string | null
   inspector_user_id: number | null
   status: string
+  attachment_file_ids: number[]
   created_at: string
 }
 
@@ -773,6 +774,7 @@ const finalInspectionLoading = ref(false)
 const finalInspectionResult = ref<CheckRecordResponse | null>(null)
 const finalInspectionReport = ref<FinalInspectionReportResponse | null>(null)
 const finalInspectionReportSummary = ref('')
+const finalInspectionAttachmentFileIds = ref('')
 const finalInspectionReportLoading = ref(false)
 const worklogTaskStatus = ref('IN_PROGRESS')
 const worklogTasks = ref<WorkerTaskItem[]>([])
@@ -3938,6 +3940,7 @@ async function selectFinalInspectionTask(task: WorkerTaskItem) {
   finalInspectionRemark.value = ''
   finalInspectionResult.value = null
   finalInspectionReportSummary.value = ''
+  finalInspectionAttachmentFileIds.value = ''
   await loadFinalInspectionRecords(task.node_instance_id)
   await loadFinalInspectionReport(task.order_id)
 }
@@ -3996,6 +3999,7 @@ async function loadFinalInspectionReport(orderId: number) {
     const payload = await apiFetch<FinalInspectionReportResponse>(`/final-inspection-reports/${orderId}`)
     finalInspectionReport.value = payload.data
     finalInspectionReportSummary.value = payload.data.summary ?? ''
+    finalInspectionAttachmentFileIds.value = payload.data.attachment_file_ids?.join(', ') ?? ''
   } catch (error) {
     if (error instanceof Error && error.message.includes('404')) {
       return
@@ -4015,11 +4019,13 @@ async function createFinalInspectionReport() {
       method: 'POST',
       body: JSON.stringify({
         order_id: selectedFinalInspectionTask.value.order_id,
-        summary: finalInspectionReportSummary.value.trim() || '终检通过'
+        summary: finalInspectionReportSummary.value.trim() || '终检通过',
+        attachment_file_ids: parseFileIds(finalInspectionAttachmentFileIds.value)
       })
     })
     finalInspectionReport.value = payload.data
     finalInspectionReportSummary.value = payload.data.summary ?? ''
+    finalInspectionAttachmentFileIds.value = payload.data.attachment_file_ids?.join(', ') ?? ''
   } catch (error) {
     const message = error instanceof Error ? error.message : '生成终检报告失败'
     reworkError.value = message.includes('409') ? '终检出检通过后才能生成报告' : message
@@ -5521,6 +5527,13 @@ onBeforeUnmount(() => {
                     placeholder="终检通过后生成报告"
                   />
                 </el-form-item>
+                <el-form-item label="终检附件 file_id">
+                  <el-input
+                    v-model="finalInspectionAttachmentFileIds"
+                    data-testid="final-inspection-attachment-file-ids"
+                    placeholder="多个 ID 用逗号分隔"
+                  />
+                </el-form-item>
                 <el-button
                   type="primary"
                   plain
@@ -5539,6 +5552,9 @@ onBeforeUnmount(() => {
                 >
                   <template #default>
                     节点 {{ finalInspectionReport.final_node_instance_id }} / 检查 {{ finalInspectionReport.final_check_id }} / {{ statusLabel(finalInspectionReport.status) }}
+                    <span v-if="finalInspectionReport.attachment_file_ids.length">
+                      / 附件 {{ finalInspectionReport.attachment_file_ids.join(', ') }}
+                    </span>
                   </template>
                 </el-alert>
               </div>

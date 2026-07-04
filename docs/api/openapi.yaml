@@ -1435,6 +1435,11 @@ components:
         summary:
           type: string
           description: 终检报告摘要；不传时默认记录“终检通过”。
+        attachment_file_ids:
+          type: array
+          description: 任务 9D.56 第一增量：绑定同订单、已完成上传、INTERNAL 可见性的终检附件 file_id；不返回真实预览 URL 或内部对象键。
+          items:
+            type: integer
     FinalInspectionReportResponse:
       type: object
       properties:
@@ -1462,6 +1467,11 @@ components:
           type: string
           enum:
           - ISSUED
+        attachment_file_ids:
+          type: array
+          description: 已绑定的内部终检附件 file_id；医生端不可读取终检报告或内部附件预览。
+          items:
+            type: integer
         created_at:
           type: string
           format: date-time
@@ -4235,9 +4245,11 @@ paths:
       - CheckRecord
       summary: 生成终检报告
       description: |
-        任务 9D.16 第一增量：权限 WORKER / ADMIN。
+        任务 9D.16 第一增量：生成终检报告。
+        任务 9D.56 第一增量：生成报告需要 final-inspection:manage 专用权限（ADMIN 保留 bootstrap fallback），可绑定同订单已完成上传且 visibility=INTERNAL 的终检附件 file_id。
         生成前必须存在订单最后一道工序节点的 OUT/PASS 终检出检记录；缺失时返回 409。
         同一订单仅保留一份终检报告，重复生成返回已有报告。
+        医生端禁止读取终检报告，也不能读取内部终检附件的预览 URL。
       requestBody:
         required: true
         content:

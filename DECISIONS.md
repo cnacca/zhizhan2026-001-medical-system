@@ -1,5 +1,53 @@
 # DECISIONS
 
+## D-102 任务 9D.56 终检报告采用专用权限与内部附件绑定
+
+状态：已确认。
+
+决策：
+
+- 终检报告生成从通用 WORKER 入口收口为 `final-inspection:manage` 专用权限；ADMIN 仍保留本地 bootstrap fallback，便于现有 smoke 和管理端验收。
+- 终检附件第一增量只绑定已存在的 `file_resource.file_id`，并要求同订单、`upload_status=COMPLETED`、`status=ACTIVE`、`visibility=INTERNAL`。
+- 终检报告请求和响应新增 `attachment_file_ids`，前端只提供最小 file_id 输入与展示；不在本轮新增文件上传区、PDF 签章、报告模板、真实物流平台或人工复核流。
+- 医生端仍禁止读取终检报告，也不能读取内部终检附件预览 URL。
+
+影响：
+
+- 终检发货硬缺口中的“终检专用角色 / 附件第一增量”已关闭，但终检 PDF、签名、真实物流平台、完整发货验收仍未完成。
+- Task 8 仍保持 `in-progress / NOT_READY`；下一轮唯一推荐目标是返工影响图形化第一增量。
+
+## D-101 当前目标收束为一期交付并新增前端对齐检查
+
+状态：已确认。
+
+决策：
+
+- 后续项目文档和开发优先级默认围绕「完成一期交付」组织，不再把 9D 编号本身当成目标。
+- 一期完成口径以 `PROJECT.md` 的 P0 主业务链路、`docs/acceptance/task-8-acceptance-matrix.md` 的 12 步验收链路和 `docs/deployment/readiness-checklist.md` 的上线硬缺口为准。
+- 新增 `docs/acceptance/phase-one-frontend-alignment.md`，专门记录前端与一期范围的匹配情况，区分真实接口链路、第一增量、只读汇总和演示占位。
+- 前端验收不能只看导航是否有入口；必须看真实用户路径、接口接入、权限边界和 12 步主链路是否可完成。
+
+影响：
+
+- 后续前端开发优先补终检专用角色 / 附件、12 步主链路浏览器 smoke、客服协同、返工影响图形化与绩效周期筛选等一期硬缺口。
+- `STATUS.md`、`tasks/README.md` 和 `README.md` 已增加该口径入口；Task 8 仍保持 `in-progress / NOT_READY`。
+
+## D-100 任务 9D.55 返工字典后台维护采用底座字典管理第一增量
+
+状态：已确认。
+
+决策：
+
+- 一期后续通用后台维护能力优先复用 RuoYi-Vue-Pro / 若依 Pro 的字典、CRUD、菜单和权限码范式，不再为每个后台配置项手写一套独立模式。
+- 返工原因和责任类型从 9D.18 的后端固定字典推进为 `rework_dictionary_item` 数据库字典，并新增 `rework:dictionary:manage` 权限和 `/system/rework-dictionaries` 管理菜单。
+- ADMIN 可通过 `/reworks/dictionaries/items` 新增、编辑和停用返工字典项；生产端关闭返工仍只接受 ACTIVE 字典项，停用项不能继续用于关闭返工。
+- 本增量不做删除、批量导入、审计日志、审批流、字典分组 UI 或完整 RuoYi 代码生成器迁移。
+
+影响：
+
+- `docs/development/open-source-foundation-reuse-gap-list.md` 成为后续判断“哪些能力该复用底座、哪些属于牙科生产自研”的清单入口。
+- Task 8 仍保持 `in-progress / NOT_READY`；下一轮唯一推荐目标是终检专用角色 / 附件第一增量。
+
 ## D-099 验收矩阵机器可读缺口清单第一增量
 
 状态：已确认。

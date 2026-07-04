@@ -320,10 +320,26 @@ Task 8A 只记录当前 readiness audit 的真实验证结果，不补业务功�
 | 100MB+ smoke | PASS | `npm run smoke:task9d10-large-upload` 通过，生成 `file_id=457`，页面完成上传并通过预览权限校验。 |
 | SQL 核验 | PASS | `file_resource` 中 `file_id=457` 为 `COMPLETED`、`110100480` bytes、`MULTIPART`、`multipart_part_count=21`。 |
 
+## Task 9D.55：开源底座复用清单与返工字典后台维护第一增量
+
+| 场景 | 结果 | 记录 |
+| --- | --- | --- |
+| TDD 红灯 | PASS | `CheckWorklogPerformanceTests#adminCanManageReworkDictionaryItemsAndCloseOnlyUsesActiveItems` 首次失败于 `/reworks/dictionaries/items` 缺失，确认返工字典后台维护能力尚不存在。 |
+| 后端目标回归 | PASS | `./scripts/with-jdk21.sh mvn -f backend/pom.xml -pl platform-server -Dtest=CheckWorklogPerformanceTests#adminCanManageReworkDictionaryItemsAndCloseOnlyUsesActiveItems+reworkCloseUsesServerDictionaryAndRejectsUnsupportedClassification test` 通过，覆盖 ADMIN 管理字典项、医生端 403、ACTIVE 字典读取和停用项关闭返工失败。 |
+| 静态检查 | PASS | `npm run check:task9d55` 通过，覆盖迁移、权限码、菜单、管理接口、前端入口、OpenAPI、acceptance 和底座复用清单。 |
+
+## Task 9D.56：终检专用角色 / 附件第一增量
+
+| 场景 | 结果 | 记录 |
+| --- | --- | --- |
+| TDD 红灯 | PASS | `CheckWorklogPerformanceTests#finalInspectionReportRequiresFinalOutPassAndIsInternalOnly` 首次失败于普通 WORKER 仍可生成终检报告，确认缺 `final-inspection:manage` 专用权限门禁。 |
+| 后端目标回归 | PASS | `./scripts/with-jdk21.sh mvn -f backend/pom.xml -pl platform-server -Dtest=CheckWorklogPerformanceTests#finalInspectionReportRequiresFinalOutPassAndIsInternalOnly test` 通过，覆盖无终检通过 409、无专用权限 403、内部附件绑定、内部读取附件 ID、医生读取报告和内部附件预览 403。 |
+| 静态检查 | PASS | `npm run check:task9d56` 通过，覆盖迁移、权限码、请求/响应字段、服务端附件校验、前端入口、OpenAPI、acceptance 和项目文档证据。 |
+
 ## 回归结论
 
 - 后端最小链路可继续作为 M3/M4/M5 的 smoke 基线。
 - OpenAPI 硬缺口已按当前后端基线关闭，可作为后续前后端联调和 SDK 生成前置契约。
-- Bearer 身份基线、后端权限守卫、数据库化 RBAC/DataScope 基础、菜单/部门/岗位与前端权限路由第一增量、权限注解/统一拦截器、统一身份参数解析、订单/工序实例 SQL DataScope 第一增量、文件/协同/AI DataScope 扩展、生产鉴权启动门禁第一增量、WebSocket 通知第一增量、通知未读/已读第一增量、通知实时前端/Redis 广播第一增量、医生订单工作台第一增量、医生下单第一增量、客服初审第一增量、生产审核第一增量、生产任务入口第一增量、质检工时第一增量、绩效管理第一增量、生产看板第一增量、返工终检第一增量、Multipart 上传第一增量、本地恢复上传第一增量、服务端候选恢复第一增量、服务端候选恢复浏览器 smoke、上传中断后恢复浏览器 smoke 和 100MB+ 浏览器上传 smoke 已落地，但完整 RuoYi RBAC/DataScope、真实弱网/跨设备浏览器续传、返工闭环、终检发货拦截、真实双实例通知联调和生产网关验收仍未完成。
+- Bearer 身份基线、后端权限守卫、数据库化 RBAC/DataScope 基础、菜单/部门/岗位与前端权限路由第一增量、权限注解/统一拦截器、统一身份参数解析、订单/工序实例 SQL DataScope 第一增量、文件/协同/AI DataScope 扩展、生产鉴权启动门禁第一增量、WebSocket 通知第一增量、通知未读/已读第一增量、通知实时前端/Redis 广播第一增量、医生订单工作台第一增量、医生下单第一增量、客服初审第一增量、生产审核第一增量、生产任务入口第一增量、质检工时第一增量、绩效管理第一增量、生产看板第一增量、返工终检第一增量、终检报告与内部附件第一增量、Multipart 上传第一增量、本地恢复上传第一增量、服务端候选恢复第一增量、服务端候选恢复浏览器 smoke、上传中断后恢复浏览器 smoke 和 100MB+ 浏览器上传 smoke 已落地，但完整 RuoYi RBAC/DataScope、真实弱网/跨设备浏览器续传、返工影响图形化、终检 PDF/签名/真实物流平台、真实双实例通知联调和生产网关验收仍未完成。
 - 产品级上线仍为 `NOT READY`，原因见 `docs/deployment/readiness-checklist.md`。
 - 本轮 smoke 仅追加本地测试数据，不删除、不重置数据库；因此本地 `workflow_chain` 总数包含历史测试链，正式验收应在干净测试库或固定快照库中复跑。

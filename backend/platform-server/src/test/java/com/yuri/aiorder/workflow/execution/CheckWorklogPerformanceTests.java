@@ -13,6 +13,7 @@ import com.yuri.aiorder.common.BootstrapIdentity;
 import com.yuri.aiorder.common.UserRole;
 import com.yuri.aiorder.common.auth.BearerTokenService;
 import java.util.List;
+import java.util.Set;
 import java.util.UUID;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -47,6 +48,7 @@ class CheckWorklogPerformanceTests {
     private long csUserId;
     private long workerUserId;
     private long otherWorkerUserId;
+    private long clinicId;
 
     @BeforeEach
     void setUp() throws Exception {
@@ -56,7 +58,7 @@ class CheckWorklogPerformanceTests {
         csUserId = 990150000L + userSeed;
         workerUserId = 990200000L + userSeed;
         otherWorkerUserId = 990300000L + userSeed;
-        long clinicId = createClinic("执行测试诊所-" + suffix);
+        clinicId = createClinic("执行测试诊所-" + suffix);
         orderId = createOrder("EX" + suffix.substring(0, 12), clinicId);
         chainId = createOneNodeChain(suffix);
         nodeInstanceId = instantiateAndAssign();
@@ -655,7 +657,7 @@ class CheckWorklogPerformanceTests {
 
     @Test
     void bearerDoctorCannotReadInternalCheckRecords() throws Exception {
-        String doctorToken = tokenService.issue(new BootstrapIdentity(UserRole.DOCTOR, doctorUserId, null));
+        String doctorToken = tokenService.issue(new BootstrapIdentity(UserRole.DOCTOR, doctorUserId, clinicId));
 
         mockMvc.perform(get("/check-records/{nodeInstanceId}", nodeInstanceId)
                         .header("Authorization", "Bearer " + doctorToken))
@@ -664,7 +666,7 @@ class CheckWorklogPerformanceTests {
 
     @Test
     void bearerDoctorCannotReadReworkRecords() throws Exception {
-        String doctorToken = tokenService.issue(new BootstrapIdentity(UserRole.DOCTOR, doctorUserId, null));
+        String doctorToken = tokenService.issue(new BootstrapIdentity(UserRole.DOCTOR, doctorUserId, clinicId));
 
         mockMvc.perform(get("/reworks")
                         .header("Authorization", "Bearer " + doctorToken))
@@ -673,9 +675,19 @@ class CheckWorklogPerformanceTests {
 
     @Test
     void finalInspectionReportRequiresFinalOutPassAndIsInternalOnly() throws Exception {
+        long attachmentFileId = createCompletedInternalFile("终检附件.txt");
+        String workerWithoutFinalInspectionPermission = tokenService.issue(
+                new BootstrapIdentity(UserRole.WORKER, workerUserId, null, null, Set.of("check:write"), "SELF"));
+        String finalInspectorToken = tokenService.issue(new BootstrapIdentity(
+                UserRole.WORKER,
+                workerUserId,
+                null,
+                null,
+                Set.of("check:write", "check:read-internal", "final-inspection:manage"),
+                "SELF"));
+
         mockMvc.perform(post("/final-inspection-reports")
-                        .header("X-Bootstrap-Role", "WORKER")
-                        .header("X-Bootstrap-User-Id", workerUserId)
+                        .header("Authorization", "Bearer " + finalInspectorToken)
                         .contentType(MediaType.APPLICATION_JSON)
                         .content("""
                                 {"order_id":%d,"summary":"终检报告第一增量"}
@@ -687,13 +699,20 @@ class CheckWorklogPerformanceTests {
         completeNode(nodeInstanceId);
         long finalCheckId = submitCheck(nodeInstanceId, 2, true, null).path("check_id").asLong();
 
-        MvcResult created = mockMvc.perform(post("/final-inspection-reports")
-                        .header("X-Bootstrap-Role", "WORKER")
-                        .header("X-Bootstrap-User-Id", workerUserId)
+        mockMvc.perform(post("/final-inspection-reports")
+                        .header("Authorization", "Bearer " + workerWithoutFinalInspectionPermission)
                         .contentType(MediaType.APPLICATION_JSON)
                         .content("""
-                                {"order_id":%d,"summary":"终检报告第一增量"}
-                                """.formatted(orderId)))
+                                {"order_id":%d,"summary":"终检报告第一增量","attachment_file_ids":[%d]}
+                                """.formatted(orderId, attachmentFileId)))
+                .andExpect(status().isForbidden());
+
+        MvcResult created = mockMvc.perform(post("/final-inspection-reports")
+                        .header("Authorization", "Bearer " + finalInspectorToken)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("""
+                                {"order_id":%d,"summary":"终检报告第一增量","attachment_file_ids":[%d]}
+                                """.formatted(orderId, attachmentFileId)))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.data.report_id").isNumber())
                 .andExpect(jsonPath("$.data.order_id").value(orderId))
@@ -701,6 +720,7 @@ class CheckWorklogPerformanceTests {
                 .andExpect(jsonPath("$.data.final_check_id").value(finalCheckId))
                 .andExpect(jsonPath("$.data.conclusion").value("PASS"))
                 .andExpect(jsonPath("$.data.summary").value("终检报告第一增量"))
+                .andExpect(jsonPath("$.data.attachment_file_ids[0]").value(attachmentFileId))
                 .andReturn();
         long reportId = objectMapper.readTree(created.getResponse().getContentAsString())
                 .path("data")
@@ -711,12 +731,37 @@ class CheckWorklogPerformanceTests {
                         .header("X-Bootstrap-Role", "ADMIN"))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.data.report_id").value(reportId))
-                .andExpect(jsonPath("$.data.report_no").isNotEmpty());
+                .andExpect(jsonPath("$.data.report_no").isNotEmpty())
+                .andExpect(jsonPath("$.data.attachment_file_ids[0]").value(attachmentFileId));
 
-        String doctorToken = tokenService.issue(new BootstrapIdentity(UserRole.DOCTOR, doctorUserId, null));
+        String doctorToken = tokenService.issue(new BootstrapIdentity(UserRole.DOCTOR, doctorUserId, clinicId));
         mockMvc.perform(get("/final-inspection-reports/{orderId}", orderId)
                         .header("Authorization", "Bearer " + doctorToken))
                 .andExpect(status().isForbidden());
+        mockMvc.perform(get("/files/{fileId}/preview-url", attachmentFileId)
+                        .header("Authorization", "Bearer " + doctorToken))
+                .andExpect(status().isForbidden());
+    }
+
+    private long createCompletedInternalFile(String filename) {
+        String objectKey = "test/final-inspection/" + UUID.randomUUID() + "/" + filename;
+        jdbcClient.sql("""
+                        INSERT INTO file_resource
+                            (order_id, owner_user_id, source_type, visibility, bucket_name, object_key,
+                             original_filename, content_type, file_size, upload_status, status)
+                        VALUES
+                            (:orderId, :ownerUserId, 'FINAL_INSPECTION', 'INTERNAL', 'ai-order-files',
+                             :objectKey, :filename, 'text/plain', 128, 'COMPLETED', 'ACTIVE')
+                        """)
+                .param("orderId", orderId)
+                .param("ownerUserId", workerUserId)
+                .param("objectKey", objectKey)
+                .param("filename", filename)
+                .update();
+        return jdbcClient.sql("SELECT file_id FROM file_resource WHERE object_key = :objectKey")
+                .param("objectKey", objectKey)
+                .query(Long.class)
+                .single();
     }
 
     private long createClinic(String clinicName) {
