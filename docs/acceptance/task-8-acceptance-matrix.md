@@ -111,3 +111,7 @@
 ## 9D.66 绩效周期筛选第一段
 
 9D.66 已补绩效周期筛选第一段，`/performance` 和 `/performance/details` 支持 `start_date` / `end_date`。Task 8 仍保持 NOT_READY。
+
+## 9D.74 绩效标准工时与完整公式口径第一段
+
+9D.74 绩效标准工时与完整公式口径第一段已新增 `performance_formula_version=PHASE_ONE_DEFAULT_V1`、标准工时覆盖率和默认绩效分；该公式不作为工资、奖金或奖惩结算依据。Task 8 仍保持 NOT_READY。

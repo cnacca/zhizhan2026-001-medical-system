@@ -409,8 +409,13 @@ type WorkLogResponse = {
 
 type PerformanceStatsResponse = {
   user_id: number | null
+  performance_formula_version: string
   completed_count: number
   effective_duration: number
+  standard_duration: number
+  standard_covered_count: number
+  standard_missing_count: number
+  standard_coverage_rate: number
   rework_count: number
   responsible_rework_count: number
   non_worker_responsibility_rework_count: number
@@ -418,6 +423,7 @@ type PerformanceStatsResponse = {
   on_time_rate: number
   pass_rate: number
   duration_efficiency: number
+  performance_score: number
 }
 
 type ProductionQualitySummaryResponse = {
@@ -6254,7 +6260,17 @@ onBeforeUnmount(() => {
         <section v-else-if="isPerformanceRoute" class="panel route-panel performance-panel">
           <div class="route-heading">
             <h2>绩效统计</h2>
-            <el-tag round>{{ performanceStats ? `员工 ${performanceStats.user_id ?? '-'}` : '未加载' }}</el-tag>
+            <div class="heading-tags">
+              <el-tag round>{{ performanceStats ? `员工 ${performanceStats.user_id ?? '-'}` : '未加载' }}</el-tag>
+              <el-tag
+                v-if="performanceStats"
+                data-testid="performance-formula-version"
+                type="info"
+                round
+              >
+                {{ performanceStats.performance_formula_version }}
+              </el-tag>
+            </div>
           </div>
 
           <div class="performance-toolbar">
@@ -6303,6 +6319,16 @@ onBeforeUnmount(() => {
               <small>分钟</small>
             </article>
             <article class="performance-card">
+              <span>标准工时</span>
+              <strong>{{ performanceStats.standard_duration }}</strong>
+              <small>分钟</small>
+            </article>
+            <article class="performance-card">
+              <span>标准工时覆盖率</span>
+              <strong>{{ performanceStats.standard_coverage_rate }}%</strong>
+              <small>{{ performanceStats.standard_covered_count }} 有标准 / {{ performanceStats.standard_missing_count }} 缺标准</small>
+            </article>
+            <article class="performance-card">
               <span>返工次数</span>
               <strong>{{ performanceStats.rework_count }}</strong>
               <small>目标节点返工记录</small>
@@ -6336,6 +6362,11 @@ onBeforeUnmount(() => {
               <span>工时效率</span>
               <strong>{{ performanceStats.duration_efficiency }}%</strong>
               <small>标准工时 / 实际工时</small>
+            </article>
+            <article class="performance-card" data-testid="performance-score-card">
+              <span>默认绩效分</span>
+              <strong>{{ performanceStats.performance_score }}</strong>
+              <small>开发默认公式，不作工资结算</small>
             </article>
           </div>
           <div v-if="performanceStats" class="performance-detail-section">

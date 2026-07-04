@@ -497,6 +497,12 @@ components:
       properties:
         user_id:
           type: integer
+        performance_formula_version:
+          type: string
+          enum:
+          - PHASE_ONE_DEFAULT_V1
+          description: |
+            任务 9D.74 第一增量：开发默认绩效公式版本。当前公式只用于一期统计验收，不作为工资或奖惩结算依据；客户/PM 确认后再冻结正式口径。
         username:
           type: string
         completed_count:
@@ -505,6 +511,18 @@ components:
         effective_duration:
           type: integer
           description: 有效工时（分钟）
+        standard_duration:
+          type: integer
+          description: 有标准工时的已完成工序标准工时合计（分钟）
+        standard_covered_count:
+          type: integer
+          description: 已完成工序中配置了标准工时的数量
+        standard_missing_count:
+          type: integer
+          description: 已完成工序中缺少标准工时的数量
+        standard_coverage_rate:
+          type: integer
+          description: 标准工时覆盖率，取值 0-100
         rework_count:
           type: integer
           description: 返工次数
@@ -4495,7 +4513,12 @@ paths:
         - 返工次数 = 返工记录次数
         - 准时率 = 按标准工时内完成工序数 ÷ 总完成工序数
         - 通过率 = 一次出检通过数 ÷ 总出检数
-        - 工时效率 = SUM(standard_duration) ÷ SUM(actual_duration) × 100%
+        - 工时效率 = SUM(standard_duration) ÷ SUM(effective_duration_seconds) × 100%
+        任务 9D.74 第一增量：
+        - performance_formula_version = PHASE_ONE_DEFAULT_V1
+        - 标准工时覆盖率 = 有标准工时的已完成工序数 ÷ 已完成工序数
+        - 默认绩效分 = 工时效率 40% + 一次通过率 30% + 准时率 20% + 责任归因 10%
+        - 当前默认公式仅用于一期统计验收，不作为工资或奖惩结算依据
       parameters:
       - name: user_id
         in: query

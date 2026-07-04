@@ -45,3 +45,7 @@ Task 8 仍为 `in-progress / NOT_READY`。当前代码和文档已经具备多�
 ## 9D.72 客户 / PM 确认项清单第一段
 
 9D.72 已补客户 / PM 确认项清单第一段，入口为 `docs/acceptance/phase-one-customer-pm-confirmations.md`。该清单不替代书面确认，Task 8 仍保持 NOT_READY。
+
+## 9D.74 绩效标准工时与完整公式口径第一段
+
+9D.74 已补 `performance_formula_version=PHASE_ONE_DEFAULT_V1`、标准工时覆盖率和默认绩效分；该记录只代表开发默认公式第一段，不代表客户 / PM 已确认正式绩效口径，也不作为工资或奖惩结算依据。Task 8 仍保持 NOT_READY。

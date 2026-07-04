@@ -1383,3 +1383,14 @@ npm run check:openapi
 ```
 
 Task 8 仍保持 NOT_READY。
+
+## 9D.74 绩效标准工时与完整公式口径第一段
+
+绩效接口新增公式版本、标准工时覆盖率和默认绩效分。检查命令：
+
+```bash
+npm run check:task9d74
+./scripts/with-jdk21.sh mvn -f backend/pom.xml -pl platform-server -Dtest=CheckWorklogPerformanceTests test
+```
+
+默认公式只用于一期统计验收，不作为工资结算结果。Task 8 仍保持 NOT_READY。

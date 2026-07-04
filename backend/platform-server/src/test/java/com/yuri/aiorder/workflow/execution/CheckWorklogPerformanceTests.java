@@ -683,6 +683,43 @@ class CheckWorklogPerformanceTests {
                 .andExpect(jsonPath("$.data[0].work_log_id").value(inPeriodWorkLogId));
     }
 
+
+    @Test
+    void performanceExposesStandardDurationCoverageAndDefaultFormulaScore() throws Exception {
+        submitCheck(nodeInstanceId, 1, true, null);
+        startNode(nodeInstanceId);
+        long coveredWorkLogId = startWorkLog(nodeInstanceId);
+        finishWorkLog(coveredWorkLogId)
+                .andExpect(status().isOk());
+        setWorkLogEffectiveSeconds(coveredWorkLogId, 1000);
+
+        long noStandardOrderId = createOrder(
+                "NO_STANDARD_" + UUID.randomUUID().toString().replace("-", "").substring(0, 12),
+                clinicId);
+        long noStandardNodeId = instantiateAndAssignAll(noStandardOrderId, chainId).get(0);
+        setNodeStandardDuration(noStandardNodeId, null);
+        submitCheck(noStandardNodeId, 1, true, null);
+        startNode(noStandardNodeId);
+        long missingStandardWorkLogId = startWorkLog(noStandardNodeId);
+        finishWorkLog(missingStandardWorkLogId)
+                .andExpect(status().isOk());
+        setWorkLogEffectiveSeconds(missingStandardWorkLogId, 1200);
+        completeNode(noStandardNodeId);
+        submitCheck(noStandardNodeId, 2, true, null);
+
+        mockMvc.perform(get("/performance")
+                        .header("X-Bootstrap-Role", "WORKER")
+                        .header("X-Bootstrap-User-Id", workerUserId))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.performance_formula_version").value("PHASE_ONE_DEFAULT_V1"))
+                .andExpect(jsonPath("$.data.standard_duration").value(10))
+                .andExpect(jsonPath("$.data.standard_covered_count").value(1))
+                .andExpect(jsonPath("$.data.standard_missing_count").value(1))
+                .andExpect(jsonPath("$.data.standard_coverage_rate").value(50))
+                .andExpect(jsonPath("$.data.duration_efficiency").value(36))
+                .andExpect(jsonPath("$.data.performance_score").value(64));
+    }
+
     @Test
     void bearerCsCannotReadWorkerPerformance() throws Exception {
         String csToken = tokenService.issue(new BootstrapIdentity(UserRole.CS, 8001L, null));
@@ -1121,6 +1158,18 @@ class CheckWorklogPerformanceTests {
                         """)
                 .param("finishedAt", finishedAt)
                 .param("workLogId", workLogId)
+                .update();
+    }
+
+
+    private void setNodeStandardDuration(long nodeId, Integer standardDuration) {
+        jdbcClient.sql("""
+                        UPDATE order_process_node
+                        SET standard_duration = :standardDuration
+                        WHERE node_instance_id = :nodeId
+                        """)
+                .param("standardDuration", standardDuration)
+                .param("nodeId", nodeId)
                 .update();
     }
 

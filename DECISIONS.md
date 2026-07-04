@@ -1882,3 +1882,13 @@
 - 绩效周期筛选先扩展既有 `/performance` 和 `/performance/details`，新增可选 `start_date` / `end_date` 查询参数。
 - 周期口径按 `work_log.finished_at` 做日期闭区间过滤；`end_date` 早于 `start_date` 返回 400。
 - 权限边界不变：WORKER 只能看本人绩效，ADMIN 可按 `user_id` 查询指定员工。Task 8 仍保持 `NOT_READY`。
+
+## D-125 任务 9D.74 绩效标准工时与完整公式口径第一段
+
+状态：已确认并执行第一增量，等待客户 / PM 对 CP-004 书面确认。
+
+决策：
+
+- 一期绩效接口先暴露开发默认公式版本 `PHASE_ONE_DEFAULT_V1`，用于验收和解释，不作为工资、奖金或奖惩结算依据。
+- `/performance` 新增标准工时合计、标准工时覆盖数量、缺失数量、覆盖率和默认绩效分。
+- 标准工时缺失时不伪造标准值，改用 `standard_missing_count` 和 `standard_coverage_rate` 暴露数据完整性。Task 8 仍保持 `NOT_READY`。

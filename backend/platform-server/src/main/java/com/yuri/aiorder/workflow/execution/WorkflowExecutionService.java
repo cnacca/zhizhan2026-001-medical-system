@@ -24,6 +24,8 @@ import org.springframework.web.server.ResponseStatusException;
 @Service
 public class WorkflowExecutionService {
 
+    private static final String PERFORMANCE_FORMULA_VERSION = "PHASE_ONE_DEFAULT_V1";
+
     private static final TypeReference<List<Long>> LONG_LIST_TYPE = new TypeReference<>() {
     };
 
@@ -930,17 +932,37 @@ public class WorkflowExecutionService {
                           AND w.status = 'COMPLETED'
                           AND n.standard_duration IS NOT NULL
                         """ + periodSql(period, "w.finished_at"), targetUserId, period);
+        long standardCoveredCount = countLong("""
+                        SELECT COUNT(*)
+                        FROM work_log w
+                        JOIN order_process_node n ON n.node_instance_id = w.node_instance_id
+                        WHERE w.worker_user_id = :userId
+                          AND w.status = 'COMPLETED'
+                          AND n.standard_duration IS NOT NULL
+                        """ + periodSql(period, "w.finished_at"), targetUserId, period);
+        long standardMissingCount = Math.max(completedCount - standardCoveredCount, 0);
+        int onTimeRate = percent(onTimeCount, completedCount);
+        int passRate = percent(outCheckPass, outCheckTotal);
+        int durationEfficiency = effectiveSeconds == 0
+                ? 0
+                : Math.toIntExact(Math.round((standardSeconds * 100.0) / effectiveSeconds));
         return new PerformanceStatsResponse(
                 targetUserId,
+                PERFORMANCE_FORMULA_VERSION,
                 completedCount,
                 effectiveSeconds / 60,
+                standardSeconds / 60,
+                standardCoveredCount,
+                standardMissingCount,
+                percent(standardCoveredCount, completedCount),
                 reworkCount,
                 responsibleReworkCount,
                 nonWorkerResponsibilityReworkCount,
                 unclassifiedReworkCount,
-                percent(onTimeCount, completedCount),
-                percent(outCheckPass, outCheckTotal),
-                effectiveSeconds == 0 ? 0 : Math.toIntExact(Math.round((standardSeconds * 100.0) / effectiveSeconds)));
+                onTimeRate,
+                passRate,
+                durationEfficiency,
+                performanceScore(durationEfficiency, passRate, onTimeRate, responsibleReworkCount, unclassifiedReworkCount));
     }
 
     public List<PerformanceDetailResponse> getPerformanceDetails(
@@ -1730,6 +1752,19 @@ public class WorkflowExecutionService {
             return 0;
         }
         return Math.toIntExact(Math.round((part * 100.0) / total));
+    }
+
+
+    private int performanceScore(
+            int durationEfficiency,
+            int passRate,
+            int onTimeRate,
+            long responsibleReworkCount,
+            long unclassifiedReworkCount) {
+        int cappedEfficiency = Math.min(durationEfficiency, 120);
+        long penalty = responsibleReworkCount * 10 + unclassifiedReworkCount * 5;
+        long score = Math.round(cappedEfficiency * 0.4 + passRate * 0.3 + onTimeRate * 0.2 + 10 - penalty);
+        return Math.toIntExact(Math.max(0, Math.min(score, 100)));
     }
 
     private double percentage(long part, long total) {

@@ -4507,3 +4507,13 @@ npm run check:openapi
 完成记录：新增周期查询参数、period filter、目标后端测试、前端日期输入、OpenAPI 和 `npm run check:task9d66`。
 
 未完成原因：本轮不做标准工时后台配置、完整公式、申诉、导出或工资发放。Task 8 仍保持 NOT_READY。
+
+## 任务 9D.74：绩效标准工时与完整公式口径第一段
+
+状态：completed-first-increment。
+
+目标：暴露绩效公式版本、标准工时覆盖率、缺失数量和默认绩效分。
+
+完成记录：新增 `performance_formula_version`、`standard_coverage_rate`、`performance_score`、目标后端测试、前端只读展示和 `npm run check:task9d74`。
+
+未完成原因：CP-004 未客户 / PM 书面确认；本轮不做工资结算、申诉、导出或完整 HR。Task 8 仍保持 NOT_READY。

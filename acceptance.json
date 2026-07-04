@@ -2504,6 +2504,38 @@
             "performancePeriodFilter",
             "check:task9d66"
           ]
+        },
+        {
+          "id": "task-9d74-performance-formula-required-text",
+          "type": "required_text",
+          "paths": [
+            "backend/platform-server/src/main/java/com/yuri/aiorder/workflow/execution/PerformanceStatsResponse.java",
+            "backend/platform-server/src/main/java/com/yuri/aiorder/workflow/execution/WorkflowExecutionService.java",
+            "backend/platform-server/src/test/java/com/yuri/aiorder/workflow/execution/CheckWorklogPerformanceTests.java",
+            "frontend/src/App.vue",
+            "docs/api/openapi.yaml",
+            "docs/acceptance/task-8-acceptance-matrix.md",
+            "docs/deployment/readiness-checklist.md",
+            "docs/deployment/task-8-final-readiness-report.md",
+            "docs/acceptance/phase-one-frontend-alignment.md",
+            "docs/acceptance/phase-one-frontend-task-scope.md",
+            "DECISIONS.md",
+            "STATUS.md",
+            "tasks/README.md",
+            "README.md",
+            "acceptance.json",
+            "scripts/check-task-9d74-performance-formula.mjs",
+            "package.json"
+          ],
+          "patterns": [
+            "任务 9D.74",
+            "绩效标准工时与完整公式口径第一段",
+            "performance_formula_version",
+            "standard_coverage_rate",
+            "performance_score",
+            "PHASE_ONE_DEFAULT_V1",
+            "check:task9d74"
+          ]
         }
       ]
     }
