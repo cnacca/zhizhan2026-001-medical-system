@@ -261,6 +261,13 @@ type FileCompleteResponse = {
   checksum: string | null
 }
 
+type FilePreviewUrlResponse = {
+  file_id: number
+  preview_url: string
+  download_url: string | null
+  expires_in_seconds: number
+}
+
 type WorkflowChainSummary = {
   chain_id: number
   chain_name: string
@@ -694,6 +701,7 @@ const doctorActionLoading = ref(false)
 const doctorMessageDraft = ref('')
 const doctorAiQuestion = ref('我的订单现在到哪一步了？')
 const doctorAiAnswer = ref('')
+const designDraftPreviewUrls = ref<Record<string, string>>({})
 const doctorOrderFormProductType = ref('REGULAR_CROWN')
 const doctorOrderFormFields = ref<FormFieldConfig[]>([])
 const doctorOrderFormData = ref<Record<string, string | string[]>>({})
@@ -3324,6 +3332,7 @@ async function loadDoctorOrderWorkspace(orderId: number) {
   doctorOrdersLoading.value = true
   doctorOrderError.value = ''
   doctorAiAnswer.value = ''
+  designDraftPreviewUrls.value = {}
   try {
     const [orderPayload, messagesPayload, draftsPayload, billPayload, logisticsPayload] = await Promise.all([
       apiFetch<DoctorOrderItem>(`/orders/${orderId}`),
@@ -3344,6 +3353,40 @@ async function loadDoctorOrderWorkspace(orderId: number) {
     doctorOrderError.value = error instanceof Error ? error.message : '订单详情加载失败'
   } finally {
     doctorOrdersLoading.value = false
+  }
+}
+
+function designDraftFileIds(draft: DesignDraftItem) {
+  if (draft.file_ids?.length) {
+    return draft.file_ids
+  }
+  return draft.file_id ? [draft.file_id] : []
+}
+
+function designDraftPreviewKey(draft: DesignDraftItem, fileId: number) {
+  return `${draft.draft_id}:${fileId}`
+}
+
+async function loadDesignDraftPreviewUrls(draft: DesignDraftItem) {
+  const fileIds = designDraftFileIds(draft)
+  if (fileIds.length === 0) {
+    return
+  }
+  doctorActionLoading.value = true
+  doctorOrderError.value = ''
+  try {
+    const entries = await Promise.all(fileIds.map(async (fileId) => {
+      const payload = await apiFetch<FilePreviewUrlResponse>(`/files/${fileId}/preview-url`)
+      return [designDraftPreviewKey(draft, fileId), payload.data.preview_url] as const
+    }))
+    designDraftPreviewUrls.value = {
+      ...designDraftPreviewUrls.value,
+      ...Object.fromEntries(entries)
+    }
+  } catch (error) {
+    doctorOrderError.value = error instanceof Error ? error.message : '设计稿预览链接加载失败'
+  } finally {
+    doctorActionLoading.value = false
   }
 }
 
@@ -6616,6 +6659,34 @@ onBeforeUnmount(() => {
                       <strong>V{{ draft.version }} / {{ statusLabel(draft.status) }}</strong>
                       <p>文件 ID：{{ draft.file_ids?.length ? draft.file_ids.join(', ') : (draft.file_id ?? '-') }}</p>
                       <span>文件数：{{ draft.file_count ?? draft.file_ids?.length ?? (draft.file_id ? 1 : 0) }}</span>
+                      <div class="inline-actions">
+                        <el-button
+                          plain
+                          :loading="doctorActionLoading"
+                          :disabled="designDraftFileIds(draft).length === 0"
+                          data-testid="design-draft-preview-url-button"
+                          @click="loadDesignDraftPreviewUrls(draft)"
+                        >
+                          获取设计稿预览链接
+                        </el-button>
+                      </div>
+                      <div
+                        v-if="designDraftFileIds(draft).some((fileId) => designDraftPreviewUrls[designDraftPreviewKey(draft, fileId)])"
+                        class="preview-link-list"
+                      >
+                        <span>设计稿预览链接</span>
+                        <a
+                          v-for="fileId in designDraftFileIds(draft)"
+                          v-show="designDraftPreviewUrls[designDraftPreviewKey(draft, fileId)]"
+                          :key="fileId"
+                          :href="designDraftPreviewUrls[designDraftPreviewKey(draft, fileId)]"
+                          data-testid="design-draft-preview-link"
+                          target="_blank"
+                          rel="noreferrer"
+                        >
+                          文件 {{ fileId }}
+                        </a>
+                      </div>
                       <div v-if="draft.status === 'PENDING_DOCTOR_CONFIRM'" class="inline-actions">
                         <el-button
                           type="primary"
