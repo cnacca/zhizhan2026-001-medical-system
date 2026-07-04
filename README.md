@@ -1346,3 +1346,16 @@ npm run acceptance
 ```
 
 该文档只记录开发侧固定演示数据证据，不代表客户已经签字。Task 8 仍保持 NOT_READY。
+
+## 9D.72 客户 / PM 确认项清单第一段
+
+确认清单：`docs/acceptance/phase-one-customer-pm-confirmations.md`。
+
+检查命令：
+
+```bash
+npm run check:task9d72
+npm run acceptance
+```
+
+该清单只是待确认事项入口，不代表客户 / PM 已签字。Task 8 仍保持 NOT_READY。

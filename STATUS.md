@@ -391,3 +391,7 @@ Task 8 已完成 8A readiness audit、8B OpenAPI 二次契约、9A/9B/9C 身份�
 ## 9D.68 12 步主链路客户验收版收敛
 
 本轮已完成 9D.68 12 步主链路客户验收版收敛：新增 `docs/acceptance/phase-one-main-chain-customer-acceptance.md`，把固定演示数据 smoke 整理为客户/PM 可读的 PASS/FAIL 记录。该记录不替代客户签字，不把 Task 8 标完成。Task 8 仍保持 NOT_READY。
+
+## 9D.72 客户 / PM 确认项清单第一段
+
+本轮已完成 9D.72 客户 / PM 确认项清单第一段：新增 `docs/acceptance/phase-one-customer-pm-confirmations.md`，追踪付款状态、动态表单、AI-5 模板、绩效公式、Multipart 限制、电子签章、物流平台、培训签收和真实环境上线边界。该清单不代表客户已经签字。Task 8 仍保持 NOT_READY。

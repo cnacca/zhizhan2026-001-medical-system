@@ -1852,3 +1852,13 @@
 - 9D.68 不新增业务功能、不新增接口、不改数据库，只把 9D.62 到 9D.63 的固定演示数据 smoke 证据整理为客户/PM 可读的 PASS/FAIL 验收记录。
 - 新增 `docs/acceptance/phase-one-main-chain-customer-acceptance.md`，记录固定演示订单、12 步当前结果、剩余缺口和推荐复跑命令。
 - 验收记录只代表开发侧证据收敛，不替代客户签字；Task 8 仍保持 `NOT_READY`。
+
+## D-123 任务 9D.72 客户 / PM 确认项清单第一段
+
+状态：已确认并执行第一增量，等待客户 / PM 书面确认。
+
+决策：
+
+- 将付款状态口径、动态表单最终字段、AI-5 生产备注模板、标准工时与绩效公式口径、Multipart 上传限制、真实电子签章 / 终检报告模板、真实物流平台 / 运单同步、客户培训与签收、真实环境上线验收边界统一纳入 `docs/acceptance/phase-one-customer-pm-confirmations.md`。
+- 开发侧可以记录默认方案，但不能把默认方案当成客户已确认。
+- 9D.72 不替代客户签字，不关闭 Task 8。Task 8 仍保持 `NOT_READY`。

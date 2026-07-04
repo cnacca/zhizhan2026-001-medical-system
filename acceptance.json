@@ -72,10 +72,10 @@
       "id": "customer-pm-confirmations",
       "status": "BLOCKED",
       "source": "docs/acceptance/task-8-acceptance-matrix.md#结论",
-      "current_evidence": "动态表单最终字段、AI-5 模板、标准工时、付款状态、Multipart 限制等仍在矩阵中标记需客户/PM 确认。",
-      "remaining_reason": "属于产品/业务口径决策，不能仅靠开发补齐。",
-      "minimum_closure_loop": "建立确认表，记录负责人、默认方案、决策日期和未决风险。",
-      "verification": "客户/PM 书面确认; 同步 PROJECT.md、DECISIONS.md、OpenAPI 和验收矩阵"
+      "current_evidence": "9D.72 已新增 docs/acceptance/phase-one-customer-pm-confirmations.md，建立 CP-001 到 CP-009 的客户 / PM 确认项清单。",
+      "remaining_reason": "清单只代表开发侧追踪入口，不代表客户或 PM 已签字确认。",
+      "minimum_closure_loop": "PM 指定负责人和日期后，对 CP-001 到 CP-009 逐项书面确认。",
+      "verification": "npm run check:task9d72; 客户/PM 书面确认记录"
     }
   ],
   "goals": [
@@ -2426,6 +2426,32 @@
             "phase-one-main-chain-customer-acceptance.md",
             "Task 8 仍保持 NOT_READY",
             "check:task9d68"
+          ]
+        },
+        {
+          "id": "task-9d72-customer-pm-confirmations-required-text",
+          "type": "required_text",
+          "paths": [
+            "docs/acceptance/phase-one-customer-pm-confirmations.md",
+            "docs/deployment/readiness-checklist.md",
+            "docs/deployment/task-8-final-readiness-report.md",
+            "docs/acceptance/task-8-acceptance-matrix.md",
+            "docs/acceptance/phase-one-frontend-alignment.md",
+            "docs/acceptance/phase-one-frontend-task-scope.md",
+            "DECISIONS.md",
+            "STATUS.md",
+            "tasks/README.md",
+            "README.md",
+            "acceptance.json",
+            "scripts/check-task-9d72-customer-pm-confirmations.mjs",
+            "package.json"
+          ],
+          "patterns": [
+            "任务 9D.72",
+            "客户 / PM 确认项清单第一段",
+            "phase-one-customer-pm-confirmations.md",
+            "Task 8 仍保持 NOT_READY",
+            "check:task9d72"
           ]
         }
       ]

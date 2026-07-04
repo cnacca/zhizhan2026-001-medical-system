@@ -41,3 +41,7 @@ Task 8 仍为 `in-progress / NOT_READY`。当前代码和文档已经具备多�
 ## 9D.68 12 步主链路客户验收版收敛
 
 9D.68 已补 `docs/acceptance/phase-one-main-chain-customer-acceptance.md`，将 12 步固定演示数据整理为客户验收版记录；该记录仍需客户/PM 真实验收确认。Task 8 仍保持 NOT_READY。
+
+## 9D.72 客户 / PM 确认项清单第一段
+
+9D.72 已补客户 / PM 确认项清单第一段，入口为 `docs/acceptance/phase-one-customer-pm-confirmations.md`。该清单不替代书面确认，Task 8 仍保持 NOT_READY。

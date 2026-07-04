@@ -4477,3 +4477,13 @@ npm run check:openapi
 完成记录：新增 `docs/acceptance/phase-one-main-chain-customer-acceptance.md` 和 `npm run check:task9d68`。
 
 未完成原因：本记录不替代客户签字，真实环境验收和客户/PM 确认项仍未关闭。Task 8 仍保持 NOT_READY。
+
+## 任务 9D.72：客户 / PM 确认项清单第一段
+
+状态：completed-first-increment。
+
+目标：把客户 / PM 决策阻塞项整理为可追踪清单。
+
+完成记录：新增 `docs/acceptance/phase-one-customer-pm-confirmations.md` 和 `npm run check:task9d72`。
+
+未完成原因：所有确认项仍需客户 / PM 书面确认，本清单不替代签字。Task 8 仍保持 NOT_READY。

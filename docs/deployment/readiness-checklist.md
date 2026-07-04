@@ -106,3 +106,7 @@ git diff --check
 ## 9D.68 12 步主链路客户验收版收敛
 
 9D.68 12 步主链路客户验收版收敛已补 `docs/acceptance/phase-one-main-chain-customer-acceptance.md`，用于客户/PM 阅读固定演示数据 PASS/FAIL 证据；该记录不替代客户签字，Task 8 仍保持 NOT_READY。
+
+## 9D.72 客户 / PM 确认项清单第一段
+
+9D.72 客户 / PM 确认项清单第一段已补 `docs/acceptance/phase-one-customer-pm-confirmations.md`；该文档只是待确认清单，不代表客户 / PM 已签字。Task 8 仍保持 NOT_READY。

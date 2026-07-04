@@ -99,3 +99,7 @@
 ## 9D.68 12 步主链路客户验收版收敛
 
 9D.68 已新增 `docs/acceptance/phase-one-main-chain-customer-acceptance.md`，把 12 步主链路固定演示数据整理为 PASS/FAIL 客户验收版记录；Task 8 仍保持 NOT_READY。
+
+## 9D.72 客户 / PM 确认项清单第一段
+
+9D.72 已新增 `docs/acceptance/phase-one-customer-pm-confirmations.md`，追踪客户 / PM 确认项；当前只是清单，不代表签字完成。Task 8 仍保持 NOT_READY。
