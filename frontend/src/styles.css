@@ -820,6 +820,103 @@ body {
   margin-bottom: 12px;
 }
 
+.rework-impact-map {
+  display: grid;
+  gap: 12px;
+  margin-bottom: 14px;
+  padding: 14px;
+  border: 1px solid #ccfbf1;
+  border-radius: 8px;
+  background: #f0fdfa;
+}
+
+.rework-impact-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.rework-impact-head div {
+  display: grid;
+  gap: 4px;
+}
+
+.rework-impact-head span,
+.rework-impact-node span,
+.rework-impact-node small,
+.rework-impact-map p,
+.rework-impact-empty {
+  color: #64748b;
+  font-size: 13px;
+}
+
+.rework-impact-head strong {
+  color: #0f172a;
+  font-size: 16px;
+}
+
+.rework-impact-flow {
+  display: flex;
+  align-items: stretch;
+  gap: 8px;
+  overflow-x: auto;
+  padding-bottom: 2px;
+}
+
+.rework-impact-node {
+  display: grid;
+  align-content: start;
+  gap: 6px;
+  min-width: 180px;
+  padding: 12px;
+  border: 1px solid #99f6e4;
+  border-radius: 8px;
+  background: #ffffff;
+}
+
+.rework-impact-node.is-target {
+  border-color: var(--portal-accent);
+  background: var(--portal-accent-soft);
+}
+
+.rework-impact-node.is-impacted {
+  border-style: dashed;
+}
+
+.rework-impact-node strong {
+  color: #0f172a;
+  overflow-wrap: anywhere;
+}
+
+.rework-impact-link {
+  display: grid;
+  place-items: center;
+  min-width: 68px;
+  color: #0f766e;
+  font-size: 12px;
+  font-weight: 700;
+}
+
+.rework-impact-link::before,
+.rework-impact-link::after {
+  display: block;
+  color: #14b8a6;
+  content: "→";
+}
+
+.rework-impact-map p {
+  margin: 0;
+  line-height: 1.6;
+}
+
+.rework-impact-empty {
+  padding: 12px;
+  border: 1px dashed #99f6e4;
+  border-radius: 8px;
+  background: #ffffff;
+}
+
 .message-composer {
   display: grid;
   gap: 10px;

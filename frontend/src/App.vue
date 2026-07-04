@@ -327,6 +327,14 @@ type ReworkRecordResponse = {
   created_at: string
 }
 
+type ReworkImpactStep = {
+  key: string
+  nodeId: number | null
+  title: string
+  subtitle: string
+  kind: 'target' | 'impacted'
+}
+
 type ReworkDictionaryOption = {
   code: string
   label: string
@@ -1027,7 +1035,7 @@ const displayNavigationConfig: Record<PortalTone, NavigationGroup[]> = {
           placeholder: true,
           children: [
             { id: 'production-quality-overview', title: '质量总览', description: '查看总返工率、一次通过率、终检通过率、投诉率和退货率。', icon: 'quality', routePath: '/production/quality', placeholder: true },
-            { id: 'production-rework-management', title: '返工管理', description: '统一处理内返、外返、原因、责任归属和处理状态。', icon: 'quality', routePath: '/production/rework-management', placeholder: true },
+            { id: 'production-rework-management', title: '返工管理', description: '统一处理内返、外返、原因、责任归属和处理状态。', icon: 'quality', routePath: '/rework-final' },
             { id: 'production-final-report', title: '终检报告', description: '查看终检报告生成、结论、摘要和报告状态。', icon: 'report', routePath: '/production/final-inspection-reports', placeholder: true }
           ]
         }
@@ -1497,8 +1505,8 @@ const prototypeDashboards = computed<Record<PortalTone, PrototypeDashboard>>(() 
           badge: '9 项',
           tone: 'green',
           items: [
-            { title: '内返率', detail: '内部返修 2 单，集中在入检与修整环节', meta: '质量与返工', tone: 'rose', actionLabel: '看返工', routePath: '/production/rework-management', navId: 'production-rework-management' },
-            { title: '外返率', detail: '客户退回返修 1 单，需追踪投诉和退货原因', meta: '质量与返工', tone: 'orange', actionLabel: '看返工', routePath: '/production/rework-management', navId: 'production-rework-management' },
+            { title: '内返率', detail: '内部返修 2 单，集中在入检与修整环节', meta: '质量与返工', tone: 'rose', actionLabel: '看返工', routePath: '/rework-final', navId: 'production-rework-management' },
+            { title: '外返率', detail: '客户退回返修 1 单，需追踪投诉和退货原因', meta: '质量与返工', tone: 'orange', actionLabel: '看返工', routePath: '/rework-final', navId: 'production-rework-management' },
             { title: '设备维护', detail: '切削设备维护，影响 PDL-0474', meta: '预计 +2 天', tone: 'amber', actionLabel: '看设备', routePath: '/production/devices', navId: 'production-device' },
             { title: '物料缺失', detail: '透明保持器材料库存低于安全线', meta: '需补料', tone: 'rose', actionLabel: '处理物料', routePath: '/production/material-exceptions', navId: 'production-material' }
           ]
@@ -1997,6 +2005,35 @@ function menuLabel(menu: AuthMenu) {
 function statusLabel(status: string | null | undefined) {
   return status ? (statusLabelMap[status] ?? status.replaceAll('_', ' ')) : '待处理'
 }
+const reworkImpactSteps = computed<ReworkImpactStep[]>(() => {
+  const record = selectedRework.value
+  if (!record) {
+    return []
+  }
+  const steps: ReworkImpactStep[] = []
+  if (record.target_node_instance_id) {
+    steps.push({
+      key: `target-${record.target_node_instance_id}`,
+      nodeId: record.target_node_instance_id,
+      title: record.target_process_name ? `返工目标：${record.target_process_name}` : '返工目标节点',
+      subtitle: `节点 ${record.target_node_instance_id} / ${statusLabel(record.target_node_status)}`,
+      kind: 'target'
+    })
+  }
+  for (const [index, nodeId] of record.impacted_node_instance_ids.entries()) {
+    if (nodeId === record.target_node_instance_id) {
+      continue
+    }
+    steps.push({
+      key: `impacted-${nodeId}`,
+      nodeId,
+      title: `受影响后续工序 ${index + 1}`,
+      subtitle: `节点 ${nodeId} / 后续工序将被重置或复核`,
+      kind: 'impacted'
+    })
+  }
+  return steps
+})
 function productTypeLabel(type: string | null | undefined) {
   return type ? (productTypeLabelMap[type] ?? type.replaceAll('_', ' ')) : '未分类'
 }
@@ -5430,6 +5467,39 @@ onBeforeUnmount(() => {
                   <span>关闭时间</span>
                   <strong>{{ selectedRework.closed_at ?? '-' }}</strong>
                 </div>
+              </div>
+
+              <div v-if="selectedRework" class="rework-impact-map" data-testid="rework-impact-map">
+                <div class="rework-impact-head">
+                  <div>
+                    <span>返工影响图</span>
+                    <strong>受影响后续工序 {{ selectedRework.impacted_node_count }} 个</strong>
+                  </div>
+                  <el-tag round>{{ statusLabel(selectedRework.status) }}</el-tag>
+                </div>
+                <div v-if="reworkImpactSteps.length > 0" class="rework-impact-flow">
+                  <template v-for="(step, index) in reworkImpactSteps" :key="step.key">
+                    <article
+                      class="rework-impact-node"
+                      :class="{ 'is-target': step.kind === 'target', 'is-impacted': step.kind === 'impacted' }"
+                    >
+                      <span>{{ step.kind === 'target' ? '返工目标' : '后续工序' }}</span>
+                      <strong>{{ step.title }}</strong>
+                      <small>{{ step.subtitle }}</small>
+                    </article>
+                    <span v-if="index < reworkImpactSteps.length - 1" class="rework-impact-link">
+                      后续重置
+                    </span>
+                  </template>
+                </div>
+                <div v-else class="rework-impact-empty">
+                  未记录受影响后续工序；仅需处理当前返工目标节点。
+                </div>
+                <p>
+                  责任 {{ selectedRework.responsibility_type ?? '未分类' }}，
+                  原因 {{ selectedRework.reason_category ?? '未分类' }}。
+                  图中节点来自返工影响审计字段，只读展示，不修改派工或排产。
+                </p>
               </div>
 
               <div v-if="selectedRework" class="check-form">

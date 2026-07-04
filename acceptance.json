@@ -2224,6 +2224,31 @@
             "任务 9D.56",
             "check:task9d56"
           ]
+        },
+        {
+          "id": "task-9d57-rework-impact-visualization-required-text",
+          "type": "required_text",
+          "paths": [
+            "frontend/src/App.vue",
+            "frontend/src/styles.css",
+            "docs/acceptance/task-8-acceptance-matrix.md",
+            "docs/deployment/readiness-checklist.md",
+            "DECISIONS.md",
+            "STATUS.md",
+            "tasks/README.md",
+            "README.md",
+            "scripts/check-task-9d57-rework-impact-visualization.mjs",
+            "package.json"
+          ],
+          "patterns": [
+            "type ReworkImpactStep",
+            "reworkImpactSteps",
+            "rework-impact-map",
+            "rework-impact-node",
+            "后续工序将被重置",
+            "任务 9D.57",
+            "check:task9d57"
+          ]
         }
       ]
     }
