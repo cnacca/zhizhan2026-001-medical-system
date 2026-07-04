@@ -91,3 +91,7 @@
 - 终检第一增量、发货前终检门禁第一增量、终检报告第一增量、终检专用角色 / 附件第一增量、返工关闭/责任分类第一增量、返工字典第一增量、返工通知联动第一增量、复杂返工影响范围第一增量、绩效归因联动第一增量、返工影响审计可视化第一增量、返工影响筛选第一增量、返工影响图形化第一增量、绩效明细第一增量、Multipart 第一增量、本地恢复上传第一增量、服务端候选恢复第一增量、上传中断后恢复浏览器 smoke、100MB+ 浏览器上传 smoke、真实 DeepSeek 适配第一增量、AI 预算超限内部通知第一增量和 AI 预算熔断/降级第一增量已补，但实时自动保存、终检 PDF/签名、绩效完整公式/周期/申诉、生产级 AI 治理、真实弱网/跨设备浏览器续传仍未完成；通知未读/已读 REST、前端通知中心、浏览器 WebSocket 实时接入和 Redis 广播代码路径已完成第一增量，但真实双实例 Redis 联调、生产网关验收和完整业务页面仍未达到上线标准。
 - OpenAPI 已完成当前后端基线二次冻结；后续新增接口仍需持续同步。
 - 客户/PM 仍需确认动态表单最终字段、AI-5 模板、标准工时、付款状态、Multipart 限制等。
+
+## 9D.70 操作手册与交付材料第一段
+
+9D.70 操作手册与交付材料第一段已新增 `docs/operations/phase-one-role-operation-manual.md`、`docs/operations/phase-one-troubleshooting-guide.md` 和 `docs/operations/phase-one-delivery-materials-index.md`，形成一期交付材料索引第一段；Task 8 仍保持 NOT_READY。

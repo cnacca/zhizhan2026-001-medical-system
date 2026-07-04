@@ -1315,3 +1315,21 @@ Task 8A smoke 注意事项：
 ## 安全说明
 
 不要提交任何真实密钥、Token、数据库连接串、MinIO 凭据、DeepSeek API Key 或客户隐私数据。
+
+## 9D.70 操作手册与交付材料第一段
+
+一期操作手册与交付材料：
+
+```text
+docs/operations/phase-one-role-operation-manual.md
+docs/operations/phase-one-troubleshooting-guide.md
+docs/operations/phase-one-delivery-materials-index.md
+```
+
+检查命令：
+
+```bash
+npm run check:task9d70
+```
+
+Task 8 仍保持 NOT_READY；这些材料不代表客户 / PM 已签字。

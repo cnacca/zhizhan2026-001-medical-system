@@ -33,3 +33,7 @@
 Task 8 仍为 `in-progress / NOT_READY`。当前代码和文档已经具备多条最小链路的自动化证据，但正式上线仍卡在生产级鉴权、完整业务前端、真实环境联调、文件/AI/通知生产验收、部署安全和操作交付材料。
 
 下一轮唯一推荐目标：12 步主链路浏览器 smoke 第一增量。
+
+## 9D.70 操作手册与交付材料第一段
+
+9D.70 已新增四端操作手册、故障处理清单和交付材料索引：`docs/operations/phase-one-role-operation-manual.md`、`docs/operations/phase-one-troubleshooting-guide.md`、`docs/operations/phase-one-delivery-materials-index.md`。该记录只代表操作手册第一段，不代表客户培训签收完成。Task 8 仍保持 NOT_READY。

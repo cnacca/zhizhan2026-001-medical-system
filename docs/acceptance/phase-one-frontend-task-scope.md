@@ -243,3 +243,7 @@
 5. T6 绩效与管理侧收口。
 6. T7 通知与业务联动验收。
 7. T8 12 步主链路浏览器验收。
+
+## T10 / 9D.70 操作手册与交付材料第一段
+
+9D.70 已新增 `docs/operations/phase-one-role-operation-manual.md`、`docs/operations/phase-one-troubleshooting-guide.md` 和 `docs/operations/phase-one-delivery-materials-index.md`，覆盖医生端、客服端、生产端、管理端最小操作路径、首版故障处理和材料索引；本轮不替代正式培训签收。Task 8 仍保持 NOT_READY。

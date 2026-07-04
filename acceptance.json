@@ -61,12 +61,12 @@
     },
     {
       "id": "operations-manuals",
-      "status": "NOT_READY",
+      "status": "PARTIAL",
       "source": "docs/deployment/readiness-checklist.md#操作手册",
-      "current_evidence": "暂无正式管理员、客服、生产、医生端操作手册和故障处理手册。",
-      "remaining_reason": "上线交付材料尚未编写，无法支撑客户培训和故障处理。",
-      "minimum_closure_loop": "先做四端最小操作手册目录和首版故障处理清单。",
-      "verification": "文档评审; 按手册完成一次本地演示; 客户/PM 确认"
+      "current_evidence": "9D.70 已新增 docs/operations/phase-one-role-operation-manual.md、docs/operations/phase-one-troubleshooting-guide.md 和 docs/operations/phase-one-delivery-materials-index.md，覆盖四端最小操作路径、首版故障处理清单和交付材料索引。",
+      "remaining_reason": "仍缺正式客户培训签收、真实生产部署手册、备份恢复演练、日志留存、监控告警和发布回滚手册。",
+      "minimum_closure_loop": "后续按客户 / PM 确认补培训签收记录，或在真实环境具备后补生产部署/回滚/值班手册。",
+      "verification": "npm run check:task9d70; 按手册完成一次本地演示; 客户/PM 确认"
     },
     {
       "id": "customer-pm-confirmations",
@@ -2371,6 +2371,35 @@
             "任务 9D.62",
             "12 步主链路浏览器 smoke 第一增量",
             "check:task9d62"
+          ]
+        },
+        {
+          "id": "task-9d70-operations-manuals-required-text",
+          "type": "required_text",
+          "paths": [
+            "docs/operations/phase-one-role-operation-manual.md",
+            "docs/operations/phase-one-troubleshooting-guide.md",
+            "docs/operations/phase-one-delivery-materials-index.md",
+            "docs/acceptance/task-8-acceptance-matrix.md",
+            "docs/deployment/readiness-checklist.md",
+            "docs/deployment/task-8-final-readiness-report.md",
+            "docs/acceptance/phase-one-frontend-alignment.md",
+            "docs/acceptance/phase-one-frontend-task-scope.md",
+            "DECISIONS.md",
+            "STATUS.md",
+            "tasks/README.md",
+            "README.md",
+            "scripts/check-task-9d70-operations-manuals.mjs",
+            "package.json"
+          ],
+          "patterns": [
+            "任务 9D.70",
+            "操作手册与交付材料第一段",
+            "phase-one-role-operation-manual.md",
+            "phase-one-troubleshooting-guide.md",
+            "phase-one-delivery-materials-index.md",
+            "Task 8 仍保持 NOT_READY",
+            "check:task9d70"
           ]
         }
       ]

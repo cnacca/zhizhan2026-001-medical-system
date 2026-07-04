@@ -98,3 +98,7 @@ git diff --check
 - 对 100MB+ STL 文件继续做真实弱网限速/断网和跨设备浏览器续传验收；当前中断恢复 smoke 已覆盖本地第 2 分片失败后的同浏览器续传。
 - 对 WebSocket 做在线推送、离线未读补偿、已读同步、多实例广播和网关代理验收。
 - 对 AI 预算通知做 ADMIN / CS 收件、DOCTOR / WORKER 隔离、`AI_BUDGET_NOTIFICATION_ENABLED=false` 策略开关、`AI_BUDGET_CIRCUIT_BREAKER_ENABLED=true` 全局/角色/模型预算熔断降级、`AI_BUDGET_ROLE_CIRCUIT_OPEN`、`AI_BUDGET_MODEL_CIRCUIT_OPEN`、`AI_OUTPUT_GUARDED`、`prompt_version`、`ai_external_alert_outbox` 外部告警待发送事实、`SENT/FAILED/DEAD_LETTER`、`SENDING` 领取态、`attempts/last_error`、`/ai/governance/cost-trend` 成本趋势、`/ai/governance/external-alerts/summary` 监控摘要、`/ai/governance/external-alerts` 列表筛选和失败/死信只读可见性、`AI_EXTERNAL_ALERT_WEBHOOK_ENABLED=true` webhook 发送/失败留痕、`AI_EXTERNAL_ALERT_MAX_ATTEMPTS` 重试/死信、`AI_EXTERNAL_ALERT_WEBHOOK_SIGNING_ENABLED=true` 签名头、真实 key 环境联调验收；当前 9D.43 已完成 webhook 第一增量，调度器第一增量已由 9D.44 补齐，重试/死信第一增量已由 9D.45 补齐，幂等/并发领取第一增量已由 9D.46 补齐，签名/鉴权第一增量已由 9D.47 补齐，监控摘要第一增量已由 9D.48 补齐，列表筛选第一增量已由 9D.48.1 补齐，失败/死信可见性第一增量已由 9D.48.2 补齐，仍缺接收端验签/防重放联调、生产 webhook 联调、流式输出过滤、提示词后台管理和生产级联调。
+
+## 9D.70 操作手册与交付材料第一段
+
+9D.70 操作手册与交付材料第一段已补：新增 `docs/operations/phase-one-role-operation-manual.md`、`docs/operations/phase-one-troubleshooting-guide.md` 和 `docs/operations/phase-one-delivery-materials-index.md`；`npm run check:task9d70` 可检查四端操作手册、故障处理清单和交付材料索引。该记录不等于客户培训签收，Task 8 仍保持 NOT_READY。

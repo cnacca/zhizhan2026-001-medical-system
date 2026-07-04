@@ -113,3 +113,7 @@
 - 任务编号：仅作为补齐一期缺口的执行单元。
 - 前端判断：以真实用户路径和 12 步主链路为准，不以“导航里有入口”视为完成。
 - 每轮结束：同步 `STATUS.md`、`tasks/README.md`、`docs/acceptance/task-8-acceptance-matrix.md` 和 `docs/deployment/readiness-checklist.md`。
+
+## 9D.70 操作手册与交付材料第一段
+
+9D.70 已补四端操作手册和交付材料索引第一段，覆盖当前一期前端可演示路径和故障处理入口；Task 8 仍保持 NOT_READY。

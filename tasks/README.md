@@ -4457,3 +4457,13 @@ npm run check:openapi
 - AI-5 模板。
 - 标准工时和预计发货算法。
 - 付款状态。
+
+## 任务 9D.70：操作手册与交付材料第一段
+
+状态：completed-first-increment。
+
+目标：补医生端、客服端、生产端、管理端四端最小操作手册，补首版故障处理清单和一期交付材料索引。
+
+完成记录：新增 `docs/operations/phase-one-role-operation-manual.md`、`docs/operations/phase-one-troubleshooting-guide.md`、`docs/operations/phase-one-delivery-materials-index.md` 和 `npm run check:task9d70`。
+
+未完成原因：本轮不替代正式培训签收，不关闭客户/PM 确认项。Task 8 仍保持 NOT_READY。
