@@ -160,3 +160,4 @@ target/
 # Local generated review artifacts
 tmp/
 output/
+test-results/
