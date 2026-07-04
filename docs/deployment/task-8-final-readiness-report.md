@@ -37,3 +37,7 @@ Task 8 仍为 `in-progress / NOT_READY`。当前代码和文档已经具备多�
 ## 9D.70 操作手册与交付材料第一段
 
 9D.70 已新增四端操作手册、故障处理清单和交付材料索引：`docs/operations/phase-one-role-operation-manual.md`、`docs/operations/phase-one-troubleshooting-guide.md`、`docs/operations/phase-one-delivery-materials-index.md`。该记录只代表操作手册第一段，不代表客户培训签收完成。Task 8 仍保持 NOT_READY。
+
+## 9D.68 12 步主链路客户验收版收敛
+
+9D.68 已补 `docs/acceptance/phase-one-main-chain-customer-acceptance.md`，将 12 步固定演示数据整理为客户验收版记录；该记录仍需客户/PM 真实验收确认。Task 8 仍保持 NOT_READY。

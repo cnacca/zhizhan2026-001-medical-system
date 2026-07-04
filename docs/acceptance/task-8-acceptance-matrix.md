@@ -95,3 +95,7 @@
 ## 9D.70 操作手册与交付材料第一段
 
 9D.70 操作手册与交付材料第一段已新增 `docs/operations/phase-one-role-operation-manual.md`、`docs/operations/phase-one-troubleshooting-guide.md` 和 `docs/operations/phase-one-delivery-materials-index.md`，形成一期交付材料索引第一段；Task 8 仍保持 NOT_READY。
+
+## 9D.68 12 步主链路客户验收版收敛
+
+9D.68 已新增 `docs/acceptance/phase-one-main-chain-customer-acceptance.md`，把 12 步主链路固定演示数据整理为 PASS/FAIL 客户验收版记录；Task 8 仍保持 NOT_READY。

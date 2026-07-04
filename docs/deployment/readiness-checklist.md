@@ -102,3 +102,7 @@ git diff --check
 ## 9D.70 操作手册与交付材料第一段
 
 9D.70 操作手册与交付材料第一段已补：新增 `docs/operations/phase-one-role-operation-manual.md`、`docs/operations/phase-one-troubleshooting-guide.md` 和 `docs/operations/phase-one-delivery-materials-index.md`；`npm run check:task9d70` 可检查四端操作手册、故障处理清单和交付材料索引。该记录不等于客户培训签收，Task 8 仍保持 NOT_READY。
+
+## 9D.68 12 步主链路客户验收版收敛
+
+9D.68 12 步主链路客户验收版收敛已补 `docs/acceptance/phase-one-main-chain-customer-acceptance.md`，用于客户/PM 阅读固定演示数据 PASS/FAIL 证据；该记录不替代客户签字，Task 8 仍保持 NOT_READY。

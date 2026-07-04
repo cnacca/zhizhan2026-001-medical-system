@@ -387,3 +387,7 @@ Task 8 已完成 8A readiness audit、8B OpenAPI 二次契约、9A/9B/9C 身份�
 ## 9D.70 操作手册与交付材料第一段
 
 本轮已完成 9D.70 操作手册与交付材料第一段：新增 `docs/operations/phase-one-role-operation-manual.md`、`docs/operations/phase-one-troubleshooting-guide.md` 和 `docs/operations/phase-one-delivery-materials-index.md`，覆盖医生端、客服端、生产端、管理端最小操作路径、首版故障处理清单和交付材料索引。本轮不替代正式客户培训签收，不关闭客户/PM 确认项。Task 8 仍保持 NOT_READY。
+
+## 9D.68 12 步主链路客户验收版收敛
+
+本轮已完成 9D.68 12 步主链路客户验收版收敛：新增 `docs/acceptance/phase-one-main-chain-customer-acceptance.md`，把固定演示数据 smoke 整理为客户/PM 可读的 PASS/FAIL 记录。该记录不替代客户签字，不把 Task 8 标完成。Task 8 仍保持 NOT_READY。

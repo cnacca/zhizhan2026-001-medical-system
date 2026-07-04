@@ -4467,3 +4467,13 @@ npm run check:openapi
 完成记录：新增 `docs/operations/phase-one-role-operation-manual.md`、`docs/operations/phase-one-troubleshooting-guide.md`、`docs/operations/phase-one-delivery-materials-index.md` 和 `npm run check:task9d70`。
 
 未完成原因：本轮不替代正式培训签收，不关闭客户/PM 确认项。Task 8 仍保持 NOT_READY。
+
+## 任务 9D.68：12 步主链路客户验收版收敛
+
+状态：completed-first-increment。
+
+目标：把 9D.62 到 9D.63 固定演示数据 smoke 证据整理为客户/PM 可读 PASS/FAIL 验收记录。
+
+完成记录：新增 `docs/acceptance/phase-one-main-chain-customer-acceptance.md` 和 `npm run check:task9d68`。
+
+未完成原因：本记录不替代客户签字，真实环境验收和客户/PM 确认项仍未关闭。Task 8 仍保持 NOT_READY。

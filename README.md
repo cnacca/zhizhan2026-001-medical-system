@@ -1333,3 +1333,16 @@ npm run check:task9d70
 ```
 
 Task 8 仍保持 NOT_READY；这些材料不代表客户 / PM 已签字。
+
+## 9D.68 12 步主链路客户验收版收敛
+
+客户验收版文档：`docs/acceptance/phase-one-main-chain-customer-acceptance.md`。
+
+检查命令：
+
+```bash
+npm run check:task9d68
+npm run acceptance
+```
+
+该文档只记录开发侧固定演示数据证据，不代表客户已经签字。Task 8 仍保持 NOT_READY。

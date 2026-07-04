@@ -2401,6 +2401,32 @@
             "Task 8 仍保持 NOT_READY",
             "check:task9d70"
           ]
+        },
+        {
+          "id": "task-9d68-main-chain-customer-acceptance-required-text",
+          "type": "required_text",
+          "paths": [
+            "docs/acceptance/phase-one-main-chain-customer-acceptance.md",
+            "docs/acceptance/task-8-acceptance-matrix.md",
+            "docs/deployment/readiness-checklist.md",
+            "docs/deployment/task-8-final-readiness-report.md",
+            "docs/acceptance/phase-one-frontend-alignment.md",
+            "docs/acceptance/phase-one-frontend-task-scope.md",
+            "acceptance.json",
+            "DECISIONS.md",
+            "STATUS.md",
+            "tasks/README.md",
+            "README.md",
+            "scripts/check-task-9d68-main-chain-customer-acceptance.mjs",
+            "package.json"
+          ],
+          "patterns": [
+            "任务 9D.68",
+            "12 步主链路客户验收版收敛",
+            "phase-one-main-chain-customer-acceptance.md",
+            "Task 8 仍保持 NOT_READY",
+            "check:task9d68"
+          ]
         }
       ]
     }

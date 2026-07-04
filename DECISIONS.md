@@ -1842,3 +1842,13 @@
 - 操作手册缺口从 `NOT_READY` 推进到 `PARTIAL`。
 - 本轮不替代正式培训签收，不完成客户 / PM 确认项。
 - Task 8 仍保持 `NOT_READY`。
+
+## D-119 任务 9D.68 12 步主链路客户验收版收敛
+
+状态：已确认并执行第一增量。
+
+决策：
+
+- 9D.68 不新增业务功能、不新增接口、不改数据库，只把 9D.62 到 9D.63 的固定演示数据 smoke 证据整理为客户/PM 可读的 PASS/FAIL 验收记录。
+- 新增 `docs/acceptance/phase-one-main-chain-customer-acceptance.md`，记录固定演示订单、12 步当前结果、剩余缺口和推荐复跑命令。
+- 验收记录只代表开发侧证据收敛，不替代客户签字；Task 8 仍保持 `NOT_READY`。
