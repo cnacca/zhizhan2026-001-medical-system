@@ -337,6 +337,23 @@ type ReworkDictionariesResponse = {
   responsibility_types: ReworkDictionaryOption[]
 }
 
+type ReworkDictionaryItem = {
+  item_id: number
+  dictionary_type: string
+  code: string
+  label: string
+  sort_order: number
+  status: string
+}
+
+type ReworkDictionaryItemPayload = {
+  dictionary_type?: string
+  code?: string
+  label?: string
+  sort_order?: number
+  status?: string
+}
+
 type FinalInspectionReportResponse = {
   report_id: number
   order_id: number
@@ -735,6 +752,19 @@ const reworkCloseLoading = ref(false)
 const reworkCloseResult = ref<ReworkRecordResponse | null>(null)
 const reworkReasonCategories = ref<ReworkDictionaryOption[]>([])
 const reworkResponsibilityTypes = ref<ReworkDictionaryOption[]>([])
+const reworkDictionaryManageType = ref('REASON_CATEGORY')
+const reworkDictionaryManageItems = ref<ReworkDictionaryItem[]>([])
+const reworkDictionaryManageLoading = ref(false)
+const reworkDictionaryManageSaving = ref(false)
+const reworkDictionaryManageError = ref('')
+const reworkDictionaryManageResult = ref('')
+const reworkDictionaryCreateCode = ref('')
+const reworkDictionaryCreateLabel = ref('')
+const reworkDictionaryCreateSortOrder = ref(50)
+const selectedReworkDictionaryItemId = ref<number | null>(null)
+const reworkDictionaryEditLabel = ref('')
+const reworkDictionaryEditSortOrder = ref(50)
+const reworkDictionaryEditStatus = ref('ACTIVE')
 const finalInspectionTasks = ref<WorkerTaskItem[]>([])
 const selectedFinalInspectionTask = ref<WorkerTaskItem | null>(null)
 const finalInspectionRecords = ref<CheckRecordResponse[]>([])
@@ -816,6 +846,10 @@ const productionBoardStatusOptions: ProductionBoardStatusOption[] = [
   { label: '已完成', value: 'COMPLETED' }
 ]
 const formFieldTypeOptions = ['text', 'textarea', 'select', 'multi-select', 'number', 'date', 'file']
+const reworkDictionaryTypeOptions = [
+  { label: '返工原因', value: 'REASON_CATEGORY' },
+  { label: '责任类型', value: 'RESPONSIBILITY_TYPE' }
+]
 const portalDefaultRoute: Record<LoginPortal, string> = {
   DOCTOR: '/dashboard',
   CS: '/dashboard',
@@ -1051,7 +1085,17 @@ const displayNavigationConfig: Record<PortalTone, NavigationGroup[]> = {
           ]
         },
         { id: 'admin-customers', title: '客户诊所', description: '管理诊所档案、客户偏好和联系人。', icon: 'customer', routePath: '/admin/clinics', placeholder: true },
-        { id: 'admin-products', title: '产品配置', description: '维护产品类型、动态表单和产品资料。', icon: 'product', routePath: '/system/form-configs' },
+        {
+          id: 'admin-products',
+          title: '产品配置',
+          description: '维护产品类型、动态表单、返工字典和产品资料。',
+          icon: 'product',
+          routePath: '/system/form-configs',
+          children: [
+            { id: 'admin-form-configs', title: '动态表单', description: '维护医生下单表单字段。', icon: 'dynamic_form', routePath: '/system/form-configs' },
+            { id: 'admin-rework-dictionaries', title: '返工字典', description: '维护返工原因与责任类型。', icon: 'dictionary', routePath: '/system/rework-dictionaries' }
+          ]
+        },
         {
           id: 'admin-workflow',
           title: '工艺生产',
@@ -1687,8 +1731,11 @@ const isProductionCostSummaryRoute = computed(() => [
 ].includes(activeDisplayItem.value?.id ?? ''))
 const isProductionRewardPenaltySummaryRoute = computed(() => activeDisplayItem.value?.id === 'production-reward-penalty')
 const isFormConfigsRoute = computed(() => activeRoute.value === '/system/form-configs')
+const isReworkDictionariesRoute = computed(() => activeRoute.value === '/system/rework-dictionaries')
 const selectedOrderId = computed(() => selectedDoctorOrder.value?.order_id ?? doctorOrderWorkspace.value?.order.order_id ?? null)
 const selectedFormConfigField = computed(() => formConfigFields.value.find((field) => field.field_id === selectedFormConfigFieldId.value) ?? null)
+const selectedReworkDictionaryItem = computed(() =>
+  reworkDictionaryManageItems.value.find((item) => item.item_id === selectedReworkDictionaryItemId.value) ?? null)
 const selectedProductionReviewChain = computed(() => workflowChains.value.find((chain) => chain.chain_id === productionReviewChainId.value) ?? null)
 const selectedProcessNode = computed(() => selectedProcessInstance.value?.nodes.find((node) => node.node_instance_id === selectedProcessNodeId.value) ?? null)
 const selectedPortalOption = computed(() => portalOptions.find((option) => option.value === selectedPortal.value) ?? null)
@@ -1758,6 +1805,9 @@ const routeChrome = computed<RouteChrome>(() => {
   if (route === '/system/form-configs') {
     return { eyebrow: '管理端 / 动态表单', title: '动态表单', description: '维护医生下单表单字段，医生端只读取启用字段。', icon: 'dynamic_form' }
   }
+  if (route === '/system/rework-dictionaries') {
+    return { eyebrow: '管理端 / 返工字典', title: '返工字典', description: '维护返工原因和责任归属，生产端关闭返工只读取启用字典。', icon: 'dictionary' }
+  }
   if (route === '/notifications') {
     return { eyebrow: '平台 / 通知中心', title: '通知中心', description: '查看未读通知、实时推送状态和系统消息。', icon: 'notifications_active' }
   }
@@ -1797,6 +1847,7 @@ const menuIconSvgMap: Record<string, string> = {
   '/ai/production': '<svg viewBox="0 0 24 24"><path d="M4 18V9l5 3V8l5 4V7l6 4v7z"/><path d="M8 18v-3M12 18v-3M16 18v-3"/></svg>',
   '/system/rbac': '<svg viewBox="0 0 24 24"><path d="M12 3l7 3v5c0 5-3 8-7 10-4-2-7-5-7-10V6z"/><path d="M9 12l2 2 4-5"/></svg>',
   '/system/form-configs': '<svg viewBox="0 0 24 24"><path d="M6 4h12v16H6z"/><path d="M9 8h6M9 12h6M9 16h3"/></svg>',
+  '/system/rework-dictionaries': '<svg viewBox="0 0 24 24"><path d="M5 5h14v14H5z"/><path d="M8 9h8M8 13h8M8 17h5"/></svg>',
   '/notifications': '<svg viewBox="0 0 24 24"><path d="M6 17h12l-1-2v-4a5 5 0 0 0-10 0v4z"/><path d="M10 19a2 2 0 0 0 4 0"/></svg>'
 }
 const fallbackMenuIconSvg = '<svg viewBox="0 0 24 24"><path d="M12 4l8 8-8 8-8-8z"/></svg>'
@@ -1822,6 +1873,7 @@ const businessIconSvgMap: Record<string, string> = {
   monitoring: menuIconSvgMap['/performance'],
   view_kanban: menuIconSvgMap['/production/board'],
   dynamic_form: menuIconSvgMap['/system/form-configs'],
+  dictionary: menuIconSvgMap['/system/rework-dictionaries'],
   notifications_active: menuIconSvgMap['/notifications'],
   order: menuIconSvgMap['/orders/internal'],
   doctorOrder: menuIconSvgMap['/doctor/orders'],
@@ -2350,6 +2402,8 @@ async function loadActiveRouteData() {
     await loadProductionRewardPenaltySummary()
   } else if (activeRoute.value === '/system/form-configs') {
     await loadFormConfigFields()
+  } else if (activeRoute.value === '/system/rework-dictionaries') {
+    await loadReworkDictionaryManageItems()
   }
 }
 
@@ -2459,6 +2513,8 @@ function navigateToRoute(routePath: string) {
     void loadProductionRewardPenaltySummary()
   } else if (routePath === '/system/form-configs') {
     void loadFormConfigFields()
+  } else if (routePath === '/system/rework-dictionaries') {
+    void loadReworkDictionaryManageItems()
   }
 }
 
@@ -2735,6 +2791,106 @@ async function updateFormConfigField(statusOverride?: string) {
     formConfigError.value = error instanceof Error ? error.message : '动态表单字段更新失败'
   } finally {
     formConfigSaving.value = false
+  }
+}
+
+async function loadReworkDictionaryManageItems() {
+  if (!token.value) {
+    return
+  }
+  reworkDictionaryManageLoading.value = true
+  reworkDictionaryManageError.value = ''
+  try {
+    const params = new URLSearchParams()
+    params.set('dictionary_type', reworkDictionaryManageType.value)
+    const payload = await apiFetch<ReworkDictionaryItem[]>(`/reworks/dictionaries/items?${params.toString()}`)
+    reworkDictionaryManageItems.value = payload.data
+    const selectedStillVisible = selectedReworkDictionaryItemId.value
+      ? payload.data.some((item) => item.item_id === selectedReworkDictionaryItemId.value)
+      : false
+    if (!selectedStillVisible) {
+      selectedReworkDictionaryItemId.value = payload.data[0]?.item_id ?? null
+      if (selectedReworkDictionaryItem.value) {
+        selectReworkDictionaryItem(selectedReworkDictionaryItem.value)
+      }
+    }
+  } catch (error) {
+    reworkDictionaryManageError.value = error instanceof Error ? error.message : '返工字典加载失败'
+  } finally {
+    reworkDictionaryManageLoading.value = false
+  }
+}
+
+function selectReworkDictionaryItem(item: ReworkDictionaryItem) {
+  selectedReworkDictionaryItemId.value = item.item_id
+  reworkDictionaryEditLabel.value = item.label
+  reworkDictionaryEditSortOrder.value = item.sort_order
+  reworkDictionaryEditStatus.value = item.status
+}
+
+function resetReworkDictionaryCreateForm() {
+  reworkDictionaryCreateCode.value = ''
+  reworkDictionaryCreateLabel.value = ''
+  reworkDictionaryCreateSortOrder.value = 50
+}
+
+async function createReworkDictionaryItem() {
+  if (!token.value) {
+    return
+  }
+  reworkDictionaryManageSaving.value = true
+  reworkDictionaryManageError.value = ''
+  reworkDictionaryManageResult.value = ''
+  try {
+    const payload: ReworkDictionaryItemPayload = {
+      dictionary_type: reworkDictionaryManageType.value,
+      code: reworkDictionaryCreateCode.value.trim(),
+      label: reworkDictionaryCreateLabel.value.trim(),
+      sort_order: reworkDictionaryCreateSortOrder.value
+    }
+    const response = await apiFetch<ReworkDictionaryItem>('/reworks/dictionaries/items', {
+      method: 'POST',
+      body: JSON.stringify(payload)
+    })
+    reworkDictionaryManageType.value = response.data.dictionary_type
+    reworkDictionaryManageResult.value = `已新增字典 ${response.data.code}`
+    resetReworkDictionaryCreateForm()
+    await loadReworkDictionaryManageItems()
+    selectReworkDictionaryItem(response.data)
+  } catch (error) {
+    reworkDictionaryManageError.value = error instanceof Error ? error.message : '返工字典新增失败'
+  } finally {
+    reworkDictionaryManageSaving.value = false
+  }
+}
+
+async function updateReworkDictionaryItem(statusOverride?: string) {
+  if (!token.value || !selectedReworkDictionaryItemId.value) {
+    return
+  }
+  reworkDictionaryManageSaving.value = true
+  reworkDictionaryManageError.value = ''
+  reworkDictionaryManageResult.value = ''
+  try {
+    const payload: ReworkDictionaryItemPayload = {
+      label: reworkDictionaryEditLabel.value.trim(),
+      sort_order: reworkDictionaryEditSortOrder.value,
+      status: statusOverride ?? reworkDictionaryEditStatus.value
+    }
+    const response = await apiFetch<ReworkDictionaryItem>(
+      `/reworks/dictionaries/items/${selectedReworkDictionaryItemId.value}`,
+      {
+        method: 'PUT',
+        body: JSON.stringify(payload)
+      }
+    )
+    reworkDictionaryManageResult.value = `已更新字典 ${response.data.code}`
+    await loadReworkDictionaryManageItems()
+    selectReworkDictionaryItem(response.data)
+  } catch (error) {
+    reworkDictionaryManageError.value = error instanceof Error ? error.message : '返工字典更新失败'
+  } finally {
+    reworkDictionaryManageSaving.value = false
   }
 }
 
@@ -6306,6 +6462,145 @@ onBeforeUnmount(() => {
               <strong>{{ field.field_label }} / {{ field.field_key }}</strong>
               <p>{{ productTypeLabel(field.product_type) }} / {{ fieldTypeLabel(field.field_type) }} / {{ statusLabel(field.status) }}</p>
               <span>排序 {{ field.sort_order }} / {{ field.is_required ? '必填' : '选填' }}</span>
+            </article>
+          </div>
+        </section>
+
+        <section v-else-if="isReworkDictionariesRoute" class="panel route-panel form-config-panel">
+          <div class="route-heading">
+            <h2>返工字典</h2>
+            <el-tag round>{{ reworkDictionaryManageType === 'REASON_CATEGORY' ? '返工原因' : '责任类型' }}</el-tag>
+          </div>
+
+          <div class="notification-toolbar">
+            <el-select
+              v-model="reworkDictionaryManageType"
+              data-testid="rework-dictionary-type-filter"
+              style="max-width: 220px"
+              @change="loadReworkDictionaryManageItems"
+            >
+              <el-option
+                v-for="type in reworkDictionaryTypeOptions"
+                :key="type.value"
+                :label="type.label"
+                :value="type.value"
+              />
+            </el-select>
+            <el-button :loading="reworkDictionaryManageLoading" @click="loadReworkDictionaryManageItems">刷新</el-button>
+          </div>
+
+          <el-alert
+            v-if="reworkDictionaryManageError"
+            :title="reworkDictionaryManageError"
+            type="error"
+            show-icon
+            :closable="false"
+          />
+          <el-alert
+            v-if="reworkDictionaryManageResult"
+            :title="reworkDictionaryManageResult"
+            type="success"
+            show-icon
+            :closable="false"
+          />
+
+          <div class="form-config-layout">
+            <section class="form-config-editor">
+              <h3>新增字典项</h3>
+              <div class="form-grid">
+                <label>
+                  类型
+                  <el-select v-model="reworkDictionaryManageType" data-testid="rework-dictionary-create-type">
+                    <el-option
+                      v-for="type in reworkDictionaryTypeOptions"
+                      :key="type.value"
+                      :label="type.label"
+                      :value="type.value"
+                    />
+                  </el-select>
+                </label>
+                <label>
+                  编码
+                  <el-input v-model="reworkDictionaryCreateCode" data-testid="rework-dictionary-create-code" />
+                </label>
+                <label>
+                  名称
+                  <el-input v-model="reworkDictionaryCreateLabel" data-testid="rework-dictionary-create-label" />
+                </label>
+                <label>
+                  排序
+                  <el-input-number v-model="reworkDictionaryCreateSortOrder" :min="0" :step="10" />
+                </label>
+              </div>
+              <div class="inline-actions">
+                <el-button
+                  type="primary"
+                  :loading="reworkDictionaryManageSaving"
+                  data-testid="rework-dictionary-create-button"
+                  @click="createReworkDictionaryItem"
+                >
+                  新增字典
+                </el-button>
+              </div>
+            </section>
+
+            <section class="form-config-editor">
+              <h3>编辑字典项</h3>
+              <div v-if="selectedReworkDictionaryItem" class="form-grid">
+                <label>
+                  名称
+                  <el-input v-model="reworkDictionaryEditLabel" data-testid="rework-dictionary-edit-label" />
+                </label>
+                <label>
+                  状态
+                  <el-select v-model="reworkDictionaryEditStatus" data-testid="rework-dictionary-edit-status">
+                    <el-option label="启用" value="ACTIVE" />
+                    <el-option label="停用" value="INACTIVE" />
+                  </el-select>
+                </label>
+                <label>
+                  排序
+                  <el-input-number v-model="reworkDictionaryEditSortOrder" :min="0" :step="10" />
+                </label>
+              </div>
+              <div v-if="selectedReworkDictionaryItem" class="inline-actions">
+                <el-button
+                  type="primary"
+                  :loading="reworkDictionaryManageSaving"
+                  data-testid="rework-dictionary-update-button"
+                  @click="updateReworkDictionaryItem()"
+                >
+                  保存
+                </el-button>
+                <el-button
+                  type="danger"
+                  plain
+                  :loading="reworkDictionaryManageSaving"
+                  data-testid="rework-dictionary-deactivate-button"
+                  @click="updateReworkDictionaryItem('INACTIVE')"
+                >
+                  停用
+                </el-button>
+              </div>
+              <div v-else class="empty-state">
+                暂无可编辑字典项
+              </div>
+            </section>
+          </div>
+
+          <div v-if="reworkDictionaryManageItems.length === 0" class="empty-state">
+            暂无字典项
+          </div>
+          <div v-else class="compact-list" data-testid="rework-dictionary-item-list">
+            <article
+              v-for="item in reworkDictionaryManageItems"
+              :key="item.item_id"
+              :class="{ selected: item.item_id === selectedReworkDictionaryItemId }"
+              @click="selectReworkDictionaryItem(item)"
+            >
+              <strong>{{ item.label }} / {{ item.code }}</strong>
+              <p>{{ item.dictionary_type === 'REASON_CATEGORY' ? '返工原因' : '责任类型' }} / {{ statusLabel(item.status) }}</p>
+              <span>排序 {{ item.sort_order }}</span>
             </article>
           </div>
         </section>

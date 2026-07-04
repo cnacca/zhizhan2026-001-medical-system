@@ -1372,6 +1372,59 @@ components:
           type: array
           items:
             "$ref": "#/components/schemas/ReworkDictionaryOption"
+    CreateReworkDictionaryItemRequest:
+      type: object
+      required:
+      - dictionary_type
+      - code
+      - label
+      properties:
+        dictionary_type:
+          type: string
+          enum:
+          - REASON_CATEGORY
+          - RESPONSIBILITY_TYPE
+        code:
+          type: string
+          description: 字典编码，服务端统一转为大写。
+        label:
+          type: string
+        sort_order:
+          type: integer
+          default: 0
+    UpdateReworkDictionaryItemRequest:
+      type: object
+      properties:
+        label:
+          type: string
+        sort_order:
+          type: integer
+        status:
+          type: string
+          enum:
+          - ACTIVE
+          - INACTIVE
+    ReworkDictionaryItemResponse:
+      type: object
+      properties:
+        item_id:
+          type: integer
+        dictionary_type:
+          type: string
+          enum:
+          - REASON_CATEGORY
+          - RESPONSIBILITY_TYPE
+        code:
+          type: string
+        label:
+          type: string
+        sort_order:
+          type: integer
+        status:
+          type: string
+          enum:
+          - ACTIVE
+          - INACTIVE
     FinalInspectionReportRequest:
       type: object
       required:
@@ -3996,6 +4049,139 @@ paths:
         '503':
           "$ref": "#/components/responses/ServiceUnavailable"
       operationId: getReworksDictionaries
+  "/reworks/dictionaries/items":
+    get:
+      tags:
+      - CheckRecord
+      summary: 管理端查询返工字典项
+      description: |
+        任务 9D.55 第一增量：权限 ADMIN / `rework:dictionary:manage`。
+        返回返工原因和责任类型的后台维护列表，包含 ACTIVE / INACTIVE 项；生产端关闭返工仍只使用 `/reworks/dictionaries` 返回的 ACTIVE 项。
+      parameters:
+      - name: dictionary_type
+        in: query
+        required: false
+        schema:
+          type: string
+          enum:
+          - REASON_CATEGORY
+          - RESPONSIBILITY_TYPE
+      responses:
+        '200':
+          description: 返工字典项列表
+          content:
+            application/json:
+              schema:
+                allOf:
+                - "$ref": "#/components/schemas/CommonResponse"
+                - type: object
+                  properties:
+                    data:
+                      type: array
+                      items:
+                        "$ref": "#/components/schemas/ReworkDictionaryItemResponse"
+        '400':
+          "$ref": "#/components/responses/BadRequest"
+        '401':
+          "$ref": "#/components/responses/Unauthorized"
+        '403':
+          "$ref": "#/components/responses/Forbidden"
+        '404':
+          "$ref": "#/components/responses/NotFound"
+        '409':
+          "$ref": "#/components/responses/Conflict"
+        default:
+          "$ref": "#/components/responses/DefaultError"
+        '503':
+          "$ref": "#/components/responses/ServiceUnavailable"
+      operationId: listReworkDictionaryItems
+    post:
+      tags:
+      - CheckRecord
+      summary: 管理端新增返工字典项
+      description: |
+        任务 9D.55 第一增量：权限 ADMIN / `rework:dictionary:manage`。
+        用底座字典管理模式维护返工原因和责任类型，不再把返工字典只写死在服务端常量里。
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              "$ref": "#/components/schemas/CreateReworkDictionaryItemRequest"
+      responses:
+        '200':
+          description: 字典项已创建
+          content:
+            application/json:
+              schema:
+                allOf:
+                - "$ref": "#/components/schemas/CommonResponse"
+                - type: object
+                  properties:
+                    data:
+                      "$ref": "#/components/schemas/ReworkDictionaryItemResponse"
+        '400':
+          "$ref": "#/components/responses/BadRequest"
+        '401':
+          "$ref": "#/components/responses/Unauthorized"
+        '403':
+          "$ref": "#/components/responses/Forbidden"
+        '404':
+          "$ref": "#/components/responses/NotFound"
+        '409':
+          "$ref": "#/components/responses/Conflict"
+        default:
+          "$ref": "#/components/responses/DefaultError"
+        '503':
+          "$ref": "#/components/responses/ServiceUnavailable"
+      operationId: createReworkDictionaryItem
+  "/reworks/dictionaries/items/{itemId}":
+    put:
+      tags:
+      - CheckRecord
+      summary: 管理端编辑或停用返工字典项
+      description: |
+        任务 9D.55 第一增量：权限 ADMIN / `rework:dictionary:manage`。
+        支持更新字典名称、排序和状态；`status=INACTIVE` 后不会出现在生产端返工关闭可选字典中。
+      parameters:
+      - name: itemId
+        in: path
+        required: true
+        schema:
+          type: integer
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              "$ref": "#/components/schemas/UpdateReworkDictionaryItemRequest"
+      responses:
+        '200':
+          description: 字典项已更新
+          content:
+            application/json:
+              schema:
+                allOf:
+                - "$ref": "#/components/schemas/CommonResponse"
+                - type: object
+                  properties:
+                    data:
+                      "$ref": "#/components/schemas/ReworkDictionaryItemResponse"
+        '400':
+          "$ref": "#/components/responses/BadRequest"
+        '401':
+          "$ref": "#/components/responses/Unauthorized"
+        '403':
+          "$ref": "#/components/responses/Forbidden"
+        '404':
+          "$ref": "#/components/responses/NotFound"
+        '409':
+          "$ref": "#/components/responses/Conflict"
+        default:
+          "$ref": "#/components/responses/DefaultError"
+        '503':
+          "$ref": "#/components/responses/ServiceUnavailable"
+      operationId: updateReworkDictionaryItem
   "/reworks/{reworkId}/close":
     post:
       tags:

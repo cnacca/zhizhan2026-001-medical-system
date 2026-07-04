@@ -3,6 +3,7 @@ package com.yuri.aiorder.workflow.execution;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.put;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
@@ -249,6 +250,120 @@ class CheckWorklogPerformanceTests {
                                   "close_note":"非法字典值"
                                 }
                                 """))
+                .andExpect(status().isBadRequest());
+    }
+
+    @Test
+    void adminCanManageReworkDictionaryItemsAndCloseOnlyUsesActiveItems() throws Exception {
+        String suffix = UUID.randomUUID().toString().replace("-", "").substring(0, 8).toUpperCase();
+        String reasonCode = "CUSTOM_REASON_" + suffix;
+
+        mockMvc.perform(post("/reworks/dictionaries/items")
+                        .header("X-Bootstrap-Role", "DOCTOR")
+                        .header("X-Bootstrap-User-Id", doctorUserId)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("""
+                                {
+                                  "dictionary_type":"REASON_CATEGORY",
+                                  "code":"%s",
+                                  "label":"客户确认返工",
+                                  "sort_order":90
+                                }
+                                """.formatted(reasonCode)))
+                .andExpect(status().isForbidden());
+
+        MvcResult createResult = mockMvc.perform(post("/reworks/dictionaries/items")
+                        .header("X-Bootstrap-Role", "ADMIN")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("""
+                                {
+                                  "dictionary_type":"REASON_CATEGORY",
+                                  "code":"%s",
+                                  "label":"客户确认返工",
+                                  "sort_order":90
+                                }
+                                """.formatted(reasonCode)))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.dictionary_type").value("REASON_CATEGORY"))
+                .andExpect(jsonPath("$.data.code").value(reasonCode))
+                .andExpect(jsonPath("$.data.label").value("客户确认返工"))
+                .andExpect(jsonPath("$.data.status").value("ACTIVE"))
+                .andReturn();
+        long itemId = objectMapper.readTree(createResult.getResponse().getContentAsString())
+                .path("data")
+                .path("item_id")
+                .asLong();
+
+        mockMvc.perform(get("/reworks/dictionaries/items")
+                        .header("X-Bootstrap-Role", "ADMIN")
+                        .param("dictionary_type", "REASON_CATEGORY"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data[?(@.item_id==%d && @.code=='%s')]".formatted(itemId, reasonCode))
+                        .isNotEmpty());
+
+        mockMvc.perform(get("/reworks/dictionaries")
+                        .header("X-Bootstrap-Role", "WORKER")
+                        .header("X-Bootstrap-User-Id", workerUserId))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.reason_categories[?(@.code=='%s')].label".formatted(reasonCode))
+                        .value("客户确认返工"));
+
+        submitCheck(nodeInstanceId, 1, true, null);
+        startNode(nodeInstanceId);
+        completeNode(nodeInstanceId);
+        long reworkId = submitCheck(nodeInstanceId, 2, false, nodeInstanceId).path("rework_id").asLong();
+        startNode(nodeInstanceId);
+        completeNode(nodeInstanceId);
+        submitCheck(nodeInstanceId, 2, true, null);
+
+        mockMvc.perform(post("/reworks/{reworkId}/close", reworkId)
+                        .header("X-Bootstrap-Role", "WORKER")
+                        .header("X-Bootstrap-User-Id", workerUserId)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("""
+                                {
+                                  "reason_category":"%s",
+                                  "responsibility_type":"WORKER",
+                                  "close_note":"使用后台字典关闭返工"
+                                }
+                                """.formatted(reasonCode)))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.reason_category").value(reasonCode));
+
+        mockMvc.perform(put("/reworks/dictionaries/items/{itemId}", itemId)
+                        .header("X-Bootstrap-Role", "ADMIN")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("""
+                                {
+                                  "label":"客户确认返工-停用",
+                                  "status":"INACTIVE"
+                                }
+                                """))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.status").value("INACTIVE"));
+
+        mockMvc.perform(get("/reworks/dictionaries")
+                        .header("X-Bootstrap-Role", "WORKER")
+                        .header("X-Bootstrap-User-Id", workerUserId))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.reason_categories[?(@.code=='%s')]".formatted(reasonCode)).isEmpty());
+
+        long secondReworkId = submitCheck(nodeInstanceId, 2, false, nodeInstanceId).path("rework_id").asLong();
+        startNode(nodeInstanceId);
+        completeNode(nodeInstanceId);
+        submitCheck(nodeInstanceId, 2, true, null);
+
+        mockMvc.perform(post("/reworks/{reworkId}/close", secondReworkId)
+                        .header("X-Bootstrap-Role", "WORKER")
+                        .header("X-Bootstrap-User-Id", workerUserId)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("""
+                                {
+                                  "reason_category":"%s",
+                                  "responsibility_type":"WORKER",
+                                  "close_note":"停用字典不得继续使用"
+                                }
+                                """.formatted(reasonCode)))
                 .andExpect(status().isBadRequest());
     }
 

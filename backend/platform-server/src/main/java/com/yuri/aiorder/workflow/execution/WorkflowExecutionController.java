@@ -9,6 +9,7 @@ import org.springframework.web.bind.annotation.CrossOrigin;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
+import org.springframework.web.bind.annotation.PutMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
@@ -53,6 +54,28 @@ public class WorkflowExecutionController {
     @RequirePermission(value = "check:read-internal", roles = {UserRole.ADMIN, UserRole.CS, UserRole.WORKER})
     public DataResponse<ReworkDictionariesResponse> getReworkDictionaries(BootstrapIdentity identity) {
         return new DataResponse<>(workflowExecutionService.getReworkDictionaries(identity));
+    }
+
+    @GetMapping("/reworks/dictionaries/items")
+    @RequirePermission(value = "rework:dictionary:manage", roles = UserRole.ADMIN)
+    public DataResponse<List<ReworkDictionaryItemResponse>> listReworkDictionaryItems(
+            @RequestParam(name = "dictionary_type", required = false) String dictionaryType) {
+        return new DataResponse<>(workflowExecutionService.listReworkDictionaryItems(dictionaryType));
+    }
+
+    @PostMapping("/reworks/dictionaries/items")
+    @RequirePermission(value = "rework:dictionary:manage", roles = UserRole.ADMIN)
+    public DataResponse<ReworkDictionaryItemResponse> createReworkDictionaryItem(
+            @RequestBody CreateReworkDictionaryItemRequest request) {
+        return new DataResponse<>(workflowExecutionService.createReworkDictionaryItem(request));
+    }
+
+    @PutMapping("/reworks/dictionaries/items/{itemId}")
+    @RequirePermission(value = "rework:dictionary:manage", roles = UserRole.ADMIN)
+    public DataResponse<ReworkDictionaryItemResponse> updateReworkDictionaryItem(
+            @PathVariable long itemId,
+            @RequestBody UpdateReworkDictionaryItemRequest request) {
+        return new DataResponse<>(workflowExecutionService.updateReworkDictionaryItem(itemId, request));
     }
 
     @GetMapping("/production/quality/summary")

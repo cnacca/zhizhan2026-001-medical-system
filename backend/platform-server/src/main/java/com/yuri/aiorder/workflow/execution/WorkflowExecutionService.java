@@ -10,7 +10,10 @@ import java.math.BigDecimal;
 import java.math.RoundingMode;
 import java.time.LocalDateTime;
 import java.util.List;
+import java.util.Locale;
+import java.util.Set;
 import org.springframework.dao.EmptyResultDataAccessException;
+import org.springframework.dao.DuplicateKeyException;
 import org.springframework.http.HttpStatus;
 import org.springframework.jdbc.core.simple.JdbcClient;
 import org.springframework.stereotype.Service;
@@ -23,16 +26,12 @@ public class WorkflowExecutionService {
     private static final TypeReference<List<Long>> LONG_LIST_TYPE = new TypeReference<>() {
     };
 
-    private static final List<ReworkDictionaryOption> REWORK_REASON_CATEGORIES = List.of(
-            new ReworkDictionaryOption("FIT_ISSUE", "适配问题"),
-            new ReworkDictionaryOption("MATERIAL_ISSUE", "材料问题"),
-            new ReworkDictionaryOption("DESIGN_ISSUE", "设计问题"),
-            new ReworkDictionaryOption("OTHER", "其他"));
-    private static final List<ReworkDictionaryOption> REWORK_RESPONSIBILITY_TYPES = List.of(
-            new ReworkDictionaryOption("WORKER", "生产"),
-            new ReworkDictionaryOption("DOCTOR", "医生"),
-            new ReworkDictionaryOption("CS", "客服"),
-            new ReworkDictionaryOption("SYSTEM", "系统"));
+    private static final String REWORK_REASON_CATEGORY_TYPE = "REASON_CATEGORY";
+    private static final String REWORK_RESPONSIBILITY_TYPE = "RESPONSIBILITY_TYPE";
+    private static final Set<String> REWORK_DICTIONARY_TYPES = Set.of(
+            REWORK_REASON_CATEGORY_TYPE,
+            REWORK_RESPONSIBILITY_TYPE);
+    private static final Set<String> REWORK_DICTIONARY_STATUS = Set.of("ACTIVE", "INACTIVE");
 
     private final JdbcClient jdbcClient;
     private final AccessControlService accessControlService;
@@ -192,7 +191,78 @@ public class WorkflowExecutionService {
 
     public ReworkDictionariesResponse getReworkDictionaries(BootstrapIdentity identity) {
         accessControlService.requireCheckRecordRead(identity);
-        return new ReworkDictionariesResponse(REWORK_REASON_CATEGORIES, REWORK_RESPONSIBILITY_TYPES);
+        return new ReworkDictionariesResponse(
+                listActiveReworkDictionaryOptions(REWORK_REASON_CATEGORY_TYPE),
+                listActiveReworkDictionaryOptions(REWORK_RESPONSIBILITY_TYPE));
+    }
+
+    public List<ReworkDictionaryItemResponse> listReworkDictionaryItems(String dictionaryType) {
+        String normalizedType = dictionaryType == null || dictionaryType.isBlank()
+                ? null
+                : normalizeReworkDictionaryType(dictionaryType);
+        String typeClause = normalizedType == null ? "" : " WHERE dictionary_type = :dictionaryType";
+        JdbcClient.StatementSpec spec = jdbcClient.sql("""
+                        SELECT item_id, dictionary_type, item_code, item_label, sort_order, status
+                        FROM rework_dictionary_item
+                        %s
+                        ORDER BY dictionary_type, sort_order, item_id
+                        """.formatted(typeClause));
+        if (normalizedType != null) {
+            spec = spec.param("dictionaryType", normalizedType);
+        }
+        return spec.query((rs, rowNum) -> new ReworkDictionaryItemResponse(
+                        rs.getLong("item_id"),
+                        rs.getString("dictionary_type"),
+                        rs.getString("item_code"),
+                        rs.getString("item_label"),
+                        rs.getInt("sort_order"),
+                        rs.getString("status")))
+                .list();
+    }
+
+    @Transactional
+    public ReworkDictionaryItemResponse createReworkDictionaryItem(CreateReworkDictionaryItemRequest request) {
+        String dictionaryType = normalizeReworkDictionaryType(request.dictionaryType());
+        String code = normalizeRequired(request.code(), "code").toUpperCase(Locale.ROOT);
+        String label = normalizeRequired(request.label(), "label");
+        int sortOrder = request.sortOrder() == null ? 0 : request.sortOrder();
+        try {
+            jdbcClient.sql("""
+                            INSERT INTO rework_dictionary_item
+                                (dictionary_type, item_code, item_label, sort_order, status)
+                            VALUES
+                                (:dictionaryType, :code, :label, :sortOrder, 'ACTIVE')
+                            """)
+                    .param("dictionaryType", dictionaryType)
+                    .param("code", code)
+                    .param("label", label)
+                    .param("sortOrder", sortOrder)
+                    .update();
+        } catch (DuplicateKeyException ex) {
+            throw new ResponseStatusException(HttpStatus.CONFLICT, "rework dictionary item already exists", ex);
+        }
+        return requireReworkDictionaryItem(lastInsertId());
+    }
+
+    @Transactional
+    public ReworkDictionaryItemResponse updateReworkDictionaryItem(
+            long itemId, UpdateReworkDictionaryItemRequest request) {
+        requireReworkDictionaryItem(itemId);
+        String label = request.label() == null ? null : normalizeRequired(request.label(), "label");
+        String status = request.status() == null ? null : normalizeReworkDictionaryStatus(request.status());
+        jdbcClient.sql("""
+                        UPDATE rework_dictionary_item
+                        SET item_label = COALESCE(:label, item_label),
+                            sort_order = COALESCE(:sortOrder, sort_order),
+                            status = COALESCE(:status, status)
+                        WHERE item_id = :itemId
+                        """)
+                .param("label", label)
+                .param("sortOrder", request.sortOrder())
+                .param("status", status)
+                .param("itemId", itemId)
+                .update();
+        return requireReworkDictionaryItem(itemId);
     }
 
     public ProductionQualitySummaryResponse getProductionQualitySummary(
@@ -603,9 +673,9 @@ public class WorkflowExecutionService {
                     HttpStatus.CONFLICT, "rework target OUT/PASS check is required before closing rework");
         }
         String reasonCategory = normalizeDictionaryValue(
-                request.reasonCategory(), REWORK_REASON_CATEGORIES, "unsupported rework reason category");
+                request.reasonCategory(), REWORK_REASON_CATEGORY_TYPE, "unsupported rework reason category");
         String responsibilityType = normalizeDictionaryValue(
-                request.responsibilityType(), REWORK_RESPONSIBILITY_TYPES, "unsupported rework responsibility type");
+                request.responsibilityType(), REWORK_RESPONSIBILITY_TYPE, "unsupported rework responsibility type");
         jdbcClient.sql("""
                         UPDATE rework_record
                         SET reason_category = :reasonCategory,
@@ -1450,17 +1520,85 @@ public class WorkflowExecutionService {
     }
 
     private String normalizeDictionaryValue(
-            String value, List<ReworkDictionaryOption> options, String unsupportedMessage) {
+            String value, String dictionaryType, String unsupportedMessage) {
         String normalized = blankToNull(value);
         if (normalized == null) {
             return null;
         }
-        String upper = normalized.toUpperCase();
-        boolean supported = options.stream().anyMatch((option) -> option.code().equals(upper));
+        String upper = normalized.toUpperCase(Locale.ROOT);
+        boolean supported = jdbcClient.sql("""
+                        SELECT COUNT(*)
+                        FROM rework_dictionary_item
+                        WHERE dictionary_type = :dictionaryType
+                          AND item_code = :code
+                          AND status = 'ACTIVE'
+                        """)
+                .param("dictionaryType", dictionaryType)
+                .param("code", upper)
+                .query(Long.class)
+                .single() > 0;
         if (!supported) {
             throw new ResponseStatusException(HttpStatus.BAD_REQUEST, unsupportedMessage);
         }
         return upper;
+    }
+
+    private List<ReworkDictionaryOption> listActiveReworkDictionaryOptions(String dictionaryType) {
+        return jdbcClient.sql("""
+                        SELECT item_code, item_label
+                        FROM rework_dictionary_item
+                        WHERE dictionary_type = :dictionaryType
+                          AND status = 'ACTIVE'
+                        ORDER BY sort_order, item_id
+                        """)
+                .param("dictionaryType", dictionaryType)
+                .query((rs, rowNum) -> new ReworkDictionaryOption(
+                        rs.getString("item_code"),
+                        rs.getString("item_label")))
+                .list();
+    }
+
+    private ReworkDictionaryItemResponse requireReworkDictionaryItem(long itemId) {
+        return jdbcClient.sql("""
+                        SELECT item_id, dictionary_type, item_code, item_label, sort_order, status
+                        FROM rework_dictionary_item
+                        WHERE item_id = :itemId
+                        """)
+                .param("itemId", itemId)
+                .query((rs, rowNum) -> new ReworkDictionaryItemResponse(
+                        rs.getLong("item_id"),
+                        rs.getString("dictionary_type"),
+                        rs.getString("item_code"),
+                        rs.getString("item_label"),
+                        rs.getInt("sort_order"),
+                        rs.getString("status")))
+                .optional()
+                .orElseThrow(() -> new ResponseStatusException(
+                        HttpStatus.NOT_FOUND, "rework dictionary item not found"));
+    }
+
+    private String normalizeReworkDictionaryType(String dictionaryType) {
+        String normalized = normalizeRequired(dictionaryType, "dictionary_type").toUpperCase(Locale.ROOT);
+        if (!REWORK_DICTIONARY_TYPES.contains(normalized)) {
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "unsupported rework dictionary type");
+        }
+        return normalized;
+    }
+
+    private String normalizeReworkDictionaryStatus(String status) {
+        String normalized = normalizeRequired(status, "status").toUpperCase(Locale.ROOT);
+        if (!REWORK_DICTIONARY_STATUS.contains(normalized)) {
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "unsupported rework dictionary status");
+        }
+        return normalized;
+    }
+
+    private String normalizeRequired(String value, String fieldName) {
+        String normalized = blankToNull(value);
+        if (normalized == null) {
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, fieldName + " is required");
+        }
+        return normalized;
     }
 
     private long lastInsertId() {
