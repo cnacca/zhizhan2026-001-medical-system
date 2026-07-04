@@ -1,5 +1,6 @@
 package com.yuri.aiorder.file.api;
 
+import java.util.List;
 import org.springframework.boot.context.properties.ConfigurationProperties;
 
 @ConfigurationProperties(prefix = "app.file")
@@ -11,5 +12,7 @@ public record FileStorageProperties(
         int uploadUrlTtlSeconds,
         int previewUrlTtlSeconds,
         int downloadUrlTtlSeconds,
-        long maxFileSizeBytes) {
+        long maxFileSizeBytes,
+        List<String> allowedContentTypes,
+        int maxFilesPerOrder) {
 }

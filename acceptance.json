@@ -2536,6 +2536,39 @@
             "PHASE_ONE_DEFAULT_V1",
             "check:task9d74"
           ]
+        },
+        {
+          "id": "task-9d67-file-upload-limits-bucket-required-text",
+          "type": "required_text",
+          "paths": [
+            "backend/platform-server/src/main/java/com/yuri/aiorder/file/api/FileStorageProperties.java",
+            "backend/platform-server/src/main/java/com/yuri/aiorder/file/api/FileResourceService.java",
+            "backend/platform-server/src/test/java/com/yuri/aiorder/file/FileAccessTests.java",
+            "backend/platform-server/src/main/resources/application.yml",
+            ".env.example",
+            "frontend/src/App.vue",
+            "docs/api/openapi.yaml",
+            "acceptance.json",
+            "docs/acceptance/task-8-acceptance-matrix.md",
+            "docs/deployment/readiness-checklist.md",
+            "docs/deployment/task-8-final-readiness-report.md",
+            "docs/acceptance/phase-one-frontend-alignment.md",
+            "docs/acceptance/phase-one-frontend-task-scope.md",
+            "DECISIONS.md",
+            "STATUS.md",
+            "tasks/README.md",
+            "README.md",
+            "scripts/check-task-9d67-file-upload-limits-bucket.mjs",
+            "package.json"
+          ],
+          "patterns": [
+            "任务 9D.67",
+            "文件上传限制与 bucket 隔离第一段",
+            "FILE_ALLOWED_CONTENT_TYPES",
+            "FILE_MAX_FILES_PER_ORDER",
+            "MINIO_BUCKET",
+            "check:task9d67"
+          ]
         }
       ]
     }

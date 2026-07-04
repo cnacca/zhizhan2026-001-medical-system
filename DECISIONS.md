@@ -1892,3 +1892,13 @@
 - 一期绩效接口先暴露开发默认公式版本 `PHASE_ONE_DEFAULT_V1`，用于验收和解释，不作为工资、奖金或奖惩结算依据。
 - `/performance` 新增标准工时合计、标准工时覆盖数量、缺失数量、覆盖率和默认绩效分。
 - 标准工时缺失时不伪造标准值，改用 `standard_missing_count` 和 `standard_coverage_rate` 暴露数据完整性。Task 8 仍保持 `NOT_READY`。
+
+## D-118 任务 9D.67 文件上传限制与 bucket 隔离第一段
+
+状态：已确认并执行第一增量。
+
+决策：
+
+- 文件上传限制先收口在既有 `/files/upload-token` 和 `/files/multipart/initiate` 两个入口。
+- 服务端统一校验 `FILE_MAX_FILE_SIZE_BYTES`、`FILE_ALLOWED_CONTENT_TYPES` 和 `FILE_MAX_FILES_PER_ORDER`。
+- 测试环境和正式环境必须使用不同 `MINIO_BUCKET`、对象存储账号和数据库；仓库只记录示例变量，不提交真实 bucket 凭据或生产配置。Task 8 仍保持 `NOT_READY`。

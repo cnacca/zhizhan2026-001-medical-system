@@ -721,6 +721,19 @@ const doctorUploadResumeSessions = ref<Record<string, DoctorUploadResumeSession>
 const doctorUploadServerResumeCandidates = ref<MultipartPendingUpload[]>([])
 const doctorUploadServerResumeOrderId = ref<number | null>(null)
 const doctorUploadLoading = ref(false)
+const doctorUploadMaxFileSizeBytes = 209715200
+const doctorUploadMaxFilesPerOrder = 30
+const doctorUploadAllowedContentTypes = new Set([
+  'application/pdf',
+  'model/stl',
+  'application/sla',
+  'application/octet-stream',
+  'text/plain',
+  'image/png',
+  'image/jpeg',
+  'application/zip',
+  'application/x-zip-compressed'
+])
 const doctorOrderCreateLoading = ref(false)
 const doctorOrderCreateError = ref('')
 const doctorOrderCreateResult = ref<CreateOrderResponse | null>(null)
@@ -3071,6 +3084,23 @@ function cancelDoctorOrderEdit() {
   doctorOrderCreateResult.value = null
 }
 
+function validateDoctorUploadFiles(files: File[]) {
+  const existingFileCount = parseDoctorOrderFileIds().length
+  if (existingFileCount + files.length > doctorUploadMaxFilesPerOrder) {
+    return `单个订单最多上传 ${doctorUploadMaxFilesPerOrder} 个附件`
+  }
+  for (const file of files) {
+    const contentType = file.type || 'application/octet-stream'
+    if (file.size > doctorUploadMaxFileSizeBytes) {
+      return `附件 ${file.name} 超过 200MB 限制`
+    }
+    if (!doctorUploadAllowedContentTypes.has(contentType)) {
+      return `附件 ${file.name} 类型不在允许范围`
+    }
+  }
+  return ''
+}
+
 function selectDoctorUploadFiles(event: Event) {
   const input = event.target as HTMLInputElement
   doctorUploadFiles.value = Array.from(input.files ?? [])
@@ -3191,6 +3221,11 @@ async function uploadDoctorOrderFiles() {
   }
   if (doctorUploadFiles.value.length === 0) {
     doctorOrderCreateError.value = '请先选择附件'
+    return
+  }
+  const validationError = validateDoctorUploadFiles(doctorUploadFiles.value)
+  if (validationError) {
+    doctorOrderCreateError.value = validationError
     return
   }
   doctorUploadLoading.value = true

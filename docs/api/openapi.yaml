@@ -936,9 +936,11 @@ components:
         content_type:
           type: string
           example: model/stl
+          description: 任务 9D.67 第一增量：服务端按 FILE_ALLOWED_CONTENT_TYPES 白名单校验，不允许的类型返回 400。
         file_size:
           type: integer
           format: int64
+          description: 任务 9D.67 第一增量：服务端按 FILE_MAX_FILE_SIZE_BYTES 校验，超过限制返回 400。
     UploadTokenResponse:
       type: object
       properties:
@@ -977,9 +979,11 @@ components:
         content_type:
           type: string
           example: model/stl
+          description: 任务 9D.67 第一增量：服务端按 FILE_ALLOWED_CONTENT_TYPES 白名单校验，不允许的类型返回 400。
         file_size:
           type: integer
           format: int64
+          description: 任务 9D.67 第一增量：服务端按 FILE_MAX_FILE_SIZE_BYTES 校验，超过限制返回 400。
         part_size:
           type: integer
           format: int64
@@ -2626,6 +2630,7 @@ paths:
       description: |
         权限：DOCTOR / CS / WORKER / ADMIN
         前端使用此接口获取 MinIO 单对象 PUT 预签名上传地址，直传到 MinIO 私有桶；服务端不做文件内容中转。
+        任务 9D.67 第一增量：服务端在发放预签名前校验 FILE_MAX_FILE_SIZE_BYTES、FILE_ALLOWED_CONTENT_TYPES 和 FILE_MAX_FILES_PER_ORDER；测试环境和正式环境必须配置不同 MINIO_BUCKET 和对象存储凭据。
       requestBody:
         required: true
         content:
@@ -2667,6 +2672,7 @@ paths:
       description: |
         权限：DOCTOR / CS / WORKER / ADMIN
         创建 file_resource=PENDING/MULTIPART 记录并返回 upload_id、part_size、part_count；医生只能向本人可访问订单上传医生可见文件。
+        任务 9D.67 第一增量：服务端在初始化 Multipart 前校验 FILE_MAX_FILE_SIZE_BYTES、FILE_ALLOWED_CONTENT_TYPES 和 FILE_MAX_FILES_PER_ORDER；测试环境和正式环境必须配置不同 MINIO_BUCKET 和对象存储凭据。
       requestBody:
         required: true
         content:

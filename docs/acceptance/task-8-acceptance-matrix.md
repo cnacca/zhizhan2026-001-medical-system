@@ -115,3 +115,7 @@
 ## 9D.74 绩效标准工时与完整公式口径第一段
 
 9D.74 绩效标准工时与完整公式口径第一段已新增 `performance_formula_version=PHASE_ONE_DEFAULT_V1`、标准工时覆盖率和默认绩效分；该公式不作为工资、奖金或奖惩结算依据。Task 8 仍保持 NOT_READY。
+
+## 9D.67 文件上传限制与 bucket 隔离第一段
+
+9D.67 文件上传限制与 bucket 隔离第一段已补 `FILE_ALLOWED_CONTENT_TYPES`、`FILE_MAX_FILES_PER_ORDER` 和服务端校验；Task 8 仍保持 NOT_READY。

@@ -27,7 +27,10 @@ import org.springframework.jdbc.core.simple.JdbcClient;
 import org.springframework.test.web.servlet.MockMvc;
 import org.springframework.test.web.servlet.MvcResult;
 
-@SpringBootTest
+@SpringBootTest(properties = {
+        "app.file.allowed-content-types=application/pdf,model/stl,text/plain",
+        "app.file.max-files-per-order=3"
+})
 @AutoConfigureMockMvc
 class FileAccessTests {
 
@@ -249,6 +252,50 @@ class FileAccessTests {
     }
 
     @Test
+    void uploadTokenAndMultipartRejectDisallowedContentTypes() throws Exception {
+        String uploadTokenBody = uploadTokenBody("case.exe", "application/x-msdownload", 1024L);
+        mockMvc.perform(post("/files/upload-token")
+                        .header("X-Bootstrap-Role", "DOCTOR")
+                        .header("X-Bootstrap-User-Id", DOCTOR_USER_ID)
+                        .header("X-Bootstrap-Clinic-Id", clinicId)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(uploadTokenBody))
+                .andExpect(status().isBadRequest());
+
+        String multipartBody = multipartInitiateBody("case.exe", "application/x-msdownload", 11L * 1024L * 1024L);
+        mockMvc.perform(post("/files/multipart/initiate")
+                        .header("X-Bootstrap-Role", "DOCTOR")
+                        .header("X-Bootstrap-User-Id", DOCTOR_USER_ID)
+                        .header("X-Bootstrap-Clinic-Id", clinicId)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(multipartBody))
+                .andExpect(status().isBadRequest());
+    }
+
+    @Test
+    void uploadTokenAndMultipartRejectOrdersAboveFileCountLimit() throws Exception {
+        insertCompletedFile(orderId, "DOCTOR");
+        insertCompletedFile(orderId, "DOCTOR");
+        insertCompletedFile(orderId, "DOCTOR");
+
+        mockMvc.perform(post("/files/upload-token")
+                        .header("X-Bootstrap-Role", "DOCTOR")
+                        .header("X-Bootstrap-User-Id", DOCTOR_USER_ID)
+                        .header("X-Bootstrap-Clinic-Id", clinicId)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(uploadTokenBody("extra.pdf", "application/pdf", 1024L)))
+                .andExpect(status().isBadRequest());
+
+        mockMvc.perform(post("/files/multipart/initiate")
+                        .header("X-Bootstrap-Role", "DOCTOR")
+                        .header("X-Bootstrap-User-Id", DOCTOR_USER_ID)
+                        .header("X-Bootstrap-Clinic-Id", clinicId)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(multipartInitiateBody("extra.pdf", "application/pdf", 11L * 1024L * 1024L)))
+                .andExpect(status().isBadRequest());
+    }
+
+    @Test
     void doctorCannotPreviewInternalOrOtherClinicFilesAndDenialsAreAudited() throws Exception {
         long internalFileId = insertCompletedFile(orderId, "INTERNAL");
 
@@ -272,16 +319,7 @@ class FileAccessTests {
     }
 
     private UploadToken requestUploadToken(long fileSize) throws Exception {
-        String body = """
-                {
-                  "order_id": %d,
-                  "source_type": "ORDER_ATTACHMENT",
-                  "visibility": "DOCTOR",
-                  "original_filename": "case.pdf",
-                  "content_type": "application/pdf",
-                  "file_size": %d
-                }
-                """.formatted(orderId, fileSize);
+        String body = uploadTokenBody("case.pdf", "application/pdf", fileSize);
         MvcResult result = mockMvc.perform(post("/files/upload-token")
                         .header("X-Bootstrap-Role", "DOCTOR")
                         .header("X-Bootstrap-User-Id", DOCTOR_USER_ID)
@@ -309,17 +347,7 @@ class FileAccessTests {
             long fileSize,
             String originalFilename) throws Exception {
         int expectedPartCount = Math.toIntExact((fileSize + 5242879L) / 5242880L);
-        String body = """
-                {
-                  "order_id": %d,
-                  "source_type": "ORDER_ATTACHMENT",
-                  "visibility": "DOCTOR",
-                  "original_filename": "%s",
-                  "content_type": "application/pdf",
-                  "file_size": %d,
-                  "part_size": 5242880
-                }
-                """.formatted(orderId, originalFilename, fileSize);
+        String body = multipartInitiateBody(originalFilename, "application/pdf", fileSize);
         MvcResult result = mockMvc.perform(post("/files/multipart/initiate")
                         .header("X-Bootstrap-Role", "DOCTOR")
                         .header("X-Bootstrap-User-Id", userId)
@@ -336,6 +364,33 @@ class FileAccessTests {
                 .andReturn();
         JsonNode data = objectMapper.readTree(result.getResponse().getContentAsString()).path("data");
         return new MultipartUploadInfo(data.path("file_id").asLong(), data.path("upload_id").asText());
+    }
+
+    private String uploadTokenBody(String originalFilename, String contentType, long fileSize) {
+        return """
+                {
+                  "order_id": %d,
+                  "source_type": "ORDER_ATTACHMENT",
+                  "visibility": "DOCTOR",
+                  "original_filename": "%s",
+                  "content_type": "%s",
+                  "file_size": %d
+                }
+                """.formatted(orderId, originalFilename, contentType, fileSize);
+    }
+
+    private String multipartInitiateBody(String originalFilename, String contentType, long fileSize) {
+        return """
+                {
+                  "order_id": %d,
+                  "source_type": "ORDER_ATTACHMENT",
+                  "visibility": "DOCTOR",
+                  "original_filename": "%s",
+                  "content_type": "%s",
+                  "file_size": %d,
+                  "part_size": 5242880
+                }
+                """.formatted(orderId, originalFilename, contentType, fileSize);
     }
 
     private String requestPartUrl(long fileId, String uploadId, int partNumber) throws Exception {

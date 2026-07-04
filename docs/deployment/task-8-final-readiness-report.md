@@ -49,3 +49,7 @@ Task 8 仍为 `in-progress / NOT_READY`。当前代码和文档已经具备多�
 ## 9D.74 绩效标准工时与完整公式口径第一段
 
 9D.74 已补 `performance_formula_version=PHASE_ONE_DEFAULT_V1`、标准工时覆盖率和默认绩效分；该记录只代表开发默认公式第一段，不代表客户 / PM 已确认正式绩效口径，也不作为工资或奖惩结算依据。Task 8 仍保持 NOT_READY。
+
+## 9D.67 文件上传限制与 bucket 隔离第一段
+
+9D.67 已补文件上传大小、类型、数量限制和 bucket 隔离配置说明；仍缺真实弱网/跨设备上传完整验收和生产 bucket 实际联调。Task 8 仍保持 NOT_READY。

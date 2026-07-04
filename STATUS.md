@@ -407,3 +407,7 @@ Task 8 已完成 8A readiness audit、8B OpenAPI 二次契约、9A/9B/9C 身份�
 ## 9D.74 绩效标准工时与完整公式口径第一段
 
 本轮已完成 9D.74 绩效标准工时与完整公式口径第一段：`/performance` 新增 `performance_formula_version=PHASE_ONE_DEFAULT_V1`、标准工时覆盖率和默认绩效分；该公式不作为工资、奖金或奖惩结算依据。Task 8 仍保持 NOT_READY。
+
+## 9D.67 文件上传限制与 bucket 隔离第一段
+
+本轮已完成 9D.67 文件上传限制与 bucket 隔离第一段：服务端在单文件预签名和 Multipart 初始化前校验大小、类型和单订单文件数量；前端医生端选择附件时做提示；配置新增 `FILE_ALLOWED_CONTENT_TYPES` 和 `FILE_MAX_FILES_PER_ORDER`。Task 8 仍保持 NOT_READY。

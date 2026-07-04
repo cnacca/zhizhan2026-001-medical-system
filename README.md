@@ -1394,3 +1394,16 @@ npm run check:task9d74
 ```
 
 默认公式只用于一期统计验收，不作为工资结算结果。Task 8 仍保持 NOT_READY。
+
+## 9D.67 文件上传限制与 bucket 隔离第一段
+
+新增配置：`FILE_ALLOWED_CONTENT_TYPES`、`FILE_MAX_FILES_PER_ORDER`，并继续使用 `MINIO_BUCKET` 区分环境。
+
+检查命令：
+
+```bash
+npm run check:task9d67
+./scripts/with-jdk21.sh mvn -f backend/pom.xml -pl platform-server -Dtest=FileAccessTests test
+```
+
+仓库只保留示例值，不提交真实 MinIO 凭据。Task 8 仍保持 NOT_READY。

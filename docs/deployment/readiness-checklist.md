@@ -122,3 +122,7 @@ git diff --check
 ## 9D.74 绩效标准工时与完整公式口径第一段
 
 9D.74 绩效标准工时与完整公式口径第一段已补；仍需客户 / PM 确认 CP-004、标准工时配置、申诉、导出和工资发放边界。Task 8 仍保持 NOT_READY。
+
+## 9D.67 文件上传限制与 bucket 隔离第一段
+
+9D.67 文件上传限制与 bucket 隔离第一段已补 `FILE_ALLOWED_CONTENT_TYPES`、`FILE_MAX_FILES_PER_ORDER` 和 `MINIO_BUCKET` 配置说明；真实生产 bucket/凭据必须外部注入。Task 8 仍保持 NOT_READY。

@@ -57,9 +57,7 @@ public class FileResourceService {
     }
 
     public UploadTokenResponse createUploadToken(UploadTokenRequest request, BootstrapIdentity identity) {
-        if (request.fileSize() > properties.maxFileSizeBytes()) {
-            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "file exceeds current size limit");
-        }
+        validateUploadLimits(request.orderId(), request.contentType(), request.fileSize());
         OrderScope orderScope = loadOrderScope(request.orderId(), identity, "identity cannot upload to this order");
         requireUploadScope(orderScope, normalizeVisibility(request.visibility()), identity);
         ensureBucket();
@@ -102,9 +100,7 @@ public class FileResourceService {
     }
 
     public MultipartInitiateResponse initiateMultipartUpload(MultipartInitiateRequest request, BootstrapIdentity identity) {
-        if (request.fileSize() > properties.maxFileSizeBytes()) {
-            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "file exceeds current size limit");
-        }
+        validateUploadLimits(request.orderId(), request.contentType(), request.fileSize());
         OrderScope orderScope = loadOrderScope(request.orderId(), identity, "identity cannot upload to this order");
         String visibility = normalizeVisibility(request.visibility());
         requireUploadScope(orderScope, visibility, identity);
@@ -512,6 +508,41 @@ public class FileResourceService {
         if (!accessControlService.doctorCanAccessOrder(identity, orderScope.doctorUserId(), orderScope.clinicId())) {
             throw new ResponseStatusException(HttpStatus.FORBIDDEN, "doctor cannot upload to this order");
         }
+    }
+
+    private void validateUploadLimits(long orderId, String contentType, long fileSize) {
+        if (fileSize > properties.maxFileSizeBytes()) {
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "file exceeds current size limit");
+        }
+        if (!isAllowedContentType(contentType)) {
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "file content type is not allowed");
+        }
+        if (properties.maxFilesPerOrder() > 0 && activeFileCount(orderId) >= properties.maxFilesPerOrder()) {
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "order file count exceeds current limit");
+        }
+    }
+
+    private boolean isAllowedContentType(String contentType) {
+        if (properties.allowedContentTypes() == null || properties.allowedContentTypes().isEmpty()) {
+            return true;
+        }
+        String normalized = contentType == null ? "" : contentType.trim().toLowerCase(Locale.ROOT);
+        return properties.allowedContentTypes().stream()
+                .map(value -> value.trim().toLowerCase(Locale.ROOT))
+                .anyMatch(normalized::equals);
+    }
+
+    private long activeFileCount(long orderId) {
+        return jdbcClient.sql("""
+                        SELECT COUNT(*)
+                        FROM file_resource
+                        WHERE order_id = :orderId
+                          AND status = 'ACTIVE'
+                          AND upload_status <> 'ABORTED'
+                        """)
+                .param("orderId", orderId)
+                .query(Long.class)
+                .single();
     }
 
     private void requireCompleted(FileRow file, String action, BootstrapIdentity identity) {

@@ -4517,3 +4517,13 @@ npm run check:openapi
 完成记录：新增 `performance_formula_version`、`standard_coverage_rate`、`performance_score`、目标后端测试、前端只读展示和 `npm run check:task9d74`。
 
 未完成原因：CP-004 未客户 / PM 书面确认；本轮不做工资结算、申诉、导出或完整 HR。Task 8 仍保持 NOT_READY。
+
+## 任务 9D.67：文件上传限制与 bucket 隔离第一段
+
+状态：completed-first-increment。
+
+目标：补文件大小、类型、数量限制和测试/正式 bucket 隔离说明。
+
+完成记录：新增后端限制校验、目标测试、医生端选择提示、OpenAPI、配置示例和 `npm run check:task9d67`。
+
+未完成原因：真实弱网限速/断网、完整跨设备续传和生产 bucket/凭据实际联调仍未完成。Task 8 仍保持 NOT_READY。
