@@ -2249,6 +2249,32 @@
             "任务 9D.57",
             "check:task9d57"
           ]
+        },
+        {
+          "id": "task-9d58-customer-collaboration-required-text",
+          "type": "required_text",
+          "paths": [
+            "frontend/src/App.vue",
+            "frontend/src/styles.css",
+            "docs/acceptance/task-8-acceptance-matrix.md",
+            "docs/deployment/readiness-checklist.md",
+            "DECISIONS.md",
+            "STATUS.md",
+            "tasks/README.md",
+            "README.md",
+            "scripts/check-task-9d58-customer-collaboration.mjs",
+            "package.json"
+          ],
+          "patterns": [
+            "isCustomerCollaborationRoute",
+            "loadCustomerCollaborationPage",
+            "customer-collaboration-panel",
+            "customer-collaboration-message-review",
+            "/messages/pending-review",
+            "/messages/${message.msg_id}/review",
+            "任务 9D.58",
+            "check:task9d58"
+          ]
         }
       ]
     }

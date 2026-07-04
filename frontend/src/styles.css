@@ -803,6 +803,45 @@ body {
   background: var(--portal-accent-soft);
 }
 
+.customer-collaboration-panel {
+  display: grid;
+  gap: 14px;
+}
+
+.customer-collaboration-grid {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+  gap: 14px;
+  align-items: start;
+}
+
+.customer-collaboration-card {
+  display: grid;
+  gap: 12px;
+  min-width: 0;
+  padding: 14px;
+  border: 1px solid #e5e7eb;
+  border-radius: 8px;
+  background: #ffffff;
+}
+
+.customer-collaboration-message-review {
+  cursor: pointer;
+}
+
+.customer-collaboration-message-review.selected {
+  border-color: var(--portal-accent);
+  background: var(--portal-accent-soft);
+}
+
+.customer-collaboration-review-box {
+  background: #f8fafc;
+}
+
+.compact-actions {
+  margin-top: 0;
+}
+
 .field-grid {
   display: grid;
   grid-template-columns: repeat(2, minmax(0, 1fr));
@@ -1222,6 +1261,7 @@ p {
   }
 
   .doctor-order-toolbar,
+  .customer-collaboration-grid,
   .doctor-order-workspace,
   .internal-order-workspace,
   .production-review-workspace,

@@ -708,6 +708,16 @@ const csReviewActionLoading = ref(false)
 const csDesignDraftFileIds = ref('')
 const csDesignDraftUploadNote = ref('')
 const csDesignDraftResult = ref('')
+const customerCollaborationPendingMessages = ref<MessageItem[]>([])
+const customerCollaborationOrderMessages = ref<MessageItem[]>([])
+const customerCollaborationOrderId = ref('')
+const selectedCustomerCollaborationMessage = ref<MessageItem | null>(null)
+const customerCollaborationReviewAction = ref<'APPROVE' | 'REJECT'>('APPROVE')
+const customerCollaborationReviewNote = ref('')
+const customerCollaborationLoading = ref(false)
+const customerCollaborationActionLoading = ref(false)
+const customerCollaborationError = ref('')
+const customerCollaborationResult = ref('')
 const productionReviewOrders = ref<InternalOrderItem[]>([])
 const selectedProductionReviewOrder = ref<InternalOrderItem | null>(null)
 const productionReviewKeyword = ref('')
@@ -982,10 +992,9 @@ const displayNavigationConfig: Record<PortalTone, NavigationGroup[]> = {
           description: '处理医生沟通、生产沟通和待审核消息队列。',
           icon: 'chat',
           routePath: '/collaboration',
-          placeholder: true,
           children: [
-            { id: 'cs-order-messages', title: '订单消息', description: '查看订单内医生、客服、生产沟通。', icon: 'chat', routePath: '/collaboration', placeholder: true },
-            { id: 'cs-message-review', title: '待审核消息', description: '审核生产端发给医生的消息。', icon: 'audit', routePath: '/collaboration', placeholder: true }
+            { id: 'cs-order-messages', title: '订单消息', description: '查看订单内医生、客服、生产沟通。', icon: 'chat', routePath: '/collaboration' },
+            { id: 'cs-message-review', title: '待审核消息', description: '审核生产端发给医生的消息。', icon: 'audit', routePath: '/collaboration' }
           ]
         },
         { id: 'cs-customers', title: '客户管理', description: '维护诊所档案、联系人、历史订单和客户偏好。', icon: 'customer', routePath: '/customers', placeholder: true },
@@ -1718,6 +1727,7 @@ const accountProfile = computed<AccountProfile>(() => {
 })
 const isDoctorOrderRoute = computed(() => activeRoute.value === '/doctor/orders')
 const isInternalOrdersRoute = computed(() => activeRoute.value === '/orders/internal')
+const isCustomerCollaborationRoute = computed(() => activeRoute.value === '/collaboration')
 const isProductionReviewRoute = computed(() => activeRoute.value === '/workflow/review')
 const isProcessInstanceRoute = computed(() => activeRoute.value === '/workflow/process-instance')
 const isWorkflowAssignRoute = computed(() => activeRoute.value === '/workflow/assign')
@@ -1784,6 +1794,9 @@ const routeChrome = computed<RouteChrome>(() => {
   }
   if (route === '/orders/internal') {
     return { eyebrow: '客服端 / 审核与沟通', title: '客服初审', description: '核对医生提交资料，整理生产备注，并作为医生与工厂之间的审核中枢。', icon: 'support_agent' }
+  }
+  if (route === '/collaboration') {
+    return { eyebrow: '客服端 / 沟通中心', title: '客服协同台', description: '集中处理订单消息上下文、生产发给医生的待审核消息和客服驳回说明。', icon: 'forum' }
   }
   if (route === '/workflow/review') {
     return { eyebrow: '生产端 / 审核入口', title: '生产审核', description: '选择工序链与入口路线，通过后生成订单工序。', icon: 'fact_check' }
@@ -2411,6 +2424,8 @@ async function loadActiveRouteData() {
     await loadDoctorOrders()
   } else if (activeRoute.value === '/orders/internal') {
     await loadInternalOrders()
+  } else if (activeRoute.value === '/collaboration') {
+    await loadCustomerCollaborationPage()
   } else if (activeRoute.value === '/workflow/review') {
     await loadProductionReviewPage()
   } else if (activeRoute.value === '/workflow/process-instance' || activeRoute.value === '/workflow/assign') {
@@ -3501,6 +3516,97 @@ async function uploadInternalDesignDraft() {
     internalOrderError.value = error instanceof Error ? error.message : '设计稿上传失败'
   } finally {
     csReviewActionLoading.value = false
+  }
+}
+
+async function loadCustomerCollaborationPage() {
+  if (!token.value) {
+    return
+  }
+  customerCollaborationResult.value = ''
+  await loadCustomerCollaborationPendingMessages()
+  if (customerCollaborationOrderId.value.trim()) {
+    await loadCustomerCollaborationOrderMessages()
+  }
+}
+
+async function loadCustomerCollaborationPendingMessages() {
+  if (!token.value) {
+    return
+  }
+  customerCollaborationLoading.value = true
+  customerCollaborationError.value = ''
+  try {
+    const payload = await apiFetch<MessageItem[]>('/messages/pending-review')
+    customerCollaborationPendingMessages.value = payload.data
+    const selectedStillPending = selectedCustomerCollaborationMessage.value
+      ? payload.data.some((item) => item.msg_id === selectedCustomerCollaborationMessage.value?.msg_id)
+      : false
+    if (!selectedStillPending) {
+      selectedCustomerCollaborationMessage.value = payload.data[0] ?? null
+      if (selectedCustomerCollaborationMessage.value && !customerCollaborationOrderId.value.trim()) {
+        customerCollaborationOrderId.value = String(selectedCustomerCollaborationMessage.value.order_id)
+      }
+    }
+  } catch (error) {
+    customerCollaborationError.value = error instanceof Error ? error.message : '待审核消息加载失败'
+  } finally {
+    customerCollaborationLoading.value = false
+  }
+}
+
+async function loadCustomerCollaborationOrderMessages() {
+  const orderIdText = customerCollaborationOrderId.value.trim()
+  const orderId = Number(orderIdText)
+  if (!orderIdText || Number.isNaN(orderId) || orderId <= 0) {
+    customerCollaborationError.value = '请填写有效订单 ID'
+    return
+  }
+  customerCollaborationLoading.value = true
+  customerCollaborationError.value = ''
+  try {
+    const payload = await apiFetch<MessageItem[]>(`/orders/${orderId}/messages`)
+    customerCollaborationOrderMessages.value = payload.data
+  } catch (error) {
+    customerCollaborationError.value = error instanceof Error ? error.message : '订单消息上下文加载失败'
+  } finally {
+    customerCollaborationLoading.value = false
+  }
+}
+
+async function selectCustomerCollaborationMessage(message: MessageItem) {
+  selectedCustomerCollaborationMessage.value = message
+  customerCollaborationOrderId.value = String(message.order_id)
+  customerCollaborationReviewAction.value = 'APPROVE'
+  customerCollaborationReviewNote.value = ''
+  await loadCustomerCollaborationOrderMessages()
+}
+
+async function reviewCustomerCollaborationMessage(message: MessageItem | null = selectedCustomerCollaborationMessage.value) {
+  if (!message) {
+    return
+  }
+  customerCollaborationActionLoading.value = true
+  customerCollaborationError.value = ''
+  customerCollaborationResult.value = ''
+  try {
+    const payload = await apiFetch<MessageItem>(`/messages/${message.msg_id}/review`, {
+      method: 'POST',
+      body: JSON.stringify({
+        action: customerCollaborationReviewAction.value,
+        review_note: customerCollaborationReviewNote.value.trim() || null
+      })
+    })
+    customerCollaborationResult.value = `消息 #${payload.data.msg_id} 已${customerCollaborationReviewAction.value === 'APPROVE' ? '审核通过' : '驳回'}`
+    customerCollaborationReviewNote.value = ''
+    await loadCustomerCollaborationPendingMessages()
+    if (customerCollaborationOrderId.value.trim()) {
+      await loadCustomerCollaborationOrderMessages()
+    }
+  } catch (error) {
+    customerCollaborationError.value = error instanceof Error ? error.message : '消息审核失败'
+  } finally {
+    customerCollaborationActionLoading.value = false
   }
 }
 
@@ -6689,6 +6795,148 @@ onBeforeUnmount(() => {
               <span>排序 {{ item.sort_order }}</span>
             </article>
           </div>
+        </section>
+
+        <section v-else-if="isCustomerCollaborationRoute" class="panel route-panel customer-collaboration-panel">
+          <div class="route-heading">
+            <h2>客服协同台</h2>
+            <el-tag round>{{ customerCollaborationPendingMessages.length }} 条待审核消息</el-tag>
+          </div>
+
+          <div class="doctor-order-toolbar">
+            <el-input
+              v-model="customerCollaborationOrderId"
+              data-testid="customer-collaboration-order-id"
+              placeholder="输入订单 ID 查看订单消息上下文"
+            />
+            <div class="inline-actions compact-actions">
+              <el-button :loading="customerCollaborationLoading" @click="loadCustomerCollaborationOrderMessages">
+                查询订单消息
+              </el-button>
+              <el-button type="primary" :loading="customerCollaborationLoading" @click="loadCustomerCollaborationPage">
+                刷新协同台
+              </el-button>
+            </div>
+          </div>
+
+          <el-alert
+            v-if="customerCollaborationError"
+            :title="customerCollaborationError"
+            type="error"
+            show-icon
+            :closable="false"
+          />
+          <el-alert
+            v-if="customerCollaborationResult"
+            :title="customerCollaborationResult"
+            type="success"
+            show-icon
+            :closable="false"
+          />
+
+          <div class="customer-collaboration-grid">
+            <section class="customer-collaboration-card">
+              <div class="subheading-row">
+                <h3>待审核消息</h3>
+                <el-tag type="warning" round>{{ customerCollaborationPendingMessages.length }}</el-tag>
+              </div>
+              <div v-if="customerCollaborationPendingMessages.length === 0" class="empty-state">
+                暂无待审核消息
+              </div>
+              <div v-else class="compact-list">
+                <article
+                  v-for="message in customerCollaborationPendingMessages"
+                  :key="message.msg_id"
+                  class="customer-collaboration-message-review"
+                  :class="{ selected: selectedCustomerCollaborationMessage?.msg_id === message.msg_id }"
+                  @click="selectCustomerCollaborationMessage(message)"
+                >
+                  <strong>#{{ message.msg_id }} / 订单 {{ message.order_id }}</strong>
+                  <p>{{ message.content }}</p>
+                  <span>{{ roleLabel(message.sender_role) }} / {{ statusLabel(message.review_status) }} / {{ message.visible_to }}</span>
+                  <div class="inline-actions">
+                    <el-button
+                      size="small"
+                      type="primary"
+                      :loading="customerCollaborationActionLoading"
+                      @click.stop="customerCollaborationReviewAction = 'APPROVE'; reviewCustomerCollaborationMessage(message)"
+                    >
+                      通过
+                    </el-button>
+                    <el-button
+                      size="small"
+                      type="danger"
+                      plain
+                      :loading="customerCollaborationActionLoading"
+                      @click.stop="customerCollaborationReviewAction = 'REJECT'; reviewCustomerCollaborationMessage(message)"
+                    >
+                      驳回
+                    </el-button>
+                  </div>
+                </article>
+              </div>
+            </section>
+
+            <section class="customer-collaboration-card">
+              <div class="subheading-row">
+                <h3>订单消息上下文</h3>
+                <el-tag type="info" round>{{ customerCollaborationOrderMessages.length }}</el-tag>
+              </div>
+              <div v-if="customerCollaborationOrderMessages.length === 0" class="empty-state">
+                输入订单 ID 后查看医生、客服、生产消息上下文
+              </div>
+              <div v-else class="compact-list">
+                <article
+                  v-for="message in customerCollaborationOrderMessages"
+                  :key="message.msg_id"
+                >
+                  <strong>{{ roleLabel(message.sender_role) }} / {{ statusLabel(message.review_status) }}</strong>
+                  <p>{{ message.content }}</p>
+                  <span>#{{ message.msg_id }} / {{ message.visible_to }}</span>
+                </article>
+              </div>
+            </section>
+          </div>
+
+          <section class="customer-collaboration-card customer-collaboration-review-box">
+            <div class="subheading-row">
+              <h3>消息审核</h3>
+              <el-tag v-if="selectedCustomerCollaborationMessage" round>
+                #{{ selectedCustomerCollaborationMessage.msg_id }}
+              </el-tag>
+            </div>
+            <div v-if="selectedCustomerCollaborationMessage" class="check-form">
+              <label>
+                审核动作
+                <el-radio-group v-model="customerCollaborationReviewAction">
+                  <el-radio-button label="APPROVE">通过</el-radio-button>
+                  <el-radio-button label="REJECT">驳回</el-radio-button>
+                </el-radio-group>
+              </label>
+              <label>
+                审核说明
+                <el-input
+                  v-model="customerCollaborationReviewNote"
+                  type="textarea"
+                  :rows="3"
+                  placeholder="驳回时填写给内部留痕的原因"
+                />
+              </label>
+              <div class="inline-actions">
+                <el-button
+                  type="primary"
+                  :loading="customerCollaborationActionLoading"
+                  data-testid="customer-collaboration-message-review"
+                  @click="reviewCustomerCollaborationMessage(selectedCustomerCollaborationMessage)"
+                >
+                  提交审核
+                </el-button>
+              </div>
+            </div>
+            <div v-else class="empty-state">
+              暂无选中的待审核消息
+            </div>
+          </section>
         </section>
 
         <section v-else-if="activeRoute === '/notifications'" class="panel route-panel notification-panel">

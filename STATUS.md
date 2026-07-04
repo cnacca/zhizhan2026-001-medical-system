@@ -13,6 +13,7 @@
 - Active goal: `goals/GOAL-001-scope-clarified-for.md`
 - Active task: `tasks/README.md` 的「任务 8：专项验收矩阵与上线准备」，状态为 `next/t2-customer-service-collaboration`
 - 当前总目标已从“继续推进 9D 小增量”收束为“完成一期交付”；9D 任务只作为补齐一期上线缺口的执行单元。前端匹配一期范围见 `docs/acceptance/phase-one-frontend-alignment.md`；后续按端口拆一期任务、处理已完成和超一期入口时使用 `docs/acceptance/phase-one-frontend-task-scope.md`。
+- 本轮 9D.58 客服协同闭环第一增量已完成：客服端 `/collaboration` 从占位入口升级为客服协同台，复用既有消息审核接口展示待审核消息、按订单 ID 查看订单消息上下文，并支持通过/驳回生产发给医生的消息；本轮不新增后端 schema、不做完整 CRM、物流平台 API、AI 自动审核/发送或复杂客服工单。Task 8 总体仍保持 `NOT READY`。
 - 本轮 9D.57 返工影响图形化第一增量已完成：生产端返工终检页新增只读返工影响图，把既有 `target_node_instance_id`、`target_process_name`、`impacted_node_count` 和 `impacted_node_instance_ids` 转成可读的“返工目标 -> 后续重置节点”路径；已用浏览器真实点击验证生产端从“看返工”进入返工终检可见影响图，医生端不可见该内部图。本轮不新增后端接口、不做复杂甘特、拖拽排产、重新派工或医生端返工可见。Task 8 总体仍保持 `NOT READY`。
 - 本轮 9D.56 终检专用角色 / 附件第一增量已完成：新增 `final-inspection:manage` 专用权限、`final_inspection_report_file` 绑定表和终检报告附件 `attachment_file_ids`；终检报告生成只允许具备专用权限的内部账号，附件必须是同订单、已完成上传、`INTERNAL` 可见文件，医生端不能读取终检报告或内部附件预览 URL。Task 8 总体仍保持 `NOT READY`。
 - 9D.55 开源底座复用清单与返工字典后台维护第一增量已完成：新增 `docs/development/open-source-foundation-reuse-gap-list.md`，按 RuoYi-Vue-Pro / 若依 Pro 的字典/CRUD/菜单/权限范式，把返工原因和责任类型从后端固定字典推进到 ADMIN 后台可维护、可停用的数据库字典。
@@ -63,6 +64,7 @@
 - 9D.54 已补生产端奖惩管理汇总后端适配第一增量：新增 `ProductionRewardPenaltySummaryResponse`、`/production/reward-penalty/summary` 和 Flyway `V26__production_reward_penalty_foundation.sql`，按奖惩记录事实表汇总奖励、扣罚、待审批、已通过、已驳回、已生效、关联订单/工序/员工和本月金额；前端生产端奖惩管理接入真实汇总，医生端访问该内部生产接口返回 403。
 - 9D.55 已补开源底座复用清单与返工字典后台维护第一增量：新增 `rework_dictionary_item`、`rework:dictionary:manage`、`/system/rework-dictionaries` 和 `/reworks/dictionaries/items` 管理接口；ADMIN 可新增、编辑、停用返工原因/责任类型，关闭返工只接受 ACTIVE 字典项，医生端不能管理内部返工字典。
 - 9D.57 已补返工影响图形化第一增量：在 `/rework-final` 页面把返工目标节点和受影响后续节点渲染为只读影响图，帮助生产端理解后续工序重置关系；真实浏览器点击已覆盖生产端“看返工”进入返工终检、医生端无返工影响图；本轮不改变返工状态机、派工或医生端可见性。
+- 9D.58 已补客服协同闭环第一增量：客服端 `/collaboration` 复用 `/messages/pending-review`、`/orders/{orderId}/messages` 和 `/messages/{msgId}/review`，支持查看待审核消息、订单消息上下文并审核通过/驳回；本轮不新增后端接口、不做完整 CRM、物流平台 API 自动同步、AI 自动审核/发送或复杂客服工单。
 - 9D.56 已补终检专用角色 / 附件第一增量：新增 `final-inspection:manage`、`final_inspection_report_file`、终检报告 `attachment_file_ids` 请求/响应和前端最小 file_id 输入；终检报告生成前仍要求最后工序 `OUT/PASS`，生成报告只允许专用权限内部账号，医生端读取报告和内部附件预览均返回 403。
 - 明确项目技术方向：Vue3 + Element Plus + Spring Boot + RuoYi-Vue-Pro + MySQL + Redis + MinIO + Uppy + 后端 ai-gateway + DeepSeek。
 - 明确一期口径：9 条预定义工序链写入数据库，不做后台拖拽编辑器。
@@ -205,7 +207,7 @@
 
 项目处于任务 8 上线准备阶段：接口契约、数据库基线、状态投影、文件权限、Workflow Runtime、入检/出检、返工、工时绩效、消息、设计稿、账单物流、通知事实表和最小 AI Gateway 已完成后端 smoke 基线；OpenAPI 二次契约硬缺口已关闭；当前结论仍是“后端最小链路可回归，产品级正式上线仍 NOT READY”。
 
-Task 8 已完成 8A readiness audit、8B OpenAPI 二次契约、9A/9B/9C 身份权限与通知基线、9D.1 到 9D.25 的核心业务第一增量、9D.26 到 9D.48.2 的 AI 治理第一轮、9D.49 到 9D.54 的生产端质量/设备/物料异常/安环/成本/奖惩六类展示模块真实汇总接口第一轮适配、9D.55 返工字典后台维护第一增量、9D.56 终检专用角色 / 附件第一增量和 9D.57 返工影响图形化第一增量。任务 8 总体不标完成，后续仍需补完整 CRUD/审批/录入路径、演示种子数据、真实弱网限速/断网、完整跨设备续传、完整客服协同、账单物流闭环、绩效完整公式/周期、终检 PDF/签名/真实物流、通用 DataScope 覆盖、外部告警防重放/生产 webhook 联调、提示词后台管理、流式输出过滤、真实 key 联调、部署/操作手册等上线硬缺口。
+Task 8 已完成 8A readiness audit、8B OpenAPI 二次契约、9A/9B/9C 身份权限与通知基线、9D.1 到 9D.25 的核心业务第一增量、9D.26 到 9D.48.2 的 AI 治理第一轮、9D.49 到 9D.54 的生产端质量/设备/物料异常/安环/成本/奖惩六类展示模块真实汇总接口第一轮适配、9D.55 返工字典后台维护第一增量、9D.56 终检专用角色 / 附件第一增量、9D.57 返工影响图形化第一增量和 9D.58 客服协同闭环第一增量。任务 8 总体不标完成，后续仍需补完整 CRUD/审批/录入路径、演示种子数据、真实弱网限速/断网、完整跨设备续传、客服资料缺失提示与 AI 翻译草稿确认、账单物流闭环、绩效完整公式/周期、终检 PDF/签名/真实物流、通用 DataScope 覆盖、外部告警防重放/生产 webhook 联调、提示词后台管理、流式输出过滤、真实 key 联调、部署/操作手册等上线硬缺口。
 
 当前已上传基线停在上述 9D.10 范围：同浏览器恢复、服务端 pending 候选恢复、上传中断后恢复和 100MB+ 浏览器 smoke 已作为可追溯结果保留；返工关闭/发货拦截、责任分类、跨设备恢复 smoke、限速上传 smoke 等后续尝试没有纳入当前上传基线。
 
@@ -372,4 +374,4 @@ Task 8 已完成 8A readiness audit、8B OpenAPI 二次契约、9A/9B/9C 身份�
 
 ## 下一步
 
-下一轮唯一推荐目标：客服协同闭环第一增量。继续按一期 PRD/TRD 主链路补“客服消息/设计稿/账单物流协同”硬缺口；不做完整 CRM、物流平台 API 自动同步或 AI 自动审核/发送。Task 8 总体仍保持 `NOT_READY`，直到真实弱网/跨设备续传、完整客服协同、账单物流闭环、绩效完整公式/周期/申诉/标准工时配置、终检 PDF/签名、AI 治理闭环和部署交付材料补齐。
+下一轮唯一推荐目标：客服协同闭环第二增量，优先把资料缺失提示和 AI 翻译草稿确认嵌入客服初审/协同台，形成“客服确认后写入生产指令”的最小闭环；不做完整 CRM、物流平台 API 自动同步或 AI 自动审核/发送。Task 8 总体仍保持 `NOT_READY`，直到真实弱网/跨设备续传、设计稿预览 URL 聚合、账单物流闭环、绩效完整公式/周期/申诉/标准工时配置、终检 PDF/签名、AI 治理闭环和部署交付材料补齐。
