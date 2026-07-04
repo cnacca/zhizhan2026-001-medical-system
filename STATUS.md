@@ -395,3 +395,7 @@ Task 8 已完成 8A readiness audit、8B OpenAPI 二次契约、9A/9B/9C 身份�
 ## 9D.72 客户 / PM 确认项清单第一段
 
 本轮已完成 9D.72 客户 / PM 确认项清单第一段：新增 `docs/acceptance/phase-one-customer-pm-confirmations.md`，追踪付款状态、动态表单、AI-5 模板、绩效公式、Multipart 限制、电子签章、物流平台、培训签收和真实环境上线边界。该清单不代表客户已经签字。Task 8 仍保持 NOT_READY。
+
+## 9D.64 客服端设计稿审核预览增强第一段
+
+本轮已完成 9D.64 客服端设计稿审核预览增强第一段：客服端内部订单设计稿页可加载设计稿版本列表，并复用既有文件预览签名 URL 获取客服设计稿预览链接。本轮不新增后端接口、不改数据库。Task 8 仍保持 NOT_READY。

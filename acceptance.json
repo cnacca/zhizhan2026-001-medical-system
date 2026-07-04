@@ -2453,6 +2453,29 @@
             "Task 8 仍保持 NOT_READY",
             "check:task9d72"
           ]
+        },
+        {
+          "id": "task-9d64-cs-design-draft-preview-required-text",
+          "type": "required_text",
+          "paths": [
+            "frontend/src/App.vue",
+            "acceptance.json",
+            "docs/acceptance/task-8-acceptance-matrix.md",
+            "docs/deployment/readiness-checklist.md",
+            "DECISIONS.md",
+            "STATUS.md",
+            "tasks/README.md",
+            "README.md",
+            "scripts/check-task-9d64-cs-design-draft-preview.mjs",
+            "package.json"
+          ],
+          "patterns": [
+            "csDesignDrafts",
+            "loadInternalDesignDrafts",
+            "客服设计稿预览链接",
+            "任务 9D.64",
+            "check:task9d64"
+          ]
         }
       ]
     }

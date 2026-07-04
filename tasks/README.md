@@ -4487,3 +4487,13 @@ npm run check:openapi
 完成记录：新增 `docs/acceptance/phase-one-customer-pm-confirmations.md` 和 `npm run check:task9d72`。
 
 未完成原因：所有确认项仍需客户 / PM 书面确认，本清单不替代签字。Task 8 仍保持 NOT_READY。
+
+## 任务 9D.64：客服端设计稿审核预览增强第一段
+
+状态：completed-first-increment。
+
+目标：客服端内部订单设计稿页展示设计稿版本并获取短时效预览链接。
+
+完成记录：新增 `csDesignDrafts`、`loadInternalDesignDrafts`、`loadCsDesignDraftPreviewUrls` 和 `npm run check:task9d64`。
+
+未完成原因：本轮不做复杂在线审稿、批注或多轮驳回/重传完整回归。Task 8 仍保持 NOT_READY。

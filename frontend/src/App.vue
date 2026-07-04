@@ -732,6 +732,8 @@ const csReviewActionLoading = ref(false)
 const csDesignDraftFileIds = ref('')
 const csDesignDraftUploadNote = ref('')
 const csDesignDraftResult = ref('')
+const csDesignDrafts = ref<DesignDraftItem[]>([])
+const csDesignDraftPreviewUrls = ref<Record<string, string>>({})
 const csBillFileId = ref('')
 const csBillResult = ref('')
 const csMissingInfoItems = ref<MissingInfoItem[]>([])
@@ -3542,6 +3544,8 @@ function selectInternalOrder(order: InternalOrderItem) {
   csDesignDraftFileIds.value = ''
   csDesignDraftUploadNote.value = ''
   csDesignDraftResult.value = ''
+  csDesignDrafts.value = []
+  csDesignDraftPreviewUrls.value = {}
   csBillFileId.value = ''
   csBillResult.value = ''
   csMissingInfoItems.value = []
@@ -3549,6 +3553,7 @@ function selectInternalOrder(order: InternalOrderItem) {
   csTranslationSourceText.value = order.production_note?.trim() || JSON.stringify(order.form_data, null, 2)
   csTranslationDraft.value = ''
   csAiResult.value = ''
+  void loadInternalDesignDrafts(order.order_id)
 }
 
 async function reviewInternalOrder(action: 'APPROVE' | 'REJECT') {
@@ -3669,9 +3674,46 @@ async function uploadInternalDesignDraft() {
     csDesignDraftResult.value = `已上传 V${payload.data.version}，文件数 ${payload.data.file_count}`
     csDesignDraftFileIds.value = ''
     csDesignDraftUploadNote.value = ''
+    await loadInternalDesignDrafts(selectedInternalOrder.value.order_id)
     await loadNotifications()
   } catch (error) {
     internalOrderError.value = error instanceof Error ? error.message : '设计稿上传失败'
+  } finally {
+    csReviewActionLoading.value = false
+  }
+}
+
+async function loadInternalDesignDrafts(orderId: number) {
+  internalOrderError.value = ''
+  try {
+    const payload = await apiFetch<DesignDraftItem[]>(`/orders/${orderId}/design-drafts`)
+    if (selectedInternalOrder.value?.order_id === orderId) {
+      csDesignDrafts.value = payload.data
+      csDesignDraftPreviewUrls.value = {}
+    }
+  } catch (error) {
+    internalOrderError.value = error instanceof Error ? error.message : '客服设计稿列表加载失败'
+  }
+}
+
+async function loadCsDesignDraftPreviewUrls(draft: DesignDraftItem) {
+  const fileIds = designDraftFileIds(draft)
+  if (fileIds.length === 0) {
+    return
+  }
+  csReviewActionLoading.value = true
+  internalOrderError.value = ''
+  try {
+    const entries = await Promise.all(fileIds.map(async (fileId) => {
+      const payload = await apiFetch<FilePreviewUrlResponse>(`/files/${fileId}/preview-url`)
+      return [designDraftPreviewKey(draft, fileId), payload.data.preview_url] as const
+    }))
+    csDesignDraftPreviewUrls.value = {
+      ...csDesignDraftPreviewUrls.value,
+      ...Object.fromEntries(entries)
+    }
+  } catch (error) {
+    internalOrderError.value = error instanceof Error ? error.message : '客服设计稿预览链接加载失败'
   } finally {
     csReviewActionLoading.value = false
   }
@@ -5256,6 +5298,48 @@ onBeforeUnmount(() => {
                       <el-tag v-if="csDesignDraftResult" data-testid="internal-design-draft-result" type="success" round>
                         {{ csDesignDraftResult }}
                       </el-tag>
+                    </div>
+                    <div class="subheading-row">
+                      <h3>客服设计稿预览链接</h3>
+                      <el-tag type="info" round>短时效授权</el-tag>
+                    </div>
+                    <div v-if="csDesignDrafts.length > 0" class="compact-list">
+                      <article v-for="draft in csDesignDrafts" :key="draft.draft_id">
+                        <strong>V{{ draft.version }} / {{ statusLabel(draft.status) }}</strong>
+                        <p>文件 ID：{{ designDraftFileIds(draft).join(', ') || '-' }}</p>
+                        <span>文件数：{{ draft.file_count ?? designDraftFileIds(draft).length }}</span>
+                        <div class="inline-actions">
+                          <el-button
+                            plain
+                            :loading="csReviewActionLoading"
+                            :disabled="designDraftFileIds(draft).length === 0"
+                            data-testid="cs-design-draft-preview-url-button"
+                            @click="loadCsDesignDraftPreviewUrls(draft)"
+                          >
+                            获取客服设计稿预览链接
+                          </el-button>
+                        </div>
+                        <div
+                          v-if="designDraftFileIds(draft).some((fileId) => csDesignDraftPreviewUrls[designDraftPreviewKey(draft, fileId)])"
+                          class="preview-link-list"
+                        >
+                          <span>客服设计稿预览链接</span>
+                          <a
+                            v-for="fileId in designDraftFileIds(draft)"
+                            v-show="csDesignDraftPreviewUrls[designDraftPreviewKey(draft, fileId)]"
+                            :key="fileId"
+                            :href="csDesignDraftPreviewUrls[designDraftPreviewKey(draft, fileId)]"
+                            data-testid="cs-design-draft-preview-link"
+                            target="_blank"
+                            rel="noreferrer"
+                          >
+                            文件 {{ fileId }}
+                          </a>
+                        </div>
+                      </article>
+                    </div>
+                    <div v-else class="empty-state">
+                      暂无待预览设计稿
                     </div>
                   </div>
                 </el-tab-pane>

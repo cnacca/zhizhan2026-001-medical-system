@@ -110,3 +110,7 @@ git diff --check
 ## 9D.72 客户 / PM 确认项清单第一段
 
 9D.72 客户 / PM 确认项清单第一段已补 `docs/acceptance/phase-one-customer-pm-confirmations.md`；该文档只是待确认清单，不代表客户 / PM 已签字。Task 8 仍保持 NOT_READY。
+
+## 9D.64 客服端设计稿审核预览增强第一段
+
+客服端设计稿审核预览增强第一段已补：客服可在内部订单设计稿页查看版本并获取短时效预览链接。Task 8 仍保持 NOT_READY。

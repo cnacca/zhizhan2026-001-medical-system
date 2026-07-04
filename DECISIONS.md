@@ -1862,3 +1862,13 @@
 - 将付款状态口径、动态表单最终字段、AI-5 生产备注模板、标准工时与绩效公式口径、Multipart 上传限制、真实电子签章 / 终检报告模板、真实物流平台 / 运单同步、客户培训与签收、真实环境上线验收边界统一纳入 `docs/acceptance/phase-one-customer-pm-confirmations.md`。
 - 开发侧可以记录默认方案，但不能把默认方案当成客户已确认。
 - 9D.72 不替代客户签字，不关闭 Task 8。Task 8 仍保持 `NOT_READY`。
+
+## D-115 任务 9D.64 客服端设计稿审核复用文件签名 URL 预览
+
+状态：已确认并执行。
+
+决策：
+
+- 9D.64 不新增后端接口、不新增数据库字段、不新增 OpenAPI 契约，直接复用既有 `GET /orders/{orderId}/design-drafts` 和 `GET /files/{fileId}/preview-url`。
+- 客服初审 / 内部订单设计稿页在选中订单后加载设计稿版本列表，客服可按设计稿文件 ID 获取短时效授权预览链接。
+- Task 8 仍保持 `NOT_READY`。

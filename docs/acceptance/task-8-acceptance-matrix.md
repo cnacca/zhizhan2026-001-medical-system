@@ -103,3 +103,7 @@
 ## 9D.72 客户 / PM 确认项清单第一段
 
 9D.72 已新增 `docs/acceptance/phase-one-customer-pm-confirmations.md`，追踪客户 / PM 确认项；当前只是清单，不代表签字完成。Task 8 仍保持 NOT_READY。
+
+## 9D.64 客服端设计稿审核预览增强第一段
+
+9D.64 已补客服端设计稿版本列表和客服设计稿预览链接，复用既有文件签名 URL 权限边界。Task 8 仍保持 NOT_READY。
