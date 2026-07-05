@@ -36,7 +36,7 @@
 
 ## 角色分工
 
-| 角色 | 推荐模型 | 职责 | 是否可写文件 |
+| 角色 | 指定模型 | 职责 | 是否可写文件 |
 | --- | --- | --- | --- |
 | Chief 主 agent | `gpt-5.5` | 读项目状态、选唯一下一步、拆任务、审 diff、最终验收、决定是否停下来问用户 | 可以 |
 | Context Scout | `gpt-5.3-codex-spark` | 只读代码和文档，找影响面、文件路径、测试入口、风险点 | 不可以 |
@@ -44,6 +44,31 @@
 | Frontend Worker | `gpt-5.4-mini` | 只改指定 Vue、CSS、前端检查脚本或 smoke 脚本 | 可以 |
 | Docs Worker | `gpt-5.4-mini` | 起草 README、STATUS、tasks、OpenAPI、acceptance、readiness 更新 | 可以，但只改指定文档 |
 | Verifier | `gpt-5.4` | 跑验证命令、读失败日志、总结失败原因和下一步证据 | 默认不改 |
+
+## 子 Agent 模型硬性规则
+
+创建任何子 agent 时，Chief 必须显式指定 `model`，不得让子 agent 默认继承 Chief 的 `gpt-5.5`。
+
+硬性要求：
+
+- Context Scout 必须显式指定 `gpt-5.3-codex-spark`。
+- Frontend Worker 和 Docs Worker 默认必须显式指定 `gpt-5.4-mini`。
+- TDD Worker 默认显式指定 `gpt-5.4-mini`；涉及复杂后端、权限、DataScope、数据库迁移、AI 安全或 OpenAPI 契约时升级为 `gpt-5.4`。
+- Verifier 必须显式指定 `gpt-5.4`。
+- 只有 Chief 保持 `gpt-5.5`；除非用户明确授权，子 agent 不使用 `gpt-5.5`。
+
+如果当前环境或工具不支持给子 agent 显式指定模型，Chief 必须停止创建子 agent，改为单 agent 顺序执行或先向用户说明原因并等待确认。
+
+每次创建子 agent 前，Chief 必须在任务卡或工作日志中写明：
+
+```text
+子 agent 名称：
+角色：
+指定模型：
+是否只读：
+文件 owner：
+禁止事项：
+```
 
 ## 默认执行流程
 
@@ -73,6 +98,7 @@
 非目标：
 涉及文件：
 子 agent 分工：
+子 agent 指定模型：
 验收命令：
 停止条件：
 文档回写范围：
@@ -188,6 +214,8 @@ Codex 可以连续推进，但必须受控。
 - 需要新增依赖。
 - 需要改数据库结构。
 - 测试连续失败两次。
+- 当前工具无法为子 agent 显式指定模型。
+- 子 agent 被创建为默认继承 Chief 的 `gpt-5.5`，且用户未明确授权。
 - 需要提交、push 或 PR。
 - 涉及安全、权限、生产配置、真实密钥。
 - 子 agent 结果互相冲突。
@@ -271,19 +299,19 @@ diff 摘要：
 日常默认：
 
 ```text
-Chief + 1 个低成本 Scout / Worker
+Chief(gpt-5.5) + 1 个低成本 Scout(gpt-5.3-codex-spark) / Worker(gpt-5.4-mini)
 ```
 
 中等任务：
 
 ```text
-Chief + 2-3 个子 agent
+Chief(gpt-5.5) + 2-3 个显式指定模型的子 agent
 ```
 
 大任务或客户验收冲刺：
 
 ```text
-多 worktree + 多窗口 + Chief 最终合并
+多 worktree + 多窗口 + Chief(gpt-5.5) 最终合并；所有子 agent 必须显式指定非 5.5 模型，除非用户明确授权
 ```
 
 自动连续开发：
