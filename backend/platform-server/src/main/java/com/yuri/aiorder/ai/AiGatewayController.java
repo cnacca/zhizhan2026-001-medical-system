@@ -12,6 +12,7 @@ import org.springframework.web.bind.annotation.CrossOrigin;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
+import org.springframework.web.bind.annotation.RequestHeader;
 import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
 
@@ -20,9 +21,13 @@ import org.springframework.web.bind.annotation.RestController;
 public class AiGatewayController {
 
     private final AiGatewayService aiGatewayService;
+    private final AiExternalAlertReceiverService externalAlertReceiverService;
 
-    public AiGatewayController(AiGatewayService aiGatewayService) {
+    public AiGatewayController(
+            AiGatewayService aiGatewayService,
+            AiExternalAlertReceiverService externalAlertReceiverService) {
         this.aiGatewayService = aiGatewayService;
+        this.externalAlertReceiverService = externalAlertReceiverService;
     }
 
     @PostMapping("/ai/translate")
@@ -96,6 +101,19 @@ public class AiGatewayController {
                 createdAtFrom,
                 createdAtTo,
                 limit));
+    }
+
+    @PostMapping("/ai/external-alerts/receive")
+    public DataResponse<AiExternalAlertReceiverResponse> receiveExternalAlert(
+            @RequestBody(required = false) String payload,
+            @RequestHeader(value = "X-AI-Alert-Timestamp", required = false) String timestamp,
+            @RequestHeader(value = "X-AI-Alert-Nonce", required = false) String nonce,
+            @RequestHeader(value = "X-AI-Alert-Signature", required = false) String signature) {
+        return new DataResponse<>(externalAlertReceiverService.receive(
+                payload == null ? "" : payload,
+                timestamp,
+                nonce,
+                signature));
     }
 
     public record TranslateRequest(

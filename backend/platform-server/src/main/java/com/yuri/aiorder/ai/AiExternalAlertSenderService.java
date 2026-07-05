@@ -3,9 +3,11 @@ package com.yuri.aiorder.ai;
 import java.nio.charset.StandardCharsets;
 import java.security.InvalidKeyException;
 import java.security.NoSuchAlgorithmException;
+import java.time.Instant;
 import java.time.Duration;
 import java.util.HexFormat;
 import java.util.List;
+import java.util.UUID;
 import javax.crypto.Mac;
 import javax.crypto.spec.SecretKeySpec;
 import org.springframework.http.MediaType;
@@ -133,14 +135,19 @@ public class AiExternalAlertSenderService {
         if (secret == null || secret.isBlank()) {
             throw new ExternalAlertSendException("external alert webhook signing secret is required");
         }
-        headers.add("X-AI-Alert-Signature", webhookSignature(payload, secret));
+        String timestamp = String.valueOf(Instant.now().getEpochSecond());
+        String nonce = UUID.randomUUID().toString();
+        headers.add("X-AI-Alert-Timestamp", timestamp);
+        headers.add("X-AI-Alert-Nonce", nonce);
+        headers.add("X-AI-Alert-Signature", webhookSignature(timestamp, nonce, payload, secret));
     }
 
-    private String webhookSignature(String payload, String secret) {
+    private String webhookSignature(String timestamp, String nonce, String payload, String secret) {
         try {
             Mac mac = Mac.getInstance("HmacSHA256");
             mac.init(new SecretKeySpec(secret.getBytes(StandardCharsets.UTF_8), "HmacSHA256"));
-            return "sha256=" + HexFormat.of().formatHex(mac.doFinal(payload.getBytes(StandardCharsets.UTF_8)));
+            String base = timestamp + "." + nonce + "." + payload;
+            return "sha256=" + HexFormat.of().formatHex(mac.doFinal(base.getBytes(StandardCharsets.UTF_8)));
         } catch (NoSuchAlgorithmException | InvalidKeyException ex) {
             throw new ExternalAlertSendException("external alert webhook signing failed", ex);
         }

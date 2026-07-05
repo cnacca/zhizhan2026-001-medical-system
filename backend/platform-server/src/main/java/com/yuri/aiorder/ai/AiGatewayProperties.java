@@ -241,6 +241,9 @@ public class AiGatewayProperties {
         private int maxAttempts = 3;
         private boolean webhookSigningEnabled = false;
         private String webhookSigningSecret = "";
+        private boolean receiverVerificationEnabled = false;
+        private String receiverSigningSecret = "";
+        private int receiverReplayWindowSeconds = 300;
 
         public boolean isWebhookEnabled() {
             return webhookEnabled;
@@ -328,6 +331,30 @@ public class AiGatewayProperties {
 
         public void setWebhookSigningSecret(String webhookSigningSecret) {
             this.webhookSigningSecret = webhookSigningSecret;
+        }
+
+        public boolean isReceiverVerificationEnabled() {
+            return receiverVerificationEnabled;
+        }
+
+        public void setReceiverVerificationEnabled(boolean receiverVerificationEnabled) {
+            this.receiverVerificationEnabled = receiverVerificationEnabled;
+        }
+
+        public String getReceiverSigningSecret() {
+            return receiverSigningSecret;
+        }
+
+        public void setReceiverSigningSecret(String receiverSigningSecret) {
+            this.receiverSigningSecret = receiverSigningSecret;
+        }
+
+        public int getReceiverReplayWindowSeconds() {
+            return receiverReplayWindowSeconds;
+        }
+
+        public void setReceiverReplayWindowSeconds(int receiverReplayWindowSeconds) {
+            this.receiverReplayWindowSeconds = receiverReplayWindowSeconds;
         }
     }
 }

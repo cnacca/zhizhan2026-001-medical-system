@@ -1,5 +1,22 @@
 # DECISIONS
 
+## D-122 任务 9D.71 AI 外部告警接收端验签 / 防重放第一段
+
+状态：已确认并执行第一增量。
+
+决策：
+
+- 9D.71 只补本地和测试环境可用的接收端验签 / 防重放验收桩，不接真实外部 webhook 平台，不提交真实 secret。
+- 发送侧签名从仅签 request body 升级为 `timestamp.nonce.requestBody`，签名启用时同时发送 `X-AI-Alert-Timestamp`、`X-AI-Alert-Nonce` 和 `X-AI-Alert-Signature`。
+- 接收端新增 `/ai/external-alerts/receive`，默认 `AI_EXTERNAL_ALERT_RECEIVER_VERIFICATION_ENABLED=false`；显式启用并注入 `AI_EXTERNAL_ALERT_RECEIVER_SIGNING_SECRET` 后，校验 timestamp 时间窗、nonce 重放和 HMAC 签名。
+- 接收端只返回 `accepted`、`event_type` 和 `nonce`，不返回原始 payload、真实 webhook URL、密钥、prompt 原文、模型原始响应或内部生产敏感详情。
+
+影响：
+
+- AI 外部告警从“只有发送侧签名”推进到“发送侧 timestamp/nonce + 本地接收侧验签/防重放验收桩”的第一段。
+- 本轮不做真实生产 webhook 联调、真实外部渠道、真实 secret、分布式 nonce 存储、告警抑制或复杂运维后台。
+- Task 8 仍保持 `NOT_READY`；后续仍需真实 key 环境联调、生产 webhook 联调、客户/PM 确认项和部署生产验收。
+
 ## D-124 任务 9D.73 账单 / 付款状态 / 物流一期闭环第一段
 
 状态：已确认并执行第一增量。

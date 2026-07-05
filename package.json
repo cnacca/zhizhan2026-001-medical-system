@@ -84,6 +84,7 @@
     "check:task9d65": "node scripts/check-task-9d65-final-inspection-pdf-signature.mjs",
     "check:task9d68": "node scripts/check-task-9d68-main-chain-customer-acceptance.mjs",
     "check:task9d70": "node scripts/check-task-9d70-operations-manuals.mjs",
+    "check:task9d71": "node scripts/check-task-9d71-ai-external-alert-receiver-verification.mjs",
     "check:task9d73": "node scripts/check-task-9d73-bill-payment-status.mjs",
     "check:auth-refresh": "node scripts/check-auth-refresh.mjs",
     "smoke:task9d10-large-upload": "playwright test scripts/smoke-task-9d10-large-upload.spec.mjs --browser=chromium --workers=1",

@@ -2636,6 +2636,45 @@
             "付款状态第一段",
             "check:task9d73"
           ]
+        },
+        {
+          "id": "task-9d71-ai-external-alert-receiver-verification-required-text",
+          "type": "required_text",
+          "paths": [
+            "backend/platform-server/src/main/java/com/yuri/aiorder/ai/AiGatewayProperties.java",
+            "backend/platform-server/src/main/java/com/yuri/aiorder/ai/AiExternalAlertSenderService.java",
+            "backend/platform-server/src/main/java/com/yuri/aiorder/ai/AiExternalAlertReceiverService.java",
+            "backend/platform-server/src/main/java/com/yuri/aiorder/ai/AiExternalAlertReceiverResponse.java",
+            "backend/platform-server/src/main/java/com/yuri/aiorder/ai/AiGatewayController.java",
+            "backend/platform-server/src/test/java/com/yuri/aiorder/ai/AiGatewayTests.java",
+            "backend/platform-server/src/test/java/com/yuri/aiorder/ai/AiExternalAlertSenderTests.java",
+            "backend/platform-server/src/main/resources/application.yml",
+            ".env.example",
+            "docs/api/openapi.yaml",
+            "docs/acceptance/task-8-acceptance-matrix.md",
+            "docs/deployment/readiness-checklist.md",
+            "docs/deployment/task-8-final-readiness-report.md",
+            "docs/acceptance/phase-one-frontend-alignment.md",
+            "docs/acceptance/phase-one-frontend-task-scope.md",
+            "acceptance.json",
+            "DECISIONS.md",
+            "STATUS.md",
+            "tasks/README.md",
+            "README.md",
+            "scripts/check-task-9d71-ai-external-alert-receiver-verification.mjs",
+            "package.json"
+          ],
+          "patterns": [
+            "任务 9D.71",
+            "AI 外部告警接收端验签 / 防重放第一段",
+            "/ai/external-alerts/receive",
+            "AI_EXTERNAL_ALERT_RECEIVER_VERIFICATION_ENABLED",
+            "AI_EXTERNAL_ALERT_RECEIVER_SIGNING_SECRET",
+            "X-AI-Alert-Timestamp",
+            "X-AI-Alert-Nonce",
+            "timestamp.nonce.requestBody",
+            "check:task9d71"
+          ]
         }
       ]
     }

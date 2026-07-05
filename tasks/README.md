@@ -4488,6 +4488,28 @@ npm run check:openapi
 
 未完成原因：所有确认项仍需客户 / PM 书面确认，本清单不替代签字。Task 8 仍保持 NOT_READY。
 
+## 任务 9D.71：AI 外部告警接收端验签 / 防重放第一段
+
+状态：completed-first-increment。
+
+目标：补默认关闭的本地 AI 外部告警接收端验签 / 防重放验收桩。
+
+范围：发送侧签名基串升级为 `timestamp.nonce.requestBody`，新增 `AiExternalAlertReceiverService`、`AiExternalAlertReceiverResponse`、`/ai/external-alerts/receive`、receiver 环境变量、OpenAPI、acceptance、文档和 `npm run check:task9d71`。
+
+非目标：不接真实外部 webhook，不提交真实 secret，不做生产 webhook 联调、分布式 nonce 存储、告警抑制或复杂运维后台。
+
+验收命令：
+
+```bash
+npm run check:task9d71
+npm run check:openapi
+./scripts/with-jdk21.sh mvn -f backend/pom.xml -pl platform-server -Dtest=AiExternalAlertSenderTests,AiGatewayTests test
+```
+
+完成记录：已补 sender timestamp/nonce 签名、接收端验签服务、默认关闭配置、目标 AI 测试、OpenAPI 和静态检查。
+
+未完成原因：真实生产 webhook 联调、真实 key 环境联调、分布式 nonce 存储、生产成本看板和客户/PM 确认项仍未完成。Task 8 仍保持 NOT_READY。
+
 ## 任务 9D.73：账单 / 付款状态 / 物流一期闭环第一段
 
 状态：completed-first-increment。

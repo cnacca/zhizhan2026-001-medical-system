@@ -82,3 +82,6 @@ app:
       max-attempts: ${AI_EXTERNAL_ALERT_MAX_ATTEMPTS:3}
       webhook-signing-enabled: ${AI_EXTERNAL_ALERT_WEBHOOK_SIGNING_ENABLED:false}
       webhook-signing-secret: ${AI_EXTERNAL_ALERT_WEBHOOK_SIGNING_SECRET:}
+      receiver-verification-enabled: ${AI_EXTERNAL_ALERT_RECEIVER_VERIFICATION_ENABLED:false}
+      receiver-signing-secret: ${AI_EXTERNAL_ALERT_RECEIVER_SIGNING_SECRET:}
+      receiver-replay-window-seconds: ${AI_EXTERNAL_ALERT_RECEIVER_REPLAY_WINDOW_SECONDS:300}

@@ -147,6 +147,8 @@ class AiExternalAlertSenderTests {
                     assertThat(request.path()).isEqualTo("/ai-alerts");
                     assertThat(request.contentType()).contains("application/json");
                     assertThat(request.signature()).isNull();
+                    assertThat(request.timestamp()).isNull();
+                    assertThat(request.nonce()).isNull();
                     assertThat(request.body()).contains("AI_BUDGET_EXCEEDED");
                     assertThat(request.body()).contains("预算告警测试");
                 });
@@ -166,8 +168,12 @@ class AiExternalAlertSenderTests {
         assertThat(sent).isGreaterThanOrEqualTo(1);
         assertThat(alertStatus(alertId)).isEqualTo("SENT");
         CapturedWebhookRequest request = webhookStub.requests().get(0);
+        assertThat(request.timestamp()).isNotBlank();
+        assertThat(request.nonce()).isNotBlank();
         assertThat(request.signature()).isEqualTo(
-                "sha256=" + hmacSha256Hex("local-test-signing-secret", request.body()));
+                "sha256=" + hmacSha256Hex(
+                        "local-test-signing-secret",
+                        request.timestamp() + "." + request.nonce() + "." + request.body()));
     }
 
     @Test
@@ -422,6 +428,8 @@ class AiExternalAlertSenderTests {
                 requests.add(new CapturedWebhookRequest(
                         exchange.getRequestURI().getPath(),
                         exchange.getRequestHeaders().getFirst("Content-Type"),
+                        exchange.getRequestHeaders().getFirst("X-AI-Alert-Timestamp"),
+                        exchange.getRequestHeaders().getFirst("X-AI-Alert-Nonce"),
                         exchange.getRequestHeaders().getFirst("X-AI-Alert-Signature"),
                         body));
                 if (blockNextRequest) {
@@ -446,6 +454,12 @@ class AiExternalAlertSenderTests {
         }
     }
 
-    private record CapturedWebhookRequest(String path, String contentType, String signature, String body) {
+    private record CapturedWebhookRequest(
+            String path,
+            String contentType,
+            String timestamp,
+            String nonce,
+            String signature,
+            String body) {
     }
 }

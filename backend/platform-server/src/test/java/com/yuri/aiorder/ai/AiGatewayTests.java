@@ -12,7 +12,14 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
+import java.nio.charset.StandardCharsets;
+import java.security.InvalidKeyException;
+import java.security.NoSuchAlgorithmException;
+import java.time.Instant;
+import java.util.HexFormat;
 import java.util.UUID;
+import javax.crypto.Mac;
+import javax.crypto.spec.SecretKeySpec;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -37,6 +44,9 @@ class AiGatewayTests {
 
     @Autowired
     private MockMvc mockMvc;
+
+    @Autowired
+    private AiGatewayProperties aiGatewayProperties;
 
     private long clinicId;
     private long orderId;
@@ -68,6 +78,9 @@ class AiGatewayTests {
                 .update();
         orderId = jdbcClient.sql("SELECT LAST_INSERT_ID()").query(Long.class).single();
         assignWorkerToOrder(suffix);
+        aiGatewayProperties.getExternalAlert().setReceiverVerificationEnabled(false);
+        aiGatewayProperties.getExternalAlert().setReceiverSigningSecret("");
+        aiGatewayProperties.getExternalAlert().setReceiverReplayWindowSeconds(300);
 
         jdbcClient.sql("""
                         INSERT INTO order_external_projection
@@ -102,6 +115,9 @@ class AiGatewayTests {
                         """)
                 .param("orderId", orderId)
                 .update();
+        aiGatewayProperties.getExternalAlert().setReceiverVerificationEnabled(false);
+        aiGatewayProperties.getExternalAlert().setReceiverSigningSecret("");
+        aiGatewayProperties.getExternalAlert().setReceiverReplayWindowSeconds(300);
     }
 
     @Test
@@ -461,6 +477,82 @@ class AiGatewayTests {
                 .andExpect(content().string(not(containsString("model_raw_response"))));
     }
 
+    @Test
+    void aiExternalAlertReceiverVerifiesSignatureAndRejectsReplay() throws Exception {
+        aiGatewayProperties.getExternalAlert().setReceiverVerificationEnabled(true);
+        aiGatewayProperties.getExternalAlert().setReceiverSigningSecret("local-receiver-secret");
+        String body = "{\"event\":\"AI_BUDGET_EXCEEDED\",\"message\":\"receiver smoke\"}";
+        String timestamp = String.valueOf(Instant.now().getEpochSecond());
+        String nonce = UUID.randomUUID().toString();
+        String signature = externalAlertSignature("local-receiver-secret", timestamp, nonce, body);
+
+        mockMvc.perform(post("/ai/external-alerts/receive")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .header("X-AI-Alert-Timestamp", timestamp)
+                        .header("X-AI-Alert-Nonce", nonce)
+                        .header("X-AI-Alert-Signature", signature)
+                        .content(body))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.accepted").value(true))
+                .andExpect(jsonPath("$.data.event_type").value("AI_BUDGET_EXCEEDED"))
+                .andExpect(jsonPath("$.data.nonce").value(nonce))
+                .andExpect(content().string(not(containsString("receiver smoke"))));
+
+        mockMvc.perform(post("/ai/external-alerts/receive")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .header("X-AI-Alert-Timestamp", timestamp)
+                        .header("X-AI-Alert-Nonce", nonce)
+                        .header("X-AI-Alert-Signature", signature)
+                        .content(body))
+                .andExpect(status().isConflict());
+    }
+
+    @Test
+    void aiExternalAlertReceiverRejectsExpiredTimestampAndInvalidSignature() throws Exception {
+        aiGatewayProperties.getExternalAlert().setReceiverVerificationEnabled(true);
+        aiGatewayProperties.getExternalAlert().setReceiverSigningSecret("local-receiver-secret");
+        aiGatewayProperties.getExternalAlert().setReceiverReplayWindowSeconds(60);
+        String body = "{\"event\":\"AI_BUDGET_EXCEEDED\"}";
+        String expiredTimestamp = String.valueOf(Instant.now().minusSeconds(120).getEpochSecond());
+        String nonce = UUID.randomUUID().toString();
+
+        mockMvc.perform(post("/ai/external-alerts/receive")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .header("X-AI-Alert-Timestamp", expiredTimestamp)
+                        .header("X-AI-Alert-Nonce", nonce)
+                        .header("X-AI-Alert-Signature",
+                                externalAlertSignature("local-receiver-secret", expiredTimestamp, nonce, body))
+                        .content(body))
+                .andExpect(status().isUnauthorized());
+
+        String freshTimestamp = String.valueOf(Instant.now().getEpochSecond());
+        mockMvc.perform(post("/ai/external-alerts/receive")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .header("X-AI-Alert-Timestamp", freshTimestamp)
+                        .header("X-AI-Alert-Nonce", UUID.randomUUID().toString())
+                        .header("X-AI-Alert-Signature", "sha256=bad-signature")
+                        .content(body))
+                .andExpect(status().isUnauthorized());
+    }
+
+    @Test
+    void aiExternalAlertReceiverIsDisabledByDefault() throws Exception {
+        String body = "{\"event\":\"AI_BUDGET_EXCEEDED\"}";
+
+        mockMvc.perform(post("/ai/external-alerts/receive")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .header("X-AI-Alert-Timestamp", String.valueOf(Instant.now().getEpochSecond()))
+                        .header("X-AI-Alert-Nonce", UUID.randomUUID().toString())
+                        .header("X-AI-Alert-Signature", "sha256=disabled")
+                        .content(body))
+                .andExpect(status().isServiceUnavailable());
+
+        mockMvc.perform(post("/ai/external-alerts/receive")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(body))
+                .andExpect(status().isServiceUnavailable());
+    }
+
     private long externalAlertCount(String sendStatus) {
         return jdbcClient.sql("""
                         SELECT COUNT(*)
@@ -559,6 +651,17 @@ class AiGatewayTests {
                 .param("orderId", orderId)
                 .query(String.class)
                 .single();
+    }
+
+    private String externalAlertSignature(String secret, String timestamp, String nonce, String body) {
+        try {
+            Mac mac = Mac.getInstance("HmacSHA256");
+            mac.init(new SecretKeySpec(secret.getBytes(StandardCharsets.UTF_8), "HmacSHA256"));
+            String base = timestamp + "." + nonce + "." + body;
+            return "sha256=" + HexFormat.of().formatHex(mac.doFinal(base.getBytes(StandardCharsets.UTF_8)));
+        } catch (NoSuchAlgorithmException | InvalidKeyException ex) {
+            throw new IllegalStateException(ex);
+        }
     }
 
     private void assignWorkerToOrder(String suffix) {

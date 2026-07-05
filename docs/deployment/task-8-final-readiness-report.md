@@ -1,5 +1,9 @@
 # Task 8 Final Readiness Report
 
+## 9D.71 AI 外部告警接收端验签 / 防重放第一段
+
+9D.71 已补默认关闭的 `/ai/external-alerts/receive` 本地接收端验收桩，显式启用并注入 `AI_EXTERNAL_ALERT_RECEIVER_SIGNING_SECRET` 后校验 timestamp 时间窗、nonce 重放和 HMAC 签名。本轮不接真实外部 webhook、不提交真实 secret、不做生产联调，Task 8 仍保持 NOT_READY。
+
 ## 9D.73 账单 / 付款状态 / 物流一期闭环第一段
 
 9D.73 已补 `order_bill.payment_status`、`/orders/{orderId}/bill/payment-status` 和前端付款状态入口，付款状态第一段为人工维护口径：CS / ADMIN 可维护，医生端只读展示。本轮不接真实支付系统、不做财务审批、支付流水、退款、对账、发票或真实物流平台，Task 8 仍保持 NOT_READY。

@@ -159,6 +159,9 @@ AI_EXTERNAL_ALERT_SCHEDULER_INITIAL_DELAY_MILLIS=60000
 AI_EXTERNAL_ALERT_MAX_ATTEMPTS=3
 AI_EXTERNAL_ALERT_WEBHOOK_SIGNING_ENABLED=false
 AI_EXTERNAL_ALERT_WEBHOOK_SIGNING_SECRET=
+AI_EXTERNAL_ALERT_RECEIVER_VERIFICATION_ENABLED=false
+AI_EXTERNAL_ALERT_RECEIVER_SIGNING_SECRET=
+AI_EXTERNAL_ALERT_RECEIVER_REPLAY_WINDOW_SECONDS=300
 ```
 
 DeepSeek 第一增量启用方式：设置 `AI_PROVIDER=deepseek`、`AI_DEEPSEEK_ENABLED=true`，并通过安全渠道注入真实 `DEEPSEEK_API_KEY`。本地/CI 默认保持 `deterministic`，不依赖外部网络或真实 key。
@@ -166,6 +169,8 @@ DeepSeek 第一增量启用方式：设置 `AI_PROVIDER=deepseek`、`AI_DEEPSEEK
 AI 外部告警 webhook 第一增量启用方式：默认 `AI_EXTERNAL_ALERT_WEBHOOK_ENABLED=false`，发送器只做本地 dry-run；测试/正式环境需要真实 webhook 时，设置 `AI_EXTERNAL_ALERT_WEBHOOK_ENABLED=true` 并通过安全渠道注入 `AI_EXTERNAL_ALERT_WEBHOOK_URL`。不要把带密钥、签名或客户信息的真实 URL 写入仓库。
 
 AI 外部告警 webhook 签名第一增量启用方式：默认 `AI_EXTERNAL_ALERT_WEBHOOK_SIGNING_ENABLED=false`；测试/正式环境需要接收端验签时，设置 `AI_EXTERNAL_ALERT_WEBHOOK_SIGNING_ENABLED=true` 并通过安全渠道注入 `AI_EXTERNAL_ALERT_WEBHOOK_SIGNING_SECRET`。sender 会按 request body 生成 `X-AI-Alert-Signature: sha256=<HMAC-SHA256>`；不要把真实 signing secret 写入仓库。
+
+AI 外部告警接收端验签 / 防重放第一段启用方式：默认 `AI_EXTERNAL_ALERT_RECEIVER_VERIFICATION_ENABLED=false`，`/ai/external-alerts/receive` 返回 503；本地或测试环境需要验证接收端时，设置 `AI_EXTERNAL_ALERT_RECEIVER_VERIFICATION_ENABLED=true`，并通过安全渠道注入 `AI_EXTERNAL_ALERT_RECEIVER_SIGNING_SECRET`，可按 `AI_EXTERNAL_ALERT_RECEIVER_REPLAY_WINDOW_SECONDS` 控制时间窗。该入口不保存原始 payload，不接真实外部服务，不提交真实 secret。
 
 AI 外部告警调度器第一增量启用方式：默认 `AI_EXTERNAL_ALERT_SCHEDULER_ENABLED=false`，不会自动消费 `PENDING` outbox；测试/正式环境确认 webhook、重试和监控策略后，才可显式设置 `AI_EXTERNAL_ALERT_SCHEDULER_ENABLED=true`，并按容量配置批量大小和调度间隔。9D.45 后 webhook 失败会按 `AI_EXTERNAL_ALERT_MAX_ATTEMPTS` 控制重试，达到上限后进入 `DEAD_LETTER`；第一增量不包含分布式锁、退避调度或生产 webhook 联调。
 
@@ -1330,6 +1335,7 @@ docs/operations/phase-one-delivery-materials-index.md
 
 ```bash
 npm run check:task9d70
+npm run check:task9d71
 npm run check:task9d73
 ```
 
@@ -1360,6 +1366,18 @@ npm run acceptance
 ```
 
 该清单只是待确认事项入口，不代表客户 / PM 已签字。Task 8 仍保持 NOT_READY。
+
+## 9D.71 AI 外部告警接收端验签 / 防重放第一段
+
+9D.71 已补默认关闭的本地接收端验签 / 防重放验收桩：`/ai/external-alerts/receive` 显式启用并注入 receiver signing secret 后校验 timestamp、nonce 和 HMAC 签名；本轮不接真实外部 webhook、不提交真实 secret。
+
+建议验证：
+
+```bash
+npm run check:task9d71
+npm run check:openapi
+./scripts/with-jdk21.sh mvn -f backend/pom.xml -pl platform-server -Dtest=AiExternalAlertSenderTests,AiGatewayTests test
+```
 
 ## 9D.73 账单 / 付款状态 / 物流一期闭环第一段
 
