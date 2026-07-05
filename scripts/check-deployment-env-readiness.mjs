@@ -10,6 +10,7 @@ const checks = [
     'AI_DEEPSEEK_ENABLED=false',
     'AI_EXTERNAL_ALERT_WEBHOOK_ENABLED=false',
     'AI_EXTERNAL_ALERT_SCHEDULER_ENABLED=false',
+    'AI_EXTERNAL_ALERT_RECEIVER_VERIFICATION_ENABLED=false',
   ]],
   ['.env.example', [
     'Do not commit real secrets',
@@ -21,6 +22,8 @@ const checks = [
     'AI_EXTERNAL_ALERT_WEBHOOK_ENABLED=false',
     'AI_EXTERNAL_ALERT_SCHEDULER_ENABLED=false',
     'AI_EXTERNAL_ALERT_WEBHOOK_SIGNING_ENABLED=false',
+    'AI_EXTERNAL_ALERT_RECEIVER_VERIFICATION_ENABLED=false',
+    'AI_EXTERNAL_ALERT_RECEIVER_SIGNING_SECRET=',
   ]],
   ['backend/platform-server/src/main/resources/application.yml', [
     'provider: ${AI_PROVIDER:deterministic}',
@@ -28,6 +31,7 @@ const checks = [
     'webhook-enabled: ${AI_EXTERNAL_ALERT_WEBHOOK_ENABLED:false}',
     'scheduler-enabled: ${AI_EXTERNAL_ALERT_SCHEDULER_ENABLED:false}',
     'webhook-signing-enabled: ${AI_EXTERNAL_ALERT_WEBHOOK_SIGNING_ENABLED:false}',
+    'receiver-verification-enabled: ${AI_EXTERNAL_ALERT_RECEIVER_VERIFICATION_ENABLED:false}',
     'allow-role-fallback: ${APP_AUTH_ALLOW_ROLE_FALLBACK:true}',
   ]],
   ['backend/platform-server/src/main/resources/application-prod.yml', [
@@ -42,6 +46,8 @@ const checks = [
     '禁止提交真实密钥',
     'DEEPSEEK_API_KEY',
     'AI_EXTERNAL_ALERT_WEBHOOK_SIGNING_SECRET',
+    'AI_EXTERNAL_ALERT_RECEIVER_SIGNING_SECRET',
+    'APP_AUTH_ALLOW_ROLE_FALLBACK=false',
   ]],
   ['acceptance.json', ['task-deployment-env-readiness-required-text']],
   ['tasks/README.md', ['任务 Task 8 readiness：部署安全 / 环境变量检查第一增量']],
