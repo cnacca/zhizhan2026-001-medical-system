@@ -1,5 +1,22 @@
 # DECISIONS
 
+## D-131 任务 9D.80 AI 真实 key / 生产 webhook 联调记录模板第一段
+
+状态：已确认并执行第一增量。
+
+决策：
+
+- 9D.80 只提供 AI 真实 key / 生产 webhook 联调记录模板，不接真实 key，不填写真实 webhook URL，不声明真实联调完成。
+- 模板覆盖 DeepSeek key 外部注入、`AI_PROVIDER=deepseek`、`AI_DEEPSEEK_ENABLED=true`、生产 webhook、发送侧签名、接收端验签 / 防重放、预算熔断、输出防护、审计留痕和客户 / PM 签字状态。
+- 模板中的所有真实环境字段默认 `待填写` 或 `待确认`，客户 / PM 签字状态固定为 `待确认`，不能写成已确认或已签字。
+- 新增 `npm run check:task9d80` 检查模板、项目文档和 acceptance 证据，并禁止把真实 key 或生产 webhook 联调写成已完成。
+
+影响：
+
+- `ai-production-governance` 从“缺真实 key / 生产 webhook 联调记录”推进到“真实联调有可填写模板”的第一段。
+- 本轮不关闭真实 key 环境联调、生产 webhook 联调、提示词后台管理、流式输出过滤、生产级成本看板或客户 / PM 确认。
+- Task 8 仍保持 `NOT_READY`。
+
 ## D-130 任务 9D.79 真实环境文件上传人工验收记录模板第一段
 
 状态：已确认并执行第一增量。

@@ -1353,8 +1353,8 @@ Task 8A smoke 注意事项：
 
 优先处理 `tasks/README.md`：
 
-1. 下一轮唯一推荐目标：AI 真实 key / 生产 webhook 联调记录模板第一段。
-2. 9D.79 已补真实环境文件上传人工验收记录模板第一段；下一步先围绕 `ai-production-governance` 补真实联调记录模板，不接真实 key、不写真实 webhook 密钥。
+1. 下一轮唯一推荐目标：部署真实环境 smoke / HTTPS / 备份监控验收记录模板第一段。
+2. 9D.80 已补 AI 真实 key / 生产 webhook 联调记录模板第一段；下一步先围绕 `deployment-infrastructure` 补真实环境验收记录模板，不接真实服务器、不写真实生产密钥。
 3. 不做独立网盘、Tus/tusd 独立服务、真实弱网全量验收、跨设备复杂续传、真实电子签章平台、物流平台 API 自动同步、支付系统或 AI 自动审核/发送；每补一个缺口，都要回写 `docs/acceptance/task-8-acceptance-matrix.md` 和 `docs/deployment/readiness-checklist.md` 的状态。
 
 ## 9D.77 文件上传弱网 / 跨设备验收第一段
@@ -1388,6 +1388,16 @@ npm run check:task9d79
 ```
 
 `check:task9d79` 检查 `docs/acceptance/task-9d79-real-env-file-upload-manual-acceptance.md` 是否保留真实环境文件上传验收模板、待填写字段、测试 / 正式 bucket、对象存储账号隔离、弱网、跨设备、越权读取和客户/PM 签字状态，并禁止把真实环境写成已验收。该模板不填写真实密钥，不代表真实环境已验收。
+
+## 9D.80 AI 真实 key / 生产 webhook 联调记录模板第一段
+
+检查命令：
+
+```bash
+npm run check:task9d80
+```
+
+`check:task9d80` 检查 `docs/acceptance/task-9d80-ai-production-integration-acceptance.md` 是否保留 AI 真实 key / 生产 webhook 联调记录模板、待填写字段、DeepSeek key 外部注入、生产 webhook、发送侧签名、接收端验签 / 防重放、预算熔断、输出防护和客户/PM 签字状态，并禁止把真实 key 或生产 webhook 写成已联调完成。该模板不填写真实密钥，不填写真实 webhook URL，不代表真实 key 或生产 webhook 已联调完成。
 
 ## 安全说明
 
