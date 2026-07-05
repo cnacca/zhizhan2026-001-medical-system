@@ -6,9 +6,9 @@
 
 当前总目标是完成一期交付。后续所有 9D 小任务都只作为补齐一期 12 步主链路和上线硬缺口的执行单元；前端是否匹配一期范围见 `docs/acceptance/phase-one-frontend-alignment.md`，按端口拆任务、处理已完成和超一期入口时使用 `docs/acceptance/phase-one-frontend-task-scope.md`。
 
-当前已完成项目工作流初始化、任务 0 到任务 8B 基线、任务 9A 到 9B.8 权限/DataScope 第一轮、任务 9C.1 到 9C.3 通知第一轮，以及任务 9D.1 到 9D.62 的多条一期硬缺口第一增量；其中 9D.55 已补返工字典后台维护，9D.56 已补终检专用角色 / 附件第一增量，9D.57 返工影响图形化第一增量已把生产端返工终检页的影响节点转为只读影响图，9D.58 已把客服端 `/collaboration` 从占位入口升级为客服协同台第一增量，9D.59 已把资料缺失提示和 AI 翻译草稿确认嵌入客服初审页，9D.60 已让医生端设计稿版本按需聚合授权预览链接，9D.61 已补账单文件绑定和医生端账单预览链接，9D.62 已固定 12 步主链路浏览器 smoke 第一增量入口。Task 8 总体仍为 `NOT_READY`。
+当前已完成项目工作流初始化、任务 0 到任务 8B 基线、任务 9A 到 9B.8 权限/DataScope 第一轮、任务 9C.1 到 9C.3 通知第一轮，以及任务 9D.1 到 9D.76 的多条一期硬缺口第一增量；其中 9D.55 已补返工字典后台维护，9D.56 已补终检专用角色 / 附件第一增量，9D.57 返工影响图形化第一增量已把生产端返工终检页的影响节点转为只读影响图，9D.58 已把客服端 `/collaboration` 从占位入口升级为客服协同台第一增量，9D.59 已把资料缺失提示和 AI 翻译草稿确认嵌入客服初审页，9D.60 已让医生端设计稿版本按需聚合授权预览链接，9D.61 已补账单文件绑定和医生端账单预览链接，9D.62 到 9D.63 已把固定演示订单推进到 12 步主链路数据动作和返工异常路径，9D.64 客服端设计稿审核预览增强第一段已补客服端设计稿审核预览链接，9D.65 终检 PDF/签名第一段已补终检 PDF file_id 绑定和签名状态占位，9D.66 绩效周期筛选第一段已补绩效统计和工时明细的 `start_date` / `end_date` 周期过滤，9D.67 文件上传限制与 bucket 隔离第一段已补文件大小、类型、数量服务端限制和医生端选择提示，9D.68 12 步主链路客户验收版收敛已新增 `docs/acceptance/phase-one-main-chain-customer-acceptance.md`，9D.69 部署基础设施第一段已新增一期 Dockerfile、full-stack compose 示例和生产 env 隔离说明，9D.70 操作手册与交付材料第一段已新增四端操作手册、故障处理清单和交付材料索引，9D.71 AI 外部告警接收端验签 / 防重放第一段已新增默认关闭的本地接收端验收桩，9D.72 客户 / PM 确认项清单第一段已新增 `docs/acceptance/phase-one-customer-pm-confirmations.md`，9D.73 账单 / 付款状态 / 物流一期闭环第一段已新增人工维护付款状态，9D.74 绩效标准工时与完整公式口径第一段已新增绩效公式版本、标准工时覆盖率和默认绩效分，9D.75 正式鉴权与 DataScope 收口第一段已新增生产权限码优先模式和 `APP_AUTH_ALLOW_ROLE_FALLBACK=false` 门禁，9D.76 WebSocket / 通知生产验收第一段已补一期 Nginx `/notifications` REST 代理和 `/ws/` WebSocket readiness 检查。Task 8 总体仍为 `NOT_READY`。
 
-2026-07-04 交接摘要：Task 8 总体仍为 `NOT_READY`；9D.48、9D.48.1、9D.48.2 已完成 AI 外部告警 outbox 监控、列表筛选和失败/死信可见性第一增量；Task 8 readiness 终检报告、部署安全 / 环境变量 readiness 检查和验收矩阵机器可读缺口清单第一增量已完成；9D.55 已按 RuoYi-Vue-Pro / 若依 Pro 的字典、CRUD、菜单、权限码范式补返工字典后台维护第一增量；9D.56 已补 `final-inspection:manage`、`final_inspection_report_file` 和终检报告 `attachment_file_ids`；9D.57 已补 `/rework-final` 返工影响只读图；9D.58 客服协同闭环第一增量已补客服端 `/collaboration` 待审核消息、订单消息上下文和消息通过/驳回入口；9D.59 客服资料缺失提示与 AI 翻译草稿确认第一增量已补客服初审页资料缺失提示、AI 翻译草稿和人工写入生产备注入口；9D.60 设计稿预览 URL 聚合第一增量已补医生端设计稿版本按需预览链接；9D.61 账单物流预览/录入闭环第一增量已补客服/内部账单文件绑定和医生端账单预览链接；9D.62 12 步主链路浏览器 smoke 第一增量已补 `npm run smoke:task9d62`。`acceptance.json` 现在维护 `task8_readiness_gaps`、9D.55 到 9D.62 必备文本检查，可通过 `npm run check:task8-readiness-gaps` 查看当前上线缺口。下一轮唯一推荐目标是增强 9D.62 固定演示数据，把 smoke 从入口可达推进到完整业务数据闭环。继续开发前请从 `STATUS.md` 和 `tasks/README.md` 的当前交接摘要开始。
+2026-07-05 交接摘要：Task 8 总体仍为 `NOT_READY`；9D.48、9D.48.1、9D.48.2 已完成 AI 外部告警 outbox 监控、列表筛选和失败/死信可见性第一增量；Task 8 readiness 终检报告、部署安全 / 环境变量 readiness 检查和验收矩阵机器可读缺口清单第一增量已完成；9D.55 已按 RuoYi-Vue-Pro / 若依 Pro 的字典、CRUD、菜单、权限码范式补返工字典后台维护第一增量；9D.56 已补 `final-inspection:manage`、`final_inspection_report_file` 和终检报告 `attachment_file_ids`；9D.57 已补 `/rework-final` 返工影响只读图；9D.58 客服协同闭环第一增量已补客服端 `/collaboration` 待审核消息、订单消息上下文和消息通过/驳回入口；9D.59 客服资料缺失提示与 AI 翻译草稿确认第一增量已补客服初审页资料缺失提示、AI 翻译草稿和人工写入生产备注入口；9D.60 设计稿预览 URL 聚合第一增量已补医生端设计稿版本按需预览链接；9D.61 账单物流预览/录入闭环第一增量已补客服/内部账单文件绑定和医生端账单预览链接；9D.62 到 9D.63 已把 12 步主链路 smoke 推进到固定演示订单、派工、入检/工时/出检、设计稿、账单物流、确认收货和返工异常路径；9D.64 已补客服端设计稿版本列表和客服设计稿预览链接；9D.65 已补终检报告内部 PDF file_id 绑定和 `signature_status=PENDING` 签名占位；9D.66 已补绩效周期筛选第一段；9D.67 文件上传限制与 bucket 隔离第一段已补 `FILE_MAX_FILE_SIZE_BYTES`、`FILE_ALLOWED_CONTENT_TYPES`、`FILE_MAX_FILES_PER_ORDER` 服务端校验和医生端选择提示；9D.68 12 步主链路客户验收版收敛已新增 `docs/acceptance/phase-one-main-chain-customer-acceptance.md`；9D.69 部署基础设施第一段已新增 `backend/platform-server/Dockerfile`、`frontend/Dockerfile`、`deploy/docker-compose.phase-one.yml`、`deploy/env/phase-one.prod.example` 和 `docs/deployment/phase-one-docker-env.md`；9D.70 操作手册与交付材料第一段已新增 `docs/operations/phase-one-role-operation-manual.md`、`docs/operations/phase-one-troubleshooting-guide.md` 和 `docs/operations/phase-one-delivery-materials-index.md`；9D.71 AI 外部告警接收端验签 / 防重放第一段已新增 `/ai/external-alerts/receive` 本地接收端验收桩和 timestamp / nonce 签名口径；9D.72 客户 / PM 确认项清单第一段已新增 `docs/acceptance/phase-one-customer-pm-confirmations.md`；9D.73 账单 / 付款状态 / 物流一期闭环第一段已新增 `order_bill.payment_status`、`/orders/{orderId}/bill/payment-status` 和前端人工维护付款状态入口；9D.74 绩效标准工时与完整公式口径第一段已新增 `performance_formula_version=PHASE_ONE_DEFAULT_V1`、标准工时覆盖率和默认绩效分；9D.75 正式鉴权与 DataScope 收口第一段已新增 `APP_AUTH_ALLOW_ROLE_FALLBACK`，生产环境固定权限码优先，角色-only token 不再绕过声明权限码的接口。`acceptance.json` 现在维护 `task8_readiness_gaps`、9D.55 到 9D.75 必备文本检查，可通过 `npm run check:task8-readiness-gaps` 查看当前上线缺口。下一轮唯一推荐目标是 WebSocket / 通知生产验收第一段。继续开发前请从 `STATUS.md` 和 `tasks/README.md` 的当前交接摘要开始。
 
 2026-07-04 上传交接摘要：`feature/project-skeleton` 已推送到 GitHub；本轮业务开发基线为 `5e9ee18`，后续文档回补提交不改变业务代码边界。本轮提交已按边界拆分：`1895f79` 生产汇总、`f395584` AI 治理、`c781eae` Task 8 文档回写、`5e9ee18` workflow helper 整理。当前工作区只剩未跟踪 `test-results/` 运行产物，未纳入提交。9D.49 到 9D.54 已完成生产端质量、设备、物料异常、安环、成本、奖惩六类真实只读汇总第一增量；后续仍缺录入/审批/CRUD、演示种子数据、工作台趋势真实统计和完整业务验收用例。
 
@@ -71,6 +71,35 @@ npm run compose:up
 docker compose ps
 ```
 
+一期 Docker / Compose 配置静态验收：
+
+```bash
+npm run check:task9d69
+npm run compose:phase-one:config
+```
+
+`deploy/env/phase-one.prod.example` 只包含占位示例值。正式环境必须通过部署平台 secret、服务器环境变量或不入库 env 文件注入真实值；不要把真实数据库密码、MinIO 密钥、DeepSeek API Key、webhook secret 或生产域名提交到仓库。
+
+一期操作手册与交付材料：
+
+```text
+docs/operations/phase-one-role-operation-manual.md
+docs/operations/phase-one-troubleshooting-guide.md
+docs/operations/phase-one-delivery-materials-index.md
+docs/acceptance/phase-one-customer-pm-confirmations.md
+```
+
+检查命令：
+
+```bash
+npm run check:task9d70
+npm run check:task9d72
+npm run check:task9d73
+npm run check:task9d74
+npm run check:task9d75
+npm run check:task9d76
+```
+
 启动后端：
 
 ```bash
@@ -92,6 +121,7 @@ Backend health: http://localhost:8080/api/bootstrap/health
 Workflow chains: http://localhost:8080/workflow-chains
 MinIO console: http://localhost:9001
 WebSocket notification: ws://localhost:8080/ws/connect?token={access_token}
+Phase-one Nginx notification gateway readiness: npm run check:task9d76
 ```
 
 ## 环境变量
@@ -127,6 +157,8 @@ FILE_UPLOAD_URL_TTL_SECONDS=900
 FILE_PREVIEW_URL_TTL_SECONDS=900
 FILE_DOWNLOAD_URL_TTL_SECONDS=7200
 FILE_MAX_FILE_SIZE_BYTES=209715200
+FILE_ALLOWED_CONTENT_TYPES=application/pdf,model/stl,application/sla,application/octet-stream,text/plain,image/png,image/jpeg,application/zip,application/x-zip-compressed
+FILE_MAX_FILES_PER_ORDER=30
 AI_PROVIDER=deterministic
 AI_MAX_REQUESTS_PER_USER_HOUR=120
 AI_MODEL_MAX_RETRIES=1
@@ -168,7 +200,7 @@ DeepSeek 第一增量启用方式：设置 `AI_PROVIDER=deepseek`、`AI_DEEPSEEK
 
 AI 外部告警 webhook 第一增量启用方式：默认 `AI_EXTERNAL_ALERT_WEBHOOK_ENABLED=false`，发送器只做本地 dry-run；测试/正式环境需要真实 webhook 时，设置 `AI_EXTERNAL_ALERT_WEBHOOK_ENABLED=true` 并通过安全渠道注入 `AI_EXTERNAL_ALERT_WEBHOOK_URL`。不要把带密钥、签名或客户信息的真实 URL 写入仓库。
 
-AI 外部告警 webhook 签名第一增量启用方式：默认 `AI_EXTERNAL_ALERT_WEBHOOK_SIGNING_ENABLED=false`；测试/正式环境需要接收端验签时，设置 `AI_EXTERNAL_ALERT_WEBHOOK_SIGNING_ENABLED=true` 并通过安全渠道注入 `AI_EXTERNAL_ALERT_WEBHOOK_SIGNING_SECRET`。sender 会按 request body 生成 `X-AI-Alert-Signature: sha256=<HMAC-SHA256>`；不要把真实 signing secret 写入仓库。
+AI 外部告警 webhook 签名第一增量启用方式：默认 `AI_EXTERNAL_ALERT_WEBHOOK_SIGNING_ENABLED=false`；测试/正式环境需要发送签名时，设置 `AI_EXTERNAL_ALERT_WEBHOOK_SIGNING_ENABLED=true` 并通过安全渠道注入 `AI_EXTERNAL_ALERT_WEBHOOK_SIGNING_SECRET`。9D.71 后，sender 会发送 `X-AI-Alert-Timestamp`、`X-AI-Alert-Nonce` 和 `X-AI-Alert-Signature: sha256=<HMAC-SHA256(timestamp.nonce.requestBody)>`；不要把真实 signing secret 写入仓库。
 
 AI 外部告警接收端验签 / 防重放第一段启用方式：默认 `AI_EXTERNAL_ALERT_RECEIVER_VERIFICATION_ENABLED=false`，`/ai/external-alerts/receive` 返回 503；本地或测试环境需要验证接收端时，设置 `AI_EXTERNAL_ALERT_RECEIVER_VERIFICATION_ENABLED=true`，并通过安全渠道注入 `AI_EXTERNAL_ALERT_RECEIVER_SIGNING_SECRET`，可按 `AI_EXTERNAL_ALERT_RECEIVER_REPLAY_WINDOW_SECONDS` 控制时间窗。该入口不保存原始 payload，不接真实外部服务，不提交真实 secret。
 
@@ -177,6 +209,8 @@ AI 外部告警调度器第一增量启用方式：默认 `AI_EXTERNAL_ALERT_SCH
 AI 外部告警监控第一增量：`GET /ai/governance/external-alerts/summary` 仅 CS / ADMIN 可读，用于查看 outbox 状态分布、最近失败/死信错误和最老待发送时间；本接口不触发外呼，不提供人工重放或编辑，不返回真实 webhook URL、密钥、prompt 原文、模型原始响应或内部生产敏感详情。
 
 AI 外部告警 outbox 列表与失败/死信可见性第一增量：`GET /ai/governance/external-alerts` 仅 CS / ADMIN 可读，支持 `send_status`、`event_type`、`created_at_from`、`created_at_to`、`limit` 查询最近记录；FAILED / DEAD_LETTER 记录额外返回 `attempts`、脱敏 `last_error` 和 `last_attempted_at`。响应不返回 payload、真实 webhook URL、密钥、Bearer token、prompt 原文、模型原始响应或上游敏感响应。
+
+9D.67 文件上传限制与 bucket 隔离第一段：`/files/upload-token` 和 `/files/multipart/initiate` 在发放预签名或初始化 Multipart 前校验 `FILE_MAX_FILE_SIZE_BYTES`、`FILE_ALLOWED_CONTENT_TYPES` 和 `FILE_MAX_FILES_PER_ORDER`；医生端选择附件时也按同口径给出大小、类型、数量提示。测试环境和正式环境必须配置不同 `MINIO_BUCKET`、对象存储账号和数据库，不得把真实 bucket 凭据或生产配置提交到仓库。
 
 本地开发账号由 Flyway `V6__auth_rbac_datascope_foundation.sql` 初始化，仅用于本地验收：
 
@@ -189,7 +223,7 @@ doctor / change-me-doctor
 
 这些账号密码是本地占位值，数据库中存储 PBKDF2-SHA256 hash；正式环境必须替换为真实账号体系和安全密钥。
 
-生产 profile 使用 `backend/platform-server/src/main/resources/application-prod.yml`。当 `spring.profiles.active=prod` 时，后端启动门禁会强制关闭 `X-Bootstrap-*` 本地兼容，并要求外部注入非本地占位的 `APP_AUTH_TOKEN_SECRET`。
+生产 profile 使用 `backend/platform-server/src/main/resources/application-prod.yml`。当 `spring.profiles.active=prod` 时，后端启动门禁会强制关闭 `X-Bootstrap-*` 本地兼容，固定 `APP_AUTH_ALLOW_ROLE_FALLBACK=false`，并要求外部注入非本地占位的 `APP_AUTH_TOKEN_SECRET`。严格权限模式下，声明权限码的接口必须由 Bearer token 中的权限码放行，角色-only token 不再绕过权限码。
 
 ## OpenAPI 契约
 
@@ -251,6 +285,11 @@ npm run check:task9d59
 npm run check:task9d60
 npm run check:task9d61
 npm run check:task9d62
+npm run check:task9d64
+npm run check:task9d65
+npm run check:task9d66
+npm run check:task9d67
+npm run check:task9d68
 npm run smoke:task9d24
 npm run smoke:task9d62
 npm run smoke:task9d10-large-upload
@@ -262,7 +301,7 @@ npm run build:frontend
 npm run compose:config
 ```
 
-说明：`npm run test:backend` 会加载 Spring Boot 上下文并执行 Flyway 校验，运行前需要本地 MySQL 可用。`npm run smoke:task9d62` 需要本地后端、前端、基础服务和系统 Chrome 可用，当前第一增量验证 12 步主链路入口可达，不新增业务数据。三条 `smoke:task9d10-*` 命令需要本地后端、前端、MySQL、Redis、MinIO 和系统 Chrome 可用；它们会追加本地测试订单/文件，不会清理数据。
+说明：`npm run test:backend` 会加载 Spring Boot 上下文并执行 Flyway 校验，运行前需要本地 MySQL 可用。`npm run smoke:task9d62` 需要本地后端、前端、基础服务和系统 Chrome 可用，当前默认会追加本地测试订单、工序实例、检查记录和工时记录，并验证 12 步主链路入口可达，不会清理数据。三条 `smoke:task9d10-*` 命令需要本地后端、前端、MySQL、Redis、MinIO 和系统 Chrome 可用；它们会追加本地测试订单/文件，不会清理数据。
 
 任务 9A/9B 权限专项回归：
 
@@ -1085,21 +1124,22 @@ npm run check:openapi
 
 ```bash
 npm run check:task9d47
+npm run check:task9d71
 npm run acceptance
 npm run check:openapi
-./scripts/with-jdk21.sh mvn -f backend/pom.xml -pl platform-server -Dtest=AiExternalAlertSenderTests test
+./scripts/with-jdk21.sh mvn -f backend/pom.xml -pl platform-server -Dtest=AiGatewayTests,AiExternalAlertSenderTests test
 ./scripts/with-jdk21.sh mvn -f backend/pom.xml -pl platform-server test
 ```
 
-说明：9D.47 新增默认关闭的 webhook HMAC 签名。显式设置 `AI_EXTERNAL_ALERT_WEBHOOK_SIGNING_ENABLED=true` 并通过安全渠道注入 `AI_EXTERNAL_ALERT_WEBHOOK_SIGNING_SECRET` 后，sender 会按 request body 发送 `X-AI-Alert-Signature: sha256=<HMAC-SHA256>`；签名开启但 secret 为空时，不发送未签名 webhook，而是进入既有失败/重试/死信链路。
+说明：9D.47 新增默认关闭的 webhook HMAC 签名；9D.71 把签名基串升级为 `timestamp.nonce.requestBody`，并新增默认关闭的接收端验签 / 防重放验收桩。显式设置发送侧 signing secret 但 secret 为空时，不发送未签名 webhook，而是进入既有失败/重试/死信链路；显式启用接收端但接收端 secret 为空时，接收端返回 503。
 
 任务 9D.47 验收口径：
 
 ```text
 1. 默认关闭签名时，既有 webhook 成功路径不携带 X-AI-Alert-Signature。
-2. 开启签名并提供 secret 时，webhook 请求携带 X-AI-Alert-Signature。
-3. 签名值等于 sha256= + HMAC-SHA256(secret, requestBody)。
-4. 本轮不做 timestamp/nonce 防重放、接收端验签服务、真实短信/邮件/企业微信密钥或生产 webhook 联调。
+2. 9D.71 后，开启签名并提供 secret 时，webhook 请求携带 X-AI-Alert-Timestamp、X-AI-Alert-Nonce 和 X-AI-Alert-Signature。
+3. 签名值等于 sha256= + HMAC-SHA256(secret, timestamp.nonce.requestBody)。
+4. 9D.71 已补本地接收端验签 / 防重放验收桩；仍不做真实短信/邮件/企业微信密钥或生产 webhook 联调。
 ```
 
 任务 9D.48 AI 外部告警监控/运维可观察第一增量检查：
@@ -1188,7 +1228,7 @@ npm run check:deployment-env
 npm run acceptance
 ```
 
-说明：正式环境必须外部注入数据库密码、Redis/MinIO 凭据、`APP_AUTH_TOKEN_SECRET`、`DEEPSEEK_API_KEY`、`AI_EXTERNAL_ALERT_WEBHOOK_URL`、`AI_EXTERNAL_ALERT_WEBHOOK_SIGNING_SECRET` 和 HTTPS/部署平台密钥。仓库只保留 `.env.example` 占位值，禁止提交真实密钥。AI 默认保持 `AI_PROVIDER=deterministic`、`AI_DEEPSEEK_ENABLED=false`、`AI_EXTERNAL_ALERT_WEBHOOK_ENABLED=false`、`AI_EXTERNAL_ALERT_SCHEDULER_ENABLED=false`，真实模型、外部 webhook 和调度器必须显式开启。
+说明：正式环境必须外部注入数据库密码、Redis/MinIO 凭据、`APP_AUTH_TOKEN_SECRET`、`DEEPSEEK_API_KEY`、`AI_EXTERNAL_ALERT_WEBHOOK_URL`、`AI_EXTERNAL_ALERT_WEBHOOK_SIGNING_SECRET`、`AI_EXTERNAL_ALERT_RECEIVER_SIGNING_SECRET` 和 HTTPS/部署平台密钥。仓库只保留 `.env.example` 占位值，禁止提交真实密钥。AI 默认保持 `AI_PROVIDER=deterministic`、`AI_DEEPSEEK_ENABLED=false`、`AI_EXTERNAL_ALERT_WEBHOOK_ENABLED=false`、`AI_EXTERNAL_ALERT_SCHEDULER_ENABLED=false`、`AI_EXTERNAL_ALERT_RECEIVER_VERIFICATION_ENABLED=false`，真实模型、外部 webhook、调度器和接收端验签必须显式开启。
 
 验收矩阵机器可读缺口清单第一增量：
 
@@ -1289,7 +1329,7 @@ APP_AUTH_ALLOW_BOOTSTRAP_HEADERS=true 仅用于本地烟测兼容 X-Bootstrap-*�
 APP_AUTH_TOKEN_SECRET 在正式环境必须使用安全注入的真实密钥，不得提交；prod profile 不提供本地默认值，若仍使用 local-dev-change-me-auth-secret 会启动失败。
 WebSocket 通知使用 /ws/connect?token={accessToken}；服务端校验 Bearer token 后才登记在线用户。前端通知中心登录后会建立 WebSocket，收到推送后刷新通知列表和未读数。
 通知 REST 已提供 /notifications、/notifications/unread-count、/notifications/{notificationId}/read、/notifications/read-all；前端骨架登录后有「通知中心」入口，支持未读数、列表、单条已读和全部已读。
-本地 Vite 已代理 `/notifications` 和 `/ws` 到后端，通知中心不走 `/api/notifications`。
+本地 Vite 已代理 `/notifications` 和 `/ws` 到后端，通知中心不走 `/api/notifications`；一期 Nginx 生产骨架也必须代理 `/notifications` 和 `/ws/`，可通过 `npm run check:task9d76` 静态检查。
 Redis 多实例广播默认关闭；需要联调多实例时设置 `NOTIFICATION_REDIS_BROADCAST_ENABLED=true`，并为每个后端实例配置不同 `APP_INSTANCE_ID`。
 医生订单工作台使用 `/orders`、`/form-configs`、`/files/multipart/*`、`/files/{fileId}/multipart/status`、`/orders/{orderId}/messages`、`/orders/{orderId}/design-drafts`、`/orders/{orderId}/bill`、`/orders/{orderId}/logistics` 和 `/ai/order-query`；客服初审入口使用 `/orders?internal_status=PENDING_CS_REVIEW`、`/orders/{orderId}/review` 和 `/orders/{orderId}/design-drafts` 多文件设计稿上传；客服协同台使用 `/messages/pending-review`、`/orders/{orderId}/messages` 和 `/messages/{msgId}/review` 查看待审核消息、订单消息上下文并通过/驳回；生产审核入口使用 `/orders?internal_status=PENDING_PRODUCTION_REVIEW`、`/workflow-chains` 和 `/orders/{orderId}/production-review`；生产任务入口使用 `/orders?internal_status=PROCESS_INSTANCE_CREATED`、`/orders/{orderId}/process-instance`、派工/转派接口、`/tasks/mine` 和 `/process-instance/nodes/{nodeInstanceId}/start|complete`；质检工时入口使用 `/tasks/mine`、`/check-records` 和 `/work-logs/*`；绩效入口使用 `/performance` 和 `/performance/details`；生产看板入口使用 `/orders` 跨内部状态检索和 `/orders/{orderId}/process-instance` 查看节点进度；返工终检入口使用 `/reworks`、`/reworks/{reworkId}/close`、`/tasks/mine?status=COMPLETED`、`/check-records` 和 `/final-inspection-reports`；AI-1/AI-2/AI-3/AI-5 的真实模型由后端 `app.ai` 配置切换，前端不接触 DeepSeek Key；本地 Vite 已代理 `/api`、`/notifications`、`/ws`、`/orders`、`/files`、`/form-configs`、`/workflow-chains`、`/tasks`、`/process-instance`、`/check-records`、`/reworks`、`/final-inspection-reports`、`/work-logs`、`/performance` 与 `/ai`。
 ```
@@ -1313,179 +1353,10 @@ Task 8A smoke 注意事项：
 
 优先处理 `tasks/README.md`：
 
-1. 下一轮唯一推荐目标：增强 9D.62 固定演示数据。
-2. 把 `npm run smoke:task9d62` 从“入口可达”推进到“医生下单、客服初审、生产审核、工序流转、设计稿、账单物流和确认收货可复跑”。
-3. 不做完整 CRM、物流平台 API 自动同步或 AI 自动审核/发送；每补一个缺口，都要回写 `docs/acceptance/task-8-acceptance-matrix.md` 和 `docs/deployment/readiness-checklist.md` 的状态。
+1. 下一轮唯一推荐目标：文件上传真实弱网 / 跨设备验收第一段。
+2. 先围绕 `file-upload-prod` 补本地可执行的弱网/跨设备验收脚本或记录模板，不接真实对象存储、不写真实密钥。
+3. 不做独立网盘、Tus/tusd 独立服务、真实弱网全量验收、跨设备复杂续传、真实电子签章平台、物流平台 API 自动同步、支付系统或 AI 自动审核/发送；每补一个缺口，都要回写 `docs/acceptance/task-8-acceptance-matrix.md` 和 `docs/deployment/readiness-checklist.md` 的状态。
 
 ## 安全说明
 
 不要提交任何真实密钥、Token、数据库连接串、MinIO 凭据、DeepSeek API Key 或客户隐私数据。
-
-## 9D.70 操作手册与交付材料第一段
-
-一期操作手册与交付材料：
-
-```text
-docs/operations/phase-one-role-operation-manual.md
-docs/operations/phase-one-troubleshooting-guide.md
-docs/operations/phase-one-delivery-materials-index.md
-```
-
-检查命令：
-
-```bash
-npm run check:task9d70
-npm run check:task9d71
-npm run check:task9d69
-npm run compose:phase-one:config
-npm run check:task9d75
-npm run check:task9d73
-```
-
-Task 8 仍保持 NOT_READY；这些材料不代表客户 / PM 已签字。
-
-## 9D.68 12 步主链路客户验收版收敛
-
-客户验收版文档：`docs/acceptance/phase-one-main-chain-customer-acceptance.md`。
-
-检查命令：
-
-```bash
-npm run check:task9d68
-npm run acceptance
-```
-
-该文档只记录开发侧固定演示数据证据，不代表客户已经签字。Task 8 仍保持 NOT_READY。
-
-## 9D.72 客户 / PM 确认项清单第一段
-
-确认清单：`docs/acceptance/phase-one-customer-pm-confirmations.md`。
-
-检查命令：
-
-```bash
-npm run check:task9d72
-npm run acceptance
-```
-
-该清单只是待确认事项入口，不代表客户 / PM 已签字。Task 8 仍保持 NOT_READY。
-
-## 9D.75 正式鉴权与 DataScope 收口第一段
-
-9D.75 已补权限码优先模式：本地默认 `APP_AUTH_ALLOW_ROLE_FALLBACK=true` 保留 smoke 兼容，`prod` profile 和一期 compose 固定 `APP_AUTH_ALLOW_ROLE_FALLBACK=false`；严格模式下声明权限码的接口必须由 Bearer token 权限码放行，角色-only token 返回 403。
-
-建议验证：
-
-```bash
-npm run check:task9d75
-npm run check:deployment-env
-./scripts/with-jdk21.sh mvn -f backend/pom.xml -pl platform-server -Dtest=StrictPermissionModeTests,AuthStartupValidatorTests test
-```
-
-## 9D.69 部署基础设施第一段
-
-9D.69 已补一期 Docker / Nginx / Compose / env 示例骨架：后端镜像运行 Spring Boot jar，前端镜像使用 Nginx 提供静态资源并代理 `/api/`、`/ws/`，`deploy/env/phase-one.prod.example` 只保留占位示例值。真实密钥、真实服务器、HTTPS、备份和监控仍未完成。
-
-建议验证：
-
-```bash
-npm run check:task9d69
-npm run compose:phase-one:config
-npm run check:deployment-env
-```
-
-## 9D.71 AI 外部告警接收端验签 / 防重放第一段
-
-9D.71 已补默认关闭的本地接收端验签 / 防重放验收桩：`/ai/external-alerts/receive` 显式启用并注入 receiver signing secret 后校验 timestamp、nonce 和 HMAC 签名；本轮不接真实外部 webhook、不提交真实 secret。
-
-建议验证：
-
-```bash
-npm run check:task9d71
-npm run check:openapi
-./scripts/with-jdk21.sh mvn -f backend/pom.xml -pl platform-server -Dtest=AiExternalAlertSenderTests,AiGatewayTests test
-```
-
-## 9D.73 账单 / 付款状态 / 物流一期闭环第一段
-
-9D.73 已补人工付款状态第一段：CS / ADMIN 可通过 `/orders/{orderId}/bill/payment-status` 维护 `payment_status`，医生端只读查看付款状态；本轮不接真实支付系统、不改变既有物流发货门禁。
-
-建议验证：
-
-```bash
-npm run check:task9d73
-npm run check:openapi
-./scripts/with-jdk21.sh mvn -f backend/pom.xml -pl platform-server -Dtest=MessageDesignBillNotificationTests test
-```
-
-## 9D.65 终检 PDF/签名第一段
-
-终检报告可绑定同订单已完成上传、`INTERNAL` 可见且 `application/pdf` 的内部 PDF file_id，并返回 `signature_status=PENDING` 签名占位。该能力不代表真实电子签章完成，医生端仍不能读取终检报告或内部 PDF 预览 URL。
-
-检查命令：
-
-```bash
-npm run check:task9d65
-npm run check:openapi
-./scripts/with-jdk21.sh mvn -f backend/pom.xml -pl platform-server -Dtest=CheckWorklogPerformanceTests test
-```
-
-Task 8 仍保持 NOT_READY。
-
-## 9D.64 客服端设计稿审核预览增强第一段
-
-客服端设计稿审核预览入口已补，检查命令：
-
-```bash
-npm run check:task9d64
-npm run build:frontend
-```
-
-Task 8 仍保持 NOT_READY。
-
-## 9D.66 绩效周期筛选第一段
-
-绩效统计和明细支持 `start_date` / `end_date` 查询参数。
-
-检查命令：
-
-```bash
-npm run check:task9d66
-npm run check:openapi
-```
-
-Task 8 仍保持 NOT_READY。
-
-## 9D.74 绩效标准工时与完整公式口径第一段
-
-绩效接口新增公式版本、标准工时覆盖率和默认绩效分。检查命令：
-
-```bash
-npm run check:task9d74
-./scripts/with-jdk21.sh mvn -f backend/pom.xml -pl platform-server -Dtest=CheckWorklogPerformanceTests test
-```
-
-默认公式只用于一期统计验收，不作为工资结算结果。Task 8 仍保持 NOT_READY。
-
-## 9D.67 文件上传限制与 bucket 隔离第一段
-
-新增配置：`FILE_ALLOWED_CONTENT_TYPES`、`FILE_MAX_FILES_PER_ORDER`，并继续使用 `MINIO_BUCKET` 区分环境。
-
-检查命令：
-
-```bash
-npm run check:task9d67
-./scripts/with-jdk21.sh mvn -f backend/pom.xml -pl platform-server -Dtest=FileAccessTests test
-```
-
-仓库只保留示例值，不提交真实 MinIO 凭据。Task 8 仍保持 NOT_READY。
-
-## 9D.76 WebSocket / 通知生产网关验收第一段
-
-通知生产网关第一段检查命令：
-
-```bash
-npm run check:task9d76
-```
-
-该检查覆盖前端 Nginx `/notifications` 代理、前端 WebSocket 通知订阅、后端通知 REST 和 Redis 广播测试入口。它只代表本地静态验收，不代表真实 HTTPS 网关、生产域名、双实例 Redis 联调或心跳/重连压测已经完成。Task 8 仍保持 NOT_READY。
