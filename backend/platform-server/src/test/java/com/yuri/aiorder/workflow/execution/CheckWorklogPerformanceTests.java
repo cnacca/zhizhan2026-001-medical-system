@@ -645,7 +645,6 @@ class CheckWorklogPerformanceTests {
                 .andExpect(jsonPath("$.data[0].finished_at").isString());
     }
 
-
     @Test
     void performancePeriodFilterAppliesToStatsAndDetails() throws Exception {
         submitCheck(nodeInstanceId, 1, true, null);
@@ -656,9 +655,11 @@ class CheckWorklogPerformanceTests {
         setWorkLogEffectiveSeconds(inPeriodWorkLogId, 600);
         setWorkLogFinishedAt(inPeriodWorkLogId, "2026-07-10 10:00:00.000");
 
-        submitCheck(nodeInstanceId, 1, true, null);
-        startNode(nodeInstanceId);
-        long outsidePeriodWorkLogId = startWorkLog(nodeInstanceId);
+        long outsideOrderId = createOrder("PERIOD_OUT_" + UUID.randomUUID().toString().replace("-", "").substring(0, 12), clinicId);
+        long outsideNodeId = instantiateAndAssignAll(outsideOrderId, chainId).get(0);
+        submitCheck(outsideNodeId, 1, true, null);
+        startNode(outsideNodeId);
+        long outsidePeriodWorkLogId = startWorkLog(outsideNodeId);
         finishWorkLog(outsidePeriodWorkLogId)
                 .andExpect(status().isOk());
         setWorkLogEffectiveSeconds(outsidePeriodWorkLogId, 1200);
@@ -683,7 +684,6 @@ class CheckWorklogPerformanceTests {
                 .andExpect(jsonPath("$.data[0].work_log_id").value(inPeriodWorkLogId));
     }
 
-
     @Test
     void performanceExposesStandardDurationCoverageAndDefaultFormulaScore() throws Exception {
         submitCheck(nodeInstanceId, 1, true, null);
@@ -691,7 +691,9 @@ class CheckWorklogPerformanceTests {
         long coveredWorkLogId = startWorkLog(nodeInstanceId);
         finishWorkLog(coveredWorkLogId)
                 .andExpect(status().isOk());
-        setWorkLogEffectiveSeconds(coveredWorkLogId, 1000);
+        setWorkLogEffectiveSeconds(coveredWorkLogId, 480);
+        completeNode(nodeInstanceId);
+        submitCheck(nodeInstanceId, 2, true, null);
 
         long noStandardOrderId = createOrder(
                 "NO_STANDARD_" + UUID.randomUUID().toString().replace("-", "").substring(0, 12),
@@ -1180,7 +1182,6 @@ class CheckWorklogPerformanceTests {
                 .update();
     }
 
-
     private void setWorkLogFinishedAt(long workLogId, String finishedAt) {
         jdbcClient.sql("""
                         UPDATE work_log
@@ -1191,7 +1192,6 @@ class CheckWorklogPerformanceTests {
                 .param("workLogId", workLogId)
                 .update();
     }
-
 
     private void setNodeStandardDuration(long nodeId, Integer standardDuration) {
         jdbcClient.sql("""

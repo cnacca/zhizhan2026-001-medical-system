@@ -867,14 +867,14 @@ public class WorkflowExecutionService {
         long completedCount = countLong("""
                         SELECT COUNT(*)
                         FROM work_log w
-                        WHERE w.worker_user_id = :userId
-                          AND w.status = 'COMPLETED'
+                        WHERE worker_user_id = :userId
+                          AND status = 'COMPLETED'
                         """ + periodSql(period, "w.finished_at"), targetUserId, period);
         long effectiveSeconds = countLong("""
-                        SELECT COALESCE(SUM(w.effective_duration_seconds), 0)
+                        SELECT COALESCE(SUM(effective_duration_seconds), 0)
                         FROM work_log w
-                        WHERE w.worker_user_id = :userId
-                          AND w.status = 'COMPLETED'
+                        WHERE worker_user_id = :userId
+                          AND status = 'COMPLETED'
                         """ + periodSql(period, "w.finished_at"), targetUserId, period);
         long reworkCount = countLong("""
                         SELECT COUNT(*)
@@ -1750,7 +1750,6 @@ public class WorkflowExecutionService {
                 .single();
     }
 
-
     private long countLong(String sql, Long userId, PerformancePeriodFilter period) {
         JdbcClient.StatementSpec statement = jdbcClient.sql(sql)
                 .param("userId", userId);
@@ -1796,17 +1795,23 @@ public class WorkflowExecutionService {
         return Math.toIntExact(Math.round((part * 100.0) / total));
     }
 
-
     private int performanceScore(
             int durationEfficiency,
             int passRate,
             int onTimeRate,
             long responsibleReworkCount,
             long unclassifiedReworkCount) {
-        int cappedEfficiency = Math.min(durationEfficiency, 120);
-        long penalty = responsibleReworkCount * 10 + unclassifiedReworkCount * 5;
-        long score = Math.round(cappedEfficiency * 0.4 + passRate * 0.3 + onTimeRate * 0.2 + 10 - penalty);
-        return Math.toIntExact(Math.max(0, Math.min(score, 100)));
+        int responsibilityScore = Math.max(
+                0,
+                100
+                        - Math.toIntExact(Math.min(responsibleReworkCount * 10, 100))
+                        - Math.toIntExact(Math.min(unclassifiedReworkCount * 5, 100)));
+        double cappedDurationEfficiency = Math.min(Math.max(durationEfficiency, 0), 120);
+        return Math.toIntExact(Math.round(
+                cappedDurationEfficiency * 0.4
+                        + passRate * 0.3
+                        + onTimeRate * 0.2
+                        + responsibilityScore * 0.1));
     }
 
     private double percentage(long part, long total) {
@@ -1827,11 +1832,6 @@ public class WorkflowExecutionService {
             return 0.0;
         }
         return value.setScale(scale, RoundingMode.HALF_UP).doubleValue();
-    }
-
-    private record PerformancePeriodFilter(
-            LocalDateTime startAt,
-            LocalDateTime endExclusive) {
     }
 
     private record NodeRow(
@@ -1933,6 +1933,11 @@ public class WorkflowExecutionService {
             long relatedProcessCount,
             long relatedEmployeeCount,
             double monthlyAmount) {
+    }
+
+    private record PerformancePeriodFilter(
+            LocalDateTime startAt,
+            LocalDateTime endExclusive) {
     }
 
     private record ReworkNotificationRow(

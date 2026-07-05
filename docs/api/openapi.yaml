@@ -536,14 +536,18 @@ components:
           type: integer
           description: 尚未关闭或未设置责任类型的返工次数
         on_time_rate:
-          type: number
-          description: 准时率（0-1）
+          type: integer
+          description: 准时率，取值 0-100
         pass_rate:
-          type: number
-          description: 一次通过率（0-1）
+          type: integer
+          description: 一次通过率，取值 0-100
         duration_efficiency:
-          type: number
+          type: integer
           description: 工时效率（标准工时÷实际工时×100%）
+        performance_score:
+          type: integer
+          description: |
+            开发默认绩效分，公式为工时效率 40% + 一次通过率 30% + 准时率 20% + 责任归因 10%；工时效率封顶 120，生产责任返工每次扣 10 分，未归因返工每次扣 5 分，非生产责任返工不扣分。
     ProductionQualitySummary:
       type: object
       description: 生产端质量与返工汇总；投诉率和退货率当前预留为 0，待投诉/退货事实表接入后更新。
@@ -4567,8 +4571,8 @@ paths:
         任务 9D.66 第一增量：支持 start_date / end_date 按完成日期筛选绩效统计。
         权限：WORKER（只返回本人数据）/ ADMIN（可查全部）
         绩效计算公式：
-        - 完成数量 = 完成工序数（node_status=COMPLETED）
-        - 有效工时 = SUM(actual_duration)
+        - 完成数量 = 已完成 work_log 记录数
+        - 有效工时 = SUM(effective_duration_seconds)
         - 返工次数 = 返工记录次数
         - 准时率 = 按标准工时内完成工序数 ÷ 总完成工序数
         - 通过率 = 一次出检通过数 ÷ 总出检数
@@ -5733,8 +5737,7 @@ paths:
         任务 9D.44 第一增量：默认不自动调度；显式设置 AI_EXTERNAL_ALERT_SCHEDULER_ENABLED=true 后，调度器会按配置批量触发现有 sender。
         任务 9D.45 第一增量：webhook 失败时按 AI_EXTERNAL_ALERT_MAX_ATTEMPTS 控制重试；未达上限保持 PENDING，达到上限进入 DEAD_LETTER，并保留 last_error。
         任务 9D.46 第一增量：sender 先领取 PENDING 为事务内 SENDING，再执行 webhook 发送，避免重复触发或并发 sender 对同一条 outbox 重复外呼。
-        任务 9D.47 第一增量：显式启用 AI_EXTERNAL_ALERT_WEBHOOK_SIGNING_ENABLED 且注入 AI_EXTERNAL_ALERT_WEBHOOK_SIGNING_SECRET 后，sender 会给 webhook 请求增加 X-AI-Alert-Timestamp、X-AI-Alert-Nonce 和 X-AI-Alert-Signature 签名头。
-        任务 9D.71 第一增量：接收端验签 / 防重放验收桩默认关闭，显式启用后校验 timestamp、nonce 和 HMAC 签名。
+        任务 9D.47 第一增量：显式启用 AI_EXTERNAL_ALERT_WEBHOOK_SIGNING_ENABLED 且注入 AI_EXTERNAL_ALERT_WEBHOOK_SIGNING_SECRET 后，sender 会给 webhook 请求增加 X-AI-Alert-Signature HMAC-SHA256 签名头。
       parameters:
       - name: unread_only
         in: query
