@@ -7,6 +7,7 @@ import jakarta.validation.constraints.NotNull;
 import java.util.List;
 
 public record UpdateOrderRequest(
+        @JsonProperty("patient_id") Long patientId,
         @JsonProperty("product_type") @NotBlank String productType,
         @JsonProperty("form_data") @NotNull JsonNode formData,
         @JsonProperty("file_ids") List<Long> fileIds,

@@ -241,6 +241,9 @@ components:
       properties:
         order_id:
           type: integer
+        patient_id:
+          type: integer
+          nullable: true
         order_no:
           type: string
         product_type:
@@ -278,6 +281,100 @@ components:
         tracking_no:
           type: string
           nullable: true
+    CreatePatientRequest:
+      type: object
+      required:
+      - patient_name
+      properties:
+        patient_name:
+          type: string
+          example: 林一舟
+        patient_age:
+          type: integer
+          nullable: true
+          example: 42
+        patient_gender:
+          type: string
+          nullable: true
+          example: UNKNOWN
+        oral_description:
+          type: string
+          nullable: true
+          description: 一期基础口腔情况描述，不包含高级标签或 AI 历史推荐。
+    PatientRecord:
+      type: object
+      description: 医生端患者档案基础视图，只返回当前医生本人患者。
+      properties:
+        patient_id:
+          type: integer
+        clinic_id:
+          type: integer
+        doctor_user_id:
+          type: integer
+        patient_name:
+          type: string
+        patient_age:
+          type: integer
+          nullable: true
+        patient_gender:
+          type: string
+          nullable: true
+        oral_description:
+          type: string
+          nullable: true
+        order_count:
+          type: integer
+        latest_order_at:
+          type: string
+          format: date-time
+          nullable: true
+        created_at:
+          type: string
+          format: date-time
+        updated_at:
+          type: string
+          format: date-time
+    PatientOrder:
+      type: object
+      description: 患者历史订单的医生端脱敏视图，不返回 internal_status / production_note。
+      properties:
+        order_id:
+          type: integer
+        order_no:
+          type: string
+        product_type:
+          type: string
+        external_status:
+          "$ref": "#/components/schemas/OrderStatus"
+        created_at:
+          type: string
+          format: date-time
+    PatientListResponse:
+      type: object
+      properties:
+        items:
+          type: array
+          items:
+            "$ref": "#/components/schemas/PatientRecord"
+        total:
+          type: integer
+        page:
+          type: integer
+        size:
+          type: integer
+    PatientOrderListResponse:
+      type: object
+      properties:
+        items:
+          type: array
+          items:
+            "$ref": "#/components/schemas/PatientOrder"
+        total:
+          type: integer
+        page:
+          type: integer
+        size:
+          type: integer
     OrderListResponse:
       type: object
       properties:
@@ -333,6 +430,10 @@ components:
       - product_type
       - form_data
       properties:
+        patient_id:
+          type: integer
+          nullable: true
+          description: 9D.83 医生本人患者档案 ID；后端校验 clinic_id 与 doctor_user_id 归属。
         product_type:
           type: string
           example: REGULAR_CROWN
@@ -358,6 +459,10 @@ components:
       - product_type
       - form_data
       properties:
+        patient_id:
+          type: integer
+          nullable: true
+          description: 9D.83 医生本人患者档案 ID；为空则不绑定患者档案。
         product_type:
           type: string
           example: REGULAR_CROWN
@@ -381,6 +486,9 @@ components:
           type: integer
         order_no:
           type: string
+        patient_id:
+          type: integer
+          nullable: true
         product_type:
           type: string
         external_status:
@@ -408,6 +516,9 @@ components:
       - "$ref": "#/components/schemas/OrderBrief"
       - type: object
         properties:
+          patient_id:
+            type: integer
+            nullable: true
           form_data:
             type: object
             description: 动态表单填写内容，key 为 field_key
@@ -2018,6 +2129,139 @@ components:
 security:
 - BearerAuth: []
 paths:
+  "/patients":
+    get:
+      tags:
+      - Patient
+      summary: 医生患者档案列表
+      description: |
+        权限：DOCTOR。只返回当前医生本人、当前诊所下的 ACTIVE 患者档案。
+        一期仅支持按患者姓名检索，不包含自定义标签、批量检索或 AI 历史推荐。
+      parameters:
+      - name: keyword
+        in: query
+        schema:
+          type: string
+      - name: page
+        in: query
+        schema:
+          type: integer
+          default: 1
+      - name: size
+        in: query
+        schema:
+          type: integer
+          default: 20
+      responses:
+        '200':
+          description: 患者档案分页列表
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data:
+                    "$ref": "#/components/schemas/PatientListResponse"
+        '400':
+          "$ref": "#/components/responses/BadRequest"
+        '401':
+          "$ref": "#/components/responses/Unauthorized"
+        '403':
+          "$ref": "#/components/responses/Forbidden"
+        '404':
+          "$ref": "#/components/responses/NotFound"
+        '409':
+          "$ref": "#/components/responses/Conflict"
+        default:
+          "$ref": "#/components/responses/DefaultError"
+        '503':
+          "$ref": "#/components/responses/ServiceUnavailable"
+      operationId: getPatients
+    post:
+      tags:
+      - Patient
+      summary: 创建医生患者档案
+      description: 权限：DOCTOR。创建的患者档案固定归属于当前医生和当前诊所。
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              "$ref": "#/components/schemas/CreatePatientRequest"
+      responses:
+        '200':
+          description: 患者档案创建成功
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data:
+                    "$ref": "#/components/schemas/PatientRecord"
+        '400':
+          "$ref": "#/components/responses/BadRequest"
+        '401':
+          "$ref": "#/components/responses/Unauthorized"
+        '403':
+          "$ref": "#/components/responses/Forbidden"
+        '404':
+          "$ref": "#/components/responses/NotFound"
+        '409':
+          "$ref": "#/components/responses/Conflict"
+        default:
+          "$ref": "#/components/responses/DefaultError"
+        '503':
+          "$ref": "#/components/responses/ServiceUnavailable"
+      operationId: postPatients
+  "/patients/{patientId}/orders":
+    get:
+      tags:
+      - Patient
+      summary: 查看患者历史订单
+      description: |
+        权限：DOCTOR。只能查看当前医生本人患者绑定的历史订单。
+        响应仅返回医生端外部状态，不返回 internal_status、production_note 或内部责任信息。
+      parameters:
+      - name: patientId
+        in: path
+        required: true
+        schema:
+          type: integer
+      - name: page
+        in: query
+        schema:
+          type: integer
+          default: 1
+      - name: size
+        in: query
+        schema:
+          type: integer
+          default: 20
+      responses:
+        '200':
+          description: 患者历史订单分页列表
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data:
+                    "$ref": "#/components/schemas/PatientOrderListResponse"
+        '400':
+          "$ref": "#/components/responses/BadRequest"
+        '401':
+          "$ref": "#/components/responses/Unauthorized"
+        '403':
+          "$ref": "#/components/responses/Forbidden"
+        '404':
+          "$ref": "#/components/responses/NotFound"
+        '409':
+          "$ref": "#/components/responses/Conflict"
+        default:
+          "$ref": "#/components/responses/DefaultError"
+        '503':
+          "$ref": "#/components/responses/ServiceUnavailable"
+      operationId: getPatientsByPatientIdOrders
   "/auth/login":
     post:
       tags:

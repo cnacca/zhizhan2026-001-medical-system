@@ -9,6 +9,7 @@ public record OrderInternalDTO(
         @JsonProperty("clinic_id") long clinicId,
         @JsonProperty("clinic_name") String clinicName,
         @JsonProperty("doctor_user_id") Long doctorUserId,
+        @JsonProperty("patient_id") Long patientId,
         @JsonProperty("cs_user_id") Long csUserId,
         @JsonProperty("product_type") String productType,
         @JsonProperty("internal_status") String internalStatus,

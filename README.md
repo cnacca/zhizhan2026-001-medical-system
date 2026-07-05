@@ -1411,6 +1411,19 @@ npm run check:task9d81
 
 `check:task9d81` 检查 `docs/deployment/task-9d81-production-deployment-acceptance.md` 是否保留部署真实环境 smoke / HTTPS / 备份监控验收记录模板、待填写字段、Docker Compose、Nginx、HTTPS、镜像仓库、生产环境变量、数据库备份、备份恢复演练、日志留存、监控告警、发布回滚和客户/PM 签字状态，并禁止把真实服务器、HTTPS、备份恢复或监控告警写成已验收完成。该模板不填写真实密钥，不填写真实服务器地址，不代表真实部署已完成。
 
+## 9D.83 患者管理基础版第一增量
+
+检查命令：
+
+```bash
+npm run check:task9d83
+./scripts/with-jdk21.sh mvn -f backend/pom.xml -pl platform-server -Dtest=PatientManagementTests test
+npm run check:openapi
+npm run build:frontend
+```
+
+9D.83 新增医生端患者管理基础版：`patient_record`、`orders.patient_id`、`patient:manage-doctor`、`/patients`、`/patients/{patientId}/orders` 和医生端 `/doctor/patients` 最小入口。医生只能管理本人 + 本诊所患者，患者历史订单只返回外部状态。本轮不做真实客户数据导入、高级标签、批量检索或 AI 历史方案推荐。
+
 ## 安全说明
 
 不要提交任何真实密钥、Token、数据库连接串、MinIO 凭据、DeepSeek API Key 或客户隐私数据。

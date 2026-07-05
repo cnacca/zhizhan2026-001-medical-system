@@ -36,7 +36,7 @@ const checks = [
   ['STATUS.md', [
     '9D.82 最新 PRD V2.0 差异对齐矩阵第一段',
     'docs/acceptance/prd-v2-gap-matrix.md',
-    '下一步唯一推荐目标：患者管理基础版第一增量'
+    '下一步唯一推荐目标：人工支付流水 / 收支记录第一增量'
   ]],
   ['DECISIONS.md', [
     'D-133 任务 9D.82 最新 PRD V2.0 差异对齐矩阵第一段',

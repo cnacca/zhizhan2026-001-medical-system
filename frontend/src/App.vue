@@ -64,6 +64,7 @@ type PushNotificationPayload = {
 type DoctorOrderItem = {
   order_id: number
   order_no: string
+  patient_id: number | null
   product_type: string
   external_status: string
   form_data: Record<string, unknown>
@@ -75,6 +76,42 @@ type DoctorOrderItem = {
 
 type DoctorOrderListResponse = {
   items: DoctorOrderItem[]
+  total: number
+  page: number
+  size: number
+}
+
+type PatientRecord = {
+  patient_id: number
+  clinic_id: number
+  doctor_user_id: number
+  patient_name: string
+  patient_age: number | null
+  patient_gender: string | null
+  oral_description: string | null
+  order_count: number
+  latest_order_at: string | null
+  created_at: string
+  updated_at: string
+}
+
+type PatientOrderItem = {
+  order_id: number
+  order_no: string
+  product_type: string
+  external_status: string
+  created_at: string
+}
+
+type PatientListResponse = {
+  items: PatientRecord[]
+  total: number
+  page: number
+  size: number
+}
+
+type PatientOrderListResponse = {
+  items: PatientOrderItem[]
   total: number
   page: number
   size: number
@@ -192,6 +229,7 @@ type FormFieldPayload = {
 type CreateOrderResponse = {
   order_id: number
   order_no: string
+  patient_id: number | null
   product_type: string
   external_status: string
   form_data: Record<string, unknown>
@@ -706,6 +744,19 @@ const doctorOrders = ref<DoctorOrderItem[]>([])
 const selectedDoctorOrder = ref<DoctorOrderItem | null>(null)
 const doctorOrderWorkspace = ref<DoctorOrderWorkspace | null>(null)
 const doctorOrderKeyword = ref('')
+const doctorPatients = ref<PatientRecord[]>([])
+const selectedDoctorPatient = ref<PatientRecord | null>(null)
+const doctorPatientOrders = ref<PatientOrderItem[]>([])
+const doctorPatientKeyword = ref('')
+const doctorPatientsLoading = ref(false)
+const doctorPatientError = ref('')
+const doctorPatientCreateLoading = ref(false)
+const doctorPatientCreateResult = ref('')
+const doctorPatientName = ref('')
+const doctorPatientAge = ref<number | null>(null)
+const doctorPatientGender = ref('UNKNOWN')
+const doctorPatientOralDescription = ref('')
+const selectedDoctorPatientId = ref<number | null>(null)
 const doctorOrdersLoading = ref(false)
 const doctorOrderError = ref('')
 const doctorActionLoading = ref(false)
@@ -1026,6 +1077,7 @@ const displayNavigationConfig: Record<PortalTone, NavigationGroup[]> = {
             { id: 'doctor-order-message', title: '沟通留言', description: '在订单内与客服沟通。', icon: 'chat', routePath: '/doctor/orders', doctorSection: 'messages', doctorDetailTab: 'messages' }
           ]
         },
+        { id: 'doctor-patients', title: '患者管理', description: '维护患者档案、检索患者并查看绑定历史订单。', icon: 'customer', routePath: '/doctor/patients' },
         { id: 'doctor-files', title: '文件资料', description: '查看病例、口扫、图片和处方等订单资料。', icon: 'file', routePath: '/doctor/files', placeholder: true },
         { id: 'doctor-ai', title: '订单助手', description: '查询订单进度、预计发货和物流信息。', icon: 'ai', routePath: '/doctor/orders', doctorSection: 'ai', doctorDetailTab: 'ai' },
         { id: 'doctor-notifications', title: '通知中心', description: '查看设计稿、账单、发货和收货通知。', icon: 'notification', routePath: '/notifications' }
@@ -1788,6 +1840,7 @@ const accountProfile = computed<AccountProfile>(() => {
   }
 })
 const isDoctorOrderRoute = computed(() => activeRoute.value === '/doctor/orders')
+const isDoctorPatientsRoute = computed(() => activeRoute.value === '/doctor/patients')
 const isInternalOrdersRoute = computed(() => activeRoute.value === '/orders/internal')
 const isCustomerCollaborationRoute = computed(() => activeRoute.value === '/collaboration')
 const isProductionReviewRoute = computed(() => activeRoute.value === '/workflow/review')
@@ -1854,6 +1907,9 @@ const routeChrome = computed<RouteChrome>(() => {
   if (route === '/doctor/orders') {
     return { eyebrow: '医生端 / 订单与病例', title: '医生订单工作台', description: '下单、补资料、查看公开进度、确认设计稿、查看账单物流和订单助手。', icon: 'clinical_notes' }
   }
+  if (route === '/doctor/patients') {
+    return { eyebrow: '医生端 / 患者档案', title: '患者管理', description: '维护患者档案，绑定订单病例，并查看本人患者历史订单。', icon: 'customer' }
+  }
   if (route === '/orders/internal') {
     return { eyebrow: '客服端 / 审核与沟通', title: '客服初审', description: '核对医生提交资料，整理生产备注，并作为医生与工厂之间的审核中枢。', icon: 'support_agent' }
   }
@@ -1914,6 +1970,7 @@ const routeChrome = computed<RouteChrome>(() => {
 const menuIconSvgMap: Record<string, string> = {
   '/dashboard': '<svg viewBox="0 0 24 24"><path d="M4 4h7v7H4zM13 4h7v7h-7zM4 13h7v7H4zM13 13h7v7h-7z"/></svg>',
   '/doctor/orders': '<svg viewBox="0 0 24 24"><path d="M6 3h9l3 3v15H6z"/><path d="M15 3v4h4M9 12h6M12 9v6"/></svg>',
+  '/doctor/patients': '<svg viewBox="0 0 24 24"><path d="M9 11a4 4 0 1 0 0-8 4 4 0 0 0 0 8z"/><path d="M3 21a6 6 0 0 1 12 0"/><path d="M17 8h4M19 6v4M16 15h5M16 19h5"/></svg>',
   '/doctor/files': '<svg viewBox="0 0 24 24"><path d="M5 5h5l2 3h7v11H5z"/><path d="M9 13h6M12 10v6"/></svg>',
   '/doctor/ai': '<svg viewBox="0 0 24 24"><path d="M8 5h8a4 4 0 0 1 4 4v3a4 4 0 0 1-4 4h-3l-4 3v-3H8a4 4 0 0 1-4-4V9a4 4 0 0 1 4-4z"/><path d="M9 10h.01M12 10h.01M15 10h.01"/></svg>',
   '/orders/internal': '<svg viewBox="0 0 24 24"><path d="M5 5h14v14H5z"/><path d="M8 10h8M8 14h5M16 15l2 2 3-4"/></svg>',
@@ -2598,6 +2655,9 @@ function navigateToRoute(routePath: string) {
   } else if (routePath === '/doctor/orders') {
     void loadDoctorOrderForm()
     void loadDoctorOrders()
+    void loadDoctorPatients()
+  } else if (routePath === '/doctor/patients') {
+    void loadDoctorPatients()
   } else if (routePath === '/orders/internal') {
     void loadInternalOrders()
   } else if (routePath === '/workflow/review') {
@@ -2742,6 +2802,88 @@ async function markAllNotificationsRead() {
     await loadNotifications()
   } catch (error) {
     notificationError.value = error instanceof Error ? error.message : '全部已读失败'
+  }
+}
+
+async function loadDoctorPatients() {
+  if (!token.value) {
+    return
+  }
+  doctorPatientsLoading.value = true
+  doctorPatientError.value = ''
+  try {
+    const params = new URLSearchParams({ page: '1', size: '20' })
+    if (doctorPatientKeyword.value.trim()) {
+      params.set('keyword', doctorPatientKeyword.value.trim())
+    }
+    const payload = await apiFetch<PatientListResponse>(`/patients?${params.toString()}`)
+    doctorPatients.value = payload.data.items
+    const selectedStillVisible = selectedDoctorPatient.value
+      ? payload.data.items.some((item) => item.patient_id === selectedDoctorPatient.value?.patient_id)
+      : false
+    if (!selectedStillVisible) {
+      selectedDoctorPatient.value = payload.data.items[0] ?? null
+    }
+    if (selectedDoctorPatient.value) {
+      selectedDoctorPatientId.value = selectedDoctorPatient.value.patient_id
+      await loadDoctorPatientOrders(selectedDoctorPatient.value.patient_id)
+    } else {
+      doctorPatientOrders.value = []
+    }
+  } catch (error) {
+    doctorPatientError.value = error instanceof Error ? error.message : '患者档案加载失败'
+  } finally {
+    doctorPatientsLoading.value = false
+  }
+}
+
+async function loadDoctorPatientOrders(patientId: number) {
+  if (!token.value) {
+    return
+  }
+  try {
+    const payload = await apiFetch<PatientOrderListResponse>(`/patients/${patientId}/orders?page=1&size=20`)
+    doctorPatientOrders.value = payload.data.items
+  } catch (error) {
+    doctorPatientError.value = error instanceof Error ? error.message : '患者历史订单加载失败'
+  }
+}
+
+async function selectDoctorPatient(patient: PatientRecord) {
+  selectedDoctorPatient.value = patient
+  selectedDoctorPatientId.value = patient.patient_id
+  await loadDoctorPatientOrders(patient.patient_id)
+}
+
+async function createDoctorPatient() {
+  if (!token.value || !doctorPatientName.value.trim()) {
+    return
+  }
+  doctorPatientCreateLoading.value = true
+  doctorPatientError.value = ''
+  doctorPatientCreateResult.value = ''
+  try {
+    const payload = await apiFetch<PatientRecord>('/patients', {
+      method: 'POST',
+      body: JSON.stringify({
+        patient_name: doctorPatientName.value.trim(),
+        patient_age: doctorPatientAge.value,
+        patient_gender: doctorPatientGender.value,
+        oral_description: doctorPatientOralDescription.value.trim()
+      })
+    })
+    doctorPatientCreateResult.value = `已创建患者 ${payload.data.patient_name}`
+    doctorPatientName.value = ''
+    doctorPatientAge.value = null
+    doctorPatientGender.value = 'UNKNOWN'
+    doctorPatientOralDescription.value = ''
+    selectedDoctorPatient.value = payload.data
+    selectedDoctorPatientId.value = payload.data.patient_id
+    await loadDoctorPatients()
+  } catch (error) {
+    doctorPatientError.value = error instanceof Error ? error.message : '患者档案创建失败'
+  } finally {
+    doctorPatientCreateLoading.value = false
   }
 }
 
@@ -3032,6 +3174,7 @@ async function submitDoctorOrderForm(draft: boolean) {
   try {
     const formData = buildDoctorOrderFormData()
     const orderPayload = {
+      patient_id: selectedDoctorPatientId.value,
       product_type: doctorOrderFormProductType.value.trim(),
       form_data: formData,
       file_ids: parseDoctorOrderFileIds()
@@ -3078,6 +3221,7 @@ function submitDoctorOrderSupplement() {
 
 async function startDoctorOrderEdit(order: DoctorOrderItem) {
   doctorOrderEditingId.value = order.order_id
+  selectedDoctorPatientId.value = order.patient_id ?? selectedDoctorPatientId.value
   doctorOrderFormProductType.value = order.product_type
   const nextData: Record<string, string | string[]> = {}
   for (const [key, value] of Object.entries(order.form_data ?? {})) {
@@ -6695,6 +6839,119 @@ onBeforeUnmount(() => {
           </div>
         </section>
 
+        <section v-else-if="isDoctorPatientsRoute" class="panel route-panel doctor-order-panel">
+          <div class="route-heading">
+            <h2>患者管理</h2>
+            <el-tag round>{{ doctorPatients.length }} 位</el-tag>
+          </div>
+
+          <div class="doctor-order-toolbar">
+            <el-input
+              v-model="doctorPatientKeyword"
+              placeholder="搜索患者姓名"
+              clearable
+              @keyup.enter="loadDoctorPatients"
+            />
+            <el-button type="primary" :loading="doctorPatientsLoading" @click="loadDoctorPatients">
+              查询
+            </el-button>
+          </div>
+
+          <el-alert
+            v-if="doctorPatientError"
+            :title="doctorPatientError"
+            type="error"
+            show-icon
+            :closable="false"
+          />
+
+          <div class="doctor-order-workspace">
+            <aside class="doctor-order-list">
+              <button
+                v-for="patient in doctorPatients"
+                :key="patient.patient_id"
+                class="doctor-order-row"
+                :class="{ active: selectedDoctorPatient?.patient_id === patient.patient_id }"
+                type="button"
+                @click="selectDoctorPatient(patient)"
+              >
+                <strong>{{ patient.patient_name }}</strong>
+                <span>{{ patient.patient_gender ?? 'UNKNOWN' }} / {{ patient.patient_age ?? '-' }} 岁</span>
+                <small>历史订单 {{ patient.order_count }} 单</small>
+              </button>
+              <div v-if="doctorPatients.length === 0" class="empty-state">
+                暂无患者档案
+              </div>
+            </aside>
+
+            <section class="doctor-order-detail">
+              <div class="subheading-row">
+                <h3>新建患者档案</h3>
+                <el-tag v-if="doctorPatientCreateResult" type="success" round>{{ doctorPatientCreateResult }}</el-tag>
+              </div>
+              <div class="order-create-grid">
+                <el-form-item label="患者姓名">
+                  <el-input v-model="doctorPatientName" data-testid="doctor-patient-name-input" />
+                </el-form-item>
+                <el-form-item label="年龄">
+                  <el-input-number v-model="doctorPatientAge" :min="0" :max="130" />
+                </el-form-item>
+                <el-form-item label="性别">
+                  <el-select v-model="doctorPatientGender">
+                    <el-option label="未知" value="UNKNOWN" />
+                    <el-option label="男" value="MALE" />
+                    <el-option label="女" value="FEMALE" />
+                  </el-select>
+                </el-form-item>
+              </div>
+              <el-form-item label="口腔情况">
+                <el-input
+                  v-model="doctorPatientOralDescription"
+                  type="textarea"
+                  :rows="2"
+                  placeholder="记录一期基础患者口腔描述"
+                />
+              </el-form-item>
+              <div class="inline-actions">
+                <el-button
+                  type="primary"
+                  :loading="doctorPatientCreateLoading"
+                  :disabled="!doctorPatientName.trim()"
+                  data-testid="doctor-patient-create-button"
+                  @click="createDoctorPatient"
+                >
+                  创建患者
+                </el-button>
+              </div>
+
+              <div v-if="selectedDoctorPatient" class="doctor-order-summary">
+                <div>
+                  <span>当前患者</span>
+                  <strong>{{ selectedDoctorPatient.patient_name }}</strong>
+                </div>
+                <div>
+                  <span>历史订单</span>
+                  <strong>{{ selectedDoctorPatient.order_count }} 单</strong>
+                </div>
+                <div>
+                  <span>最近订单</span>
+                  <strong>{{ selectedDoctorPatient.latest_order_at ?? '-' }}</strong>
+                </div>
+              </div>
+
+              <div class="compact-list">
+                <article v-for="order in doctorPatientOrders" :key="order.order_id">
+                  <strong>{{ order.order_no }} / {{ statusLabel(order.external_status) }}</strong>
+                  <p>{{ productTypeLabel(order.product_type) }} / {{ order.created_at }}</p>
+                </article>
+                <div v-if="selectedDoctorPatient && doctorPatientOrders.length === 0" class="empty-state">
+                  该患者暂无历史订单
+                </div>
+              </div>
+            </section>
+          </div>
+        </section>
+
         <section v-else-if="isDoctorOrderRoute" class="panel route-panel doctor-order-panel">
           <div class="route-heading">
             <h2>医生订单工作台</h2>
@@ -6742,6 +6999,21 @@ onBeforeUnmount(() => {
                   v-model="doctorOrderFormProductType"
                   @change="loadDoctorOrderForm"
                 />
+              </el-form-item>
+              <el-form-item label="绑定患者">
+                <el-select
+                  v-model="selectedDoctorPatientId"
+                  data-testid="doctor-order-patient-select"
+                  clearable
+                  placeholder="选择患者档案"
+                >
+                  <el-option
+                    v-for="patient in doctorPatients"
+                    :key="patient.patient_id"
+                    :label="patient.patient_name"
+                    :value="patient.patient_id"
+                  />
+                </el-select>
               </el-form-item>
               <el-form-item label="附件 file_id">
                 <el-input

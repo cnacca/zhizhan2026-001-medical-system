@@ -50,21 +50,23 @@ public class OrderCreationService {
         String productType = normalizeProductType(request.productType());
         boolean draft = Boolean.TRUE.equals(request.draft());
         validateFormData(productType, request.formData(), !draft);
+        validateOwnedPatient(request.patientId(), identity);
         List<Long> fileIds = normalizedFileIds(request.fileIds());
         fileIds.forEach((fileId) -> validateBindableDoctorFile(fileId, identity, null));
 
         String orderNo = nextOrderNo();
         jdbcClient.sql("""
                         INSERT INTO orders
-                            (order_no, clinic_id, doctor_user_id, product_type, form_data,
+                            (order_no, clinic_id, doctor_user_id, patient_id, product_type, form_data,
                              internal_status, external_status)
                         VALUES
-                            (:orderNo, :clinicId, :doctorUserId, :productType, CAST(:formData AS JSON),
+                            (:orderNo, :clinicId, :doctorUserId, :patientId, :productType, CAST(:formData AS JSON),
                              'DRAFT', 'DRAFT')
                         """)
                 .param("orderNo", orderNo)
                 .param("clinicId", identity.clinicId())
                 .param("doctorUserId", identity.userId())
+                .param("patientId", request.patientId())
                 .param("productType", productType)
                 .param("formData", writeJson(request.formData()))
                 .update();
@@ -99,17 +101,20 @@ public class OrderCreationService {
         String productType = normalizeProductType(request.productType());
         validateEditableStatus(order.internalStatus(), submit);
         validateFormData(productType, request.formData(), submit);
+        validateOwnedPatient(request.patientId(), identity);
         List<Long> fileIds = normalizedFileIds(request.fileIds());
         fileIds.forEach((fileId) -> validateBindableDoctorFile(fileId, identity, orderId));
 
         jdbcClient.sql("""
                         UPDATE orders
                         SET product_type = :productType,
+                            patient_id = :patientId,
                             form_data = CAST(:formData AS JSON),
                             reject_reason = CASE WHEN :submit THEN NULL ELSE reject_reason END
                         WHERE order_id = :orderId
                         """)
                 .param("productType", productType)
+                .param("patientId", request.patientId())
                 .param("formData", writeJson(request.formData()))
                 .param("submit", submit)
                 .param("orderId", orderId)
@@ -203,6 +208,28 @@ public class OrderCreationService {
             }
         } catch (EmptyResultDataAccessException ex) {
             throw new ResponseStatusException(HttpStatus.NOT_FOUND, "file not found", ex);
+        }
+    }
+
+    private void validateOwnedPatient(Long patientId, BootstrapIdentity identity) {
+        if (patientId == null) {
+            return;
+        }
+        boolean owned = jdbcClient.sql("""
+                        SELECT COUNT(*)
+                        FROM patient_record
+                        WHERE patient_id = :patientId
+                          AND clinic_id = :clinicId
+                          AND doctor_user_id = :doctorUserId
+                          AND status = 'ACTIVE'
+                        """)
+                .param("patientId", patientId)
+                .param("clinicId", identity.clinicId())
+                .param("doctorUserId", identity.userId())
+                .query(Long.class)
+                .single() > 0;
+        if (!owned) {
+            throw new ResponseStatusException(HttpStatus.FORBIDDEN, "doctor cannot bind this patient");
         }
     }
 
