@@ -73,3 +73,7 @@ Task 8 仍为 `in-progress / NOT_READY`。当前代码和文档已经具备多�
 ## 9D.67 文件上传限制与 bucket 隔离第一段
 
 9D.67 已补文件上传大小、类型、数量限制和 bucket 隔离配置说明；仍缺真实弱网/跨设备上传完整验收和生产 bucket 实际联调。Task 8 仍保持 NOT_READY。
+
+## 9D.76 WebSocket / 通知生产网关验收第一段
+
+9D.76 已补一期通知生产网关第一段：前端 Nginx `/notifications` 代理指向后端通知 REST，`npm run check:task9d76` 固定静态验收入口。当前证据覆盖网关配置、前端 WebSocket 订阅、后端通知 REST 和 Redis 广播测试入口；未完成项仍为真实双实例 Redis 联调、HTTPS 生产网关 smoke、心跳/重连压测、真实生产服务器部署和客户/PM 确认。Task 8 仍保持 `NOT_READY`。

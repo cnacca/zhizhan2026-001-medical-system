@@ -1,5 +1,21 @@
 # DECISIONS
 
+## D-127 任务 9D.76 WebSocket / 通知生产网关验收第一段
+
+状态：已确认并执行第一增量。
+
+决策：
+
+- 9D.76 只补一期前端 Nginx 通知入口代理和静态验收，不接真实生产 HTTPS 网关，不启动真实服务器。
+- `/notifications` 统一代理到后端通知 REST，避免生产静态站直接刷新或深链访问通知入口时缺少网关路径。
+- `npm run check:task9d76` 作为本地静态验收，检查 Nginx 通知代理、前端通知 WebSocket 订阅、通知 REST、Redis 广播测试入口和 readiness 文档口径。
+
+影响：
+
+- WebSocket / 通知生产验收从“前端通知中心 + 后端通知 REST + Redis 广播代码路径”推进到“前端网关入口可静态验收”的第一段。
+- 本轮不代表真实双实例 Redis 联调、HTTPS 证书、生产域名、真实 Nginx 部署或心跳/重连压测已经完成。
+- Task 8 仍保持 `NOT_READY`；后续仍需真实生产网关 smoke、双实例广播验收和客户 / PM 确认。
+
 ## D-126 任务 9D.75 正式鉴权与 DataScope 收口第一段
 
 状态：已确认并执行第一增量。

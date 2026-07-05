@@ -27,10 +27,10 @@
       "id": "websocket-notification-prod",
       "status": "PARTIAL",
       "source": "docs/deployment/readiness-checklist.md#WebSocket / 通知",
-      "current_evidence": "单实例 WebSocket、通知 REST、前端通知中心、Redis 广播代码路径和 AI 外部告警 outbox 可观察链路已落地。",
-      "remaining_reason": "仍缺真实双后端实例 Redis 联调、心跳/重连压测、Nginx/HTTPS 生产网关验收、接收端 webhook 验签/防重放和生产 webhook 联调。",
-      "minimum_closure_loop": "先做 webhook 接收端验签/防重放第一增量或双实例 Redis WebSocket 联调脚本第一增量。",
-      "verification": "NotificationWebSocketTests; NotificationBroadcastTests; Nginx/HTTPS smoke"
+      "current_evidence": "单实例 WebSocket、通知 REST、前端通知中心、Redis 广播代码路径、AI 外部告警 outbox 可观察链路和 9D.76 前端 Nginx /notifications 代理静态验收已落地。",
+      "remaining_reason": "仍缺真实双后端实例 Redis 联调、心跳/重连压测、HTTPS 生产网关真实 smoke、真实生产部署和生产 webhook 联调。",
+      "minimum_closure_loop": "后续做双实例 Redis WebSocket 联调脚本第一增量，或在真实 HTTPS 网关环境具备后补生产 smoke。",
+      "verification": "npm run check:task9d76; NotificationWebSocketTests; NotificationBroadcastTests; Nginx/HTTPS smoke"
     },
     {
       "id": "file-upload-prod",

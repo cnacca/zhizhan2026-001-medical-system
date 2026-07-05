@@ -4637,3 +4637,13 @@ npm run check:openapi
 完成记录：新增后端限制校验、目标测试、医生端选择提示、OpenAPI、配置示例和 `npm run check:task9d67`。
 
 未完成原因：真实弱网限速/断网、完整跨设备续传和生产 bucket/凭据实际联调仍未完成。Task 8 仍保持 NOT_READY。
+
+## 任务 9D.76：WebSocket / 通知生产网关验收第一段
+
+状态：completed-first-increment。
+
+目标：补一期前端 Nginx 通知入口代理和本地静态验收，让通知中心具备生产网关路径第一段证据。
+
+完成记录：`frontend/nginx.conf` 新增 `/notifications` 代理，`package.json` 新增 `npm run check:task9d76`，`scripts/check-task-9d76-notification-gateway.mjs` 检查 Nginx 代理、前端 WebSocket 订阅、通知 REST 和 Redis 广播测试入口。
+
+未完成原因：真实双实例 Redis 联调、HTTPS 生产网关 smoke、心跳/重连压测、真实生产部署和客户/PM 确认仍未完成。Task 8 仍保持 NOT_READY。

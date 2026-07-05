@@ -267,3 +267,7 @@
 ## 9D.67 文件上传限制与 bucket 隔离第一段
 
 9D.67 已补文件上传大小、类型、数量限制和 bucket 隔离配置说明；本轮不做真实弱网/跨设备完整验收。Task 8 仍保持 NOT_READY。
+
+## T7 / 9D.76 WebSocket / 通知生产网关验收第一段
+
+9D.76 已补前端 Nginx `/notifications` 代理和 `npm run check:task9d76` 静态验收；范围仅覆盖生产网关路径第一段，不做真实 HTTPS、真实服务器、双实例 Redis 联调、心跳/重连压测或外部 webhook 联调。Task 8 仍保持 NOT_READY。

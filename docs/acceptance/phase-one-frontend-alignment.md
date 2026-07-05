@@ -141,3 +141,7 @@
 ## 9D.67 文件上传限制与 bucket 隔离第一段
 
 9D.67 已补文件上传限制与 bucket 隔离第一段，医生端选择附件有大小、类型、数量提示，后端仍做权威校验。Task 8 仍保持 NOT_READY。
+
+## 9D.76 WebSocket / 通知生产网关验收第一段
+
+9D.76 已把前端通知中心生产入口补到 Nginx `/notifications` 代理，并新增静态检查确认前端 WebSocket 订阅与后端通知 REST 仍可追踪。本轮不代表真实 HTTPS 网关、双实例 Redis 或心跳/重连压测完成，通知中心在一期前端对齐中仍为 PARTIAL。

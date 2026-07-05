@@ -1479,3 +1479,13 @@ npm run check:task9d67
 ```
 
 仓库只保留示例值，不提交真实 MinIO 凭据。Task 8 仍保持 NOT_READY。
+
+## 9D.76 WebSocket / 通知生产网关验收第一段
+
+通知生产网关第一段检查命令：
+
+```bash
+npm run check:task9d76
+```
+
+该检查覆盖前端 Nginx `/notifications` 代理、前端 WebSocket 通知订阅、后端通知 REST 和 Redis 广播测试入口。它只代表本地静态验收，不代表真实 HTTPS 网关、生产域名、双实例 Redis 联调或心跳/重连压测已经完成。Task 8 仍保持 NOT_READY。

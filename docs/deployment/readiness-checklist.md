@@ -134,3 +134,7 @@ git diff --check
 ## 9D.67 文件上传限制与 bucket 隔离第一段
 
 9D.67 文件上传限制与 bucket 隔离第一段已补 `FILE_ALLOWED_CONTENT_TYPES`、`FILE_MAX_FILES_PER_ORDER` 和 `MINIO_BUCKET` 配置说明；真实生产 bucket/凭据必须外部注入。Task 8 仍保持 NOT_READY。
+
+## 9D.76 WebSocket / 通知生产网关验收第一段
+
+9D.76 已补前端 Nginx `/notifications` 代理和 `npm run check:task9d76` 静态验收，确认通知中心入口、通知 REST、WebSocket 订阅和 Redis 广播测试入口在本地代码层具备上线准备证据。本轮仍不关闭真实双实例 Redis 联调、HTTPS 生产网关 smoke、心跳/重连压测和真实生产部署缺口。Task 8 仍保持 NOT_READY。

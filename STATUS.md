@@ -416,3 +416,7 @@ Task 8 已完成 8A readiness audit、8B OpenAPI 二次契约、9A/9B/9C 身份�
 ## 9D.67 文件上传限制与 bucket 隔离第一段
 
 本轮已完成 9D.67 文件上传限制与 bucket 隔离第一段：服务端在单文件预签名和 Multipart 初始化前校验大小、类型和单订单文件数量；前端医生端选择附件时做提示；配置新增 `FILE_ALLOWED_CONTENT_TYPES` 和 `FILE_MAX_FILES_PER_ORDER`。Task 8 仍保持 NOT_READY。
+
+## 9D.76 WebSocket / 通知生产网关验收第一段
+
+本轮已完成 9D.76 WebSocket / 通知生产网关验收第一段：前端 Nginx 配置新增 `/notifications` 代理到后端通知 REST，新增 `npm run check:task9d76` 静态检查通知网关入口、前端 WebSocket 订阅、后端通知 REST 与 Redis 广播测试入口。本轮不启动真实生产网关、不接 HTTPS 证书、不代表双实例 Redis 联调或心跳/重连压测完成。Task 8 仍保持 NOT_READY。

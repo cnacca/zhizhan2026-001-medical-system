@@ -127,3 +127,11 @@
 ## 9D.67 文件上传限制与 bucket 隔离第一段
 
 9D.67 文件上传限制与 bucket 隔离第一段已补 `FILE_ALLOWED_CONTENT_TYPES`、`FILE_MAX_FILES_PER_ORDER` 和服务端校验；Task 8 仍保持 NOT_READY。
+
+## 9D.76 WebSocket / 通知生产网关验收第一段
+
+验收结果：completed-first-increment / PARTIAL。
+
+证据：`npm run check:task9d76` 检查前端 Nginx `/notifications` 代理、前端通知 WebSocket 订阅、后端通知 REST 和 Redis 广播测试入口。
+
+未完成原因：真实双实例 Redis 联调、HTTPS 生产网关 smoke、心跳/重连压测和真实生产部署仍缺，客户/PM 未书面确认。Task 8 仍保持 NOT_READY。
