@@ -91,6 +91,7 @@
     "check:task9d76": "node scripts/check-task-9d76-notification-gateway.mjs",
     "check:task9d77": "node scripts/check-task-9d77-file-upload-resilience.mjs",
     "check:task9d78": "node scripts/check-task-9d78-bucket-isolation-readiness.mjs",
+    "check:task9d79": "node scripts/check-task-9d79-real-env-file-upload-acceptance.mjs",
     "check:auth-refresh": "node scripts/check-auth-refresh.mjs",
     "smoke:task9d10-large-upload": "playwright test scripts/smoke-task-9d10-large-upload.spec.mjs --browser=chromium --workers=1",
     "smoke:task9d10-server-resume": "playwright test scripts/smoke-task-9d10-server-resume.spec.mjs --browser=chromium --workers=1",

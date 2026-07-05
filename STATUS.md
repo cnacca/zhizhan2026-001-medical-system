@@ -20,6 +20,7 @@
 - 本轮 9D.75 正式鉴权与 DataScope 收口第一段已完成：新增 `APP_AUTH_ALLOW_ROLE_FALLBACK`，本地默认保留角色兜底以兼容 smoke，`prod` profile 和一期 compose 生产骨架固定为 `false`；`@RequirePermission` 写了权限码的接口在严格模式下必须由 Bearer token 中的权限码放行，角色-only token 不再绕过权限码。新增 `StrictPermissionModeTests` 和 prod 启动门禁测试。本轮不重写 Spring Security/JWT，不做完整 RuoYi 管理 UI、通用 SQL DataScope、access token 黑名单、refresh token 轮换或多设备会话策略。Task 8 总体仍保持 `NOT_READY`。
 - 本轮 9D.76 WebSocket / 通知生产验收第一段已完成：新增 `npm run check:task9d76`，并在一期 Nginx 配置中补 `/notifications` REST 代理，避免生产前端通知中心落到 SPA fallback；同一检查串联 `/ws/` upgrade 代理、compose Redis/后端依赖、后端 Redis 广播代码路径、通知 REST 隔离/已读测试、单实例 WebSocket 脱敏测试和 Redis 远端广播测试。本轮不启动真实生产环境，不做真实双实例 Redis 联调、Nginx HTTPS 验收或真实生产 webhook 联调。Task 8 总体仍保持 `NOT_READY`。
 - 本轮 9D.78 测试 / 正式对象存储 bucket 隔离验收记录第一段已完成：新增 `docs/acceptance/task-9d78-bucket-isolation-readiness.md` 和 `npm run check:task9d78`，检查本地 `.env.example` 的 `MINIO_BUCKET=ai-order-private` 与一期生产 env 占位 bucket 不同、生产 bucket 仍为占位示例、一期 compose 要求外部注入 `MINIO_BUCKET`，并同步 readiness / acceptance 证据。本轮不接真实生产对象存储，不提交真实 MinIO 密钥、真实 bucket 名称或生产 URL，不替代客户 / PM 书面确认。Task 8 总体仍保持 `NOT_READY`。
+- 本轮 9D.79 真实环境文件上传人工验收记录模板第一段已完成：新增 `docs/acceptance/task-9d79-real-env-file-upload-manual-acceptance.md` 和 `npm run check:task9d79`，提供真实测试环境/正式环境文件上传人工验收模板，覆盖测试 bucket、正式 bucket、对象存储账号隔离、文件限制、弱网、跨设备、越权读取和客户/PM 签字状态。模板默认 `待填写` / `待确认`，不填写真实密钥，不代表真实环境已验收。Task 8 总体仍保持 `NOT_READY`。
 - 本轮 9D.70 操作手册与交付材料第一段已完成：新增 `docs/operations/phase-one-role-operation-manual.md`、`docs/operations/phase-one-troubleshooting-guide.md` 和 `docs/operations/phase-one-delivery-materials-index.md`，覆盖医生端、客服端、生产端、管理端最小操作路径、首版故障处理清单和交付材料索引。本轮不替代正式客户培训签收，不关闭客户/PM 确认项。Task 8 总体仍保持 `NOT_READY`。
 - 本轮 9D.69 部署基础设施第一段已完成：新增后端 `backend/platform-server/Dockerfile`、前端 `frontend/Dockerfile`、Nginx SPA/API/WebSocket 代理配置、`deploy/docker-compose.phase-one.yml`、`deploy/env/phase-one.prod.example` 和 `docs/deployment/phase-one-docker-env.md`；`npm run compose:phase-one:config` 已能用占位 env 展开 full-stack compose 配置。本轮不写真实密钥、不启动真实生产环境、不做 HTTPS/镜像仓库/备份/监控/真实环境联调。Task 8 总体仍保持 `NOT_READY`。
 - 本轮 9D.68 12 步主链路客户验收版收敛已完成：新增 `docs/acceptance/phase-one-main-chain-customer-acceptance.md`，把 9D.62 到 9D.63 的固定演示数据 smoke 证据整理为客户/PM 可读 PASS/FAIL 清单，记录固定演示订单 `ORD20260704-C230B9CA90`、返工记录 `678`、物流单号 `SF-9D62-1783175824632`、最终外部状态 `COMPLETED` 和剩余上线缺口。本轮不新增业务功能、不新增接口、不替代客户签字。Task 8 总体仍保持 `NOT_READY`。
@@ -411,7 +412,7 @@ Task 8 已完成 8A readiness audit、8B OpenAPI 二次契约、9A/9B/9C 身份�
 
 ## 下一步
 
-下一轮唯一推荐目标：补真实环境文件上传人工验收记录模板第一段。9D.78 已补测试 / 正式对象存储 bucket 隔离验收记录第一段，但真实测试 bucket、真实正式 bucket、对象存储账号隔离、真实弱网物理网络、真实跨设备实机和客户/PM 确认仍属于上线缺口。Task 8 总体仍保持 `NOT_READY`。
+下一轮唯一推荐目标：补 AI 真实 key / 生产 webhook 联调记录模板第一段。9D.79 已补真实环境文件上传人工验收记录模板第一段；真实测试 bucket、真实正式 bucket、对象存储账号隔离、真实弱网物理网络、真实跨设备实机和客户/PM 确认仍属于上线缺口，待真实测试环境具备后按模板填写。Task 8 总体仍保持 `NOT_READY`。
 
 ## 9D.77 文件上传弱网 / 跨设备验收第一段
 
@@ -420,3 +421,7 @@ Task 8 已完成 8A readiness audit、8B OpenAPI 二次契约、9A/9B/9C 身份�
 ## 9D.78 测试 / 正式对象存储 bucket 隔离验收记录第一段
 
 本轮已完成 9D.78 测试 / 正式对象存储 bucket 隔离验收记录第一段：新增 `docs/acceptance/task-9d78-bucket-isolation-readiness.md`、`scripts/check-task-9d78-bucket-isolation-readiness.mjs` 和 `npm run check:task9d78`。检查覆盖本地 bucket 与生产占位 bucket 不同、生产 bucket 仍为占位示例、一期 compose 要求外部注入 `MINIO_BUCKET`，以及 readiness / acceptance 文档已回写。本轮不接真实生产对象存储，不提交真实 MinIO 密钥、真实 bucket 名称或生产 URL。真实测试/正式对象存储账号隔离、真实网络访问和客户 / PM 书面确认仍未完成。Task 8 仍保持 NOT_READY。
+
+## 9D.79 真实环境文件上传人工验收记录模板第一段
+
+本轮已完成 9D.79 真实环境文件上传人工验收记录模板第一段：新增 `docs/acceptance/task-9d79-real-env-file-upload-manual-acceptance.md`、`scripts/check-task-9d79-real-env-file-upload-acceptance.mjs` 和 `npm run check:task9d79`。模板覆盖真实环境基本信息、测试 / 正式 bucket、对象存储账号隔离、文件大小 / 类型 / 数量限制、100MB+ 上传、弱网中断、跨设备恢复、越权读取、bucket 写入位置和客户 / PM 签字状态。本轮只提供模板，所有真实环境字段均为 `待填写` 或 `待确认`，不填写真实密钥，不代表真实环境已验收。Task 8 仍保持 NOT_READY。

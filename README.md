@@ -1353,8 +1353,8 @@ Task 8A smoke 注意事项：
 
 优先处理 `tasks/README.md`：
 
-1. 下一轮唯一推荐目标：真实环境文件上传人工验收记录模板第一段。
-2. 9D.78 已补测试 / 正式对象存储 bucket 隔离验收记录第一段；下一步先围绕 `file-upload-prod` 补真实测试环境可填写的人工验收记录模板，不接真实对象存储、不写真实密钥。
+1. 下一轮唯一推荐目标：AI 真实 key / 生产 webhook 联调记录模板第一段。
+2. 9D.79 已补真实环境文件上传人工验收记录模板第一段；下一步先围绕 `ai-production-governance` 补真实联调记录模板，不接真实 key、不写真实 webhook 密钥。
 3. 不做独立网盘、Tus/tusd 独立服务、真实弱网全量验收、跨设备复杂续传、真实电子签章平台、物流平台 API 自动同步、支付系统或 AI 自动审核/发送；每补一个缺口，都要回写 `docs/acceptance/task-8-acceptance-matrix.md` 和 `docs/deployment/readiness-checklist.md` 的状态。
 
 ## 9D.77 文件上传弱网 / 跨设备验收第一段
@@ -1378,6 +1378,16 @@ npm run check:deployment-env
 ```
 
 `check:task9d78` 检查 `.env.example` 的本地开发 bucket 与 `deploy/env/phase-one.prod.example` 的正式环境 bucket 占位值不同，确认一期 compose 要求外部注入 `MINIO_BUCKET`，并确认 `docs/acceptance/task-9d78-bucket-isolation-readiness.md`、readiness 和 acceptance 文档已记录测试 / 正式对象存储 bucket 隔离边界。该检查不接真实生产对象存储，不代表真实测试 / 正式 bucket 已实际创建或联调完成。
+
+## 9D.79 真实环境文件上传人工验收记录模板第一段
+
+检查命令：
+
+```bash
+npm run check:task9d79
+```
+
+`check:task9d79` 检查 `docs/acceptance/task-9d79-real-env-file-upload-manual-acceptance.md` 是否保留真实环境文件上传验收模板、待填写字段、测试 / 正式 bucket、对象存储账号隔离、弱网、跨设备、越权读取和客户/PM 签字状态，并禁止把真实环境写成已验收。该模板不填写真实密钥，不代表真实环境已验收。
 
 ## 安全说明
 

@@ -20,6 +20,12 @@
 
 9D.76 WebSocket / 通知生产验收第一段已新增 `npm run check:task9d76`，一期 Nginx 生产骨架已代理 `/notifications` REST 和 `/ws/` WebSocket；该检查还覆盖 compose Redis/后端依赖、Redis 广播代码路径、通知 REST 隔离/已读测试、WebSocket 脱敏测试和 Redis 远端广播测试。该记录不代表真实双实例 Redis 联调、Nginx HTTPS 或生产 webhook 完成，Task 8 仍保持 `NOT_READY`。
 
+9D.77 文件上传弱网 / 跨设备验收第一段已新增本地双 browser context smoke，模拟设备 A 弱网中断后由设备 B 通过服务端 pending 候选恢复同一 `file_id`；该记录不代表真实弱网物理网络或真实跨设备实机验收完成，Task 8 仍保持 `NOT_READY`。
+
+9D.78 测试 / 正式对象存储 bucket 隔离验收记录第一段已新增 `docs/acceptance/task-9d78-bucket-isolation-readiness.md` 和 `npm run check:task9d78`，把本地 bucket、生产 bucket 占位和外部注入 `MINIO_BUCKET` 要求纳入检查；该记录不代表真实对象存储联调完成，Task 8 仍保持 `NOT_READY`。
+
+9D.79 真实环境文件上传人工验收记录模板第一段已新增 `docs/acceptance/task-9d79-real-env-file-upload-manual-acceptance.md` 和 `npm run check:task9d79`，提供真实测试环境 / 正式环境文件上传人工验收记录模板；该记录默认 `待填写` / `待确认`，不填写真实密钥，不代表真实环境已验收，Task 8 仍保持 `NOT_READY`。
+
 ## 判定规则
 
 | 状态 | 含义 |
@@ -34,7 +40,7 @@
 - PRD V1.0：12 步主链路、主链路验收、脱敏验收、权限验收、AI 功能验收、设计稿补充验收。
 - TRD V1.1：12 步验收点、专项测试矩阵、M6 联调测试上线标准。
 - 团队执行文档：M6 要求“专项测试通过，回归通过，部署正式环境，12 步验收清单逐条过，操作手册交付”。
-- 当前实现证据：`OrderStatusProjectionTests`、`FileAccessTests`、`WorkflowRuntimeTests`、`CheckWorklogPerformanceTests`、`MessageDesignBillNotificationTests`、`AiGatewayTests`、`BearerIdentityTests`、`PermissionInterceptorTests`、`StrictPermissionModeTests`、`NotificationWebSocketTests`、`NotificationRestTests`、`NotificationBroadcastTests`、9D.24 四入口登录页校验、9D.56 终检专用角色 / 附件第一增量、9D.57 返工影响图形化第一增量、9D.58 客服协同闭环第一增量、9D.59 客服资料缺失提示与 AI 翻译草稿确认第一增量、9D.60 设计稿预览 URL 聚合第一增量、9D.61 账单物流预览/录入闭环第一增量、9D.62 12 步主链路浏览器 smoke 第一增量、9D.62.1 固定演示数据闭环第一段、9D.62.2 派工与工序操作数据闭环第一段、9D.62.3 设计稿确认数据闭环第一段、9D.62.4 账单/物流数据闭环第一段、9D.62.5 终检后发货与医生确认收货数据闭环第一段、9D.63 返工异常路径数据闭环第一段、9D.64 客服端设计稿审核预览增强第一段、9D.65 终检 PDF/签名第一段、9D.66 绩效周期筛选第一段、9D.69 部署基础设施第一段、9D.75 正式鉴权与 DataScope 收口第一段、9D.76 WebSocket / 通知生产验收第一段和既有 HTTP/SQL smoke 记录。
+- 当前实现证据：`OrderStatusProjectionTests`、`FileAccessTests`、`WorkflowRuntimeTests`、`CheckWorklogPerformanceTests`、`MessageDesignBillNotificationTests`、`AiGatewayTests`、`BearerIdentityTests`、`PermissionInterceptorTests`、`StrictPermissionModeTests`、`NotificationWebSocketTests`、`NotificationRestTests`、`NotificationBroadcastTests`、9D.24 四入口登录页校验、9D.56 终检专用角色 / 附件第一增量、9D.57 返工影响图形化第一增量、9D.58 客服协同闭环第一增量、9D.59 客服资料缺失提示与 AI 翻译草稿确认第一增量、9D.60 设计稿预览 URL 聚合第一增量、9D.61 账单物流预览/录入闭环第一增量、9D.62 12 步主链路浏览器 smoke 第一增量、9D.62.1 固定演示数据闭环第一段、9D.62.2 派工与工序操作数据闭环第一段、9D.62.3 设计稿确认数据闭环第一段、9D.62.4 账单/物流数据闭环第一段、9D.62.5 终检后发货与医生确认收货数据闭环第一段、9D.63 返工异常路径数据闭环第一段、9D.64 客服端设计稿审核预览增强第一段、9D.65 终检 PDF/签名第一段、9D.66 绩效周期筛选第一段、9D.69 部署基础设施第一段、9D.75 正式鉴权与 DataScope 收口第一段、9D.76 WebSocket / 通知生产验收第一段、9D.77 文件上传弱网 / 跨设备验收第一段、9D.78 bucket 隔离验收记录第一段、9D.79 真实环境文件上传人工验收记录模板第一段和既有 HTTP/SQL smoke 记录。
 - 机器可读缺口：`acceptance.json` 的 `task8_readiness_gaps` 提炼本矩阵和 readiness checklist 中仍未 READY 的关键上线缺口，可通过 `npm run check:task8-readiness-gaps` 查看。
 
 ## PRD / TRD 12 步主链路
@@ -59,7 +65,7 @@
 | 验收项 | 当前状态 | 当前证据 | 上线缺口 |
 | --- | --- | --- | --- |
 | 医生下单全流程 | PARTIAL | 9D.2 已实现医生读取动态表单、提交订单进入 `PENDING_REVIEW`、绑定本人已完成文件和前端最小新建订单面板；9D.10 已补医生端最小 Uppy 文件选择、Multipart 上传、status 查询、本地恢复上传、服务端候选恢复、中断恢复并回填 `file_id`；9D.11 已补保存草稿、继续编辑/补资料、提交草稿/补资料和后端状态历史回归；9D.3 浏览器 smoke 已覆盖医生创建订单后 CS 在客服初审页面处理该订单；9D.2 浏览器 smoke 覆盖 `127.0.0.1:5173` 医生登录、动态表单读取和创建订单 `ORD20260630-9D94797093`；9D.11 浏览器 smoke 覆盖 doctor 保存草稿并提交草稿，订单 `ORD20260701-E172DF6DD8` 从 `DRAFT` 进入 `PENDING_REVIEW`；100MB+ 上传 smoke 覆盖医生浏览器创建测试订单并上传 105MB 附件；服务端候选恢复 smoke 覆盖无本地会话时复用 pending `file_id=514`；中断恢复 smoke 覆盖第 2 个分片失败后复用同一 `file_id=537` 完成。 | 缺实时自动保存、动态表单最终字段、真实弱网限速/断网、完整跨设备浏览器恢复和完整端到端验收。 |
-| 大文件上传 | PARTIAL | `FileAccessTests` 覆盖 MinIO 预签名 PUT、Multipart initiate/part-url/status/pending/complete/abort、审计、status/pending 不泄露 `object_key`、医生写路径越权拒绝和 pending 只列当前医生本人候选；前端 9D.10 已接入最小 Uppy 文件选择、分片直传、本地恢复会话、服务端候选恢复和手动取消入口；`npm run smoke:task9d10-large-upload` 通过本地 105MB 浏览器 Multipart smoke，数据库核验 `file_id=457` 为 21 个分片完成；`npm run smoke:task9d10-server-resume` 通过，确认完成的 `file_id=514` 等于预创建 pending `file_id`；`npm run smoke:task9d10-interrupted-resume` 通过，确认中断后 `multipart/status` 保留 1 个已完成分片并复用同一 `file_id=537` 完成；9D.67 文件上传限制与 bucket 隔离第一段已补 `FILE_MAX_FILE_SIZE_BYTES`、`FILE_ALLOWED_CONTENT_TYPES`、`FILE_MAX_FILES_PER_ORDER` 服务端校验和医生端选择提示；9D.77 文件上传弱网 / 跨设备验收第一段已补本地双 browser context smoke，模拟设备 A 弱网中断、设备 B 无 localStorage 后通过服务端 pending 候选恢复同一 `file_id`；9D.78 测试 / 正式对象存储 bucket 隔离验收记录第一段已补 `check:task9d78` 和 `docs/acceptance/task-9d78-bucket-isolation-readiness.md`，检查本地 bucket 与生产占位 bucket 不同且一期 compose 要求外部注入。 | 仍缺真实弱网物理网络、真实跨设备实机、真实测试/正式 bucket 实际创建和账号隔离、客户最终 Multipart 限制签字以及真实对象存储联调。 |
+| 大文件上传 | PARTIAL | `FileAccessTests` 覆盖 MinIO 预签名 PUT、Multipart initiate/part-url/status/pending/complete/abort、审计、status/pending 不泄露 `object_key`、医生写路径越权拒绝和 pending 只列当前医生本人候选；前端 9D.10 已接入最小 Uppy 文件选择、分片直传、本地恢复会话、服务端候选恢复和手动取消入口；`npm run smoke:task9d10-large-upload` 通过本地 105MB 浏览器 Multipart smoke，数据库核验 `file_id=457` 为 21 个分片完成；`npm run smoke:task9d10-server-resume` 通过，确认完成的 `file_id=514` 等于预创建 pending `file_id`；`npm run smoke:task9d10-interrupted-resume` 通过，确认中断后 `multipart/status` 保留 1 个已完成分片并复用同一 `file_id=537` 完成；9D.67 文件上传限制与 bucket 隔离第一段已补 `FILE_MAX_FILE_SIZE_BYTES`、`FILE_ALLOWED_CONTENT_TYPES`、`FILE_MAX_FILES_PER_ORDER` 服务端校验和医生端选择提示；9D.77 文件上传弱网 / 跨设备验收第一段已补本地双 browser context smoke，模拟设备 A 弱网中断、设备 B 无 localStorage 后通过服务端 pending 候选恢复同一 `file_id`；9D.78 测试 / 正式对象存储 bucket 隔离验收记录第一段已补 `check:task9d78` 和 `docs/acceptance/task-9d78-bucket-isolation-readiness.md`，检查本地 bucket 与生产占位 bucket 不同且一期 compose 要求外部注入；9D.79 已补 `docs/acceptance/task-9d79-real-env-file-upload-manual-acceptance.md` 和 `check:task9d79`，提供真实测试环境 / 正式环境人工验收记录模板。 | 仍缺真实弱网物理网络、真实跨设备实机、真实测试 bucket、真实正式 bucket、对象存储账号隔离、真实对象存储联调、客户最终 Multipart 限制签字和客户 / PM 书面确认。 |
 | 客服审核通过 | PARTIAL | 9D.3 已实现 CS/ADMIN 审核接口、前端「客服初审」入口、状态历史和医生通知事实；浏览器 smoke 覆盖 CS 点击「通过初审」后订单进入 `PENDING_PRODUCTION_REVIEW`，9D.4 已串到生产审核第一增量；9D.11 已补驳回后医生补资料重新提交到客服审核状态；9D.59 已补资料缺失提示、AI 翻译草稿和人工写入生产备注入口；9D.60 已补医生端设计稿预览链接第一增量；9D.64 已补客服端设计稿审核预览增强第一段。 | 缺完整客服订单详情真实点击 smoke 和账单物流闭环。 |
 | 外文翻译 | PARTIAL | `AiGatewayTests` 覆盖 AI-1 草稿，不自动写入；9D.59 已在客服初审页提供 AI 翻译草稿和人工写入生产备注入口。 | 缺完整客服真实点击 smoke 和客户最终生产备注模板确认。 |
 | 工序链实例化 | PARTIAL | `WorkflowRuntimeTests` 覆盖实例化和快照；9D.4 前端「生产审核」可选择工序链并触发实例化；9D.5 已补工序实例详情、任务池和派工页面第一增量；9D.6 已补入检/出检和工时操作页面第一增量；9D.8 已补跨状态生产看板第一增量；9D.9 已补返工终检第一增量；9D.14 已补发货前终检 `OUT/PASS` 门禁第一增量；9D.16 已补终检报告第一增量；9D.56 已补终检专用权限和内部附件绑定第一增量。 | 缺实时生产通知联动、终检 PDF/签名/真实物流和完整生产端验收。 |
@@ -127,3 +133,11 @@
 证据：`npm run check:task9d78` 检查 `.env.example` 本地 bucket、`deploy/env/phase-one.prod.example` 正式环境 bucket 占位、一期 compose 外部注入 `MINIO_BUCKET` 要求和 `docs/acceptance/task-9d78-bucket-isolation-readiness.md` 记录。
 
 未完成原因：真实测试 bucket、真实正式 bucket、对象存储账号隔离、真实网络访问和客户 / PM 书面确认仍需在真实环境具备后验收。Task 8 仍保持 NOT_READY。
+
+## 9D.79 真实环境文件上传人工验收记录模板第一段
+
+验收结果：template-ready / PARTIAL。
+
+证据：`npm run check:task9d79` 检查 `docs/acceptance/task-9d79-real-env-file-upload-manual-acceptance.md`、本矩阵、readiness checklist、终检报告、`acceptance.json` 和项目文档均已记录真实环境文件上传人工验收模板。模板覆盖测试 bucket、正式 bucket、对象存储账号隔离、文件大小 / 类型 / 数量限制、100MB+ 上传、弱网中断、跨设备恢复、越权读取和客户/PM 签字状态。
+
+未完成原因：该模板所有真实环境字段仍为 `待填写` 或 `待确认`，不填写真实密钥，不代表真实环境已验收；真实对象存储联调、真实弱网物理网络、真实跨设备实机和客户 / PM 书面确认仍需在真实环境具备后补齐。Task 8 仍保持 NOT_READY。
