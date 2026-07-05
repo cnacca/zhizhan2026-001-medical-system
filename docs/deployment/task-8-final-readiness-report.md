@@ -42,7 +42,7 @@
 | AI 生产治理剩余项 | readiness checklist 中“AI 接入”为 PARTIAL；已完成 DeepSeek 默认关闭、限流、成本审计、重试、失败审计、治理摘要、预算阈值、熔断、分角色/分模型预算、提示词版本、输出防护、外部告警发送/调度/重试/死信/幂等/签名/监控/列表/失败可见性、9D.71 接收端验签 / 防重放本地验收桩和 9D.80 AI 真实 key / 生产 webhook 联调记录模板第一段。 | 仍缺真实 key 环境联调、生产 webhook 联调、提示词后台管理、流式输出过滤、生产级成本看板、更完整输出策略和客户 / PM 书面确认。 | 真实 AI 验收环境具备后，按 9D.80 模板填写真实 key / 生产 webhook 联调记录并由客户 / PM 确认；本地下一优先级转向部署真实环境 smoke / HTTPS / 备份监控验收记录模板第一段。 | `npm run check:task9d71`；`npm run check:task9d80`；`npm run check:openapi`；AI gateway tests、DeepSeek tests；启用环境变量的本地 dry-run/联调记录；确认无真实 key 入库。 |
 | 订单主链路完整端到端 | acceptance matrix 中医生下单、客服审核、生产审核、设计稿、账单物流、确认收货多项仍为 PARTIAL；9D.62 已补 12 步入口 smoke，9D.62.1 已补固定演示数据前 3 步，9D.62.2 已补首个派工节点入检/开工/工时/完工/出检通过，9D.62.3 已补设计稿上传、客服审核、医生预览和确认数据动作，9D.62.4 已补账单文件上传、医生预览和终检前发货门禁数据动作，9D.62.5 已补剩余工序完成、物流发货和医生确认收货数据动作，9D.63 已补出检失败、返工记录、目标节点重做和返工关闭数据动作，9D.64 已补客服端设计稿预览链接，9D.65 已补终检 PDF file_id 和签名占位，9D.66 已补绩效周期筛选，9D.67 已补文件上传限制，9D.73 已补人工付款状态第一段，9D.74 已补绩效公式默认口径第一段。 | 已有大量后端和页面第一增量，但缺实时自动保存、真实物流平台、真实支付系统、真实电子签章/复杂报告模板和客户验收版完整 12 步端到端记录。 | 下一段补正式鉴权与 DataScope 收口第一段。 | `npm run smoke:task9d62`；`npm run build:frontend`；`platform-server test`；客户按矩阵逐项签字。 |
 | 返工 / 绩效 / 终检业务完整度 | acceptance matrix 中返工流程、绩效统计、终检发货仍为 PARTIAL；9D.55 已补返工字典后台维护第一增量，9D.56 已补终检专用角色 / 附件第一增量，9D.57 已补返工影响图形化第一增量，9D.65 已补终检 PDF/签名第一段，9D.66 已补绩效周期筛选第一段，9D.74 已补绩效标准工时与完整公式口径第一段。 | 已有返工关闭、责任分类、字典后台维护、影响范围、影响图、绩效归因、绩效明细、绩效周期、标准工时覆盖率、开发默认绩效分、终检报告、内部附件绑定、内部 PDF 绑定和签名占位第一增量，但缺标准工时配置、客户/PM 公式确认、绩效申诉/导出/工资发放、真实电子签章/复杂报告模板和真实物流平台。 | 后续从正式鉴权与 DataScope 收口继续补，不一次扩展到真实电子签章或真实物流。 | `CheckWorklogPerformanceTests`；`npm run check:task9d74`；前端 smoke；OpenAPI 检查；客户验收公式/字段。 |
-| 部署基础设施 | readiness checklist 中“部署基础设施”为 PARTIAL；9D.69 已补后端/前端 Dockerfile、full-stack compose 示例、生产 env 占位示例和 Docker/env 隔离文档，`npm run compose:phase-one:config` 已通过。 | 仍缺 Nginx HTTPS、镜像仓库、真实服务器部署、测试/正式环境真实联调、数据库备份恢复演练、日志留存、监控告警和发布回滚手册。 | 下一段补操作手册与交付材料第一段，或在具备真实环境后补 HTTPS/备份/监控 smoke。 | `npm run check:task9d69`；`npm run compose:phase-one:config`；后续真实环境 smoke。 |
+| 部署基础设施 | readiness checklist 中“部署基础设施”为 PARTIAL；9D.69 已补后端/前端 Dockerfile、full-stack compose 示例、生产 env 占位示例和 Docker/env 隔离文档，`npm run compose:phase-one:config` 已通过；9D.81 已补部署真实环境 smoke / HTTPS / 备份监控验收记录模板第一段。 | 仍缺真实服务器部署、HTTPS、镜像仓库、测试/正式环境真实联调、数据库备份恢复演练、日志留存、监控告警、发布回滚和客户 / PM 书面确认。 | 真实部署环境具备后，按 9D.81 模板填写部署 smoke / HTTPS / 备份监控验收记录并由客户 / PM 确认；本地下一优先级转向客户培训签收 / 交付确认记录模板第一段。 | `npm run check:task9d69`；`npm run compose:phase-one:config`；`npm run check:deployment-env`；`npm run check:task9d81`；后续真实环境 smoke。 |
 | 操作手册 | readiness checklist 中“操作手册”为 PARTIAL；9D.70 已补四端最小操作手册、首版故障处理清单和交付材料索引，9D.72 已把培训签收纳入 CP-008。 | 仍缺正式客户培训签收、真实生产部署手册、备份恢复演练、日志留存、监控告警和发布回滚手册。 | 后续按 CP-008 补客户培训签收记录，或在真实环境具备后补生产部署/回滚/值班手册。 | `npm run check:task9d70`；按手册完成一次本地演示；客户/PM 确认。 |
 | 客户 / PM 确认项 | 9D.72 已新增 `docs/acceptance/phase-one-customer-pm-confirmations.md`，把付款状态、动态表单、AI-5 模板、标准工时、Multipart、签章、物流、培训签收和真实环境边界列为可追踪项。 | 这些仍是产品/业务口径问题，当前只有默认方案和负责人占位，不能由开发直接关闭。 | PM 指定每项负责人和目标日期，客户 / PM 逐项书面确认或修改默认方案。 | `npm run check:task9d72`；客户/PM 签字或书面确认；同步更新 `PROJECT.md`、`DECISIONS.md`、OpenAPI 和验收矩阵。 |
 
@@ -50,7 +50,7 @@
 
 Task 8 仍为 `in-progress / NOT_READY`。当前代码和文档已经具备多条最小链路的自动化证据，但正式上线仍卡在生产级鉴权、完整业务前端、真实环境联调、文件/AI/通知生产验收、部署安全和操作交付材料。
 
-下一轮唯一推荐目标：部署真实环境 smoke / HTTPS / 备份监控验收记录模板第一段。9D.80 已补 AI 真实 key / 生产 webhook 联调记录模板第一段；真实 key、真实 webhook、真实生产服务器和客户/PM 确认仍留在 BLOCKED 清单，待真实环境具备后按模板填写。
+下一轮唯一推荐目标：客户培训签收 / 交付确认记录模板第一段。9D.81 已补部署真实环境 smoke / HTTPS / 备份监控验收记录模板第一段；真实服务器、HTTPS、备份恢复、监控告警和客户/PM 确认仍留在 BLOCKED 清单，待真实环境具备后按模板填写。
 
 ## 9D.77 文件上传弱网 / 跨设备验收第一段
 
@@ -67,3 +67,7 @@ Task 8 仍为 `in-progress / NOT_READY`。当前代码和文档已经具备多�
 ## 9D.80 AI 真实 key / 生产 webhook 联调记录模板第一段
 
 9D.80 已新增 `docs/acceptance/task-9d80-ai-production-integration-acceptance.md`、`scripts/check-task-9d80-ai-production-integration-acceptance.mjs` 和 `npm run check:task9d80`。模板覆盖 DeepSeek key 外部注入、`AI_PROVIDER=deepseek`、`AI_DEEPSEEK_ENABLED=true`、`DEEPSEEK_API_KEY`、AI-3 脱敏与拒答、AI-5 文本整理、预算 / 熔断 / 输出防护、生产 webhook、发送侧签名、接收端验签 / 防重放和客户/PM 签字状态。本轮只提供记录模板，所有真实环境字段均为 `待填写` 或 `待确认`，不填写真实密钥，不填写真实 webhook URL，不代表真实 key 已联调完成，不代表生产 webhook 已联调完成。Task 8 仍保持 `NOT_READY`。
+
+## 9D.81 部署真实环境 smoke / HTTPS / 备份监控验收记录模板第一段
+
+9D.81 已新增 `docs/deployment/task-9d81-production-deployment-acceptance.md`、`scripts/check-task-9d81-deployment-production-acceptance.mjs` 和 `npm run check:task9d81`。模板覆盖 Docker Compose、Nginx、HTTPS、镜像仓库、生产环境变量、数据库备份、备份恢复演练、日志留存、监控告警、发布回滚和客户/PM 签字状态。本轮只提供记录模板，所有真实环境字段均为 `待填写` 或 `待确认`，真实密钥必须外部注入，不填写真实密钥，不填写真实服务器地址，不代表真实服务器已部署完成，不代表 HTTPS 已验收完成。Task 8 仍保持 `NOT_READY`。

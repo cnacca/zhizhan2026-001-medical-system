@@ -1353,8 +1353,8 @@ Task 8A smoke 注意事项：
 
 优先处理 `tasks/README.md`：
 
-1. 下一轮唯一推荐目标：部署真实环境 smoke / HTTPS / 备份监控验收记录模板第一段。
-2. 9D.80 已补 AI 真实 key / 生产 webhook 联调记录模板第一段；下一步先围绕 `deployment-infrastructure` 补真实环境验收记录模板，不接真实服务器、不写真实生产密钥。
+1. 下一轮唯一推荐目标：客户培训签收 / 交付确认记录模板第一段。
+2. 9D.81 已补部署真实环境 smoke / HTTPS / 备份监控验收记录模板第一段；下一步先围绕 `operations-manuals` 和 `customer-pm-confirmations` 补交付签收记录模板，不替代客户或 PM 真实签字。
 3. 不做独立网盘、Tus/tusd 独立服务、真实弱网全量验收、跨设备复杂续传、真实电子签章平台、物流平台 API 自动同步、支付系统或 AI 自动审核/发送；每补一个缺口，都要回写 `docs/acceptance/task-8-acceptance-matrix.md` 和 `docs/deployment/readiness-checklist.md` 的状态。
 
 ## 9D.77 文件上传弱网 / 跨设备验收第一段
@@ -1398,6 +1398,16 @@ npm run check:task9d80
 ```
 
 `check:task9d80` 检查 `docs/acceptance/task-9d80-ai-production-integration-acceptance.md` 是否保留 AI 真实 key / 生产 webhook 联调记录模板、待填写字段、DeepSeek key 外部注入、生产 webhook、发送侧签名、接收端验签 / 防重放、预算熔断、输出防护和客户/PM 签字状态，并禁止把真实 key 或生产 webhook 写成已联调完成。该模板不填写真实密钥，不填写真实 webhook URL，不代表真实 key 或生产 webhook 已联调完成。
+
+## 9D.81 部署真实环境 smoke / HTTPS / 备份监控验收记录模板第一段
+
+检查命令：
+
+```bash
+npm run check:task9d81
+```
+
+`check:task9d81` 检查 `docs/deployment/task-9d81-production-deployment-acceptance.md` 是否保留部署真实环境 smoke / HTTPS / 备份监控验收记录模板、待填写字段、Docker Compose、Nginx、HTTPS、镜像仓库、生产环境变量、数据库备份、备份恢复演练、日志留存、监控告警、发布回滚和客户/PM 签字状态，并禁止把真实服务器、HTTPS、备份恢复或监控告警写成已验收完成。该模板不填写真实密钥，不填写真实服务器地址，不代表真实部署已完成。
 
 ## 安全说明
 
