@@ -1,5 +1,22 @@
 # DECISIONS
 
+## D-129 任务 9D.78 测试 / 正式对象存储 bucket 隔离验收记录第一段
+
+状态：已确认并执行第一增量。
+
+决策：
+
+- 9D.78 只把测试 / 正式对象存储 bucket 隔离做成本地可检查的 readiness 记录，不接真实生产对象存储。
+- `.env.example` 保留本地 smoke bucket；`deploy/env/phase-one.prod.example` 只能保留生产 bucket 占位示例，正式值必须外部注入。
+- 一期 compose 必须通过 `${MINIO_BUCKET:?inject production bucket name externally}` 要求正式部署显式注入 bucket，避免误用本地默认值。
+- 新增 `npm run check:task9d78`，检查本地 bucket 与正式占位 bucket 不同、生产 bucket 仍为占位示例、compose 要求外部注入，以及验收/部署文档已回写。
+
+影响：
+
+- `file-upload-prod` 从“缺测试/正式 bucket 实际环境隔离验收”推进到“仓库内示例、compose 注入和文档记录可机器检查”的第一段。
+- 本轮不提交真实 MinIO 密钥、真实 bucket 名称或生产 URL，不启动真实生产环境，不把 Task 8 标完成。
+- 真实测试 bucket、真实正式 bucket、对象存储账号隔离、真实网络访问和客户 / PM 书面确认仍留在上线缺口中。
+
 ## D-128 任务 9D.77 文件上传弱网 / 跨设备验收第一段
 
 状态：已确认并执行第一增量。

@@ -11,7 +11,7 @@
       "source": "docs/deployment/readiness-checklist.md#正式鉴权与数据范围",
       "current_evidence": "数据库账号、权限码、data_scope、Bearer token、refresh/logout、权限注解、部分 SQL DataScope、prod 关闭 bootstrap header 门禁和 9D.75 权限码优先模式已落地。",
       "remaining_reason": "9D.75 已关闭生产角色兜底第一段；仍缺完整 RuoYi 管理 UI、生产级 Spring Security/JWT、通用 DataScope SQL、refresh token 轮换、access token 黑名单和多设备会话策略。",
-      "minimum_closure_loop": "后续补生产级 Spring Security/JWT 或通用 SQL DataScope 第一段；下一段优先转向文件上传真实弱网 / 跨设备验收第一段。",
+      "minimum_closure_loop": "后续补生产级 Spring Security/JWT 或通用 SQL DataScope 第一段；下一段优先转向真实环境文件上传人工验收记录模板第一段。",
       "verification": "npm run check:task9d75; ./scripts/with-jdk21.sh mvn -f backend/pom.xml -pl platform-server -Dtest=StrictPermissionModeTests,AuthStartupValidatorTests,BearerIdentityTests,PermissionInterceptorTests test; 角色越权矩阵"
     },
     {
@@ -20,7 +20,7 @@
       "source": "docs/deployment/readiness-checklist.md#前端业务页面",
       "current_evidence": "四入口登录、医生下单、客服初审、客服协同、客服资料缺失提示、AI 翻译草稿确认、设计稿预览 URL 聚合、客服端设计稿审核预览、账单物流预览/录入、人工付款状态第一段、生产审核、质检工时、绩效、绩效周期筛选第一段、绩效标准工时覆盖率与默认公式第一段、生产看板、返工、终检报告、终检专用角色 / 附件第一增量、终检 PDF/签名第一段、12 步入口 smoke、固定演示数据前 3 步、首个派工节点工序操作数据动作、设计稿确认数据动作、账单/物流第一段数据动作、剩余工序完成、物流发货、医生确认收货数据动作和返工异常路径数据动作已落地。",
       "remaining_reason": "仍缺实时自动保存、真实电子签章/复杂报告模板、绩效申诉/导出/工资发放、弱网/跨设备文件验收、真实支付系统、真实物流平台、客户/PM 对 CP-004 的最终公式确认和完整客户验收版 12 步主链路浏览器 smoke。",
-      "minimum_closure_loop": "后续补文件上传真实弱网 / 跨设备验收第一段；绩效公式若客户/PM 修改口径，先同步 CP-004 确认清单。",
+      "minimum_closure_loop": "后续补真实环境文件上传人工验收记录模板第一段；绩效公式若客户/PM 修改口径，先同步 CP-004 确认清单。",
       "verification": "npm run check:task9d75; npm run check:task9d74; npm run smoke:task9d62; npm run build:frontend; platform-server 目标测试"
     },
     {
@@ -36,10 +36,10 @@
       "id": "file-upload-prod",
       "status": "PARTIAL",
       "source": "docs/deployment/readiness-checklist.md#文件上传",
-      "current_evidence": "105MB Multipart、本地恢复、服务端候选恢复和中断恢复浏览器 smoke 已通过；9D.67 已补 FILE_MAX_FILE_SIZE_BYTES、FILE_ALLOWED_CONTENT_TYPES、FILE_MAX_FILES_PER_ORDER 服务端校验和医生端选择提示；9D.77 弱网 / 跨设备验收第一段已新增本地 Playwright smoke，使用两个浏览器 context 模拟设备 A 弱网中断、设备 B 无 localStorage 通过服务端 pending 候选恢复同一 file_id。",
-      "remaining_reason": "仍缺真实弱网限速/断网物理网络验收、真实跨设备/跨浏览器实机续传、客户最终 Multipart 限制签字和测试/正式 bucket 实际环境隔离验收。",
-      "minimum_closure_loop": "后续在真实测试环境补弱网/跨设备人工验收记录，或补测试/正式对象存储隔离验收记录。",
-      "verification": "npm run check:task9d67; npm run check:task9d77; npm run smoke:task9d10-large-upload; npm run smoke:task9d10-server-resume; npm run smoke:task9d10-interrupted-resume; npm run smoke:task9d77-file-upload-resilience"
+      "current_evidence": "105MB Multipart、本地恢复、服务端候选恢复和中断恢复浏览器 smoke 已通过；9D.67 已补 FILE_MAX_FILE_SIZE_BYTES、FILE_ALLOWED_CONTENT_TYPES、FILE_MAX_FILES_PER_ORDER 服务端校验和医生端选择提示；9D.77 弱网 / 跨设备验收第一段已新增本地 Playwright smoke，使用两个浏览器 context 模拟设备 A 弱网中断、设备 B 无 localStorage 通过服务端 pending 候选恢复同一 file_id；9D.78 测试 / 正式对象存储 bucket 隔离验收记录第一段已新增 check:task9d78 和 bucket 隔离记录。",
+      "remaining_reason": "仍缺真实弱网限速/断网物理网络验收、真实跨设备/跨浏览器实机续传、客户最终 Multipart 限制签字、真实测试/正式 bucket 创建、对象存储账号隔离和真实对象存储联调。",
+      "minimum_closure_loop": "后续补真实环境文件上传人工验收记录模板第一段，或在真实测试环境补弱网/跨设备人工验收记录。",
+      "verification": "npm run check:task9d67; npm run check:task9d77; npm run check:task9d78; npm run smoke:task9d10-large-upload; npm run smoke:task9d10-server-resume; npm run smoke:task9d10-interrupted-resume; npm run smoke:task9d77-file-upload-resilience"
     },
     {
       "id": "ai-production-governance",
@@ -2839,6 +2839,38 @@
             "/orders/{orderId}/bill/payment-status",
             "付款状态第一段",
             "check:task9d73"
+          ]
+        },
+        {
+          "id": "task-9d78-bucket-isolation-readiness-required-text",
+          "type": "required_text",
+          "paths": [
+            ".env.example",
+            "deploy/env/phase-one.prod.example",
+            "deploy/docker-compose.phase-one.yml",
+            "docs/acceptance/task-9d78-bucket-isolation-readiness.md",
+            "docs/acceptance/task-8-acceptance-matrix.md",
+            "docs/deployment/readiness-checklist.md",
+            "docs/deployment/task-8-final-readiness-report.md",
+            "docs/deployment/phase-one-docker-env.md",
+            "acceptance.json",
+            "DECISIONS.md",
+            "STATUS.md",
+            "tasks/README.md",
+            "README.md",
+            "scripts/check-task-9d78-bucket-isolation-readiness.mjs",
+            "package.json"
+          ],
+          "patterns": [
+            "MINIO_BUCKET",
+            "replace-with-phase-one-prod-bucket",
+            "inject production bucket name externally",
+            "任务 9D.78",
+            "测试 / 正式对象存储 bucket 隔离验收记录第一段",
+            "不接真实生产对象存储",
+            "不提交真实 MinIO 密钥",
+            "Task 8 仍保持 NOT_READY",
+            "check:task9d78"
           ]
         }
       ]

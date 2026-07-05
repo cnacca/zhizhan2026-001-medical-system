@@ -41,7 +41,7 @@
 - T6 / 9D.74 绩效标准工时与完整公式口径第一段已收口：绩效响应新增公式版本、标准工时覆盖率、缺失数量和默认绩效分，前端绩效页只读展示；本轮不做工资结算、申诉、导出或完整 HR。
 - 9D.75 正式鉴权与 DataScope 收口第一段已收口：新增 `APP_AUTH_ALLOW_ROLE_FALLBACK`，本地默认保留角色兜底，生产 profile / compose 固定关闭；严格模式下写了权限码的接口必须由 Bearer token 权限码放行，角色-only token 访问返回 403。
 - 9D.76 WebSocket / 通知生产验收第一段已收口：新增 `npm run check:task9d76`，一期 Nginx 同时代理 `/notifications` REST 和 `/ws/` WebSocket，避免生产前端通知中心落到 SPA fallback；检查脚本串联 compose Redis/后端依赖、Redis 广播代码路径、通知 REST 隔离/已读测试、WebSocket 脱敏测试和 Redis 远端广播测试。
-- 下一步增强：文件上传真实弱网 / 跨设备验收第一段；先围绕 `file-upload-prod` 缺口补本地可执行的弱网/跨设备验收脚本或记录模板，不接真实对象存储、不提交真实密钥。
+- 下一步增强：真实环境文件上传人工验收记录模板第一段；先围绕 `file-upload-prod` 缺口补真实测试环境可填写的人工验收记录模板，不接真实对象存储、不提交真实密钥。
 - Task 8 仍是 `in-progress / NOT_READY`，不要因为 T1 完成就标记一期完成。
 
 ## 当前交接摘要
@@ -67,7 +67,7 @@
 - 9D.53 生产端成本管理汇总后端适配第一增量已完成；新增 `/production/cost-management/summary`，生产/客服/管理可读，医生端拒绝；前端生产端成本管理/外协成本已接真实汇总，展示工序成本、材料成本、人工成本、返工成本、外协成本和成本异常预警。
 - 9D.54 生产端奖惩管理汇总后端适配第一增量已完成；新增 `/production/reward-penalty/summary`，生产/客服/管理可读，医生端拒绝；前端生产端奖惩管理已接真实汇总，展示奖惩记录、奖惩原因、关联对象、审批状态、月度汇总和绩效影响。
 - 本轮 9D.57 状态：completed-first-increment；已通过 TDD 静态红灯/绿灯、frontend build、acceptance、静态检查和真实浏览器点击。本轮在 `/rework-final` 生产端返工终检页新增只读返工影响图，把既有返工目标和受影响后续节点渲染为“返工目标 -> 后续重置”路径。未完成原因：本轮不做复杂甘特、拖拽排产、重新派工大改、医生端返工可见、生产级通知联动或完整 12 步浏览器验收。
-- 下一轮唯一推荐目标：文件上传真实弱网 / 跨设备验收第一段；9D.76 已补 WebSocket / 通知生产网关 readiness 第一段，下一段应围绕 `file-upload-prod` 缺口补本地可执行的弱网/跨设备验收脚本或记录模板。
+- 下一轮唯一推荐目标：真实环境文件上传人工验收记录模板第一段；9D.78 已补测试 / 正式对象存储 bucket 隔离验收记录第一段，下一段应围绕 `file-upload-prod` 补真实测试环境可填写的人工验收记录模板。
 - 继续开发前先复核 `STATUS.md`、`docs/acceptance/task-8-acceptance-matrix.md` 和 `docs/deployment/readiness-checklist.md`，并按 TDD 先补红灯测试。
 - 本轮 9D.25 状态：completed-first-increment；已通过 TDD 后端测试、Check/Worklog 模块回归、OpenAPI、frontend build、acceptance 和静态检查。本轮新增 `/performance/details` 绩效工时明细接口，并在绩效页展示最近完成明细。未完成原因：仍缺绩效完整公式/周期筛选/标准工时配置/申诉闭环、终检 PDF/签名、生产级 AI 治理、完整客服协同、账单物流闭环、完整弱网/跨设备续传和部署交付材料。
 - 本轮 9D.24 状态：completed-first-increment；已通过 TDD 后端测试、四入口登录静态检查、OpenAPI、frontend build、acceptance 和登录相关后端回归。未完成原因：仍缺生产级 Spring Security/JWT、完整 RuoYi 管理 UI、refresh token 轮换、access token 黑名单、多设备会话策略和正式环境浏览器全链路验收。
@@ -5156,3 +5156,38 @@ npm run smoke:task9d77-file-upload-resilience
 完成记录：新增 `scripts/smoke-task-9d77-file-upload-resilience.spec.mjs` 和 `docs/acceptance/task-9d77-file-upload-resilience.md`，`acceptance.json` 的 `file-upload-prod` 缺口同步纳入 9D.77 证据。
 
 未完成原因：真实弱网物理网络、真实跨设备实机、客户 / PM 对 Multipart 限制签字和测试/正式 bucket 实际隔离验收仍未完成。Task 8 仍保持 NOT_READY。
+
+## 任务 9D.78：测试 / 正式对象存储 bucket 隔离验收记录第一段
+
+状态：completed-first-increment。
+
+目标：围绕 `file-upload-prod` 缺口，把测试 / 正式对象存储 bucket 隔离要求整理成仓库内可检查的 readiness 证据。
+
+范围：
+
+- 新增 `docs/acceptance/task-9d78-bucket-isolation-readiness.md`。
+- 新增 `scripts/check-task-9d78-bucket-isolation-readiness.mjs` 和 `npm run check:task9d78`。
+- 检查 `.env.example` 本地 bucket 与 `deploy/env/phase-one.prod.example` 生产占位 bucket 不同。
+- 检查一期 compose 要求外部注入 `MINIO_BUCKET`。
+- 回写 STATUS、DECISIONS、tasks、README、acceptance matrix、readiness checklist、Task 8 final readiness report 和 `acceptance.json`。
+
+非目标：
+
+- 不接真实生产对象存储。
+- 不启动真实生产环境。
+- 不提交真实 MinIO 密钥、真实 bucket 名称或生产 URL。
+- 不把真实测试 / 正式 bucket 实际隔离写成已完成。
+- 不替代客户 / PM 对 Multipart 限制和真实环境边界的书面确认。
+
+验收命令：
+
+```bash
+npm run check:task9d78
+npm run check:task9d67
+npm run check:deployment-env
+npm run acceptance
+```
+
+完成记录：新增 9D.78 bucket 隔离验收记录和机器检查；`file-upload-prod` 当前证据已纳入 9D.78 第一段。
+
+未完成原因：真实测试 bucket、真实正式 bucket、对象存储账号隔离、真实网络访问、客户 / PM 书面确认和生产部署联调仍需在真实环境具备后验收。Task 8 仍保持 NOT_READY。
