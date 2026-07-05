@@ -317,6 +317,50 @@ class MessageDesignBillNotificationTests {
     }
 
     @Test
+    void csCanRecordManualPaymentLedgerAndDoctorCanOnlyReadOwnOrderLedger() throws Exception {
+        mockMvc.perform(post("/orders/{orderId}/payments", orderId)
+                        .header("X-Bootstrap-Role", "CS")
+                        .header("X-Bootstrap-User-Id", CS_USER_ID)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("""
+                                {
+                                  "amount_cents": 128800,
+                                  "currency": "CNY",
+                                  "payment_method": "BANK_TRANSFER",
+                                  "received_at": "2026-07-05T10:15:30",
+                                  "payment_note": "一期人工收款记录"
+                                }
+                                """))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.amount_cents").value(128800))
+                .andExpect(jsonPath("$.data.payment_method").value("BANK_TRANSFER"));
+
+        mockMvc.perform(get("/orders/{orderId}/payments", orderId)
+                        .header("X-Bootstrap-Role", "DOCTOR")
+                        .header("X-Bootstrap-User-Id", DOCTOR_USER_ID)
+                        .header("X-Bootstrap-Clinic-Id", clinicId))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data[0].amount_cents").value(128800))
+                .andExpect(jsonPath("$.data[0].currency").value("CNY"))
+                .andExpect(content().string(containsString("一期人工收款记录")))
+                .andExpect(content().string(not(containsString("内部协同备注"))));
+
+        mockMvc.perform(post("/orders/{orderId}/payments", orderId)
+                        .header("X-Bootstrap-Role", "DOCTOR")
+                        .header("X-Bootstrap-User-Id", DOCTOR_USER_ID)
+                        .header("X-Bootstrap-Clinic-Id", clinicId)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"amount_cents\":100,\"payment_method\":\"CASH\"}"))
+                .andExpect(status().isForbidden());
+
+        mockMvc.perform(get("/orders/{orderId}/payments", orderId)
+                        .header("X-Bootstrap-Role", "DOCTOR")
+                        .header("X-Bootstrap-User-Id", OTHER_DOCTOR_USER_ID)
+                        .header("X-Bootstrap-Clinic-Id", clinicId))
+                .andExpect(status().isForbidden());
+    }
+
+    @Test
     void shipmentRequiresFinalOutCheckPassBeforeUpdatingExternalProjection() throws Exception {
         mockMvc.perform(post("/orders/{orderId}/logistics", orderId)
                         .header("X-Bootstrap-Role", "CS")

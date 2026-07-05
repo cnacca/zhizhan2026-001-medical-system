@@ -34,6 +34,8 @@
 
 9D.83 患者管理基础版第一增量已新增 `patient_record`、`orders.patient_id`、`patient:manage-doctor`、`/patients`、`/patients/{patientId}/orders` 和医生端 `/doctor/patients`，覆盖患者档案、订单绑定、本人数据隔离和列表检索第一段；本轮不做真实客户数据导入、高级标签、批量检索或 AI 历史方案推荐，Task 8 仍保持 `NOT_READY`。
 
+9D.84 人工支付流水 / 收支记录第一增量已新增 `order_payment_record`、`/orders/{orderId}/payments` 和前端人工收款入口；CS / ADMIN 可录入人工收款流水，医生只读查看本人订单流水。本轮不接真实支付网关，不做退款、对账、发票、财务审批或月结自动归集，Task 8 仍保持 `NOT_READY`。
+
 ## 判定规则
 
 | 状态 | 含义 |

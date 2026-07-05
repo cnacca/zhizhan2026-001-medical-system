@@ -168,6 +168,18 @@ type BillInfo = {
   file_id: number | null
 }
 
+type PaymentRecordItem = {
+  payment_id: number
+  order_id: number
+  amount_cents: number
+  currency: string
+  payment_method: string
+  received_at: string
+  payment_note: string | null
+  created_by_user_id: number | null
+  created_at: string
+}
+
 type LogisticsInfo = {
   logistics_id: number | null
   order_id: number
@@ -181,6 +193,7 @@ type DoctorOrderWorkspace = {
   messages: MessageItem[]
   drafts: DesignDraftItem[]
   bill: BillInfo
+  payments: PaymentRecordItem[]
   logistics: LogisticsInfo
 }
 
@@ -812,6 +825,9 @@ const csDesignDraftPreviewUrls = ref<Record<string, string>>({})
 const csBillFileId = ref('')
 const csPaymentStatus = ref('PENDING_PAYMENT')
 const csBillResult = ref('')
+const csPaymentAmountCents = ref<number | null>(null)
+const csPaymentMethod = ref('BANK_TRANSFER')
+const csPaymentNote = ref('')
 const csMissingInfoItems = ref<MissingInfoItem[]>([])
 const csMissingInfoComplete = ref<boolean | null>(null)
 const csTranslationSourceText = ref('')
@@ -3548,11 +3564,12 @@ async function loadDoctorOrderWorkspace(orderId: number) {
   designDraftPreviewUrls.value = {}
   doctorBillPreviewUrl.value = ''
   try {
-    const [orderPayload, messagesPayload, draftsPayload, billPayload, logisticsPayload] = await Promise.all([
+    const [orderPayload, messagesPayload, draftsPayload, billPayload, paymentsPayload, logisticsPayload] = await Promise.all([
       apiFetch<DoctorOrderItem>(`/orders/${orderId}`),
       apiFetch<MessageItem[]>(`/orders/${orderId}/messages`),
       apiFetch<DesignDraftItem[]>(`/orders/${orderId}/design-drafts`),
       apiFetch<BillInfo>(`/orders/${orderId}/bill`),
+      apiFetch<PaymentRecordItem[]>(`/orders/${orderId}/payments`),
       apiFetch<LogisticsInfo>(`/orders/${orderId}/logistics`)
     ])
     selectedDoctorOrder.value = orderPayload.data
@@ -3561,6 +3578,7 @@ async function loadDoctorOrderWorkspace(orderId: number) {
       messages: messagesPayload.data,
       drafts: draftsPayload.data,
       bill: billPayload.data,
+      payments: paymentsPayload.data,
       logistics: logisticsPayload.data
     }
   } catch (error) {
@@ -3991,6 +4009,41 @@ async function updateInternalPaymentStatus() {
     await loadNotifications()
   } catch (error) {
     internalOrderError.value = error instanceof Error ? error.message : '付款状态更新失败'
+  } finally {
+    csReviewActionLoading.value = false
+  }
+}
+
+async function createInternalPaymentRecord() {
+  if (!selectedInternalOrder.value) {
+    return
+  }
+  if (!csPaymentAmountCents.value || csPaymentAmountCents.value <= 0) {
+    internalOrderError.value = '请填写正数收款金额（分）'
+    return
+  }
+  csReviewActionLoading.value = true
+  internalOrderError.value = ''
+  csBillResult.value = ''
+  try {
+    const payload = await apiFetch<PaymentRecordItem>(
+      `/orders/${selectedInternalOrder.value.order_id}/payments`,
+      {
+        method: 'POST',
+        body: JSON.stringify({
+          amount_cents: csPaymentAmountCents.value,
+          currency: 'CNY',
+          payment_method: csPaymentMethod.value,
+          payment_note: csPaymentNote.value.trim()
+        })
+      }
+    )
+    csBillResult.value = `收款流水已记录：${payload.data.amount_cents} 分`
+    csPaymentAmountCents.value = null
+    csPaymentNote.value = ''
+    await loadNotifications()
+  } catch (error) {
+    internalOrderError.value = error instanceof Error ? error.message : '收款流水记录失败'
   } finally {
     csReviewActionLoading.value = false
   }
@@ -5633,6 +5686,36 @@ onBeforeUnmount(() => {
                         @click="updateInternalPaymentStatus"
                       >
                         保存付款状态
+                      </el-button>
+                    </div>
+                    <div class="order-create-grid">
+                      <el-form-item label="收款金额（分）">
+                        <el-input-number
+                          v-model="csPaymentAmountCents"
+                          :min="1"
+                          data-testid="internal-payment-amount-input"
+                        />
+                      </el-form-item>
+                      <el-form-item label="收款方式">
+                        <el-select v-model="csPaymentMethod" data-testid="internal-payment-method-select">
+                          <el-option label="银行转账" value="BANK_TRANSFER" />
+                          <el-option label="现金" value="CASH" />
+                          <el-option label="线下刷卡" value="OFFLINE_CARD" />
+                          <el-option label="其他人工方式" value="OTHER_MANUAL" />
+                        </el-select>
+                      </el-form-item>
+                      <el-form-item label="收款备注">
+                        <el-input v-model="csPaymentNote" data-testid="internal-payment-note-input" />
+                      </el-form-item>
+                    </div>
+                    <div class="inline-actions">
+                      <el-button
+                        type="primary"
+                        :loading="csReviewActionLoading"
+                        data-testid="internal-payment-record-button"
+                        @click="createInternalPaymentRecord"
+                      >
+                        记录人工收款
                       </el-button>
                     </div>
                     <p class="public-message">
@@ -7347,6 +7430,15 @@ onBeforeUnmount(() => {
                     <div>
                       <span>物流单号</span>
                       <strong>{{ doctorOrderWorkspace.logistics.tracking_no ?? '-' }}</strong>
+                    </div>
+                  </div>
+                  <div class="compact-list">
+                    <article v-for="payment in doctorOrderWorkspace.payments" :key="payment.payment_id">
+                      <strong>{{ payment.currency }} {{ payment.amount_cents }} 分 / {{ payment.payment_method }}</strong>
+                      <p>{{ payment.received_at }} / {{ payment.payment_note ?? '无备注' }}</p>
+                    </article>
+                    <div v-if="doctorOrderWorkspace.payments.length === 0" class="empty-state">
+                      暂无人工收款流水
                     </div>
                   </div>
                   <div class="inline-actions">

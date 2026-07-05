@@ -5359,3 +5359,35 @@ git diff --check
 
 - 9D.83 只关闭患者管理基础版第一增量；真实客户数据导入、高级标签、批量检索和 AI 历史方案推荐均不纳入一期本轮。
 - Task 8 仍保持 NOT_READY。
+
+## 任务 9D.84：人工支付流水 / 收支记录第一增量
+
+状态：completed-first-increment。
+
+目标：
+
+- 按最新版 PRD V2.0 补一期人工支付流水 / 收支记录第一段。
+- 支持 CS / ADMIN 录入订单级人工收款流水，医生只读查看本人订单流水。
+
+范围：
+
+- 新增 `order_payment_record` 表。
+- 新增 `/orders/{orderId}/payments` GET/POST。
+- 前端客服账单物流页新增人工收款记录入口，医生账单物流页只读展示流水。
+- OpenAPI、acceptance 和 readiness 文档同步。
+
+非目标：
+
+- 不接真实支付网关。
+- 不做退款、对账、发票、财务审批或月结自动归集。
+- 不把人工流水表述成真实支付系统已完成。
+
+验收结果：
+
+- 红灯：`MessageDesignBillNotificationTests` 首次失败于 `/orders/{orderId}/payments` 404。
+- 绿灯：目标测试覆盖 CS 录入、医生只读、医生不能录入、其他医生不能读取。
+
+未完成原因：
+
+- 9D.84 只关闭人工收款流水第一增量；真实支付、退款、对账、发票和月结均保持二期或外部系统项。
+- Task 8 仍保持 NOT_READY。

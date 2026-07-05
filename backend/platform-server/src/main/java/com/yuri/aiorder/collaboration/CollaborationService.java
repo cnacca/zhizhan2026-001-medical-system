@@ -8,6 +8,7 @@ import com.yuri.aiorder.common.auth.AccessControlService;
 import com.yuri.aiorder.notification.NotificationPushService;
 import com.yuri.aiorder.order.status.InternalOrderStatus;
 import com.yuri.aiorder.order.status.OrderStatusService;
+import java.time.LocalDateTime;
 import java.util.ArrayList;
 import java.util.LinkedHashSet;
 import java.util.List;
@@ -309,6 +310,56 @@ public class CollaborationService {
                 .orElse(new BillResponse(null, orderId, "PENDING", "PENDING_PAYMENT", null));
     }
 
+    public List<PaymentRecordResponse> listPaymentRecords(long orderId, BootstrapIdentity identity) {
+        OrderRow order = loadOrder(orderId, identity, "identity cannot access this order");
+        requireDoctorOwnerIfNeeded(order, identity);
+        return jdbcClient.sql("""
+                        SELECT payment_id, order_id, amount_cents, currency, payment_method,
+                               received_at, payment_note, created_by_user_id, created_at
+                        FROM order_payment_record
+                        WHERE order_id = :orderId
+                        ORDER BY received_at DESC, payment_id DESC
+                        """)
+                .param("orderId", orderId)
+                .query(this::mapPaymentRecord)
+                .list();
+    }
+
+    @Transactional
+    public PaymentRecordResponse createPaymentRecord(
+            long orderId, PaymentRecordRequest request, BootstrapIdentity identity) {
+        requireCsOrAdmin(identity);
+        OrderRow order = loadOrder(orderId, identity, "identity cannot access this order");
+        long amountCents = request.amountCents() == null ? 0L : request.amountCents();
+        if (amountCents <= 0) {
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "amount_cents must be positive");
+        }
+        String paymentMethod = normalizeOrDefault(request.paymentMethod(), "");
+        if (paymentMethod.isBlank()) {
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "payment_method is required");
+        }
+        String currency = normalizeOrDefault(request.currency(), "CNY");
+        LocalDateTime receivedAt = request.receivedAt() == null ? LocalDateTime.now() : request.receivedAt();
+
+        jdbcClient.sql("""
+                        INSERT INTO order_payment_record
+                            (order_id, amount_cents, currency, payment_method, received_at, payment_note, created_by_user_id)
+                        VALUES
+                            (:orderId, :amountCents, :currency, :paymentMethod, :receivedAt, :paymentNote, :createdByUserId)
+                        """)
+                .param("orderId", orderId)
+                .param("amountCents", amountCents)
+                .param("currency", currency)
+                .param("paymentMethod", paymentMethod)
+                .param("receivedAt", receivedAt)
+                .param("paymentNote", normalizeNullable(request.paymentNote()))
+                .param("createdByUserId", identity.userId())
+                .update();
+        long paymentId = lastInsertId();
+        emit(order, "PAYMENT_RECORD_CREATED", "DOCTOR", order.doctorUserId(), "收款记录已更新");
+        return loadPaymentRecord(paymentId);
+    }
+
     @Transactional
     public BillResponse uploadBill(long orderId, BillRequest request, BootstrapIdentity identity) {
         requireCsOrAdmin(identity);
@@ -329,6 +380,31 @@ public class CollaborationService {
                 .update();
         emit(order, "BILL_UPLOADED", "DOCTOR", order.doctorUserId(), "账单已上传");
         return getBill(orderId, identity);
+    }
+
+    private PaymentRecordResponse loadPaymentRecord(long paymentId) {
+        return jdbcClient.sql("""
+                        SELECT payment_id, order_id, amount_cents, currency, payment_method,
+                               received_at, payment_note, created_by_user_id, created_at
+                        FROM order_payment_record
+                        WHERE payment_id = :paymentId
+                        """)
+                .param("paymentId", paymentId)
+                .query(this::mapPaymentRecord)
+                .single();
+    }
+
+    private PaymentRecordResponse mapPaymentRecord(java.sql.ResultSet rs, int rowNum) throws java.sql.SQLException {
+        return new PaymentRecordResponse(
+                rs.getLong("payment_id"),
+                rs.getLong("order_id"),
+                rs.getLong("amount_cents"),
+                rs.getString("currency"),
+                rs.getString("payment_method"),
+                rs.getObject("received_at", LocalDateTime.class),
+                rs.getString("payment_note"),
+                rs.getObject("created_by_user_id", Long.class),
+                rs.getObject("created_at", LocalDateTime.class));
     }
 
     @Transactional
@@ -689,6 +765,12 @@ public class CollaborationService {
         }
     }
 
+    private void requireDoctorOwnerIfNeeded(OrderRow order, BootstrapIdentity identity) {
+        if (identity.isDoctor() && (identity.userId() == null || !identity.userId().equals(order.doctorUserId()))) {
+            throw new ResponseStatusException(HttpStatus.FORBIDDEN, "doctor cannot access this order");
+        }
+    }
+
     private void requireCsOrAdmin(BootstrapIdentity identity) {
         if (identity.role() != UserRole.CS && identity.role() != UserRole.ADMIN) {
             throw new ResponseStatusException(HttpStatus.FORBIDDEN, "CS or ADMIN role is required");
@@ -701,6 +783,10 @@ public class CollaborationService {
 
     private String normalizeOrDefault(String value, String defaultValue) {
         return value == null || value.isBlank() ? defaultValue : value.trim().toUpperCase(Locale.ROOT);
+    }
+
+    private String normalizeNullable(String value) {
+        return value == null || value.isBlank() ? null : value.trim();
     }
 
     private long lastInsertId() {

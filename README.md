@@ -1424,6 +1424,19 @@ npm run build:frontend
 
 9D.83 新增医生端患者管理基础版：`patient_record`、`orders.patient_id`、`patient:manage-doctor`、`/patients`、`/patients/{patientId}/orders` 和医生端 `/doctor/patients` 最小入口。医生只能管理本人 + 本诊所患者，患者历史订单只返回外部状态。本轮不做真实客户数据导入、高级标签、批量检索或 AI 历史方案推荐。
 
+## 9D.84 人工支付流水 / 收支记录第一增量
+
+检查命令：
+
+```bash
+npm run check:task9d84
+./scripts/with-jdk21.sh mvn -f backend/pom.xml -pl platform-server -Dtest=MessageDesignBillNotificationTests test
+npm run check:openapi
+npm run build:frontend
+```
+
+9D.84 新增 `order_payment_record`、`PaymentRecordRequest` / `PaymentRecordResponse` 和 `/orders/{orderId}/payments`。CS / ADMIN 可录入人工收款流水，医生只读查看本人订单流水。本轮不接真实支付网关，不做退款、自动对账、电子发票、财务审批或月结自动归集。
+
 ## 安全说明
 
 不要提交任何真实密钥、Token、数据库连接串、MinIO 凭据、DeepSeek API Key 或客户隐私数据。
