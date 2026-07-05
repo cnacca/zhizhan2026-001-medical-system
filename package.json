@@ -97,6 +97,7 @@
     "check:task9d82": "node scripts/check-task-9d82-prd-v2-gap-matrix.mjs",
     "check:task9d83": "node scripts/check-task-9d83-patient-management.mjs",
     "check:task9d84": "node scripts/check-task-9d84-payment-ledger.mjs",
+    "check:task9d85": "node scripts/check-task-9d85-clinic-preferences.mjs",
     "check:auth-refresh": "node scripts/check-auth-refresh.mjs",
     "smoke:task9d10-large-upload": "playwright test scripts/smoke-task-9d10-large-upload.spec.mjs --browser=chromium --workers=1",
     "smoke:task9d10-server-resume": "playwright test scripts/smoke-task-9d10-server-resume.spec.mjs --browser=chromium --workers=1",

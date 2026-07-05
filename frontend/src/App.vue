@@ -117,6 +117,31 @@ type PatientOrderListResponse = {
   size: number
 }
 
+type ClinicItem = {
+  clinic_id: number
+  clinic_name: string
+  contact_name: string | null
+  contact_phone: string | null
+  status: string
+  preference_count: number
+  created_at: string
+  updated_at: string
+}
+
+type ClinicListResponse = {
+  items: ClinicItem[]
+  total: number
+  page: number
+  size: number
+}
+
+type ClinicPreference = {
+  clinic_id: number
+  clinic_name: string
+  preferences: Record<string, string | null>
+  updated_at: string
+}
+
 type InternalOrderItem = {
   order_id: number
   order_no: string
@@ -770,6 +795,25 @@ const doctorPatientAge = ref<number | null>(null)
 const doctorPatientGender = ref('UNKNOWN')
 const doctorPatientOralDescription = ref('')
 const selectedDoctorPatientId = ref<number | null>(null)
+const clinics = ref<ClinicItem[]>([])
+const selectedClinic = ref<ClinicItem | null>(null)
+const clinicPreference = ref<ClinicPreference | null>(null)
+const clinicKeyword = ref('')
+const clinicLoading = ref(false)
+const clinicError = ref('')
+const clinicSaveLoading = ref(false)
+const clinicSaveResult = ref('')
+const clinicCreateName = ref('')
+const clinicCreateContactName = ref('')
+const clinicCreateContactPhone = ref('')
+const clinicPreferenceForm = ref<Record<string, string>>({
+  color: '',
+  contact: '',
+  margin: '',
+  shape: '',
+  material: '',
+  note: ''
+})
 const doctorOrdersLoading = ref(false)
 const doctorOrderError = ref('')
 const doctorActionLoading = ref(false)
@@ -1127,7 +1171,7 @@ const displayNavigationConfig: Record<PortalTone, NavigationGroup[]> = {
             { id: 'cs-message-review', title: '待审核消息', description: '审核生产端发给医生的消息。', icon: 'audit', routePath: '/collaboration' }
           ]
         },
-        { id: 'cs-customers', title: '客户管理', description: '维护诊所档案、联系人、历史订单和客户偏好。', icon: 'customer', routePath: '/customers', placeholder: true },
+        { id: 'cs-customers', title: '客户管理', description: '维护诊所档案、联系人、历史订单和客户偏好。', icon: 'customer', routePath: '/customers' },
         { id: 'cs-products', title: '产品管理', description: '查看产品类型、产品资料和动态表单字段。', icon: 'product', routePath: '/system/form-configs' },
         { id: 'cs-designs', title: '设计稿管理', description: '审核生产端上传的设计稿并发给医生确认。', icon: 'design', routePath: '/design-drafts', placeholder: true },
         { id: 'cs-billing', title: '账单管理', description: '上传账单文件、查看订单费用和客户账单。', icon: 'bill', routePath: '/billing', placeholder: true },
@@ -1233,7 +1277,7 @@ const displayNavigationConfig: Record<PortalTone, NavigationGroup[]> = {
             { id: 'admin-roles', title: '角色权限', description: '维护角色、权限范围和菜单可见性。', icon: 'system', routePath: '/system/rbac/roles', placeholder: true }
           ]
         },
-        { id: 'admin-customers', title: '客户诊所', description: '管理诊所档案、客户偏好和联系人。', icon: 'customer', routePath: '/admin/clinics', placeholder: true },
+        { id: 'admin-customers', title: '客户诊所', description: '管理诊所档案、客户偏好和联系人。', icon: 'customer', routePath: '/admin/clinics' },
         {
           id: 'admin-products',
           title: '产品配置',
@@ -1274,7 +1318,7 @@ const accountNavigationConfig: Record<PortalTone, NavigationGroup[]> = {
     {
       title: '账号管理',
       items: [
-        { id: 'doctor-account-clinic', title: '诊所信息', description: '查看所属诊所、联系人、地址和开票资料。', icon: 'customer', routePath: '/doctor/account/clinic', placeholder: true },
+        { id: 'doctor-account-clinic', title: '诊所信息', description: '查看所属诊所、联系人、地址和开票资料。', icon: 'customer', routePath: '/doctor/account/clinic' },
         { id: 'doctor-account-members', title: '医生/成员账号', description: '查看诊所医生、助手和成员账号状态。', icon: 'person', routePath: '/doctor/account/members', placeholder: true },
         { id: 'doctor-account-notifications', title: '通知偏好', description: '设置设计稿、账单、物流和收货提醒偏好。', icon: 'notification', routePath: '/doctor/account/notifications', placeholder: true },
         { id: 'doctor-account-security', title: '密码安全', description: '维护登录密码、账号安全和登录记录。', icon: 'lock', routePath: '/doctor/account/security', placeholder: true }
@@ -1857,6 +1901,8 @@ const accountProfile = computed<AccountProfile>(() => {
 })
 const isDoctorOrderRoute = computed(() => activeRoute.value === '/doctor/orders')
 const isDoctorPatientsRoute = computed(() => activeRoute.value === '/doctor/patients')
+const isClinicManagementRoute = computed(() => activeRoute.value === '/customers' || activeRoute.value === '/admin/clinics')
+const isDoctorClinicRoute = computed(() => activeRoute.value === '/doctor/account/clinic')
 const isInternalOrdersRoute = computed(() => activeRoute.value === '/orders/internal')
 const isCustomerCollaborationRoute = computed(() => activeRoute.value === '/collaboration')
 const isProductionReviewRoute = computed(() => activeRoute.value === '/workflow/review')
@@ -1883,6 +1929,7 @@ const isProductionCostSummaryRoute = computed(() => [
 const isProductionRewardPenaltySummaryRoute = computed(() => activeDisplayItem.value?.id === 'production-reward-penalty')
 const isFormConfigsRoute = computed(() => activeRoute.value === '/system/form-configs')
 const isReworkDictionariesRoute = computed(() => activeRoute.value === '/system/rework-dictionaries')
+const canCreateClinic = computed(() => currentUser.value?.roles.includes('ADMIN') ?? false)
 const selectedOrderId = computed(() => selectedDoctorOrder.value?.order_id ?? doctorOrderWorkspace.value?.order.order_id ?? null)
 const selectedFormConfigField = computed(() => formConfigFields.value.find((field) => field.field_id === selectedFormConfigFieldId.value) ?? null)
 const selectedReworkDictionaryItem = computed(() =>
@@ -2131,6 +2178,14 @@ const fieldTypeLabelMap: Record<string, string> = {
   date: '日期',
   file: '文件'
 }
+const clinicPreferenceLabelMap: Record<string, string> = {
+  color: '色号偏好',
+  contact: '邻接偏好',
+  margin: '边缘设计',
+  shape: '外形偏好',
+  material: '材料偏好',
+  note: '备注'
+}
 function roleLabel(role: string) {
   return roleLabelMap[role] ?? role
 }
@@ -2191,6 +2246,9 @@ function productTypeLabel(type: string | null | undefined) {
 }
 function fieldTypeLabel(type: string | null | undefined) {
   return type ? (fieldTypeLabelMap[type] ?? type) : '未设置'
+}
+function clinicPreferenceLabel(key: string) {
+  return clinicPreferenceLabelMap[key] ?? key
 }
 function compactDateTime(value: string | undefined) {
   if (!value) {
@@ -2674,6 +2732,10 @@ function navigateToRoute(routePath: string) {
     void loadDoctorPatients()
   } else if (routePath === '/doctor/patients') {
     void loadDoctorPatients()
+  } else if (routePath === '/customers' || routePath === '/admin/clinics') {
+    void loadClinics()
+  } else if (routePath === '/doctor/account/clinic') {
+    void loadDoctorClinicPreference()
   } else if (routePath === '/orders/internal') {
     void loadInternalOrders()
   } else if (routePath === '/workflow/review') {
@@ -2900,6 +2962,145 @@ async function createDoctorPatient() {
     doctorPatientError.value = error instanceof Error ? error.message : '患者档案创建失败'
   } finally {
     doctorPatientCreateLoading.value = false
+  }
+}
+
+function syncClinicPreferenceForm(preference: ClinicPreference | null) {
+  for (const key of Object.keys(clinicPreferenceForm.value)) {
+    clinicPreferenceForm.value[key] = preference?.preferences[key] ?? ''
+  }
+}
+
+async function loadClinics() {
+  if (!token.value) {
+    return
+  }
+  clinicLoading.value = true
+  clinicError.value = ''
+  clinicSaveResult.value = ''
+  try {
+    const params = new URLSearchParams({ page: '1', size: '20' })
+    if (clinicKeyword.value.trim()) {
+      params.set('keyword', clinicKeyword.value.trim())
+    }
+    const payload = await apiFetch<ClinicListResponse>(`/clinics?${params.toString()}`)
+    clinics.value = payload.data.items
+    const selectedStillVisible = selectedClinic.value
+      ? payload.data.items.some((item) => item.clinic_id === selectedClinic.value?.clinic_id)
+      : false
+    if (!selectedStillVisible) {
+      selectedClinic.value = payload.data.items[0] ?? null
+    }
+    if (selectedClinic.value) {
+      await loadClinicPreference(selectedClinic.value.clinic_id)
+    } else {
+      clinicPreference.value = null
+      syncClinicPreferenceForm(null)
+    }
+  } catch (error) {
+    clinicError.value = error instanceof Error ? error.message : '诊所档案加载失败'
+  } finally {
+    clinicLoading.value = false
+  }
+}
+
+async function selectClinic(clinic: ClinicItem) {
+  selectedClinic.value = clinic
+  clinicSaveResult.value = ''
+  await loadClinicPreference(clinic.clinic_id)
+}
+
+async function loadClinicPreference(clinicId: number) {
+  if (!token.value) {
+    return
+  }
+  try {
+    const payload = await apiFetch<ClinicPreference>(`/clinics/${clinicId}/preference`)
+    clinicPreference.value = payload.data
+    syncClinicPreferenceForm(payload.data)
+  } catch (error) {
+    clinicError.value = error instanceof Error ? error.message : '客户偏好加载失败'
+  }
+}
+
+async function loadDoctorClinicPreference() {
+  if (!token.value || !currentUser.value?.clinicId) {
+    return
+  }
+  clinicLoading.value = true
+  clinicError.value = ''
+  try {
+    const [clinicPayload, preferencePayload] = await Promise.all([
+      apiFetch<ClinicItem>(`/clinics/${currentUser.value.clinicId}`),
+      apiFetch<ClinicPreference>(`/clinics/${currentUser.value.clinicId}/preference`)
+    ])
+    selectedClinic.value = clinicPayload.data
+    clinicPreference.value = preferencePayload.data
+    syncClinicPreferenceForm(preferencePayload.data)
+  } catch (error) {
+    clinicError.value = error instanceof Error ? error.message : '诊所信息加载失败'
+  } finally {
+    clinicLoading.value = false
+  }
+}
+
+async function createClinic() {
+  if (!token.value || !clinicCreateName.value.trim()) {
+    return
+  }
+  clinicSaveLoading.value = true
+  clinicError.value = ''
+  clinicSaveResult.value = ''
+  try {
+    const payload = await apiFetch<ClinicItem>('/clinics', {
+      method: 'POST',
+      body: JSON.stringify({
+        clinic_name: clinicCreateName.value.trim(),
+        contact_name: clinicCreateContactName.value.trim(),
+        contact_phone: clinicCreateContactPhone.value.trim()
+      })
+    })
+    selectedClinic.value = payload.data
+    clinicCreateName.value = ''
+    clinicCreateContactName.value = ''
+    clinicCreateContactPhone.value = ''
+    clinicSaveResult.value = `已创建诊所 ${payload.data.clinic_name}`
+    await loadClinics()
+  } catch (error) {
+    clinicError.value = error instanceof Error ? error.message : '诊所创建失败'
+  } finally {
+    clinicSaveLoading.value = false
+  }
+}
+
+async function saveClinicPreference() {
+  if (!token.value || !selectedClinic.value) {
+    return
+  }
+  clinicSaveLoading.value = true
+  clinicError.value = ''
+  clinicSaveResult.value = ''
+  try {
+    const payload = await apiFetch<ClinicPreference>(`/clinics/${selectedClinic.value.clinic_id}/preference`, {
+      method: 'PUT',
+      body: JSON.stringify(clinicPreferenceForm.value)
+    })
+    clinicPreference.value = payload.data
+    syncClinicPreferenceForm(payload.data)
+    const clinicIndex = clinics.value.findIndex((item) => item.clinic_id === payload.data.clinic_id)
+    if (clinicIndex >= 0) {
+      clinics.value[clinicIndex] = {
+        ...clinics.value[clinicIndex],
+        preference_count: Object.values(payload.data.preferences).filter(Boolean).length,
+        updated_at: payload.data.updated_at
+      }
+      selectedClinic.value = clinics.value[clinicIndex]
+    }
+    clinicSaveResult.value = '客户偏好已保存'
+  } catch (error) {
+    clinicError.value = error instanceof Error ? error.message : '客户偏好保存失败'
+  } finally {
+    clinicSaveLoading.value = false
   }
 }
 
@@ -6917,6 +7118,171 @@ onBeforeUnmount(() => {
 
               <div v-else class="empty-state">
                 该订单暂无可展示的工序进度
+              </div>
+            </section>
+          </div>
+        </section>
+
+        <section
+          v-else-if="isClinicManagementRoute || isDoctorClinicRoute"
+          class="panel route-panel doctor-order-panel"
+          data-testid="clinic-preference-panel"
+        >
+          <div class="route-heading">
+            <h2>{{ isDoctorClinicRoute ? '诊所信息' : '客户诊所管理' }}</h2>
+            <el-tag round>{{ isDoctorClinicRoute ? '只读偏好' : `${clinics.length} 家` }}</el-tag>
+          </div>
+
+          <el-alert
+            v-if="clinicError"
+            :title="clinicError"
+            type="error"
+            show-icon
+            :closable="false"
+          />
+          <el-alert
+            v-if="clinicSaveResult"
+            :title="clinicSaveResult"
+            type="success"
+            show-icon
+            :closable="false"
+          />
+
+          <div v-if="isClinicManagementRoute" class="doctor-order-toolbar">
+            <el-input
+              v-model="clinicKeyword"
+              placeholder="搜索诊所名称或联系人"
+              clearable
+              data-testid="clinic-keyword-input"
+              @keyup.enter="loadClinics"
+            />
+            <el-button type="primary" :loading="clinicLoading" data-testid="clinic-search-button" @click="loadClinics">
+              查询
+            </el-button>
+          </div>
+
+          <div v-if="isClinicManagementRoute" class="doctor-order-workspace">
+            <aside class="doctor-order-list">
+              <button
+                v-for="clinic in clinics"
+                :key="clinic.clinic_id"
+                class="doctor-order-row"
+                :class="{ active: selectedClinic?.clinic_id === clinic.clinic_id }"
+                type="button"
+                @click="selectClinic(clinic)"
+              >
+                <strong>{{ clinic.clinic_name }}</strong>
+                <span>{{ clinic.contact_name ?? '未填联系人' }} / {{ clinic.contact_phone ?? '未填电话' }}</span>
+                <small>偏好 {{ clinic.preference_count }} 项 / {{ statusLabel(clinic.status) }}</small>
+              </button>
+              <div v-if="clinics.length === 0" class="empty-state">
+                暂无诊所档案
+              </div>
+            </aside>
+
+            <section class="doctor-order-detail">
+              <div v-if="selectedClinic" class="doctor-order-summary">
+                <div>
+                  <span>诊所</span>
+                  <strong>{{ selectedClinic.clinic_name }}</strong>
+                </div>
+                <div>
+                  <span>联系人</span>
+                  <strong>{{ selectedClinic.contact_name ?? '-' }}</strong>
+                </div>
+                <div>
+                  <span>电话</span>
+                  <strong>{{ selectedClinic.contact_phone ?? '-' }}</strong>
+                </div>
+              </div>
+
+              <div class="subheading-row">
+                <h3>一期客户偏好</h3>
+                <el-tag v-if="clinicPreference" round>{{ clinicPreference.clinic_name }}</el-tag>
+              </div>
+              <div class="order-create-grid">
+                <el-form-item label="色号偏好">
+                  <el-input v-model="clinicPreferenceForm.color" data-testid="clinic-preference-color-input" />
+                </el-form-item>
+                <el-form-item label="邻接偏好">
+                  <el-input v-model="clinicPreferenceForm.contact" />
+                </el-form-item>
+                <el-form-item label="边缘设计">
+                  <el-input v-model="clinicPreferenceForm.margin" />
+                </el-form-item>
+                <el-form-item label="外形偏好">
+                  <el-input v-model="clinicPreferenceForm.shape" />
+                </el-form-item>
+                <el-form-item label="材料偏好">
+                  <el-input v-model="clinicPreferenceForm.material" />
+                </el-form-item>
+                <el-form-item label="备注">
+                  <el-input v-model="clinicPreferenceForm.note" />
+                </el-form-item>
+              </div>
+              <div class="inline-actions">
+                <el-button
+                  type="primary"
+                  :loading="clinicSaveLoading"
+                  :disabled="!selectedClinic"
+                  data-testid="clinic-preference-save-button"
+                  @click="saveClinicPreference"
+                >
+                  保存客户偏好
+                </el-button>
+              </div>
+
+              <template v-if="canCreateClinic">
+                <div class="subheading-row">
+                <h3>新建诊所</h3>
+                <el-tag round>ADMIN</el-tag>
+                </div>
+                <div class="order-create-grid">
+                  <el-form-item label="诊所名称">
+                    <el-input v-model="clinicCreateName" data-testid="clinic-create-name-input" />
+                  </el-form-item>
+                  <el-form-item label="联系人">
+                    <el-input v-model="clinicCreateContactName" />
+                  </el-form-item>
+                  <el-form-item label="联系电话">
+                    <el-input v-model="clinicCreateContactPhone" />
+                  </el-form-item>
+                </div>
+                <div class="inline-actions">
+                  <el-button
+                    :loading="clinicSaveLoading"
+                    :disabled="!clinicCreateName.trim()"
+                    data-testid="clinic-create-button"
+                    @click="createClinic"
+                  >
+                    创建诊所
+                  </el-button>
+                </div>
+              </template>
+            </section>
+          </div>
+
+          <div v-else class="doctor-order-workspace">
+            <section class="doctor-order-detail">
+              <div v-if="selectedClinic" class="doctor-order-summary">
+                <div>
+                  <span>所属诊所</span>
+                  <strong>{{ selectedClinic.clinic_name }}</strong>
+                </div>
+                <div>
+                  <span>联系人</span>
+                  <strong>{{ selectedClinic.contact_name ?? '-' }}</strong>
+                </div>
+                <div>
+                  <span>联系电话</span>
+                  <strong>{{ selectedClinic.contact_phone ?? '-' }}</strong>
+                </div>
+              </div>
+              <div class="compact-list">
+                <article v-for="key in Object.keys(clinicPreferenceForm)" :key="key">
+                  <strong>{{ clinicPreferenceLabel(key) }}</strong>
+                  <p>{{ clinicPreferenceForm[key] || '暂未配置' }}</p>
+                </article>
               </div>
             </section>
           </div>

@@ -1355,9 +1355,9 @@ Task 8A smoke 注意事项：
 
 优先处理 `tasks/README.md`：
 
-1. 下一轮唯一推荐目标：客户培训签收 / 交付确认记录模板第一段。
-2. 9D.81 已补部署真实环境 smoke / HTTPS / 备份监控验收记录模板第一段；下一步先围绕 `operations-manuals` 和 `customer-pm-confirmations` 补交付签收记录模板，不替代客户或 PM 真实签字。
-3. 不做独立网盘、Tus/tusd 独立服务、真实弱网全量验收、跨设备复杂续传、真实电子签章平台、物流平台 API 自动同步、支付系统或 AI 自动审核/发送；每补一个缺口，都要回写 `docs/acceptance/task-8-acceptance-matrix.md` 和 `docs/deployment/readiness-checklist.md` 的状态。
+1. 下一轮唯一推荐目标：人员档案 / 工作量看板第一增量。
+2. 9D.83 已补患者管理基础版，9D.84 已补人工支付流水 / 收支记录，9D.85 已补客户 / 诊所档案与偏好；下一步继续按 `docs/acceptance/prd-v2-gap-matrix.md` 关闭 PRD V2.0 本地可实现的一期缺口。
+3. 不做独立网盘、Tus/tusd 独立服务、真实弱网全量验收、跨设备复杂续传、真实电子签章平台、物流平台 API 自动同步、支付系统、复杂 CRM、定价体系或 AI 自动审核/发送；每补一个缺口，都要回写 `docs/acceptance/task-8-acceptance-matrix.md` 和 `docs/deployment/readiness-checklist.md` 的状态。
 
 ## 9D.77 文件上传弱网 / 跨设备验收第一段
 
@@ -1436,6 +1436,19 @@ npm run build:frontend
 ```
 
 9D.84 新增 `order_payment_record`、`PaymentRecordRequest` / `PaymentRecordResponse` 和 `/orders/{orderId}/payments`。CS / ADMIN 可录入人工收款流水，医生只读查看本人订单流水。本轮不接真实支付网关，不做退款、自动对账、电子发票、财务审批或月结自动归集。
+
+## 9D.85 客户 / 诊所档案与偏好第一增量
+
+检查命令：
+
+```bash
+npm run check:task9d85
+./scripts/with-jdk21.sh mvn -f backend/pom.xml -pl platform-server -Dtest=ClinicPreferenceTests test
+npm run check:openapi
+npm run build:frontend
+```
+
+9D.85 复用 `clinic` 和 `customer_preference`，新增 `ClinicPreferenceTests`、`/clinics`、`/clinics/{clinicId}`、`/clinics/{clinicId}/preference`、客服端 `/customers`、管理端 `/admin/clinics`、医生端 `/doctor/account/clinic` 和 `npm run check:task9d85`。CS / ADMIN 可创建基础诊所档案并维护客户偏好，医生只能只读查看本人诊所偏好，WORKER 不能访问。本轮不做客户开户审批、定价体系、真实客户数据导入、复杂 CRM 或客户 / PM 字段最终确认。
 
 ## 安全说明
 

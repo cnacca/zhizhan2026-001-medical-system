@@ -72,10 +72,10 @@
       "id": "prd-v2-local-feature-gaps",
       "status": "PARTIAL",
       "source": "docs/acceptance/prd-v2-gap-matrix.md",
-      "current_evidence": "9D.82 已新增 docs/acceptance/prd-v2-gap-matrix.md，9D.83 已补患者管理基础版第一增量，9D.84 已补人工支付流水 / 收支记录第一增量。",
-      "remaining_reason": "客户 / 诊所档案与偏好、人员档案 / 工作量看板、质量记录 CRUD / 外返登记仍未形成可验收实现；患者高级能力、设备、物料、安环、成本、奖惩完整功能已按最新版 PRD 移出一期 READY 硬阻塞或保留为二期。",
-      "minimum_closure_loop": "按矩阵先补客户 / 诊所档案与偏好第一增量；后续依次补人员档案和质量记录。",
-      "verification": "npm run check:task9d84; 后续每个功能闭环目标测试; npm run check:openapi; npm run build:frontend; npm run acceptance"
+      "current_evidence": "9D.82 已新增 docs/acceptance/prd-v2-gap-matrix.md，9D.83 已补患者管理基础版第一增量，9D.84 已补人工支付流水 / 收支记录第一增量，9D.85 已补客户 / 诊所档案与偏好第一增量。",
+      "remaining_reason": "人员档案 / 工作量看板、质量记录 CRUD / 外返登记仍未形成可验收实现；患者高级能力、设备、物料、安环、成本、奖惩完整功能已按最新版 PRD 移出一期 READY 硬阻塞或保留为二期。",
+      "minimum_closure_loop": "按矩阵先补人员档案 / 工作量看板第一增量；后续补质量记录 CRUD / 外返登记。",
+      "verification": "npm run check:task9d85; 后续每个功能闭环目标测试; npm run check:openapi; npm run build:frontend; npm run acceptance"
     },
     {
       "id": "customer-pm-confirmations",
@@ -3096,6 +3096,41 @@
             "退款、对账、发票",
             "Task 8 仍保持 NOT_READY",
             "check:task9d84"
+          ]
+        },
+        {
+          "id": "task-9d85-clinic-preferences-required-text",
+          "type": "required_text",
+          "paths": [
+            "backend/platform-server/src/main/java/com/yuri/aiorder/clinic/ClinicController.java",
+            "backend/platform-server/src/main/java/com/yuri/aiorder/clinic/ClinicService.java",
+            "backend/platform-server/src/test/java/com/yuri/aiorder/clinic/ClinicPreferenceTests.java",
+            "frontend/src/App.vue",
+            "frontend/vite.config.ts",
+            "docs/api/openapi.yaml",
+            "docs/acceptance/prd-v2-gap-matrix.md",
+            "docs/acceptance/task-8-acceptance-matrix.md",
+            "docs/deployment/readiness-checklist.md",
+            "docs/deployment/task-8-final-readiness-report.md",
+            "acceptance.json",
+            "DECISIONS.md",
+            "STATUS.md",
+            "tasks/README.md",
+            "README.md",
+            "scripts/check-task-9d85-clinic-preferences.mjs",
+            "package.json"
+          ],
+          "patterns": [
+            "任务 9D.85",
+            "客户 / 诊所档案与偏好第一增量",
+            "customer_preference",
+            "/clinics",
+            "/clinics/{clinicId}/preference",
+            "ClinicPreferenceTests",
+            "不做客户开户审批",
+            "复杂 CRM",
+            "Task 8 仍保持 NOT_READY",
+            "check:task9d85"
           ]
         }
       ]

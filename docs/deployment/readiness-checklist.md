@@ -14,6 +14,8 @@ Task 8 readiness 终检报告第一增量已生成：`docs/deployment/task-8-fin
 
 9D.84 人工支付流水 / 收支记录第一增量已补：`order_payment_record` 和 `/orders/{orderId}/payments`，CS / ADMIN 可录入人工收款流水，医生只读查看本人订单流水。该记录不代表真实支付网关、退款、对账、发票或月结自动归集完成。
 
+9D.85 客户 / 诊所档案与偏好第一增量已补：`/clinics`、`/clinics/{clinicId}`、`/clinics/{clinicId}/preference`、客服端 `/customers`、管理端 `/admin/clinics`、医生端 `/doctor/account/clinic` 和 `npm run check:task9d85`。CS / ADMIN 可维护一期客户偏好，医生只能只读本人诊所偏好。该记录不代表客户开户审批、定价体系、真实客户数据导入、复杂 CRM 或客户 / PM 字段最终确认完成。
+
 部署安全 / 环境变量 readiness 检查第一增量已补：`npm run check:deployment-env` 会检查 README、`.env.example`、`application.yml`、`application-prod.yml` 和本 checklist 中的生产环境变量边界、默认关闭能力和禁止提交真实密钥说明。
 
 验收矩阵机器可读缺口清单第一增量已补：`acceptance.json` 维护 `task8_readiness_gaps`，`npm run check:task8-readiness-gaps` 可列出当前仍未 READY 的关键上线缺口。本 checklist 仍保持 Task 8 `NOT_READY`。
@@ -53,7 +55,7 @@ Task 8 readiness 终检报告第一增量已生成：`docs/deployment/task-8-fin
 | 生产规则 | PARTIAL | 已补返工关闭、责任类型留痕、返工字典后台维护第一增量、返工创建/关闭内部通知、复杂返工影响范围第一增量、绩效归因联动第一增量、绩效明细第一增量、绩效周期筛选第一段、绩效标准工时与完整公式口径第一段、返工影响审计可视化第一增量、返工影响筛选第一增量和返工影响图形化第一增量；仍需补标准工时配置、客户/PM 公式确认、绩效申诉/导出/工资发放和生产通知联动。 |
 | 操作手册 | PARTIAL | 9D.70 已补医生端、客服端、生产端、管理端最小操作手册、首版故障处理清单和交付材料索引；仍缺正式客户培训签收、真实生产部署手册、备份恢复演练、日志留存、监控告警和发布回滚手册。 |
 | 客户 / PM 确认项 | BLOCKED | 9D.72 已补 `docs/acceptance/phase-one-customer-pm-confirmations.md` 第一段，逐项记录付款状态口径、动态表单最终字段、AI-5 模板、标准工时、Multipart 限制、真实电子签章、真实物流、客户培训签收和真实环境上线边界；仍需客户 / PM 书面确认后才能关闭。 |
-| PRD V2.0 本地功能差异 | PARTIAL | 9D.82 已补 `docs/acceptance/prd-v2-gap-matrix.md`，9D.83 已补患者管理基础版，9D.84 已补人工支付流水；客户 / 诊所档案与偏好、人员档案 / 工作量看板、质量记录 CRUD / 外返登记仍需逐项实现。 |
+| PRD V2.0 本地功能差异 | PARTIAL | 9D.82 已补 `docs/acceptance/prd-v2-gap-matrix.md`，9D.83 已补患者管理基础版，9D.84 已补人工支付流水，9D.85 已补客户 / 诊所档案与偏好；人员档案 / 工作量看板、质量记录 CRUD / 外返登记仍需逐项实现。 |
 
 ## 环境变量与密钥边界
 

@@ -375,6 +375,116 @@ components:
           type: integer
         size:
           type: integer
+    CreateClinicRequest:
+      type: object
+      required:
+      - clinic_name
+      properties:
+        clinic_name:
+          type: string
+          example: 本地测试诊所
+        contact_name:
+          type: string
+          nullable: true
+        contact_phone:
+          type: string
+          nullable: true
+    Clinic:
+      type: object
+      description: 一期诊所档案基础视图，不包含定价体系、开户审批或真实客户导入结果。
+      properties:
+        clinic_id:
+          type: integer
+        clinic_name:
+          type: string
+        contact_name:
+          type: string
+          nullable: true
+        contact_phone:
+          type: string
+          nullable: true
+        status:
+          type: string
+        preference_count:
+          type: integer
+        created_at:
+          type: string
+          format: date-time
+        updated_at:
+          type: string
+          format: date-time
+    ClinicListResponse:
+      type: object
+      properties:
+        items:
+          type: array
+          items:
+            "$ref": "#/components/schemas/Clinic"
+        total:
+          type: integer
+        page:
+          type: integer
+        size:
+          type: integer
+    ClinicPreference:
+      type: object
+      description: 一期客户偏好基础视图；医生只能读取本人诊所偏好，CS / ADMIN 可覆盖维护。
+      properties:
+        clinic_id:
+          type: integer
+        clinic_name:
+          type: string
+        preferences:
+          type: object
+          properties:
+            color:
+              type: string
+              nullable: true
+            contact:
+              type: string
+              nullable: true
+            margin:
+              type: string
+              nullable: true
+            shape:
+              type: string
+              nullable: true
+            material:
+              type: string
+              nullable: true
+            note:
+              type: string
+              nullable: true
+        updated_at:
+          type: string
+          format: date-time
+    ClinicPreferenceRequest:
+      type: object
+      properties:
+        color:
+          type: string
+          nullable: true
+          description: 颜色/色号偏好
+        contact:
+          type: string
+          nullable: true
+          description: 邻接关系偏好
+        margin:
+          type: string
+          nullable: true
+          description: 边缘设计偏好
+        shape:
+          type: string
+          nullable: true
+          description: 外形偏好
+        material:
+          type: string
+          nullable: true
+          description: 材料偏好
+        note:
+          type: string
+          nullable: true
+          description: 其他备注
     OrderListResponse:
       type: object
       properties:
@@ -2638,6 +2748,15 @@ paths:
       responses:
         '200':
           description: 诊所列表（分页）
+          content:
+            application/json:
+              schema:
+                allOf:
+                - "$ref": "#/components/schemas/CommonResponse"
+                - type: object
+                  properties:
+                    data:
+                      "$ref": "#/components/schemas/ClinicListResponse"
         '400':
           "$ref": "#/components/responses/BadRequest"
         '401':
@@ -2663,22 +2782,19 @@ paths:
         content:
           application/json:
             schema:
-              type: object
-              required:
-              - clinic_name
-              properties:
-                clinic_name:
-                  type: string
-                country:
-                  type: string
-                language:
-                  type: string
-                cs_user_id:
-                  type: integer
-                  description: 负责客服
+              "$ref": "#/components/schemas/CreateClinicRequest"
       responses:
         '200':
           description: 创建成功
+          content:
+            application/json:
+              schema:
+                allOf:
+                - "$ref": "#/components/schemas/CommonResponse"
+                - type: object
+                  properties:
+                    data:
+                      "$ref": "#/components/schemas/Clinic"
         '400':
           "$ref": "#/components/responses/BadRequest"
         '401':
@@ -2699,7 +2815,7 @@ paths:
       tags:
       - Clinic
       summary: 获取诊所详情
-      description: 权限：CS / ADMIN
+      description: 权限：CS / ADMIN；医生只能读取本人诊所详情。
       parameters:
       - name: clinicId
         in: path
@@ -2709,6 +2825,15 @@ paths:
       responses:
         '200':
           description: 诊所详情
+          content:
+            application/json:
+              schema:
+                allOf:
+                - "$ref": "#/components/schemas/CommonResponse"
+                - type: object
+                  properties:
+                    data:
+                      "$ref": "#/components/schemas/Clinic"
         '400':
           "$ref": "#/components/responses/BadRequest"
         '401':
@@ -2729,7 +2854,7 @@ paths:
       tags:
       - CustomerPreference
       summary: 获取客户偏好
-      description: 权限：CS / ADMIN
+      description: 权限：CS / ADMIN；医生只能读取本人诊所偏好。
       parameters:
       - name: clinicId
         in: path
@@ -2739,6 +2864,15 @@ paths:
       responses:
         '200':
           description: 客户偏好记录
+          content:
+            application/json:
+              schema:
+                allOf:
+                - "$ref": "#/components/schemas/CommonResponse"
+                - type: object
+                  properties:
+                    data:
+                      "$ref": "#/components/schemas/ClinicPreference"
         '400':
           "$ref": "#/components/responses/BadRequest"
         '401':
@@ -2770,29 +2904,19 @@ paths:
         content:
           application/json:
             schema:
-              type: object
-              properties:
-                color:
-                  type: string
-                  description: 颜色/色号偏好
-                contact:
-                  type: string
-                  description: 邻接关系偏好
-                margin:
-                  type: string
-                  description: 边缘设计偏好
-                shape:
-                  type: string
-                  description: 外形偏好
-                material:
-                  type: string
-                  description: 材料偏好
-                note:
-                  type: string
-                  description: 其他备注
+              "$ref": "#/components/schemas/ClinicPreferenceRequest"
       responses:
         '200':
           description: 更新成功
+          content:
+            application/json:
+              schema:
+                allOf:
+                - "$ref": "#/components/schemas/CommonResponse"
+                - type: object
+                  properties:
+                    data:
+                      "$ref": "#/components/schemas/ClinicPreference"
         '400':
           "$ref": "#/components/responses/BadRequest"
         '401':

@@ -38,6 +38,8 @@
 
 9D.84 人工支付流水 / 收支记录第一增量已新增 `order_payment_record`、`/orders/{orderId}/payments`、客服端人工收款记录入口和医生端只读流水展示。该记录不代表真实支付网关、退款、对账、发票、财务审批或月结自动归集完成。
 
+9D.85 客户 / 诊所档案与偏好第一增量已新增 `/clinics`、`/clinics/{clinicId}`、`/clinics/{clinicId}/preference`、客服端 `/customers`、管理端 `/admin/clinics` 和医生端 `/doctor/account/clinic`。该记录覆盖诊所档案与 6 个一期客户偏好字段第一段，不代表客户开户审批、定价体系、真实客户数据导入、复杂 CRM 或客户 / PM 字段最终确认完成。
+
 ## 上线前缺口清单
 
 | 缺口名称 | 当前证据 | 未完成原因 | 需要补的最小闭环 | 推荐验证命令或验收方式 |
@@ -52,13 +54,13 @@
 | 部署基础设施 | readiness checklist 中“部署基础设施”为 PARTIAL；9D.69 已补后端/前端 Dockerfile、full-stack compose 示例、生产 env 占位示例和 Docker/env 隔离文档，`npm run compose:phase-one:config` 已通过；9D.81 已补部署真实环境 smoke / HTTPS / 备份监控验收记录模板第一段。 | 仍缺真实服务器部署、HTTPS、镜像仓库、测试/正式环境真实联调、数据库备份恢复演练、日志留存、监控告警、发布回滚和客户 / PM 书面确认。 | 真实部署环境具备后，按 9D.81 模板填写部署 smoke / HTTPS / 备份监控验收记录并由客户 / PM 确认；本地下一优先级转向客户培训签收 / 交付确认记录模板第一段。 | `npm run check:task9d69`；`npm run compose:phase-one:config`；`npm run check:deployment-env`；`npm run check:task9d81`；后续真实环境 smoke。 |
 | 操作手册 | readiness checklist 中“操作手册”为 PARTIAL；9D.70 已补四端最小操作手册、首版故障处理清单和交付材料索引，9D.72 已把培训签收纳入 CP-008。 | 仍缺正式客户培训签收、真实生产部署手册、备份恢复演练、日志留存、监控告警和发布回滚手册。 | 后续按 CP-008 补客户培训签收记录，或在真实环境具备后补生产部署/回滚/值班手册。 | `npm run check:task9d70`；按手册完成一次本地演示；客户/PM 确认。 |
 | 客户 / PM 确认项 | 9D.72 已新增 `docs/acceptance/phase-one-customer-pm-confirmations.md`，把付款状态、动态表单、AI-5 模板、标准工时、Multipart、签章、物流、培训签收和真实环境边界列为可追踪项。 | 这些仍是产品/业务口径问题，当前只有默认方案和负责人占位，不能由开发直接关闭。 | PM 指定每项负责人和目标日期，客户 / PM 逐项书面确认或修改默认方案。 | `npm run check:task9d72`；客户/PM 签字或书面确认；同步更新 `PROJECT.md`、`DECISIONS.md`、OpenAPI 和验收矩阵。 |
-| PRD V2.0 本地功能差异 | 9D.82 已新增 `docs/acceptance/prd-v2-gap-matrix.md`，9D.83 已补患者管理基础版，9D.84 已补人工支付流水。 | 客户 / 诊所档案与偏好、人员档案 / 工作量看板、质量记录 CRUD / 外返登记仍缺可验收实现。 | 下一步按矩阵补客户 / 诊所档案与偏好第一增量；设备、物料、安环、成本、奖惩完整功能保持二期或超一期展示。 | `npm run check:task9d84`；后续每个功能闭环目标测试、OpenAPI、前端 build、acceptance。 |
+| PRD V2.0 本地功能差异 | 9D.82 已新增 `docs/acceptance/prd-v2-gap-matrix.md`，9D.83 已补患者管理基础版，9D.84 已补人工支付流水，9D.85 已补客户 / 诊所档案与偏好。 | 人员档案 / 工作量看板、质量记录 CRUD / 外返登记仍缺可验收实现。 | 下一步按矩阵补人员档案 / 工作量看板第一增量；设备、物料、安环、成本、奖惩完整功能保持二期或超一期展示。 | `npm run check:task9d85`；后续每个功能闭环目标测试、OpenAPI、前端 build、acceptance。 |
 
 ## 当前结论
 
 Task 8 仍为 `in-progress / NOT_READY`。当前代码和文档已经具备多条最小链路的自动化证据，但正式上线仍卡在生产级鉴权、完整业务前端、真实环境联调、文件/AI/通知生产验收、部署安全和操作交付材料。
 
-下一轮唯一推荐目标：客户 / 诊所档案与偏好第一增量。9D.83 已补患者管理基础版，9D.84 已补人工支付流水；客户档案与偏好是 PRD 客服客户管理和医生下单偏好自动填充的基础。
+下一轮唯一推荐目标：人员档案 / 工作量看板第一增量。9D.83 已补患者管理基础版，9D.84 已补人工支付流水，9D.85 已补客户 / 诊所档案与偏好；人员管理是 PRD 生产端一期仍未本地关闭的高优先缺口。
 
 ## 9D.77 文件上传弱网 / 跨设备验收第一段
 

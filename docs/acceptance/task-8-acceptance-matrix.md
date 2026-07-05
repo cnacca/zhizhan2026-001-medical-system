@@ -36,6 +36,8 @@
 
 9D.84 人工支付流水 / 收支记录第一增量已新增 `order_payment_record`、`/orders/{orderId}/payments` 和前端人工收款入口；CS / ADMIN 可录入人工收款流水，医生只读查看本人订单流水。本轮不接真实支付网关，不做退款、对账、发票、财务审批或月结自动归集，Task 8 仍保持 `NOT_READY`。
 
+9D.85 客户 / 诊所档案与偏好第一增量已复用 `clinic` 和 `customer_preference`，新增 `/clinics`、`/clinics/{clinicId}`、`/clinics/{clinicId}/preference`、客服端 `/customers`、管理端 `/admin/clinics`、医生端 `/doctor/account/clinic` 和 `npm run check:task9d85`；CS / ADMIN 可维护 6 个一期偏好字段，医生只能只读本人诊所偏好，生产员工拒绝访问。本轮不做客户开户审批、定价体系、真实客户数据导入、复杂 CRM 或客户 / PM 字段最终确认，Task 8 仍保持 `NOT_READY`。
+
 ## 判定规则
 
 | 状态 | 含义 |
@@ -128,7 +130,7 @@
 - 操作手册已有第一段，但仍缺正式客户培训签收、真实生产部署手册、备份恢复、监控告警和发布回滚手册。
 - 客户/PM 仍需确认动态表单最终字段、AI-5 模板、标准工时、付款状态、Multipart 限制等；9D.72 已建立 `docs/acceptance/phase-one-customer-pm-confirmations.md` 作为追踪清单，但不代表这些事项已签字。
 - 9D.82 已建立 `docs/acceptance/prd-v2-gap-matrix.md`，重新确认患者管理基础版、人工支付流水 / 收支记录、客户 / 诊所档案与偏好、人员档案 / 工作量看板、质量记录 CRUD / 外返登记是 PRD V2.0 下仍需本地关闭的一期缺口；设备、物料、安环、成本、奖惩完整功能不再作为一期 READY 硬阻塞。
-- 9D.83 已补患者管理基础版第一增量；人工支付流水 / 收支记录、客户 / 诊所档案与偏好、人员档案 / 工作量看板、质量记录 CRUD / 外返登记仍需继续按 PRD V2.0 逐项关闭。
+- 9D.83 已补患者管理基础版第一增量，9D.84 已补人工支付流水 / 收支记录第一增量，9D.85 已补客户 / 诊所档案与偏好第一增量；人员档案 / 工作量看板、质量记录 CRUD / 外返登记仍需继续按 PRD V2.0 逐项关闭。
 
 ## 9D.77 文件上传弱网 / 跨设备验收第一段
 
