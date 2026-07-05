@@ -4,7 +4,7 @@
 
 ## 当前仓库状态
 
-当前总目标是完成一期交付。后续所有 9D 小任务都只作为补齐一期 12 步主链路和上线硬缺口的执行单元；前端是否匹配一期范围见 `docs/acceptance/phase-one-frontend-alignment.md`，按端口拆任务、处理已完成和超一期入口时使用 `docs/acceptance/phase-one-frontend-task-scope.md`。
+当前总目标是严格按照最新版 PRD V2.0 / 2026-07-04 完成一期交付。后续所有 9D 小任务都只作为补齐一期 12 步主链路、PRD V2.0 差异矩阵和上线硬缺口的执行单元；最新版 PRD 差异基线见 `docs/acceptance/prd-v2-gap-matrix.md`，前端是否匹配一期范围见 `docs/acceptance/phase-one-frontend-alignment.md`，按端口拆任务、处理已完成和超一期入口时使用 `docs/acceptance/phase-one-frontend-task-scope.md`。
 
 当前已完成项目工作流初始化、任务 0 到任务 8B 基线、任务 9A 到 9B.8 权限/DataScope 第一轮、任务 9C.1 到 9C.3 通知第一轮，以及任务 9D.1 到 9D.76 的多条一期硬缺口第一增量；其中 9D.55 已补返工字典后台维护，9D.56 已补终检专用角色 / 附件第一增量，9D.57 返工影响图形化第一增量已把生产端返工终检页的影响节点转为只读影响图，9D.58 已把客服端 `/collaboration` 从占位入口升级为客服协同台第一增量，9D.59 已把资料缺失提示和 AI 翻译草稿确认嵌入客服初审页，9D.60 已让医生端设计稿版本按需聚合授权预览链接，9D.61 已补账单文件绑定和医生端账单预览链接，9D.62 到 9D.63 已把固定演示订单推进到 12 步主链路数据动作和返工异常路径，9D.64 客服端设计稿审核预览增强第一段已补客服端设计稿审核预览链接，9D.65 终检 PDF/签名第一段已补终检 PDF file_id 绑定和签名状态占位，9D.66 绩效周期筛选第一段已补绩效统计和工时明细的 `start_date` / `end_date` 周期过滤，9D.67 文件上传限制与 bucket 隔离第一段已补文件大小、类型、数量服务端限制和医生端选择提示，9D.68 12 步主链路客户验收版收敛已新增 `docs/acceptance/phase-one-main-chain-customer-acceptance.md`，9D.69 部署基础设施第一段已新增一期 Dockerfile、full-stack compose 示例和生产 env 隔离说明，9D.70 操作手册与交付材料第一段已新增四端操作手册、故障处理清单和交付材料索引，9D.71 AI 外部告警接收端验签 / 防重放第一段已新增默认关闭的本地接收端验收桩，9D.72 客户 / PM 确认项清单第一段已新增 `docs/acceptance/phase-one-customer-pm-confirmations.md`，9D.73 账单 / 付款状态 / 物流一期闭环第一段已新增人工维护付款状态，9D.74 绩效标准工时与完整公式口径第一段已新增绩效公式版本、标准工时覆盖率和默认绩效分，9D.75 正式鉴权与 DataScope 收口第一段已新增生产权限码优先模式和 `APP_AUTH_ALLOW_ROLE_FALLBACK=false` 门禁，9D.76 WebSocket / 通知生产验收第一段已补一期 Nginx `/notifications` REST 代理和 `/ws/` WebSocket readiness 检查。Task 8 总体仍为 `NOT_READY`。
 
@@ -31,6 +31,7 @@ RepoFrame 生成的 `AGENT.md` 和 `.agent/` 保留为协作细则入口；Codex
 
 ```text
 tasks/README.md -> 任务 8：专项验收矩阵与上线准备
+docs/acceptance/prd-v2-gap-matrix.md
 docs/acceptance/task-8-acceptance-matrix.md
 docs/acceptance/phase-one-frontend-alignment.md
 docs/acceptance/phase-one-frontend-task-scope.md
@@ -98,6 +99,7 @@ npm run check:task9d73
 npm run check:task9d74
 npm run check:task9d75
 npm run check:task9d76
+npm run check:task9d82
 ```
 
 启动后端：

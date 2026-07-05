@@ -10,9 +10,11 @@
 - 2026-07-04 本轮上传状态：`feature/project-skeleton` 已推送到 GitHub；本轮业务开发基线为 `5e9ee18`，后续文档回补提交不改变业务代码边界。本轮按边界拆分为生产汇总、AI 治理、Task 8 文档回写和 workflow helper 整理提交；工作区只剩未跟踪 `test-results/` 运行产物，未纳入提交。
 - 2026-07-01 上传交接状态：已确认本地 `feature/project-skeleton` 与 `origin/feature/project-skeleton` 对齐；上传后产生的未提交后续试验改动已撤回。本次只做文档总结回写，不继续推进业务代码。
 - 2026-07-01 新版 PRD/TRD/API 对齐决策已确认：以新资料为最新业务准绳，保留当前已验证增量，OpenAPI 后续按差异合并维护。
+- 本轮 9D.82 最新 PRD V2.0 差异对齐矩阵第一段已完成：新增 `docs/acceptance/prd-v2-gap-matrix.md` 和 `npm run check:task9d82`，确认最新 PRD 正文为 `V2.0 / 2026-07-04`，但源文件名仍含 `PRD_V1.0` 且正文末尾存在 `V1.1` 字样；项目后续以正文 `PRD V2.0 / 2026-07-04` 为一期范围基线。矩阵已把医生患者管理、基础支付流水、客服客户 / 产品管理、人员档案、专项质量管理列为一期待补缺口，并把设备、物料、安环、成本、奖惩完整录入 / 审批 / CRUD / 真实趋势标为二期或超一期展示，不再作为一期 READY 硬阻塞。Task 8 仍保持 `NOT_READY`。
 - Active goal: `goals/GOAL-001-scope-clarified-for.md`
 - Active task: `tasks/README.md` 的「任务 8：专项验收矩阵与上线准备」，状态为 `next/t2-customer-service-collaboration`
 - 当前总目标已从“继续推进 9D 小增量”收束为“完成一期交付”；9D 任务只作为补齐一期上线缺口的执行单元。前端匹配一期范围见 `docs/acceptance/phase-one-frontend-alignment.md`；后续按端口拆一期任务、处理已完成和超一期入口时使用 `docs/acceptance/phase-one-frontend-task-scope.md`。
+- 下一步唯一推荐目标：患者管理基础版第一增量。理由：最新版 PRD V2.0 明确医生端包含患者管理基础版，这是当前本地可开发、可测试、无需真实密钥 / 真实服务器 / 真实支付 / 真实物流即可关闭的最高优先级一期缺口。
 - 本轮 9D.71 AI 外部告警接收端验签 / 防重放第一段已完成：发送侧签名启用时会发送 `X-AI-Alert-Timestamp`、`X-AI-Alert-Nonce` 和 `X-AI-Alert-Signature`，签名基串为 `timestamp.nonce.requestBody`；新增默认关闭的 `/ai/external-alerts/receive` 本地接收端验收桩，显式启用并注入接收端 secret 后校验 timestamp 时间窗、nonce 重放和 HMAC 签名。本轮不接真实外部 webhook，不提交真实 secret，不做分布式 nonce 存储或生产联调。Task 8 总体仍保持 `NOT_READY`。
 - 本轮 9D.72 客户 / PM 确认项清单第一段已完成：新增 `docs/acceptance/phase-one-customer-pm-confirmations.md`，把付款状态口径、动态表单最终字段、AI-5 生产备注模板、标准工时与绩效公式口径、Multipart 上传限制、真实电子签章 / 终检报告模板、真实物流平台 / 运单同步、客户培训与签收、真实环境上线验收边界纳入确认表。本轮只建立追踪，不替代客户或 PM 书面确认，不关闭 Task 8。
 - 本轮 9D.73 账单 / 付款状态 / 物流一期闭环第一段已完成：新增 `order_bill.payment_status`、`PaymentStatusRequest`、`/orders/{orderId}/bill/payment-status` 和前端客服人工维护付款状态入口；医生端账单物流页只读展示付款状态。付款状态仅采用 9D.72 / CP-001 默认人工口径，不接真实支付系统，不做财务审批或支付渠道对账，物流发货仍沿用终检 `OUT/PASS` 门禁。Task 8 总体仍保持 `NOT_READY`。

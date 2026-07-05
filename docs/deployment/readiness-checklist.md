@@ -8,6 +8,8 @@
 
 Task 8 readiness 终检报告第一增量已生成：`docs/deployment/task-8-final-readiness-report.md`。该报告把本 checklist 和 acceptance matrix 中仍为 PARTIAL / NOT_READY 的关键项整理为上线前缺口清单，Task 8 状态仍为 `NOT_READY`。
 
+9D.82 最新 PRD V2.0 差异对齐矩阵第一段已补：`docs/acceptance/prd-v2-gap-matrix.md` 将最新版 PRD 正文 `V2.0 / 2026-07-04` 拆成一期已覆盖、部分覆盖、缺失、BLOCKED 和二期项，`npm run check:task9d82` 可检查矩阵、项目入口文档和 acceptance 证据。新的本地可关闭一期缺口包括患者管理基础版、人工支付流水 / 收支记录、客户 / 诊所档案与偏好、人员档案 / 工作量看板、质量记录 CRUD / 外返登记；设备、物料、安环、成本、奖惩完整功能已按 PRD V2.0 移出一期 READY 硬阻塞。
+
 部署安全 / 环境变量 readiness 检查第一增量已补：`npm run check:deployment-env` 会检查 README、`.env.example`、`application.yml`、`application-prod.yml` 和本 checklist 中的生产环境变量边界、默认关闭能力和禁止提交真实密钥说明。
 
 验收矩阵机器可读缺口清单第一增量已补：`acceptance.json` 维护 `task8_readiness_gaps`，`npm run check:task8-readiness-gaps` 可列出当前仍未 READY 的关键上线缺口。本 checklist 仍保持 Task 8 `NOT_READY`。
@@ -47,6 +49,7 @@ Task 8 readiness 终检报告第一增量已生成：`docs/deployment/task-8-fin
 | 生产规则 | PARTIAL | 已补返工关闭、责任类型留痕、返工字典后台维护第一增量、返工创建/关闭内部通知、复杂返工影响范围第一增量、绩效归因联动第一增量、绩效明细第一增量、绩效周期筛选第一段、绩效标准工时与完整公式口径第一段、返工影响审计可视化第一增量、返工影响筛选第一增量和返工影响图形化第一增量；仍需补标准工时配置、客户/PM 公式确认、绩效申诉/导出/工资发放和生产通知联动。 |
 | 操作手册 | PARTIAL | 9D.70 已补医生端、客服端、生产端、管理端最小操作手册、首版故障处理清单和交付材料索引；仍缺正式客户培训签收、真实生产部署手册、备份恢复演练、日志留存、监控告警和发布回滚手册。 |
 | 客户 / PM 确认项 | BLOCKED | 9D.72 已补 `docs/acceptance/phase-one-customer-pm-confirmations.md` 第一段，逐项记录付款状态口径、动态表单最终字段、AI-5 模板、标准工时、Multipart 限制、真实电子签章、真实物流、客户培训签收和真实环境上线边界；仍需客户 / PM 书面确认后才能关闭。 |
+| PRD V2.0 本地功能差异 | PARTIAL | 9D.82 已补 `docs/acceptance/prd-v2-gap-matrix.md` 和 `npm run check:task9d82`；患者管理基础版、人工支付流水 / 收支记录、客户 / 诊所档案与偏好、人员档案 / 工作量看板、质量记录 CRUD / 外返登记仍需逐项实现。 |
 
 ## 环境变量与密钥边界
 

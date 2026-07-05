@@ -30,6 +30,8 @@
 
 9D.81 部署真实环境 smoke / HTTPS / 备份监控验收记录模板第一段已新增 `docs/deployment/task-9d81-production-deployment-acceptance.md` 和 `npm run check:task9d81`，提供真实测试环境 / 正式环境 Docker Compose、Nginx、HTTPS、镜像仓库、生产环境变量、数据库备份、备份恢复演练、日志留存、监控告警和发布回滚记录模板；该记录默认 `待填写` / `待确认`，不填写真实密钥或真实服务器地址，不代表真实部署已完成，Task 8 仍保持 `NOT_READY`。
 
+9D.82 最新 PRD V2.0 差异对齐矩阵第一段已新增 `docs/acceptance/prd-v2-gap-matrix.md` 和 `npm run check:task9d82`，把最新版 PRD 正文 `V2.0 / 2026-07-04` 拆成一期已覆盖、部分覆盖、缺失、BLOCKED 和二期项；该记录确认医生患者管理、基础支付流水、客户 / 诊所档案与偏好、人员档案、专项质量管理仍是一期待补缺口，设备 / 物料 / 安环 / 成本 / 奖惩完整功能为二期或超一期展示。Task 8 仍保持 `NOT_READY`。
+
 ## 判定规则
 
 | 状态 | 含义 |
@@ -41,7 +43,7 @@
 
 ## 依据
 
-- PRD V1.0：12 步主链路、主链路验收、脱敏验收、权限验收、AI 功能验收、设计稿补充验收。
+- PRD V2.0 / 2026-07-04：12 步主链路、四端独立入口、医生端八大模块、客服端七大模块、生产端人员 / 质量一期模块、主链路验收、脱敏验收、权限验收、AI 功能验收、设计稿补充验收。
 - TRD V1.1：12 步验收点、专项测试矩阵、M6 联调测试上线标准。
 - 团队执行文档：M6 要求“专项测试通过，回归通过，部署正式环境，12 步验收清单逐条过，操作手册交付”。
 - 当前实现证据：`OrderStatusProjectionTests`、`FileAccessTests`、`WorkflowRuntimeTests`、`CheckWorklogPerformanceTests`、`MessageDesignBillNotificationTests`、`AiGatewayTests`、`BearerIdentityTests`、`PermissionInterceptorTests`、`StrictPermissionModeTests`、`NotificationWebSocketTests`、`NotificationRestTests`、`NotificationBroadcastTests`、9D.24 四入口登录页校验、9D.56 终检专用角色 / 附件第一增量、9D.57 返工影响图形化第一增量、9D.58 客服协同闭环第一增量、9D.59 客服资料缺失提示与 AI 翻译草稿确认第一增量、9D.60 设计稿预览 URL 聚合第一增量、9D.61 账单物流预览/录入闭环第一增量、9D.62 12 步主链路浏览器 smoke 第一增量、9D.62.1 固定演示数据闭环第一段、9D.62.2 派工与工序操作数据闭环第一段、9D.62.3 设计稿确认数据闭环第一段、9D.62.4 账单/物流数据闭环第一段、9D.62.5 终检后发货与医生确认收货数据闭环第一段、9D.63 返工异常路径数据闭环第一段、9D.64 客服端设计稿审核预览增强第一段、9D.65 终检 PDF/签名第一段、9D.66 绩效周期筛选第一段、9D.69 部署基础设施第一段、9D.75 正式鉴权与 DataScope 收口第一段、9D.76 WebSocket / 通知生产验收第一段、9D.77 文件上传弱网 / 跨设备验收第一段、9D.78 bucket 隔离验收记录第一段、9D.79 真实环境文件上传人工验收记录模板第一段、9D.80 AI 真实 key / 生产 webhook 联调记录模板第一段、9D.81 部署真实环境 smoke / HTTPS / 备份监控验收记录模板第一段和既有 HTTP/SQL smoke 记录。
@@ -121,6 +123,7 @@
 - 部署基础设施已有一期 Docker / compose / env 隔离第一段，9D.81 已补部署真实环境 smoke / HTTPS / 备份监控验收记录模板第一段，但仍缺真实服务器部署、HTTPS、镜像仓库、备份恢复、日志留存、监控告警和真实测试/正式环境联调。
 - 操作手册已有第一段，但仍缺正式客户培训签收、真实生产部署手册、备份恢复、监控告警和发布回滚手册。
 - 客户/PM 仍需确认动态表单最终字段、AI-5 模板、标准工时、付款状态、Multipart 限制等；9D.72 已建立 `docs/acceptance/phase-one-customer-pm-confirmations.md` 作为追踪清单，但不代表这些事项已签字。
+- 9D.82 已建立 `docs/acceptance/prd-v2-gap-matrix.md`，重新确认患者管理基础版、人工支付流水 / 收支记录、客户 / 诊所档案与偏好、人员档案 / 工作量看板、质量记录 CRUD / 外返登记是 PRD V2.0 下仍需本地关闭的一期缺口；设备、物料、安环、成本、奖惩完整功能不再作为一期 READY 硬阻塞。
 
 ## 9D.77 文件上传弱网 / 跨设备验收第一段
 
