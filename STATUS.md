@@ -410,4 +410,8 @@ Task 8 已完成 8A readiness audit、8B OpenAPI 二次契约、9A/9B/9C 身份�
 
 ## 下一步
 
-下一轮唯一推荐目标：文件上传真实弱网 / 跨设备验收第一段。9D.76 已补生产 Nginx 通知 REST / WebSocket readiness 第一段，但真实双实例 Redis、HTTPS 网关和生产 webhook 仍属于真实环境 BLOCKED；下一段应围绕 `file-upload-prod` 缺口，优先补本地可执行的弱网/跨设备验收脚本或记录模板，不接真实对象存储、不写真实密钥、不把 Task 8 标完成。Task 8 总体仍保持 `NOT_READY`，直到真实弱网/跨设备续传、绩效客户确认、生产部署验证和客户/PM 确认补齐。
+下一轮唯一推荐目标：补测试 / 正式对象存储 bucket 隔离验收记录第一段。9D.77 已补本地可执行的弱网 / 跨设备文件上传验收第一段，但真实测试/正式 bucket 实际隔离、真实弱网物理网络、真实跨设备实机和客户/PM 确认仍属于上线缺口。Task 8 总体仍保持 `NOT_READY`。
+
+## 9D.77 文件上传弱网 / 跨设备验收第一段
+
+本轮已完成 9D.77 文件上传弱网 / 跨设备验收第一段：新增 `scripts/smoke-task-9d77-file-upload-resilience.spec.mjs`、`npm run check:task9d77` 和 `npm run smoke:task9d77-file-upload-resilience`，用两个 Playwright browser context 模拟设备 A 弱网中断、设备 B 无本地 localStorage 后通过服务端 pending Multipart 候选恢复同一 `file_id`。本轮不接真实生产对象存储，不代表真实弱网物理网络、真实跨设备实机、客户 Multipart 限制签字或测试/正式 bucket 实际隔离已完成。Task 8 仍保持 NOT_READY。

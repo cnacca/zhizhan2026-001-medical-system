@@ -36,10 +36,10 @@
       "id": "file-upload-prod",
       "status": "PARTIAL",
       "source": "docs/deployment/readiness-checklist.md#文件上传",
-      "current_evidence": "105MB Multipart、本地恢复、服务端候选恢复和中断恢复浏览器 smoke 已通过；9D.67 已补 FILE_MAX_FILE_SIZE_BYTES、FILE_ALLOWED_CONTENT_TYPES、FILE_MAX_FILES_PER_ORDER 服务端校验和医生端选择提示。",
-      "remaining_reason": "仍缺真实弱网限速/断网、完整跨设备浏览器续传、客户最终 Multipart 限制签字和测试/正式 bucket 实际环境隔离验收。",
-      "minimum_closure_loop": "后续补弱网/跨设备 smoke 和实际测试/正式对象存储隔离验收记录。",
-      "verification": "npm run check:task9d67; npm run smoke:task9d10-large-upload; npm run smoke:task9d10-server-resume; npm run smoke:task9d10-interrupted-resume"
+      "current_evidence": "105MB Multipart、本地恢复、服务端候选恢复和中断恢复浏览器 smoke 已通过；9D.67 已补 FILE_MAX_FILE_SIZE_BYTES、FILE_ALLOWED_CONTENT_TYPES、FILE_MAX_FILES_PER_ORDER 服务端校验和医生端选择提示；9D.77 弱网 / 跨设备验收第一段已新增本地 Playwright smoke，使用两个浏览器 context 模拟设备 A 弱网中断、设备 B 无 localStorage 通过服务端 pending 候选恢复同一 file_id。",
+      "remaining_reason": "仍缺真实弱网限速/断网物理网络验收、真实跨设备/跨浏览器实机续传、客户最终 Multipart 限制签字和测试/正式 bucket 实际环境隔离验收。",
+      "minimum_closure_loop": "后续在真实测试环境补弱网/跨设备人工验收记录，或补测试/正式对象存储隔离验收记录。",
+      "verification": "npm run check:task9d67; npm run check:task9d77; npm run smoke:task9d10-large-upload; npm run smoke:task9d10-server-resume; npm run smoke:task9d10-interrupted-resume; npm run smoke:task9d77-file-upload-resilience"
     },
     {
       "id": "ai-production-governance",

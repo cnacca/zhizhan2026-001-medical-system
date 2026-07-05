@@ -1353,9 +1353,20 @@ Task 8A smoke 注意事项：
 
 优先处理 `tasks/README.md`：
 
-1. 下一轮唯一推荐目标：文件上传真实弱网 / 跨设备验收第一段。
-2. 先围绕 `file-upload-prod` 补本地可执行的弱网/跨设备验收脚本或记录模板，不接真实对象存储、不写真实密钥。
+1. 下一轮唯一推荐目标：测试 / 正式对象存储 bucket 隔离验收记录第一段。
+2. 9D.77 已补本地可执行的弱网/跨设备验收脚本；下一步先围绕 `file-upload-prod` 补测试/正式 bucket 隔离验收记录模板或静态检查，不接真实对象存储、不写真实密钥。
 3. 不做独立网盘、Tus/tusd 独立服务、真实弱网全量验收、跨设备复杂续传、真实电子签章平台、物流平台 API 自动同步、支付系统或 AI 自动审核/发送；每补一个缺口，都要回写 `docs/acceptance/task-8-acceptance-matrix.md` 和 `docs/deployment/readiness-checklist.md` 的状态。
+
+## 9D.77 文件上传弱网 / 跨设备验收第一段
+
+检查命令：
+
+```bash
+npm run check:task9d77
+npm run smoke:task9d77-file-upload-resilience
+```
+
+`smoke:task9d77-file-upload-resilience` 使用两个 Playwright browser context 模拟跨设备续传：设备 A 在弱网延迟下中断 Multipart 上传，设备 B 不共享 localStorage，通过服务端 pending 候选恢复并完成同一 `file_id`。该 smoke 会写入本地测试库和 MinIO，不代表真实生产对象存储联调完成。
 
 ## 安全说明
 

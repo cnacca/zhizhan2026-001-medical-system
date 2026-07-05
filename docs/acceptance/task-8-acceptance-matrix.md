@@ -59,7 +59,7 @@
 | 验收项 | 当前状态 | 当前证据 | 上线缺口 |
 | --- | --- | --- | --- |
 | 医生下单全流程 | PARTIAL | 9D.2 已实现医生读取动态表单、提交订单进入 `PENDING_REVIEW`、绑定本人已完成文件和前端最小新建订单面板；9D.10 已补医生端最小 Uppy 文件选择、Multipart 上传、status 查询、本地恢复上传、服务端候选恢复、中断恢复并回填 `file_id`；9D.11 已补保存草稿、继续编辑/补资料、提交草稿/补资料和后端状态历史回归；9D.3 浏览器 smoke 已覆盖医生创建订单后 CS 在客服初审页面处理该订单；9D.2 浏览器 smoke 覆盖 `127.0.0.1:5173` 医生登录、动态表单读取和创建订单 `ORD20260630-9D94797093`；9D.11 浏览器 smoke 覆盖 doctor 保存草稿并提交草稿，订单 `ORD20260701-E172DF6DD8` 从 `DRAFT` 进入 `PENDING_REVIEW`；100MB+ 上传 smoke 覆盖医生浏览器创建测试订单并上传 105MB 附件；服务端候选恢复 smoke 覆盖无本地会话时复用 pending `file_id=514`；中断恢复 smoke 覆盖第 2 个分片失败后复用同一 `file_id=537` 完成。 | 缺实时自动保存、动态表单最终字段、真实弱网限速/断网、完整跨设备浏览器恢复和完整端到端验收。 |
-| 大文件上传 | PARTIAL | `FileAccessTests` 覆盖 MinIO 预签名 PUT、Multipart initiate/part-url/status/pending/complete/abort、审计、status/pending 不泄露 `object_key`、医生写路径越权拒绝和 pending 只列当前医生本人候选；前端 9D.10 已接入最小 Uppy 文件选择、分片直传、本地恢复会话、服务端候选恢复和手动取消入口；`npm run smoke:task9d10-large-upload` 通过本地 105MB 浏览器 Multipart smoke，数据库核验 `file_id=457` 为 21 个分片完成；`npm run smoke:task9d10-server-resume` 通过，确认完成的 `file_id=514` 等于预创建 pending `file_id`；`npm run smoke:task9d10-interrupted-resume` 通过，确认中断后 `multipart/status` 保留 1 个已完成分片并复用同一 `file_id=537` 完成；9D.67 文件上传限制与 bucket 隔离第一段已补 `FILE_MAX_FILE_SIZE_BYTES`、`FILE_ALLOWED_CONTENT_TYPES`、`FILE_MAX_FILES_PER_ORDER` 服务端校验和医生端选择提示。 | 仍缺真实弱网限速/断网、完整跨设备浏览器续传、客户最终 Multipart 限制签字和测试/正式 bucket 实际环境隔离验收。 |
+| 大文件上传 | PARTIAL | `FileAccessTests` 覆盖 MinIO 预签名 PUT、Multipart initiate/part-url/status/pending/complete/abort、审计、status/pending 不泄露 `object_key`、医生写路径越权拒绝和 pending 只列当前医生本人候选；前端 9D.10 已接入最小 Uppy 文件选择、分片直传、本地恢复会话、服务端候选恢复和手动取消入口；`npm run smoke:task9d10-large-upload` 通过本地 105MB 浏览器 Multipart smoke，数据库核验 `file_id=457` 为 21 个分片完成；`npm run smoke:task9d10-server-resume` 通过，确认完成的 `file_id=514` 等于预创建 pending `file_id`；`npm run smoke:task9d10-interrupted-resume` 通过，确认中断后 `multipart/status` 保留 1 个已完成分片并复用同一 `file_id=537` 完成；9D.67 文件上传限制与 bucket 隔离第一段已补 `FILE_MAX_FILE_SIZE_BYTES`、`FILE_ALLOWED_CONTENT_TYPES`、`FILE_MAX_FILES_PER_ORDER` 服务端校验和医生端选择提示；9D.77 文件上传弱网 / 跨设备验收第一段已补本地双 browser context smoke，模拟设备 A 弱网中断、设备 B 无 localStorage 后通过服务端 pending 候选恢复同一 `file_id`。 | 仍缺真实弱网物理网络、真实跨设备实机、客户最终 Multipart 限制签字和测试/正式 bucket 实际环境隔离验收。 |
 | 客服审核通过 | PARTIAL | 9D.3 已实现 CS/ADMIN 审核接口、前端「客服初审」入口、状态历史和医生通知事实；浏览器 smoke 覆盖 CS 点击「通过初审」后订单进入 `PENDING_PRODUCTION_REVIEW`，9D.4 已串到生产审核第一增量；9D.11 已补驳回后医生补资料重新提交到客服审核状态；9D.59 已补资料缺失提示、AI 翻译草稿和人工写入生产备注入口；9D.60 已补医生端设计稿预览链接第一增量；9D.64 已补客服端设计稿审核预览增强第一段。 | 缺完整客服订单详情真实点击 smoke 和账单物流闭环。 |
 | 外文翻译 | PARTIAL | `AiGatewayTests` 覆盖 AI-1 草稿，不自动写入；9D.59 已在客服初审页提供 AI 翻译草稿和人工写入生产备注入口。 | 缺完整客服真实点击 smoke 和客户最终生产备注模板确认。 |
 | 工序链实例化 | PARTIAL | `WorkflowRuntimeTests` 覆盖实例化和快照；9D.4 前端「生产审核」可选择工序链并触发实例化；9D.5 已补工序实例详情、任务池和派工页面第一增量；9D.6 已补入检/出检和工时操作页面第一增量；9D.8 已补跨状态生产看板第一增量；9D.9 已补返工终检第一增量；9D.14 已补发货前终检 `OUT/PASS` 门禁第一增量；9D.16 已补终检报告第一增量；9D.56 已补终检专用权限和内部附件绑定第一增量。 | 缺实时生产通知联动、终检 PDF/签名/真实物流和完整生产端验收。 |
@@ -111,3 +111,11 @@
 - 部署基础设施已有一期 Docker / compose / env 隔离第一段，但仍缺 HTTPS、镜像仓库、备份恢复、日志留存、监控告警和真实测试/正式环境联调。
 - 操作手册已有第一段，但仍缺正式客户培训签收、真实生产部署手册、备份恢复、监控告警和发布回滚手册。
 - 客户/PM 仍需确认动态表单最终字段、AI-5 模板、标准工时、付款状态、Multipart 限制等；9D.72 已建立 `docs/acceptance/phase-one-customer-pm-confirmations.md` 作为追踪清单，但不代表这些事项已签字。
+
+## 9D.77 文件上传弱网 / 跨设备验收第一段
+
+验收结果：completed-first-increment / PARTIAL。
+
+证据：`npm run check:task9d77` 检查 9D.77 smoke、文档和 `file-upload-prod` 机器可读缺口；`npm run smoke:task9d77-file-upload-resilience` 可在本地模拟弱网延迟、断网中断和跨 browser context 续传。
+
+未完成原因：真实弱网物理网络、真实跨设备实机、客户 Multipart 限制签字和测试/正式 bucket 实际隔离仍缺。Task 8 仍保持 NOT_READY。

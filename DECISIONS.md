@@ -1,5 +1,21 @@
 # DECISIONS
 
+## D-128 任务 9D.77 文件上传弱网 / 跨设备验收第一段
+
+状态：已确认并执行第一增量。
+
+决策：
+
+- 9D.77 只做本地可执行的弱网 / 跨设备续传验收第一段，不接真实生产对象存储，不写真实密钥。
+- 弱网第一段用 Playwright route 对 Multipart PUT 增加延迟，并在设备 A 第 2 个 PUT 模拟断网。
+- 跨设备第一段用两个独立 browser context 模拟，设备 B 不共享设备 A 的 `doctor-order-upload:` localStorage，只能依赖服务端 pending Multipart 候选恢复。
+- 本轮新增 `npm run check:task9d77` 和 `npm run smoke:task9d77-file-upload-resilience`；真实弱网物理网络、真实跨设备实机、客户签字和测试/正式 bucket 实际隔离仍保留为上线缺口。
+
+影响：
+
+- `file-upload-prod` 从“缺弱网/跨设备脚本”推进到“本地可模拟弱网中断 + 跨 context 续传”的第一段。
+- Task 8 仍保持 `NOT_READY`；后续仍需真实环境文件上传验收、对象存储隔离验收和客户 / PM 确认。
+
 ## D-127 任务 9D.76 WebSocket / 通知生产验收第一段
 
 状态：已确认并执行第一增量。

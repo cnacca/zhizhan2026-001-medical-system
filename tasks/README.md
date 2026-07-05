@@ -5125,3 +5125,34 @@ npm run check:openapi
 - AI-5 模板。
 - 标准工时和预计发货算法。
 - 付款状态。
+
+## 任务 9D.77：文件上传弱网 / 跨设备验收第一段
+
+状态：completed-first-increment。
+
+目标：围绕 `file-upload-prod` 缺口，补一个本地可执行的弱网限速 / 断网和跨设备续传验收脚本。
+
+范围：
+
+- 新增 `npm run check:task9d77` 静态检查。
+- 新增 `npm run smoke:task9d77-file-upload-resilience` Playwright smoke。
+- 设备 A 模拟弱网延迟和第 2 个 Multipart PUT 断网，留下 `PENDING` 服务端候选。
+- 设备 B 使用独立 browser context，从空 localStorage 开始，通过服务端 pending 候选恢复并完成同一 `file_id`。
+
+非目标：
+
+- 不接真实生产对象存储。
+- 不做真实物理弱网、真实手机/多电脑、跨城市网络验收。
+- 不做独立网盘、Tus/tusd 独立服务、完整 Uppy Dashboard 或并发调优。
+- 不把客户最终 Multipart 限制签字、测试/正式 bucket 实际隔离验收写成已完成。
+
+验收命令：
+
+```bash
+npm run check:task9d77
+npm run smoke:task9d77-file-upload-resilience
+```
+
+完成记录：新增 `scripts/smoke-task-9d77-file-upload-resilience.spec.mjs` 和 `docs/acceptance/task-9d77-file-upload-resilience.md`，`acceptance.json` 的 `file-upload-prod` 缺口同步纳入 9D.77 证据。
+
+未完成原因：真实弱网物理网络、真实跨设备实机、客户 / PM 对 Multipart 限制签字和测试/正式 bucket 实际隔离验收仍未完成。Task 8 仍保持 NOT_READY。
