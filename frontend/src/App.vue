@@ -3114,9 +3114,19 @@ function validateDoctorUploadFiles(files: File[]) {
 
 function selectDoctorUploadFiles(event: Event) {
   const input = event.target as HTMLInputElement
-  doctorUploadFiles.value = Array.from(input.files ?? [])
+  const files = Array.from(input.files ?? [])
+  const validationError = validateDoctorUploadFiles(files)
+  if (validationError) {
+    doctorUploadFiles.value = []
+    doctorUploadProgress.value = ''
+    doctorOrderCreateError.value = validationError
+    input.value = ''
+    return
+  }
+  doctorUploadFiles.value = files
   doctorUploadServerResumeCandidates.value = []
   doctorUploadServerResumeOrderId.value = null
+  doctorOrderCreateError.value = ''
   doctorUploadProgress.value = doctorUploadFiles.value.length > 0
     ? `已选择 ${doctorUploadFiles.value.length} 个附件`
     : ''
