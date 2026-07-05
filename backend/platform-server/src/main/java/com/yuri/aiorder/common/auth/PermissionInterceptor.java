@@ -16,6 +16,12 @@ import org.springframework.web.servlet.HandlerInterceptor;
 @Component
 public class PermissionInterceptor implements HandlerInterceptor {
 
+    private final AuthProperties properties;
+
+    public PermissionInterceptor(AuthProperties properties) {
+        this.properties = properties;
+    }
+
     @Override
     public boolean preHandle(HttpServletRequest request, HttpServletResponse response, Object handler) {
         if (!(handler instanceof HandlerMethod handlerMethod)) {
@@ -68,6 +74,9 @@ public class PermissionInterceptor implements HandlerInterceptor {
     }
 
     private boolean hasFallbackRole(BootstrapIdentity identity, RequirePermission requirement) {
+        if (requirement.value().length > 0 && !properties.allowRoleFallback()) {
+            return false;
+        }
         Set<UserRole> allowedRoles = Arrays.stream(requirement.roles()).collect(Collectors.toSet());
         return allowedRoles.contains(identity.role());
     }

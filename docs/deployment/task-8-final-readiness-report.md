@@ -1,5 +1,9 @@
 # Task 8 Final Readiness Report
 
+## 9D.75 正式鉴权与 DataScope 收口第一段
+
+9D.75 已补 `APP_AUTH_ALLOW_ROLE_FALLBACK` 权限码优先模式；生产 profile、一期 compose 和生产 env 示例固定为 `false`，声明权限码的接口必须由 Bearer token 权限码放行，角色-only token 返回 403。本轮不代表完整 Spring Security/JWT、完整 RuoYi 管理 UI 或通用 SQL DataScope 已完成，Task 8 仍保持 NOT_READY。
+
 ## 9D.69 部署基础设施第一段
 
 9D.69 已补后端/前端 Dockerfile、前端 Nginx `/api/` 与 `/ws/` 代理、`deploy/docker-compose.phase-one.yml`、`deploy/env/phase-one.prod.example` 和 `docs/deployment/phase-one-docker-env.md`。本轮只形成可检查骨架，不代表真实生产部署、HTTPS、备份恢复、日志留存或监控告警完成，Task 8 仍保持 NOT_READY。

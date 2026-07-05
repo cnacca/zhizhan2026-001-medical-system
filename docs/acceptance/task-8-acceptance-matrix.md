@@ -1,5 +1,7 @@
 # Task 8A Acceptance Matrix
 
+> 9D.75 正式鉴权与 DataScope 收口第一段：prod 固定 `APP_AUTH_ALLOW_ROLE_FALLBACK=false`，声明权限码的接口必须由 Bearer token 权限码放行；该项不代表完整 Spring Security/JWT、通用 SQL DataScope 或完整 RuoYi 管理 UI 完成。
+
 > 9D.69 部署基础设施第一段：已补一期 Dockerfile、Nginx 代理、full-stack compose 示例和 prod env 占位示例；该项不代表真实服务器、HTTPS、备份、监控或生产部署完成。
 
 > 9D.71 AI 外部告警接收端验签 / 防重放第一段：已补默认关闭的 `/ai/external-alerts/receive` 本地验收桩，显式启用后校验 timestamp、nonce 和 HMAC 签名；该项不代表真实生产 webhook 联调完成。

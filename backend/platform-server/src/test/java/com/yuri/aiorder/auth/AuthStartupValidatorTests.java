@@ -18,7 +18,7 @@ class AuthStartupValidatorTests {
     @Test
     void prodProfileRejectsEnabledBootstrapHeaders() {
         AuthStartupValidator validator = new AuthStartupValidator(
-                new AuthProperties("real-prod-secret", 7200, 2592000, true),
+                new AuthProperties("real-prod-secret", 7200, 2592000, true, true),
                 environment("prod"));
 
         assertThatThrownBy(validator::validateAndApply)
@@ -29,7 +29,7 @@ class AuthStartupValidatorTests {
     @Test
     void prodProfileRejectsLocalTokenSecret() {
         AuthStartupValidator validator = new AuthStartupValidator(
-                new AuthProperties(AuthStartupValidator.LOCAL_TOKEN_SECRET, 7200, 2592000, false),
+                new AuthProperties(AuthStartupValidator.LOCAL_TOKEN_SECRET, 7200, 2592000, false, false),
                 environment("prod"));
 
         assertThatThrownBy(validator::validateAndApply)
@@ -38,9 +38,20 @@ class AuthStartupValidatorTests {
     }
 
     @Test
+    void prodProfileRejectsEnabledRoleFallback() {
+        AuthStartupValidator validator = new AuthStartupValidator(
+                new AuthProperties("real-prod-secret", 7200, 2592000, false, true),
+                environment("prod"));
+
+        assertThatThrownBy(validator::validateAndApply)
+                .isInstanceOf(IllegalStateException.class)
+                .hasMessageContaining("APP_AUTH_ALLOW_ROLE_FALLBACK");
+    }
+
+    @Test
     void nonProdProfileAppliesDisabledBootstrapHeaderFlag() {
         AuthStartupValidator validator = new AuthStartupValidator(
-                new AuthProperties("local-test-secret", 7200, 2592000, false),
+                new AuthProperties("local-test-secret", 7200, 2592000, false, true),
                 environment("local"));
 
         validator.validateAndApply();

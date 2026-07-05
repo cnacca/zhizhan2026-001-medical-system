@@ -4488,6 +4488,28 @@ npm run check:openapi
 
 未完成原因：所有确认项仍需客户 / PM 书面确认，本清单不替代签字。Task 8 仍保持 NOT_READY。
 
+## 任务 9D.75：正式鉴权与 DataScope 收口第一段
+
+状态：completed-first-increment。
+
+目标：正式环境关闭角色兜底，声明权限码的接口必须由 Bearer token 权限码放行。
+
+范围：新增 `APP_AUTH_ALLOW_ROLE_FALLBACK` 配置，prod 启动门禁要求 false，`PermissionInterceptor` 在严格模式下禁止角色-only token 通过声明权限码的接口，补严格权限测试、prod 配置、deployment env 检查、acceptance 和文档。
+
+非目标：不重写 Spring Security/JWT，不做完整 RuoYi 管理 UI，不做通用 SQL DataScope 全覆盖，不绕过权限，不削弱医生端脱敏。
+
+验收命令：
+
+```bash
+npm run check:task9d75
+npm run check:deployment-env
+./scripts/with-jdk21.sh mvn -f backend/pom.xml -pl platform-server -Dtest=StrictPermissionModeTests,AuthStartupValidatorTests test
+```
+
+完成记录：已补权限码优先模式、prod role fallback 门禁、严格模式角色-only token 403 测试和带权限码 token 通过测试。
+
+未完成原因：完整 Spring Security/JWT、通用 SQL DataScope、access token 黑名单、refresh token 轮换、多设备会话策略、完整 RuoYi 管理 UI 和真实生产环境越权矩阵仍未完成。Task 8 仍保持 NOT_READY。
+
 ## 任务 9D.69：部署基础设施第一段
 
 状态：completed-first-increment。

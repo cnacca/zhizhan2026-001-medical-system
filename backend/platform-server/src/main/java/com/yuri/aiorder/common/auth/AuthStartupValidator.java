@@ -41,6 +41,9 @@ public class AuthStartupValidator implements ApplicationRunner {
         if (properties.allowBootstrapHeaders()) {
             throw new IllegalStateException("APP_AUTH_ALLOW_BOOTSTRAP_HEADERS must be false in prod");
         }
+        if (properties.allowRoleFallback()) {
+            throw new IllegalStateException("APP_AUTH_ALLOW_ROLE_FALLBACK must be false in prod");
+        }
         if (isBlank(properties.tokenSecret()) || LOCAL_TOKEN_SECRET.equals(properties.tokenSecret())) {
             throw new IllegalStateException("APP_AUTH_TOKEN_SECRET must be configured with a non-local secret in prod");
         }

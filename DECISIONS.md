@@ -1,5 +1,22 @@
 # DECISIONS
 
+## D-126 任务 9D.75 正式鉴权与 DataScope 收口第一段
+
+状态：已确认并执行第一增量。
+
+决策：
+
+- 新增 `APP_AUTH_ALLOW_ROLE_FALLBACK` 作为权限注解的角色兜底开关；本地默认 `true`，用于兼容既有本地 smoke 和渐进式改造。
+- `prod` profile、`application-prod.yml` 和一期 compose 生产骨架固定 `APP_AUTH_ALLOW_ROLE_FALLBACK=false`。
+- 当 `@RequirePermission` 声明了权限码时，严格模式下必须由 Bearer token 中的权限码放行，不能只凭角色通过；未声明权限码、只声明角色的接口仍按角色白名单处理。
+- prod 启动门禁要求 `APP_AUTH_ALLOW_BOOTSTRAP_HEADERS=false`、`APP_AUTH_ALLOW_ROLE_FALLBACK=false` 且 `APP_AUTH_TOKEN_SECRET` 外部注入非本地占位值。
+
+影响：
+
+- 正式鉴权从“角色兜底 + 权限码”推进到“生产权限码优先”的第一段。
+- 本轮不重写 Spring Security/JWT，不删除本地 `X-Bootstrap-*` smoke 兼容，不做完整 RuoYi 管理 UI、通用 SQL DataScope、access token 黑名单、refresh token 轮换或多设备会话策略。
+- Task 8 仍保持 `NOT_READY`；后续仍需生产级网关 / WebSocket、真实环境部署和客户 / PM 确认项。
+
 ## D-120 任务 9D.69 部署基础设施第一段
 
 状态：已确认并执行第一增量。

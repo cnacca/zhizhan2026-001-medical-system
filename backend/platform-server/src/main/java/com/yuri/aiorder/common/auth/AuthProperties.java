@@ -7,5 +7,6 @@ public record AuthProperties(
         String tokenSecret,
         long tokenTtlSeconds,
         long refreshTokenTtlSeconds,
-        boolean allowBootstrapHeaders) {
+        boolean allowBootstrapHeaders,
+        boolean allowRoleFallback) {
 }

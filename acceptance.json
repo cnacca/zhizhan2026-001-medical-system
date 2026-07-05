@@ -2711,6 +2711,49 @@
             "check:task9d69",
             "compose:phase-one:config"
           ]
+        },
+        {
+          "id": "task-9d75-auth-datascope-strict-permission-required-text",
+          "type": "required_text",
+          "paths": [
+            "backend/platform-server/src/main/java/com/yuri/aiorder/common/auth/AuthProperties.java",
+            "backend/platform-server/src/main/java/com/yuri/aiorder/common/auth/PermissionInterceptor.java",
+            "backend/platform-server/src/main/java/com/yuri/aiorder/common/auth/AuthStartupValidator.java",
+            "backend/platform-server/src/main/resources/application.yml",
+            "backend/platform-server/src/main/resources/application-prod.yml",
+            "backend/platform-server/src/test/java/com/yuri/aiorder/auth/StrictPermissionModeTests.java",
+            "backend/platform-server/src/test/java/com/yuri/aiorder/auth/AuthStartupValidatorTests.java",
+            ".env.example",
+            "deploy/env/phase-one.prod.example",
+            "deploy/docker-compose.phase-one.yml",
+            "docs/acceptance/task-8-acceptance-matrix.md",
+            "docs/deployment/readiness-checklist.md",
+            "docs/deployment/task-8-final-readiness-report.md",
+            "docs/acceptance/phase-one-frontend-alignment.md",
+            "docs/acceptance/phase-one-frontend-task-scope.md",
+            "acceptance.json",
+            "DECISIONS.md",
+            "STATUS.md",
+            "tasks/README.md",
+            "README.md",
+            "scripts/check-task-9d75-auth-datascope-strict-permission.mjs",
+            "package.json"
+          ],
+          "patterns": [
+            "APP_AUTH_ALLOW_ROLE_FALLBACK",
+            "allow-role-fallback: false",
+            "allow-role-fallback: ${APP_AUTH_ALLOW_ROLE_FALLBACK:true}",
+            "APP_AUTH_ALLOW_ROLE_FALLBACK must be false in prod",
+            "strictPermissionModeRejectsRoleOnlyTokenWhenPermissionCodeIsRequired",
+            "strictPermissionModeAllowsTokenWithRequiredPermissionCode",
+            "prodProfileRejectsEnabledRoleFallback",
+            "APP_AUTH_ALLOW_ROLE_FALLBACK=false",
+            "权限码优先模式",
+            "任务 9D.75：正式鉴权与 DataScope 收口第一段",
+            "D-126 任务 9D.75 正式鉴权与 DataScope 收口第一段",
+            "9D.75 正式鉴权与 DataScope 收口第一段",
+            "check:task9d75"
+          ]
         }
       ]
     }

@@ -1,5 +1,7 @@
 # Deployment Readiness Checklist
 
+> 9D.75 正式鉴权与 DataScope 收口第一段：prod 必须 `APP_AUTH_ALLOW_ROLE_FALLBACK=false`，角色-only token 不得绕过声明权限码的接口；完整 Spring Security/JWT 和通用 DataScope 仍未完成。
+
 > 9D.69 部署基础设施第一段：Docker / Compose / env 示例骨架已补，但真实服务器、HTTPS、镜像仓库、备份恢复、日志留存和监控告警仍未完成。
 
 > 9D.71 AI 外部告警接收端验签 / 防重放第一段：receiver 默认关闭，真实 secret 必须外部注入；仍不代表真实 webhook 或生产外部服务联调完成。

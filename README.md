@@ -1338,6 +1338,7 @@ npm run check:task9d70
 npm run check:task9d71
 npm run check:task9d69
 npm run compose:phase-one:config
+npm run check:task9d75
 npm run check:task9d73
 ```
 
@@ -1368,6 +1369,18 @@ npm run acceptance
 ```
 
 该清单只是待确认事项入口，不代表客户 / PM 已签字。Task 8 仍保持 NOT_READY。
+
+## 9D.75 正式鉴权与 DataScope 收口第一段
+
+9D.75 已补权限码优先模式：本地默认 `APP_AUTH_ALLOW_ROLE_FALLBACK=true` 保留 smoke 兼容，`prod` profile 和一期 compose 固定 `APP_AUTH_ALLOW_ROLE_FALLBACK=false`；严格模式下声明权限码的接口必须由 Bearer token 权限码放行，角色-only token 返回 403。
+
+建议验证：
+
+```bash
+npm run check:task9d75
+npm run check:deployment-env
+./scripts/with-jdk21.sh mvn -f backend/pom.xml -pl platform-server -Dtest=StrictPermissionModeTests,AuthStartupValidatorTests test
+```
 
 ## 9D.69 部署基础设施第一段
 
