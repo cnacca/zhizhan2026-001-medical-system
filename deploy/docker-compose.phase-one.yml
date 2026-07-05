@@ -1,0 +1,97 @@
+services:
+  mysql:
+    image: mysql:8.4
+    container_name: ai-order-phase-one-mysql
+    environment:
+      MYSQL_DATABASE: ${MYSQL_DATABASE:?inject MYSQL_DATABASE externally}
+      MYSQL_USER: ${MYSQL_USER:?inject MYSQL_USER externally}
+      MYSQL_PASSWORD: ${MYSQL_PASSWORD:?inject MYSQL_PASSWORD externally}
+      MYSQL_ROOT_PASSWORD: ${MYSQL_ROOT_PASSWORD:?inject MYSQL_ROOT_PASSWORD externally}
+    volumes:
+      - phase-one-mysql-data:/var/lib/mysql
+    healthcheck:
+      test: ["CMD-SHELL", "mysqladmin ping -h 127.0.0.1 -uroot -p$${MYSQL_ROOT_PASSWORD}"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+
+  redis:
+    image: redis:7.4-alpine
+    container_name: ai-order-phase-one-redis
+    volumes:
+      - phase-one-redis-data:/data
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+
+  minio:
+    image: minio/minio:RELEASE.2025-09-07T16-13-09Z
+    container_name: ai-order-phase-one-minio
+    command: server /data --console-address ":9001"
+    environment:
+      MINIO_ROOT_USER: ${MINIO_ROOT_USER:?inject MINIO_ROOT_USER externally}
+      MINIO_ROOT_PASSWORD: ${MINIO_ROOT_PASSWORD:?inject MINIO_ROOT_PASSWORD externally}
+    volumes:
+      - phase-one-minio-data:/data
+    healthcheck:
+      test: ["CMD", "mc", "ready", "local"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+
+  backend:
+    image: ai-order-platform-backend:phase-one
+    container_name: ai-order-backend
+    build:
+      context: ..
+      dockerfile: backend/platform-server/Dockerfile
+    environment:
+      SPRING_PROFILES_ACTIVE: prod
+      SERVER_PORT: 8080
+      APP_CORS_ALLOWED_ORIGIN: ${APP_CORS_ALLOWED_ORIGIN:?inject frontend origin externally}
+      APP_AUTH_TOKEN_SECRET: ${APP_AUTH_TOKEN_SECRET:?inject APP_AUTH_TOKEN_SECRET externally}
+      APP_AUTH_ALLOW_BOOTSTRAP_HEADERS: "false"
+      APP_AUTH_ALLOW_ROLE_FALLBACK: "false"
+      MYSQL_HOST: mysql
+      MYSQL_PORT: 3306
+      MYSQL_DATABASE: ${MYSQL_DATABASE:?inject MYSQL_DATABASE externally}
+      MYSQL_USER: ${MYSQL_USER:?inject MYSQL_USER externally}
+      MYSQL_PASSWORD: ${MYSQL_PASSWORD:?inject MYSQL_PASSWORD externally}
+      REDIS_HOST: redis
+      REDIS_PORT: 6379
+      MINIO_ENDPOINT: http://minio:9000
+      MINIO_ROOT_USER: ${MINIO_ROOT_USER:?inject MINIO_ROOT_USER externally}
+      MINIO_ROOT_PASSWORD: ${MINIO_ROOT_PASSWORD:?inject MINIO_ROOT_PASSWORD externally}
+      MINIO_BUCKET: ${MINIO_BUCKET:?inject production bucket name externally}
+      AI_PROVIDER: ${AI_PROVIDER:-deterministic}
+      AI_DEEPSEEK_ENABLED: ${AI_DEEPSEEK_ENABLED:-false}
+      DEEPSEEK_API_KEY: ${DEEPSEEK_API_KEY:-}
+      AI_EXTERNAL_ALERT_WEBHOOK_ENABLED: ${AI_EXTERNAL_ALERT_WEBHOOK_ENABLED:-false}
+      AI_EXTERNAL_ALERT_SCHEDULER_ENABLED: ${AI_EXTERNAL_ALERT_SCHEDULER_ENABLED:-false}
+      AI_EXTERNAL_ALERT_WEBHOOK_SIGNING_ENABLED: ${AI_EXTERNAL_ALERT_WEBHOOK_SIGNING_ENABLED:-false}
+      AI_EXTERNAL_ALERT_WEBHOOK_SIGNING_SECRET: ${AI_EXTERNAL_ALERT_WEBHOOK_SIGNING_SECRET:-}
+    depends_on:
+      mysql:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+      minio:
+        condition: service_healthy
+
+  frontend:
+    image: ai-order-platform-frontend:phase-one
+    container_name: ai-order-frontend
+    build:
+      context: ..
+      dockerfile: frontend/Dockerfile
+    ports:
+      - "${FRONTEND_HTTP_PORT:-8088}:80"
+    depends_on:
+      - backend
+
+volumes:
+  phase-one-mysql-data:
+  phase-one-redis-data:
+  phase-one-minio-data:

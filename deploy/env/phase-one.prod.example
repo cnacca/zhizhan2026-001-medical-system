@@ -1,0 +1,30 @@
+# Do not commit real secrets. Copy this file outside the repository or inject
+# values through your deployment platform secret manager.
+
+SPRING_PROFILES_ACTIVE=prod
+APP_CORS_ALLOWED_ORIGIN=https://replace-with-phase-one-domain.example
+APP_AUTH_TOKEN_SECRET=replace-with-external-secret
+APP_AUTH_ALLOW_BOOTSTRAP_HEADERS=false
+APP_AUTH_ALLOW_ROLE_FALLBACK=false
+
+MYSQL_DATABASE=ai_order_platform_prod_example
+MYSQL_USER=ai_order_prod_example
+MYSQL_PASSWORD=replace-with-external-mysql-password
+MYSQL_ROOT_PASSWORD=replace-with-external-mysql-root-password
+
+MINIO_ROOT_USER=replace-with-external-minio-user
+MINIO_ROOT_PASSWORD=replace-with-external-minio-password
+MINIO_BUCKET=replace-with-phase-one-prod-bucket
+
+FRONTEND_HTTP_PORT=8088
+
+AI_PROVIDER=deterministic
+AI_DEEPSEEK_ENABLED=false
+DEEPSEEK_API_KEY=
+AI_EXTERNAL_ALERT_WEBHOOK_ENABLED=false
+AI_EXTERNAL_ALERT_SCHEDULER_ENABLED=false
+AI_EXTERNAL_ALERT_WEBHOOK_SIGNING_ENABLED=false
+AI_EXTERNAL_ALERT_WEBHOOK_SIGNING_SECRET=
+AI_EXTERNAL_ALERT_RECEIVER_VERIFICATION_ENABLED=false
+AI_EXTERNAL_ALERT_RECEIVER_SIGNING_SECRET=
+AI_EXTERNAL_ALERT_RECEIVER_REPLAY_WINDOW_SECONDS=300

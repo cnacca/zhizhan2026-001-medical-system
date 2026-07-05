@@ -1336,6 +1336,8 @@ docs/operations/phase-one-delivery-materials-index.md
 ```bash
 npm run check:task9d70
 npm run check:task9d71
+npm run check:task9d69
+npm run compose:phase-one:config
 npm run check:task9d73
 ```
 
@@ -1366,6 +1368,18 @@ npm run acceptance
 ```
 
 该清单只是待确认事项入口，不代表客户 / PM 已签字。Task 8 仍保持 NOT_READY。
+
+## 9D.69 部署基础设施第一段
+
+9D.69 已补一期 Docker / Nginx / Compose / env 示例骨架：后端镜像运行 Spring Boot jar，前端镜像使用 Nginx 提供静态资源并代理 `/api/`、`/ws/`，`deploy/env/phase-one.prod.example` 只保留占位示例值。真实密钥、真实服务器、HTTPS、备份和监控仍未完成。
+
+建议验证：
+
+```bash
+npm run check:task9d69
+npm run compose:phase-one:config
+npm run check:deployment-env
+```
 
 ## 9D.71 AI 外部告警接收端验签 / 防重放第一段
 

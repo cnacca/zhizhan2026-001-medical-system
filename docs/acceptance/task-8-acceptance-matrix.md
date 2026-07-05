@@ -1,5 +1,7 @@
 # Task 8A Acceptance Matrix
 
+> 9D.69 部署基础设施第一段：已补一期 Dockerfile、Nginx 代理、full-stack compose 示例和 prod env 占位示例；该项不代表真实服务器、HTTPS、备份、监控或生产部署完成。
+
 > 9D.71 AI 外部告警接收端验签 / 防重放第一段：已补默认关闭的 `/ai/external-alerts/receive` 本地验收桩，显式启用后校验 timestamp、nonce 和 HMAC 签名；该项不代表真实生产 webhook 联调完成。
 
 > 9D.73 付款状态第一段：账单 / 付款状态 / 物流一期闭环已补人工 `payment_status`，CS / ADMIN 可维护，医生端只读展示；该项不代表真实支付系统、财务审批或真实物流平台完成。

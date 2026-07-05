@@ -2675,6 +2675,42 @@
             "timestamp.nonce.requestBody",
             "check:task9d71"
           ]
+        },
+        {
+          "id": "task-9d69-deployment-infrastructure-required-text",
+          "type": "required_text",
+          "paths": [
+            "backend/platform-server/Dockerfile",
+            "frontend/Dockerfile",
+            "frontend/nginx.conf",
+            "deploy/docker-compose.phase-one.yml",
+            "deploy/env/phase-one.prod.example",
+            "docs/deployment/phase-one-docker-env.md",
+            "docs/acceptance/task-8-acceptance-matrix.md",
+            "docs/deployment/readiness-checklist.md",
+            "docs/deployment/task-8-final-readiness-report.md",
+            "docs/acceptance/phase-one-frontend-alignment.md",
+            "docs/acceptance/phase-one-frontend-task-scope.md",
+            "acceptance.json",
+            "DECISIONS.md",
+            "STATUS.md",
+            "tasks/README.md",
+            "README.md",
+            "scripts/check-task-9d69-deployment-infrastructure.mjs",
+            "package.json"
+          ],
+          "patterns": [
+            "任务 9D.69",
+            "部署基础设施第一段",
+            "ai-order-platform-backend",
+            "ai-order-platform-frontend",
+            "deploy/docker-compose.phase-one.yml",
+            "phase-one.prod.example",
+            "APP_AUTH_TOKEN_SECRET 必须外部注入",
+            "AI_DEEPSEEK_ENABLED 默认 false",
+            "check:task9d69",
+            "compose:phase-one:config"
+          ]
         }
       ]
     }

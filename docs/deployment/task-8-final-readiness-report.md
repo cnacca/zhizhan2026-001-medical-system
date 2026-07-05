@@ -1,5 +1,9 @@
 # Task 8 Final Readiness Report
 
+## 9D.69 部署基础设施第一段
+
+9D.69 已补后端/前端 Dockerfile、前端 Nginx `/api/` 与 `/ws/` 代理、`deploy/docker-compose.phase-one.yml`、`deploy/env/phase-one.prod.example` 和 `docs/deployment/phase-one-docker-env.md`。本轮只形成可检查骨架，不代表真实生产部署、HTTPS、备份恢复、日志留存或监控告警完成，Task 8 仍保持 NOT_READY。
+
 ## 9D.71 AI 外部告警接收端验签 / 防重放第一段
 
 9D.71 已补默认关闭的 `/ai/external-alerts/receive` 本地接收端验收桩，显式启用并注入 `AI_EXTERNAL_ALERT_RECEIVER_SIGNING_SECRET` 后校验 timestamp 时间窗、nonce 重放和 HMAC 签名。本轮不接真实外部 webhook、不提交真实 secret、不做生产联调，Task 8 仍保持 NOT_READY。

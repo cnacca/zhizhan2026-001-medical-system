@@ -1,0 +1,65 @@
+# 一期 Docker 与环境变量隔离
+
+状态：FIRST_INCREMENT / NOT_READY。
+
+本文件记录 9D.69 部署基础设施第一段。目标是让一期交付具备可检查的 Docker 镜像和 compose 环境隔离骨架，不代表已经完成正式生产上线。
+
+## 边界
+
+- 不提交真实密钥、真实数据库密码、真实 MinIO 密钥、DeepSeek API Key 或 webhook secret。
+- 不改生产真实配置。
+- 不删除数据、不重置迁移、不清 Docker volume。
+- 不在正式环境启用 `X-Bootstrap-*` 本地兼容路径。
+- 不在正式环境启用角色兜底权限；带权限码的接口必须由 Bearer token 中的权限码放行。
+
+## 镜像
+
+- 后端镜像：`backend/platform-server/Dockerfile`
+  - 使用已构建的 `platform-server` Spring Boot jar。
+  - 构建镜像前先执行 `./scripts/with-jdk21.sh mvn -f backend/pom.xml -pl platform-server -am -DskipTests package`。
+  - 运行时使用 JDK 21 JRE。
+  - 默认 `SPRING_PROFILES_ACTIVE=prod`。
+  - `APP_AUTH_TOKEN_SECRET` 必须外部注入。
+- 前端镜像：`frontend/Dockerfile`
+  - 构建 Vue 静态资源。
+  - 用 Nginx 提供静态文件。
+  - `/api/` 反向代理到后端。
+  - `/ws/` 支持 WebSocket upgrade。
+
+## 环境隔离
+
+- 测试环境和正式环境使用不同 MYSQL_DATABASE。
+- 测试环境和正式环境使用不同 MINIO_BUCKET。
+- 测试环境和正式环境使用不同 `APP_AUTH_TOKEN_SECRET`。
+- APP_AUTH_TOKEN_SECRET 必须外部注入，不能使用本地 smoke 默认值。
+- APP_AUTH_ALLOW_ROLE_FALLBACK 必须为 false，不能让角色-only token 绕过权限码校验。
+- `.env.example` 只保留本地 smoke 默认值。
+- `deploy/env/phase-one.prod.example` 只保留占位示例，正式值必须通过部署平台、CI/CD secret、服务器环境变量或不入库的 env 文件注入。
+
+## 正式环境默认关闭能力
+
+- `AI_PROVIDER=deterministic`
+- AI_DEEPSEEK_ENABLED 默认 false
+- `AI_EXTERNAL_ALERT_WEBHOOK_ENABLED=false`
+- `AI_EXTERNAL_ALERT_SCHEDULER_ENABLED=false`
+- `AI_EXTERNAL_ALERT_WEBHOOK_SIGNING_ENABLED=false`
+- `AI_EXTERNAL_ALERT_RECEIVER_VERIFICATION_ENABLED=false`
+
+## 验收命令
+
+```bash
+npm run check:task9d69
+./scripts/with-jdk21.sh mvn -f backend/pom.xml -pl platform-server -am -DskipTests package
+docker build -f backend/platform-server/Dockerfile -t ai-order-platform-backend:phase-one-check .
+docker build -f frontend/Dockerfile -t ai-order-platform-frontend:phase-one-check .
+docker compose -f deploy/docker-compose.phase-one.yml config
+docker compose -f deploy/docker-compose.phase-one.yml --env-file deploy/env/phase-one.prod.example config
+```
+
+等价 npm 入口：
+
+```bash
+npm run compose:phase-one:config
+```
+
+后续正式上线前还需要补 Nginx HTTPS、镜像仓库、备份恢复演练、日志留存、监控告警和真实测试/正式环境联调。

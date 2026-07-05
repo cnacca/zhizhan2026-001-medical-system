@@ -4488,6 +4488,28 @@ npm run check:openapi
 
 未完成原因：所有确认项仍需客户 / PM 书面确认，本清单不替代签字。Task 8 仍保持 NOT_READY。
 
+## 任务 9D.69：部署基础设施第一段
+
+状态：completed-first-increment。
+
+目标：补一期 Docker / Nginx / Compose / env 示例骨架，形成可静态检查的部署基础设施第一段。
+
+范围：新增 `backend/platform-server/Dockerfile`、`frontend/Dockerfile`、`frontend/nginx.conf`、`deploy/docker-compose.phase-one.yml`、`deploy/env/phase-one.prod.example`、`docs/deployment/phase-one-docker-env.md`、`.dockerignore`、`npm run check:task9d69` 和 `npm run compose:phase-one:config`。
+
+非目标：不真实启动生产环境，不做真实服务器部署，不写真实密钥，不做 Nginx HTTPS、镜像仓库、备份恢复演练、日志留存或监控告警。
+
+验收命令：
+
+```bash
+npm run check:task9d69
+npm run compose:phase-one:config
+npm run check:deployment-env
+```
+
+完成记录：已补一期前后端镜像、full-stack compose 示例、prod env 占位示例、Docker/env 隔离文档和静态检查。
+
+未完成原因：真实服务器、HTTPS、镜像仓库、备份恢复、日志留存、监控告警、真实测试/正式环境联调和客户/PM 真实环境边界确认仍未完成。Task 8 仍保持 NOT_READY。
+
 ## 任务 9D.71：AI 外部告警接收端验签 / 防重放第一段
 
 状态：completed-first-increment。

@@ -1,5 +1,23 @@
 # DECISIONS
 
+## D-120 任务 9D.69 部署基础设施第一段
+
+状态：已确认并执行第一增量。
+
+决策：
+
+- 9D.69 先补一期 Docker / Docker Compose / 生产环境变量隔离骨架，不启动真实生产环境，不写真实密钥。
+- 后端镜像使用 `backend/platform-server/Dockerfile` 运行 Spring Boot jar，运行时默认 `SPRING_PROFILES_ACTIVE=prod`，并要求 `APP_AUTH_TOKEN_SECRET` 外部注入。
+- 前端镜像使用 `frontend/Dockerfile` 构建 Vue 静态资源，并通过 Nginx 转发 `/api/` 和 `/ws/` 到后端容器。
+- 新增 `deploy/docker-compose.phase-one.yml` 和 `deploy/env/phase-one.prod.example`，测试/正式环境必须使用不同 `MYSQL_DATABASE`、`MINIO_BUCKET`、认证密钥和对象存储凭据。
+- `deploy/env/phase-one.prod.example` 只允许占位示例值；真实数据库密码、MinIO 密钥、DeepSeek API Key、webhook secret 和生产域名必须通过外部 secret 或不入库 env 文件注入。
+
+影响：
+
+- 部署基础设施从“只有本地 MySQL/Redis/MinIO compose”推进到“一期前后端镜像 + full-stack compose config 可校验”的第一段。
+- 本轮不做 Nginx HTTPS、镜像仓库、真实服务器部署、备份恢复演练、日志留存、监控告警或真实测试/正式环境联调。
+- Task 8 仍保持 `NOT_READY`；正式部署、生产通知、AI 真实联调和客户/PM 确认仍未关闭。
+
 ## D-122 任务 9D.71 AI 外部告警接收端验签 / 防重放第一段
 
 状态：已确认并执行第一增量。
