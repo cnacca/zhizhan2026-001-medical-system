@@ -14,7 +14,7 @@ const portalCases = [
     accent: '#2563eb',
     sidebar: '#0f2554',
     accountItem: '诊所信息',
-    clicks: ['文件资料', '订单助手', '通知中心']
+    clicks: ['患者管理', '订单助手', '通知中心']
   },
   {
     title: '客服端',

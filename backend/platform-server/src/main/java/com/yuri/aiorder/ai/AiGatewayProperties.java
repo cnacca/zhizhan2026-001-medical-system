@@ -6,6 +6,8 @@ import org.springframework.boot.context.properties.ConfigurationProperties;
 @ConfigurationProperties(prefix = "app.ai")
 public class AiGatewayProperties {
 
+    public static final String AI_LANGCHAIN_ENABLED_ENV = "AI_LANGCHAIN_ENABLED";
+
     private String provider = "deterministic";
     private int maxRequestsPerUserHour = 120;
     private int maxModelRetries = 1;
@@ -19,6 +21,7 @@ public class AiGatewayProperties {
     private boolean budgetNotificationEnabled = true;
     private boolean budgetCircuitBreakerEnabled = false;
     private final DeepSeek deepseek = new DeepSeek();
+    private final LangChain langchain = new LangChain();
     private final ExternalAlert externalAlert = new ExternalAlert();
 
     public String getProvider() {
@@ -133,12 +136,26 @@ public class AiGatewayProperties {
         return deepseek;
     }
 
+    public LangChain getLangchain() {
+        return langchain;
+    }
+
     public ExternalAlert getExternalAlert() {
         return externalAlert;
     }
 
     public boolean deepSeekEnabled() {
         return "deepseek".equalsIgnoreCase(provider)
+                && deepseek.isEnabled()
+                && deepseek.getApiKey() != null
+                && !deepseek.getApiKey().isBlank()
+                && !deepseek.getApiKey().startsWith("replace-with");
+    }
+
+    public boolean langChainDeepSeekEnabled() {
+        return "langchain-deepseek".equalsIgnoreCase(provider)
+                && "deepseek".equalsIgnoreCase(langchain.getProvider())
+                && langchain.isEnabled()
                 && deepseek.isEnabled()
                 && deepseek.getApiKey() != null
                 && !deepseek.getApiKey().isBlank()
@@ -226,6 +243,27 @@ public class AiGatewayProperties {
 
         public void setReadTimeoutSeconds(int readTimeoutSeconds) {
             this.readTimeoutSeconds = readTimeoutSeconds;
+        }
+    }
+
+    public static class LangChain {
+        private boolean enabled = false;
+        private String provider = "deepseek";
+
+        public boolean isEnabled() {
+            return enabled;
+        }
+
+        public void setEnabled(boolean enabled) {
+            this.enabled = enabled;
+        }
+
+        public String getProvider() {
+            return provider;
+        }
+
+        public void setProvider(String provider) {
+            this.provider = provider;
         }
     }
 

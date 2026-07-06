@@ -5,6 +5,9 @@ import com.fasterxml.jackson.annotation.JsonProperty;
 public record MessageResponse(
         @JsonProperty("msg_id") long msgId,
         @JsonProperty("order_id") long orderId,
+        @JsonProperty("order_no") String orderNo,
+        @JsonProperty("product_type") String productType,
+        @JsonProperty("external_status") String externalStatus,
         @JsonProperty("sender_user_id") Long senderUserId,
         @JsonProperty("sender_role") String senderRole,
         String content,

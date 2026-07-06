@@ -10,6 +10,7 @@ import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
+import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
 
 @RestController
@@ -156,5 +157,23 @@ public class CollaborationController {
             @RequestBody LogisticsRequest request,
             BootstrapIdentity identity) {
         return new DataResponse<>(collaborationService.shipOrder(orderId, request, identity));
+    }
+
+    @GetMapping("/logistics/orders")
+    @RequirePermission(value = "message:manage", roles = {UserRole.ADMIN, UserRole.CS})
+    public DataResponse<List<DeliveryOrderResponse>> listDeliveryOrders(
+            @RequestParam(name = "logistics_status", required = false) String logisticsStatus,
+            @RequestParam(name = "limit", defaultValue = "50") int limit,
+            BootstrapIdentity identity) {
+        return new DataResponse<>(collaborationService.listDeliveryOrders(logisticsStatus, limit, identity));
+    }
+
+    @PostMapping("/orders/{orderId}/logistics/exception")
+    @RequirePermission(value = "message:manage", roles = {UserRole.ADMIN, UserRole.CS})
+    public DataResponse<DeliveryOrderResponse> updateLogisticsException(
+            @PathVariable long orderId,
+            @RequestBody LogisticsExceptionRequest request,
+            BootstrapIdentity identity) {
+        return new DataResponse<>(collaborationService.updateLogisticsException(orderId, request, identity));
     }
 }

@@ -8,13 +8,39 @@
 
 Task 8 readiness 终检报告第一增量已生成：`docs/deployment/task-8-final-readiness-report.md`。该报告把本 checklist 和 acceptance matrix 中仍为 PARTIAL / NOT_READY 的关键项整理为上线前缺口清单，Task 8 状态仍为 `NOT_READY`。
 
-9D.82 最新 PRD V2.0 差异对齐矩阵第一段已补：`docs/acceptance/prd-v2-gap-matrix.md` 将最新版 PRD 正文 `V2.0 / 2026-07-04` 拆成一期已覆盖、部分覆盖、缺失、BLOCKED 和二期项，`npm run check:task9d82` 可检查矩阵、项目入口文档和 acceptance 证据。新的本地可关闭一期缺口包括患者管理基础版、人工支付流水 / 收支记录、客户 / 诊所档案与偏好、人员档案 / 工作量看板、质量记录 CRUD / 外返登记；设备、物料、安环、成本、奖惩完整功能已按 PRD V2.0 移出一期 READY 硬阻塞。
+9D.82 最新 PRD V2.0 差异对齐矩阵第一段已补：`docs/acceptance/prd-v2-gap-matrix.md` 将最新版 PRD 正文 `V2.0 / 2026-07-04` 拆成一期已覆盖、部分覆盖、缺失、BLOCKED 和二期项，`npm run check:task9d82` 可检查矩阵、项目入口文档和 acceptance 证据。新的本地可关闭一期缺口包括患者管理基础版、人工支付流水 / 收支记录、客户 / 诊所档案与偏好、人员档案 / 工作量看板、质量记录 CRUD / 外返登记、客服订单 / 沟通完整可见性 smoke、医生账户设置基础闭环、设备 / 物料 / 安环 / 成本 / 奖惩完整闭环和 LangChain + DeepSeek AI 底座对齐。
+
+9D.94 LangChain + DeepSeek AI 底座对齐第一增量已补：后端新增 LangChain4j DeepSeek 适配，默认 `AI_PROVIDER=deterministic`、`AI_LANGCHAIN_ENABLED=false`；只有显式 `AI_PROVIDER=langchain-deepseek`、`AI_LANGCHAIN_ENABLED=true`、`AI_LANGCHAIN_PROVIDER=deepseek`、`AI_DEEPSEEK_ENABLED=true` 且外部注入 DeepSeek key 时，AI-1 / AI-2 / AI-3 公开查询 / AI-5 才通过 LangChain4j 调用 DeepSeek。该记录不代表真实 key、生产 webhook、流式输出、RAG、复杂 agent tool calling 或客户 / PM AI 验收已完成。
+
+9D.95 设备 / 物料 / 安环 / 成本 / 奖惩一期闭环拆解第一增量已补：新增 `docs/acceptance/phase-one-production-support-closure-plan.md` 和 `npm run check:task9d95`，把 9D.50-9D.54 只读汇总拆成设备台账 / 设备事件录入、物料异常登记 / 处理状态、安环巡检 / 隐患整改、成本记录维护 / 趋势口径、奖惩记录 / 审批状态五个后续最小闭环。该记录不代表五类模块已 READY，不接 IoT、真实财务系统或工资发放。
+
+9D.95.1 设备台账 / 设备事件录入第一增量已补：新增 `POST /production/equipment`、`POST /production/equipment/{equipmentCode}/events`、生产端“登记设备 / 登记事件”最小入口和 `npm run check:task9d951`。本轮不新增迁移，不接 IoT，不做保养审批流、复杂设备履历或真实设备联网；设备管理仍为 PARTIAL，Task 8 仍保持 NOT_READY。
+
+9D.95.2 物料异常登记 / 处理状态第一增量已补：新增 `POST /production/material-exceptions`、`PUT /production/material-exceptions/{exceptionNo}/status`、生产端“登记物料异常 / 更新处理状态”最小入口和 `npm run check:task9d952`。本轮不新增迁移，不接库存扣减、采购补料、供应商协同或 WMS；物料异常管理仍为 PARTIAL，Task 8 仍保持 NOT_READY。
+
+9D.95.3 安环巡检 / 隐患整改第一增量已补：新增 `POST /production/safety-environment/events`、`PUT /production/safety-environment/events/{eventNo}/status`、生产端“登记安环事件 / 更新整改状态”最小入口和 `npm run check:task9d953`。本轮不新增迁移，不接真实环境采集硬件、PPE 发放系统或完整安环审批流；安环管理仍为 PARTIAL，Task 8 仍保持 NOT_READY。
+
+9D.95.4 成本记录维护 / 趋势口径第一增量已补：新增 `POST /production/cost-management/records`、生产端“登记成本记录”最小入口和 `npm run check:task9d954`。本轮不新增迁移，不接真实财务系统、发票、付款、对账或自动成本分摊；成本管理仍为 PARTIAL，Task 8 仍保持 NOT_READY。
+
+9D.95.5 奖惩记录 / 审批状态第一增量已补：新增 `POST /production/reward-penalty/records`、`PUT /production/reward-penalty/records/{recordNo}/status`、生产端“登记奖惩记录 / 更新审批状态”最小入口和 `npm run check:task9d955`。本轮不新增迁移，不作为工资发放结果，不做绩效申诉闭环、薪酬结算或复杂审批引擎；奖惩管理仍为 PARTIAL，Task 8 仍保持 NOT_READY。
+
+9D.96 医生提交前 AI-4 资料缺失自动触发体验第一增量已补：医生端提交订单 / 补资料前先保存草稿并自动调用 `/ai/check-missing`；缺失时展示“AI-4 资料缺失检查”和缺失清单，阻断正式提交。新增 `npm run check:task9d96`。本轮不新增后端接口，不做 AI 自动驳回订单，不接真实 DeepSeek key；AI-4 仍为 PARTIAL，Task 8 仍保持 NOT_READY。
 
 9D.83 患者管理基础版第一增量已补：`patient_record`、`orders.patient_id`、`patient:manage-doctor`、患者档案接口、患者历史订单接口和医生端 `/doctor/patients` 最小入口。该记录关闭本地基础闭环，不代表真实客户数据导入、高级标签、批量检索或 AI 历史方案推荐已完成。
 
 9D.84 人工支付流水 / 收支记录第一增量已补：`order_payment_record` 和 `/orders/{orderId}/payments`，CS / ADMIN 可录入人工收款流水，医生只读查看本人订单流水。该记录不代表真实支付网关、退款、对账、发票或月结自动归集完成。
 
 9D.85 客户 / 诊所档案与偏好第一增量已补：`/clinics`、`/clinics/{clinicId}`、`/clinics/{clinicId}/preference`、客服端 `/customers`、管理端 `/admin/clinics`、医生端 `/doctor/account/clinic` 和 `npm run check:task9d85`。CS / ADMIN 可维护一期客户偏好，医生只能只读本人诊所偏好。该记录不代表客户开户审批、定价体系、真实客户数据导入、复杂 CRM 或客户 / PM 字段最终确认完成。
+
+9D.86 人员档案 / 工作量看板第一增量已补：`/staff/workload`、生产端 `/production/staff`、管理端 `/admin/staff` 和 `npm run check:task9d86`。ADMIN / CS 可查看内部员工档案和工作量，WORKER 只返回本人，DOCTOR 拒绝访问。该记录不代表完整 HR、人员 CRUD、岗位能力矩阵、排班、薪酬或绩效申诉完成。
+
+9D.87 质量记录 CRUD / 外返登记第一增量已补：`/quality-records`、`/quality-records/external-returns`、生产端 `/production/quality` 和 `npm run check:task9d87`。CS / ADMIN 可登记外返质量记录并查看内部质量记录，DOCTOR 拒绝访问。该记录不代表独立 `quality_record` 表、完整质量状态工作流、编辑/删除、投诉/退货系统或客户最终质量口径确认完成。
+
+9D.88 客服订单 / 沟通完整可见性 smoke 已补：`MessageResponse` 新增 `order_no`、`product_type`、`external_status`，客服待审核队列和订单消息上下文可识别订单上下文，`npm run check:task9d88` 可检查后端、前端、OpenAPI 和文档证据。该记录不代表消息附件 URL 聚合、AI 自动审核、复杂客服工单或真实外部通知完成。
+
+9D.89 医生账户设置基础闭环已补：V33 为 `system_user` 增加账户设置字段，新增 `/doctor/account/settings`、`/doctor/account/password`、医生端 `/doctor/account/settings` 页面和 `npm run check:task9d89`。该记录不代表短信 / 邮箱真实验证、多地址簿、二次认证、登录记录审计或客户最终字段确认完成。
+
+9D.90 产品参数 / 价格体系一期最小后台已补：V34 新增 `product_catalog`，新增 `product:manage`、`/products`、`/products/{productId}`、产品管理页基础价维护入口和 `npm run check:task9d90`。该记录不代表自动报价、客户分层价格、价格审批、价格历史生效规则、账单重算、真实财务结算或客户 / PM 价格字段最终确认完成。
 
 部署安全 / 环境变量 readiness 检查第一增量已补：`npm run check:deployment-env` 会检查 README、`.env.example`、`application.yml`、`application-prod.yml` 和本 checklist 中的生产环境变量边界、默认关闭能力和禁止提交真实密钥说明。
 
@@ -49,13 +75,13 @@ Task 8 readiness 终检报告第一增量已生成：`docs/deployment/task-8-fin
 | WebSocket / 通知 | PARTIAL | 已实现 `/ws/connect?token=...` 单实例在线推送，基于 `notification_event` / `user_notification` 派发脱敏 payload，并写 `delivered_at`；已实现通知列表、未读数、单条已读、全部已读 REST 接口、前端通知中心实时刷新、Redis 广播代码路径、AI 预算超限内部通知第一增量、预算通知策略开关第一增量、外部告警待发送事实第一增量、AI 外部告警发送器第一增量、AI 真实外部渠道适配第一增量、AI 外部告警调度器第一增量、AI 外部告警重试/死信第一增量、AI 外部告警幂等/并发领取第一增量、AI 外部告警 webhook 签名/鉴权第一增量、AI 外部告警监控/运维可观察第一增量、AI 外部告警 outbox 列表/筛选第一增量、AI 外部告警失败/死信可见性第一增量、AI 外部告警接收端验签 / 防重放第一段，以及 9D.76 Nginx 通知 REST / WebSocket 生产网关 readiness 第一段。仍需真实双后端实例 Redis 联调、心跳/重连压测、Nginx HTTPS 生产验收、生产 webhook 联调和完整业务页面联动。 |
 | OpenAPI 契约 | READY_FOR_CURRENT_BASELINE | 当前 path / operation 数量以 `npm run check:openapi` 输出为准；已补唯一 `operationId`、统一 4xx/503/default、关键 DTO/schema、license；9B.8 已补 `/auth/refresh`、`/auth/logout`、`RefreshTokenRequest`、`refreshToken` 和 `refreshExpiresAt`；9D.1 已补 `/orders` 当前实现响应 schema，9D.9 已补 `/reworks` 和 `ReworkRecordResponse`，9D.10 已补 Multipart 文件上传、status 恢复与 pending 候选接口，9D.11 已补 `DRAFT` 外部状态、`UpdateOrderRequest` 和 `PUT /orders/{orderId}` 草稿/补资料契约；9D.12 已补动态表单 `status`、create/update 响应和逻辑停用描述；9D.13 已补设计稿 `file_ids/file_count` 响应；9D.14 已补 `/orders/{orderId}/logistics` 发货前终检 `OUT/PASS` 门禁描述；9D.15 已补 AI 端点 DeepSeek 适配、deterministic fallback 和 AI-3 `SAFE_REFUSAL` 描述；9D.16/9D.56 已补 `/final-inspection-reports`、`/final-inspection-reports/{orderId}`、终检报告 schema、`attachment_file_ids` 和 `final-inspection:manage` 专用权限说明；9D.17 已补 `/reworks/{reworkId}/close` 和 `ReworkCloseRequest`；9D.18 已补 `/reworks/dictionaries` 和 `ReworkDictionariesResponse`；9D.19 已补 `REWORK_CREATED` / `REWORK_CLOSED` 通知事件说明；9D.21 已补 `PerformanceStats` 绩效责任归因字段；9D.22 已补 `ReworkRecordResponse` 返工影响审计字段；9D.23 已补 `/reworks` 的 `has_impacted_nodes` 查询参数；9D.24 已补 `LoginRequest.portal` 登录入口枚举和 `/auth/login` 入口角色匹配说明；9D.25 已补 `/performance/details` 和 `PerformanceDetail` schema；9D.42 已补 `/ai/governance/cost-trend` 和 `AiGovernanceCostTrendResponse`；9D.43 已补 `AI_EXTERNAL_ALERT_WEBHOOK_ENABLED` / `AI_EXTERNAL_ALERT_WEBHOOK_URL` webhook 发送说明；9D.44 已补 `AI_EXTERNAL_ALERT_SCHEDULER_ENABLED` 调度器说明；9D.45 已补 `AI_EXTERNAL_ALERT_MAX_ATTEMPTS` 和 `DEAD_LETTER` 说明；9D.46 已补 `SENDING` 领取态和重复触发不重复外呼说明；9D.47 已补 `AI_EXTERNAL_ALERT_WEBHOOK_SIGNING_ENABLED` / `AI_EXTERNAL_ALERT_WEBHOOK_SIGNING_SECRET` 和 `X-AI-Alert-Signature` HMAC 签名说明；9D.48 已补 `/ai/governance/external-alerts/summary` 和 `AiExternalAlertSummaryResponse`；9D.48.1 已补 `/ai/governance/external-alerts` 和 `AiExternalAlertListResponse`；9D.48.2 已补 `AiExternalAlertRecord.attempts`、脱敏 `last_error` 和 `last_attempted_at`；Swagger validate 与 Redocly lint 通过。后续新增接口必须持续同步。 |
 | 文件上传 | PARTIAL | 已实现 MinIO Multipart 初始化、分片签名、status、pending、complete/abort、审计和医生写路径越权拒绝，前端已有最小 Uppy 文件选择/上传、本地恢复上传、服务端候选恢复并回填 `file_id`；`npm run smoke:task9d10-large-upload` 已通过本地 105MB 浏览器上传，`file_id=457` 为 21 个分片完成；`npm run smoke:task9d10-server-resume` 已通过无本地上传会话时复用 pending `file_id=514` 的浏览器 smoke；`npm run smoke:task9d10-interrupted-resume` 已通过第 2 个分片中断后复用同一 `file_id=537` 的浏览器 smoke；9D.67 文件上传限制与 bucket 隔离第一段已补 `FILE_MAX_FILE_SIZE_BYTES`、`FILE_ALLOWED_CONTENT_TYPES`、`FILE_MAX_FILES_PER_ORDER` 服务端校验和医生端选择提示；9D.77 已补本地弱网 / 跨设备恢复 smoke 第一段；9D.78 测试 / 正式对象存储 bucket 隔离验收记录第一段已补 `npm run check:task9d78`，检查本地 bucket 与生产占位 bucket 不同、一期 compose 要求外部注入 `MINIO_BUCKET` 和 bucket 隔离记录已回写；9D.79 已补 `docs/acceptance/task-9d79-real-env-file-upload-manual-acceptance.md` 和 `npm run check:task9d79`，提供真实环境人工验收记录模板。仍需真实弱网物理网络、真实跨设备实机、真实测试/正式 bucket 实际创建与账号隔离、客户最终 Multipart 限制签字、真实对象存储联调和客户 / PM 书面确认。 |
-| AI 接入 | PARTIAL | 已完成 DeepSeek OpenAI-compatible `/chat/completions` 适配第一增量，默认关闭真实模型，本地/CI 使用 deterministic fallback；启用时 AI-1/AI-2/AI-3 公开问答/AI-5 可调用 DeepSeek，AI-3 内部问题继续本地 `SAFE_REFUSAL`；9D.26 到 9D.48.2 已补限流、成本审计、模型重试、失败审计、治理摘要、预算阈值、预算跨线审计、预算超限内部通知第一增量、预算通知策略开关第一增量、预算熔断/降级第一增量、外部告警待发送事实第一增量、分角色预算第一增量、分模型预算第一增量、提示词版本审计、输出防护第一增量、外部告警发送器第一增量、成本趋势第一增量、AI 真实外部渠道适配第一增量、AI 外部告警调度器第一增量、AI 外部告警重试/死信第一增量、AI 外部告警幂等/并发领取第一增量、AI 外部告警 webhook 签名/鉴权第一增量、AI 外部告警监控/运维可观察第一增量、AI 外部告警 outbox 列表/筛选第一增量和 AI 外部告警失败/死信可见性第一增量。预算跨线后默认给 ACTIVE ADMIN / CS 写 `AI_BUDGET_EXCEEDED` 内部通知；`AI_BUDGET_NOTIFICATION_ENABLED=false` 时只保留治理审计；`AI_BUDGET_CIRCUIT_BREAKER_ENABLED=true` 且全局预算已超限时不外呼真实模型，返回 deterministic fallback 并写 `AI_BUDGET_CIRCUIT_OPEN`；配置角色预算且当前角色已超限时写 `AI_BUDGET_ROLE_CIRCUIT_OPEN`；配置 DeepSeek 模型预算且当前模型已超限时写 `AI_BUDGET_MODEL_CIRCUIT_OPEN`；输出防护命中时写 `AI_OUTPUT_GUARDED`；预算事件新增 `ai_external_alert_outbox.send_status=PENDING`，9D.41 可推进到 `SENT/FAILED` 并记录 `attempts/last_error`；9D.42 可通过 `/ai/governance/cost-trend` 查看成功调用按日成本趋势；9D.43 默认仍 dry-run，显式启用 `AI_EXTERNAL_ALERT_WEBHOOK_ENABLED=true` 且配置 `AI_EXTERNAL_ALERT_WEBHOOK_URL` 后会 POST webhook；9D.44 默认不自动调度，显式启用 `AI_EXTERNAL_ALERT_SCHEDULER_ENABLED=true` 后才按批次触发 sender；9D.45 webhook 失败未达 `AI_EXTERNAL_ALERT_MAX_ATTEMPTS` 时保持 `PENDING`，达到上限进入 `DEAD_LETTER`；9D.46 sender 先领取 `PENDING -> SENDING` 后外呼，避免重复触发或并发 sender 重复发送同一条 outbox；9D.47/9D.71 默认不签名，显式启用 `AI_EXTERNAL_ALERT_WEBHOOK_SIGNING_ENABLED=true` 并注入 `AI_EXTERNAL_ALERT_WEBHOOK_SIGNING_SECRET` 后会发送 timestamp / nonce / signature；9D.71 新增默认关闭的 `/ai/external-alerts/receive` 接收端验签 / 防重放验收桩，显式启用 `AI_EXTERNAL_ALERT_RECEIVER_VERIFICATION_ENABLED=true` 并注入 `AI_EXTERNAL_ALERT_RECEIVER_SIGNING_SECRET` 后校验时间窗、nonce 和 HMAC；9D.48 可通过 `/ai/governance/external-alerts/summary` 查看 outbox 状态分布、最近失败/死信错误和最老待发送时间；9D.48.1 可通过 `/ai/governance/external-alerts` 筛选安全元数据列表；9D.48.2 可查看 FAILED / DEAD_LETTER 的 `attempts`、脱敏 `last_error` 和 `last_attempted_at`；9D.80 已补 AI 真实 key / 生产 webhook 联调记录模板第一段。仍需真实 key 环境联调、生产 webhook 联调、提示词后台管理、流式输出过滤、生产级成本看板、更完整输出策略和客户 / PM 书面确认；复测 AI-3 越权。 |
+| AI 接入 | PARTIAL | 已完成 DeepSeek OpenAI-compatible `/chat/completions` 适配第一增量，默认关闭真实模型，本地/CI 使用 deterministic fallback；9D.94 已补 LangChain4j + DeepSeek 底座对齐第一增量，显式启用 `AI_PROVIDER=langchain-deepseek`、`AI_LANGCHAIN_ENABLED=true`、`AI_LANGCHAIN_PROVIDER=deepseek`、`AI_DEEPSEEK_ENABLED=true` 且外部注入 DeepSeek key 时，AI-1/AI-2/AI-3 公开问答/AI-5 通过 LangChainDeepSeekAiModelClient 调用 DeepSeek，AI-3 内部问题继续本地 `SAFE_REFUSAL`；9D.26 到 9D.48.2 已补限流、成本审计、模型重试、失败审计、治理摘要、预算阈值、预算跨线审计、预算超限内部通知第一增量、预算通知策略开关第一增量、预算熔断/降级第一增量、外部告警待发送事实第一增量、分角色预算第一增量、分模型预算第一增量、提示词版本审计、输出防护第一增量、外部告警发送器第一增量、成本趋势第一增量、AI 真实外部渠道适配第一增量、AI 外部告警调度器第一增量、AI 外部告警重试/死信第一增量、AI 外部告警幂等/并发领取第一增量、AI 外部告警 webhook 签名/鉴权第一增量、AI 外部告警监控/运维可观察第一增量、AI 外部告警 outbox 列表/筛选第一增量和 AI 外部告警失败/死信可见性第一增量。预算跨线后默认给 ACTIVE ADMIN / CS 写 `AI_BUDGET_EXCEEDED` 内部通知；`AI_BUDGET_NOTIFICATION_ENABLED=false` 时只保留治理审计；`AI_BUDGET_CIRCUIT_BREAKER_ENABLED=true` 且全局预算已超限时不外呼真实模型，返回 deterministic fallback 并写 `AI_BUDGET_CIRCUIT_OPEN`；配置角色预算且当前角色已超限时写 `AI_BUDGET_ROLE_CIRCUIT_OPEN`；配置 DeepSeek 模型预算且当前模型已超限时写 `AI_BUDGET_MODEL_CIRCUIT_OPEN`；输出防护命中时写 `AI_OUTPUT_GUARDED`；预算事件新增 `ai_external_alert_outbox.send_status=PENDING`，9D.41 可推进到 `SENT/FAILED` 并记录 `attempts/last_error`；9D.42 可通过 `/ai/governance/cost-trend` 查看成功调用按日成本趋势；9D.43 默认仍 dry-run，显式启用 `AI_EXTERNAL_ALERT_WEBHOOK_ENABLED=true` 且配置 `AI_EXTERNAL_ALERT_WEBHOOK_URL` 后会 POST webhook；9D.44 默认不自动调度，显式启用 `AI_EXTERNAL_ALERT_SCHEDULER_ENABLED=true` 后才按批次触发 sender；9D.45 webhook 失败未达 `AI_EXTERNAL_ALERT_MAX_ATTEMPTS` 时保持 `PENDING`，达到上限进入 `DEAD_LETTER`；9D.46 sender 先领取 `PENDING -> SENDING` 后外呼，避免重复触发或并发 sender 重复发送同一条 outbox；9D.47/9D.71 默认不签名，显式启用 `AI_EXTERNAL_ALERT_WEBHOOK_SIGNING_ENABLED=true` 并注入 `AI_EXTERNAL_ALERT_WEBHOOK_SIGNING_SECRET` 后会发送 timestamp / nonce / signature；9D.71 新增默认关闭的 `/ai/external-alerts/receive` 接收端验签 / 防重放验收桩，显式启用 `AI_EXTERNAL_ALERT_RECEIVER_VERIFICATION_ENABLED=true` 并注入 `AI_EXTERNAL_ALERT_RECEIVER_SIGNING_SECRET` 后校验时间窗、nonce 和 HMAC；9D.48 可通过 `/ai/governance/external-alerts/summary` 查看 outbox 状态分布、最近失败/死信错误和最老待发送时间；9D.48.1 可通过 `/ai/governance/external-alerts` 筛选安全元数据列表；9D.48.2 可查看 FAILED / DEAD_LETTER 的 `attempts`、脱敏 `last_error` 和 `last_attempted_at`；9D.80 已补 AI 真实 key / 生产 webhook 联调记录模板第一段；9D.98 已补 AI-5 生产备注默认模板、知识上下文说明和人工确认写入链路。仍需真实 key 环境联调、生产 webhook 联调、客户 / PM 生产备注模板最终确认、提示词后台管理、流式输出过滤、RAG / tool calling 如需、生产级成本看板、更完整输出策略和客户 / PM 书面确认；复测 AI-3 越权。 |
 | 部署基础设施 | PARTIAL | 9D.69 已补一期后端/前端 Dockerfile、Nginx `/api/` 和 `/ws/` 代理、full-stack compose 示例、生产 env 占位示例、Docker/env 隔离说明、`npm run check:task9d69` 和 `npm run compose:phase-one:config`；prod profile 仍要求 `APP_AUTH_TOKEN_SECRET` 外部注入且关闭 bootstrap headers；9D.81 已补 `docs/deployment/task-9d81-production-deployment-acceptance.md` 和 `npm run check:task9d81`，提供真实部署 smoke / HTTPS / 备份监控验收记录模板。仍缺真实服务器部署、HTTPS、镜像仓库、测试/正式环境真实联调、数据库备份恢复演练、日志留存、监控告警、发布回滚和客户 / PM 书面确认。 |
 | 订单主链路 | PARTIAL | 已有医生订单读取、公开协同信息、医生 AI、确认收货、医生提交订单、医生保存草稿、继续编辑/补资料、Multipart 上传第一增量、本地恢复上传第一增量、服务端候选恢复第一增量、上传中断后恢复浏览器 smoke、100MB+ 浏览器上传 smoke、客服初审、客服协同、客服资料缺失提示、设计稿预览、设计稿真实签名 URL 上传、设计稿版本绑定、设计稿客服审核、客服设计稿预览 URL 获取、医生设计稿预览 URL 获取和确认、账单文件绑定、账单真实签名 URL 上传、账单绑定、医生账单预览 URL 获取、终检前发货门禁断言、剩余工序节点完成、物流发货、医生确认收货、出检失败、返工记录、目标节点重做、返工关闭、生产审核、工序实例详情、派工、worker 任务池、入检/出检、工时、绩效、绩效归因联动第一增量、绩效明细第一增量、返工影响审计可视化第一增量、返工影响筛选第一增量、返工影响图形化第一增量、生产看板、返工终检页面级第一增量、返工关闭/责任分类第一增量、返工字典第一增量、返工通知联动第一增量、复杂返工影响范围第一增量、发货前终检 `OUT/PASS` 门禁第一增量、终检报告第一增量、终检专用角色 / 附件第一增量、终检 PDF/签名第一段、12 步入口 smoke、固定演示数据前 3 步、首个派工节点工序操作数据动作、设计稿确认数据动作、账单/物流第一段数据动作、终检后发货/确认收货第一段数据动作和返工异常路径数据动作；仍需补实时自动保存、真实弱网/跨设备浏览器续传、绩效完整公式/周期/申诉、真实电子签章/复杂报告模板、付款状态和真实物流平台。 |
 | 生产规则 | PARTIAL | 已补返工关闭、责任类型留痕、返工字典后台维护第一增量、返工创建/关闭内部通知、复杂返工影响范围第一增量、绩效归因联动第一增量、绩效明细第一增量、绩效周期筛选第一段、绩效标准工时与完整公式口径第一段、返工影响审计可视化第一增量、返工影响筛选第一增量和返工影响图形化第一增量；仍需补标准工时配置、客户/PM 公式确认、绩效申诉/导出/工资发放和生产通知联动。 |
 | 操作手册 | PARTIAL | 9D.70 已补医生端、客服端、生产端、管理端最小操作手册、首版故障处理清单和交付材料索引；仍缺正式客户培训签收、真实生产部署手册、备份恢复演练、日志留存、监控告警和发布回滚手册。 |
 | 客户 / PM 确认项 | BLOCKED | 9D.72 已补 `docs/acceptance/phase-one-customer-pm-confirmations.md` 第一段，逐项记录付款状态口径、动态表单最终字段、AI-5 模板、标准工时、Multipart 限制、真实电子签章、真实物流、客户培训签收和真实环境上线边界；仍需客户 / PM 书面确认后才能关闭。 |
-| PRD V2.0 本地功能差异 | PARTIAL | 9D.82 已补 `docs/acceptance/prd-v2-gap-matrix.md`，9D.83 已补患者管理基础版，9D.84 已补人工支付流水，9D.85 已补客户 / 诊所档案与偏好；人员档案 / 工作量看板、质量记录 CRUD / 外返登记仍需逐项实现。 |
+| PRD V2.0 本地功能差异 | PARTIAL | 9D.82 已补 `docs/acceptance/prd-v2-gap-matrix.md`，9D.83 已补患者管理基础版，9D.84 已补人工支付流水，9D.85 已补客户 / 诊所档案与偏好，9D.86 已补人员档案 / 工作量看板，9D.87 已补质量记录 CRUD / 外返登记第一增量，9D.88 已补客服订单 / 沟通完整可见性 smoke，9D.89 已补医生账户设置基础闭环，9D.90 已补产品参数 / 价格体系一期最小后台，9D.91 已补客服配送管理页 / 物流异常跟进，9D.92 已补 AI-2 客服查询入口，9D.93.1 已确认设备 / 物料 / 安环 / 成本 / 奖惩属于一期开发功能并固定所有 AI 智能体使用 LangChain + DeepSeek，9D.94 已补 LangChain + DeepSeek AI 底座对齐第一增量，9D.95 已补设备 / 物料 / 安环 / 成本 / 奖惩一期闭环拆解，9D.95.1 已补设备台账 / 设备事件录入，9D.95.2 已补物料异常登记 / 处理状态，9D.95.3 已补安环巡检 / 隐患整改，9D.95.4 已补成本记录维护 / 趋势口径，9D.95.5 已补奖惩记录 / 审批状态，9D.96 已补医生提交前 AI-4 自动资料缺失检查，9D.97 已补 AI-2 引用数据说明，9D.98 已补 AI-5 生产备注客户模板 / 知识上下文补强第一增量；完整质量记录模型、生产支撑模块编辑 / 历史补强、真实 AI 环境联调和客户 / PM 确认仍需继续关闭。 |
 
 ## 环境变量与密钥边界
 
@@ -138,6 +164,14 @@ npm run check:task9d74
 npm run check:task9d75
 npm run check:task9d76
 npm run check:task9d77
+npm run check:task9d91
+npm run check:task9d92
+npm run check:task9d93
+npm run check:task9d94
+npm run check:task9d95
+npm run check:task9d954
+npm run check:task9d955
+npm run check:task9d96
 npm run smoke:task9d62
 npm run smoke:task9d10-large-upload
 npm run smoke:task9d10-server-resume
@@ -157,8 +191,62 @@ git diff --check
 - 按 `docs/deployment/task-9d81-production-deployment-acceptance.md` 填写真实部署 smoke、HTTPS、Nginx、Docker Compose、数据库备份、备份恢复、日志留存、监控告警和发布回滚记录；当前模板不代表真实部署已完成。
 - 对 100MB+ STL 文件继续做真实弱网限速/断网和跨设备浏览器续传验收；当前中断恢复 smoke 已覆盖本地第 2 分片失败后的同浏览器续传，9D.77 已补本地双 browser context 的弱网 / 跨设备恢复第一段，9D.79 已提供真实环境人工验收记录模板。
 - 对 WebSocket 做在线推送、离线未读补偿、已读同步、多实例广播和网关代理验收。
+- 对客服配送管理做人工异常跟进验收：CS / ADMIN 可在 `/delivery` 查看配送列表、按物流状态筛选、记录异常 / 跟进中 / 已解决，医生端物流详情不得返回内部跟进说明；真实 DHL / FedEx / 顺丰 API、电子面单、自动轨迹同步、签收回调和物流平台 webhook 仍需另行真实环境验收。
+- 对 AI-2 客服查询助手做客服端入口验收：CS / ADMIN 可在 `/ai/cs` 输入订单 ID 和问题，调用 `/ai/cs-query` 返回内部只读草稿；结果不得自动发送给医生、不得自动写入订单，真实 key 环境和客户 / PM 口径确认仍需另行验收。
 - 对 AI 预算通知做 ADMIN / CS 收件、DOCTOR / WORKER 隔离、`AI_BUDGET_NOTIFICATION_ENABLED=false` 策略开关、`AI_BUDGET_CIRCUIT_BREAKER_ENABLED=true` 全局/角色/模型预算熔断降级、`AI_BUDGET_ROLE_CIRCUIT_OPEN`、`AI_BUDGET_MODEL_CIRCUIT_OPEN`、`AI_OUTPUT_GUARDED`、`prompt_version`、`ai_external_alert_outbox` 外部告警待发送事实、`SENT/FAILED/DEAD_LETTER`、`SENDING` 领取态、`attempts/last_error`、`/ai/governance/cost-trend` 成本趋势、`/ai/governance/external-alerts/summary` 监控摘要、`/ai/governance/external-alerts` 列表筛选和失败/死信只读可见性、`AI_EXTERNAL_ALERT_WEBHOOK_ENABLED=true` webhook 发送/失败留痕、`AI_EXTERNAL_ALERT_MAX_ATTEMPTS` 重试/死信、`AI_EXTERNAL_ALERT_WEBHOOK_SIGNING_ENABLED=true` timestamp / nonce 签名头、`AI_EXTERNAL_ALERT_RECEIVER_VERIFICATION_ENABLED=true` 接收端验签 / 防重放验收桩、真实 key 环境联调验收；当前 9D.43 已完成 webhook 第一增量，调度器第一增量已由 9D.44 补齐，重试/死信第一增量已由 9D.45 补齐，幂等/并发领取第一增量已由 9D.46 补齐，签名/鉴权第一增量已由 9D.47 补齐，监控摘要第一增量已由 9D.48 补齐，列表筛选第一增量已由 9D.48.1 补齐，失败/死信可见性第一增量已由 9D.48.2 补齐，接收端验签 / 防重放第一段已由 9D.71 补齐，真实 key / 生产 webhook 联调记录模板第一段已由 9D.80 补齐，仍缺真实 key 与生产 webhook 实际联调、流式输出过滤、提示词后台管理和生产级联调。
 
 ## 9D.77 文件上传弱网 / 跨设备验收第一段
 
 9D.77 已补 `npm run check:task9d77` 和 `npm run smoke:task9d77-file-upload-resilience`，用两个 Playwright browser context 模拟设备 A 弱网断网、设备 B 无 localStorage 后通过服务端 pending Multipart 候选恢复同一 `file_id`。本轮不代表真实弱网物理网络、真实跨设备实机、客户 Multipart 限制签字或测试/正式 bucket 实际隔离完成。Task 8 仍保持 NOT_READY。
+
+## 9D.91 客服配送管理页 / 物流异常跟进第一增量
+
+9D.91 已补 `npm run check:task9d91`、`/logistics/orders`、`/orders/{orderId}/logistics/exception` 和客服端 `/delivery` 配送管理页。CS / ADMIN 可人工查看配送列表、筛选物流状态并记录内部异常跟进；医生端物流详情不返回内部跟进说明，医生不能写入异常跟进。本轮不新增迁移，不接真实物流 API、电子面单、自动轨迹同步、签收回调、物流平台 webhook 或真实物流密钥。Task 8 仍保持 NOT_READY。
+
+## 9D.92 AI-2 客服查询助手完整入口第一增量
+
+9D.92 已补 `npm run check:task9d92` 和客服端 `/ai/cs` 查询助手入口，复用既有 `/ai/cs-query` 后端能力。CS / ADMIN 可输入订单 ID 和问题生成内部只读草稿，页面明确对外发送前需人工确认。本轮不新增后端接口、不接真实 key、不自动外发、不自动写订单。Task 8 仍保持 NOT_READY。
+
+## 9D.93.1 PRD V2 范围纠偏第一闭环
+
+9D.93.1 已补 `npm run check:task9d93`，按用户最新确认纠偏：医生端独立 `/doctor/files` / `doctor-files` 入口仍移除；病例、口扫、图片、处方和设计稿文件继续归入医生订单链路。设备 / 物料 / 安环 / 成本 / 奖惩属于一期开发功能，当前 9D.50-9D.54 只读汇总只是第一增量，仍缺完整录入、编辑、审批 / 处理状态、真实趋势和验收闭环。所有 AI 智能体使用 LangChain + DeepSeek 实现。Task 8 仍保持 NOT_READY。
+
+## 9D.94 LangChain + DeepSeek AI 底座对齐第一增量
+
+9D.94 已补 `npm run check:task9d94`、LangChain4j 依赖、`AI_LANGCHAIN_ENABLED=false` 默认关闭配置、`AI_PROVIDER=langchain-deepseek` 显式 provider、`LangChainDeepSeekAiModelClient` 和目标后端测试。当前证据覆盖 AI-1 / AI-2 / AI-3 公开查询 / AI-5 在显式启用 LangChain + DeepSeek 时经 LangChain4j 调用 DeepSeek，AI-3 内部问题仍本地 `SAFE_REFUSAL` 且不外呼。本轮不提交真实 key，不做生产真实联调，不补流式输出、RAG、复杂 agent tool calling、提示词后台、AI-2 知识上下文补强或 AI-4 提交前自动触发体验。Task 8 仍保持 NOT_READY。
+
+## 9D.95 设备 / 物料 / 安环 / 成本 / 奖惩一期闭环拆解第一增量
+
+9D.95 已补 `npm run check:task9d95` 和 `docs/acceptance/phase-one-production-support-closure-plan.md`。当前证据把 9D.50-9D.54 只读汇总拆成五个后续最小闭环：9D.95.1 设备台账 / 设备事件录入、9D.95.2 物料异常登记 / 处理状态、9D.95.3 安环巡检 / 隐患整改、9D.95.4 成本记录维护 / 趋势口径、9D.95.5 奖惩记录 / 审批状态。本轮不新增接口、不新增迁移、不做 CRUD，不接 IoT、真实财务系统、工资发放或复杂审批平台。Task 8 仍保持 NOT_READY。
+
+## 9D.95.1 设备台账 / 设备事件录入第一增量
+
+9D.95.1 已补 `npm run check:task9d951`，后端新增设备台账和设备事件人工登记接口，生产端设备管理页新增“登记设备”和“登记事件”最小表单。目标测试覆盖 WORKER 可写、DOCTOR 403、故障事件进入设备汇总。本轮不新增迁移，不接 IoT，不做保养审批流、复杂设备履历或真实设备联网。Task 8 仍保持 NOT_READY；下一步推荐 9D.95.2 物料异常登记 / 处理状态第一增量。
+
+## 9D.95.2 物料异常登记 / 处理状态第一增量
+
+9D.95.2 已补 `npm run check:task9d952`，后端新增物料异常人工登记和处理状态更新接口，生产端物料异常页新增“登记物料异常”和“更新处理状态”最小表单。目标测试覆盖 WORKER 登记、ADMIN 更新关闭、DOCTOR 403 和汇总变化。本轮不新增迁移，不接库存扣减、采购补料、供应商协同或 WMS。Task 8 仍保持 NOT_READY；下一步推荐 9D.95.3 安环巡检 / 隐患整改第一增量。
+
+## 9D.95.3 安环巡检 / 隐患整改第一增量
+
+9D.95.3 已补 `npm run check:task9d953`，后端新增安环事件人工登记和整改状态更新接口，生产端安环管理页新增“登记安环事件”和“更新整改状态”最小表单。目标测试覆盖 WORKER 登记、ADMIN 更新关闭、DOCTOR 403 和汇总变化。本轮不新增迁移，不接真实环境采集硬件、PPE 发放系统或完整安环审批流。Task 8 仍保持 NOT_READY；下一步推荐 9D.95.4 成本记录维护 / 趋势口径第一增量。
+
+## 9D.95.4 成本记录维护 / 趋势口径第一增量
+
+9D.95.4 已补 `npm run check:task9d954`，后端新增成本记录人工登记接口，生产端成本管理页新增“登记成本记录”最小表单。目标测试覆盖 WORKER 登记、DOCTOR 403 和汇总变化。本轮不新增迁移，不接真实财务系统、发票、付款、对账或自动成本分摊。Task 8 仍保持 NOT_READY；随后已推进 9D.95.5 奖惩记录 / 审批状态第一增量。
+
+## 9D.95.5 奖惩记录 / 审批状态第一增量
+
+9D.95.5 已补 `npm run check:task9d955`，后端新增奖惩记录人工登记和审批状态更新接口，生产端奖惩管理页新增“登记奖惩记录”和“更新审批状态”最小表单。目标测试覆盖 WORKER 登记、ADMIN 更新审批状态、DOCTOR 403 和汇总变化。本轮不新增迁移，不作为工资发放结果，不做绩效申诉闭环、薪酬结算或复杂审批引擎。Task 8 仍保持 NOT_READY；随后已推进医生提交前 AI-4 资料缺失自动触发体验。
+
+## 9D.96 医生提交前 AI-4 资料缺失自动触发体验第一增量
+
+9D.96 已补 `npm run check:task9d96`，医生端提交订单 / 补资料前先保存草稿并自动调用 `/ai/check-missing`；缺失时展示“AI-4 资料缺失检查”和缺失清单，阻断正式提交。目标检查覆盖前端状态、调用路径、提示文案、文档和 acceptance 回写。本轮不新增后端接口，不做 AI 自动驳回订单，不接真实 DeepSeek key。Task 8 仍保持 NOT_READY；随后已推进 AI-2 客服查询引用数据说明 / 知识上下文补强。
+
+## 9D.97 AI-2 客服查询引用数据说明 / 知识上下文补强第一增量
+
+9D.97 已补 `npm run check:task9d97`，`/ai/cs-query` 响应新增 `reference_data_notes`，后端按客服权限范围汇总订单基础、生产上下文、沟通消息、附件、账单和物流只读来源说明；客服端 `/ai/cs` 展示“引用数据说明”。目标测试覆盖 CS / ADMIN 查询返回可审计来源说明。本轮不新增数据库迁移，不接真实 DeepSeek key，不做 RAG / tool calling，不自动发送消息，不自动写入订单、生产备注或客服沟通记录。Task 8 仍保持 NOT_READY；随后已推进 AI-5 生产备注客户模板 / 知识上下文补强第一增量。
+
+## 9D.98 AI-5 生产备注客户模板 / 知识上下文补强第一增量
+
+9D.98 已补 `npm run check:task9d98`，`/ai/production-note` 响应新增 `template_version=PHASE_ONE_DEFAULT_V1`、`knowledge_context_notes` 和 `requires_customer_template_confirmation`，明确默认模板不是客户最终模板；新增 `/ai/production-note/confirm`，CS / WORKER / ADMIN 在订单数据范围内人工确认后才追加写入 `orders.production_note` 并写 AI 审计；客服初审页新增 AI-5 草稿、上下文说明和人工确认写入入口。本轮不新增迁移，不接真实 DeepSeek key，不伪装真实客户模板或客户签字，不自动下发生产指令。客户模板仍待客户 / PM 最终确认；Task 8 仍保持 `NOT_READY`。

@@ -124,6 +124,48 @@ class MessageDesignBillNotificationTests {
     }
 
     @Test
+    void pendingMessageReviewQueueExposesOrderContextAndRejectStaysHiddenFromDoctor() throws Exception {
+        MvcResult sendResult = mockMvc.perform(post("/orders/{orderId}/messages", orderId)
+                        .header("X-Bootstrap-Role", "WORKER")
+                        .header("X-Bootstrap-User-Id", WORKER_USER_ID)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"content\":\"生产端建议调整咬合高度。\"}"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.review_status").value("PENDING_REVIEW"))
+                .andReturn();
+        long messageId = extractId(sendResult, "msg_id");
+
+        mockMvc.perform(get("/messages/pending-review")
+                        .header("X-Bootstrap-Role", "CS")
+                        .header("X-Bootstrap-User-Id", CS_USER_ID))
+                .andExpect(status().isOk())
+                .andExpect(content().string(containsString("\"msg_id\":" + messageId)))
+                .andExpect(content().string(containsString("\"order_id\":" + orderId)))
+                .andExpect(content().string(containsString("\"order_no\"")))
+                .andExpect(content().string(containsString("\"product_type\":\"COLLAB_TEST\"")))
+                .andExpect(content().string(containsString("\"external_status\":\"PENDING_REVIEW\"")));
+
+        mockMvc.perform(post("/messages/{msgId}/review", messageId)
+                        .header("X-Bootstrap-Role", "CS")
+                        .header("X-Bootstrap-User-Id", CS_USER_ID)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"action\":\"REJECT\",\"review_note\":\"请改为内部沟通\"}"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.review_status").value("REJECTED"))
+                .andExpect(jsonPath("$.data.order_no").isString());
+
+        mockMvc.perform(get("/orders/{orderId}/messages", orderId)
+                        .header("X-Bootstrap-Role", "DOCTOR")
+                        .header("X-Bootstrap-User-Id", DOCTOR_USER_ID)
+                        .header("X-Bootstrap-Clinic-Id", clinicId))
+                .andExpect(status().isOk())
+                .andExpect(content().string(not(containsString("生产端建议调整咬合高度"))));
+
+        assertThat(notificationCount("MESSAGE_REVIEW_REJECTED", "WORKER")).isEqualTo(1L);
+        assertThat(notificationCount("MESSAGE_RECEIVED", "DOCTOR")).isZero();
+    }
+
+    @Test
     void designDraftReviewAndDoctorConfirmUseNotificationFactSource() throws Exception {
         MvcResult uploadResult = mockMvc.perform(post("/orders/{orderId}/design-drafts", orderId)
                         .header("X-Bootstrap-Role", "WORKER")
@@ -389,6 +431,59 @@ class MessageDesignBillNotificationTests {
                         .header("X-Bootstrap-Clinic-Id", clinicId))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.data.external_status").value("SHIPPED"));
+    }
+
+    @Test
+    void csCanTrackLogisticsExceptionsWithoutLeakingInternalFollowUpToDoctor() throws Exception {
+        markFinalOutCheckPassed();
+
+        mockMvc.perform(post("/orders/{orderId}/logistics", orderId)
+                        .header("X-Bootstrap-Role", "CS")
+                        .header("X-Bootstrap-User-Id", CS_USER_ID)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"carrier\":\"顺丰速运\",\"tracking_no\":\"SF-EXCEPTION\"}"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.logistics_status").value("SHIPPED"));
+
+        mockMvc.perform(post("/orders/{orderId}/logistics/exception", orderId)
+                        .header("X-Bootstrap-Role", "CS")
+                        .header("X-Bootstrap-User-Id", CS_USER_ID)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("""
+                                {
+                                  "logistics_status": "EXCEPTION",
+                                  "follow_up_note": "客户反馈物流延迟，已联系顺丰催派"
+                                }
+                                """))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.order_id").value(orderId))
+                .andExpect(jsonPath("$.data.logistics_status").value("EXCEPTION"))
+                .andExpect(jsonPath("$.data.last_follow_up_note").value(containsString("已联系顺丰催派")));
+
+        mockMvc.perform(get("/logistics/orders")
+                        .param("logistics_status", "EXCEPTION")
+                        .header("X-Bootstrap-Role", "CS")
+                        .header("X-Bootstrap-User-Id", CS_USER_ID))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data[0].order_id").value(orderId))
+                .andExpect(jsonPath("$.data[0].tracking_no").value("SF-EXCEPTION"))
+                .andExpect(jsonPath("$.data[0].last_follow_up_note").value(containsString("已联系顺丰催派")));
+
+        mockMvc.perform(get("/orders/{orderId}/logistics", orderId)
+                        .header("X-Bootstrap-Role", "DOCTOR")
+                        .header("X-Bootstrap-User-Id", DOCTOR_USER_ID)
+                        .header("X-Bootstrap-Clinic-Id", clinicId))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.logistics_status").value("SHIPPED"))
+                .andExpect(content().string(not(containsString("已联系顺丰催派"))));
+
+        mockMvc.perform(post("/orders/{orderId}/logistics/exception", orderId)
+                        .header("X-Bootstrap-Role", "DOCTOR")
+                        .header("X-Bootstrap-User-Id", DOCTOR_USER_ID)
+                        .header("X-Bootstrap-Clinic-Id", clinicId)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"logistics_status\":\"RESOLVED\",\"follow_up_note\":\"医生尝试处理\"}"))
+                .andExpect(status().isForbidden());
     }
 
     private long notificationCount(String eventType, String audienceRole) {

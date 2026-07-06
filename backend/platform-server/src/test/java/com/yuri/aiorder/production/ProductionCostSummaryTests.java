@@ -1,6 +1,7 @@
 package com.yuri.aiorder.production;
 
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
@@ -10,6 +11,7 @@ import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.autoconfigure.web.servlet.AutoConfigureMockMvc;
 import org.springframework.boot.test.context.SpringBootTest;
+import org.springframework.http.MediaType;
 import org.springframework.jdbc.core.simple.JdbcClient;
 import org.springframework.test.web.servlet.MockMvc;
 
@@ -22,6 +24,44 @@ class ProductionCostSummaryTests {
 
     @Autowired
     private MockMvc mockMvc;
+
+    @Test
+    void workerCanCreateCostRecordAndSummaryReflectsIt() throws Exception {
+        String suffix = UUID.randomUUID().toString().replace("-", "").substring(0, 10).toUpperCase();
+        String costNo = "COST95_" + suffix;
+
+        mockMvc.perform(post("/production/cost-management/records")
+                        .header("X-Bootstrap-Role", "WORKER")
+                        .header("X-Bootstrap-User-Id", 954101L)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("""
+                                {
+                                  "cost_no": "%s",
+                                  "cost_type": "LABOR",
+                                  "amount": 188.60,
+                                  "status": "WARNING",
+                                  "department_name": "车瓷组",
+                                  "supplier_name": "内部人工",
+                                  "description": "返工后人工成本需复核"
+                                }
+                                """.formatted(costNo)))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.cost_no").value(costNo))
+                .andExpect(jsonPath("$.data.cost_type").value("LABOR"))
+                .andExpect(jsonPath("$.data.amount").value(188.60))
+                .andExpect(jsonPath("$.data.status").value("WARNING"))
+                .andExpect(jsonPath("$.data.department_name").value("车瓷组"))
+                .andExpect(jsonPath("$.data.supplier_name").value("内部人工"));
+
+        mockMvc.perform(get("/production/cost-management/summary")
+                        .header("X-Bootstrap-Role", "WORKER")
+                        .header("X-Bootstrap-User-Id", 954102L)
+                        .param("cost_no_prefix", costNo))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.record_count").value(1))
+                .andExpect(jsonPath("$.data.labor_cost_amount").value(188.60))
+                .andExpect(jsonPath("$.data.abnormal_warning_count").value(1));
+    }
 
     @Test
     void productionCostSummaryAggregatesCostTypesAndWarnings() throws Exception {
@@ -53,6 +93,24 @@ class ProductionCostSummaryTests {
         mockMvc.perform(get("/production/cost-management/summary")
                         .header("X-Bootstrap-Role", "DOCTOR")
                         .header("X-Bootstrap-User-Id", 990100001L))
+                .andExpect(status().isForbidden());
+    }
+
+    @Test
+    void doctorCannotCreateProductionCostRecord() throws Exception {
+        mockMvc.perform(post("/production/cost-management/records")
+                        .header("X-Bootstrap-Role", "DOCTOR")
+                        .header("X-Bootstrap-User-Id", 954201L)
+                        .header("X-Bootstrap-Clinic-Id", 12L)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("""
+                                {
+                                  "cost_no": "COST95_DOC_BLOCK",
+                                  "cost_type": "LABOR",
+                                  "amount": 20.00,
+                                  "status": "NORMAL"
+                                }
+                                """))
                 .andExpect(status().isForbidden());
     }
 

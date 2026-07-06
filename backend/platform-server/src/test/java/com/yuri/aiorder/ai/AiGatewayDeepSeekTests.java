@@ -77,6 +77,7 @@ class AiGatewayDeepSeekTests {
     void setUp() {
         deepSeekServer.reset();
         aiGatewayProperties.setMaxRequestsPerUserHour(120);
+        aiGatewayProperties.setProvider("deepseek");
         aiGatewayProperties.setDailyBudgetMicrousd(0);
         aiGatewayProperties.setBudgetNotificationEnabled(true);
         aiGatewayProperties.setBudgetCircuitBreakerEnabled(false);
@@ -85,6 +86,11 @@ class AiGatewayDeepSeekTests {
         aiGatewayProperties.setDoctorDailyBudgetMicrousd(0);
         aiGatewayProperties.setWorkerDailyBudgetMicrousd(0);
         aiGatewayProperties.getDeepseek().setDailyBudgetMicrousd(0);
+        aiGatewayProperties.getDeepseek().setEnabled(true);
+        aiGatewayProperties.getDeepseek().setApiKey("test-deepseek-key");
+        aiGatewayProperties.getDeepseek().setModel("deepseek-chat");
+        aiGatewayProperties.getLangchain().setEnabled(false);
+        aiGatewayProperties.getLangchain().setProvider("deepseek");
         jdbcClient.sql("""
                         DELETE FROM ai_audit_log
                         WHERE actor_user_id IN (:doctorUserId, :csUserId, :workerUserId)
@@ -185,6 +191,69 @@ class AiGatewayDeepSeekTests {
         assertThat(deepSeekServer.requests().get(2).body()).contains("公开进度：正在制作。");
         assertThat(deepSeekServer.requests().get(2).body()).doesNotContain("内部工序备注");
         assertThat(auditCountByModel("deepseek-chat")).isEqualTo(4L);
+        assertThat(auditCountByStatus("SAFE_REFUSAL")).isEqualTo(1L);
+    }
+
+    @Test
+    void enabledLangChainDeepSeekProviderRoutesAllAiAgentsThroughLangChain() throws Exception {
+        aiGatewayProperties.setProvider("langchain-deepseek");
+        aiGatewayProperties.getLangchain().setEnabled(true);
+        deepSeekServer.enqueue("LangChain翻译草稿：Shade A2。");
+        deepSeekServer.enqueue("LangChain客服摘要：外部状态 PRODUCING。");
+        deepSeekServer.enqueue("LangChain医生公开答复：订单正在制作。");
+        deepSeekServer.enqueue("LangChain生产备注草稿：按公开信息整理。");
+
+        mockMvc.perform(post("/ai/translate")
+                        .header("X-Bootstrap-Role", "CS")
+                        .header("X-Bootstrap-User-Id", CS_USER_ID)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"order_id\":" + orderId + ",\"source_text\":\"Shade A2.\"}"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.translated_text").value(containsString("LangChain翻译草稿")));
+
+        mockMvc.perform(post("/ai/cs-query")
+                        .header("X-Bootstrap-Role", "CS")
+                        .header("X-Bootstrap-User-Id", CS_USER_ID)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"order_id\":" + orderId + ",\"question\":\"订单概况？\"}"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.answer").value(containsString("LangChain客服摘要")));
+
+        mockMvc.perform(post("/ai/order-query")
+                        .header("X-Bootstrap-Role", "DOCTOR")
+                        .header("X-Bootstrap-User-Id", DOCTOR_USER_ID)
+                        .header("X-Bootstrap-Clinic-Id", clinicId)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"order_id\":" + orderId + ",\"question\":\"我的订单状态？\"}"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.answer").value(containsString("LangChain医生公开答复")));
+
+        mockMvc.perform(post("/ai/order-query")
+                        .header("X-Bootstrap-Role", "DOCTOR")
+                        .header("X-Bootstrap-User-Id", DOCTOR_USER_ID)
+                        .header("X-Bootstrap-Clinic-Id", clinicId)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"order_id\":" + orderId + ",\"question\":\"谁在做？工时多少？\"}"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.answer").value(containsString("只能回答公开进度")));
+
+        mockMvc.perform(post("/ai/production-note")
+                        .header("X-Bootstrap-Role", "CS")
+                        .header("X-Bootstrap-User-Id", CS_USER_ID)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"order_id\":" + orderId + "}"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.draft_note").value(containsString("LangChain生产备注草稿")));
+
+        assertThat(deepSeekServer.requests()).hasSize(4);
+        assertThat(deepSeekServer.requests()).allSatisfy(request -> {
+            assertThat(request.path()).isIn("/chat/completions", "/v1/chat/completions");
+            assertThat(request.authorization()).isEqualTo("Bearer test-deepseek-key");
+            assertThat(request.body()).contains("\"model\"").contains("\"deepseek-chat\"");
+        });
+        assertThat(deepSeekServer.requests().get(2).body()).contains("公开进度：正在制作。");
+        assertThat(deepSeekServer.requests().get(2).body()).doesNotContain("内部工序备注");
+        assertThat(auditCountByModel("langchain-deepseek-chat")).isEqualTo(4L);
         assertThat(auditCountByStatus("SAFE_REFUSAL")).isEqualTo(1L);
     }
 
@@ -807,6 +876,7 @@ class AiGatewayDeepSeekTests {
             try {
                 server = HttpServer.create(new InetSocketAddress("127.0.0.1", 0), 0);
                 server.createContext("/chat/completions", this::handleChatCompletions);
+                server.createContext("/v1/chat/completions", this::handleChatCompletions);
                 server.start();
             } catch (IOException ex) {
                 throw new UncheckedIOException(ex);

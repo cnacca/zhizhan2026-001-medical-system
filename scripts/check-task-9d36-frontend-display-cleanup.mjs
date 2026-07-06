@@ -71,7 +71,6 @@ const requiredAppFragments = [
   '缺少比色照片',
   'placeholder-panel',
   '订单管理',
-  '文件资料',
   '订单助手',
   '沟通中心',
   '客户管理',

@@ -29,6 +29,12 @@ public class CollaborationService {
             "PARTIALLY_PAID",
             "PAID",
             "NOT_REQUIRED");
+    private static final Set<String> ALLOWED_LOGISTICS_FOLLOW_UP_STATUSES = Set.of(
+            "PENDING",
+            "SHIPPED",
+            "EXCEPTION",
+            "FOLLOWING",
+            "RESOLVED");
 
     private final JdbcClient jdbcClient;
     private final ObjectMapper objectMapper;
@@ -443,9 +449,114 @@ public class CollaborationService {
                         rs.getLong("order_id"),
                         rs.getString("carrier_name"),
                         rs.getString("tracking_no"),
-                        rs.getString("logistics_status")))
+                        doctorSafeLogisticsStatus(
+                                rs.getString("logistics_status"),
+                                rs.getString("tracking_no"),
+                                identity)))
                 .optional()
                 .orElse(new LogisticsResponse(null, orderId, null, null, "PENDING"));
+    }
+
+    public List<DeliveryOrderResponse> listDeliveryOrders(
+            String logisticsStatus,
+            int limit,
+            BootstrapIdentity identity) {
+        requireCsOrAdmin(identity);
+        String statusFilter = normalizeOrDefault(logisticsStatus, "");
+        if (!statusFilter.isBlank() && !ALLOWED_LOGISTICS_FOLLOW_UP_STATUSES.contains(statusFilter)) {
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "unsupported logistics_status");
+        }
+        int normalizedLimit = Math.max(1, Math.min(limit, 200));
+        String statusWhere = statusFilter.isBlank()
+                ? ""
+                : "AND COALESCE(l.logistics_status, 'PENDING') = :logisticsStatus";
+        JdbcClient.StatementSpec spec = jdbcClient.sql("""
+                        SELECT o.order_id, o.order_no, o.product_type, o.external_status,
+                               COALESCE(b.bill_status, 'PENDING') AS bill_status,
+                               COALESCE(b.payment_status, 'PENDING_PAYMENT') AS payment_status,
+                               l.carrier_name, l.tracking_no,
+                               COALESCE(l.logistics_status, 'PENDING') AS logistics_status,
+                               (
+                                   SELECT m.content
+                                   FROM order_message m
+                                   WHERE m.order_id = o.order_id
+                                     AND m.visibility = 'CS_ONLY'
+                                     AND m.content LIKE '[物流跟进]%%'
+                                   ORDER BY m.created_at DESC, m.message_id DESC
+                                   LIMIT 1
+                               ) AS last_follow_up_note
+                        FROM orders o
+                        LEFT JOIN order_bill b ON b.order_id = o.order_id
+                        LEFT JOIN order_logistics l ON l.order_id = o.order_id
+                        WHERE 1 = 1
+                        %s
+                        ORDER BY
+                            CASE COALESCE(l.logistics_status, 'PENDING')
+                                WHEN 'EXCEPTION' THEN 0
+                                WHEN 'FOLLOWING' THEN 1
+                                WHEN 'PENDING' THEN 2
+                                WHEN 'SHIPPED' THEN 3
+                                ELSE 4
+                            END,
+                            COALESCE(l.updated_at, o.updated_at) DESC,
+                            o.order_id DESC
+                        LIMIT :limit
+                        """.formatted(statusWhere))
+                .param("limit", normalizedLimit);
+        if (!statusFilter.isBlank()) {
+            spec = spec.param("logisticsStatus", statusFilter);
+        }
+        return spec.query((rs, rowNum) -> new DeliveryOrderResponse(
+                        rs.getLong("order_id"),
+                        rs.getString("order_no"),
+                        rs.getString("product_type"),
+                        rs.getString("external_status"),
+                        rs.getString("bill_status"),
+                        rs.getString("payment_status"),
+                        rs.getString("carrier_name"),
+                        rs.getString("tracking_no"),
+                        rs.getString("logistics_status"),
+                        rs.getString("last_follow_up_note")))
+                .list();
+    }
+
+    @Transactional
+    public DeliveryOrderResponse updateLogisticsException(
+            long orderId,
+            LogisticsExceptionRequest request,
+            BootstrapIdentity identity) {
+        requireCsOrAdmin(identity);
+        OrderRow order = loadOrder(orderId, identity, "identity cannot access this order");
+        String logisticsStatus = normalizeOrDefault(request.logisticsStatus(), "");
+        if (!ALLOWED_LOGISTICS_FOLLOW_UP_STATUSES.contains(logisticsStatus)) {
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "unsupported logistics_status");
+        }
+        String followUpNote = normalizeNullable(request.followUpNote());
+        if (followUpNote == null) {
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "follow_up_note is required");
+        }
+        jdbcClient.sql("""
+                        INSERT INTO order_logistics (order_id, logistics_status)
+                        VALUES (:orderId, :logisticsStatus)
+                        ON DUPLICATE KEY UPDATE
+                            logistics_status = VALUES(logistics_status),
+                            updated_at = CURRENT_TIMESTAMP(3)
+                        """)
+                .param("orderId", orderId)
+                .param("logisticsStatus", logisticsStatus)
+                .update();
+        jdbcClient.sql("""
+                        INSERT INTO order_message
+                            (order_id, sender_user_id, sender_role, content, visibility, review_status)
+                        VALUES
+                            (:orderId, :senderUserId, :senderRole, :content, 'CS_ONLY', 'DIRECT')
+                        """)
+                .param("orderId", order.orderId())
+                .param("senderUserId", identity.userId())
+                .param("senderRole", identity.role().name())
+                .param("content", "[物流跟进][" + logisticsStatus + "] " + followUpNote)
+                .update();
+        return getDeliveryOrder(orderId);
     }
 
     @Transactional
@@ -475,6 +586,42 @@ public class CollaborationService {
         orderStatusService.updateOrderState(orderId, InternalOrderStatus.SHIPPED, "ORDER_SHIPPED", identity.userId(), request.trackingNo());
         emit(order, "ORDER_SHIPPED", "DOCTOR", order.doctorUserId(), "订单已发货");
         return getLogistics(orderId, identity);
+    }
+
+    private DeliveryOrderResponse getDeliveryOrder(long orderId) {
+        return jdbcClient.sql("""
+                        SELECT o.order_id, o.order_no, o.product_type, o.external_status,
+                               COALESCE(b.bill_status, 'PENDING') AS bill_status,
+                               COALESCE(b.payment_status, 'PENDING_PAYMENT') AS payment_status,
+                               l.carrier_name, l.tracking_no,
+                               COALESCE(l.logistics_status, 'PENDING') AS logistics_status,
+                               (
+                                   SELECT m.content
+                                   FROM order_message m
+                                   WHERE m.order_id = o.order_id
+                                     AND m.visibility = 'CS_ONLY'
+                                     AND m.content LIKE '[物流跟进]%%'
+                                   ORDER BY m.created_at DESC, m.message_id DESC
+                                   LIMIT 1
+                               ) AS last_follow_up_note
+                        FROM orders o
+                        LEFT JOIN order_bill b ON b.order_id = o.order_id
+                        LEFT JOIN order_logistics l ON l.order_id = o.order_id
+                        WHERE o.order_id = :orderId
+                        """)
+                .param("orderId", orderId)
+                .query((rs, rowNum) -> new DeliveryOrderResponse(
+                        rs.getLong("order_id"),
+                        rs.getString("order_no"),
+                        rs.getString("product_type"),
+                        rs.getString("external_status"),
+                        rs.getString("bill_status"),
+                        rs.getString("payment_status"),
+                        rs.getString("carrier_name"),
+                        rs.getString("tracking_no"),
+                        rs.getString("logistics_status"),
+                        rs.getString("last_follow_up_note")))
+                .single();
     }
 
     private void requireFinalOutCheckPass(long orderId) {
@@ -525,14 +672,16 @@ public class CollaborationService {
     }
 
     private List<MessageResponse> queryMessages(Long orderId, String extraWhere) {
-        String orderFilter = orderId == null ? "" : "AND order_id = :orderId";
+        String orderFilter = orderId == null ? "" : "AND m.order_id = :orderId";
         JdbcClient.StatementSpec spec = jdbcClient.sql("""
-                        SELECT message_id, order_id, sender_user_id, sender_role, content, visibility, review_status
-                        FROM order_message
+                        SELECT m.message_id, m.order_id, o.order_no, o.product_type, o.external_status,
+                               m.sender_user_id, m.sender_role, m.content, m.visibility, m.review_status
+                        FROM order_message m
+                        JOIN orders o ON o.order_id = m.order_id
                         WHERE 1 = 1
                         %s
                         %s
-                        ORDER BY created_at, message_id
+                        ORDER BY m.created_at, m.message_id
                         """.formatted(orderFilter, extraWhere));
         if (orderId != null) {
             spec = spec.param("orderId", orderId);
@@ -540,6 +689,9 @@ public class CollaborationService {
         return spec.query((rs, rowNum) -> new MessageResponse(
                         rs.getLong("message_id"),
                         rs.getLong("order_id"),
+                        rs.getString("order_no"),
+                        rs.getString("product_type"),
+                        rs.getString("external_status"),
                         rs.getObject("sender_user_id", Long.class),
                         rs.getString("sender_role"),
                         rs.getString("content"),
@@ -551,20 +703,26 @@ public class CollaborationService {
     private MessageResponse loadMessage(long messageId) {
         MessageRow row = loadMessageRow(messageId);
         return new MessageResponse(
-                row.messageId(), row.orderId(), row.senderUserId(), row.senderRole(), row.content(), row.visibility(), row.reviewStatus());
+                row.messageId(), row.orderId(), row.orderNo(), row.productType(), row.externalStatus(),
+                row.senderUserId(), row.senderRole(), row.content(), row.visibility(), row.reviewStatus());
     }
 
     private MessageRow loadMessageRow(long messageId) {
         try {
             return jdbcClient.sql("""
-                            SELECT message_id, order_id, sender_user_id, sender_role, content, visibility, review_status
-                            FROM order_message
-                            WHERE message_id = :messageId
+                            SELECT m.message_id, m.order_id, o.order_no, o.product_type, o.external_status,
+                                   m.sender_user_id, m.sender_role, m.content, m.visibility, m.review_status
+                            FROM order_message m
+                            JOIN orders o ON o.order_id = m.order_id
+                            WHERE m.message_id = :messageId
                             """)
                     .param("messageId", messageId)
                     .query((rs, rowNum) -> new MessageRow(
                             rs.getLong("message_id"),
                             rs.getLong("order_id"),
+                            rs.getString("order_no"),
+                            rs.getString("product_type"),
+                            rs.getString("external_status"),
                             rs.getObject("sender_user_id", Long.class),
                             rs.getString("sender_role"),
                             rs.getString("content"),
@@ -771,6 +929,16 @@ public class CollaborationService {
         }
     }
 
+    private String doctorSafeLogisticsStatus(String rawStatus, String trackingNo, BootstrapIdentity identity) {
+        if (!identity.isDoctor()) {
+            return rawStatus;
+        }
+        if (List.of("EXCEPTION", "FOLLOWING", "RESOLVED").contains(rawStatus)) {
+            return trackingNo == null || trackingNo.isBlank() ? "PENDING" : "SHIPPED";
+        }
+        return rawStatus;
+    }
+
     private void requireCsOrAdmin(BootstrapIdentity identity) {
         if (identity.role() != UserRole.CS && identity.role() != UserRole.ADMIN) {
             throw new ResponseStatusException(HttpStatus.FORBIDDEN, "CS or ADMIN role is required");
@@ -801,6 +969,9 @@ public class CollaborationService {
     private record MessageRow(
             long messageId,
             long orderId,
+            String orderNo,
+            String productType,
+            String externalStatus,
             Long senderUserId,
             String senderRole,
             String content,

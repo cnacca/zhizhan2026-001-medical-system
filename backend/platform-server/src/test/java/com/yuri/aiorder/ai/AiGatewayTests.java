@@ -163,11 +163,122 @@ class AiGatewayTests {
                         .content("{\"order_id\":" + orderId + "}"))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.data.draft_note").value(containsString("生产备注草稿")))
+                .andExpect(jsonPath("$.data.template_version").value("PHASE_ONE_DEFAULT_V1"))
+                .andExpect(jsonPath("$.data.knowledge_context_notes").value(hasItem(containsString("客户模板未确认"))))
                 .andExpect(content().string(not(containsString("自动发送"))));
 
         assertThat(auditCount()).isEqualTo(5L);
         assertThat(auditCountByContext("DOCTOR_ORDER_ASSISTANT_READ_MODEL")).isEqualTo(1L);
         assertThat(orderProductionNote()).isEqualTo("内部工序备注：车瓷由7700处理");
+    }
+
+    @Test
+    void productionNoteDraftUsesDefaultTemplateAndHumanConfirmationWritesOrderNote() throws Exception {
+        mockMvc.perform(post("/ai/production-note")
+                        .header("X-Bootstrap-Role", "WORKER")
+                        .header("X-Bootstrap-User-Id", WORKER_USER_ID)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"order_id\":" + orderId + "}"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.draft_note").value(containsString("生产备注草稿")))
+                .andExpect(jsonPath("$.data.template_version").value("PHASE_ONE_DEFAULT_V1"))
+                .andExpect(jsonPath("$.data.knowledge_context_notes").value(hasItem(containsString("客户模板未确认"))))
+                .andExpect(jsonPath("$.data.knowledge_context_notes").value(hasItem(containsString("订单基础"))))
+                .andExpect(jsonPath("$.data.knowledge_context_notes").value(hasItem(containsString("沟通消息"))))
+                .andExpect(content().string(containsString("人工确认")))
+                .andExpect(content().string(not(containsString("自动发送"))));
+
+        assertThat(orderProductionNote()).isEqualTo("内部工序备注：车瓷由7700处理");
+
+        mockMvc.perform(post("/ai/production-note/confirm")
+                        .header("X-Bootstrap-Role", "WORKER")
+                        .header("X-Bootstrap-User-Id", WORKER_USER_ID)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("""
+                                {
+                                  "order_id": %d,
+                                  "draft_note": "请按默认模板确认：A2，比色照片已收齐，关注邻接与咬合。",
+                                  "confirmation_note": "生产组长已确认可写入"
+                                }
+                                """.formatted(orderId)))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.production_note").value(containsString("AI-5 生产备注（人工确认）")))
+                .andExpect(jsonPath("$.data.production_note").value(containsString("PHASE_ONE_DEFAULT_V1")))
+                .andExpect(jsonPath("$.data.production_note").value(containsString("生产组长已确认可写入")))
+                .andExpect(jsonPath("$.data.requires_customer_template_confirmation").value(true));
+
+        assertThat(orderProductionNote())
+                .contains("内部工序备注：车瓷由7700处理")
+                .contains("AI-5 生产备注（人工确认）")
+                .contains("请按默认模板确认");
+        assertThat(auditCountByContext("PRODUCTION_NOTE_HUMAN_CONFIRMED")).isEqualTo(1L);
+    }
+
+    @Test
+    void productionNoteRejectsDoctorAndUnassignedWorkerConfirmation() throws Exception {
+        mockMvc.perform(post("/ai/production-note")
+                        .header("X-Bootstrap-Role", "DOCTOR")
+                        .header("X-Bootstrap-User-Id", DOCTOR_USER_ID)
+                        .header("X-Bootstrap-Clinic-Id", clinicId)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"order_id\":" + orderId + "}"))
+                .andExpect(status().isForbidden());
+
+        mockMvc.perform(post("/ai/production-note/confirm")
+                        .header("X-Bootstrap-Role", "DOCTOR")
+                        .header("X-Bootstrap-User-Id", DOCTOR_USER_ID)
+                        .header("X-Bootstrap-Clinic-Id", clinicId)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("""
+                                {
+                                  "order_id": %d,
+                                  "draft_note": "医生不得确认内部生产备注"
+                                }
+                                """.formatted(orderId)))
+                .andExpect(status().isForbidden());
+
+        mockMvc.perform(post("/ai/production-note/confirm")
+                        .header("X-Bootstrap-Role", "WORKER")
+                        .header("X-Bootstrap-User-Id", OTHER_DOCTOR_USER_ID)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("""
+                                {
+                                  "order_id": %d,
+                                  "draft_note": "未分配工人不得写入"
+                                }
+                                """.formatted(orderId)))
+                .andExpect(status().isForbidden());
+
+        assertThat(orderProductionNote()).isEqualTo("内部工序备注：车瓷由7700处理");
+    }
+
+    @Test
+    void csQueryReturnsReferenceDataNotesForAuditableInternalSources() throws Exception {
+        jdbcClient.sql("""
+                        INSERT INTO order_bill (order_id, bill_no, amount_cent, bill_status, payment_status)
+                        VALUES (:orderId, 'BILL-AI-2', 128800, 'UPLOADED', 'PENDING_PAYMENT')
+                        """)
+                .param("orderId", orderId)
+                .update();
+        jdbcClient.sql("""
+                        INSERT INTO order_logistics (order_id, carrier_name, tracking_no, logistics_status)
+                        VALUES (:orderId, '顺丰', 'SF-AI-2', 'SHIPPED')
+                        """)
+                .param("orderId", orderId)
+                .update();
+
+        mockMvc.perform(post("/ai/cs-query")
+                        .header("X-Bootstrap-Role", "CS")
+                        .header("X-Bootstrap-User-Id", CS_USER_ID)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"order_id\":" + orderId + ",\"question\":\"请说明回答用了哪些数据？\"}"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.answer").value(containsString("对外发送前需人工确认")))
+                .andExpect(jsonPath("$.data.reference_data_notes").value(hasItem(containsString("订单基础"))))
+                .andExpect(jsonPath("$.data.reference_data_notes").value(hasItem(containsString("沟通消息"))))
+                .andExpect(jsonPath("$.data.reference_data_notes").value(hasItem(containsString("账单"))))
+                .andExpect(jsonPath("$.data.reference_data_notes").value(hasItem(containsString("物流"))))
+                .andExpect(jsonPath("$.data.reference_data_notes").value(hasItem(containsString("生产上下文"))));
     }
 
     @Test

@@ -15,33 +15,39 @@ const checks = [
     '人员管理',
     '专项质量管理',
     '设备 / 物料 / 安环 / 成本 / 奖惩',
-    'PHASE_TWO',
+    '设备 / 物料 / 安环 / 成本 / 奖惩属于一期开发功能',
     'LangChain + DeepSeek',
+    '所有 AI 智能体使用 LangChain + DeepSeek 实现',
     'AI-5 生产备注',
     'patient',
     'quality_record',
     'Task 8 仍保持 `in-progress / NOT_READY`',
-    '患者管理基础版第一增量'
+    '患者管理基础版第一增量',
+    '9D.93.1 PRD V2 范围纠偏记录',
+    '医生文件模块不属于项目需求范围，不开发'
   ]],
   ['PROJECT.md', [
     'PRD V2.0 / 2026-07-04',
     'docs/acceptance/prd-v2-gap-matrix.md',
-    '患者管理基础版',
+    '基础患者管理',
     '基础支付流水',
     '客户档案与偏好',
     '人员档案',
     '专项质量管理',
-    '设备管理、物料异常管理、安环管理、成本管理、奖惩模块的完整录入 / 审批 / CRUD / 真实趋势'
+    '设备 / 物料 / 安环 / 成本 / 奖惩属于一期开发功能',
+    '所有 AI 智能体使用 LangChain + DeepSeek 实现'
   ]],
   ['STATUS.md', [
     '9D.82 最新 PRD V2.0 差异对齐矩阵第一段',
     'docs/acceptance/prd-v2-gap-matrix.md',
-    '下一步唯一推荐目标：人工支付流水 / 收支记录第一增量'
+    '9D.93.1 PRD V2 范围纠偏第一闭环',
+    '下一步唯一推荐目标：9D.95.4 成本记录维护 / 趋势口径第一增量'
   ]],
   ['DECISIONS.md', [
     'D-133 任务 9D.82 最新 PRD V2.0 差异对齐矩阵第一段',
     'PRD V2.0 / 2026-07-04',
-    '设备、物料、安环、成本、奖惩'
+    '设备 / 物料 / 安环 / 成本 / 奖惩属于一期开发功能',
+    '所有 AI 智能体使用 LangChain + DeepSeek'
   ]],
   ['tasks/README.md', [
     '任务 9D.82：最新 PRD V2.0 差异对齐矩阵第一段',

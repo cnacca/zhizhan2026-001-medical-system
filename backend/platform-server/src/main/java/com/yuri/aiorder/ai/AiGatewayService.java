@@ -37,6 +37,8 @@ import org.springframework.web.server.ResponseStatusException;
 public class AiGatewayService {
 
     private static final String DETERMINISTIC_MODEL_NAME = "deterministic-placeholder";
+    private static final String PRODUCTION_NOTE_TEMPLATE_VERSION = "PHASE_ONE_DEFAULT_V1";
+    private static final String LANGCHAIN_DEEPSEEK_PROVIDER = "LANGCHAIN_DEEPSEEK";
     private static final String RATE_LIMIT_MODEL_NAME = "ai-governance-rate-limit";
     private static final String RATE_LIMIT_STATUS = "AI_RATE_LIMITED";
     private static final String MODEL_FAILURE_MODEL_NAME = "ai-governance-model-failure";
@@ -129,9 +131,11 @@ public class AiGatewayService {
     }
 
     @Transactional
-    public String csQuery(long orderId, String question, BootstrapIdentity identity) {
+    public CsQueryResult csQuery(long orderId, String question, BootstrapIdentity identity) {
         accessControlService.requireAnyRole(identity, CS_AND_ADMIN, "AI-2 is CS/ADMIN only");
         OrderAiContext context = loadOrderContext(orderId, identity, "identity cannot access this order");
+        List<String> referenceDataNotes = buildCsReferenceDataNotes(context);
+        String referenceDataText = String.join("\n", referenceDataNotes);
         enforceAiRateLimit(orderId, identity, "AI_CS_QUERY", "INTERNAL_ORDER_SUMMARY", question);
         AiModelResult answer = completeWithModel(
                 "你是牙科工厂客服查询助手。可以辅助客服理解内部订单摘要，但输出必须提示人工确认。",
@@ -140,6 +144,7 @@ public class AiGatewayService {
                         + "\n内部状态：" + context.internalStatus()
                         + "\n外部状态：" + context.externalStatus()
                         + "\n生产备注：" + nullToBlank(context.productionNote())
+                        + "\n引用数据说明：\n" + referenceDataText
                         + "\n客服问题：" + question,
                 () -> deterministic("客服查询草稿：订单"
                         + context.orderNo()
@@ -147,6 +152,7 @@ public class AiGatewayService {
                         + context.internalStatus()
                         + "，外部状态为"
                         + context.externalStatus()
+                        + "。引用数据包括：" + String.join("；", referenceDataNotes)
                         + "。对外发送前需人工确认。"),
                 orderId,
                 identity,
@@ -154,7 +160,7 @@ public class AiGatewayService {
                 "INTERNAL_ORDER_SUMMARY",
                 question);
         audit(orderId, identity, "AI_CS_QUERY", "INTERNAL_ORDER_SUMMARY", question, "SUCCESS", answer);
-        return answer.content();
+        return new CsQueryResult(answer.content(), referenceDataNotes);
     }
 
     @Transactional
@@ -216,22 +222,23 @@ public class AiGatewayService {
     }
 
     @Transactional
-    public String productionNote(long orderId, BootstrapIdentity identity) {
+    public ProductionNoteDraftResult productionNote(long orderId, BootstrapIdentity identity) {
         accessControlService.requireAnyRole(identity, PRODUCTION_NOTE_ROLES, "AI-5 is CS/WORKER/ADMIN only");
         OrderAiContext context = loadOrderContext(orderId, identity, "identity cannot access this order");
+        List<String> knowledgeContextNotes = buildProductionNoteKnowledgeContextNotes(context);
         enforceAiRateLimit(orderId, identity, "AI_PRODUCTION_NOTE", "PRODUCTION_NOTE_DRAFT",
                 "production-note:" + orderId);
         AiModelResult draft = completeWithModel(
-                "你是生产备注助手。只生成草稿，不写入订单字段，不自动下发生产指令。",
+                "你是生产备注助手。只生成草稿，不写入订单字段，不下发生产指令。"
+                        + "客户正式模板尚未确认，必须使用默认一期模板并提示人工确认。",
                 "订单号：" + context.orderNo()
                         + "\n产品类型：" + context.productType()
                         + "\n表单数据：" + nullToBlank(context.formData())
-                        + "\n已有生产备注：" + nullToBlank(context.productionNote()),
-                () -> deterministic("生产备注草稿（人工确认后保存）：产品类型="
-                        + context.productType()
-                        + "；订单号="
-                        + context.orderNo()
-                        + "；请按客户确认信息、设计要求和工厂规范补全。"),
+                        + "\n已有生产备注：" + nullToBlank(context.productionNote())
+                        + "\n模板版本：" + PRODUCTION_NOTE_TEMPLATE_VERSION
+                        + "\n知识上下文：\n" + String.join("\n", knowledgeContextNotes)
+                        + "\n请按默认模板输出：订单基础、医生/客户需求、生产关注点、资料/附件依据、待人工确认项。",
+                () -> deterministic(defaultProductionNoteDraft(context, knowledgeContextNotes)),
                 orderId,
                 identity,
                 "AI_PRODUCTION_NOTE",
@@ -239,7 +246,39 @@ public class AiGatewayService {
                 "production-note:" + orderId);
         audit(orderId, identity, "AI_PRODUCTION_NOTE", "PRODUCTION_NOTE_DRAFT", "production-note:" + orderId,
                 "SUCCESS", draft);
-        return draft.content();
+        return new ProductionNoteDraftResult(
+                draft.content(),
+                PRODUCTION_NOTE_TEMPLATE_VERSION,
+                knowledgeContextNotes,
+                true);
+    }
+
+    @Transactional
+    public ProductionNoteConfirmationResult confirmProductionNote(
+            long orderId,
+            String draftNote,
+            String confirmationNote,
+            BootstrapIdentity identity) {
+        accessControlService.requireAnyRole(identity, PRODUCTION_NOTE_ROLES, "AI-5 confirmation is CS/WORKER/ADMIN only");
+        OrderAiContext context = loadOrderContext(orderId, identity, "identity cannot access this order");
+        String trimmedDraft = draftNote == null ? "" : draftNote.trim();
+        if (trimmedDraft.isBlank()) {
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "draft_note is required");
+        }
+        String confirmedBlock = confirmedProductionNoteBlock(trimmedDraft, confirmationNote, identity);
+        String existing = nullToBlank(context.productionNote()).trim();
+        String updatedNote = existing.isBlank() ? confirmedBlock : existing + "\n\n" + confirmedBlock;
+        jdbcClient.sql("""
+                        UPDATE orders
+                        SET production_note = :productionNote
+                        WHERE order_id = :orderId
+                        """)
+                .param("productionNote", updatedNote)
+                .param("orderId", orderId)
+                .update();
+        audit(orderId, identity, "AI_PRODUCTION_NOTE_CONFIRM", "PRODUCTION_NOTE_HUMAN_CONFIRMED",
+                trimmedDraft, "SUCCESS", deterministic("production-note-human-confirmed"));
+        return new ProductionNoteConfirmationResult(updatedNote, PRODUCTION_NOTE_TEMPLATE_VERSION, true);
     }
 
     @Transactional(readOnly = true)
@@ -760,6 +799,166 @@ public class AiGatewayService {
         }
     }
 
+    private List<String> buildCsReferenceDataNotes(OrderAiContext context) {
+        List<String> notes = new ArrayList<>();
+        notes.add("订单基础：orders.order_no、product_type、internal_status、external_status");
+        notes.add("生产上下文：orders.internal_status 与 production_note，仅供客服内部理解，不自动写入生产备注");
+        notes.add(messageReferenceNote(context.orderId()));
+        notes.add(fileReferenceNote(context.orderId()));
+        notes.add(billReferenceNote(context.orderId()));
+        notes.add(logisticsReferenceNote(context.orderId()));
+        return notes;
+    }
+
+    private List<String> buildProductionNoteKnowledgeContextNotes(OrderAiContext context) {
+        List<String> notes = new ArrayList<>();
+        notes.add("默认模板：PHASE_ONE_DEFAULT_V1；客户模板未确认，不能声明为真实客户模板");
+        notes.add("订单基础：orders.order_no、product_type、external_status、internal_status");
+        notes.add("表单数据：orders.form_data，用于整理医生/客户需求和资料完整性");
+        notes.add("已有生产备注：orders.production_note，仅作为内部增量上下文，不覆盖历史备注");
+        notes.add(messageReferenceNote(context.orderId()));
+        notes.add(fileReferenceNote(context.orderId()));
+        notes.add(billReferenceNote(context.orderId()));
+        notes.add(logisticsReferenceNote(context.orderId()));
+        notes.add("人工确认：草稿只可由 CS / WORKER / ADMIN 确认后写入生产备注");
+        return notes;
+    }
+
+    private String defaultProductionNoteDraft(OrderAiContext context, List<String> knowledgeContextNotes) {
+        return """
+                AI-5 生产备注草稿（人工确认后保存）
+                模板版本：%s（默认模板，客户模板未确认）
+                1. 订单基础：订单号 %s，产品类型 %s。
+                2. 医生/客户需求：请结合表单数据、公开沟通和附件补充材料、颜色、牙位、邻接、咬合等要求。
+                3. 生产关注点：请生产人员复核资料完整性、设计稿版本、终检与返工风险。
+                4. 知识上下文：%s。
+                5. 待人工确认项：本草稿不会自行保存或外发，需确认后写入生产备注。
+                """.formatted(
+                PRODUCTION_NOTE_TEMPLATE_VERSION,
+                context.orderNo(),
+                context.productType(),
+                String.join("；", knowledgeContextNotes));
+    }
+
+    private String confirmedProductionNoteBlock(String draftNote, String confirmationNote, BootstrapIdentity identity) {
+        String note = confirmationNote == null || confirmationNote.isBlank()
+                ? "未填写额外确认说明"
+                : confirmationNote.trim();
+        return """
+                AI-5 生产备注（人工确认）
+                模板版本：%s（默认模板，客户模板未确认）
+                确认人：%s/%d
+                确认时间：%s
+                草稿内容：
+                %s
+                确认说明：%s
+                """.formatted(
+                PRODUCTION_NOTE_TEMPLATE_VERSION,
+                identity.role(),
+                identity.userId(),
+                LocalDateTime.now(),
+                draftNote,
+                note);
+    }
+
+    private String messageReferenceNote(long orderId) {
+        Long count = jdbcClient.sql("""
+                        SELECT COUNT(*)
+                        FROM order_message
+                        WHERE order_id = :orderId
+                        """)
+                .param("orderId", orderId)
+                .query(Long.class)
+                .single();
+        if (count == null || count == 0) {
+            return "沟通消息：order_message 未找到当前订单消息";
+        }
+        List<String> samples = jdbcClient.sql("""
+                        SELECT sender_role, visibility, review_status
+                        FROM order_message
+                        WHERE order_id = :orderId
+                        ORDER BY created_at DESC, message_id DESC
+                        LIMIT 3
+                        """)
+                .param("orderId", orderId)
+                .query((rs, rowNum) -> rs.getString("sender_role")
+                        + "/"
+                        + rs.getString("visibility")
+                        + "/"
+                        + rs.getString("review_status"))
+                .list();
+        return "沟通消息：order_message 共 " + count + " 条，最近状态 " + String.join("、", samples);
+    }
+
+    private String fileReferenceNote(long orderId) {
+        Long count = jdbcClient.sql("""
+                        SELECT COUNT(*)
+                        FROM file_resource
+                        WHERE order_id = :orderId
+                        """)
+                .param("orderId", orderId)
+                .query(Long.class)
+                .single();
+        if (count == null || count == 0) {
+            return "附件：file_resource 未找到当前订单附件";
+        }
+        List<String> samples = jdbcClient.sql("""
+                        SELECT source_type, visibility, status
+                        FROM file_resource
+                        WHERE order_id = :orderId
+                        ORDER BY created_at DESC, file_id DESC
+                        LIMIT 3
+                        """)
+                .param("orderId", orderId)
+                .query((rs, rowNum) -> rs.getString("source_type")
+                        + "/"
+                        + rs.getString("visibility")
+                        + "/"
+                        + rs.getString("status"))
+                .list();
+        return "附件：file_resource 共 " + count + " 个，最近类型 " + String.join("、", samples);
+    }
+
+    private String billReferenceNote(long orderId) {
+        return jdbcClient.sql("""
+                        SELECT bill_status, payment_status, amount_cent, currency
+                        FROM order_bill
+                        WHERE order_id = :orderId
+                        """)
+                .param("orderId", orderId)
+                .query((rs, rowNum) -> {
+                    Long amountCent = rs.getObject("amount_cent", Long.class);
+                    String amountText = amountCent == null ? "" : amountCent.toString();
+                    return "账单：order_bill 状态 "
+                            + rs.getString("bill_status")
+                            + "，付款状态 "
+                            + rs.getString("payment_status")
+                            + "，金额 "
+                            + amountText
+                            + " "
+                            + nullToBlank(rs.getString("currency"));
+                })
+                .optional()
+                .orElse("账单：order_bill 未找到当前订单账单");
+    }
+
+    private String logisticsReferenceNote(long orderId) {
+        return jdbcClient.sql("""
+                        SELECT carrier_name, tracking_no, logistics_status
+                        FROM order_logistics
+                        WHERE order_id = :orderId
+                        """)
+                .param("orderId", orderId)
+                .query((rs, rowNum) -> "物流：order_logistics 状态 "
+                        + rs.getString("logistics_status")
+                        + "，承运商 "
+                        + nullToBlank(rs.getString("carrier_name"))
+                        + "，单号 "
+                        + nullToBlank(rs.getString("tracking_no")))
+                .optional()
+                .orElse("物流：order_logistics 未找到当前订单物流");
+    }
+
     private boolean orderExists(long orderId) {
         return jdbcClient.sql("SELECT COUNT(*) FROM orders WHERE order_id = :orderId")
                 .param("orderId", orderId)
@@ -1165,6 +1364,22 @@ public class AiGatewayService {
             return 0;
         }
         return Math.max(1, value.trim().length() / 2);
+    }
+
+    public record CsQueryResult(String answer, List<String> referenceDataNotes) {
+    }
+
+    public record ProductionNoteDraftResult(
+            String draftNote,
+            String templateVersion,
+            List<String> knowledgeContextNotes,
+            boolean requiresCustomerTemplateConfirmation) {
+    }
+
+    public record ProductionNoteConfirmationResult(
+            String productionNote,
+            String templateVersion,
+            boolean requiresCustomerTemplateConfirmation) {
     }
 
     private record OrderAiContext(

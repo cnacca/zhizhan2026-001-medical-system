@@ -52,6 +52,22 @@
 - 提交前运行当前技术栈可用的 lint/typecheck/build/test。
 - 所有关键模块必须有验收路径：权限、脱敏、工艺流、AI、文件、状态机。
 
+## Token 成本治理
+
+- 一个 Codex 执行会话只推进一个明确闭环；完成后输出接力摘要，优先开新会话继续下一步。
+- 单会话请求累计超过 2000 万 token，或单次上下文超过 15 万 token，停止继续开发，先总结当前状态。
+- 默认先用 `rg -n` 定位、`sed -n` 读取小片段、`git diff --stat` / `git diff --name-only` 看范围；不要默认整文件读取大文档或输出全量 diff。
+- 每次长跑或继续下一步前，可运行 `npm run codex:token-report` 检查最近 token 消耗和高风险命令。
+- 详细规则见 `docs/development/codex-token-cost-control.md`。
+
+## SOP / Superpowers 分级启用
+
+- 默认轻量模式：状态查询、下一步确认、简短方案、普通文档确认和 token 排查，只读必要片段，不展开完整 SOP，不生成 superpowers spec / plan。
+- 标准模式：用户明确要求实现、修复、落地、改代码、改验收脚本或回写项目文档时启用；可使用 TDD / verification，但只读目标相关 skill 和文件片段。
+- 重型模式：完整审查、上线前检查、PR 前检查、全量验收、长跑执行、复杂故障、安全 / 权限 / 生产 / 数据风险任务时启用；必须新会话开始，先运行 token report，并设置停止条件。
+- superpowers 只在任务确实匹配时启用对应 skill，不为轻量问题连带读取无关 skill。
+- Yuri SOP 保留为项目质量边界；轻量任务只遵守原则，标准任务执行必要 TDD / 验证 / 文档回写，重型任务才完整展开。
+
 ## 项目文档维护
 
 每轮开发结束时更新：

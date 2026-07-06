@@ -52,8 +52,9 @@ public class AiGatewayController {
     public DataResponse<QueryResponse> csQuery(
             @Valid @RequestBody QueryRequest request,
             BootstrapIdentity identity) {
-        return new DataResponse<>(new QueryResponse(
-                aiGatewayService.csQuery(request.orderId(), request.question(), identity)));
+        AiGatewayService.CsQueryResult result =
+                aiGatewayService.csQuery(request.orderId(), request.question(), identity);
+        return new DataResponse<>(new QueryResponse(result.answer(), result.referenceDataNotes()));
     }
 
     @PostMapping("/ai/production-note")
@@ -61,8 +62,30 @@ public class AiGatewayController {
     public DataResponse<ProductionNoteResponse> productionNote(
             @Valid @RequestBody OrderOnlyRequest request,
             BootstrapIdentity identity) {
+        AiGatewayService.ProductionNoteDraftResult result =
+                aiGatewayService.productionNote(request.orderId(), identity);
         return new DataResponse<>(new ProductionNoteResponse(
-                aiGatewayService.productionNote(request.orderId(), identity)));
+                result.draftNote(),
+                result.templateVersion(),
+                result.knowledgeContextNotes(),
+                result.requiresCustomerTemplateConfirmation()));
+    }
+
+    @PostMapping("/ai/production-note/confirm")
+    @RequirePermission(value = "ai:production", roles = {UserRole.ADMIN, UserRole.CS, UserRole.WORKER})
+    public DataResponse<ProductionNoteConfirmResponse> confirmProductionNote(
+            @Valid @RequestBody ProductionNoteConfirmRequest request,
+            BootstrapIdentity identity) {
+        AiGatewayService.ProductionNoteConfirmationResult result =
+                aiGatewayService.confirmProductionNote(
+                        request.orderId(),
+                        request.draftNote(),
+                        request.confirmationNote(),
+                        identity);
+        return new DataResponse<>(new ProductionNoteConfirmResponse(
+                result.productionNote(),
+                result.templateVersion(),
+                result.requiresCustomerTemplateConfirmation()));
     }
 
     @GetMapping("/ai/governance/summary")
@@ -132,9 +155,27 @@ public class AiGatewayController {
     public record TranslateResponse(@JsonProperty("translated_text") String translatedText) {
     }
 
-    public record QueryResponse(String answer) {
+    public record QueryResponse(
+            String answer,
+            @JsonProperty("reference_data_notes") java.util.List<String> referenceDataNotes) {
     }
 
-    public record ProductionNoteResponse(@JsonProperty("draft_note") String draftNote) {
+    public record ProductionNoteConfirmRequest(
+            @JsonProperty("order_id") @NotNull Long orderId,
+            @JsonProperty("draft_note") @NotBlank String draftNote,
+            @JsonProperty("confirmation_note") String confirmationNote) {
+    }
+
+    public record ProductionNoteResponse(
+            @JsonProperty("draft_note") String draftNote,
+            @JsonProperty("template_version") String templateVersion,
+            @JsonProperty("knowledge_context_notes") java.util.List<String> knowledgeContextNotes,
+            @JsonProperty("requires_customer_template_confirmation") boolean requiresCustomerTemplateConfirmation) {
+    }
+
+    public record ProductionNoteConfirmResponse(
+            @JsonProperty("production_note") String productionNote,
+            @JsonProperty("template_version") String templateVersion,
+            @JsonProperty("requires_customer_template_confirmation") boolean requiresCustomerTemplateConfirmation) {
     }
 }

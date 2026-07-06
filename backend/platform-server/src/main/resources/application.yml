@@ -71,6 +71,9 @@ app:
       max-tokens: ${AI_DEEPSEEK_MAX_TOKENS:800}
       connect-timeout-seconds: ${AI_DEEPSEEK_CONNECT_TIMEOUT_SECONDS:10}
       read-timeout-seconds: ${AI_DEEPSEEK_READ_TIMEOUT_SECONDS:45}
+    langchain:
+      enabled: ${AI_LANGCHAIN_ENABLED:false}
+      provider: ${AI_LANGCHAIN_PROVIDER:deepseek}
     external-alert:
       webhook-enabled: ${AI_EXTERNAL_ALERT_WEBHOOK_ENABLED:false}
       webhook-url: ${AI_EXTERNAL_ALERT_WEBHOOK_URL:}

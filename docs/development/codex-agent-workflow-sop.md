@@ -1,16 +1,17 @@
-# Codex 多 Agent 开发工作流 SOP
+# Codex 开发工作流 SOP
 
-更新日期：2026-07-05
+更新日期：2026-07-06
 
 ## 目标
 
-本 SOP 用于降低高智能模型全程执行带来的速度和 token 成本，同时避免多窗口、多 agent 并行开发导致代码和文档混乱。
+本 SOP 用于让 Codex 按任务风险选择合适流程：小任务不重型化，普通一期功能保持 TDD 和文档回写，高风险上线项严格受控。
 
 核心目标：
 
-- 让 `gpt-5.5` 只负责总控、关键判断、最终验收和文档口径。
-- 让低成本子 agent 承担查找、窄实现、静态检查、测试日志整理等可拆工作。
-- 用明确文件边界和 worktree 隔离并行开发风险。
+- 默认按最新版 PRD V2.0 / 2026-07-04 和 `docs/acceptance/prd-v2-gap-matrix.md` 推进一期交付。
+- 用轻量档、标准档、重型档三档 SOP 控制成本和风险。
+- 默认由当前 Codex 在当前会话内顺序执行。
+- 用明确文件边界、任务边界和 worktree 隔离并行开发风险。
 - 让客户反馈、持续开发和文档回写进入受控流程。
 
 ## 适用范围
@@ -27,85 +28,61 @@
 ## 总原则
 
 1. 每轮只推进一个默认目标，备选项放 backlog。
-2. 主 agent 负责决策，子 agent 负责窄任务。
-3. 子 agent 不能自行扩大范围，不能决定下一步。
+2. 默认从 `docs/acceptance/prd-v2-gap-matrix.md`、`STATUS.md`、`tasks/README.md`、`acceptance.json` 和 readiness 文档选择下一步。
+3. 旧 PRD、旧 9D 任务和旧 readiness 记录只作为历史证据；若与最新版 PRD 冲突，以最新版 PRD 和 PRD 差异矩阵为准。
 4. 同一文件同一时间只能有一个 owner。
-5. 最终文档口径由主 agent 合并，不由子 agent 分散落稿。
-6. 并行开发优先使用独立 git worktree。
+5. 本项目所有开发闭环由当前 Codex 顺序执行。
+6. 并行开发或高风险试验优先使用独立 git worktree。
 7. 每轮结束必须给出 diff、验证结果和剩余风险。
+8. Task 8 仍保持 `NOT_READY`，除非所有本地可关闭项、真实环境项和客户 / PM 确认项都关闭。
 
-## 角色分工
+## SOP 档位选择
 
-| 角色 | 指定模型 | 职责 | 是否可写文件 |
+Codex 开工前先判断任务风险，选择最低但足够安全的档位。
+
+| 档位 | 适用场景 | 默认流程 | 执行方式 |
 | --- | --- | --- | --- |
-| Chief 主 agent | `gpt-5.5` | 读项目状态、选唯一下一步、拆任务、审 diff、最终验收、决定是否停下来问用户 | 可以 |
-| Context Scout | `gpt-5.3-codex-spark` | 只读代码和文档，找影响面、文件路径、测试入口、风险点 | 不可以 |
-| TDD Worker | `gpt-5.4-mini` 或 `gpt-5.4` | 按指定文件范围写红灯测试、最小实现和局部修复 | 可以 |
-| Frontend Worker | `gpt-5.4-mini` | 只改指定 Vue、CSS、前端检查脚本或 smoke 脚本 | 可以 |
-| Docs Worker | `gpt-5.4-mini` | 起草 README、STATUS、tasks、OpenAPI、acceptance、readiness 更新 | 可以，但只改指定文档 |
-| Verifier | `gpt-5.4` | 跑验证命令、读失败日志、总结失败原因和下一步证据 | 默认不改 |
+| 轻量档 | 文档整理、状态盘点、README / STATUS / tasks 小更新、静态检查脚本小修、前端展示小改、不涉及接口 / 数据库 / 权限安全的小任务 | 读相关文件 -> 明确目标和非目标 -> 小范围修改 -> 跑最相关验证 -> 必要文档回写 -> 汇报 diff 和唯一下一步 | 当前 Codex 顺序执行 |
+| 标准档 | PRD 一期普通功能闭环、患者管理基础版、人工支付流水、客户 / 诊所档案与偏好、人员档案 / 工作量看板、质量记录 CRUD / 外返登记、普通前后端联动、OpenAPI / acceptance 需要同步的业务功能 | 读 PRD 矩阵和相关代码 -> 简版任务卡 -> 只读影响面审计 -> TDD 实现 -> 验证 -> 文档回写 -> 汇报 diff、验证和下一步 | 当前 Codex 顺序执行 |
+| 重型档 | 鉴权、权限、DataScope、医生端脱敏、数据库迁移、生产配置、Docker / Nginx / 部署、AI 真实 key / webhook、文件安全、真实环境验收、任何影响数据 / 安全 / 上线的任务 | 全局审查 -> 完整任务卡 -> 风险影响面 -> 风险和回滚边界 -> TDD 实现 -> 完整目标验证和回归 -> 文档合并 -> diff / stage / commit 边界审查 | 当前 Codex 顺序执行；必要时建议 worktree 隔离 |
 
-## 子 Agent 模型硬性规则
-
-创建任何子 agent 时，Chief 必须显式指定 `model`，不得让子 agent 默认继承 Chief 的 `gpt-5.5`。
-
-硬性要求：
-
-- Context Scout 必须显式指定 `gpt-5.3-codex-spark`。
-- Frontend Worker 和 Docs Worker 默认必须显式指定 `gpt-5.4-mini`。
-- TDD Worker 默认显式指定 `gpt-5.4-mini`；涉及复杂后端、权限、DataScope、数据库迁移、AI 安全或 OpenAPI 契约时升级为 `gpt-5.4`。
-- Verifier 必须显式指定 `gpt-5.4`。
-- 只有 Chief 保持 `gpt-5.5`；除非用户明确授权，子 agent 不使用 `gpt-5.5`。
-
-如果当前环境或工具不支持给子 agent 显式指定模型，Chief 必须停止创建子 agent，改为单 agent 顺序执行或先向用户说明原因并等待确认。
-
-每次创建子 agent 前，Chief 必须在任务卡或工作日志中写明：
-
-```text
-子 agent 名称：
-角色：
-指定模型：
-是否只读：
-文件 owner：
-禁止事项：
-```
+当前项目默认使用标准档；文档 / 小检查自动降级到轻量档；权限、迁移、部署、安全、真实环境相关任务自动升级到重型档。
 
 ## 默认执行流程
 
-每轮开发按下面顺序执行：
+标准档和重型档按下面顺序执行；轻量档可压缩任务卡。
 
 ```text
-1. Chief 读取 STATUS.md、tasks/README.md、acceptance/readiness 文档。
-2. Chief 推荐唯一下一步，等待用户确认。
-3. 用户确认后，Chief 写本轮任务卡。
-4. Scout 并行查影响面。
-5. Worker 按 TDD 做实现。
-6. Docs Worker 起草文档同步。
-7. Verifier 跑目标测试和主验收命令。
-8. Chief 整合结果、审 diff、修边界问题。
-9. Chief 回写最终文档口径。
-10. Chief 汇报改动、验证、剩余风险和是否建议提交。
+1. 读取 PRD 差异矩阵、STATUS.md、tasks/README.md、acceptance/readiness 文档和相关代码。
+2. 选择档位，输出任务卡。
+3. 只读审计影响面、测试入口、权限边界、数据表、OpenAPI 和风险点。
+4. 按 TDD 做实现：先红灯测试或失败静态检查，再最小实现。
+5. 跑目标测试、OpenAPI、前端 build、acceptance 或 smoke。
+6. 回写 STATUS、DECISIONS、tasks、README 和相关 docs。
+7. 审 diff，修边界问题。
+8. 汇报改动、验证、剩余风险、diff 和唯一下一步。
 ```
 
 ## 任务卡模板
 
-每轮开工前，Chief 必须先形成简版任务卡：
+每轮开工前必须先形成简版任务卡：
 
 ```text
 任务编号：
+SOP 档位：
 目标：
 范围：
 非目标：
 涉及文件：
-子 agent 分工：
-子 agent 指定模型：
+文件边界：
+执行阶段：
 验收命令：
 停止条件：
 文档回写范围：
 是否允许自动连续下一轮：
 ```
 
-任务卡必须明确文件 owner。没有 owner 的文件默认不能由子 agent 修改。
+任务卡必须明确文件边界。未纳入文件边界的文件默认不改。
 
 ## 单窗口模式
 
@@ -120,31 +97,10 @@
 推荐配置：
 
 ```text
-Chief + 1 个 Scout 或 1 个 Worker
+当前 Codex 顺序执行
 ```
 
-这是默认模式，成本最低、冲突最少。
-
-## 多 Agent 单工作树模式
-
-适合中等任务，例如“后端接口 + 前端入口 + 文档同步”。
-
-示例分工：
-
-```text
-Scout：只读，找后端 service/controller/test 影响面。
-Worker A：只改后端和后端测试。
-Worker B：只改前端页面和前端检查脚本。
-Docs Worker：只改 docs/api、tasks、STATUS、README 草稿。
-Chief：最终合并和验证。
-```
-
-硬性规则：
-
-- 不允许两个 agent 修改同一个文件。
-- 不允许子 agent 改未分配文件。
-- 不允许子 agent 自动提交。
-- Docs Worker 的文档只是草稿，最终口径由 Chief 合并。
+这是默认模式，成本最低、冲突最少。轻量档和多数标准档优先使用该模式。
 
 ## 多 Worktree 多窗口模式
 
@@ -164,7 +120,7 @@ Chief：最终合并和验证。
 
 - 每个 worktree 一个分支。
 - 每个 worktree 一个明确目标。
-- 合并前由 Chief 做 diff review。
+- 合并前做 diff review。
 - 如果主工作树已经 dirty，先拆账、备份 patch、确认文件归属，再创建或复用 worktree。
 
 禁止事项：
@@ -183,7 +139,7 @@ Chief：最终合并和验证。
 1. 冻结当前演示版本：分支、commit、演示地址、截图、smoke 记录。
 2. 记录客户反馈到 docs/customer-feedback/YYYY-MM-DD.md。
 3. 分类：BUG / CR-P0 / CR-P1 / IDEA。
-4. Chief 做影响评估：前端、后端、OpenAPI、数据库、权限、测试、交付时间。
+4. 做影响评估：前端、后端、OpenAPI、数据库、权限、测试、交付时间。
 5. 用户确认后转成新的最小闭环任务。
 ```
 
@@ -203,22 +159,40 @@ Codex 可以连续推进，但必须受控。
 默认允许：
 
 ```text
-最多连续执行 3 个最小闭环。
+用户明确授权连续开发后，最多连续执行 3 个最小闭环。
 每个闭环必须 TDD、验证、回写文档、梳理 diff。
 ```
+
+任务来源优先级：
+
+```text
+1. docs/acceptance/prd-v2-gap-matrix.md
+2. STATUS.md
+3. tasks/README.md
+4. acceptance.json
+5. docs/deployment/readiness-checklist.md
+```
+
+自动选择规则：
+
+- 优先本地可关闭的一期 PRD 缺口。
+- 跳过 `BLOCKED` 项。
+- 跳过二期项。
+- 跳过真实外部服务项。
+- 每次只做一个最小闭环。
 
 遇到以下情况必须停止并询问用户：
 
 - 需求范围变化。
 - 客户反馈新增功能。
 - 需要新增依赖。
-- 需要改数据库结构。
+- 需要新增数据库迁移或改数据库结构。
 - 测试连续失败两次。
-- 当前工具无法为子 agent 显式指定模型。
-- 子 agent 被创建为默认继承 Chief 的 `gpt-5.5`，且用户未明确授权。
 - 需要提交、push 或 PR。
 - 涉及安全、权限、生产配置、真实密钥。
-- 子 agent 结果互相冲突。
+- 需要并行开发或同文件多人修改。
+- 工作区 diff 无法安全归属。
+- 上下文过长，无法可靠判断当前目标。
 
 ## 文档 Owner 规则
 
@@ -226,15 +200,15 @@ Codex 可以连续推进，但必须受控。
 
 | 文档 | 更新 owner | 更新条件 |
 | --- | --- | --- |
-| `STATUS.md` | Chief | 当前状态、完成记录、下一步变化 |
-| `tasks/README.md` | Chief | 任务状态、验收结果、剩余风险变化 |
-| `DECISIONS.md` | Chief | 新增重要技术或产品决策 |
-| `README.md` | Chief | 启动方式、环境变量、验证入口变化 |
+| `STATUS.md` | 当前 Codex | 当前状态、完成记录、下一步变化 |
+| `tasks/README.md` | 当前 Codex | 任务状态、验收结果、剩余风险变化 |
+| `DECISIONS.md` | 当前 Codex | 新增重要技术或产品决策 |
+| `README.md` | 当前 Codex | 启动方式、环境变量、验证入口变化 |
 | `docs/api/openapi.yaml` | 指定 Contract Owner | 接口契约变化 |
-| `docs/acceptance/*` | Chief 或 Docs Worker 草稿后 Chief 合并 | 验收口径变化 |
-| `docs/deployment/*` | Chief 或 Docs Worker 草稿后 Chief 合并 | 部署、上线缺口变化 |
+| `docs/acceptance/*` | 当前 Codex | 验收口径变化 |
+| `docs/deployment/*` | 当前 Codex | 部署、上线缺口变化 |
 
-Docs Worker 可以写草稿，但最终汇入口径必须由 Chief 统一确认。
+文档口径必须由当前 Codex 在本轮收尾时统一确认，不能把重要上下文只留在聊天里。
 
 ## 验证规则
 
@@ -276,7 +250,7 @@ npm run smoke:task9dXX
 
 ## 最终汇报模板
 
-每轮结束时，Chief 汇报必须包含：
+每轮结束时汇报必须包含：
 
 ```text
 完成内容：
@@ -296,28 +270,28 @@ diff 摘要：
 
 ## 推荐默认策略
 
-日常默认：
+日常默认使用轻量档或标准档，由当前 Codex 顺序执行：
 
 ```text
-Chief(gpt-5.5) + 1 个低成本 Scout(gpt-5.3-codex-spark) / Worker(gpt-5.4-mini)
+只读审计 -> TDD 实现 -> 验证 -> 文档回写 -> diff 汇报
 ```
 
-中等任务：
+中等任务使用标准档：
 
 ```text
-Chief(gpt-5.5) + 2-3 个显式指定模型的子 agent
+简版任务卡 + 只读影响面 + TDD 实现 + 验证 + 文档回写
 ```
 
-大任务或客户验收冲刺：
+大任务、高风险任务或客户验收冲刺使用重型档：
 
 ```text
-多 worktree + 多窗口 + Chief(gpt-5.5) 最终合并；所有子 agent 必须显式指定非 5.5 模型，除非用户明确授权
+完整任务卡 + 风险和回滚边界 + 严格 TDD + 完整验证 + 最终文档合并
 ```
 
 自动连续开发：
 
 ```text
-最多 3 个闭环后停下来汇报。
+用户明确授权后最多 3 个闭环后 checkpoint 汇报；没有授权时只推荐唯一下一步。
 ```
 
-这套流程的目标不是让 agent 数量变多，而是让每个 agent 的责任更窄，让高智能模型只花在真正需要判断的地方。
+这套流程的目标是让任务边界更窄、验证更明确、真实外部环境和客户确认不被误关。

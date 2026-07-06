@@ -6,11 +6,19 @@
 
 当前总目标是严格按照最新版 PRD V2.0 / 2026-07-04 完成一期交付，而不是单纯完成下一个 9D 编号。后续所有任务都必须能解释为补齐 `PROJECT.md` 的 P0 主业务链路、`docs/acceptance/prd-v2-gap-matrix.md` 的 PRD 差异矩阵、`docs/acceptance/task-8-acceptance-matrix.md` 的 12 步验收链路或 `docs/deployment/readiness-checklist.md` 的上线硬缺口。
 
-前端是否匹配一期范围的最新整理见 `docs/acceptance/phase-one-frontend-alignment.md`；后续按端口拆一期任务、判断已完成内容、处理多余或超过一期的入口时，使用 `docs/acceptance/phase-one-frontend-task-scope.md`。当前结论是：前端已经具备一期主链路演示版和多段真实接口第一增量，但正式一期交付仍缺完整客服协同、账单物流真实平台/付款状态、真实电子签章/复杂报告模板、绩效完整闭环、真实弱网/跨设备上传、生产级通知与部署验收。
+前端是否匹配一期范围的最新整理见 `docs/acceptance/phase-one-frontend-alignment.md`；后续按端口拆一期任务、判断已完成内容、处理多余或超过一期的入口时，使用 `docs/acceptance/phase-one-frontend-task-scope.md`。当前结论是：前端已经具备一期主链路演示版和多段真实接口第一增量，9D.94 已补 LangChain + DeepSeek AI 底座第一增量，但正式一期交付仍缺设备 / 物料 / 安环 / 成本 / 奖惩完整闭环、账单物流真实平台/付款状态、真实电子签章/复杂报告模板、绩效完整闭环、真实弱网/跨设备上传、生产级通知与部署验收。
 
-当前目标是清理一期上线前硬缺口：已完成 readiness audit、OpenAPI 二次契约、Bearer 身份基线、后端权限守卫、数据库化 RBAC/DataScope 基础、权限注解/统一拦截器、订单/工序实例 DataScope SQL 第一增量、文件/协同/AI DataScope 扩展、菜单/部门/岗位/前端权限路由第一增量、生产鉴权启动门禁第一增量、Refresh Token/logout 第一增量、WebSocket 通知第一增量、通知未读/已读第一增量、通知实时前端/Redis 广播第一增量、医生订单工作台第一增量、医生下单/动态表单第一增量、客服初审第一增量、生产审核第一增量、生产任务入口第一增量、质检工时第一增量、绩效管理第一增量、生产看板第一增量、返工终检第一增量、Multipart 上传第一增量、本地恢复上传第一增量、服务端候选恢复第一增量、服务端候选恢复浏览器 smoke、上传中断后恢复浏览器 smoke、100MB+ 浏览器上传 smoke、医生订单草稿/补资料第一增量、动态表单 CRUD 第一增量、设计稿多文件多版本第一增量、终检发货拦截第一增量、真实 DeepSeek 接入第一增量、终检报告第一增量、返工关闭/责任分类第一增量、返工字典第一增量、返工通知联动第一增量、复杂返工影响范围第一增量、绩效归因联动第一增量、返工影响审计可视化第一增量、返工影响筛选第一增量、四入口登录页第一增量、绩效明细第一增量、绩效周期筛选第一段、文件上传限制与 bucket 隔离第一段、AI 调用限流第一增量、AI 成本审计第一增量、AI 模型重试第一增量、AI 模型失败审计第一增量、AI 治理摘要第一增量、AI 预算阈值第一增量、AI 预算超限审计第一增量、AI 预算超限内部通知第一增量、AI 预算通知策略开关第一增量、AI 预算熔断/降级第一增量、AI 预算外部告警待发送事实第一增量、AI 分角色预算第一增量、AI 分模型预算第一增量、AI 提示词版本与输出防护第一增量、AI 外部告警发送器第一增量、AI 成本趋势第一增量、AI 真实外部渠道适配第一增量、AI 外部告警调度器第一增量、AI 外部告警重试/死信第一增量、AI 外部告警幂等/并发领取第一增量、AI 外部告警 webhook 签名/鉴权第一增量、AI 外部告警监控/运维可观察第一增量、AI 外部告警 outbox 列表/筛选第一增量、AI 外部告警失败/死信可见性第一增量、Task 8 readiness 终检报告第一增量、部署安全 / 环境变量 readiness 检查第一增量、验收矩阵机器可读缺口清单第一增量、生产端质量与返工汇总后端适配第一增量、生产端设备/物料异常/安环/成本/奖惩只读汇总第一增量、9D.55 到 9D.81 多个 readiness 与交付材料第一增量、9D.82 最新 PRD V2.0 差异对齐矩阵第一段、9D.83 患者管理基础版第一增量、9D.84 人工支付流水 / 收支记录第一增量，以及 9D.85 客户 / 诊所档案与偏好第一增量。最新版 PRD 已确认设备、物料、安环、成本、奖惩完整功能属于二期或超一期展示；下一步优先推进人员档案 / 工作量看板第一增量。
+当前目标是清理一期上线前硬缺口：已完成 readiness audit、OpenAPI 二次契约、Bearer 身份基线、后端权限守卫、数据库化 RBAC/DataScope 基础、权限注解/统一拦截器、订单/工序实例 DataScope SQL 第一增量、文件/协同/AI DataScope 扩展、菜单/部门/岗位/前端权限路由第一增量、生产鉴权启动门禁第一增量、Refresh Token/logout 第一增量、WebSocket 通知第一增量、通知未读/已读第一增量、通知实时前端/Redis 广播第一增量、医生订单工作台第一增量、医生下单/动态表单第一增量、客服初审第一增量、生产审核第一增量、生产任务入口第一增量、质检工时第一增量、绩效管理第一增量、生产看板第一增量、返工终检第一增量、Multipart 上传第一增量、本地恢复上传第一增量、服务端候选恢复第一增量、服务端候选恢复浏览器 smoke、上传中断后恢复浏览器 smoke、100MB+ 浏览器上传 smoke、医生订单草稿/补资料第一增量、动态表单 CRUD 第一增量、设计稿多文件多版本第一增量、终检发货拦截第一增量、真实 DeepSeek 接入第一增量、终检报告第一增量、返工关闭/责任分类第一增量、返工字典第一增量、返工通知联动第一增量、复杂返工影响范围第一增量、绩效归因联动第一增量、返工影响审计可视化第一增量、返工影响筛选第一增量、四入口登录页第一增量、绩效明细第一增量、绩效周期筛选第一段、文件上传限制与 bucket 隔离第一段、AI 调用限流第一增量、AI 成本审计第一增量、AI 模型重试第一增量、AI 模型失败审计第一增量、AI 治理摘要第一增量、AI 预算阈值第一增量、AI 预算超限审计第一增量、AI 预算超限内部通知第一增量、AI 预算通知策略开关第一增量、AI 预算熔断/降级第一增量、AI 预算外部告警待发送事实第一增量、AI 分角色预算第一增量、AI 分模型预算第一增量、AI 提示词版本与输出防护第一增量、AI 外部告警发送器第一增量、AI 成本趋势第一增量、AI 真实外部渠道适配第一增量、AI 外部告警调度器第一增量、AI 外部告警重试/死信第一增量、AI 外部告警幂等/并发领取第一增量、AI 外部告警 webhook 签名/鉴权第一增量、AI 外部告警监控/运维可观察第一增量、AI 外部告警 outbox 列表/筛选第一增量、AI 外部告警失败/死信可见性第一增量、Task 8 readiness 终检报告第一增量、部署安全 / 环境变量 readiness 检查第一增量、验收矩阵机器可读缺口清单第一增量、生产端质量与返工汇总后端适配第一增量、生产端设备/物料异常/安环/成本/奖惩只读汇总第一增量、9D.55 到 9D.81 多个 readiness 与交付材料第一增量、9D.82 最新 PRD V2.0 差异对齐矩阵第一段、9D.83 患者管理基础版第一增量、9D.84 人工支付流水 / 收支记录第一增量、9D.85 客户 / 诊所档案与偏好第一增量、9D.86 人员档案 / 工作量看板第一增量、9D.87 质量记录 CRUD / 外返登记第一增量、9D.88 客服订单 / 沟通完整可见性 smoke、9D.89 医生账户设置基础闭环、9D.90 产品参数 / 价格体系一期最小后台、9D.94 LangChain + DeepSeek AI 底座对齐第一增量。用户已确认设备 / 物料 / 安环 / 成本 / 奖惩属于一期开发功能；9D.95.1 已补设备台账 / 设备事件录入第一增量，9D.95.2 已补物料异常登记 / 处理状态第一增量，9D.95.3 已补安环巡检 / 隐患整改第一增量，9D.95.4 已补成本记录维护 / 趋势口径第一增量，9D.95.5 已补奖惩记录 / 审批状态第一增量，9D.96 已补医生提交前 AI-4 资料缺失自动触发体验，9D.97 已补 AI-2 客服查询引用数据说明 / 知识上下文补强，9D.98 已补 AI-5 生产备注客户模板 / 知识上下文补强第一增量；下一步优先推进真实客户 / PM 确认项与真实环境 AI 验收收口。
 
 当前计划已按 TRD V1.1 深度研究优化版和 2026-07 新版资料差异重排。任务 0、0.1、1、2、3、4、5A、5B、6、7、8A、8B、9A 已完成；9B.1 到 9B.8、9C.1 到 9C.3、9D.1 到 9D.25 第一增量已完成；任务 8 总体仍进行中，正式上线缺口未完成。
+
+任务 9D.95.5：奖惩记录 / 审批状态第一增量已完成。复用 `production_reward_penalty_record`，新增奖惩记录登记和审批状态更新接口，生产端新增“登记奖惩记录 / 更新审批状态”入口；本轮不作为工资发放结果，不做薪酬结算、绩效申诉闭环或复杂审批引擎。验收命令：`npm run check:task9d955`、`ProductionRewardPenaltySummaryTests`、OpenAPI、前端 build 和 acceptance。
+
+任务 9D.96：医生提交前 AI-4 资料缺失自动触发体验第一增量已完成。医生端提交订单 / 补资料前先保存草稿并自动调用 `/ai/check-missing`；若缺失必填资料，则展示“AI-4 资料缺失检查”和缺失项清单，阻断正式提交。验收命令：`npm run check:task9d96`、`npm run build:frontend`、`npm run acceptance`。
+
+任务 9D.97：AI-2 客服查询引用数据说明 / 知识上下文补强第一增量已完成。`/ai/cs-query` 响应新增 `reference_data_notes`，覆盖订单基础、生产上下文、沟通消息、附件、账单和物流只读来源说明；客服端 `/ai/cs` 展示“引用数据说明”。本轮不新增迁移、不接真实 DeepSeek key、不做 RAG / tool calling、不自动发送消息、不自动写入订单、生产备注或客服消息。验收命令：`npm run check:task9d97`、`AiGatewayTests#csQueryReturnsReferenceDataNotesForAuditableInternalSources`、`npm run check:openapi`、`npm run build:frontend`。
+
+任务 9D.98：AI-5 生产备注客户模板 / 知识上下文补强第一增量已完成。`/ai/production-note` 返回默认模板版本、知识上下文说明和客户模板未确认标记；`/ai/production-note/confirm` 只在 CS / WORKER / ADMIN 人工确认后追加写入 `production_note` 并审计；客服初审页新增 AI-5 草稿、上下文说明和确认写入入口。本轮不新增迁移、不接真实 DeepSeek key、不伪装真实客户模板或客户签字、不自动下发生产指令。验收命令：`npm run check:task9d98`、`AiGatewayTests#productionNoteDraftUsesDefaultTemplateAndHumanConfirmationWritesOrderNote`、`npm run check:openapi`、`npm run build:frontend`、`npm run acceptance`。
 
 2026-07-01 已确认新版 PRD/TRD/API 的默认对齐策略：以新资料为最新业务准绳，保留当前仓库已验证增量，OpenAPI 后续按“新版 API 业务口径 + 当前已实现增量”合并维护。草稿/补资料闭环、Refresh Token/logout、动态表单 CRUD 第一增量、设计稿多文件多版本第一增量、终检发货拦截第一增量、真实 DeepSeek 接入第一增量、终检报告第一增量、返工关闭/责任分类第一增量、返工字典第一增量、返工通知联动第一增量、复杂返工影响范围第一增量、绩效归因联动第一增量、返工影响审计可视化第一增量、返工影响筛选第一增量、四入口登录页第一增量、绩效明细第一增量和返工影响图形化第一增量已完成；后续优先级调整为：客服协同闭环 -> 设计稿确认闭环 / 账单物流闭环 -> 绩效与管理侧收口 -> 生产部署与弱网验收。
 
@@ -41,7 +49,7 @@
 - T6 / 9D.74 绩效标准工时与完整公式口径第一段已收口：绩效响应新增公式版本、标准工时覆盖率、缺失数量和默认绩效分，前端绩效页只读展示；本轮不做工资结算、申诉、导出或完整 HR。
 - 9D.75 正式鉴权与 DataScope 收口第一段已收口：新增 `APP_AUTH_ALLOW_ROLE_FALLBACK`，本地默认保留角色兜底，生产 profile / compose 固定关闭；严格模式下写了权限码的接口必须由 Bearer token 权限码放行，角色-only token 访问返回 403。
 - 9D.76 WebSocket / 通知生产验收第一段已收口：新增 `npm run check:task9d76`，一期 Nginx 同时代理 `/notifications` REST 和 `/ws/` WebSocket，避免生产前端通知中心落到 SPA fallback；检查脚本串联 compose Redis/后端依赖、Redis 广播代码路径、通知 REST 隔离/已读测试、WebSocket 脱敏测试和 Redis 远端广播测试。
-- 下一步增强：人员档案 / 工作量看板第一增量；9D.83 已补医生患者管理基础版，9D.84 已补人工支付流水，9D.85 已补客户 / 诊所档案与偏好，后续继续关闭不依赖真实外部服务的 PRD 一期本地缺口。
+- 下一步增强：客服配送管理页 / 物流异常跟进第一增量；9D.83 已补医生患者管理基础版，9D.84 已补人工支付流水，9D.85 已补客户 / 诊所档案与偏好，9D.86 已补人员档案 / 工作量看板，9D.87 已补质量记录 / 外返登记，9D.88 已补客服订单 / 沟通完整可见性 smoke，9D.89 已补医生账户设置基础闭环，9D.90 已补产品参数 / 价格体系一期最小后台，后续继续关闭不依赖真实外部服务的 PRD 一期本地缺口。
 - Task 8 仍是 `in-progress / NOT_READY`，不要因为 T1 完成就标记一期完成。
 
 ## 当前交接摘要
@@ -5325,7 +5333,7 @@ git diff --check
 
 完成记录：新增最新版 PRD V2.0 差异矩阵和机器检查，项目入口文档已改为以 `PRD V2.0 / 2026-07-04` 为当前一期基线。
 
-未完成原因：9D.82 只关闭文档基线和任务重排第一段；患者管理、人工支付流水、客户 / 诊所档案与偏好、人员档案、质量记录 CRUD / 外返登记仍未实现。Task 8 仍保持 NOT_READY。
+未完成原因：9D.82 只关闭文档基线和任务重排第一段；后续 9D.83 到 9D.87 已陆续补齐患者管理、人工支付流水、客户 / 诊所档案与偏好、人员档案和质量记录 / 外返登记第一增量；客服订单 / 沟通完整 smoke、医生账户设置、产品 / 价格体系和真实环境 / 客户确认项仍未完成。Task 8 仍保持 NOT_READY。
 
 ## 任务 9D.83：患者管理基础版第一增量
 
@@ -5427,3 +5435,531 @@ git diff --check
 
 - 9D.85 只关闭客户 / 诊所档案与偏好第一增量；客户开户审批、定价体系、真实客户导入、复杂 CRM 和客户 / PM 字段最终确认仍未完成。
 - Task 8 仍保持 NOT_READY。
+
+## 任务 9D.86：人员档案 / 工作量看板第一增量
+
+状态：completed-first-increment。
+
+目标：
+
+- 按最新版 PRD V2.0 补一期人员管理中的员工档案、岗位权限摘要和工作量监控第一段。
+- 复用既有 RuoYi 风格用户、部门、岗位、角色和工时 / 返工事实。
+- 让生产端和管理端人员入口从占位页接入真实接口。
+
+范围：
+
+- 新增 `/staff/workload` 只读接口。
+- 新增 `StaffWorkloadController`、`StaffWorkloadService`、`StaffWorkloadResponse`。
+- 新增 `StaffWorkloadTests`，覆盖 ADMIN 列表、WORKER 只读本人、DOCTOR 禁止访问。
+- 前端生产端 `/production/staff` 和管理端 `/admin/staff` 接入人员工作量表格。
+- OpenAPI、acceptance、readiness 和项目入口文档同步。
+
+非目标：
+
+- 不新增数据库迁移，不新建 HR 表。
+- 不做完整 HR、工资、排班、请假、绩效申诉、薪酬结算。
+- 不做岗位能力矩阵编辑、人员 CRUD、员工入离职流程或薪资字段。
+- 不返回 `password_hash`、token、真实薪酬、工资结算或客户隐私。
+
+验收结果：
+
+- 红灯：`StaffWorkloadTests` 在接口缺失时返回 `/staff/workload` 404；`scripts/check-task-9d86-staff-workload.mjs` 首次失败于缺少 staff 实现文件。
+- 绿灯：目标测试覆盖人员档案、部门岗位、角色、已分配节点、进行中节点、完成工时、有效工时、返工数和最近完工时间。
+
+未完成原因：
+
+- 9D.86 只关闭人员档案 / 工作量看板第一增量；完整 HR、人员 CRUD、岗位能力矩阵、薪酬结算、排班和绩效申诉均不纳入一期本轮。
+- Task 8 仍保持 NOT_READY。
+
+## 任务 9D.87：质量记录 CRUD / 外返登记第一增量
+
+状态：completed-first-increment。
+
+目标：
+
+- 按最新版 PRD V2.0 补专项质量管理中的质量记录和外返登记第一段。
+- 不新增数据库迁移，先复用既有检查记录和返工记录形成本地可验收闭环。
+- 让生产端质量页从占位入口接入真实质量汇总、外返质量记录列表和外返登记表单。
+
+范围：
+
+- 新增 `/quality-records` 和 `/quality-records/external-returns`。
+- 新增 `QualityRecordController`、`QualityRecordService`、`QualityRecordResponse` 和 `ExternalReturnQualityRecordRequest`。
+- 新增 `QualityRecordTests`，覆盖 CS 登记外返、列表筛选、外返计入质量汇总和 DOCTOR 禁止访问。
+- 前端 `/production/quality` 接入质量记录列表和外返登记。
+- OpenAPI、acceptance、readiness 和项目入口文档同步。
+
+非目标：
+
+- 不新增独立 `quality_record` 数据表或新迁移。
+- 不做完整质量状态工作流、编辑、删除、复杂质量复盘、投诉 / 退货系统。
+- 不把客户最终质量口径确认写成已完成。
+
+验收结果：
+
+- 红灯：`QualityRecordTests` 首次失败于 `/quality-records` 和 `/quality-records/external-returns` 404。
+- 绿灯：目标测试覆盖外返登记、列表筛选、质量汇总外返计数和医生端禁止访问。
+
+未完成原因：
+
+- 9D.87 只关闭质量记录 / 外返登记第一增量；完整独立质量记录事实表、状态工作流、编辑/删除和客户最终质量口径确认仍未完成。
+- Task 8 仍保持 NOT_READY。
+
+## 任务 9D.88：客服订单 / 沟通完整可见性 smoke
+
+状态：completed-first-increment。
+
+目标：
+
+- 按最新版 PRD V2.0 补客服订单管理和三方沟通的本地可见性 smoke。
+- 让客服待审核队列携带订单号、产品类型和医生端外部状态，避免只凭内部 `order_id` 审核消息。
+- 验证生产端发给医生的消息必须客服审核后才对医生可见，驳回后仍对医生隐藏并通知生产端。
+
+范围：
+
+- 扩展既有 `MessageResponse`，新增 `order_no`、`product_type`、`external_status`。
+- `CollaborationService` 查询消息时从 `orders` join 出订单上下文。
+- 补 `MessageDesignBillNotificationTests` 覆盖待审核队列订单上下文、驳回隐藏和驳回通知。
+- 前端客服协同页展示订单号、产品类型和外部状态。
+- OpenAPI、acceptance、readiness 和项目入口文档同步。
+
+非目标：
+
+- 不新增数据库迁移，不新建消息表。
+- 不做消息附件 URL 聚合、AI 自动审核、复杂客服工单或真实外部通知。
+- 不接真实 webhook、短信、邮件或企业微信。
+- 不把客户 / PM 确认项写成已完成。
+
+验收结果：
+
+- 红灯：`MessageDesignBillNotificationTests` 首次失败于 `/messages/pending-review` 响应缺少 `order_no`。
+- 绿灯：目标测试覆盖生产端消息待审核、客服队列订单上下文、驳回后医生不可见、生产端收到 `MESSAGE_REVIEW_REJECTED` 通知。
+
+未完成原因：
+
+- 9D.88 只关闭客服订单 / 沟通完整可见性 smoke 第一增量；消息附件、AI 客服查询完整入口、真实外部通知和客户 / PM 书面验收仍未完成。
+- Task 8 仍保持 NOT_READY；下一步推荐医生账户设置基础闭环。
+
+## 任务 9D.89：医生账户设置基础闭环
+
+状态：completed-first-increment。
+
+目标：
+
+- 按最新版 PRD V2.0 补医生账户设置第一段。
+- 支持医生本人维护姓名、邮箱、电话、收货地址、消息推送开关。
+- 支持医生使用当前密码修改登录密码。
+
+范围：
+
+- 新增 V33 非破坏性迁移，为 `system_user` 增加 `contact_email`、`contact_phone`、`shipping_address`、`notification_push_enabled`。
+- 新增 `/doctor/account/settings` GET/PUT 和 `/doctor/account/password`。
+- 新增 `DoctorAccountSettingsTests` 覆盖读写设置、修改密码、旧密码失效、新密码登录和 CS 禁止访问。
+- 前端医生账号面板新增 `/doctor/account/settings` 真实页面。
+- OpenAPI、acceptance、readiness 和项目入口文档同步。
+
+非目标：
+
+- 不接短信或邮箱真实验证。
+- 不做多地址簿、二次认证、登录记录审计或异常账号处理后台。
+- 不做完整 RuoYi 用户管理 UI。
+- 不把客户最终账户字段确认写成已完成。
+
+验收结果：
+
+- 红灯：`DoctorAccountSettingsTests` 首次失败于 `PasswordHashService` 缺少 `hash` 方法；补方法后目标接口从缺实现推进到绿灯。
+- 绿灯：目标测试覆盖医生本人设置读写、密码修改、旧密码登录失败、新密码登录成功和非医生访问 403。
+
+未完成原因：
+
+- 9D.89 只关闭医生账户设置基础闭环；真实短信/邮箱验证、多地址簿、二次认证、登录记录审计和客户最终字段确认仍未完成。
+- Task 8 仍保持 NOT_READY；下一步推荐产品参数 / 价格体系一期最小后台。
+
+## 任务 9D.90：产品参数 / 价格体系一期最小后台
+
+状态：completed-first-increment。
+
+目标：
+
+- 按最新版 PRD V2.0 补客服产品管理第一段。
+- 支持 CS / ADMIN 维护产品类型、产品名称、材料规格、人工基础价、币种、状态和价格备注。
+- 明确基础价为人工维护口径，不代表自动报价或最终结算。
+
+范围：
+
+- 新增 V34 非破坏性迁移 `V34__product_catalog_foundation.sql`，创建 `product_catalog`，补 `product:manage` 权限和菜单 seed。
+- 新增 `/products` GET/POST 和 `/products/{productId}` PUT。
+- 新增 `ProductCatalogTests` 覆盖创建、列表、更新、医生禁止读取内部价格和非法基础价拒绝。
+- 前端复用 `/system/form-configs` 产品管理页，上半区维护产品目录 / 基础价，下半区继续维护动态表单字段。
+- OpenAPI、acceptance、readiness 和项目入口文档同步。
+
+非目标：
+
+- 不做自动报价、客户分层价格、价格审批、价格历史生效规则、历史订单重算、账单重算或真实财务结算。
+- 不向医生端暴露内部基础价。
+- 不把客户 / PM 的价格字段最终确认写成已完成。
+
+验收结果：
+
+- 红灯：`ProductCatalogTests` 首次失败于 `/products` 404，确认产品目录接口缺口存在。
+- 绿灯：目标测试覆盖 CS 创建/查询、ADMIN 更新、医生禁止读取内部价格、非法基础价返回 400。
+
+未完成原因：
+
+- 9D.90 只关闭产品参数 / 价格体系一期最小后台；定价权限、客户分层价、自动报价、价格历史生效规则和客户 / PM 价格口径确认仍未完成。
+- Task 8 仍保持 NOT_READY；下一步推荐客服配送管理页 / 物流异常跟进第一增量。
+
+## 任务 9D.91：客服配送管理页 / 物流异常跟进第一增量
+
+状态：completed-first-increment。
+
+目标：
+
+- 按最新版 PRD V2.0 补客服配送管理第一段。
+- 支持 CS / ADMIN 查看配送订单列表，按物流状态筛选。
+- 支持客服人工标记物流异常、跟进中、已解决，并保留内部跟进说明。
+
+范围：
+
+- 不新增数据库迁移，复用 `order_logistics.logistics_status` 和 `order_message` 内部消息。
+- 新增 `/logistics/orders` 和 `/orders/{orderId}/logistics/exception`。
+- 扩展 `MessageDesignBillNotificationTests`，覆盖客服异常跟进、列表筛选、医生端不泄露内部说明和医生禁止写入。
+- 前端客服端 `/delivery` 从占位页改为配送管理页。
+- OpenAPI、acceptance、readiness 和项目入口文档同步。
+
+非目标：
+
+- 不接真实 DHL / FedEx / 顺丰 API。
+- 不做电子面单、自动轨迹同步、签收回调、物流平台 webhook、运费核算或客服工单系统。
+- 不把物流异常字段、外显文案和客户 / PM 最终确认写成已完成。
+
+验收结果：
+
+- 红灯：`MessageDesignBillNotificationTests#csCanTrackLogisticsExceptionsWithoutLeakingInternalFollowUpToDoctor` 首次失败于 `/orders/{orderId}/logistics/exception` 404。
+- 绿灯：目标测试覆盖 CS 更新异常状态、`/logistics/orders?logistics_status=EXCEPTION` 返回异常单、医生端物流详情不返回内部跟进说明且医生写入异常跟进 403。
+
+未完成原因：
+
+- 9D.91 只关闭客服配送管理页 / 物流异常跟进第一增量；真实物流 API、电子面单、自动轨迹同步、签收回调、物流平台 webhook、完整浏览器 smoke 和客户 / PM 物流口径确认仍未完成。
+- Task 8 仍保持 NOT_READY；下一步推荐 AI-2 客服查询助手完整入口第一增量。
+
+## 任务 9D.92：AI-2 客服查询助手完整入口第一增量
+
+状态：completed-first-increment。
+
+目标：
+
+- 按最新版 PRD V2.0 补客服沟通中心的 AI-2 客服查询入口第一段。
+- 让 CS / ADMIN 能在客服端 `/ai/cs` 输入订单 ID 和问题，调用既有 `/ai/cs-query`。
+- 明确 AI-2 输出是内部只读草稿，对外发送前需人工确认。
+
+范围：
+
+- 复用既有 `/ai/cs-query` 后端接口和 AI Gateway 审计能力。
+- 前端 `/ai/cs` 从占位页改为客服查询助手页。
+- 新增 `npm run check:task9d92` 静态检查。
+- acceptance、readiness 和项目入口文档同步。
+
+非目标：
+
+- 不新增后端接口、数据库迁移或依赖。
+- 不接真实 key，不改变 DeepSeek 默认关闭策略。
+- 不自动发送医生消息，不自动审核，不自动写入订单、生产备注或客服沟通记录。
+- 不把完整客服知识上下文、消息附件聚合或客户 / PM 最终确认写成已完成。
+
+验收结果：
+
+- 红灯：`npm run check:task9d92` 首次失败于前端缺少 `cs-ai-query-panel`。
+- 绿灯：静态检查覆盖 `/ai/cs` 真实入口、`/ai/cs-query` 调用、订单 ID / 问题输入、回答展示和人工确认提示。
+
+未完成原因：
+
+- 9D.92 只关闭 AI-2 客服查询助手完整入口第一增量；完整客服知识上下文、消息附件 / 文件预览聚合、真实 key 环境、浏览器联调记录和客户 / PM AI-2 口径确认仍未完成。
+- Task 8 仍保持 NOT_READY；随后已推进医生提交前 AI-4 资料缺失自动触发体验。
+
+## 任务 9D.93.1：PRD V2 范围纠偏第一闭环
+
+状态：completed-first-increment。
+
+目标：
+
+- 按用户最新确认纠偏 9D.93 范围口径。
+- 移除医生端独立“文件资料 / 医生文件”入口，避免把不属于需求范围的独立文件模块纳入一期验收。
+- 固定设备 / 物料 / 安环 / 成本 / 奖惩属于一期开发功能；当前 9D.50-9D.54 只读汇总只是第一增量，不足以 READY。
+- 固定所有 AI 智能体使用 LangChain + DeepSeek 实现；9D.94 已补 LangChain4j + DeepSeek 底座第一增量，仍需真实 key / 生产验收和后续 AI 功能闭环。
+
+范围：
+
+- 前端移除医生端 `doctor-files` / `/doctor/files` 独立入口和图标映射。
+- 更新 9D.36 静态检查与 smoke 点击入口，不再要求医生端“文件资料”模块。
+- 新增 `scripts/check-task-9d93-prd-v2-scope-rework.mjs` 和 `npm run check:task9d93`。
+- 回写 STATUS、DECISIONS、tasks、README、PRD V2 gap matrix、Task 8 acceptance、readiness 和 final readiness report。
+
+非目标：
+
+- 不新增后端接口。
+- 不新增数据库迁移。
+- 不删除既有设备 / 物料 / 安环 / 成本 / 奖惩已验证后端汇总代码。
+- 不实现 LangChain 服务或新增依赖。
+- 不在本轮实现设备 / 物料 / 安环 / 成本 / 奖惩完整 CRUD / 审批。
+
+验收结果：
+
+- 红灯：`npm run check:task9d93` 首次失败于 PRD V2 gap matrix 缺少“设备 / 物料 / 安环 / 成本 / 奖惩属于一期开发功能”。
+- 绿灯：`npm run check:task9d93` 覆盖医生端独立文件入口移除、设备 / 物料 / 安环 / 成本 / 奖惩一期口径、所有 AI 智能体使用 LangChain + DeepSeek 和项目文档回写。
+
+未完成原因：
+
+- 9D.93.1 只关闭目标口径纠偏，不实现完整业务功能。
+- LangChain + DeepSeek AI 底座对齐第一增量已由 9D.94 关闭，但真实 key / 生产联调、AI-2 知识上下文补强和 AI-4 提交前自动触发体验仍未完成。
+- Task 8 仍保持 NOT_READY；下一步推荐 9D.95.4 成本记录维护 / 趋势口径第一增量。
+
+## 任务 9D.95.3：安环巡检 / 隐患整改第一增量
+
+状态：completed-first-increment / PARTIAL。
+
+目标：
+
+- 把安环管理从 9D.52 只读汇总推进到一期最小人工登记 / 整改状态处理闭环。
+- 复用现有安环事件基础事实表，支持内部角色登记安全巡检、隐患整改、环境记录和 PPE / 设备安全提醒。
+- 保持医生端隔离，不暴露内部安环生产信息。
+
+范围：
+
+- 新增 `POST /production/safety-environment/events`，WORKER / ADMIN 可登记安环事件。
+- 新增 `PUT /production/safety-environment/events/{eventNo}/status`，WORKER / ADMIN 可更新 `PENDING / IN_PROGRESS / CLOSED` 整改状态。
+- 生产端安环管理页新增“登记安环事件”和“更新整改状态”最小表单，提交后刷新既有真实安环汇总。
+- 同步 OpenAPI、acceptance、Task 8 矩阵、readiness 和项目文档。
+
+非目标：
+
+- 不新增数据库迁移。
+- 不接真实环境采集硬件、PPE 发放系统或完整安环审批流。
+- 不做复查审批、整改历史、附件、关闭人审计或 IoT 采集。
+- 不把安环管理写成全部 READY。
+
+验收结果：
+
+- 红灯：`ProductionSafetyEnvironmentManagementTests` 首次失败于 `/production/safety-environment/events` 404，确认安环写入接口缺口。
+- 绿灯：`ProductionSafetyEnvironmentManagementTests` 覆盖 WORKER 登记安环事件、ADMIN 更新关闭整改状态、汇总变化和 DOCTOR 写入 / 更新 403。
+- 静态检查：`npm run check:task9d953` 覆盖后端、OpenAPI、前端入口、文档和 acceptance 回写。
+
+未完成原因：
+
+- 9D.95.3 只关闭安环巡检 / 隐患整改第一增量，不做复查审批、整改历史、附件、真实环境采集硬件、PPE 发放系统或完整安环审批流。
+- Task 8 仍保持 NOT_READY；下一步推荐 9D.95.4 成本记录维护 / 趋势口径第一增量。
+
+## 任务 9D.95.4：成本记录维护 / 趋势口径第一增量
+
+状态：completed-first-increment / PARTIAL。
+
+目标：
+
+- 把成本管理从 9D.53 只读汇总推进到一期最小人工记录维护闭环。
+- 复用现有成本记录基础事实表，支持内部角色登记工序、材料、人工、返工和外协成本。
+- 保持医生端隔离，不暴露内部成本和财务口径。
+
+范围：
+
+- 新增 `POST /production/cost-management/records`，WORKER / ADMIN 可登记成本记录。
+- 成本类型限定为 `PROCESS / MATERIAL / LABOR / REWORK / OUTSOURCING`，状态限定为 `NORMAL / WARNING / CONFIRMED`。
+- 生产端成本管理页新增“登记成本记录”最小表单，提交后刷新既有真实成本汇总。
+- 同步 OpenAPI、acceptance、Task 8 矩阵、readiness 和项目文档。
+
+非目标：
+
+- 不新增数据库迁移。
+- 不接真实财务系统、发票、付款、对账或自动成本分摊。
+- 不做成本编辑 / 删除、审批流、供应商结算或工资发放。
+- 不把成本管理写成全部 READY。
+
+验收结果：
+
+- 红灯：`ProductionCostSummaryTests` 首次失败于 `/production/cost-management/records` 404，确认成本写入接口缺口。
+- 绿灯：`ProductionCostSummaryTests` 覆盖 WORKER 登记成本记录、汇总随新增记录变化和 DOCTOR 写入 403。
+- 静态检查：`npm run check:task9d954` 覆盖后端、OpenAPI、前端入口、文档和 acceptance 回写。
+
+未完成原因：
+
+- 9D.95.4 只关闭成本记录人工维护第一增量，不做编辑删除、审批、真实财务系统、发票、付款、对账、自动成本分摊或供应商结算。
+- Task 8 仍保持 NOT_READY；随后已推进 9D.95.5 奖惩记录 / 审批状态第一增量。
+
+## 任务 9D.95.2：物料异常登记 / 处理状态第一增量
+
+状态：completed-first-increment / PARTIAL。
+
+目标：
+
+- 把物料异常从 9D.51 只读汇总推进到一期最小人工登记 / 状态处理闭环。
+- 复用现有物料异常基础事实表，支持内部角色登记缺料、错料、批次异常和材料损耗。
+- 保持医生端隔离，不暴露内部物料生产信息。
+
+范围：
+
+- 新增 `POST /production/material-exceptions`，WORKER / ADMIN 可登记物料异常。
+- 新增 `PUT /production/material-exceptions/{exceptionNo}/status`，WORKER / ADMIN 可更新 `PENDING / IN_PROGRESS / CLOSED` 处理状态。
+- 生产端物料异常页新增“登记物料异常”和“更新处理状态”最小表单，提交后刷新既有真实物料异常汇总。
+- 同步 OpenAPI、acceptance、Task 8 矩阵、readiness 和项目文档。
+
+非目标：
+
+- 不新增数据库迁移。
+- 不接库存扣减、采购补料、供应商协同或 WMS。
+- 不做完整库存系统、供应商履约、审批流、附件处理或采购闭环。
+- 不把物料异常管理写成全部 READY。
+
+验收结果：
+
+- 红灯：`ProductionMaterialExceptionManagementTests` 首次失败于 `/production/material-exceptions` 404，确认物料异常写入接口缺口。
+- 绿灯：`ProductionMaterialExceptionManagementTests` 覆盖 WORKER 登记物料异常、ADMIN 更新关闭状态、汇总变化和 DOCTOR 写入 / 更新 403。
+- 静态检查：`npm run check:task9d952` 覆盖后端、OpenAPI、前端入口、文档和 acceptance 回写。
+
+未完成原因：
+
+- 9D.95.2 只关闭物料异常登记 / 处理状态第一增量，不做编辑删除、处理历史、附件、库存扣减、采购补料、供应商协同或 WMS。
+- Task 8 仍保持 NOT_READY；下一步推荐 9D.95.3 安环巡检 / 隐患整改第一增量。
+
+## 任务 9D.95.1：设备台账 / 设备事件录入第一增量
+
+状态：completed-first-increment / PARTIAL。
+
+目标：
+
+- 把设备管理从 9D.50 只读汇总推进到一期最小人工录入闭环。
+- 复用现有设备台账和设备事件基础表，支持内部角色登记设备和设备事件。
+- 保持医生端隔离，不暴露内部设备生产信息。
+
+范围：
+
+- 新增 `POST /production/equipment`，WORKER / ADMIN 可登记设备台账。
+- 新增 `POST /production/equipment/{equipmentCode}/events`，WORKER / ADMIN 可登记保养计划、故障报修或停机事件。
+- 生产端设备管理页新增“登记设备”和“登记事件”最小表单，提交后刷新既有真实设备汇总。
+- 同步 OpenAPI、acceptance、Task 8 矩阵、readiness 和项目文档。
+
+非目标：
+
+- 不新增数据库迁移。
+- 不接 IoT、真实设备联网或现场采集。
+- 不做保养审批流、复杂设备履历、设备报废、备件库存或供应商维修协同。
+- 不把设备管理写成全部 READY。
+
+验收结果：
+
+- 红灯：`ProductionEquipmentManagementTests` 首次失败于 `/production/equipment` 404，确认设备写入接口缺口。
+- 绿灯：`ProductionEquipmentManagementTests` 覆盖 WORKER 登记设备、登记故障事件、汇总变化和 DOCTOR 写入 403。
+- 静态检查：`npm run check:task9d951` 覆盖后端、OpenAPI、前端入口、文档和 acceptance 回写。
+
+未完成原因：
+
+- 9D.95.1 只关闭设备台账 / 设备事件人工录入第一增量，不做设备编辑、事件状态更新、复杂审批、IoT 或真实设备联动。
+- Task 8 仍保持 NOT_READY；下一步推荐 9D.95.3 安环巡检 / 隐患整改第一增量。
+
+## 任务 9D.95：设备 / 物料 / 安环 / 成本 / 奖惩一期闭环拆解第一增量
+
+状态：completed-first-increment / PARTIAL。
+
+目标：
+
+- 把用户已确认属于一期开发功能的设备 / 物料 / 安环 / 成本 / 奖惩，从 9D.50-9D.54 只读汇总拆成后续可连续开发的小闭环。
+- 固定推荐实现顺序和非目标，避免后续误扩成 IoT、真实财务、工资发放或复杂审批平台。
+- 建立机器可检查入口：`npm run check:task9d95`。
+
+范围：
+
+- 新增 `docs/acceptance/phase-one-production-support-closure-plan.md`。
+- 新增 `scripts/check-task-9d95-production-support-closure-plan.mjs` 和 `check:task9d95`。
+- 回写 STATUS、DECISIONS、tasks、README、PROJECT、PRD V2 gap matrix、Task 8 acceptance、readiness、final readiness report 和 acceptance。
+
+非目标：
+
+- 不新增业务接口。
+- 不新增数据库迁移。
+- 不做 CRUD 实现。
+- 不接 IoT、真实财务系统、工资发放、复杂审批流或外部供应商协同。
+- 不把设备 / 物料 / 安环 / 成本 / 奖惩写成 READY。
+
+验收结果：
+
+- 红灯：`npm run check:task9d95` 首次失败于缺少 9D.95 拆解文档、项目文档回写和 acceptance 项。
+- 绿灯：`npm run check:task9d95` 覆盖拆解文档、五类模块、推荐实现顺序、非目标、文档回写和 acceptance 证据。
+
+未完成原因：
+
+- 9D.95 只关闭拆解第一增量，不实现五类模块的录入 / 编辑 / 处理状态 / 趋势闭环。
+- Task 8 仍保持 NOT_READY；下一步推荐 9D.95.3 安环巡检 / 隐患整改第一增量。
+
+## Codex Token 成本治理
+
+状态：completed-first-increment。
+
+目标：
+
+- 固定本项目后续 Codex 持续开发的 token 成本控制规则。
+- 提供本地只读审计命令，定位最大 session、大工具输出和高风险命令。
+- 避免长会话在多个业务闭环之间持续携带 15 万 token 以上上下文。
+
+范围：
+
+- 新增 `docs/development/codex-token-cost-control.md`。
+- 新增 `scripts/codex-token-report.mjs` 和 `npm run codex:token-report`。
+- 新增 `scripts/check-codex-token-cost-control.mjs` 和 `npm run check:codex-token-cost`。
+- 回写 `AGENTS.md`、`STATUS.md`、`DECISIONS.md`、`tasks/README.md` 和 `README.md`。
+
+非目标：
+
+- 不修改业务功能。
+- 不修改数据库、后端接口或前端页面。
+- 不改变 Task 8 的 `NOT_READY` 判断。
+- 不自动删除或压缩历史 session 文件。
+
+验收结果：
+
+- 红灯：`node scripts/check-codex-token-cost-control.mjs` 首次失败于缺少治理文档、审计脚本、package 命令和项目规则。
+- 绿灯：`npm run check:codex-token-cost` 覆盖治理文档、审计脚本、package 命令、AGENTS 规则和项目文档回写。
+
+后续使用：
+
+- 继续下一步前运行 `npm run codex:token-report`。
+- 如出现超阈值 warning，先做接力摘要并开新会话，再继续业务开发。
+
+SOP / Superpowers 分级启用：
+
+- 默认轻量模式：状态查询、下一步确认、简短方案、普通文档确认和 token 排查，只查必要片段，不展开完整 SOP，不生成 superpowers spec / plan。
+- 标准模式：明确实现、修复、落地、改代码、改验收脚本或项目文档回写时启用，使用必要 TDD / verification。
+- 重型模式：完整审查、上线前检查、PR 前检查、全量验收、长跑执行、复杂故障、安全 / 权限 / 生产 / 数据风险任务时启用；必须新会话开始并先运行 token report。
+
+## 任务 9D.94：LangChain + DeepSeek AI 底座对齐第一增量
+
+状态：completed-first-increment。
+
+目标：
+
+- 按用户确认把所有 AI 智能体的技术底座推进到 LangChain + DeepSeek 第一增量。
+- 保持本地 / CI 默认不外呼真实模型。
+- 让 AI-1 / AI-2 / AI-3 公开查询 / AI-5 在显式启用时经 LangChain4j 调用 DeepSeek。
+- 保持 AI-3 内部问题本地安全拒答，不进入 LangChain / DeepSeek。
+
+范围：
+
+- 新增 LangChain4j Maven 依赖。
+- 新增 `AI_PROVIDER=langchain-deepseek`、`AI_LANGCHAIN_ENABLED=false`、`AI_LANGCHAIN_PROVIDER=deepseek` 配置口径。
+- 新增 `LangChainDeepSeekAiModelClient`，旧 `AI_PROVIDER=deepseek` 直连路径继续兼容。
+- 新增 `npm run check:task9d94` 和目标后端测试。
+- 回写 STATUS、DECISIONS、tasks、README、acceptance 和 Task 8 / readiness 文档。
+
+非目标：
+
+- 不提交真实 DeepSeek key。
+- 不做真实生产环境联调。
+- 不实现流式输出、RAG、复杂多 agent 自动决策、工具调用、提示词后台管理或生产成本看板。
+- 不改变医生端脱敏、权限、DataScope 或 AI-3 安全拒答边界。
+
+验收结果：
+
+- 红灯：`npm run check:task9d94` 首次失败于缺少 LangChain4j 依赖、配置、客户端、目标测试和文档记录。
+- 绿灯：目标后端测试覆盖 `AI_PROVIDER=langchain-deepseek` 下 AI-1 / AI-2 / AI-3 公开查询 / AI-5 经 LangChain4j 调用 DeepSeek stub，AI-3 内部问题不外呼模型并返回安全拒答。
+
+未完成原因：
+
+- 9D.94 只关闭 LangChain + DeepSeek 底座第一增量；真实 key、真实生产环境、客户 / PM AI 验收、AI-2 知识上下文、AI-4 医生提交前自动触发、AI-5 客户模板、流式输出和 RAG 仍未完成。
+- Task 8 仍保持 NOT_READY；下一步推荐 9D.95.3 安环巡检 / 隐患整改第一增量。

@@ -2,6 +2,7 @@ package com.yuri.aiorder.common.auth;
 
 import java.nio.charset.StandardCharsets;
 import java.security.MessageDigest;
+import java.security.SecureRandom;
 import java.util.Base64;
 import javax.crypto.SecretKeyFactory;
 import javax.crypto.spec.PBEKeySpec;
@@ -14,6 +15,23 @@ public class PasswordHashService {
 
     private static final String FORMAT = "pbkdf2_sha256";
     private static final int KEY_LENGTH_BITS = 256;
+    private static final int DEFAULT_ITERATIONS = 120_000;
+    private static final int SALT_BYTES = 16;
+    private final SecureRandom secureRandom = new SecureRandom();
+
+    public String hash(String rawPassword) {
+        try {
+            byte[] salt = new byte[SALT_BYTES];
+            secureRandom.nextBytes(salt);
+            byte[] encoded = pbkdf2(rawPassword, salt, DEFAULT_ITERATIONS);
+            return FORMAT + "$"
+                    + DEFAULT_ITERATIONS + "$"
+                    + Base64.getEncoder().encodeToString(salt) + "$"
+                    + Base64.getEncoder().encodeToString(encoded);
+        } catch (Exception ex) {
+            throw new ResponseStatusException(HttpStatus.INTERNAL_SERVER_ERROR, "cannot hash password", ex);
+        }
+    }
 
     public boolean matches(String rawPassword, String storedHash) {
         String[] parts = storedHash == null ? new String[0] : storedHash.split("\\$", -1);

@@ -35,6 +35,24 @@ public class WorkflowExecutionService {
             REWORK_REASON_CATEGORY_TYPE,
             REWORK_RESPONSIBILITY_TYPE);
     private static final Set<String> REWORK_DICTIONARY_STATUS = Set.of("ACTIVE", "INACTIVE");
+    private static final Set<String> EQUIPMENT_STATUSES = Set.of("RUNNING", "IDLE", "MAINTENANCE", "FAULT");
+    private static final Set<String> EQUIPMENT_EVENT_TYPES = Set.of("MAINTENANCE_PLAN", "FAULT_REPAIR", "DOWNTIME");
+    private static final Set<String> EQUIPMENT_EVENT_STATUSES = Set.of("PENDING", "IN_PROGRESS", "DONE");
+    private static final Set<String> MATERIAL_EXCEPTION_TYPES = Set.of(
+            "SHORTAGE", "WRONG_MATERIAL", "BATCH_ABNORMAL", "MATERIAL_LOSS");
+    private static final Set<String> MATERIAL_EXCEPTION_STATUSES = Set.of("PENDING", "IN_PROGRESS", "CLOSED");
+    private static final Set<String> SAFETY_ENVIRONMENT_EVENT_TYPES = Set.of(
+            "SAFETY_INSPECTION", "HAZARD_RECTIFICATION", "ENVIRONMENT_RECORD", "PPE_DEVICE_REMINDER");
+    private static final Set<String> SAFETY_ENVIRONMENT_EVENT_STATUSES = Set.of("PENDING", "IN_PROGRESS", "CLOSED");
+    private static final Set<String> SAFETY_ENVIRONMENT_RISK_LEVELS = Set.of("NORMAL", "HIGH", "CRITICAL");
+    private static final Set<String> PRODUCTION_COST_TYPES = Set.of(
+            "PROCESS", "MATERIAL", "LABOR", "REWORK", "OUTSOURCING");
+    private static final Set<String> PRODUCTION_COST_STATUSES = Set.of("NORMAL", "WARNING", "CONFIRMED");
+    private static final Set<String> PRODUCTION_REWARD_PENALTY_TYPES = Set.of("REWARD", "PENALTY");
+    private static final Set<String> PRODUCTION_REWARD_PENALTY_STATUSES = Set.of(
+            "PENDING", "APPROVED", "REJECTED", "EFFECTIVE");
+    private static final Set<String> PRODUCTION_REWARD_PENALTY_REASON_CATEGORIES = Set.of(
+            "QUALITY", "EFFICIENCY", "DISCIPLINE", "SAFETY", "CUSTOMER_FEEDBACK");
 
     private final JdbcClient jdbcClient;
     private final AccessControlService accessControlService;
@@ -418,6 +436,57 @@ public class WorkflowExecutionService {
                 LocalDateTime.now());
     }
 
+    @Transactional
+    public ProductionEquipmentResponse createProductionEquipment(
+            ProductionEquipmentRequest request, BootstrapIdentity identity) {
+        requireProductionEquipmentWrite(identity);
+        EquipmentInput input = normalizeProductionEquipment(request);
+        try {
+            jdbcClient.sql("""
+                            INSERT INTO production_equipment
+                                (equipment_code, equipment_name, equipment_type, department_name,
+                                 status, owner_user_id, utilization_rate)
+                            VALUES
+                                (:equipmentCode, :equipmentName, :equipmentType, :departmentName,
+                                 :status, :ownerUserId, :utilizationRate)
+                            """)
+                    .param("equipmentCode", input.equipmentCode())
+                    .param("equipmentName", input.equipmentName())
+                    .param("equipmentType", input.equipmentType())
+                    .param("departmentName", input.departmentName())
+                    .param("status", input.status())
+                    .param("ownerUserId", identity.userId())
+                    .param("utilizationRate", input.utilizationRate())
+                    .update();
+        } catch (DuplicateKeyException ex) {
+            throw new ResponseStatusException(HttpStatus.CONFLICT, "equipment_code already exists", ex);
+        }
+        return loadProductionEquipment(lastInsertId());
+    }
+
+    @Transactional
+    public ProductionEquipmentEventResponse createProductionEquipmentEvent(
+            String equipmentCode, ProductionEquipmentEventRequest request, BootstrapIdentity identity) {
+        requireProductionEquipmentWrite(identity);
+        String normalizedEquipmentCode = normalizeEquipmentCode(equipmentCode);
+        EquipmentEventInput input = normalizeProductionEquipmentEvent(request);
+        long equipmentId = findEquipmentIdByCode(normalizedEquipmentCode);
+        jdbcClient.sql("""
+                        INSERT INTO production_equipment_event
+                            (equipment_id, event_type, status, downtime_minutes, description, resolved_at)
+                        VALUES
+                            (:equipmentId, :eventType, :status, :downtimeMinutes, :description, :resolvedAt)
+                        """)
+                .param("equipmentId", equipmentId)
+                .param("eventType", input.eventType())
+                .param("status", input.status())
+                .param("downtimeMinutes", input.downtimeMinutes())
+                .param("description", input.description())
+                .param("resolvedAt", "DONE".equals(input.status()) ? LocalDateTime.now() : null)
+                .update();
+        return loadProductionEquipmentEvent(lastInsertId());
+    }
+
     public ProductionMaterialExceptionSummaryResponse getProductionMaterialExceptionSummary(
             String exceptionNoPrefix, BootstrapIdentity identity) {
         accessControlService.requireCheckRecordRead(identity);
@@ -474,6 +543,65 @@ public class WorkflowExecutionService {
                 summary.responsibilityAssignedCount(),
                 summary.totalLossQuantity(),
                 LocalDateTime.now());
+    }
+
+    @Transactional
+    public ProductionMaterialExceptionResponse createProductionMaterialException(
+            ProductionMaterialExceptionRequest request, BootstrapIdentity identity) {
+        requireProductionMaterialExceptionWrite(identity);
+        MaterialExceptionInput input = normalizeProductionMaterialException(request);
+        try {
+            jdbcClient.sql("""
+                            INSERT INTO production_material_exception
+                                (exception_no, material_code, material_name, order_id, node_instance_id,
+                                 exception_type, status, responsibility_owner, loss_quantity, description, closed_at)
+                            VALUES
+                                (:exceptionNo, :materialCode, :materialName, :orderId, :nodeInstanceId,
+                                 :exceptionType, :status, :responsibilityOwner, :lossQuantity, :description, :closedAt)
+                            """)
+                    .param("exceptionNo", input.exceptionNo())
+                    .param("materialCode", input.materialCode())
+                    .param("materialName", input.materialName())
+                    .param("orderId", input.orderId())
+                    .param("nodeInstanceId", input.nodeInstanceId())
+                    .param("exceptionType", input.exceptionType())
+                    .param("status", input.status())
+                    .param("responsibilityOwner", input.responsibilityOwner())
+                    .param("lossQuantity", input.lossQuantity())
+                    .param("description", input.description())
+                    .param("closedAt", "CLOSED".equals(input.status()) ? LocalDateTime.now() : null)
+                    .update();
+        } catch (DuplicateKeyException ex) {
+            throw new ResponseStatusException(HttpStatus.CONFLICT, "exception_no already exists", ex);
+        }
+        return loadProductionMaterialException(lastInsertId());
+    }
+
+    @Transactional
+    public ProductionMaterialExceptionResponse updateProductionMaterialExceptionStatus(
+            String exceptionNo, ProductionMaterialExceptionStatusRequest request, BootstrapIdentity identity) {
+        requireProductionMaterialExceptionWrite(identity);
+        String normalizedExceptionNo = normalizeExceptionNo(exceptionNo);
+        String normalizedStatus = normalizeMaterialExceptionStatus(request.status());
+        String responsibilityOwner = blankToNull(request.responsibilityOwner());
+        String description = normalizeOptionalDescription(request.description());
+        int updated = jdbcClient.sql("""
+                        UPDATE production_material_exception
+                        SET status = :status,
+                            responsibility_owner = COALESCE(:responsibilityOwner, responsibility_owner),
+                            description = COALESCE(:description, description),
+                            closed_at = CASE WHEN :status = 'CLOSED' THEN CURRENT_TIMESTAMP(3) ELSE NULL END
+                        WHERE exception_no = :exceptionNo
+                        """)
+                .param("exceptionNo", normalizedExceptionNo)
+                .param("status", normalizedStatus)
+                .param("responsibilityOwner", responsibilityOwner)
+                .param("description", description)
+                .update();
+        if (updated == 0) {
+            throw new ResponseStatusException(HttpStatus.NOT_FOUND, "material exception not found");
+        }
+        return loadProductionMaterialException(normalizedExceptionNo);
     }
 
     public ProductionSafetyEnvironmentSummaryResponse getProductionSafetyEnvironmentSummary(
@@ -538,6 +666,64 @@ public class WorkflowExecutionService {
                 LocalDateTime.now());
     }
 
+    @Transactional
+    public ProductionSafetyEnvironmentEventResponse createProductionSafetyEnvironmentEvent(
+            ProductionSafetyEnvironmentEventRequest request, BootstrapIdentity identity) {
+        requireProductionSafetyEnvironmentWrite(identity);
+        SafetyEnvironmentEventInput input = normalizeProductionSafetyEnvironmentEvent(request);
+        try {
+            jdbcClient.sql("""
+                            INSERT INTO production_safety_event
+                                (event_no, event_type, status, department_name, responsible_owner,
+                                 equipment_code, risk_level, due_at, description, closed_at)
+                            VALUES
+                                (:eventNo, :eventType, :status, :departmentName, :responsibleOwner,
+                                 :equipmentCode, :riskLevel, :dueAt, :description, :closedAt)
+                            """)
+                    .param("eventNo", input.eventNo())
+                    .param("eventType", input.eventType())
+                    .param("status", input.status())
+                    .param("departmentName", input.departmentName())
+                    .param("responsibleOwner", input.responsibleOwner())
+                    .param("equipmentCode", input.equipmentCode())
+                    .param("riskLevel", input.riskLevel())
+                    .param("dueAt", input.dueAt())
+                    .param("description", input.description())
+                    .param("closedAt", "CLOSED".equals(input.status()) ? LocalDateTime.now() : null)
+                    .update();
+        } catch (DuplicateKeyException ex) {
+            throw new ResponseStatusException(HttpStatus.CONFLICT, "event_no already exists", ex);
+        }
+        return loadProductionSafetyEnvironmentEvent(lastInsertId());
+    }
+
+    @Transactional
+    public ProductionSafetyEnvironmentEventResponse updateProductionSafetyEnvironmentEventStatus(
+            String eventNo, ProductionSafetyEnvironmentEventStatusRequest request, BootstrapIdentity identity) {
+        requireProductionSafetyEnvironmentWrite(identity);
+        String normalizedEventNo = normalizeSafetyEnvironmentEventNo(eventNo);
+        String normalizedStatus = normalizeSafetyEnvironmentEventStatus(request.status());
+        String responsibleOwner = blankToNull(request.responsibleOwner());
+        String description = normalizeOptionalDescription(request.description());
+        int updated = jdbcClient.sql("""
+                        UPDATE production_safety_event
+                        SET status = :status,
+                            responsible_owner = COALESCE(:responsibleOwner, responsible_owner),
+                            description = COALESCE(:description, description),
+                            closed_at = CASE WHEN :status = 'CLOSED' THEN CURRENT_TIMESTAMP(3) ELSE NULL END
+                        WHERE event_no = :eventNo
+                        """)
+                .param("eventNo", normalizedEventNo)
+                .param("status", normalizedStatus)
+                .param("responsibleOwner", responsibleOwner)
+                .param("description", description)
+                .update();
+        if (updated == 0) {
+            throw new ResponseStatusException(HttpStatus.NOT_FOUND, "safety event not found");
+        }
+        return loadProductionSafetyEnvironmentEvent(normalizedEventNo);
+    }
+
     public ProductionCostSummaryResponse getProductionCostSummary(String costNoPrefix, BootstrapIdentity identity) {
         accessControlService.requireCheckRecordRead(identity);
         String normalizedPrefix = blankToNull(costNoPrefix);
@@ -586,6 +772,37 @@ public class WorkflowExecutionService {
                 summary.outsourcingCostAmount(),
                 summary.abnormalWarningCount(),
                 LocalDateTime.now());
+    }
+
+    @Transactional
+    public ProductionCostRecordResponse createProductionCostRecord(
+            ProductionCostRecordRequest request, BootstrapIdentity identity) {
+        requireProductionCostWrite(identity);
+        CostRecordInput input = normalizeProductionCostRecord(request);
+        try {
+            jdbcClient.sql("""
+                            INSERT INTO production_cost_record
+                                (cost_no, order_id, node_instance_id, cost_type, amount, status,
+                                 department_name, supplier_name, description, confirmed_at)
+                            VALUES
+                                (:costNo, :orderId, :nodeInstanceId, :costType, :amount, :status,
+                                 :departmentName, :supplierName, :description, :confirmedAt)
+                            """)
+                    .param("costNo", input.costNo())
+                    .param("orderId", input.orderId())
+                    .param("nodeInstanceId", input.nodeInstanceId())
+                    .param("costType", input.costType())
+                    .param("amount", input.amount())
+                    .param("status", input.status())
+                    .param("departmentName", input.departmentName())
+                    .param("supplierName", input.supplierName())
+                    .param("description", input.description())
+                    .param("confirmedAt", "CONFIRMED".equals(input.status()) ? LocalDateTime.now() : null)
+                    .update();
+        } catch (DuplicateKeyException ex) {
+            throw new ResponseStatusException(HttpStatus.CONFLICT, "cost_no already exists", ex);
+        }
+        return loadProductionCostRecord(lastInsertId());
     }
 
     public ProductionRewardPenaltySummaryResponse getProductionRewardPenaltySummary(
@@ -649,6 +866,72 @@ public class WorkflowExecutionService {
                 summary.relatedEmployeeCount(),
                 summary.monthlyAmount(),
                 LocalDateTime.now());
+    }
+
+    @Transactional
+    public ProductionRewardPenaltyRecordResponse createProductionRewardPenaltyRecord(
+            ProductionRewardPenaltyRecordRequest request, BootstrapIdentity identity) {
+        requireProductionRewardPenaltyWrite(identity);
+        RewardPenaltyRecordInput input = normalizeProductionRewardPenaltyRecord(request);
+        try {
+            jdbcClient.sql("""
+                            INSERT INTO production_reward_penalty_record
+                                (record_no, record_type, reason_category, amount, status,
+                                 order_id, node_instance_id, employee_user_id, approver_user_id,
+                                 department_name, description, approved_at, effective_at)
+                            VALUES
+                                (:recordNo, :recordType, :reasonCategory, :amount, :status,
+                                 :orderId, :nodeInstanceId, :employeeUserId, :approverUserId,
+                                 :departmentName, :description, :approvedAt, :effectiveAt)
+                            """)
+                    .param("recordNo", input.recordNo())
+                    .param("recordType", input.recordType())
+                    .param("reasonCategory", input.reasonCategory())
+                    .param("amount", input.amount())
+                    .param("status", input.status())
+                    .param("orderId", input.orderId())
+                    .param("nodeInstanceId", input.nodeInstanceId())
+                    .param("employeeUserId", input.employeeUserId())
+                    .param("approverUserId", isApprovedRewardPenaltyStatus(input.status()) ? identity.userId() : null)
+                    .param("departmentName", input.departmentName())
+                    .param("description", input.description())
+                    .param("approvedAt", isApprovedRewardPenaltyStatus(input.status()) ? LocalDateTime.now() : null)
+                    .param("effectiveAt", "EFFECTIVE".equals(input.status()) ? LocalDateTime.now() : null)
+                    .update();
+        } catch (DuplicateKeyException ex) {
+            throw new ResponseStatusException(HttpStatus.CONFLICT, "record_no already exists", ex);
+        }
+        return loadProductionRewardPenaltyRecord(lastInsertId());
+    }
+
+    @Transactional
+    public ProductionRewardPenaltyRecordResponse updateProductionRewardPenaltyRecordStatus(
+            String recordNo, ProductionRewardPenaltyStatusRequest request, BootstrapIdentity identity) {
+        requireProductionRewardPenaltyWrite(identity);
+        String normalizedRecordNo = normalizeRewardPenaltyRecordNo(recordNo);
+        String status = normalizeProductionRewardPenaltyStatus(request.status());
+        String description = normalizeOptionalDescription(request.description());
+        LocalDateTime now = LocalDateTime.now();
+        int updated = jdbcClient.sql("""
+                        UPDATE production_reward_penalty_record
+                        SET status = :status,
+                            description = COALESCE(:description, description),
+                            approver_user_id = :approverUserId,
+                            approved_at = :approvedAt,
+                            effective_at = :effectiveAt
+                        WHERE record_no = :recordNo
+                        """)
+                .param("status", status)
+                .param("description", description)
+                .param("approverUserId", identity.userId())
+                .param("approvedAt", isApprovedRewardPenaltyStatus(status) ? now : null)
+                .param("effectiveAt", "EFFECTIVE".equals(status) ? now : null)
+                .param("recordNo", normalizedRecordNo)
+                .update();
+        if (updated == 0) {
+            throw new ResponseStatusException(HttpStatus.NOT_FOUND, "reward penalty record not found");
+        }
+        return loadProductionRewardPenaltyRecord(normalizedRecordNo);
     }
 
     @Transactional
@@ -1612,6 +1895,589 @@ public class WorkflowExecutionService {
                 identity, workLog.workerUserId(), "worker cannot operate this work log");
     }
 
+    private void requireProductionEquipmentWrite(BootstrapIdentity identity) {
+        accessControlService.requireAnyRole(
+                identity, Set.of(com.yuri.aiorder.common.UserRole.ADMIN, com.yuri.aiorder.common.UserRole.WORKER),
+                "production equipment write requires ADMIN or WORKER role");
+    }
+
+    private void requireProductionMaterialExceptionWrite(BootstrapIdentity identity) {
+        accessControlService.requireAnyRole(
+                identity, Set.of(com.yuri.aiorder.common.UserRole.ADMIN, com.yuri.aiorder.common.UserRole.WORKER),
+                "production material exception write requires ADMIN or WORKER role");
+    }
+
+    private void requireProductionSafetyEnvironmentWrite(BootstrapIdentity identity) {
+        accessControlService.requireAnyRole(
+                identity, Set.of(com.yuri.aiorder.common.UserRole.ADMIN, com.yuri.aiorder.common.UserRole.WORKER),
+                "production safety environment write requires ADMIN or WORKER role");
+    }
+
+    private void requireProductionCostWrite(BootstrapIdentity identity) {
+        accessControlService.requireAnyRole(
+                identity, Set.of(com.yuri.aiorder.common.UserRole.ADMIN, com.yuri.aiorder.common.UserRole.WORKER),
+                "production cost write requires ADMIN or WORKER role");
+    }
+
+    private void requireProductionRewardPenaltyWrite(BootstrapIdentity identity) {
+        accessControlService.requireAnyRole(
+                identity, Set.of(com.yuri.aiorder.common.UserRole.ADMIN, com.yuri.aiorder.common.UserRole.WORKER),
+                "production reward penalty write requires ADMIN or WORKER role");
+    }
+
+    private EquipmentInput normalizeProductionEquipment(ProductionEquipmentRequest request) {
+        return new EquipmentInput(
+                normalizeEquipmentCode(request.equipmentCode()),
+                normalizeRequired(request.equipmentName(), "equipment_name"),
+                normalizeCodeValue(request.equipmentType(), "equipment_type"),
+                blankToNull(request.departmentName()),
+                normalizeEquipmentStatus(request.status()),
+                normalizeUtilizationRate(request.utilizationRate()));
+    }
+
+    private EquipmentEventInput normalizeProductionEquipmentEvent(ProductionEquipmentEventRequest request) {
+        String description = blankToNull(request.description());
+        if (description != null && description.length() > 512) {
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "description must be at most 512 characters");
+        }
+        return new EquipmentEventInput(
+                normalizeEquipmentEventType(request.eventType()),
+                normalizeEquipmentEventStatus(request.status()),
+                normalizeDowntimeMinutes(request.downtimeMinutes()),
+                description);
+    }
+
+    private String normalizeEquipmentCode(String value) {
+        String normalized = normalizeCodeValue(value, "equipment_code");
+        if (normalized.length() > 64) {
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "equipment_code must be at most 64 characters");
+        }
+        return normalized;
+    }
+
+    private String normalizeCodeValue(String value, String fieldName) {
+        String normalized = normalizeRequired(value, fieldName).toUpperCase(Locale.ROOT);
+        if (!normalized.matches("[A-Z0-9_\\-]{2,64}")) {
+            throw new ResponseStatusException(
+                    HttpStatus.BAD_REQUEST, fieldName + " must use A-Z, 0-9, underscore or hyphen");
+        }
+        return normalized;
+    }
+
+    private String normalizeEquipmentStatus(String value) {
+        String normalized = value == null || value.isBlank() ? "IDLE" : value.trim().toUpperCase(Locale.ROOT);
+        if (!EQUIPMENT_STATUSES.contains(normalized)) {
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "unsupported equipment status");
+        }
+        return normalized;
+    }
+
+    private String normalizeEquipmentEventType(String value) {
+        String normalized = normalizeRequired(value, "event_type").toUpperCase(Locale.ROOT);
+        if (!EQUIPMENT_EVENT_TYPES.contains(normalized)) {
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "unsupported equipment event type");
+        }
+        return normalized;
+    }
+
+    private String normalizeEquipmentEventStatus(String value) {
+        String normalized = value == null || value.isBlank() ? "PENDING" : value.trim().toUpperCase(Locale.ROOT);
+        if (!EQUIPMENT_EVENT_STATUSES.contains(normalized)) {
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "unsupported equipment event status");
+        }
+        return normalized;
+    }
+
+    private double normalizeUtilizationRate(Double value) {
+        double normalized = value == null ? 0.0 : value;
+        if (normalized < 0.0 || normalized > 100.0) {
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "utilization_rate must be between 0 and 100");
+        }
+        return BigDecimal.valueOf(normalized).setScale(1, RoundingMode.HALF_UP).doubleValue();
+    }
+
+    private int normalizeDowntimeMinutes(Integer value) {
+        int normalized = value == null ? 0 : value;
+        if (normalized < 0) {
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "downtime_minutes cannot be negative");
+        }
+        return normalized;
+    }
+
+    private ProductionEquipmentResponse loadProductionEquipment(long equipmentId) {
+        try {
+            return jdbcClient.sql("""
+                            SELECT equipment_id, equipment_code, equipment_name, equipment_type, department_name,
+                                   status, owner_user_id, utilization_rate, last_maintenance_at,
+                                   next_maintenance_at, created_at, updated_at
+                            FROM production_equipment
+                            WHERE equipment_id = :equipmentId
+                            """)
+                    .param("equipmentId", equipmentId)
+                    .query(this::mapProductionEquipment)
+                    .single();
+        } catch (EmptyResultDataAccessException ex) {
+            throw new ResponseStatusException(HttpStatus.NOT_FOUND, "equipment not found", ex);
+        }
+    }
+
+    private long findEquipmentIdByCode(String equipmentCode) {
+        return jdbcClient.sql("""
+                        SELECT equipment_id
+                        FROM production_equipment
+                        WHERE equipment_code = :equipmentCode
+                        """)
+                .param("equipmentCode", equipmentCode)
+                .query(Long.class)
+                .optional()
+                .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "equipment not found"));
+    }
+
+    private ProductionEquipmentEventResponse loadProductionEquipmentEvent(long eventId) {
+        try {
+            return jdbcClient.sql("""
+                            SELECT ev.event_id, ev.equipment_id, e.equipment_code, ev.event_type, ev.status,
+                                   ev.downtime_minutes, ev.description, ev.created_at, ev.resolved_at
+                            FROM production_equipment_event ev
+                            JOIN production_equipment e ON e.equipment_id = ev.equipment_id
+                            WHERE ev.event_id = :eventId
+                            """)
+                    .param("eventId", eventId)
+                    .query(this::mapProductionEquipmentEvent)
+                    .single();
+        } catch (EmptyResultDataAccessException ex) {
+            throw new ResponseStatusException(HttpStatus.NOT_FOUND, "equipment event not found", ex);
+        }
+    }
+
+    private ProductionEquipmentResponse mapProductionEquipment(
+            java.sql.ResultSet rs, int rowNum) throws java.sql.SQLException {
+        return new ProductionEquipmentResponse(
+                rs.getLong("equipment_id"),
+                rs.getString("equipment_code"),
+                rs.getString("equipment_name"),
+                rs.getString("equipment_type"),
+                rs.getString("department_name"),
+                rs.getString("status"),
+                rs.getObject("owner_user_id", Long.class),
+                roundedDecimal(rs.getBigDecimal("utilization_rate")),
+                rs.getObject("last_maintenance_at", LocalDateTime.class),
+                rs.getObject("next_maintenance_at", LocalDateTime.class),
+                rs.getObject("created_at", LocalDateTime.class),
+                rs.getObject("updated_at", LocalDateTime.class));
+    }
+
+    private ProductionEquipmentEventResponse mapProductionEquipmentEvent(
+            java.sql.ResultSet rs, int rowNum) throws java.sql.SQLException {
+        return new ProductionEquipmentEventResponse(
+                rs.getLong("event_id"),
+                rs.getLong("equipment_id"),
+                rs.getString("equipment_code"),
+                rs.getString("event_type"),
+                rs.getString("status"),
+                rs.getInt("downtime_minutes"),
+                rs.getString("description"),
+                rs.getObject("created_at", LocalDateTime.class),
+                rs.getObject("resolved_at", LocalDateTime.class));
+    }
+
+    private MaterialExceptionInput normalizeProductionMaterialException(ProductionMaterialExceptionRequest request) {
+        return new MaterialExceptionInput(
+                normalizeExceptionNo(request.exceptionNo()),
+                normalizeCodeValue(request.materialCode(), "material_code"),
+                normalizeRequired(request.materialName(), "material_name"),
+                request.orderId(),
+                request.nodeInstanceId(),
+                normalizeMaterialExceptionType(request.exceptionType()),
+                normalizeMaterialExceptionStatus(request.status()),
+                blankToNull(request.responsibilityOwner()),
+                normalizeLossQuantity(request.lossQuantity()),
+                normalizeOptionalDescription(request.description()));
+    }
+
+    private String normalizeExceptionNo(String value) {
+        String normalized = normalizeCodeValue(value, "exception_no");
+        if (normalized.length() > 64) {
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "exception_no must be at most 64 characters");
+        }
+        return normalized;
+    }
+
+    private String normalizeMaterialExceptionType(String value) {
+        String normalized = normalizeRequired(value, "exception_type").toUpperCase(Locale.ROOT);
+        if (!MATERIAL_EXCEPTION_TYPES.contains(normalized)) {
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "unsupported material exception type");
+        }
+        return normalized;
+    }
+
+    private String normalizeMaterialExceptionStatus(String value) {
+        String normalized = value == null || value.isBlank() ? "PENDING" : value.trim().toUpperCase(Locale.ROOT);
+        if (!MATERIAL_EXCEPTION_STATUSES.contains(normalized)) {
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "unsupported material exception status");
+        }
+        return normalized;
+    }
+
+    private BigDecimal normalizeLossQuantity(BigDecimal value) {
+        BigDecimal normalized = value == null ? BigDecimal.ZERO : value;
+        if (normalized.compareTo(BigDecimal.ZERO) < 0) {
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "loss_quantity cannot be negative");
+        }
+        return normalized.setScale(2, RoundingMode.HALF_UP);
+    }
+
+    private String normalizeOptionalDescription(String value) {
+        String normalized = blankToNull(value);
+        if (normalized != null && normalized.length() > 512) {
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "description must be at most 512 characters");
+        }
+        return normalized;
+    }
+
+    private ProductionMaterialExceptionResponse loadProductionMaterialException(long exceptionId) {
+        try {
+            return jdbcClient.sql("""
+                            SELECT exception_id, exception_no, material_code, material_name, order_id, node_instance_id,
+                                   exception_type, status, responsibility_owner, loss_quantity, description,
+                                   created_at, updated_at, closed_at
+                            FROM production_material_exception
+                            WHERE exception_id = :exceptionId
+                            """)
+                    .param("exceptionId", exceptionId)
+                    .query(this::mapProductionMaterialException)
+                    .single();
+        } catch (EmptyResultDataAccessException ex) {
+            throw new ResponseStatusException(HttpStatus.NOT_FOUND, "material exception not found", ex);
+        }
+    }
+
+    private ProductionMaterialExceptionResponse loadProductionMaterialException(String exceptionNo) {
+        try {
+            return jdbcClient.sql("""
+                            SELECT exception_id, exception_no, material_code, material_name, order_id, node_instance_id,
+                                   exception_type, status, responsibility_owner, loss_quantity, description,
+                                   created_at, updated_at, closed_at
+                            FROM production_material_exception
+                            WHERE exception_no = :exceptionNo
+                            """)
+                    .param("exceptionNo", exceptionNo)
+                    .query(this::mapProductionMaterialException)
+                    .single();
+        } catch (EmptyResultDataAccessException ex) {
+            throw new ResponseStatusException(HttpStatus.NOT_FOUND, "material exception not found", ex);
+        }
+    }
+
+    private ProductionMaterialExceptionResponse mapProductionMaterialException(
+            java.sql.ResultSet rs, int rowNum) throws java.sql.SQLException {
+        return new ProductionMaterialExceptionResponse(
+                rs.getLong("exception_id"),
+                rs.getString("exception_no"),
+                rs.getString("material_code"),
+                rs.getString("material_name"),
+                rs.getObject("order_id", Long.class),
+                rs.getObject("node_instance_id", Long.class),
+                rs.getString("exception_type"),
+                rs.getString("status"),
+                rs.getString("responsibility_owner"),
+                roundedDecimal(rs.getBigDecimal("loss_quantity"), 2),
+                rs.getString("description"),
+                rs.getObject("created_at", LocalDateTime.class),
+                rs.getObject("updated_at", LocalDateTime.class),
+                rs.getObject("closed_at", LocalDateTime.class));
+    }
+
+    private SafetyEnvironmentEventInput normalizeProductionSafetyEnvironmentEvent(
+            ProductionSafetyEnvironmentEventRequest request) {
+        return new SafetyEnvironmentEventInput(
+                normalizeSafetyEnvironmentEventNo(request.eventNo()),
+                normalizeSafetyEnvironmentEventType(request.eventType()),
+                normalizeSafetyEnvironmentEventStatus(request.status()),
+                blankToNull(request.departmentName()),
+                blankToNull(request.responsibleOwner()),
+                blankToNull(request.equipmentCode()),
+                normalizeSafetyEnvironmentRiskLevel(request.riskLevel()),
+                request.dueAt(),
+                normalizeOptionalDescription(request.description()));
+    }
+
+    private String normalizeSafetyEnvironmentEventNo(String value) {
+        String normalized = normalizeCodeValue(value, "event_no");
+        if (normalized.length() > 64) {
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "event_no must be at most 64 characters");
+        }
+        return normalized;
+    }
+
+    private String normalizeSafetyEnvironmentEventType(String value) {
+        String normalized = normalizeRequired(value, "event_type").toUpperCase(Locale.ROOT);
+        if (!SAFETY_ENVIRONMENT_EVENT_TYPES.contains(normalized)) {
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "unsupported safety event type");
+        }
+        return normalized;
+    }
+
+    private String normalizeSafetyEnvironmentEventStatus(String value) {
+        String normalized = value == null || value.isBlank() ? "PENDING" : value.trim().toUpperCase(Locale.ROOT);
+        if (!SAFETY_ENVIRONMENT_EVENT_STATUSES.contains(normalized)) {
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "unsupported safety event status");
+        }
+        return normalized;
+    }
+
+    private String normalizeSafetyEnvironmentRiskLevel(String value) {
+        String normalized = value == null || value.isBlank() ? "NORMAL" : value.trim().toUpperCase(Locale.ROOT);
+        if (!SAFETY_ENVIRONMENT_RISK_LEVELS.contains(normalized)) {
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "unsupported safety risk level");
+        }
+        return normalized;
+    }
+
+    private ProductionSafetyEnvironmentEventResponse loadProductionSafetyEnvironmentEvent(long eventId) {
+        try {
+            return jdbcClient.sql("""
+                            SELECT event_id, event_no, event_type, status, department_name, responsible_owner,
+                                   equipment_code, risk_level, due_at, description, created_at, updated_at, closed_at
+                            FROM production_safety_event
+                            WHERE event_id = :eventId
+                            """)
+                    .param("eventId", eventId)
+                    .query(this::mapProductionSafetyEnvironmentEvent)
+                    .single();
+        } catch (EmptyResultDataAccessException ex) {
+            throw new ResponseStatusException(HttpStatus.NOT_FOUND, "safety event not found", ex);
+        }
+    }
+
+    private ProductionSafetyEnvironmentEventResponse loadProductionSafetyEnvironmentEvent(String eventNo) {
+        try {
+            return jdbcClient.sql("""
+                            SELECT event_id, event_no, event_type, status, department_name, responsible_owner,
+                                   equipment_code, risk_level, due_at, description, created_at, updated_at, closed_at
+                            FROM production_safety_event
+                            WHERE event_no = :eventNo
+                            """)
+                    .param("eventNo", eventNo)
+                    .query(this::mapProductionSafetyEnvironmentEvent)
+                    .single();
+        } catch (EmptyResultDataAccessException ex) {
+            throw new ResponseStatusException(HttpStatus.NOT_FOUND, "safety event not found", ex);
+        }
+    }
+
+    private ProductionSafetyEnvironmentEventResponse mapProductionSafetyEnvironmentEvent(
+            java.sql.ResultSet rs, int rowNum) throws java.sql.SQLException {
+        return new ProductionSafetyEnvironmentEventResponse(
+                rs.getLong("event_id"),
+                rs.getString("event_no"),
+                rs.getString("event_type"),
+                rs.getString("status"),
+                rs.getString("department_name"),
+                rs.getString("responsible_owner"),
+                rs.getString("equipment_code"),
+                rs.getString("risk_level"),
+                rs.getObject("due_at", LocalDateTime.class),
+                rs.getString("description"),
+                rs.getObject("created_at", LocalDateTime.class),
+                rs.getObject("updated_at", LocalDateTime.class),
+                rs.getObject("closed_at", LocalDateTime.class));
+    }
+
+    private CostRecordInput normalizeProductionCostRecord(ProductionCostRecordRequest request) {
+        return new CostRecordInput(
+                normalizeCostNo(request.costNo()),
+                request.orderId(),
+                request.nodeInstanceId(),
+                normalizeProductionCostType(request.costType()),
+                normalizeCostAmount(request.amount()),
+                normalizeProductionCostStatus(request.status()),
+                blankToNull(request.departmentName()),
+                blankToNull(request.supplierName()),
+                normalizeOptionalDescription(request.description()));
+    }
+
+    private String normalizeCostNo(String value) {
+        String normalized = normalizeCodeValue(value, "cost_no");
+        if (normalized.length() > 64) {
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "cost_no must be at most 64 characters");
+        }
+        return normalized;
+    }
+
+    private String normalizeProductionCostType(String value) {
+        String normalized = normalizeRequired(value, "cost_type").toUpperCase(Locale.ROOT);
+        if (!PRODUCTION_COST_TYPES.contains(normalized)) {
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "unsupported production cost type");
+        }
+        return normalized;
+    }
+
+    private String normalizeProductionCostStatus(String value) {
+        String normalized = value == null || value.isBlank() ? "NORMAL" : value.trim().toUpperCase(Locale.ROOT);
+        if (!PRODUCTION_COST_STATUSES.contains(normalized)) {
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "unsupported production cost status");
+        }
+        return normalized;
+    }
+
+    private BigDecimal normalizeCostAmount(BigDecimal value) {
+        if (value == null) {
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "amount is required");
+        }
+        if (value.compareTo(BigDecimal.ZERO) < 0) {
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "amount cannot be negative");
+        }
+        return value.setScale(2, RoundingMode.HALF_UP);
+    }
+
+    private ProductionCostRecordResponse loadProductionCostRecord(long costId) {
+        try {
+            return jdbcClient.sql("""
+                            SELECT cost_id, cost_no, order_id, node_instance_id, cost_type, amount, status,
+                                   department_name, supplier_name, description, created_at, updated_at, confirmed_at
+                            FROM production_cost_record
+                            WHERE cost_id = :costId
+                            """)
+                    .param("costId", costId)
+                    .query(this::mapProductionCostRecord)
+                    .single();
+        } catch (EmptyResultDataAccessException ex) {
+            throw new ResponseStatusException(HttpStatus.NOT_FOUND, "cost record not found", ex);
+        }
+    }
+
+    private ProductionCostRecordResponse mapProductionCostRecord(
+            java.sql.ResultSet rs, int rowNum) throws java.sql.SQLException {
+        return new ProductionCostRecordResponse(
+                rs.getLong("cost_id"),
+                rs.getString("cost_no"),
+                rs.getObject("order_id", Long.class),
+                rs.getObject("node_instance_id", Long.class),
+                rs.getString("cost_type"),
+                roundedDecimal(rs.getBigDecimal("amount"), 2),
+                rs.getString("status"),
+                rs.getString("department_name"),
+                rs.getString("supplier_name"),
+                rs.getString("description"),
+                rs.getObject("created_at", LocalDateTime.class),
+                rs.getObject("updated_at", LocalDateTime.class),
+                rs.getObject("confirmed_at", LocalDateTime.class));
+    }
+
+    private RewardPenaltyRecordInput normalizeProductionRewardPenaltyRecord(
+            ProductionRewardPenaltyRecordRequest request) {
+        return new RewardPenaltyRecordInput(
+                normalizeRewardPenaltyRecordNo(request.recordNo()),
+                normalizeProductionRewardPenaltyType(request.recordType()),
+                normalizeProductionRewardPenaltyReasonCategory(request.reasonCategory()),
+                normalizeRewardPenaltyAmount(request.amount()),
+                normalizeProductionRewardPenaltyStatus(request.status()),
+                request.orderId(),
+                request.nodeInstanceId(),
+                request.employeeUserId(),
+                blankToNull(request.departmentName()),
+                normalizeOptionalDescription(request.description()));
+    }
+
+    private String normalizeRewardPenaltyRecordNo(String value) {
+        String normalized = normalizeCodeValue(value, "record_no");
+        if (normalized.length() > 64) {
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "record_no must be at most 64 characters");
+        }
+        return normalized;
+    }
+
+    private String normalizeProductionRewardPenaltyType(String value) {
+        String normalized = normalizeRequired(value, "record_type").toUpperCase(Locale.ROOT);
+        if (!PRODUCTION_REWARD_PENALTY_TYPES.contains(normalized)) {
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "unsupported reward penalty type");
+        }
+        return normalized;
+    }
+
+    private String normalizeProductionRewardPenaltyReasonCategory(String value) {
+        String normalized = normalizeRequired(value, "reason_category").toUpperCase(Locale.ROOT);
+        if (!PRODUCTION_REWARD_PENALTY_REASON_CATEGORIES.contains(normalized)) {
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "unsupported reward penalty reason category");
+        }
+        return normalized;
+    }
+
+    private String normalizeProductionRewardPenaltyStatus(String value) {
+        String normalized = value == null || value.isBlank() ? "PENDING" : value.trim().toUpperCase(Locale.ROOT);
+        if (!PRODUCTION_REWARD_PENALTY_STATUSES.contains(normalized)) {
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "unsupported reward penalty status");
+        }
+        return normalized;
+    }
+
+    private BigDecimal normalizeRewardPenaltyAmount(BigDecimal value) {
+        if (value == null) {
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "amount is required");
+        }
+        return value.setScale(2, RoundingMode.HALF_UP);
+    }
+
+    private boolean isApprovedRewardPenaltyStatus(String status) {
+        return "APPROVED".equals(status) || "EFFECTIVE".equals(status);
+    }
+
+    private ProductionRewardPenaltyRecordResponse loadProductionRewardPenaltyRecord(long recordId) {
+        try {
+            return jdbcClient.sql("""
+                            SELECT record_id, record_no, record_type, reason_category, amount, status,
+                                   order_id, node_instance_id, employee_user_id, approver_user_id,
+                                   department_name, description, created_at, updated_at, approved_at, effective_at
+                            FROM production_reward_penalty_record
+                            WHERE record_id = :recordId
+                            """)
+                    .param("recordId", recordId)
+                    .query(this::mapProductionRewardPenaltyRecord)
+                    .single();
+        } catch (EmptyResultDataAccessException ex) {
+            throw new ResponseStatusException(HttpStatus.NOT_FOUND, "reward penalty record not found", ex);
+        }
+    }
+
+    private ProductionRewardPenaltyRecordResponse loadProductionRewardPenaltyRecord(String recordNo) {
+        try {
+            return jdbcClient.sql("""
+                            SELECT record_id, record_no, record_type, reason_category, amount, status,
+                                   order_id, node_instance_id, employee_user_id, approver_user_id,
+                                   department_name, description, created_at, updated_at, approved_at, effective_at
+                            FROM production_reward_penalty_record
+                            WHERE record_no = :recordNo
+                            """)
+                    .param("recordNo", recordNo)
+                    .query(this::mapProductionRewardPenaltyRecord)
+                    .single();
+        } catch (EmptyResultDataAccessException ex) {
+            throw new ResponseStatusException(HttpStatus.NOT_FOUND, "reward penalty record not found", ex);
+        }
+    }
+
+    private ProductionRewardPenaltyRecordResponse mapProductionRewardPenaltyRecord(
+            java.sql.ResultSet rs, int rowNum) throws java.sql.SQLException {
+        return new ProductionRewardPenaltyRecordResponse(
+                rs.getLong("record_id"),
+                rs.getString("record_no"),
+                rs.getString("record_type"),
+                rs.getString("reason_category"),
+                roundedDecimal(rs.getBigDecimal("amount"), 2),
+                rs.getString("status"),
+                rs.getObject("order_id", Long.class),
+                rs.getObject("node_instance_id", Long.class),
+                rs.getObject("employee_user_id", Long.class),
+                rs.getObject("approver_user_id", Long.class),
+                rs.getString("department_name"),
+                rs.getString("description"),
+                rs.getObject("created_at", LocalDateTime.class),
+                rs.getObject("updated_at", LocalDateTime.class),
+                rs.getObject("approved_at", LocalDateTime.class),
+                rs.getObject("effective_at", LocalDateTime.class));
+    }
+
     private String normalizeCheckType(int checkType) {
         return switch (checkType) {
             case 1 -> "IN";
@@ -1884,6 +2750,22 @@ public class WorkflowExecutionService {
             long downtimeMinutes) {
     }
 
+    private record EquipmentInput(
+            String equipmentCode,
+            String equipmentName,
+            String equipmentType,
+            String departmentName,
+            String status,
+            double utilizationRate) {
+    }
+
+    private record EquipmentEventInput(
+            String eventType,
+            String status,
+            int downtimeMinutes,
+            String description) {
+    }
+
     private record MaterialExceptionSummaryRow(
             long totalExceptionCount,
             long shortageCount,
@@ -1895,6 +2777,19 @@ public class WorkflowExecutionService {
             long closedCount,
             long responsibilityAssignedCount,
             double totalLossQuantity) {
+    }
+
+    private record MaterialExceptionInput(
+            String exceptionNo,
+            String materialCode,
+            String materialName,
+            Long orderId,
+            Long nodeInstanceId,
+            String exceptionType,
+            String status,
+            String responsibilityOwner,
+            BigDecimal lossQuantity,
+            String description) {
     }
 
     private record SafetyEnvironmentSummaryRow(
@@ -1910,6 +2805,18 @@ public class WorkflowExecutionService {
             long highRiskCount) {
     }
 
+    private record SafetyEnvironmentEventInput(
+            String eventNo,
+            String eventType,
+            String status,
+            String departmentName,
+            String responsibleOwner,
+            String equipmentCode,
+            String riskLevel,
+            LocalDateTime dueAt,
+            String description) {
+    }
+
     private record CostSummaryRow(
             long recordCount,
             double totalCostAmount,
@@ -1919,6 +2826,18 @@ public class WorkflowExecutionService {
             double reworkCostAmount,
             double outsourcingCostAmount,
             long abnormalWarningCount) {
+    }
+
+    private record CostRecordInput(
+            String costNo,
+            Long orderId,
+            Long nodeInstanceId,
+            String costType,
+            BigDecimal amount,
+            String status,
+            String departmentName,
+            String supplierName,
+            String description) {
     }
 
     private record RewardPenaltySummaryRow(
@@ -1933,6 +2852,19 @@ public class WorkflowExecutionService {
             long relatedProcessCount,
             long relatedEmployeeCount,
             double monthlyAmount) {
+    }
+
+    private record RewardPenaltyRecordInput(
+            String recordNo,
+            String recordType,
+            String reasonCategory,
+            BigDecimal amount,
+            String status,
+            Long orderId,
+            Long nodeInstanceId,
+            Long employeeUserId,
+            String departmentName,
+            String description) {
     }
 
     private record PerformancePeriodFilter(

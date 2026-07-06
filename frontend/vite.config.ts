@@ -30,6 +30,10 @@ export default defineConfig({
         target: 'http://localhost:8080',
         changeOrigin: true
       },
+      '/products': {
+        target: 'http://localhost:8080',
+        changeOrigin: true
+      },
       '/workflow-chains': {
         target: 'http://localhost:8080',
         changeOrigin: true
@@ -59,6 +63,18 @@ export default defineConfig({
         changeOrigin: true
       },
       '/performance': {
+        target: 'http://localhost:8080',
+        changeOrigin: true
+      },
+      '/staff': {
+        target: 'http://localhost:8080',
+        changeOrigin: true
+      },
+      '/quality-records': {
+        target: 'http://localhost:8080',
+        changeOrigin: true
+      },
+      '/doctor': {
         target: 'http://localhost:8080',
         changeOrigin: true
       },

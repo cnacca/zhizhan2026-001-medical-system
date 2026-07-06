@@ -142,6 +142,62 @@ type ClinicPreference = {
   updated_at: string
 }
 
+type ProductCatalogItem = {
+  product_id: number
+  product_type: string
+  product_name: string
+  material_spec: string | null
+  base_price_cents: number
+  currency: string
+  status: string
+  price_note: string | null
+  created_at: string
+  updated_at: string
+}
+
+type ProductCatalogListResponse = {
+  items: ProductCatalogItem[]
+  total: number
+  page: number
+  size: number
+}
+
+type DoctorAccountSettings = {
+  user_id: number
+  username: string
+  display_name: string
+  contact_email: string | null
+  contact_phone: string | null
+  shipping_address: string | null
+  notification_push_enabled: boolean
+}
+
+type StaffWorkloadResponse = {
+  user_id: number
+  username: string
+  display_name: string
+  user_type: string
+  status: string
+  dept_id: number | null
+  dept_name: string | null
+  post_names: string[]
+  role_codes: string[]
+  assigned_node_count: number
+  active_node_count: number
+  completed_work_log_count: number
+  effective_duration: number
+  rework_count: number
+  last_work_finished_at: string | null
+  updated_at: string
+}
+
+type StaffWorkloadListResponse = {
+  items: StaffWorkloadResponse[]
+  total: number
+  page: number
+  size: number
+}
+
 type InternalOrderItem = {
   order_id: number
   order_no: string
@@ -167,6 +223,9 @@ type InternalOrderListResponse = {
 type MessageItem = {
   msg_id: number
   order_id: number
+  order_no: string
+  product_type: string
+  external_status: string
   sender_user_id: number | null
   sender_role: string
   content: string
@@ -213,6 +272,19 @@ type LogisticsInfo = {
   logistics_status: string
 }
 
+type DeliveryOrderItem = {
+  order_id: number
+  order_no: string
+  product_type: string
+  external_status: string
+  bill_status: string
+  payment_status: string
+  carrier: string | null
+  tracking_no: string | null
+  logistics_status: string
+  last_follow_up_note: string | null
+}
+
 type DoctorOrderWorkspace = {
   order: DoctorOrderItem
   messages: MessageItem[]
@@ -224,6 +296,7 @@ type DoctorOrderWorkspace = {
 
 type DoctorAiAnswer = {
   answer: string
+  reference_data_notes?: string[]
 }
 
 type MissingInfoItem = {
@@ -239,6 +312,19 @@ type MissingInfoResponse = {
 
 type AiTranslateResponse = {
   translated_text: string
+}
+
+type AiProductionNoteResponse = {
+  draft_note: string
+  template_version: string
+  knowledge_context_notes: string[]
+  requires_customer_template_confirmation: boolean
+}
+
+type AiProductionNoteConfirmResponse = {
+  production_note: string
+  template_version: string
+  requires_customer_template_confirmation: boolean
 }
 
 type FormFieldConfig = {
@@ -524,6 +610,31 @@ type ProductionQualitySummaryResponse = {
   generated_at: string
 }
 
+type QualityRecordResponse = {
+  quality_record_id: number
+  quality_record_type: string
+  order_id: number
+  order_no: string
+  product_type: string
+  clinic_name: string
+  check_id: number
+  check_result: string
+  rework_id: number | null
+  reason_category: string | null
+  reason_detail: string | null
+  responsibility_type: string | null
+  status: string | null
+  created_at: string
+  updated_at: string | null
+}
+
+type QualityRecordListResponse = {
+  items: QualityRecordResponse[]
+  total: number
+  page: number
+  size: number
+}
+
 type ProductionEquipmentSummaryResponse = {
   equipment_code_prefix: string | null
   total_equipment_count: number
@@ -536,6 +647,31 @@ type ProductionEquipmentSummaryResponse = {
   downtime_minutes: number
   average_utilization_rate: number
   generated_at: string
+}
+
+type ProductionEquipmentResponse = {
+  equipment_id: number
+  equipment_code: string
+  equipment_name: string
+  equipment_type: string
+  department_name: string | null
+  status: string
+  owner_user_id: number | null
+  utilization_rate: number
+  created_at: string
+  updated_at: string
+}
+
+type ProductionEquipmentEventResponse = {
+  event_id: number
+  equipment_id: number
+  equipment_code: string
+  event_type: string
+  status: string
+  downtime_minutes: number
+  description: string | null
+  created_at: string
+  resolved_at: string | null
 }
 
 type ProductionMaterialExceptionSummaryResponse = {
@@ -553,6 +689,23 @@ type ProductionMaterialExceptionSummaryResponse = {
   generated_at: string
 }
 
+type ProductionMaterialExceptionResponse = {
+  exception_id: number
+  exception_no: string
+  material_code: string
+  material_name: string
+  order_id: number | null
+  node_instance_id: number | null
+  exception_type: string
+  status: string
+  responsibility_owner: string | null
+  loss_quantity: number
+  description: string | null
+  created_at: string
+  updated_at: string
+  closed_at: string | null
+}
+
 type ProductionSafetyEnvironmentSummaryResponse = {
   event_no_prefix: string | null
   total_event_count: number
@@ -568,6 +721,22 @@ type ProductionSafetyEnvironmentSummaryResponse = {
   generated_at: string
 }
 
+type ProductionSafetyEnvironmentEventResponse = {
+  event_id: number
+  event_no: string
+  event_type: string
+  status: string
+  department_name: string | null
+  responsible_owner: string | null
+  equipment_code: string | null
+  risk_level: string
+  due_at: string | null
+  description: string | null
+  created_at: string
+  updated_at: string
+  closed_at: string | null
+}
+
 type ProductionCostSummaryResponse = {
   cost_no_prefix: string | null
   record_count: number
@@ -579,6 +748,22 @@ type ProductionCostSummaryResponse = {
   outsourcing_cost_amount: number
   abnormal_warning_count: number
   generated_at: string
+}
+
+type ProductionCostRecordResponse = {
+  cost_id: number
+  cost_no: string
+  order_id: number | null
+  node_instance_id: number | null
+  cost_type: string
+  amount: number
+  status: string
+  department_name: string | null
+  supplier_name: string | null
+  description: string | null
+  created_at: string
+  updated_at: string
+  confirmed_at: string | null
 }
 
 type ProductionRewardPenaltySummaryResponse = {
@@ -595,6 +780,25 @@ type ProductionRewardPenaltySummaryResponse = {
   related_employee_count: number
   monthly_amount: number
   generated_at: string
+}
+
+type ProductionRewardPenaltyRecordResponse = {
+  record_id: number
+  record_no: string
+  record_type: string
+  reason_category: string
+  amount: number
+  status: string
+  order_id: number | null
+  node_instance_id: number | null
+  employee_user_id: number | null
+  approver_user_id: number | null
+  department_name: string | null
+  description: string | null
+  created_at: string
+  updated_at: string
+  approved_at: string | null
+  effective_at: string | null
 }
 
 type PerformanceDetailResponse = {
@@ -806,6 +1010,21 @@ const clinicSaveResult = ref('')
 const clinicCreateName = ref('')
 const clinicCreateContactName = ref('')
 const clinicCreateContactPhone = ref('')
+const doctorAccountSettings = ref<DoctorAccountSettings | null>(null)
+const doctorAccountSettingsForm = ref({
+  display_name: '',
+  contact_email: '',
+  contact_phone: '',
+  shipping_address: '',
+  notification_push_enabled: true
+})
+const doctorAccountCurrentPassword = ref('')
+const doctorAccountNewPassword = ref('')
+const doctorAccountLoading = ref(false)
+const doctorAccountSaveLoading = ref(false)
+const doctorAccountPasswordLoading = ref(false)
+const doctorAccountError = ref('')
+const doctorAccountResult = ref('')
 const clinicPreferenceForm = ref<Record<string, string>>({
   color: '',
   contact: '',
@@ -827,6 +1046,8 @@ const doctorOrderFormFields = ref<FormFieldConfig[]>([])
 const doctorOrderFormData = ref<Record<string, string | string[]>>({})
 const doctorOrderFileIds = ref('')
 const doctorOrderEditingId = ref<number | null>(null)
+const doctorPreSubmitMissingItems = ref<MissingInfoItem[]>([])
+const doctorPreSubmitMissingComplete = ref<boolean | null>(null)
 const doctorUploadFiles = ref<File[]>([])
 const doctorUploadProgress = ref('')
 const doctorUploadCompletedFileIds = ref<number[]>([])
@@ -876,8 +1097,18 @@ const csMissingInfoItems = ref<MissingInfoItem[]>([])
 const csMissingInfoComplete = ref<boolean | null>(null)
 const csTranslationSourceText = ref('')
 const csTranslationDraft = ref('')
+const csProductionNoteDraft = ref('')
+const csProductionNoteTemplateVersion = ref('')
+const csProductionNoteKnowledgeNotes = ref<string[]>([])
+const csProductionNoteConfirmationNote = ref('')
 const csAiActionLoading = ref(false)
 const csAiResult = ref('')
+const csAiQueryOrderId = ref('')
+const csAiQueryQuestion = ref('请汇总这笔订单当前内部状态、外部状态和客服下一步建议')
+const csAiQueryAnswer = ref('')
+const csAiQueryReferenceNotes = ref<string[]>([])
+const csAiQueryError = ref('')
+const csAiQueryLoading = ref(false)
 const customerCollaborationPendingMessages = ref<MessageItem[]>([])
 const customerCollaborationOrderMessages = ref<MessageItem[]>([])
 const customerCollaborationOrderId = ref('')
@@ -979,24 +1210,103 @@ const performanceStartDate = ref('')
 const performanceEndDate = ref('')
 const performanceLoading = ref(false)
 const performanceError = ref('')
+const staffWorkloadItems = ref<StaffWorkloadResponse[]>([])
+const staffWorkloadKeyword = ref('')
+const staffWorkloadTotal = ref(0)
+const staffWorkloadLoading = ref(false)
+const staffWorkloadError = ref('')
 const productionQualitySummary = ref<ProductionQualitySummaryResponse | null>(null)
 const productionQualitySummaryLoading = ref(false)
 const productionQualitySummaryError = ref('')
+const qualityRecords = ref<QualityRecordResponse[]>([])
+const qualityRecordTotal = ref(0)
+const qualityRecordOrderId = ref('')
+const qualityRecordResponsibilityType = ref('DOCTOR')
+const qualityRecordReasonCategory = ref('FIT_ISSUE')
+const qualityRecordReasonDetail = ref('')
+const qualityRecordLoading = ref(false)
+const qualityRecordSaving = ref(false)
+const qualityRecordError = ref('')
+const qualityRecordResult = ref('')
 const productionEquipmentSummary = ref<ProductionEquipmentSummaryResponse | null>(null)
 const productionEquipmentSummaryLoading = ref(false)
 const productionEquipmentSummaryError = ref('')
+const productionEquipmentSaving = ref(false)
+const productionEquipmentResult = ref('')
+const productionEquipmentCreateCode = ref('')
+const productionEquipmentCreateName = ref('')
+const productionEquipmentCreateType = ref('MILLING_MACHINE')
+const productionEquipmentCreateDepartment = ref('生产部')
+const productionEquipmentCreateStatus = ref('IDLE')
+const productionEquipmentCreateUtilizationRate = ref(0)
+const productionEquipmentEventCode = ref('')
+const productionEquipmentEventType = ref('FAULT_REPAIR')
+const productionEquipmentEventStatus = ref('PENDING')
+const productionEquipmentEventDowntimeMinutes = ref(0)
+const productionEquipmentEventDescription = ref('')
 const productionMaterialExceptionSummary = ref<ProductionMaterialExceptionSummaryResponse | null>(null)
 const productionMaterialExceptionSummaryLoading = ref(false)
 const productionMaterialExceptionSummaryError = ref('')
+const productionMaterialExceptionSaving = ref(false)
+const productionMaterialExceptionResult = ref('')
+const productionMaterialExceptionCreateNo = ref('')
+const productionMaterialExceptionCreateCode = ref('')
+const productionMaterialExceptionCreateName = ref('')
+const productionMaterialExceptionCreateType = ref('SHORTAGE')
+const productionMaterialExceptionCreateStatus = ref('PENDING')
+const productionMaterialExceptionCreateResponsibility = ref('')
+const productionMaterialExceptionCreateLossQuantity = ref(0)
+const productionMaterialExceptionCreateDescription = ref('')
+const productionMaterialExceptionStatusNo = ref('')
+const productionMaterialExceptionStatus = ref('IN_PROGRESS')
+const productionMaterialExceptionStatusResponsibility = ref('')
+const productionMaterialExceptionStatusDescription = ref('')
 const productionSafetyEnvironmentSummary = ref<ProductionSafetyEnvironmentSummaryResponse | null>(null)
 const productionSafetyEnvironmentSummaryLoading = ref(false)
 const productionSafetyEnvironmentSummaryError = ref('')
+const productionSafetyEnvironmentSaving = ref(false)
+const productionSafetyEnvironmentResult = ref('')
+const productionSafetyEnvironmentCreateNo = ref('')
+const productionSafetyEnvironmentCreateType = ref('HAZARD_RECTIFICATION')
+const productionSafetyEnvironmentCreateStatus = ref('PENDING')
+const productionSafetyEnvironmentCreateDepartment = ref('')
+const productionSafetyEnvironmentCreateOwner = ref('')
+const productionSafetyEnvironmentCreateEquipmentCode = ref('')
+const productionSafetyEnvironmentCreateRisk = ref('NORMAL')
+const productionSafetyEnvironmentCreateDueAt = ref('')
+const productionSafetyEnvironmentCreateDescription = ref('')
+const productionSafetyEnvironmentStatusNo = ref('')
+const productionSafetyEnvironmentStatus = ref('IN_PROGRESS')
+const productionSafetyEnvironmentStatusOwner = ref('')
+const productionSafetyEnvironmentStatusDescription = ref('')
 const productionCostSummary = ref<ProductionCostSummaryResponse | null>(null)
 const productionCostSummaryLoading = ref(false)
 const productionCostSummaryError = ref('')
+const productionCostSaving = ref(false)
+const productionCostResult = ref('')
+const productionCostCreateNo = ref('')
+const productionCostCreateType = ref('LABOR')
+const productionCostCreateAmount = ref(0)
+const productionCostCreateStatus = ref('NORMAL')
+const productionCostCreateDepartment = ref('')
+const productionCostCreateSupplier = ref('')
+const productionCostCreateDescription = ref('')
 const productionRewardPenaltySummary = ref<ProductionRewardPenaltySummaryResponse | null>(null)
 const productionRewardPenaltySummaryLoading = ref(false)
 const productionRewardPenaltySummaryError = ref('')
+const productionRewardPenaltySaving = ref(false)
+const productionRewardPenaltyResult = ref('')
+const productionRewardPenaltyCreateNo = ref('')
+const productionRewardPenaltyCreateType = ref('REWARD')
+const productionRewardPenaltyCreateReason = ref('QUALITY')
+const productionRewardPenaltyCreateAmount = ref(0)
+const productionRewardPenaltyCreateStatus = ref('PENDING')
+const productionRewardPenaltyCreateEmployeeUserId = ref<number | null>(null)
+const productionRewardPenaltyCreateDepartment = ref('')
+const productionRewardPenaltyCreateDescription = ref('')
+const productionRewardPenaltyStatusNo = ref('')
+const productionRewardPenaltyStatus = ref('APPROVED')
+const productionRewardPenaltyStatusDescription = ref('')
 const productionBoardOrders = ref<InternalOrderItem[]>([])
 const selectedProductionBoardOrder = ref<InternalOrderItem | null>(null)
 const productionBoardInstance = ref<ProcessInstanceDetail | null>(null)
@@ -1008,6 +1318,34 @@ const productionBoardShippingLoading = ref(false)
 const productionBoardLogisticsCarrier = ref('')
 const productionBoardLogisticsTrackingNo = ref('')
 const productionBoardShippingResult = ref('')
+const deliveryOrders = ref<DeliveryOrderItem[]>([])
+const selectedDeliveryOrder = ref<DeliveryOrderItem | null>(null)
+const deliveryStatusFilter = ref('EXCEPTION')
+const deliveryFollowUpStatus = ref('EXCEPTION')
+const deliveryFollowUpNote = ref('')
+const deliveryLoading = ref(false)
+const deliverySaving = ref(false)
+const deliveryError = ref('')
+const deliveryResult = ref('')
+const productCatalogKeyword = ref('')
+const productCatalogItems = ref<ProductCatalogItem[]>([])
+const selectedProductCatalogId = ref<number | null>(null)
+const productCatalogLoading = ref(false)
+const productCatalogSaving = ref(false)
+const productCatalogError = ref('')
+const productCatalogResult = ref('')
+const productCatalogCreateType = ref('REGULAR_CROWN')
+const productCatalogCreateName = ref('')
+const productCatalogCreateMaterial = ref('')
+const productCatalogCreatePrice = ref(1)
+const productCatalogCreateCurrency = ref('CNY')
+const productCatalogCreateNote = ref('')
+const productCatalogEditName = ref('')
+const productCatalogEditMaterial = ref('')
+const productCatalogEditPrice = ref(1)
+const productCatalogEditCurrency = ref('CNY')
+const productCatalogEditStatus = ref('ACTIVE')
+const productCatalogEditNote = ref('')
 const formConfigProductType = ref('REGULAR_CROWN')
 const formConfigFields = ref<FormFieldConfig[]>([])
 const formConfigLoading = ref(false)
@@ -1138,7 +1476,6 @@ const displayNavigationConfig: Record<PortalTone, NavigationGroup[]> = {
           ]
         },
         { id: 'doctor-patients', title: '患者管理', description: '维护患者档案、检索患者并查看绑定历史订单。', icon: 'customer', routePath: '/doctor/patients' },
-        { id: 'doctor-files', title: '文件资料', description: '查看病例、口扫、图片和处方等订单资料。', icon: 'file', routePath: '/doctor/files', placeholder: true },
         { id: 'doctor-ai', title: '订单助手', description: '查询订单进度、预计发货和物流信息。', icon: 'ai', routePath: '/doctor/orders', doctorSection: 'ai', doctorDetailTab: 'ai' },
         { id: 'doctor-notifications', title: '通知中心', description: '查看设计稿、账单、发货和收货通知。', icon: 'notification', routePath: '/notifications' }
       ]
@@ -1175,7 +1512,7 @@ const displayNavigationConfig: Record<PortalTone, NavigationGroup[]> = {
         { id: 'cs-products', title: '产品管理', description: '查看产品类型、产品资料和动态表单字段。', icon: 'product', routePath: '/system/form-configs' },
         { id: 'cs-designs', title: '设计稿管理', description: '审核生产端上传的设计稿并发给医生确认。', icon: 'design', routePath: '/design-drafts', placeholder: true },
         { id: 'cs-billing', title: '账单管理', description: '上传账单文件、查看订单费用和客户账单。', icon: 'bill', routePath: '/billing', placeholder: true },
-        { id: 'cs-delivery', title: '配送管理', description: '录入承运商、运单号并跟进待发货订单。', icon: 'delivery', routePath: '/delivery', placeholder: true },
+        { id: 'cs-delivery', title: '配送管理', description: '录入承运商、运单号并跟进待发货订单。', icon: 'delivery', routePath: '/delivery' },
         { id: 'cs-outsourcing', title: '外协管理', description: '跟踪外协订单、外协工厂、外协进度和费用。', icon: 'partner', routePath: '/outsourcing', placeholder: true },
         {
           id: 'cs-ai',
@@ -1183,10 +1520,9 @@ const displayNavigationConfig: Record<PortalTone, NavigationGroup[]> = {
           description: '使用翻译、资料缺失检查和客服查询能力。',
           icon: 'ai',
           routePath: '/ai/cs',
-          placeholder: true,
           children: [
-            { id: 'cs-ai-translate', title: '翻译助手', description: '把外文描述整理成中文生产指令草稿。', icon: 'ai', routePath: '/ai/cs', placeholder: true },
-            { id: 'cs-ai-query', title: '客服查询助手', description: '查询内部订单、工序、客户偏好和物流。', icon: 'ai', routePath: '/ai/cs', placeholder: true },
+            { id: 'cs-ai-translate', title: '翻译助手', description: '把外文描述整理成中文生产指令草稿。', icon: 'ai', routePath: '/orders/internal' },
+            { id: 'cs-ai-query', title: '客服查询助手', description: '查询内部订单、工序、客户偏好和物流。', icon: 'ai', routePath: '/ai/cs' },
             { id: 'cs-ai-note', title: '生产备注助手', description: '整理客户要求并生成生产备注草稿。', icon: 'ai', routePath: '/ai/production', placeholder: true }
           ]
         },
@@ -1215,9 +1551,8 @@ const displayNavigationConfig: Record<PortalTone, NavigationGroup[]> = {
           description: '查看质量总览、返工处理和终检报告。',
           icon: 'quality',
           routePath: '/production/quality',
-          placeholder: true,
           children: [
-            { id: 'production-quality-overview', title: '质量总览', description: '查看总返工率、一次通过率、终检通过率、投诉率和退货率。', icon: 'quality', routePath: '/production/quality', placeholder: true },
+            { id: 'production-quality-overview', title: '质量总览', description: '查看总返工率、一次通过率、终检通过率、投诉率和退货率。', icon: 'quality', routePath: '/production/quality' },
             { id: 'production-rework-management', title: '返工管理', description: '统一处理内返、外返、原因、责任归属和处理状态。', icon: 'quality', routePath: '/rework-final' },
             { id: 'production-final-report', title: '终检报告', description: '查看终检报告生成、结论、摘要和报告状态。', icon: 'report', routePath: '/production/final-inspection-reports', placeholder: true }
           ]
@@ -1227,7 +1562,7 @@ const displayNavigationConfig: Record<PortalTone, NavigationGroup[]> = {
     {
       title: '人员绩效',
       items: [
-        { id: 'production-staff', title: '员工管理', description: '查看生产人员、岗位能力、在岗状态和任务负载。', icon: 'staff', routePath: '/production/staff', placeholder: true },
+        { id: 'production-staff', title: '员工管理', description: '查看生产人员、岗位能力、在岗状态和任务负载。', icon: 'staff', routePath: '/production/staff' },
         { id: 'production-performance', title: '绩效管理', description: '查看有效工时、完成数量、返工次数和通过率。', icon: 'performance', routePath: '/performance' },
         { id: 'production-reward-penalty', title: '奖惩管理', description: '维护奖惩记录、原因、关联订单/工序/员工和审批状态。', icon: 'reward', routePath: '/production/reward-penalty', placeholder: true }
       ]
@@ -1301,7 +1636,7 @@ const displayNavigationConfig: Record<PortalTone, NavigationGroup[]> = {
             { id: 'admin-workflow-assign', title: '员工派工', description: '为工序节点绑定员工或调整执行人。', icon: 'staff', routePath: '/workflow/assign' }
           ]
         },
-        { id: 'admin-staff', title: '人员管理', description: '管理生产人员、岗位能力和任务负载。', icon: 'staff', routePath: '/admin/staff', placeholder: true },
+        { id: 'admin-staff', title: '人员管理', description: '管理生产人员、岗位能力和任务负载。', icon: 'staff', routePath: '/admin/staff' },
         { id: 'admin-device', title: '设备管理', description: '管理设备档案、运行状态和维护记录。', icon: 'device', routePath: '/admin/devices', placeholder: true },
         { id: 'admin-material', title: '物料异常', description: '查看物料缺失、材料不符和异常处理。', icon: 'material', routePath: '/admin/material-exceptions', placeholder: true },
         { id: 'admin-outsourcing', title: '外协管理', description: '管理外协工厂、外协订单和外协费用。', icon: 'partner', routePath: '/admin/outsourcing', placeholder: true },
@@ -1318,6 +1653,7 @@ const accountNavigationConfig: Record<PortalTone, NavigationGroup[]> = {
     {
       title: '账号管理',
       items: [
+        { id: 'doctor-account-settings', title: '账户设置', description: '维护联系方式、收货地址、消息推送和密码。', icon: 'lock', routePath: '/doctor/account/settings' },
         { id: 'doctor-account-clinic', title: '诊所信息', description: '查看所属诊所、联系人、地址和开票资料。', icon: 'customer', routePath: '/doctor/account/clinic' },
         { id: 'doctor-account-members', title: '医生/成员账号', description: '查看诊所医生、助手和成员账号状态。', icon: 'person', routePath: '/doctor/account/members', placeholder: true },
         { id: 'doctor-account-notifications', title: '通知偏好', description: '设置设计稿、账单、物流和收货提醒偏好。', icon: 'notification', routePath: '/doctor/account/notifications', placeholder: true },
@@ -1903,8 +2239,10 @@ const isDoctorOrderRoute = computed(() => activeRoute.value === '/doctor/orders'
 const isDoctorPatientsRoute = computed(() => activeRoute.value === '/doctor/patients')
 const isClinicManagementRoute = computed(() => activeRoute.value === '/customers' || activeRoute.value === '/admin/clinics')
 const isDoctorClinicRoute = computed(() => activeRoute.value === '/doctor/account/clinic')
+const isDoctorAccountSettingsRoute = computed(() => activeRoute.value === '/doctor/account/settings')
 const isInternalOrdersRoute = computed(() => activeRoute.value === '/orders/internal')
 const isCustomerCollaborationRoute = computed(() => activeRoute.value === '/collaboration')
+const isCsAiQueryRoute = computed(() => activeRoute.value === '/ai/cs')
 const isProductionReviewRoute = computed(() => activeRoute.value === '/workflow/review')
 const isProcessInstanceRoute = computed(() => activeRoute.value === '/workflow/process-instance')
 const isWorkflowAssignRoute = computed(() => activeRoute.value === '/workflow/assign')
@@ -1913,6 +2251,7 @@ const isCheckRecordsRoute = computed(() => activeRoute.value === '/checks')
 const isReworkFinalRoute = computed(() => activeRoute.value === '/rework-final')
 const isWorklogsRoute = computed(() => activeRoute.value === '/worklogs/self')
 const isPerformanceRoute = computed(() => activeRoute.value === '/performance')
+const isStaffWorkloadRoute = computed(() => activeRoute.value === '/production/staff' || activeRoute.value === '/admin/staff')
 const isProductionBoardRoute = computed(() => activeRoute.value === '/production/board')
 const isProductionQualitySummaryRoute = computed(() => [
   'production-quality',
@@ -1927,10 +2266,13 @@ const isProductionCostSummaryRoute = computed(() => [
   'production-outsourcing-cost'
 ].includes(activeDisplayItem.value?.id ?? ''))
 const isProductionRewardPenaltySummaryRoute = computed(() => activeDisplayItem.value?.id === 'production-reward-penalty')
+const isDeliveryManagementRoute = computed(() => activeRoute.value === '/delivery')
 const isFormConfigsRoute = computed(() => activeRoute.value === '/system/form-configs')
 const isReworkDictionariesRoute = computed(() => activeRoute.value === '/system/rework-dictionaries')
 const canCreateClinic = computed(() => currentUser.value?.roles.includes('ADMIN') ?? false)
 const selectedOrderId = computed(() => selectedDoctorOrder.value?.order_id ?? doctorOrderWorkspace.value?.order.order_id ?? null)
+const selectedProductCatalogItem = computed(() =>
+  productCatalogItems.value.find((item) => item.product_id === selectedProductCatalogId.value) ?? null)
 const selectedFormConfigField = computed(() => formConfigFields.value.find((field) => field.field_id === selectedFormConfigFieldId.value) ?? null)
 const selectedReworkDictionaryItem = computed(() =>
   reworkDictionaryManageItems.value.find((item) => item.item_id === selectedReworkDictionaryItemId.value) ?? null)
@@ -2003,8 +2345,14 @@ const routeChrome = computed<RouteChrome>(() => {
   if (route === '/performance') {
     return { eyebrow: '生产端 / 绩效', title: '绩效统计', description: '查看有效工时、通过率、准时率、返工归因和工时明细。', icon: 'monitoring' }
   }
+  if (route === '/production/staff' || route === '/admin/staff') {
+    return { eyebrow: '人员绩效 / 员工档案', title: '人员档案', description: '查看员工基础档案、部门岗位、角色权限摘要和当前任务负载。', icon: 'assignment_ind' }
+  }
   if (route === '/production/board') {
     return { eyebrow: '生产端 / 看板', title: '生产看板', description: '跨状态查看生产订单、节点进度和终检发货门禁。', icon: 'view_kanban' }
+  }
+  if (route === '/production/quality') {
+    return { eyebrow: '生产端 / 质量记录', title: '质量与返工', description: '查看质量汇总，登记外返质量记录，并追踪返工责任分类。', icon: 'quality' }
   }
   if (route === '/system/form-configs') {
     return { eyebrow: '管理端 / 动态表单', title: '动态表单', description: '维护医生下单表单字段，医生端只读取启用字段。', icon: 'dynamic_form' }
@@ -2034,7 +2382,6 @@ const menuIconSvgMap: Record<string, string> = {
   '/dashboard': '<svg viewBox="0 0 24 24"><path d="M4 4h7v7H4zM13 4h7v7h-7zM4 13h7v7H4zM13 13h7v7h-7z"/></svg>',
   '/doctor/orders': '<svg viewBox="0 0 24 24"><path d="M6 3h9l3 3v15H6z"/><path d="M15 3v4h4M9 12h6M12 9v6"/></svg>',
   '/doctor/patients': '<svg viewBox="0 0 24 24"><path d="M9 11a4 4 0 1 0 0-8 4 4 0 0 0 0 8z"/><path d="M3 21a6 6 0 0 1 12 0"/><path d="M17 8h4M19 6v4M16 15h5M16 19h5"/></svg>',
-  '/doctor/files': '<svg viewBox="0 0 24 24"><path d="M5 5h5l2 3h7v11H5z"/><path d="M9 13h6M12 10v6"/></svg>',
   '/doctor/ai': '<svg viewBox="0 0 24 24"><path d="M8 5h8a4 4 0 0 1 4 4v3a4 4 0 0 1-4 4h-3l-4 3v-3H8a4 4 0 0 1-4-4V9a4 4 0 0 1 4-4z"/><path d="M9 10h.01M12 10h.01M15 10h.01"/></svg>',
   '/orders/internal': '<svg viewBox="0 0 24 24"><path d="M5 5h14v14H5z"/><path d="M8 10h8M8 14h5M16 15l2 2 3-4"/></svg>',
   '/workflow/review': '<svg viewBox="0 0 24 24"><path d="M5 4h14v16H5z"/><path d="M8 8h8M8 12h5M9 16l2 2 4-5"/></svg>',
@@ -2142,6 +2489,9 @@ const statusLabelMap: Record<string, string> = {
   PRODUCTION_REJECTED: '生产驳回',
   SHIPPED: '已发货',
   DELIVERED: '已签收',
+  EXCEPTION: '物流异常',
+  FOLLOWING: '跟进中',
+  RESOLVED: '已解决',
   PENDING_DOCTOR_CONFIRM: '待医生确认',
   CONFIRMED: '已确认',
   REJECTED: '已驳回',
@@ -2623,6 +2973,8 @@ async function loadActiveRouteData() {
     await loadInternalOrders()
   } else if (activeRoute.value === '/collaboration') {
     await loadCustomerCollaborationPage()
+  } else if (activeRoute.value === '/ai/cs') {
+    csAiQueryError.value = ''
   } else if (activeRoute.value === '/workflow/review') {
     await loadProductionReviewPage()
   } else if (activeRoute.value === '/workflow/process-instance' || activeRoute.value === '/workflow/assign') {
@@ -2637,10 +2989,14 @@ async function loadActiveRouteData() {
     await loadWorklogTasks()
   } else if (activeRoute.value === '/performance') {
     await loadPerformanceStats()
+  } else if (isStaffWorkloadRoute.value) {
+    await loadStaffWorkload()
   } else if (activeRoute.value === '/production/board') {
     await loadProductionBoardOrders()
+  } else if (activeRoute.value === '/delivery') {
+    await loadDeliveryOrders()
   } else if (isProductionQualitySummaryRoute.value) {
-    await loadProductionQualitySummary()
+    await loadProductionQualityPage()
   } else if (isProductionEquipmentSummaryRoute.value) {
     await loadProductionEquipmentSummary()
   } else if (isProductionMaterialExceptionSummaryRoute.value) {
@@ -2652,6 +3008,7 @@ async function loadActiveRouteData() {
   } else if (isProductionRewardPenaltySummaryRoute.value) {
     await loadProductionRewardPenaltySummary()
   } else if (activeRoute.value === '/system/form-configs') {
+    await loadProductCatalog()
     await loadFormConfigFields()
   } else if (activeRoute.value === '/system/rework-dictionaries') {
     await loadReworkDictionaryManageItems()
@@ -2734,6 +3091,8 @@ function navigateToRoute(routePath: string) {
     void loadDoctorPatients()
   } else if (routePath === '/customers' || routePath === '/admin/clinics') {
     void loadClinics()
+  } else if (routePath === '/doctor/account/settings') {
+    void loadDoctorAccountSettings()
   } else if (routePath === '/doctor/account/clinic') {
     void loadDoctorClinicPreference()
   } else if (routePath === '/orders/internal') {
@@ -2752,13 +3111,15 @@ function navigateToRoute(routePath: string) {
     void loadWorklogTasks()
   } else if (routePath === '/performance') {
     void loadPerformanceStats()
+  } else if (routePath === '/production/staff' || routePath === '/admin/staff') {
+    void loadStaffWorkload()
   } else if (routePath === '/production/board') {
     void loadProductionBoardOrders()
   } else if ([
     '/production/quality',
     '/production/rework-management'
   ].includes(routePath)) {
-    void loadProductionQualitySummary()
+    void loadProductionQualityPage()
   } else if (routePath === '/production/devices') {
     void loadProductionEquipmentSummary()
   } else if (routePath === '/production/material-exceptions') {
@@ -2770,6 +3131,7 @@ function navigateToRoute(routePath: string) {
   } else if (routePath === '/production/reward-penalty') {
     void loadProductionRewardPenaltySummary()
   } else if (routePath === '/system/form-configs') {
+    void loadProductCatalog()
     void loadFormConfigFields()
   } else if (routePath === '/system/rework-dictionaries') {
     void loadReworkDictionaryManageItems()
@@ -3044,6 +3406,80 @@ async function loadDoctorClinicPreference() {
   }
 }
 
+function syncDoctorAccountSettingsForm(settings: DoctorAccountSettings) {
+  doctorAccountSettingsForm.value = {
+    display_name: settings.display_name ?? '',
+    contact_email: settings.contact_email ?? '',
+    contact_phone: settings.contact_phone ?? '',
+    shipping_address: settings.shipping_address ?? '',
+    notification_push_enabled: settings.notification_push_enabled
+  }
+}
+
+async function loadDoctorAccountSettings() {
+  if (!token.value) {
+    return
+  }
+  doctorAccountLoading.value = true
+  doctorAccountError.value = ''
+  try {
+    const payload = await apiFetch<DoctorAccountSettings>('/doctor/account/settings')
+    doctorAccountSettings.value = payload.data
+    syncDoctorAccountSettingsForm(payload.data)
+  } catch (error) {
+    doctorAccountError.value = error instanceof Error ? error.message : '账户设置加载失败'
+  } finally {
+    doctorAccountLoading.value = false
+  }
+}
+
+async function saveDoctorAccountSettings() {
+  if (!token.value) {
+    return
+  }
+  doctorAccountSaveLoading.value = true
+  doctorAccountError.value = ''
+  doctorAccountResult.value = ''
+  try {
+    const payload = await apiFetch<DoctorAccountSettings>('/doctor/account/settings', {
+      method: 'PUT',
+      body: JSON.stringify(doctorAccountSettingsForm.value)
+    })
+    doctorAccountSettings.value = payload.data
+    syncDoctorAccountSettingsForm(payload.data)
+    doctorAccountResult.value = '账户设置已保存'
+  } catch (error) {
+    doctorAccountError.value = error instanceof Error ? error.message : '账户设置保存失败'
+  } finally {
+    doctorAccountSaveLoading.value = false
+  }
+}
+
+async function changeDoctorAccountPassword() {
+  if (!token.value || !doctorAccountCurrentPassword.value || !doctorAccountNewPassword.value) {
+    return
+  }
+  doctorAccountPasswordLoading.value = true
+  doctorAccountError.value = ''
+  doctorAccountResult.value = ''
+  try {
+    await apiFetch<DoctorAccountSettings>('/doctor/account/password', {
+      method: 'POST',
+      body: JSON.stringify({
+        current_password: doctorAccountCurrentPassword.value,
+        new_password: doctorAccountNewPassword.value
+      })
+    })
+    doctorAccountCurrentPassword.value = ''
+    doctorAccountNewPassword.value = ''
+    doctorAccountResult.value = '密码已更新，请继续使用当前登录态完成本次操作'
+  } catch (error) {
+    doctorAccountError.value = error instanceof Error ? error.message : '密码修改失败'
+  } finally {
+    doctorAccountPasswordLoading.value = false
+  }
+}
+
 async function createClinic() {
   if (!token.value || !clinicCreateName.value.trim()) {
     return
@@ -3140,6 +3576,8 @@ async function loadDoctorOrderForm() {
     return
   }
   doctorOrderCreateError.value = ''
+  doctorPreSubmitMissingItems.value = []
+  doctorPreSubmitMissingComplete.value = null
   try {
     const params = new URLSearchParams({ product_type: doctorOrderFormProductType.value.trim() })
     const payload = await apiFetch<FormFieldConfig[]>(`/form-configs?${params.toString()}`)
@@ -3160,6 +3598,117 @@ function parseFormConfigOptions(value: string) {
     .split(',')
     .map((item) => item.trim())
     .filter(Boolean)
+}
+
+async function loadProductCatalog() {
+  if (!token.value) {
+    return
+  }
+  productCatalogLoading.value = true
+  productCatalogError.value = ''
+  try {
+    const params = new URLSearchParams()
+    if (productCatalogKeyword.value.trim()) {
+      params.set('keyword', productCatalogKeyword.value.trim())
+    }
+    const payload = await apiFetch<ProductCatalogListResponse>(`/products?${params.toString()}`)
+    productCatalogItems.value = payload.data.items
+    const selectedStillVisible = selectedProductCatalogId.value
+      ? payload.data.items.some((item) => item.product_id === selectedProductCatalogId.value)
+      : false
+    if (!selectedStillVisible) {
+      selectedProductCatalogId.value = payload.data.items[0]?.product_id ?? null
+      if (selectedProductCatalogItem.value) {
+        selectProductCatalogItem(selectedProductCatalogItem.value)
+      }
+    }
+  } catch (error) {
+    productCatalogError.value = error instanceof Error ? error.message : '产品目录加载失败'
+  } finally {
+    productCatalogLoading.value = false
+  }
+}
+
+function selectProductCatalogItem(item: ProductCatalogItem) {
+  selectedProductCatalogId.value = item.product_id
+  productCatalogEditName.value = item.product_name
+  productCatalogEditMaterial.value = item.material_spec ?? ''
+  productCatalogEditPrice.value = item.base_price_cents
+  productCatalogEditCurrency.value = item.currency
+  productCatalogEditStatus.value = item.status
+  productCatalogEditNote.value = item.price_note ?? ''
+  formConfigProductType.value = item.product_type
+  formConfigCreateProductType.value = item.product_type
+}
+
+function resetProductCatalogCreateForm() {
+  productCatalogCreateType.value = ''
+  productCatalogCreateName.value = ''
+  productCatalogCreateMaterial.value = ''
+  productCatalogCreatePrice.value = 1
+  productCatalogCreateCurrency.value = 'CNY'
+  productCatalogCreateNote.value = ''
+}
+
+async function createProductCatalogItem() {
+  if (!token.value) {
+    return
+  }
+  productCatalogSaving.value = true
+  productCatalogError.value = ''
+  productCatalogResult.value = ''
+  try {
+    const response = await apiFetch<ProductCatalogItem>('/products', {
+      method: 'POST',
+      body: JSON.stringify({
+        product_type: productCatalogCreateType.value.trim(),
+        product_name: productCatalogCreateName.value.trim(),
+        material_spec: productCatalogCreateMaterial.value.trim(),
+        base_price_cents: productCatalogCreatePrice.value,
+        currency: productCatalogCreateCurrency.value.trim(),
+        status: 'ACTIVE',
+        price_note: productCatalogCreateNote.value.trim()
+      })
+    })
+    productCatalogResult.value = `已创建产品 ${response.data.product_type}`
+    resetProductCatalogCreateForm()
+    await loadProductCatalog()
+    selectProductCatalogItem(response.data)
+    await loadFormConfigFields()
+  } catch (error) {
+    productCatalogError.value = error instanceof Error ? error.message : '产品目录创建失败'
+  } finally {
+    productCatalogSaving.value = false
+  }
+}
+
+async function updateProductCatalogItem(statusOverride?: string) {
+  if (!token.value || !selectedProductCatalogId.value) {
+    return
+  }
+  productCatalogSaving.value = true
+  productCatalogError.value = ''
+  productCatalogResult.value = ''
+  try {
+    const response = await apiFetch<ProductCatalogItem>(`/products/${selectedProductCatalogId.value}`, {
+      method: 'PUT',
+      body: JSON.stringify({
+        product_name: productCatalogEditName.value.trim(),
+        material_spec: productCatalogEditMaterial.value.trim(),
+        base_price_cents: productCatalogEditPrice.value,
+        currency: productCatalogEditCurrency.value.trim(),
+        status: statusOverride ?? productCatalogEditStatus.value,
+        price_note: productCatalogEditNote.value.trim()
+      })
+    })
+    productCatalogResult.value = `已更新产品 ${response.data.product_type}`
+    await loadProductCatalog()
+    selectProductCatalogItem(response.data)
+  } catch (error) {
+    productCatalogError.value = error instanceof Error ? error.message : '产品目录更新失败'
+  } finally {
+    productCatalogSaving.value = false
+  }
 }
 
 async function loadFormConfigFields() {
@@ -3381,6 +3930,56 @@ function buildDoctorOrderFormData() {
   return formData
 }
 
+type DoctorOrderPayload = {
+  patient_id: number | null
+  product_type: string
+  form_data: Record<string, string | string[]>
+  file_ids: number[]
+}
+
+async function saveDoctorOrderPayloadAsDraft(orderPayload: DoctorOrderPayload) {
+  return doctorOrderEditingId.value
+    ? apiFetch<CreateOrderResponse>(`/orders/${doctorOrderEditingId.value}`, {
+      method: 'PUT',
+      body: JSON.stringify({
+        ...orderPayload,
+        submit: false
+      })
+    })
+    : apiFetch<CreateOrderResponse>('/orders', {
+      method: 'POST',
+      body: JSON.stringify({
+        ...orderPayload,
+        is_draft: true
+      })
+    })
+}
+
+function submitSavedDoctorOrder(orderId: number, orderPayload: DoctorOrderPayload) {
+  return apiFetch<CreateOrderResponse>(`/orders/${orderId}`, {
+    method: 'PUT',
+    body: JSON.stringify({
+      ...orderPayload,
+      submit: true
+    })
+  })
+}
+
+async function autoCheckDoctorOrderMissingBeforeSubmit(orderId: number) {
+  const payload = await apiFetch<MissingInfoResponse>('/ai/check-missing', {
+    method: 'POST',
+    body: JSON.stringify({
+      order_id: orderId
+    })
+  })
+  doctorPreSubmitMissingComplete.value = payload.data.is_complete
+  doctorPreSubmitMissingItems.value = payload.data.missing_items
+  if (!payload.data.is_complete) {
+    doctorOrderCreateError.value = 'AI-4 资料缺失检查：请先补齐必填资料后再提交'
+  }
+  return payload.data.is_complete
+}
+
 async function submitDoctorOrderForm(draft: boolean) {
   if (!token.value || doctorOrderFormFields.value.length === 0) {
     return
@@ -3388,29 +3987,33 @@ async function submitDoctorOrderForm(draft: boolean) {
   doctorOrderCreateLoading.value = true
   doctorOrderCreateError.value = ''
   doctorOrderCreateResult.value = null
+  doctorPreSubmitMissingItems.value = []
+  doctorPreSubmitMissingComplete.value = null
   try {
     const formData = buildDoctorOrderFormData()
-    const orderPayload = {
+    const orderPayload: DoctorOrderPayload = {
       patient_id: selectedDoctorPatientId.value,
       product_type: doctorOrderFormProductType.value.trim(),
       form_data: formData,
       file_ids: parseDoctorOrderFileIds()
     }
-    const payload = doctorOrderEditingId.value
-      ? await apiFetch<CreateOrderResponse>(`/orders/${doctorOrderEditingId.value}`, {
-        method: 'PUT',
-        body: JSON.stringify({
-          ...orderPayload,
-          submit: !draft
-        })
-      })
-      : await apiFetch<CreateOrderResponse>('/orders', {
-        method: 'POST',
-        body: JSON.stringify({
-          ...orderPayload,
-          is_draft: draft
-        })
-      })
+    const draftPayload = await saveDoctorOrderPayloadAsDraft(orderPayload)
+    doctorOrderEditingId.value = draftPayload.data.order_id
+    doctorOrderKeyword.value = draftPayload.data.order_no
+
+    if (!draft) {
+      const isComplete = await autoCheckDoctorOrderMissingBeforeSubmit(draftPayload.data.order_id)
+      if (!isComplete) {
+        doctorOrderCreateResult.value = draftPayload.data
+        await loadDoctorOrders()
+        await loadDoctorOrderWorkspace(draftPayload.data.order_id)
+        return
+      }
+    }
+
+    const payload = draft
+      ? draftPayload
+      : await submitSavedDoctorOrder(draftPayload.data.order_id, orderPayload)
     doctorOrderCreateResult.value = payload.data
     doctorOrderFileIds.value = ''
     doctorOrderEditingId.value = draft ? payload.data.order_id : null
@@ -3448,12 +4051,17 @@ async function startDoctorOrderEdit(order: DoctorOrderItem) {
   doctorOrderFileIds.value = ''
   doctorOrderCreateResult.value = null
   doctorOrderCreateError.value = ''
+  doctorPreSubmitMissingItems.value = []
+  doctorPreSubmitMissingComplete.value = null
   await loadDoctorOrderForm()
 }
 
 function cancelDoctorOrderEdit() {
   doctorOrderEditingId.value = null
   doctorOrderCreateResult.value = null
+  doctorOrderCreateError.value = ''
+  doctorPreSubmitMissingItems.value = []
+  doctorPreSubmitMissingComplete.value = null
 }
 
 function validateDoctorUploadFiles(files: File[]) {
@@ -3979,6 +4587,10 @@ function selectInternalOrder(order: InternalOrderItem) {
   csMissingInfoComplete.value = null
   csTranslationSourceText.value = order.production_note?.trim() || JSON.stringify(order.form_data, null, 2)
   csTranslationDraft.value = ''
+  csProductionNoteDraft.value = ''
+  csProductionNoteTemplateVersion.value = ''
+  csProductionNoteKnowledgeNotes.value = []
+  csProductionNoteConfirmationNote.value = ''
   csAiResult.value = ''
   void loadInternalDesignDrafts(order.order_id)
 }
@@ -4073,6 +4685,93 @@ function applyCsTranslationDraftToProductionNote() {
   const draftBlock = `AI 翻译草稿（客服已确认）：\n${csTranslationDraft.value.trim()}`
   csProductionNote.value = currentNote ? `${currentNote}\n\n${draftBlock}` : draftBlock
   csAiResult.value = 'AI 翻译草稿已写入生产备注，点击通过初审后保存'
+}
+
+async function generateCsProductionNoteDraft() {
+  if (!selectedInternalOrder.value) {
+    return
+  }
+  csAiActionLoading.value = true
+  internalOrderError.value = ''
+  csAiResult.value = ''
+  csProductionNoteDraft.value = ''
+  csProductionNoteKnowledgeNotes.value = []
+  try {
+    const payload = await apiFetch<AiProductionNoteResponse>('/ai/production-note', {
+      method: 'POST',
+      body: JSON.stringify({
+        order_id: selectedInternalOrder.value.order_id
+      })
+    })
+    csProductionNoteDraft.value = payload.data.draft_note
+    csProductionNoteTemplateVersion.value = payload.data.template_version
+    csProductionNoteKnowledgeNotes.value = payload.data.knowledge_context_notes ?? []
+    csAiResult.value = payload.data.requires_customer_template_confirmation
+      ? 'AI-5 生产备注草稿已生成：默认模板需客户/PM 最终确认，写入前必须人工确认'
+      : 'AI-5 生产备注草稿已生成，写入前必须人工确认'
+  } catch (error) {
+    internalOrderError.value = error instanceof Error ? error.message : 'AI-5 生产备注草稿生成失败'
+  } finally {
+    csAiActionLoading.value = false
+  }
+}
+
+async function confirmCsProductionNoteDraft() {
+  if (!selectedInternalOrder.value || !csProductionNoteDraft.value.trim()) {
+    return
+  }
+  csAiActionLoading.value = true
+  internalOrderError.value = ''
+  try {
+    const payload = await apiFetch<AiProductionNoteConfirmResponse>('/ai/production-note/confirm', {
+      method: 'POST',
+      body: JSON.stringify({
+        order_id: selectedInternalOrder.value.order_id,
+        draft_note: csProductionNoteDraft.value.trim(),
+        confirmation_note: csProductionNoteConfirmationNote.value.trim() || null
+      })
+    })
+    csProductionNote.value = payload.data.production_note
+    selectedInternalOrder.value.production_note = payload.data.production_note
+    csAiResult.value = payload.data.requires_customer_template_confirmation
+      ? 'AI-5 草稿已人工确认并写入生产备注；客户模板仍待最终确认'
+      : 'AI-5 草稿已人工确认并写入生产备注'
+  } catch (error) {
+    internalOrderError.value = error instanceof Error ? error.message : 'AI-5 生产备注确认写入失败'
+  } finally {
+    csAiActionLoading.value = false
+  }
+}
+
+async function runCsAiQuery() {
+  const orderId = Number(csAiQueryOrderId.value.trim())
+  if (!Number.isInteger(orderId) || orderId <= 0) {
+    csAiQueryError.value = '订单 ID 必须是正整数'
+    return
+  }
+  if (!csAiQueryQuestion.value.trim()) {
+    csAiQueryError.value = '请填写客服查询问题'
+    return
+  }
+  csAiQueryLoading.value = true
+  csAiQueryError.value = ''
+  csAiQueryAnswer.value = ''
+  csAiQueryReferenceNotes.value = []
+  try {
+    const payload = await apiFetch<DoctorAiAnswer>('/ai/cs-query', {
+      method: 'POST',
+      body: JSON.stringify({
+        order_id: orderId,
+        question: csAiQueryQuestion.value.trim()
+      })
+    })
+    csAiQueryAnswer.value = `${payload.data.answer}\n\n对外发送前需人工确认。`
+    csAiQueryReferenceNotes.value = payload.data.reference_data_notes ?? []
+  } catch (error) {
+    csAiQueryError.value = error instanceof Error ? error.message : 'AI 客服查询失败'
+  } finally {
+    csAiQueryLoading.value = false
+  }
 }
 
 async function uploadInternalDesignDraft() {
@@ -5018,6 +5717,29 @@ async function loadPerformanceStats() {
   }
 }
 
+async function loadStaffWorkload() {
+  if (!token.value) {
+    return
+  }
+  staffWorkloadLoading.value = true
+  staffWorkloadError.value = ''
+  try {
+    const params = new URLSearchParams({ page: '1', size: '50' })
+    if (staffWorkloadKeyword.value.trim()) {
+      params.set('keyword', staffWorkloadKeyword.value.trim())
+    }
+    const payload = await apiFetch<StaffWorkloadListResponse>(`/staff/workload?${params.toString()}`)
+    staffWorkloadItems.value = payload.data.items
+    staffWorkloadTotal.value = payload.data.total
+  } catch (error) {
+    staffWorkloadItems.value = []
+    staffWorkloadTotal.value = 0
+    staffWorkloadError.value = error instanceof Error ? error.message : '人员工作量加载失败'
+  } finally {
+    staffWorkloadLoading.value = false
+  }
+}
+
 async function loadProductionQualitySummary() {
   if (!token.value) {
     return
@@ -5032,6 +5754,86 @@ async function loadProductionQualitySummary() {
     productionQualitySummaryError.value = error instanceof Error ? error.message : '质量汇总加载失败'
   } finally {
     productionQualitySummaryLoading.value = false
+  }
+}
+
+async function loadQualityRecords() {
+  if (!token.value) {
+    return
+  }
+  qualityRecordLoading.value = true
+  qualityRecordError.value = ''
+  try {
+    const params = new URLSearchParams({
+      record_type: 'EXTERNAL_RETURN',
+      page: '1',
+      size: '20'
+    })
+    if (qualityRecordOrderId.value.trim()) {
+      params.set('order_id', qualityRecordOrderId.value.trim())
+    }
+    if (qualityRecordResponsibilityType.value.trim()) {
+      params.set('responsibility_type', qualityRecordResponsibilityType.value.trim())
+    }
+    const payload = await apiFetch<QualityRecordListResponse>(`/quality-records?${params.toString()}`)
+    qualityRecords.value = payload.data.items
+    qualityRecordTotal.value = payload.data.total
+  } catch (error) {
+    qualityRecords.value = []
+    qualityRecordTotal.value = 0
+    qualityRecordError.value = error instanceof Error ? error.message : '质量记录加载失败'
+  } finally {
+    qualityRecordLoading.value = false
+  }
+}
+
+async function loadProductionQualityPage() {
+  await Promise.all([
+    loadProductionQualitySummary(),
+    loadQualityRecords(),
+    loadReworkDictionaries()
+  ])
+  if (!qualityRecordReasonCategory.value && reworkReasonCategories.value.length > 0) {
+    qualityRecordReasonCategory.value = reworkReasonCategories.value[0].code
+  }
+  if (!qualityRecordResponsibilityType.value && reworkResponsibilityTypes.value.length > 0) {
+    qualityRecordResponsibilityType.value = reworkResponsibilityTypes.value[0].code
+  }
+}
+
+async function createExternalReturnQualityRecord() {
+  const orderId = Number(qualityRecordOrderId.value.trim())
+  if (!Number.isInteger(orderId) || orderId <= 0) {
+    qualityRecordError.value = '订单 ID 必须是正整数'
+    return
+  }
+  if (!qualityRecordReasonDetail.value.trim()) {
+    qualityRecordError.value = '请填写外返原因详情'
+    return
+  }
+  qualityRecordSaving.value = true
+  qualityRecordError.value = ''
+  qualityRecordResult.value = ''
+  try {
+    const payload = await apiFetch<QualityRecordResponse>('/quality-records/external-returns', {
+      method: 'POST',
+      body: JSON.stringify({
+        order_id: orderId,
+        reason_category: qualityRecordReasonCategory.value,
+        responsibility_type: qualityRecordResponsibilityType.value,
+        reason_detail: qualityRecordReasonDetail.value.trim()
+      })
+    })
+    qualityRecordResult.value = `已登记外返质量记录 ${payload.data.quality_record_id} / 返工 ${payload.data.rework_id ?? '-'}`
+    qualityRecordReasonDetail.value = ''
+    await Promise.all([
+      loadQualityRecords(),
+      loadProductionQualitySummary()
+    ])
+  } catch (error) {
+    qualityRecordError.value = error instanceof Error ? error.message : '外返登记失败'
+  } finally {
+    qualityRecordSaving.value = false
   }
 }
 
@@ -5052,6 +5854,71 @@ async function loadProductionEquipmentSummary() {
   }
 }
 
+async function createProductionEquipment() {
+  if (!token.value) {
+    return
+  }
+  productionEquipmentSaving.value = true
+  productionEquipmentSummaryError.value = ''
+  productionEquipmentResult.value = ''
+  try {
+    const response = await apiFetch<ProductionEquipmentResponse>('/production/equipment', {
+      method: 'POST',
+      body: JSON.stringify({
+        equipment_code: productionEquipmentCreateCode.value.trim(),
+        equipment_name: productionEquipmentCreateName.value.trim(),
+        equipment_type: productionEquipmentCreateType.value.trim(),
+        department_name: productionEquipmentCreateDepartment.value.trim(),
+        status: productionEquipmentCreateStatus.value,
+        utilization_rate: productionEquipmentCreateUtilizationRate.value
+      })
+    })
+    productionEquipmentResult.value = `已登记设备 ${response.data.equipment_code}`
+    productionEquipmentEventCode.value = response.data.equipment_code
+    productionEquipmentCreateCode.value = ''
+    productionEquipmentCreateName.value = ''
+    productionEquipmentCreateStatus.value = 'IDLE'
+    productionEquipmentCreateUtilizationRate.value = 0
+    await loadProductionEquipmentSummary()
+  } catch (error) {
+    productionEquipmentSummaryError.value = error instanceof Error ? error.message : '设备登记失败'
+  } finally {
+    productionEquipmentSaving.value = false
+  }
+}
+
+async function createProductionEquipmentEvent() {
+  if (!token.value) {
+    return
+  }
+  productionEquipmentSaving.value = true
+  productionEquipmentSummaryError.value = ''
+  productionEquipmentResult.value = ''
+  try {
+    const equipmentCode = productionEquipmentEventCode.value.trim()
+    const response = await apiFetch<ProductionEquipmentEventResponse>(
+      `/production/equipment/${encodeURIComponent(equipmentCode)}/events`,
+      {
+        method: 'POST',
+        body: JSON.stringify({
+          event_type: productionEquipmentEventType.value,
+          status: productionEquipmentEventStatus.value,
+          downtime_minutes: productionEquipmentEventDowntimeMinutes.value,
+          description: productionEquipmentEventDescription.value.trim()
+        })
+      }
+    )
+    productionEquipmentResult.value = `已登记事件 ${response.data.event_type} / ${response.data.status}`
+    productionEquipmentEventDescription.value = ''
+    productionEquipmentEventDowntimeMinutes.value = 0
+    await loadProductionEquipmentSummary()
+  } catch (error) {
+    productionEquipmentSummaryError.value = error instanceof Error ? error.message : '设备事件登记失败'
+  } finally {
+    productionEquipmentSaving.value = false
+  }
+}
+
 async function loadProductionMaterialExceptionSummary() {
   if (!token.value) {
     return
@@ -5066,6 +5933,73 @@ async function loadProductionMaterialExceptionSummary() {
     productionMaterialExceptionSummaryError.value = error instanceof Error ? error.message : '物料异常汇总加载失败'
   } finally {
     productionMaterialExceptionSummaryLoading.value = false
+  }
+}
+
+async function createProductionMaterialException() {
+  if (!token.value) {
+    return
+  }
+  productionMaterialExceptionSaving.value = true
+  productionMaterialExceptionSummaryError.value = ''
+  productionMaterialExceptionResult.value = ''
+  try {
+    const response = await apiFetch<ProductionMaterialExceptionResponse>('/production/material-exceptions', {
+      method: 'POST',
+      body: JSON.stringify({
+        exception_no: productionMaterialExceptionCreateNo.value.trim(),
+        material_code: productionMaterialExceptionCreateCode.value.trim(),
+        material_name: productionMaterialExceptionCreateName.value.trim(),
+        exception_type: productionMaterialExceptionCreateType.value,
+        status: productionMaterialExceptionCreateStatus.value,
+        responsibility_owner: productionMaterialExceptionCreateResponsibility.value.trim(),
+        loss_quantity: productionMaterialExceptionCreateLossQuantity.value,
+        description: productionMaterialExceptionCreateDescription.value.trim()
+      })
+    })
+    productionMaterialExceptionResult.value = `已登记物料异常 ${response.data.exception_no}`
+    productionMaterialExceptionStatusNo.value = response.data.exception_no
+    productionMaterialExceptionCreateNo.value = ''
+    productionMaterialExceptionCreateCode.value = ''
+    productionMaterialExceptionCreateName.value = ''
+    productionMaterialExceptionCreateResponsibility.value = ''
+    productionMaterialExceptionCreateLossQuantity.value = 0
+    productionMaterialExceptionCreateDescription.value = ''
+    await loadProductionMaterialExceptionSummary()
+  } catch (error) {
+    productionMaterialExceptionSummaryError.value = error instanceof Error ? error.message : '物料异常登记失败'
+  } finally {
+    productionMaterialExceptionSaving.value = false
+  }
+}
+
+async function updateProductionMaterialExceptionStatus() {
+  if (!token.value) {
+    return
+  }
+  productionMaterialExceptionSaving.value = true
+  productionMaterialExceptionSummaryError.value = ''
+  productionMaterialExceptionResult.value = ''
+  try {
+    const exceptionNo = productionMaterialExceptionStatusNo.value.trim()
+    const response = await apiFetch<ProductionMaterialExceptionResponse>(
+      `/production/material-exceptions/${encodeURIComponent(exceptionNo)}/status`,
+      {
+        method: 'PUT',
+        body: JSON.stringify({
+          status: productionMaterialExceptionStatus.value,
+          responsibility_owner: productionMaterialExceptionStatusResponsibility.value.trim(),
+          description: productionMaterialExceptionStatusDescription.value.trim()
+        })
+      }
+    )
+    productionMaterialExceptionResult.value = `已更新处理状态 ${response.data.status}`
+    productionMaterialExceptionStatusDescription.value = ''
+    await loadProductionMaterialExceptionSummary()
+  } catch (error) {
+    productionMaterialExceptionSummaryError.value = error instanceof Error ? error.message : '物料异常状态更新失败'
+  } finally {
+    productionMaterialExceptionSaving.value = false
   }
 }
 
@@ -5086,6 +6020,74 @@ async function loadProductionSafetyEnvironmentSummary() {
   }
 }
 
+async function createProductionSafetyEnvironmentEvent() {
+  if (!token.value) {
+    return
+  }
+  productionSafetyEnvironmentSaving.value = true
+  productionSafetyEnvironmentSummaryError.value = ''
+  productionSafetyEnvironmentResult.value = ''
+  try {
+    const response = await apiFetch<ProductionSafetyEnvironmentEventResponse>('/production/safety-environment/events', {
+      method: 'POST',
+      body: JSON.stringify({
+        event_no: productionSafetyEnvironmentCreateNo.value.trim(),
+        event_type: productionSafetyEnvironmentCreateType.value,
+        status: productionSafetyEnvironmentCreateStatus.value,
+        department_name: productionSafetyEnvironmentCreateDepartment.value.trim(),
+        responsible_owner: productionSafetyEnvironmentCreateOwner.value.trim(),
+        equipment_code: productionSafetyEnvironmentCreateEquipmentCode.value.trim(),
+        risk_level: productionSafetyEnvironmentCreateRisk.value,
+        due_at: productionSafetyEnvironmentCreateDueAt.value || null,
+        description: productionSafetyEnvironmentCreateDescription.value.trim()
+      })
+    })
+    productionSafetyEnvironmentResult.value = `已登记安环事件 ${response.data.event_no}`
+    productionSafetyEnvironmentStatusNo.value = response.data.event_no
+    productionSafetyEnvironmentCreateNo.value = ''
+    productionSafetyEnvironmentCreateDepartment.value = ''
+    productionSafetyEnvironmentCreateOwner.value = ''
+    productionSafetyEnvironmentCreateEquipmentCode.value = ''
+    productionSafetyEnvironmentCreateDueAt.value = ''
+    productionSafetyEnvironmentCreateDescription.value = ''
+    await loadProductionSafetyEnvironmentSummary()
+  } catch (error) {
+    productionSafetyEnvironmentSummaryError.value = error instanceof Error ? error.message : '安环事件登记失败'
+  } finally {
+    productionSafetyEnvironmentSaving.value = false
+  }
+}
+
+async function updateProductionSafetyEnvironmentEventStatus() {
+  if (!token.value) {
+    return
+  }
+  productionSafetyEnvironmentSaving.value = true
+  productionSafetyEnvironmentSummaryError.value = ''
+  productionSafetyEnvironmentResult.value = ''
+  try {
+    const eventNo = productionSafetyEnvironmentStatusNo.value.trim()
+    const response = await apiFetch<ProductionSafetyEnvironmentEventResponse>(
+      `/production/safety-environment/events/${encodeURIComponent(eventNo)}/status`,
+      {
+        method: 'PUT',
+        body: JSON.stringify({
+          status: productionSafetyEnvironmentStatus.value,
+          responsible_owner: productionSafetyEnvironmentStatusOwner.value.trim(),
+          description: productionSafetyEnvironmentStatusDescription.value.trim()
+        })
+      }
+    )
+    productionSafetyEnvironmentResult.value = `已更新整改状态 ${response.data.status}`
+    productionSafetyEnvironmentStatusDescription.value = ''
+    await loadProductionSafetyEnvironmentSummary()
+  } catch (error) {
+    productionSafetyEnvironmentSummaryError.value = error instanceof Error ? error.message : '安环整改状态更新失败'
+  } finally {
+    productionSafetyEnvironmentSaving.value = false
+  }
+}
+
 async function loadProductionCostSummary() {
   if (!token.value) {
     return
@@ -5103,6 +6105,40 @@ async function loadProductionCostSummary() {
   }
 }
 
+async function createProductionCostRecord() {
+  if (!token.value) {
+    return
+  }
+  productionCostSaving.value = true
+  productionCostSummaryError.value = ''
+  productionCostResult.value = ''
+  try {
+    const response = await apiFetch<ProductionCostRecordResponse>('/production/cost-management/records', {
+      method: 'POST',
+      body: JSON.stringify({
+        cost_no: productionCostCreateNo.value.trim(),
+        cost_type: productionCostCreateType.value,
+        amount: productionCostCreateAmount.value,
+        status: productionCostCreateStatus.value,
+        department_name: productionCostCreateDepartment.value.trim(),
+        supplier_name: productionCostCreateSupplier.value.trim(),
+        description: productionCostCreateDescription.value.trim()
+      })
+    })
+    productionCostResult.value = `已登记成本记录 ${response.data.cost_no}`
+    productionCostCreateNo.value = ''
+    productionCostCreateAmount.value = 0
+    productionCostCreateDepartment.value = ''
+    productionCostCreateSupplier.value = ''
+    productionCostCreateDescription.value = ''
+    await loadProductionCostSummary()
+  } catch (error) {
+    productionCostSummaryError.value = error instanceof Error ? error.message : '成本记录登记失败'
+  } finally {
+    productionCostSaving.value = false
+  }
+}
+
 async function loadProductionRewardPenaltySummary() {
   if (!token.value) {
     return
@@ -5117,6 +6153,72 @@ async function loadProductionRewardPenaltySummary() {
     productionRewardPenaltySummaryError.value = error instanceof Error ? error.message : '奖惩汇总加载失败'
   } finally {
     productionRewardPenaltySummaryLoading.value = false
+  }
+}
+
+async function createProductionRewardPenaltyRecord() {
+  if (!token.value) {
+    return
+  }
+  productionRewardPenaltySaving.value = true
+  productionRewardPenaltySummaryError.value = ''
+  productionRewardPenaltyResult.value = ''
+  try {
+    const body: Record<string, string | number | null> = {
+      record_no: productionRewardPenaltyCreateNo.value.trim(),
+      record_type: productionRewardPenaltyCreateType.value,
+      reason_category: productionRewardPenaltyCreateReason.value,
+      amount: productionRewardPenaltyCreateAmount.value,
+      status: productionRewardPenaltyCreateStatus.value,
+      employee_user_id: productionRewardPenaltyCreateEmployeeUserId.value,
+      department_name: productionRewardPenaltyCreateDepartment.value.trim(),
+      description: productionRewardPenaltyCreateDescription.value.trim()
+    }
+    const response = await apiFetch<ProductionRewardPenaltyRecordResponse>('/production/reward-penalty/records', {
+      method: 'POST',
+      body: JSON.stringify(body)
+    })
+    productionRewardPenaltyResult.value = `已登记奖惩记录 ${response.data.record_no}`
+    productionRewardPenaltyStatusNo.value = response.data.record_no
+    productionRewardPenaltyCreateNo.value = ''
+    productionRewardPenaltyCreateAmount.value = 0
+    productionRewardPenaltyCreateEmployeeUserId.value = null
+    productionRewardPenaltyCreateDepartment.value = ''
+    productionRewardPenaltyCreateDescription.value = ''
+    await loadProductionRewardPenaltySummary()
+  } catch (error) {
+    productionRewardPenaltySummaryError.value = error instanceof Error ? error.message : '奖惩记录登记失败'
+  } finally {
+    productionRewardPenaltySaving.value = false
+  }
+}
+
+async function updateProductionRewardPenaltyRecordStatus() {
+  if (!token.value) {
+    return
+  }
+  productionRewardPenaltySaving.value = true
+  productionRewardPenaltySummaryError.value = ''
+  productionRewardPenaltyResult.value = ''
+  try {
+    const recordNo = encodeURIComponent(productionRewardPenaltyStatusNo.value.trim())
+    const response = await apiFetch<ProductionRewardPenaltyRecordResponse>(
+      `/production/reward-penalty/records/${recordNo}/status`,
+      {
+        method: 'PUT',
+        body: JSON.stringify({
+          status: productionRewardPenaltyStatus.value,
+          description: productionRewardPenaltyStatusDescription.value.trim()
+        })
+      }
+    )
+    productionRewardPenaltyResult.value = `已更新奖惩审批状态 ${response.data.status}`
+    productionRewardPenaltyStatusDescription.value = ''
+    await loadProductionRewardPenaltySummary()
+  } catch (error) {
+    productionRewardPenaltySummaryError.value = error instanceof Error ? error.message : '奖惩审批状态更新失败'
+  } finally {
+    productionRewardPenaltySaving.value = false
   }
 }
 
@@ -5213,6 +6315,75 @@ async function shipProductionBoardOrder() {
     productionBoardError.value = message.includes('409') ? '终检出检通过后才能发货' : message
   } finally {
     productionBoardShippingLoading.value = false
+  }
+}
+
+async function loadDeliveryOrders() {
+  if (!token.value) {
+    return
+  }
+  deliveryLoading.value = true
+  deliveryError.value = ''
+  try {
+    const params = new URLSearchParams({ limit: '50' })
+    if (deliveryStatusFilter.value !== 'ALL') {
+      params.set('logistics_status', deliveryStatusFilter.value)
+    }
+    const payload = await apiFetch<DeliveryOrderItem[]>(`/logistics/orders?${params.toString()}`)
+    deliveryOrders.value = payload.data
+    const selectedStillVisible = selectedDeliveryOrder.value
+      ? payload.data.some((item) => item.order_id === selectedDeliveryOrder.value?.order_id)
+      : false
+    if (payload.data.length === 0) {
+      selectedDeliveryOrder.value = null
+    } else if (!selectedStillVisible) {
+      selectDeliveryOrder(payload.data[0])
+    }
+  } catch (error) {
+    deliveryOrders.value = []
+    selectedDeliveryOrder.value = null
+    deliveryError.value = error instanceof Error ? error.message : '配送列表加载失败'
+  } finally {
+    deliveryLoading.value = false
+  }
+}
+
+function selectDeliveryOrder(order: DeliveryOrderItem) {
+  selectedDeliveryOrder.value = order
+  deliveryFollowUpStatus.value = ['EXCEPTION', 'FOLLOWING', 'RESOLVED'].includes(order.logistics_status)
+    ? order.logistics_status
+    : 'EXCEPTION'
+  deliveryFollowUpNote.value = ''
+  deliveryResult.value = ''
+}
+
+async function saveDeliveryFollowUp() {
+  if (!selectedDeliveryOrder.value) {
+    return
+  }
+  if (!deliveryFollowUpNote.value.trim()) {
+    deliveryError.value = '请填写物流异常跟进说明'
+    return
+  }
+  deliverySaving.value = true
+  deliveryError.value = ''
+  deliveryResult.value = ''
+  try {
+    const payload = await apiFetch<DeliveryOrderItem>(`/orders/${selectedDeliveryOrder.value.order_id}/logistics/exception`, {
+      method: 'POST',
+      body: JSON.stringify({
+        logistics_status: deliveryFollowUpStatus.value,
+        follow_up_note: deliveryFollowUpNote.value.trim()
+      })
+    })
+    selectedDeliveryOrder.value = payload.data
+    deliveryResult.value = `已更新 ${payload.data.order_no}：${statusLabel(payload.data.logistics_status)}`
+    deliveryFollowUpNote.value = ''
+    await loadDeliveryOrders()
+  } catch (error) {
+    deliveryError.value = error instanceof Error ? error.message : '物流异常跟进保存失败'
+  } finally {
+    deliverySaving.value = false
   }
 }
 
@@ -5727,6 +6898,61 @@ onBeforeUnmount(() => {
                       <div v-if="csTranslationDraft" class="ai-answer" data-testid="cs-translation-draft">
                         {{ csTranslationDraft }}
                       </div>
+                    </section>
+
+                    <section class="doctor-order-create">
+                      <div class="subheading-row">
+                        <h3>AI-5 生产备注</h3>
+                        <el-tag type="warning" round>默认模板 / 人工确认</el-tag>
+                      </div>
+                      <p class="form-hint">
+                        客户正式模板未确认，本草稿只按一期默认模板和订单上下文整理，确认后才写入生产备注。
+                      </p>
+                      <div class="inline-actions">
+                        <el-button
+                          :loading="csAiActionLoading"
+                          data-testid="cs-production-note-generate"
+                          @click="generateCsProductionNoteDraft"
+                        >
+                          生成生产备注草稿
+                        </el-button>
+                        <el-button
+                          type="primary"
+                          plain
+                          :loading="csAiActionLoading"
+                          :disabled="!csProductionNoteDraft.trim()"
+                          data-testid="cs-production-note-confirm"
+                          @click="confirmCsProductionNoteDraft"
+                        >
+                          人工确认写入
+                        </el-button>
+                      </div>
+                      <div
+                        v-if="csProductionNoteDraft"
+                        class="ai-answer"
+                        data-testid="cs-production-note-draft"
+                      >
+                        <strong>模板版本：{{ csProductionNoteTemplateVersion }}</strong>
+                        <p>{{ csProductionNoteDraft }}</p>
+                      </div>
+                      <div
+                        v-if="csProductionNoteKnowledgeNotes.length"
+                        class="compact-list"
+                        data-testid="cs-production-note-context-notes"
+                      >
+                        <article v-for="note in csProductionNoteKnowledgeNotes" :key="note">
+                          <p>{{ note }}</p>
+                        </article>
+                      </div>
+                      <el-form-item label="确认说明">
+                        <el-input
+                          v-model="csProductionNoteConfirmationNote"
+                          data-testid="cs-production-note-confirmation-note"
+                          type="textarea"
+                          :rows="2"
+                          placeholder="填写人工确认说明；不填写也会记录默认确认说明"
+                        />
+                      </el-form-item>
                     </section>
 
                     <el-alert
@@ -6946,6 +8172,97 @@ onBeforeUnmount(() => {
           </div>
         </section>
 
+        <section v-else-if="isStaffWorkloadRoute" class="panel route-panel performance-panel">
+          <div class="route-heading">
+            <h2>人员档案</h2>
+            <div class="heading-tags">
+              <el-tag round>{{ staffWorkloadTotal }} 名员工</el-tag>
+              <el-tag type="info" round>PRD V2.0 一期</el-tag>
+            </div>
+          </div>
+
+          <div class="performance-toolbar">
+            <el-input
+              v-model="staffWorkloadKeyword"
+              placeholder="搜索员工姓名、账号、部门或岗位"
+              clearable
+              data-testid="staff-workload-keyword"
+              @keyup.enter="loadStaffWorkload"
+            />
+            <el-button
+              type="primary"
+              :loading="staffWorkloadLoading"
+              data-testid="staff-workload-search"
+              @click="loadStaffWorkload"
+            >
+              查询人员
+            </el-button>
+          </div>
+
+          <el-alert
+            v-if="staffWorkloadError"
+            :title="staffWorkloadError"
+            type="error"
+            show-icon
+            :closable="false"
+          />
+
+          <el-table
+            :data="staffWorkloadItems"
+            border
+            data-testid="staff-workload-table"
+            empty-text="暂无人员档案"
+          >
+            <el-table-column prop="display_name" label="员工" min-width="140">
+              <template #default="{ row }">
+                <strong>{{ row.display_name }}</strong>
+                <div class="muted-text">ID {{ row.user_id }} / {{ row.username }}</div>
+              </template>
+            </el-table-column>
+            <el-table-column label="部门岗位" min-width="180">
+              <template #default="{ row }">
+                <span>{{ row.dept_name ?? '未分配部门' }}</span>
+                <div class="tag-row">
+                  <el-tag
+                    v-for="post in row.post_names"
+                    :key="post"
+                    size="small"
+                    type="info"
+                    effect="plain"
+                  >
+                    {{ post }}
+                  </el-tag>
+                </div>
+              </template>
+            </el-table-column>
+            <el-table-column label="角色" min-width="130">
+              <template #default="{ row }">
+                <el-tag
+                  v-for="role in row.role_codes"
+                  :key="role"
+                  size="small"
+                  effect="plain"
+                >
+                  {{ roleLabel(role) }}
+                </el-tag>
+              </template>
+            </el-table-column>
+            <el-table-column prop="assigned_node_count" label="已分配节点" width="110" />
+            <el-table-column prop="active_node_count" label="进行中/待开工" width="130" />
+            <el-table-column prop="completed_work_log_count" label="完成工时数" width="120" />
+            <el-table-column prop="effective_duration" label="有效工时(分钟)" width="130" />
+            <el-table-column prop="rework_count" label="返工数" width="90" />
+            <el-table-column prop="last_work_finished_at" label="最近完工" min-width="180" />
+            <el-table-column label="状态" width="90">
+              <template #default="{ row }">
+                <el-tag :type="row.status === 'ACTIVE' ? 'success' : 'info'" size="small">
+                  {{ statusLabel(row.status) }}
+                </el-tag>
+              </template>
+            </el-table-column>
+          </el-table>
+        </section>
+
         <section v-else-if="isProductionBoardRoute" class="panel route-panel production-board-panel">
           <div class="route-heading">
             <h2>生产看板</h2>
@@ -7121,6 +8438,257 @@ onBeforeUnmount(() => {
               </div>
             </section>
           </div>
+        </section>
+
+        <section v-else-if="isDeliveryManagementRoute" class="panel route-panel production-board-panel" data-testid="cs-delivery-management-panel">
+          <div class="route-heading">
+            <h2>配送管理</h2>
+            <div class="heading-tags">
+              <el-tag round>{{ deliveryOrders.length }} 单</el-tag>
+              <el-tag type="info" round>人工跟进</el-tag>
+            </div>
+          </div>
+
+          <div class="production-board-toolbar">
+            <el-select
+              v-model="deliveryStatusFilter"
+              data-testid="delivery-status-filter"
+              @change="loadDeliveryOrders"
+            >
+              <el-option label="全部状态" value="ALL" />
+              <el-option label="待发货" value="PENDING" />
+              <el-option label="已发货" value="SHIPPED" />
+              <el-option label="物流异常" value="EXCEPTION" />
+              <el-option label="跟进中" value="FOLLOWING" />
+              <el-option label="已解决" value="RESOLVED" />
+            </el-select>
+            <el-button
+              type="primary"
+              :loading="deliveryLoading"
+              data-testid="delivery-refresh-button"
+              @click="loadDeliveryOrders"
+            >
+              刷新配送列表
+            </el-button>
+          </div>
+
+          <el-alert
+            v-if="deliveryError"
+            :title="deliveryError"
+            type="error"
+            show-icon
+            :closable="false"
+          />
+          <el-alert
+            v-if="deliveryResult"
+            :title="deliveryResult"
+            type="success"
+            show-icon
+            :closable="false"
+          />
+
+          <div class="production-board-workspace">
+            <aside class="doctor-order-list" data-testid="delivery-order-list">
+              <button
+                v-for="order in deliveryOrders"
+                :key="order.order_id"
+                class="doctor-order-row"
+                :class="{ active: selectedDeliveryOrder?.order_id === order.order_id }"
+                type="button"
+                @click="selectDeliveryOrder(order)"
+              >
+                <strong>{{ order.order_no }}</strong>
+                <span>{{ productTypeLabel(order.product_type) }} / {{ statusLabel(order.logistics_status) }}</span>
+                <small>{{ order.carrier ?? '未录入承运商' }} / {{ order.tracking_no ?? '未录入运单号' }}</small>
+              </button>
+              <div v-if="deliveryOrders.length === 0" class="empty-state">
+                暂无配送订单
+              </div>
+            </aside>
+
+            <section v-if="selectedDeliveryOrder" class="doctor-order-detail">
+              <div class="doctor-order-summary">
+                <div>
+                  <span>订单</span>
+                  <strong>{{ selectedDeliveryOrder.order_no }}</strong>
+                </div>
+                <div>
+                  <span>账单</span>
+                  <strong>{{ statusLabel(selectedDeliveryOrder.bill_status) }}</strong>
+                </div>
+                <div>
+                  <span>付款</span>
+                  <strong>{{ statusLabel(selectedDeliveryOrder.payment_status) }}</strong>
+                </div>
+                <div>
+                  <span>物流</span>
+                  <strong>{{ statusLabel(selectedDeliveryOrder.logistics_status) }}</strong>
+                </div>
+              </div>
+
+              <div class="review-form">
+                <div class="section-subtitle">
+                  物流异常跟进
+                </div>
+                <div class="order-create-grid">
+                  <el-form-item label="异常状态">
+                    <el-select v-model="deliveryFollowUpStatus" data-testid="delivery-follow-up-status">
+                      <el-option label="物流异常" value="EXCEPTION" />
+                      <el-option label="跟进中" value="FOLLOWING" />
+                      <el-option label="已解决" value="RESOLVED" />
+                    </el-select>
+                  </el-form-item>
+                  <el-form-item label="承运商">
+                    <el-input :model-value="selectedDeliveryOrder.carrier ?? '-'" readonly />
+                  </el-form-item>
+                  <el-form-item label="运单号">
+                    <el-input :model-value="selectedDeliveryOrder.tracking_no ?? '-'" readonly />
+                  </el-form-item>
+                </div>
+                <el-form-item label="内部跟进说明">
+                  <el-input
+                    v-model="deliveryFollowUpNote"
+                    data-testid="delivery-follow-up-note"
+                    type="textarea"
+                    :rows="3"
+                    placeholder="记录客服内部物流异常跟进，不外显给医生端"
+                  />
+                </el-form-item>
+                <div class="inline-actions">
+                  <el-button
+                    type="primary"
+                    :loading="deliverySaving"
+                    :disabled="!deliveryFollowUpNote.trim()"
+                    data-testid="delivery-follow-up-save"
+                    @click="saveDeliveryFollowUp"
+                  >
+                    保存跟进
+                  </el-button>
+                </div>
+                <p v-if="selectedDeliveryOrder.last_follow_up_note" class="public-message" data-testid="delivery-last-follow-up-note">
+                  最近跟进：{{ selectedDeliveryOrder.last_follow_up_note }}
+                </p>
+              </div>
+            </section>
+
+            <section v-else class="doctor-order-detail empty-state">
+              请选择一笔配送订单进行异常跟进
+            </section>
+          </div>
+        </section>
+
+        <section v-else-if="isDoctorAccountSettingsRoute" class="panel route-panel doctor-order-panel" data-testid="doctor-account-settings-panel">
+          <div class="route-heading">
+            <h2>账户设置</h2>
+            <el-tag round>{{ doctorAccountSettings?.username ?? '医生账号' }}</el-tag>
+          </div>
+
+          <el-alert
+            v-if="doctorAccountError"
+            :title="doctorAccountError"
+            type="error"
+            show-icon
+            :closable="false"
+          />
+          <el-alert
+            v-if="doctorAccountResult"
+            :title="doctorAccountResult"
+            type="success"
+            show-icon
+            :closable="false"
+          />
+
+          <section class="doctor-order-detail">
+            <div v-if="doctorAccountSettings" class="doctor-order-summary">
+              <div>
+                <span>账号</span>
+                <strong>{{ doctorAccountSettings.username }}</strong>
+              </div>
+              <div>
+                <span>姓名</span>
+                <strong>{{ doctorAccountSettings.display_name }}</strong>
+              </div>
+              <div>
+                <span>消息推送</span>
+                <strong>{{ doctorAccountSettings.notification_push_enabled ? '开启' : '关闭' }}</strong>
+              </div>
+            </div>
+
+            <div class="subheading-row">
+              <h3>基础资料</h3>
+              <el-button plain :loading="doctorAccountLoading" @click="loadDoctorAccountSettings">
+                刷新
+              </el-button>
+            </div>
+            <div class="order-create-grid">
+              <el-form-item label="姓名">
+                <el-input v-model="doctorAccountSettingsForm.display_name" data-testid="doctor-account-display-name-input" />
+              </el-form-item>
+              <el-form-item label="邮箱">
+                <el-input v-model="doctorAccountSettingsForm.contact_email" data-testid="doctor-account-email-input" />
+              </el-form-item>
+              <el-form-item label="电话">
+                <el-input v-model="doctorAccountSettingsForm.contact_phone" data-testid="doctor-account-phone-input" />
+              </el-form-item>
+              <el-form-item label="消息推送">
+                <el-switch v-model="doctorAccountSettingsForm.notification_push_enabled" data-testid="doctor-account-push-switch" />
+              </el-form-item>
+              <el-form-item label="收货地址">
+                <el-input
+                  v-model="doctorAccountSettingsForm.shipping_address"
+                  type="textarea"
+                  :rows="3"
+                  data-testid="doctor-account-shipping-address-input"
+                />
+              </el-form-item>
+            </div>
+            <div class="inline-actions">
+              <el-button
+                type="primary"
+                :loading="doctorAccountSaveLoading"
+                :disabled="!doctorAccountSettingsForm.display_name.trim()"
+                data-testid="doctor-account-save-button"
+                @click="saveDoctorAccountSettings"
+              >
+                保存账户设置
+              </el-button>
+            </div>
+
+            <div class="subheading-row">
+              <h3>密码安全</h3>
+              <el-tag round>仅本人</el-tag>
+            </div>
+            <div class="order-create-grid">
+              <el-form-item label="当前密码">
+                <el-input
+                  v-model="doctorAccountCurrentPassword"
+                  type="password"
+                  show-password
+                  autocomplete="current-password"
+                  data-testid="doctor-account-current-password-input"
+                />
+              </el-form-item>
+              <el-form-item label="新密码">
+                <el-input
+                  v-model="doctorAccountNewPassword"
+                  type="password"
+                  show-password
+                  autocomplete="new-password"
+                  data-testid="doctor-account-new-password-input"
+                />
+              </el-form-item>
+            </div>
+            <div class="inline-actions">
+              <el-button
+                :loading="doctorAccountPasswordLoading"
+                :disabled="!doctorAccountCurrentPassword || doctorAccountNewPassword.length < 8"
+                data-testid="doctor-account-password-button"
+                @click="changeDoctorAccountPassword"
+              >
+                修改密码
+              </el-button>
+            </div>
+          </section>
         </section>
 
         <section
@@ -7559,6 +9127,24 @@ onBeforeUnmount(() => {
                 />
               </el-form-item>
             </div>
+            <el-alert
+              v-if="doctorPreSubmitMissingComplete !== null"
+              data-testid="doctor-order-missing-alert"
+              :title="doctorPreSubmitMissingComplete ? 'AI-4 资料缺失检查：当前必填资料完整' : 'AI-4 资料缺失检查：请先补齐必填资料后再提交'"
+              :type="doctorPreSubmitMissingComplete ? 'success' : 'warning'"
+              show-icon
+              :closable="false"
+            />
+            <div v-if="doctorPreSubmitMissingItems.length > 0" class="compact-list">
+              <article
+                v-for="item in doctorPreSubmitMissingItems"
+                :key="item.field_key"
+                data-testid="doctor-order-missing-item"
+              >
+                <strong>{{ item.field_label }}</strong>
+                <p>{{ item.tip }}</p>
+              </article>
+            </div>
             <div class="inline-actions">
               <el-button
                 plain
@@ -7856,6 +9442,151 @@ onBeforeUnmount(() => {
 
         <section v-else-if="isFormConfigsRoute" class="panel route-panel form-config-panel">
           <div class="route-heading">
+            <h2>产品管理</h2>
+            <el-tag round>产品参数 / 基础价</el-tag>
+          </div>
+
+          <div class="notification-toolbar">
+            <el-input
+              v-model="productCatalogKeyword"
+              data-testid="product-catalog-keyword"
+              placeholder="搜索产品类型 / 名称 / 材料"
+              style="max-width: 260px"
+            />
+            <el-button :loading="productCatalogLoading" data-testid="product-catalog-refresh" @click="loadProductCatalog">
+              刷新产品
+            </el-button>
+          </div>
+
+          <el-alert
+            v-if="productCatalogError"
+            :title="productCatalogError"
+            type="error"
+            show-icon
+            :closable="false"
+          />
+          <el-alert
+            v-if="productCatalogResult"
+            :title="productCatalogResult"
+            type="success"
+            show-icon
+            :closable="false"
+          />
+
+          <div class="form-config-layout" data-testid="product-catalog-panel">
+            <section class="form-config-editor">
+              <h3>新增产品</h3>
+              <div class="form-grid">
+                <label>
+                  产品类型
+                  <el-input v-model="productCatalogCreateType" data-testid="product-catalog-create-type" />
+                </label>
+                <label>
+                  产品名称
+                  <el-input v-model="productCatalogCreateName" data-testid="product-catalog-create-name" />
+                </label>
+                <label>
+                  材料规格
+                  <el-input v-model="productCatalogCreateMaterial" data-testid="product-catalog-create-material" />
+                </label>
+                <label>
+                  基础价（分）
+                  <el-input-number v-model="productCatalogCreatePrice" :min="1" :step="100" data-testid="product-catalog-create-price" />
+                </label>
+                <label>
+                  币种
+                  <el-input v-model="productCatalogCreateCurrency" data-testid="product-catalog-create-currency" />
+                </label>
+                <label>
+                  价格备注
+                  <el-input v-model="productCatalogCreateNote" data-testid="product-catalog-create-note" />
+                </label>
+              </div>
+              <div class="inline-actions">
+                <el-button
+                  type="primary"
+                  :loading="productCatalogSaving"
+                  data-testid="product-catalog-create-button"
+                  @click="createProductCatalogItem"
+                >
+                  新增产品
+                </el-button>
+              </div>
+            </section>
+
+            <section class="form-config-editor">
+              <h3>编辑产品</h3>
+              <div v-if="selectedProductCatalogItem" class="form-grid">
+                <label>
+                  产品名称
+                  <el-input v-model="productCatalogEditName" data-testid="product-catalog-edit-name" />
+                </label>
+                <label>
+                  材料规格
+                  <el-input v-model="productCatalogEditMaterial" data-testid="product-catalog-edit-material" />
+                </label>
+                <label>
+                  基础价（分）
+                  <el-input-number v-model="productCatalogEditPrice" :min="1" :step="100" data-testid="product-catalog-edit-price" />
+                </label>
+                <label>
+                  状态
+                  <el-select v-model="productCatalogEditStatus" data-testid="product-catalog-edit-status">
+                    <el-option label="启用" value="ACTIVE" />
+                    <el-option label="停用" value="INACTIVE" />
+                  </el-select>
+                </label>
+                <label>
+                  币种
+                  <el-input v-model="productCatalogEditCurrency" data-testid="product-catalog-edit-currency" />
+                </label>
+                <label>
+                  价格备注
+                  <el-input v-model="productCatalogEditNote" data-testid="product-catalog-edit-note" />
+                </label>
+              </div>
+              <div v-if="selectedProductCatalogItem" class="inline-actions">
+                <el-button
+                  type="primary"
+                  :loading="productCatalogSaving"
+                  data-testid="product-catalog-update-button"
+                  @click="updateProductCatalogItem()"
+                >
+                  保存产品
+                </el-button>
+                <el-button
+                  type="danger"
+                  plain
+                  :loading="productCatalogSaving"
+                  data-testid="product-catalog-deactivate-button"
+                  @click="updateProductCatalogItem('INACTIVE')"
+                >
+                  停用
+                </el-button>
+              </div>
+              <div v-else class="empty-state">
+                暂无可编辑产品
+              </div>
+            </section>
+          </div>
+
+          <div v-if="productCatalogItems.length === 0" class="empty-state">
+            暂无产品
+          </div>
+          <div v-else class="compact-list" data-testid="product-catalog-list">
+            <article
+              v-for="item in productCatalogItems"
+              :key="item.product_id"
+              :class="{ selected: item.product_id === selectedProductCatalogId }"
+              @click="selectProductCatalogItem(item)"
+            >
+              <strong>{{ item.product_name }} / {{ item.product_type }}</strong>
+              <p>{{ item.material_spec || '未填材料规格' }} / {{ statusLabel(item.status) }}</p>
+              <span>{{ item.currency }} {{ (item.base_price_cents / 100).toFixed(2) }} / {{ item.price_note || '人工维护基础价' }}</span>
+            </article>
+          </div>
+
+          <div class="route-heading secondary-heading">
             <h2>动态表单</h2>
             <el-tag round>{{ formConfigProductType || 'ALL' }}</el-tag>
           </div>
@@ -8188,9 +9919,9 @@ onBeforeUnmount(() => {
                   :class="{ selected: selectedCustomerCollaborationMessage?.msg_id === message.msg_id }"
                   @click="selectCustomerCollaborationMessage(message)"
                 >
-                  <strong>#{{ message.msg_id }} / 订单 {{ message.order_id }}</strong>
+                  <strong>#{{ message.msg_id }} / {{ message.order_no || `订单 ${message.order_id}` }}</strong>
                   <p>{{ message.content }}</p>
-                  <span>{{ roleLabel(message.sender_role) }} / {{ statusLabel(message.review_status) }} / {{ message.visible_to }}</span>
+                  <span>{{ message.product_type }} / {{ roleLabel(message.sender_role) }} / {{ statusLabel(message.review_status) }} / {{ statusLabel(message.external_status) }} / {{ message.visible_to }}</span>
                   <div class="inline-actions">
                     <el-button
                       size="small"
@@ -8229,7 +9960,7 @@ onBeforeUnmount(() => {
                 >
                   <strong>{{ roleLabel(message.sender_role) }} / {{ statusLabel(message.review_status) }}</strong>
                   <p>{{ message.content }}</p>
-                  <span>#{{ message.msg_id }} / {{ message.visible_to }}</span>
+                  <span>#{{ message.msg_id }} / {{ message.order_no || `订单 ${message.order_id}` }} / {{ statusLabel(message.external_status) }} / {{ message.visible_to }}</span>
                 </article>
               </div>
             </section>
@@ -8274,6 +10005,85 @@ onBeforeUnmount(() => {
               暂无选中的待审核消息
             </div>
           </section>
+        </section>
+
+        <section v-else-if="isCsAiQueryRoute" class="panel route-panel customer-collaboration-panel" data-testid="cs-ai-query-panel">
+          <div class="route-heading">
+            <h2>客服查询助手</h2>
+            <div class="heading-tags">
+              <el-tag round>AI-2</el-tag>
+              <el-tag type="info" round>只读草稿</el-tag>
+            </div>
+          </div>
+
+          <div class="customer-collaboration-grid">
+            <section class="customer-collaboration-card">
+              <div class="subheading-row">
+                <h3>订单查询</h3>
+                <el-tag type="warning" round>内部可见</el-tag>
+              </div>
+              <div class="check-form">
+                <label>
+                  订单 ID
+                  <el-input
+                    v-model="csAiQueryOrderId"
+                    data-testid="cs-ai-query-order-id"
+                    placeholder="输入客服有权访问的订单 ID"
+                  />
+                </label>
+                <label>
+                  查询问题
+                  <el-input
+                    v-model="csAiQueryQuestion"
+                    data-testid="cs-ai-query-question"
+                    type="textarea"
+                    :rows="4"
+                    placeholder="例如：请汇总内部状态、外部状态、账单物流和下一步客服建议"
+                  />
+                </label>
+                <div class="inline-actions">
+                  <el-button
+                    type="primary"
+                    :loading="csAiQueryLoading"
+                    :disabled="!csAiQueryOrderId.trim() || !csAiQueryQuestion.trim()"
+                    data-testid="cs-ai-query-submit"
+                    @click="runCsAiQuery"
+                  >
+                    生成查询草稿
+                  </el-button>
+                </div>
+              </div>
+              <p class="public-message">
+                AI-2 只读取客服权限范围内的内部订单摘要；结果不自动发送给医生、不自动写入订单。
+              </p>
+            </section>
+
+            <section class="customer-collaboration-card">
+              <div class="subheading-row">
+                <h3>查询结果</h3>
+                <el-tag type="info" round>人工复核</el-tag>
+              </div>
+              <el-alert
+                v-if="csAiQueryError"
+                :title="csAiQueryError"
+                type="error"
+                show-icon
+                :closable="false"
+              />
+              <div v-if="csAiQueryAnswer" class="ai-answer-card" data-testid="cs-ai-query-answer">
+                <p>{{ csAiQueryAnswer }}</p>
+                <div v-if="csAiQueryReferenceNotes.length" data-testid="cs-ai-query-reference-notes">
+                  <h4>引用数据说明</h4>
+                  <ul>
+                    <li v-for="note in csAiQueryReferenceNotes" :key="note">{{ note }}</li>
+                  </ul>
+                </div>
+              </div>
+              <div v-else class="empty-state">
+                输入订单 ID 和问题后生成客服内部查询草稿
+              </div>
+            </section>
+          </div>
         </section>
 
         <section v-else-if="activeRoute === '/notifications'" class="panel route-panel notification-panel">
@@ -8455,6 +10265,149 @@ onBeforeUnmount(() => {
           </section>
         </section>
 
+        <section v-else-if="isProductionQualitySummaryRoute" class="panel route-panel performance-panel">
+          <div class="route-heading">
+            <h2>质量与返工</h2>
+            <el-tag round>{{ qualityRecordTotal }} 条外返记录</el-tag>
+          </div>
+
+          <div class="prototype-queue-card">
+            <div class="prototype-table-head">
+              <div>
+                <h3>真实质量汇总</h3>
+                <small>
+                  {{ productionQualitySummary?.generated_at ? `更新 ${compactDateTime(productionQualitySummary.generated_at)}` : '来自后端出检与返工记录' }}
+                </small>
+              </div>
+              <el-button
+                size="small"
+                :loading="productionQualitySummaryLoading || qualityRecordLoading"
+                @click="loadProductionQualityPage"
+              >
+                刷新质量数据
+              </el-button>
+            </div>
+            <el-alert
+              v-if="productionQualitySummaryError"
+              :title="productionQualitySummaryError"
+              type="warning"
+              show-icon
+              :closable="false"
+            />
+            <div v-if="productionQualitySummaryCards.length" class="placeholder-content-grid">
+              <article
+                v-for="card in productionQualitySummaryCards"
+                :key="card.title"
+                class="placeholder-content-card"
+                :class="`tone-${card.tone}`"
+              >
+                <span class="placeholder-content-dot" />
+                <strong>{{ card.title }}</strong>
+                <b>{{ card.value }}</b>
+                <small>{{ card.detail }}</small>
+              </article>
+            </div>
+            <div v-else-if="!productionQualitySummaryLoading && !productionQualitySummaryError" class="empty-state">
+              暂无质量汇总数据
+            </div>
+          </div>
+
+          <div class="prototype-queue-card">
+            <div class="prototype-table-head">
+              <div>
+                <h3>外返质量记录</h3>
+                <small>基于检查记录与返工记录生成</small>
+              </div>
+              <div class="inline-actions">
+                <el-input
+                  v-model="qualityRecordOrderId"
+                  placeholder="订单 ID"
+                  clearable
+                  data-testid="quality-record-order-id"
+                  @keyup.enter="loadQualityRecords"
+                />
+                <el-select v-model="qualityRecordResponsibilityType" data-testid="quality-record-responsibility">
+                  <el-option
+                    v-for="option in reworkResponsibilityTypes"
+                    :key="option.code"
+                    :label="option.label"
+                    :value="option.code"
+                  />
+                </el-select>
+                <el-button :loading="qualityRecordLoading" @click="loadQualityRecords">筛选</el-button>
+              </div>
+            </div>
+            <el-alert
+              v-if="qualityRecordError"
+              :title="qualityRecordError"
+              type="warning"
+              show-icon
+              :closable="false"
+            />
+            <el-alert
+              v-if="qualityRecordResult"
+              :title="qualityRecordResult"
+              type="success"
+              show-icon
+              :closable="false"
+            />
+            <div class="compact-form-grid">
+              <el-input v-model="qualityRecordOrderId" placeholder="订单 ID" />
+              <el-select v-model="qualityRecordReasonCategory" data-testid="quality-record-reason">
+                <el-option
+                  v-for="option in reworkReasonCategories"
+                  :key="option.code"
+                  :label="option.label"
+                  :value="option.code"
+                />
+              </el-select>
+              <el-select v-model="qualityRecordResponsibilityType">
+                <el-option
+                  v-for="option in reworkResponsibilityTypes"
+                  :key="option.code"
+                  :label="option.label"
+                  :value="option.code"
+                />
+              </el-select>
+              <el-input
+                v-model="qualityRecordReasonDetail"
+                placeholder="外返原因详情"
+                data-testid="quality-record-reason-detail"
+              />
+              <el-button
+                type="primary"
+                :loading="qualityRecordSaving"
+                data-testid="quality-record-create-button"
+                @click="createExternalReturnQualityRecord"
+              >
+                登记外返
+              </el-button>
+            </div>
+            <el-table
+              :data="qualityRecords"
+              size="small"
+              border
+              v-loading="qualityRecordLoading"
+              data-testid="quality-record-table"
+            >
+              <el-table-column prop="quality_record_id" label="记录" width="90" />
+              <el-table-column prop="order_no" label="订单号" min-width="140" />
+              <el-table-column prop="clinic_name" label="诊所" min-width="150" />
+              <el-table-column prop="responsibility_type" label="责任" width="90" />
+              <el-table-column prop="reason_category" label="原因" width="120" />
+              <el-table-column prop="status" label="状态" width="100">
+                <template #default="{ row }">
+                  <el-tag round>{{ statusLabel(row.status) }}</el-tag>
+                </template>
+              </el-table-column>
+              <el-table-column label="时间" width="120">
+                <template #default="{ row }">{{ compactDateTime(row.created_at) }}</template>
+              </el-table-column>
+              <el-table-column prop="reason_detail" label="详情" min-width="180" show-overflow-tooltip />
+            </el-table>
+          </div>
+        </section>
+
         <section v-else-if="isPlaceholderRoute && activeDisplayItem" class="panel route-panel placeholder-panel">
           <div class="route-heading">
             <h2>{{ activeDisplayItem.title }}</h2>
@@ -8554,6 +10507,84 @@ onBeforeUnmount(() => {
             <div v-else-if="!productionEquipmentSummaryLoading && !productionEquipmentSummaryError" class="empty-state">
               暂无设备汇总数据
             </div>
+            <div class="placeholder-content-grid">
+              <article class="placeholder-content-card tone-blue">
+                <span class="placeholder-content-dot" />
+                <strong>登记设备</strong>
+                <el-input v-model="productionEquipmentCreateCode" size="small" placeholder="设备编号" />
+                <el-input v-model="productionEquipmentCreateName" size="small" placeholder="设备名称" />
+                <el-select v-model="productionEquipmentCreateType" size="small" placeholder="设备类型">
+                  <el-option label="切削设备" value="MILLING_MACHINE" />
+                  <el-option label="扫描设备" value="SCANNER" />
+                  <el-option label="烧结设备" value="SINTERING_FURNACE" />
+                  <el-option label="打印设备" value="PRINTER_3D" />
+                </el-select>
+                <el-select v-model="productionEquipmentCreateStatus" size="small" placeholder="状态">
+                  <el-option label="待机" value="IDLE" />
+                  <el-option label="运行中" value="RUNNING" />
+                  <el-option label="保养中" value="MAINTENANCE" />
+                  <el-option label="故障" value="FAULT" />
+                </el-select>
+                <el-input v-model="productionEquipmentCreateDepartment" size="small" placeholder="所属部门" />
+                <el-input-number
+                  v-model="productionEquipmentCreateUtilizationRate"
+                  size="small"
+                  :min="0"
+                  :max="100"
+                  :precision="1"
+                  controls-position="right"
+                />
+                <el-button
+                  type="primary"
+                  size="small"
+                  :loading="productionEquipmentSaving"
+                  @click="createProductionEquipment"
+                >
+                  登记设备
+                </el-button>
+              </article>
+              <article class="placeholder-content-card tone-orange">
+                <span class="placeholder-content-dot" />
+                <strong>登记事件</strong>
+                <el-input v-model="productionEquipmentEventCode" size="small" placeholder="设备编号" />
+                <el-select v-model="productionEquipmentEventType" size="small" placeholder="事件类型">
+                  <el-option label="保养计划" value="MAINTENANCE_PLAN" />
+                  <el-option label="故障报修" value="FAULT_REPAIR" />
+                  <el-option label="停机记录" value="DOWNTIME" />
+                </el-select>
+                <el-select v-model="productionEquipmentEventStatus" size="small" placeholder="处理状态">
+                  <el-option label="待处理" value="PENDING" />
+                  <el-option label="处理中" value="IN_PROGRESS" />
+                  <el-option label="已完成" value="DONE" />
+                </el-select>
+                <el-input-number
+                  v-model="productionEquipmentEventDowntimeMinutes"
+                  size="small"
+                  :min="0"
+                  controls-position="right"
+                />
+                <el-input
+                  v-model="productionEquipmentEventDescription"
+                  size="small"
+                  placeholder="事件说明"
+                />
+                <el-button
+                  type="primary"
+                  size="small"
+                  :loading="productionEquipmentSaving"
+                  @click="createProductionEquipmentEvent"
+                >
+                  登记事件
+                </el-button>
+              </article>
+            </div>
+            <el-alert
+              v-if="productionEquipmentResult"
+              :title="productionEquipmentResult"
+              type="success"
+              show-icon
+              :closable="false"
+            />
           </div>
           <div v-if="isProductionMaterialExceptionSummaryRoute" class="prototype-queue-card">
             <div class="prototype-table-head">
@@ -8597,6 +10628,86 @@ onBeforeUnmount(() => {
             >
               暂无物料异常汇总数据
             </div>
+            <div class="placeholder-content-grid">
+              <article class="placeholder-content-card tone-orange">
+                <span class="placeholder-content-dot" />
+                <strong>登记物料异常</strong>
+                <el-input v-model="productionMaterialExceptionCreateNo" size="small" placeholder="异常编号" />
+                <el-input v-model="productionMaterialExceptionCreateCode" size="small" placeholder="物料编码" />
+                <el-input v-model="productionMaterialExceptionCreateName" size="small" placeholder="物料名称" />
+                <el-select v-model="productionMaterialExceptionCreateType" size="small" placeholder="异常类型">
+                  <el-option label="缺料" value="SHORTAGE" />
+                  <el-option label="错料" value="WRONG_MATERIAL" />
+                  <el-option label="批次异常" value="BATCH_ABNORMAL" />
+                  <el-option label="材料损耗" value="MATERIAL_LOSS" />
+                </el-select>
+                <el-select v-model="productionMaterialExceptionCreateStatus" size="small" placeholder="处理状态">
+                  <el-option label="待处理" value="PENDING" />
+                  <el-option label="处理中" value="IN_PROGRESS" />
+                  <el-option label="已关闭" value="CLOSED" />
+                </el-select>
+                <el-input
+                  v-model="productionMaterialExceptionCreateResponsibility"
+                  size="small"
+                  placeholder="责任归属"
+                />
+                <el-input-number
+                  v-model="productionMaterialExceptionCreateLossQuantity"
+                  size="small"
+                  :min="0"
+                  :precision="2"
+                  controls-position="right"
+                />
+                <el-input
+                  v-model="productionMaterialExceptionCreateDescription"
+                  size="small"
+                  placeholder="异常说明"
+                />
+                <el-button
+                  type="primary"
+                  size="small"
+                  :loading="productionMaterialExceptionSaving"
+                  @click="createProductionMaterialException"
+                >
+                  登记物料异常
+                </el-button>
+              </article>
+              <article class="placeholder-content-card tone-blue">
+                <span class="placeholder-content-dot" />
+                <strong>更新处理状态</strong>
+                <el-input v-model="productionMaterialExceptionStatusNo" size="small" placeholder="异常编号" />
+                <el-select v-model="productionMaterialExceptionStatus" size="small" placeholder="处理状态">
+                  <el-option label="待处理" value="PENDING" />
+                  <el-option label="处理中" value="IN_PROGRESS" />
+                  <el-option label="已关闭" value="CLOSED" />
+                </el-select>
+                <el-input
+                  v-model="productionMaterialExceptionStatusResponsibility"
+                  size="small"
+                  placeholder="责任归属"
+                />
+                <el-input
+                  v-model="productionMaterialExceptionStatusDescription"
+                  size="small"
+                  placeholder="处理说明"
+                />
+                <el-button
+                  type="primary"
+                  size="small"
+                  :loading="productionMaterialExceptionSaving"
+                  @click="updateProductionMaterialExceptionStatus"
+                >
+                  更新处理状态
+                </el-button>
+              </article>
+            </div>
+            <el-alert
+              v-if="productionMaterialExceptionResult"
+              :title="productionMaterialExceptionResult"
+              type="success"
+              show-icon
+              :closable="false"
+            />
           </div>
           <div v-if="isProductionSafetyEnvironmentSummaryRoute" class="prototype-queue-card">
             <div class="prototype-table-head">
@@ -8640,6 +10751,91 @@ onBeforeUnmount(() => {
             >
               暂无安环汇总数据
             </div>
+            <div class="placeholder-content-grid">
+              <article class="placeholder-content-card tone-sky">
+                <span class="placeholder-content-dot" />
+                <strong>登记安环事件</strong>
+                <el-input v-model="productionSafetyEnvironmentCreateNo" size="small" placeholder="事件编号" />
+                <el-select v-model="productionSafetyEnvironmentCreateType" size="small" placeholder="事件类型">
+                  <el-option label="安全巡检" value="SAFETY_INSPECTION" />
+                  <el-option label="隐患整改" value="HAZARD_RECTIFICATION" />
+                  <el-option label="环境记录" value="ENVIRONMENT_RECORD" />
+                  <el-option label="PPE/设备提醒" value="PPE_DEVICE_REMINDER" />
+                </el-select>
+                <el-select v-model="productionSafetyEnvironmentCreateStatus" size="small" placeholder="整改状态">
+                  <el-option label="待处理" value="PENDING" />
+                  <el-option label="处理中" value="IN_PROGRESS" />
+                  <el-option label="已关闭" value="CLOSED" />
+                </el-select>
+                <el-input
+                  v-model="productionSafetyEnvironmentCreateDepartment"
+                  size="small"
+                  placeholder="责任部门"
+                />
+                <el-input v-model="productionSafetyEnvironmentCreateOwner" size="small" placeholder="责任人" />
+                <el-input
+                  v-model="productionSafetyEnvironmentCreateEquipmentCode"
+                  size="small"
+                  placeholder="关联设备编码"
+                />
+                <el-select v-model="productionSafetyEnvironmentCreateRisk" size="small" placeholder="风险等级">
+                  <el-option label="一般" value="NORMAL" />
+                  <el-option label="高风险" value="HIGH" />
+                  <el-option label="严重" value="CRITICAL" />
+                </el-select>
+                <el-date-picker
+                  v-model="productionSafetyEnvironmentCreateDueAt"
+                  size="small"
+                  type="datetime"
+                  value-format="YYYY-MM-DDTHH:mm:ss"
+                  placeholder="整改截止时间"
+                />
+                <el-input
+                  v-model="productionSafetyEnvironmentCreateDescription"
+                  size="small"
+                  placeholder="事件说明"
+                />
+                <el-button
+                  type="primary"
+                  size="small"
+                  :loading="productionSafetyEnvironmentSaving"
+                  @click="createProductionSafetyEnvironmentEvent"
+                >
+                  登记安环事件
+                </el-button>
+              </article>
+              <article class="placeholder-content-card tone-blue">
+                <span class="placeholder-content-dot" />
+                <strong>更新整改状态</strong>
+                <el-input v-model="productionSafetyEnvironmentStatusNo" size="small" placeholder="事件编号" />
+                <el-select v-model="productionSafetyEnvironmentStatus" size="small" placeholder="整改状态">
+                  <el-option label="待处理" value="PENDING" />
+                  <el-option label="处理中" value="IN_PROGRESS" />
+                  <el-option label="已关闭" value="CLOSED" />
+                </el-select>
+                <el-input v-model="productionSafetyEnvironmentStatusOwner" size="small" placeholder="责任人" />
+                <el-input
+                  v-model="productionSafetyEnvironmentStatusDescription"
+                  size="small"
+                  placeholder="整改说明"
+                />
+                <el-button
+                  type="primary"
+                  size="small"
+                  :loading="productionSafetyEnvironmentSaving"
+                  @click="updateProductionSafetyEnvironmentEventStatus"
+                >
+                  更新整改状态
+                </el-button>
+              </article>
+            </div>
+            <el-alert
+              v-if="productionSafetyEnvironmentResult"
+              :title="productionSafetyEnvironmentResult"
+              type="success"
+              show-icon
+              :closable="false"
+            />
           </div>
           <div v-if="isProductionCostSummaryRoute" class="prototype-queue-card">
             <div class="prototype-table-head">
@@ -8683,6 +10879,50 @@ onBeforeUnmount(() => {
             >
               暂无成本汇总数据
             </div>
+            <div class="placeholder-content-grid">
+              <article class="placeholder-content-card tone-sky">
+                <span class="placeholder-content-dot" />
+                <strong>登记成本记录</strong>
+                <el-input v-model="productionCostCreateNo" size="small" placeholder="成本编号" />
+                <el-select v-model="productionCostCreateType" size="small" placeholder="成本类型">
+                  <el-option label="工序成本" value="PROCESS" />
+                  <el-option label="材料成本" value="MATERIAL" />
+                  <el-option label="人工成本" value="LABOR" />
+                  <el-option label="返工成本" value="REWORK" />
+                  <el-option label="外协成本" value="OUTSOURCING" />
+                </el-select>
+                <el-input-number
+                  v-model="productionCostCreateAmount"
+                  size="small"
+                  :min="0"
+                  :precision="2"
+                  controls-position="right"
+                />
+                <el-select v-model="productionCostCreateStatus" size="small" placeholder="成本状态">
+                  <el-option label="正常" value="NORMAL" />
+                  <el-option label="预警" value="WARNING" />
+                  <el-option label="已确认" value="CONFIRMED" />
+                </el-select>
+                <el-input v-model="productionCostCreateDepartment" size="small" placeholder="责任部门" />
+                <el-input v-model="productionCostCreateSupplier" size="small" placeholder="供应商/来源" />
+                <el-input v-model="productionCostCreateDescription" size="small" placeholder="成本说明" />
+                <el-button
+                  type="primary"
+                  size="small"
+                  :loading="productionCostSaving"
+                  @click="createProductionCostRecord"
+                >
+                  登记成本记录
+                </el-button>
+              </article>
+            </div>
+            <el-alert
+              v-if="productionCostResult"
+              :title="productionCostResult"
+              type="success"
+              show-icon
+              :closable="false"
+            />
           </div>
           <div v-if="isProductionRewardPenaltySummaryRoute" class="prototype-queue-card">
             <div class="prototype-table-head">
@@ -8726,6 +10966,80 @@ onBeforeUnmount(() => {
             >
               暂无奖惩汇总数据
             </div>
+            <div class="placeholder-content-grid">
+              <article class="placeholder-content-card tone-sky">
+                <span class="placeholder-content-dot" />
+                <strong>登记奖惩记录</strong>
+                <el-input v-model="productionRewardPenaltyCreateNo" size="small" placeholder="奖惩编号" />
+                <el-select v-model="productionRewardPenaltyCreateType" size="small" placeholder="奖惩类型">
+                  <el-option label="奖励" value="REWARD" />
+                  <el-option label="扣罚" value="PENALTY" />
+                </el-select>
+                <el-select v-model="productionRewardPenaltyCreateReason" size="small" placeholder="奖惩原因">
+                  <el-option label="质量" value="QUALITY" />
+                  <el-option label="效率" value="EFFICIENCY" />
+                  <el-option label="纪律" value="DISCIPLINE" />
+                  <el-option label="安环" value="SAFETY" />
+                  <el-option label="客户反馈" value="CUSTOMER_FEEDBACK" />
+                </el-select>
+                <el-input-number
+                  v-model="productionRewardPenaltyCreateAmount"
+                  size="small"
+                  :precision="2"
+                  controls-position="right"
+                />
+                <el-select v-model="productionRewardPenaltyCreateStatus" size="small" placeholder="审批状态">
+                  <el-option label="待审批" value="PENDING" />
+                  <el-option label="已通过" value="APPROVED" />
+                  <el-option label="已驳回" value="REJECTED" />
+                  <el-option label="已生效" value="EFFECTIVE" />
+                </el-select>
+                <el-input-number
+                  v-model="productionRewardPenaltyCreateEmployeeUserId"
+                  size="small"
+                  :min="1"
+                  controls-position="right"
+                  placeholder="员工 ID"
+                />
+                <el-input v-model="productionRewardPenaltyCreateDepartment" size="small" placeholder="责任部门" />
+                <el-input v-model="productionRewardPenaltyCreateDescription" size="small" placeholder="奖惩说明" />
+                <el-button
+                  type="primary"
+                  size="small"
+                  :loading="productionRewardPenaltySaving"
+                  @click="createProductionRewardPenaltyRecord"
+                >
+                  登记奖惩记录
+                </el-button>
+              </article>
+              <article class="placeholder-content-card tone-purple">
+                <span class="placeholder-content-dot" />
+                <strong>更新审批状态</strong>
+                <el-input v-model="productionRewardPenaltyStatusNo" size="small" placeholder="奖惩编号" />
+                <el-select v-model="productionRewardPenaltyStatus" size="small" placeholder="审批状态">
+                  <el-option label="待审批" value="PENDING" />
+                  <el-option label="已通过" value="APPROVED" />
+                  <el-option label="已驳回" value="REJECTED" />
+                  <el-option label="已生效" value="EFFECTIVE" />
+                </el-select>
+                <el-input v-model="productionRewardPenaltyStatusDescription" size="small" placeholder="审批说明" />
+                <el-button
+                  type="primary"
+                  size="small"
+                  :loading="productionRewardPenaltySaving"
+                  @click="updateProductionRewardPenaltyRecordStatus"
+                >
+                  更新审批状态
+                </el-button>
+              </article>
+            </div>
+            <el-alert
+              v-if="productionRewardPenaltyResult"
+              :title="productionRewardPenaltyResult"
+              type="success"
+              show-icon
+              :closable="false"
+            />
           </div>
           <div v-if="activePlaceholderContentItems.length" class="placeholder-content-grid">
             <article

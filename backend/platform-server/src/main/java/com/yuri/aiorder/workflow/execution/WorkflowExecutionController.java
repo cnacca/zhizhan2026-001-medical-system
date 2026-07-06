@@ -4,6 +4,7 @@ import com.yuri.aiorder.common.BootstrapIdentity;
 import com.yuri.aiorder.common.DataResponse;
 import com.yuri.aiorder.common.UserRole;
 import com.yuri.aiorder.common.auth.RequirePermission;
+import jakarta.validation.Valid;
 import java.time.LocalDate;
 import java.util.List;
 import org.springframework.format.annotation.DateTimeFormat;
@@ -96,6 +97,24 @@ public class WorkflowExecutionController {
         return new DataResponse<>(workflowExecutionService.getProductionEquipmentSummary(equipmentCodePrefix, identity));
     }
 
+    @PostMapping("/production/equipment")
+    @RequirePermission(value = "check:write", roles = {UserRole.ADMIN, UserRole.WORKER})
+    public DataResponse<ProductionEquipmentResponse> createProductionEquipment(
+            BootstrapIdentity identity,
+            @Valid @RequestBody ProductionEquipmentRequest request) {
+        return new DataResponse<>(workflowExecutionService.createProductionEquipment(request, identity));
+    }
+
+    @PostMapping("/production/equipment/{equipmentCode}/events")
+    @RequirePermission(value = "check:write", roles = {UserRole.ADMIN, UserRole.WORKER})
+    public DataResponse<ProductionEquipmentEventResponse> createProductionEquipmentEvent(
+            BootstrapIdentity identity,
+            @PathVariable String equipmentCode,
+            @Valid @RequestBody ProductionEquipmentEventRequest request) {
+        return new DataResponse<>(
+                workflowExecutionService.createProductionEquipmentEvent(equipmentCode, request, identity));
+    }
+
     @GetMapping("/production/material-exceptions/summary")
     @RequirePermission(value = "check:read-internal", roles = {UserRole.ADMIN, UserRole.CS, UserRole.WORKER})
     public DataResponse<ProductionMaterialExceptionSummaryResponse> getProductionMaterialExceptionSummary(
@@ -103,6 +122,24 @@ public class WorkflowExecutionController {
             @RequestParam(name = "exception_no_prefix", required = false) String exceptionNoPrefix) {
         return new DataResponse<>(
                 workflowExecutionService.getProductionMaterialExceptionSummary(exceptionNoPrefix, identity));
+    }
+
+    @PostMapping("/production/material-exceptions")
+    @RequirePermission(value = "check:write", roles = {UserRole.ADMIN, UserRole.WORKER})
+    public DataResponse<ProductionMaterialExceptionResponse> createProductionMaterialException(
+            BootstrapIdentity identity,
+            @Valid @RequestBody ProductionMaterialExceptionRequest request) {
+        return new DataResponse<>(workflowExecutionService.createProductionMaterialException(request, identity));
+    }
+
+    @PutMapping("/production/material-exceptions/{exceptionNo}/status")
+    @RequirePermission(value = "check:write", roles = {UserRole.ADMIN, UserRole.WORKER})
+    public DataResponse<ProductionMaterialExceptionResponse> updateProductionMaterialExceptionStatus(
+            BootstrapIdentity identity,
+            @PathVariable String exceptionNo,
+            @Valid @RequestBody ProductionMaterialExceptionStatusRequest request) {
+        return new DataResponse<>(
+                workflowExecutionService.updateProductionMaterialExceptionStatus(exceptionNo, request, identity));
     }
 
     @GetMapping("/production/safety-environment/summary")
@@ -114,12 +151,39 @@ public class WorkflowExecutionController {
                 workflowExecutionService.getProductionSafetyEnvironmentSummary(eventNoPrefix, identity));
     }
 
+    @PostMapping("/production/safety-environment/events")
+    @RequirePermission(value = "check:write", roles = {UserRole.ADMIN, UserRole.WORKER})
+    public DataResponse<ProductionSafetyEnvironmentEventResponse> createProductionSafetyEnvironmentEvent(
+            BootstrapIdentity identity,
+            @Valid @RequestBody ProductionSafetyEnvironmentEventRequest request) {
+        return new DataResponse<>(
+                workflowExecutionService.createProductionSafetyEnvironmentEvent(request, identity));
+    }
+
+    @PutMapping("/production/safety-environment/events/{eventNo}/status")
+    @RequirePermission(value = "check:write", roles = {UserRole.ADMIN, UserRole.WORKER})
+    public DataResponse<ProductionSafetyEnvironmentEventResponse> updateProductionSafetyEnvironmentEventStatus(
+            BootstrapIdentity identity,
+            @PathVariable String eventNo,
+            @Valid @RequestBody ProductionSafetyEnvironmentEventStatusRequest request) {
+        return new DataResponse<>(
+                workflowExecutionService.updateProductionSafetyEnvironmentEventStatus(eventNo, request, identity));
+    }
+
     @GetMapping("/production/cost-management/summary")
     @RequirePermission(value = "check:read-internal", roles = {UserRole.ADMIN, UserRole.CS, UserRole.WORKER})
     public DataResponse<ProductionCostSummaryResponse> getProductionCostSummary(
             BootstrapIdentity identity,
             @RequestParam(name = "cost_no_prefix", required = false) String costNoPrefix) {
         return new DataResponse<>(workflowExecutionService.getProductionCostSummary(costNoPrefix, identity));
+    }
+
+    @PostMapping("/production/cost-management/records")
+    @RequirePermission(value = "check:write", roles = {UserRole.ADMIN, UserRole.WORKER})
+    public DataResponse<ProductionCostRecordResponse> createProductionCostRecord(
+            BootstrapIdentity identity,
+            @Valid @RequestBody ProductionCostRecordRequest request) {
+        return new DataResponse<>(workflowExecutionService.createProductionCostRecord(request, identity));
     }
 
     @GetMapping("/production/reward-penalty/summary")
@@ -129,6 +193,25 @@ public class WorkflowExecutionController {
             @RequestParam(name = "record_no_prefix", required = false) String recordNoPrefix) {
         return new DataResponse<>(
                 workflowExecutionService.getProductionRewardPenaltySummary(recordNoPrefix, identity));
+    }
+
+    @PostMapping("/production/reward-penalty/records")
+    @RequirePermission(value = "check:write", roles = {UserRole.ADMIN, UserRole.WORKER})
+    public DataResponse<ProductionRewardPenaltyRecordResponse> createProductionRewardPenaltyRecord(
+            BootstrapIdentity identity,
+            @Valid @RequestBody ProductionRewardPenaltyRecordRequest request) {
+        return new DataResponse<>(
+                workflowExecutionService.createProductionRewardPenaltyRecord(request, identity));
+    }
+
+    @PutMapping("/production/reward-penalty/records/{recordNo}/status")
+    @RequirePermission(value = "check:write", roles = {UserRole.ADMIN, UserRole.WORKER})
+    public DataResponse<ProductionRewardPenaltyRecordResponse> updateProductionRewardPenaltyRecordStatus(
+            BootstrapIdentity identity,
+            @PathVariable String recordNo,
+            @Valid @RequestBody ProductionRewardPenaltyStatusRequest request) {
+        return new DataResponse<>(
+                workflowExecutionService.updateProductionRewardPenaltyRecordStatus(recordNo, request, identity));
     }
 
     @PostMapping("/reworks/{reworkId}/close")

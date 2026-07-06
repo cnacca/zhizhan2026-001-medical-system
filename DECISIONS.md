@@ -1,5 +1,90 @@
 # DECISIONS
 
+## D-141 任务 9D.90 产品参数 / 价格体系一期最小后台
+
+状态：已确认并执行第一增量。
+
+决策：
+
+- 一期先新增 `product_catalog` 作为产品参数、材料规格和人工基础价的后台维护表，迁移编号为 `V34__product_catalog_foundation.sql`。
+- `/products` 和 `/products/{productId}` 只允许 CS / ADMIN 使用 `product:manage` 维护；医生端不读取内部基础价，避免把人工后台价格误当医生报价或最终账单。
+- `base_price_cents` 仅为人工维护基础价，不触发自动报价、不改历史订单、不重算账单、不替代真实财务结算。
+- 本轮复用既有 `/system/form-configs` 产品管理入口，在页面上半区补产品目录和基础价维护，下半区继续维护动态表单字段。
+
+影响：
+
+- PRD V2.0 的“客服产品管理：产品参数、材料规格、价格体系维护”从 `MISSING` 推进到 `PARTIAL`。
+- 仍缺客户分层价格、定价权限、审批、自动报价、价格历史生效规则、客户 / PM 字段口径确认和真实财务结算联动。
+- Task 8 总体仍保持 `NOT_READY`。
+
+## D-140 任务 9D.89 医生账户设置基础闭环
+
+状态：已确认并执行第一增量。
+
+决策：
+
+- 医生账户设置一期第一增量先复用 `system_user`，新增 V33 非破坏性迁移补 `contact_email`、`contact_phone`、`shipping_address` 和 `notification_push_enabled`。
+- 新增 `/doctor/account/settings` GET/PUT 和 `/doctor/account/password`，仅 DOCTOR 本人可读写本人设置和修改密码。
+- 修改密码必须校验当前密码，新密码继续使用 PBKDF2-SHA256 存储；响应不返回 `password_hash`、token、内部生产信息或其他医生资料。
+- 前端医生账号面板新增 `/doctor/account/settings` 真实入口，覆盖联系方式、收货地址、消息推送开关和密码修改。
+
+影响：
+
+- 关闭 PRD V2.0 “医生账户设置：修改密码、绑定邮箱电话、收货地址、消息推送开关”本地第一增量缺口。
+- 本轮不接短信 / 邮箱真实验证，不做多地址簿、二次认证、登录记录审计、异常账号处理或客户最终字段确认。
+- Task 8 仍保持 `NOT_READY`；下一步转向产品参数 / 价格体系一期最小后台。
+
+## D-139 任务 9D.88 客服订单 / 沟通完整可见性 smoke
+
+状态：已确认并执行第一增量。
+
+决策：
+
+- 客服三方沟通一期先强化既有 `order_message` 响应，不新增数据库迁移或新消息表。
+- `MessageResponse` 补充 `order_no`、`product_type` 和 `external_status`，待审核队列和订单消息上下文均从 `orders` join 出订单上下文。
+- 生产端发给医生的消息仍保持 `PENDING_REVIEW`，医生端只读取 `DIRECT/APPROVED` 且医生可见的消息；客服驳回后消息继续对医生隐藏，并给生产端写入驳回通知。
+- 前端客服协同页展示订单号、产品类型和外部状态，帮助客服在审核时识别订单和医生端可见状态。
+
+影响：
+
+- 关闭 PRD V2.0 “医生线上沟通 / 客服沟通中心”的本地可见性 smoke 第一增量。
+- 本轮不做消息附件 URL 聚合、AI 自动审核、复杂客服工单、真实外部通知或新消息数据模型。
+- Task 8 仍保持 `NOT_READY`；下一步转向医生账户设置基础闭环。
+
+## D-138 任务 9D.87 质量记录 CRUD / 外返登记第一增量
+
+状态：已确认并执行第一增量。
+
+决策：
+
+- 质量记录一期第一增量先复用既有 `check_record` 和 `rework_record`，以 `check_type=EXTERNAL_RETURN` 表达外返质量记录，不新增数据库迁移。
+- 新增 `/quality-records` 只读列表和 `/quality-records/external-returns` 创建接口；创建外返时同步生成 `check_record` 和 `PENDING` 返工记录。
+- CS / ADMIN 可登记和查看内部质量记录，DOCTOR 禁止访问；创建原因和责任类型必须使用服务端返工字典中的 ACTIVE code。
+- 前端将生产端 `/production/quality` 从占位页接入真实质量汇总、外返质量记录列表和外返登记表单。
+
+影响：
+
+- 关闭 PRD V2.0 “专项质量管理：质量记录 / 外返登记”本地第一增量缺口。
+- 本轮不做独立 `quality_record` 事实表、完整质量状态工作流、编辑 / 删除、投诉 / 退货系统、复杂质量复盘或客户最终质量口径确认。
+- Task 8 仍保持 `NOT_READY`；下一步转向客服订单 / 沟通完整可见性 smoke。
+
+## D-137 任务 9D.86 人员档案 / 工作量看板第一增量
+
+状态：已确认并执行第一增量。
+
+决策：
+
+- 人员管理一期先复用既有 RuoYi 风格 `system_user`、`system_dept`、`system_post`、`system_user_post`、`system_user_role`、`work_log` 和 `rework_record`，不新增数据库迁移。
+- 新增 `/staff/workload` 只读接口，返回员工基础档案、部门岗位、角色摘要、分配节点数、进行中节点数、完成工时数、有效工时、返工数和最近完工时间。
+- ADMIN / CS 可查看内部员工；WORKER 只返回本人；DOCTOR 禁止访问，响应不返回 `password_hash`、token、薪酬、工资结算或客户隐私。
+- 前端将生产端 `/production/staff` 和管理端 `/admin/staff` 从占位页接入真实人员工作量接口。
+
+影响：
+
+- 关闭 PRD V2.0 “人员管理：员工档案、岗位权限、工作量监控”本地第一增量缺口。
+- 本轮不做完整 HR、工资、排班、请假、绩效申诉、薪酬结算、岗位能力矩阵编辑或人员 CRUD。
+- Task 8 仍保持 `NOT_READY`；下一步转向质量记录 CRUD / 外返登记第一增量。
+
 ## D-136 任务 9D.85 客户 / 诊所档案与偏好第一增量
 
 状态：已确认并执行第一增量。
@@ -2293,3 +2378,271 @@
 
 - 解决“工作台放左侧栏已有功能没有意义”的产品问题，让客户演示第一屏更像真实业务系统。
 - 本轮仍只改前端展示组织、视觉和已有前端筛选交互，不新增后端接口、不改变现有真实功能、权限、数据加载和服务端校验。
+
+## D-075 任务 9D.91 物流异常跟进复用物流状态和内部消息
+
+状态：已确认并执行第一增量。
+
+决策：
+
+- 一期客服配送管理先复用 `order_logistics.logistics_status` 表达 `PENDING`、`SHIPPED`、`EXCEPTION`、`FOLLOWING`、`RESOLVED`，不新增 V35 迁移。
+- 客服异常跟进说明写入 `order_message`，固定 `visibility=CS_ONLY`，作为内部留痕，不返回给医生端物流详情。
+- 医生端读取物流时不返回内部跟进说明；内部异常 / 跟进状态在医生端仍映射为已发货或待处理，避免未经 PM 确认就外显内部异常处理过程。
+- `/delivery` 只做客服人工列表和异常跟进入口，不接真实 DHL / FedEx / 顺丰 API、电子面单、轨迹同步、签收回调或物流平台 webhook。
+
+影响：
+
+- 关闭 PRD V2.0 客服配送管理的本地第一增量缺口，保留真实物流平台和客户 / PM 口径确认作为上线前 BLOCKED / PARTIAL 项。
+- 后续如需要多次跟进历史、异常分类、责任人、SLA、自动轨迹或签收回调，应另立任务并设计独立表或物流事件模型。
+
+## D-076 任务 9D.92 AI-2 客服查询入口只做只读草稿
+
+状态：已确认并执行第一增量。
+
+决策：
+
+- AI-2 客服查询助手第一增量复用既有 `/ai/cs-query`，不新增后端接口、数据库迁移或模型适配。
+- 客服端 `/ai/cs` 提供订单 ID、问题输入和回答展示，结果固定提示“对外发送前需人工确认”。
+- AI-2 输出不自动发送给医生，不自动写入订单、生产备注、客服消息或审核结论。
+- 真实 DeepSeek key、完整客服知识上下文、引用数据说明、消息附件聚合和客户 / PM AI-2 口径确认继续作为后续缺口。
+
+影响：
+
+- 关闭 PRD V2.0 客服沟通中心中“AI 客服查询入口”本地第一增量。
+- 后续若补引用数据、消息附件、文件预览 URL 或工序明细聚合，应继续保持只读与人工确认边界。
+
+## D-077 任务 9D.93 PRD V2 范围返工第一闭环
+
+状态：已被 D-078 纠偏；仅保留历史记录。
+
+决策：
+
+- 最新版 PRD V2.0 明确“医生文件”模块不属于项目需求范围；医生端不保留独立 `/doctor/files` / `doctor-files` 入口，订单相关病例、口扫、图片、处方和设计稿文件继续归入医生订单链路。
+- D-077 曾按“设备 / 物料 / 安环 / 成本 / 奖惩不作为一期 READY 硬缺口、LangChain + DeepSeek 需要另行确认”的旧判断记录；该判断已被 D-078 覆盖。
+- PRD 写明 `LangChain + DeepSeek`；当前历史记录已被 D-078 / D-079 覆盖，D-079 已补 LangChain4j + DeepSeek 底座第一增量。
+- 新增 `npm run check:task9d93` 防止医生文件模块、二期模块和 AI 技术口径再次被误写为一期已完成。
+
+影响：
+
+- 后续继续开发必须先贴最新版 PRD V2.0 和 `docs/acceptance/prd-v2-gap-matrix.md`；不明确的产品范围需先问清楚。
+- Task 8 仍保持 `NOT_READY`；随后已推进医生提交前 AI-4 资料缺失自动触发体验。
+
+## D-078 任务 9D.93.1 PRD V2 范围纠偏第一闭环
+
+状态：已确认并执行第一增量。
+
+决策：
+
+- 用户已明确确认：设备 / 物料 / 安环 / 成本 / 奖惩属于一期开发功能，不能再按二期储备或历史展示处理。
+- 9D.50 到 9D.54 的生产端设备、物料、安环、成本、奖惩只读汇总只能算第一增量，不代表一期功能 READY；后续仍需拆录入、编辑、审批 / 处理状态、真实趋势和客户 / PM 验收口径。
+- 用户已明确确认：所有 AI 智能体使用 LangChain + DeepSeek 实现。
+- 当前 `ai-gateway + DeepSeek` 只能算 DeepSeek 适配第一增量；D-079 已补 LangChain4j + DeepSeek 底座第一增量，后续仍不得提交真实 DeepSeek key，不得绕过 AI 安全边界。
+- 医生文件独立模块不属于项目需求范围的判断保持不变；订单相关文件继续归入医生订单附件和病例资料链路。
+
+影响：
+
+- D-078 覆盖 D-077 中关于“设备 / 物料 / 安环 / 成本 / 奖惩为二期储备”和“LangChain + DeepSeek 待 PM / 客户确认”的旧口径。
+- D-079 已关闭 LangChain + DeepSeek AI 底座对齐第一增量；下一步唯一推荐目标转向设备 / 物料 / 安环 / 成本 / 奖惩一期闭环拆解第一增量。
+
+## D-079 任务 9D.94 LangChain + DeepSeek AI 底座对齐第一增量
+
+状态：已确认并执行第一增量。
+
+决策：
+
+- 后端一期 AI 底座采用 Java 侧 LangChain4j，而不是新增 Python / Node 独立 LangChain 服务，避免引入第二套运行时、部署链路和跨服务鉴权边界。
+- 新增 `dev.langchain4j:langchain4j-open-ai:1.17.1` 和 `dev.langchain4j:langchain4j:1.17.1`，通过 OpenAI-compatible ChatModel 指向 DeepSeek。
+- 保留旧 `AI_PROVIDER=deepseek` 直连 DeepSeek 路径作为 9D.15 兼容基线；新增显式 `AI_PROVIDER=langchain-deepseek` 才走 LangChain4j。
+- `AI_LANGCHAIN_ENABLED` 默认 `false`，本地 / CI 无真实 key 时仍保持 deterministic 或旧 DeepSeek stub 测试，不外呼真实模型。
+- AI-3 医生端内部问题继续在本地安全拒答，不进入 LangChain / DeepSeek；不得绕过医生端脱敏和 AI 工具白名单。
+
+影响：
+
+- 9D.94 只完成 LangChain + DeepSeek 编排层第一增量，不代表真实 DeepSeek key、真实生产环境或客户 / PM AI 验收已完成。
+- 后续 AI-2 知识上下文、AI-4 医生提交前自动触发、AI-5 客户模板、流式输出、RAG、工具调用和生产成本看板仍需另拆任务。
+
+## D-080 任务 9D.95 设备 / 物料 / 安环 / 成本 / 奖惩一期闭环拆解第一增量
+
+状态：已确认并执行第一增量。
+
+决策：
+
+- 设备 / 物料 / 安环 / 成本 / 奖惩继续作为一期开发功能处理，不再按展示模块或二期储备处理。
+- 当前 9D.50-9D.54 的只读汇总只能算第一增量；后续必须按模块逐步补录入、编辑、处理状态、趋势口径和验收闭环。
+- 先新增 `docs/acceptance/phase-one-production-support-closure-plan.md` 固定五类模块的最小实现顺序，避免一次性扩成大而散的 CRUD。
+- 推荐顺序为：9D.95.1 设备台账 / 设备事件录入、9D.95.2 物料异常登记 / 处理状态、9D.95.3 安环巡检 / 隐患整改、9D.95.4 成本记录维护 / 趋势口径、9D.95.5 奖惩记录 / 审批状态。
+- 设备第一，是因为已有 9D.50 设备基础表和只读汇总，风险低于成本 / 奖惩这类容易牵涉真实财务和工资口径的模块。
+
+影响：
+
+- 后续每个 9D.95.x 闭环都必须 TDD、同步 OpenAPI、前端 build、acceptance 和项目文档。
+- 后续仍不得接 IoT、真实财务系统、真实工资发放、复杂审批流、外部供应商协同或真实生产设备。
+- Task 8 仍保持 `NOT_READY`；下一步唯一推荐目标为 9D.95.1 设备台账 / 设备事件录入第一增量。
+
+## D-081 任务 9D.95.1 设备台账 / 设备事件录入第一增量
+
+状态：已确认并执行第一增量。
+
+决策：
+
+- 设备管理先复用 9D.50 已有 `production_equipment` 和 `production_equipment_event`，不新增数据库迁移，避免在已有表能承载一期最小录入时扩大迁移面。
+- 一期第一增量只提供人工登记：`POST /production/equipment` 新增设备台账，`POST /production/equipment/{equipmentCode}/events` 登记保养计划、故障报修或停机事件。
+- 写入角色收敛为 WORKER / ADMIN；DOCTOR 继续 403，CS 当前保留只读汇总，不参与设备现场录入。
+- 前端只在生产端设备管理页补“登记设备”和“登记事件”最小表单，提交后刷新既有真实设备汇总。
+
+影响：
+
+- 9D.95.1 不接 IoT、不做保养审批流、不做复杂设备履历、不接真实设备联网，也不代表设备管理全部 READY。
+- Task 8 仍保持 `NOT_READY`；下一步唯一推荐目标为 9D.95.2 物料异常登记 / 处理状态第一增量。
+
+## D-082 任务 9D.95.2 物料异常登记 / 处理状态第一增量
+
+状态：已确认并执行第一增量。
+
+决策：
+
+- 物料异常管理先复用 9D.51 已有 `production_material_exception`，不新增数据库迁移，避免在已有事实表能承载一期登记和状态更新时扩大数据模型。
+- 一期第一增量只提供人工登记和人工状态更新：`POST /production/material-exceptions` 登记缺料、错料、批次异常或材料损耗，`PUT /production/material-exceptions/{exceptionNo}/status` 更新 `PENDING / IN_PROGRESS / CLOSED`。
+- 写入角色收敛为 WORKER / ADMIN；DOCTOR 继续 403，CS 当前保留只读汇总，不参与生产现场物料异常录入。
+- 前端只在生产端物料异常页补“登记物料异常”和“更新处理状态”最小表单，提交后刷新既有真实物料异常汇总。
+
+影响：
+
+- 9D.95.2 不接库存扣减、采购补料、供应商协同或 WMS，不代表物料异常管理全部 READY。
+- Task 8 仍保持 `NOT_READY`；下一步唯一推荐目标为 9D.95.3 安环巡检 / 隐患整改第一增量。
+
+## D-083 任务 9D.95.3 安环巡检 / 隐患整改第一增量
+
+状态：已确认并执行第一增量。
+
+决策：
+
+- 安环管理先复用 9D.52 已有 `production_safety_event`，不新增数据库迁移，避免在已有事实表能承载一期登记和整改状态更新时扩大数据模型。
+- 一期第一增量只提供人工登记和人工整改状态更新：`POST /production/safety-environment/events` 登记安全巡检、隐患整改、环境记录或 PPE / 设备安全提醒，`PUT /production/safety-environment/events/{eventNo}/status` 更新 `PENDING / IN_PROGRESS / CLOSED`。
+- 写入角色收敛为 WORKER / ADMIN；DOCTOR 继续 403，CS 当前保留只读汇总，不参与生产现场安环事件录入。
+- 前端只在生产端安环管理页补“登记安环事件”和“更新整改状态”最小表单，提交后刷新既有真实安环汇总。
+
+影响：
+
+- 9D.95.3 不接真实环境采集硬件、PPE 发放系统或完整安环审批流，不代表安环管理全部 READY。
+- Task 8 仍保持 `NOT_READY`；下一步唯一推荐目标为 9D.95.4 成本记录维护 / 趋势口径第一增量。
+
+## D-084 任务 9D.95.4 成本记录维护 / 趋势口径第一增量
+
+状态：已确认并执行第一增量。
+
+决策：
+
+- 成本管理一期第一增量继续复用 9D.53 的 `production_cost_record`，不新增数据库迁移。
+- 新增 `/production/cost-management/records`，WORKER / ADMIN 可人工登记 `PROCESS / MATERIAL / LABOR / REWORK / OUTSOURCING` 成本记录；DOCTOR 写入返回 403。
+- 成本状态限定为 `NORMAL / WARNING / CONFIRMED`，`CONFIRMED` 时记录 `confirmed_at`，`WARNING` 计入既有成本异常预警汇总。
+- 生产端成本管理页新增“登记成本记录”最小表单，提交后刷新既有 `/production/cost-management/summary` 汇总。
+
+影响：
+
+- 9D.95.4 关闭成本记录人工维护和本地汇总趋势口径第一段。
+- 本轮不接真实财务系统、发票、付款、对账或自动成本分摊，不代表成本管理全部 READY。
+- Task 8 仍保持 `NOT_READY`；随后已推进 9D.95.5 奖惩记录 / 审批状态第一增量。
+
+## D-085 任务 9D.95.5 奖惩记录 / 审批状态第一增量
+
+状态：已确认并执行第一增量。
+
+决策：
+
+- 奖惩管理一期第一增量继续复用 9D.54 的 `production_reward_penalty_record`，不新增数据库迁移。
+- 新增 `/production/reward-penalty/records` 与 `/production/reward-penalty/records/{recordNo}/status`，WORKER / ADMIN 可人工登记奖惩记录并更新审批状态；DOCTOR 写入和更新返回 403。
+- 奖惩类型限定为 `REWARD / PENALTY`，状态限定为 `PENDING / APPROVED / REJECTED / EFFECTIVE`，`APPROVED / EFFECTIVE` 会记录内部审批人和审批时间。
+- 生产端奖惩管理页新增“登记奖惩记录”和“更新审批状态”最小表单，提交后刷新既有 `/production/reward-penalty/summary` 汇总。
+
+影响：
+
+- 9D.95.5 关闭奖惩记录人工登记和审批状态更新第一段。
+- 本轮不作为工资发放结果，不做薪酬结算、绩效申诉闭环或复杂审批引擎，不代表奖惩管理全部 READY。
+- Task 8 仍保持 `NOT_READY`；随后已推进医生提交前 AI-4 资料缺失自动触发体验。
+
+## D-086 任务 9D.96 医生提交前 AI-4 资料缺失自动触发体验第一增量
+
+状态：已确认并执行第一增量。
+
+决策：
+
+- 医生端提交订单 / 提交草稿补资料前，先保存当前表单为草稿，再调用既有 `/ai/check-missing` 做 AI-4 资料缺失规则检查。
+- 缺失项存在时，前端停留在编辑状态，展示“AI-4 资料缺失检查”和缺失项清单，不继续执行正式提交。
+- 资料完整时，继续用既有 `PUT /orders/{orderId}` + `submit=true` 提交订单或补资料。
+- 本轮不新增后端接口，不改变 AI-4 规则来源，仍基于 `form_field_config.required_flag` 和订单 `form_data` 判断。
+
+影响：
+
+- 9D.96 关闭医生提交前自动触发 AI-4 资料缺失检查的第一段体验。
+- 本轮不做 AI 自动驳回订单，不接真实 DeepSeek key，不做真实模型联调或新外部服务。
+- Task 8 仍保持 `NOT_READY`；下一步唯一推荐目标为 AI-2 客服查询引用数据说明 / 知识上下文补强。
+
+## D-087 Codex Token 成本治理方案
+
+状态：已确认并执行第一版。
+
+决策：
+
+- 采用“轻量治理 + 自动审计”方案，不引入复杂外部服务，不改变业务开发优先级。
+- 一个 Codex 执行会话默认只推进一个明确闭环；完成后通过接力摘要切到新会话，避免长上下文反复计入 cached input。
+- 固定本地只读审计命令 `npm run codex:token-report`，按请求级 `last_token_usage` 统计最近 session 的 total、input、cached input、大工具输出和高风险命令。
+- 新增机器验收 `npm run check:codex-token-cost`，确保 `AGENTS.md`、治理文档、报告脚本和 package 入口不会丢失。
+
+影响：
+
+- 后续继续下一步前，可以先用 token report 判断是否需要开新会话。
+- 本轮只治理 Codex 工作流和本地审计脚本，不修改业务功能、数据库、接口或验收结论。
+- Task 8 仍保持 `NOT_READY`；业务下一步仍为 AI-2 客服查询引用数据说明 / 知识上下文补强。
+
+## D-088 SOP / Superpowers 分级启用
+
+状态：已确认并执行第一版。
+
+决策：
+
+- 默认轻量模式用于状态查询、下一步确认、简短方案、普通文档确认和 token 排查，不展开完整 Yuri SOP，不生成 superpowers spec / plan。
+- 标准模式用于明确实现、修复、落地、改代码、改验收脚本或项目文档回写；允许使用 TDD / verification，但只读目标相关 skill 和文件片段。
+- 重型模式用于完整审查、上线前检查、PR 前检查、全量验收、长跑执行、复杂故障、安全 / 权限 / 生产 / 数据风险任务。
+- 重型模式必须新会话开始，先运行 `npm run codex:token-report`，并明确 token 阈值、停止条件和验收范围。
+
+影响：
+
+- superpowers 和 Yuri SOP 保留为质量边界，但不再作为每个轻量问题的全量默认流程。
+- 本轮只调整协作工作流，不修改业务功能、数据库、接口或 Task 8 判断。
+
+## D-090 任务 9D.98 AI-5 生产备注客户模板 / 知识上下文补强
+
+状态：已确认并执行第一增量。
+
+决策：
+
+- AI-5 继续复用 `/ai/production-note` 生成生产备注草稿，但响应新增 `template_version=PHASE_ONE_DEFAULT_V1`、`knowledge_context_notes` 和 `requires_customer_template_confirmation`。
+- 客户正式生产备注模板仍未确认；本轮只能提供默认一期模板和知识上下文说明，不能声明为真实客户模板或客户已签字。
+- 新增 `/ai/production-note/confirm`，CS / WORKER / ADMIN 在订单 DataScope 内人工确认后才追加写入 `orders.production_note`，并写入 `PRODUCTION_NOTE_HUMAN_CONFIRMED` AI 审计。
+- 客服初审页在 AI-1 翻译草稿与生产备注之间新增 AI-5 生产备注草稿、知识上下文说明和人工确认写入入口。
+
+影响：
+
+- 9D.98 关闭 AI-5 默认模板、生产备注上下文和人工确认写入链路第一段。
+- AI-1 `/ai/translate`、AI-4 `/ai/check-missing`、AI-2 `/ai/cs-query` 和 AI-5 `/ai/production-note` / `/ai/production-note/confirm` 由 `npm run check:task9d98` 做入口复核。
+- 本轮不新增数据库迁移，不接真实 DeepSeek key，不做 RAG / tool calling，不自动下发生产指令，不替代客户 / PM 生产备注模板确认。
+- Task 8 仍保持 `NOT_READY`；下一步转向真实客户 / PM 确认项与真实环境 AI 验收收口。
+
+## D-089 任务 9D.97 AI-2 客服查询引用数据说明 / 知识上下文补强
+
+状态：已确认并执行第一增量。
+
+决策：
+
+- AI-2 继续复用既有 `/ai/cs-query`，不新增后端入口、不新增数据库迁移、不接真实 DeepSeek key。
+- `/ai/cs-query` 响应新增 `reference_data_notes`，用于返回本次回答使用的只读内部数据来源说明。
+- 第一增量来源说明覆盖订单基础、生产上下文、沟通消息、附件、账单和物流；不存在对应数据时也明确说明未找到，避免客服误以为 AI 已读取完整事实。
+- 客服端 `/ai/cs` 展示“引用数据说明”，但 AI-2 输出仍是内部只读草稿，必须人工确认后再对外沟通。
+
+影响：
+
+- 9D.97 关闭 AI-2 引用数据说明和客服知识上下文第一段。
+- 本轮不做 RAG、复杂 tool calling、流式输出、消息附件预览 URL 聚合或客户 / PM AI-2 最终口径确认。
+- AI-2 不自动发送医生消息，不自动写入订单、生产备注、客服消息或审核结论。
+- Task 8 仍保持 `NOT_READY`；随后已推进 AI-5 生产备注客户模板 / 知识上下文补强第一增量，下一步转向真实客户 / PM 确认项与真实环境 AI 验收收口。
