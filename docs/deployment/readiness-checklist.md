@@ -8,6 +8,8 @@
 
 Task 8 readiness 终检报告第一增量已生成：`docs/deployment/task-8-final-readiness-report.md`。该报告把本 checklist 和 acceptance matrix 中仍为 PARTIAL / NOT_READY 的关键项整理为上线前缺口清单，Task 8 状态仍为 `NOT_READY`。
 
+一期收口技术方案可执行稿已生成：`docs/development/phase-one-closure-technical-plan.md`，机器检查入口为 `npm run check:phase-one-closure-plan`。当前优先级是先校准文档状态基线，再推进真实客户 / PM 确认项与真实环境 AI 验收收口；不接真实 DeepSeek key，不填写真实 webhook，不伪装客户模板、客户签字或真实部署完成。
+
 9D.82 最新 PRD V2.0 差异对齐矩阵第一段已补：`docs/acceptance/prd-v2-gap-matrix.md` 将最新版 PRD 正文 `V2.0 / 2026-07-04` 拆成一期已覆盖、部分覆盖、缺失、BLOCKED 和二期项，`npm run check:task9d82` 可检查矩阵、项目入口文档和 acceptance 证据。新的本地可关闭一期缺口包括患者管理基础版、人工支付流水 / 收支记录、客户 / 诊所档案与偏好、人员档案 / 工作量看板、质量记录 CRUD / 外返登记、客服订单 / 沟通完整可见性 smoke、医生账户设置基础闭环、设备 / 物料 / 安环 / 成本 / 奖惩完整闭环和 LangChain + DeepSeek AI 底座对齐。
 
 9D.94 LangChain + DeepSeek AI 底座对齐第一增量已补：后端新增 LangChain4j DeepSeek 适配，默认 `AI_PROVIDER=deterministic`、`AI_LANGCHAIN_ENABLED=false`；只有显式 `AI_PROVIDER=langchain-deepseek`、`AI_LANGCHAIN_ENABLED=true`、`AI_LANGCHAIN_PROVIDER=deepseek`、`AI_DEEPSEEK_ENABLED=true` 且外部注入 DeepSeek key 时，AI-1 / AI-2 / AI-3 公开查询 / AI-5 才通过 LangChain4j 调用 DeepSeek。该记录不代表真实 key、生产 webhook、流式输出、RAG、复杂 agent tool calling 或客户 / PM AI 验收已完成。
@@ -213,7 +215,7 @@ git diff --check
 
 ## 9D.94 LangChain + DeepSeek AI 底座对齐第一增量
 
-9D.94 已补 `npm run check:task9d94`、LangChain4j 依赖、`AI_LANGCHAIN_ENABLED=false` 默认关闭配置、`AI_PROVIDER=langchain-deepseek` 显式 provider、`LangChainDeepSeekAiModelClient` 和目标后端测试。当前证据覆盖 AI-1 / AI-2 / AI-3 公开查询 / AI-5 在显式启用 LangChain + DeepSeek 时经 LangChain4j 调用 DeepSeek，AI-3 内部问题仍本地 `SAFE_REFUSAL` 且不外呼。本轮不提交真实 key，不做生产真实联调，不补流式输出、RAG、复杂 agent tool calling、提示词后台、AI-2 知识上下文补强或 AI-4 提交前自动触发体验。Task 8 仍保持 NOT_READY。
+9D.94 已补 `npm run check:task9d94`、LangChain4j 依赖、`AI_LANGCHAIN_ENABLED=false` 默认关闭配置、`AI_PROVIDER=langchain-deepseek` 显式 provider、`LangChainDeepSeekAiModelClient` 和目标后端测试。当前证据覆盖 AI-1 / AI-2 / AI-3 公开查询 / AI-5 在显式启用 LangChain + DeepSeek 时经 LangChain4j 调用 DeepSeek，AI-3 内部问题仍本地 `SAFE_REFUSAL` 且不外呼。本轮不提交真实 key，不做生产真实联调，不补流式输出、RAG、复杂 agent tool calling 或提示词后台。AI-4 提交前自动触发体验已由 9D.96 补齐第一增量，AI-2 引用数据说明已由 9D.97 补齐第一增量；真实 AI 环境、客户 / PM 口径和更完整知识上下文仍未最终关闭。Task 8 仍保持 NOT_READY。
 
 ## 9D.95 设备 / 物料 / 安环 / 成本 / 奖惩一期闭环拆解第一增量
 

@@ -1,5 +1,23 @@
 # DECISIONS
 
+## D-142 一期收口技术方案改为可执行稿
+
+状态：已确认并执行文档 / 检查脚本第一增量。
+
+决策：
+
+- 新增 `docs/development/phase-one-closure-technical-plan.md` 作为一期收口技术方案可执行稿，不再停留在方向稿。
+- 执行顺序固定为：第零段状态基线校准 -> 第一段客户 / PM 确认项与真实环境 AI 验收收口 -> 第二段 PRD V2 本地功能差异收口 -> 第三段生产支持模块 PARTIAL 收口 -> 第四段统一验收与文档回写。
+- 新增 `npm run check:phase-one-closure-plan`，检查方案结构、关键 gap 状态、9D.90 / 9D.91 / 9D.92 / 9D.97 / 9D.98 状态一致性、生产支持模块 PARTIAL 边界和真实外部项不能伪装完成。
+- 当前优先级改为真实客户 / PM 确认项与真实环境 AI 验收收口；只做确认表、验收记录模板、阻塞状态和检查脚本，不接真实 DeepSeek key，不填写真实 webhook，不伪装客户模板或客户签字。
+
+影响：
+
+- `customer-pm-confirmations` 继续为 `BLOCKED`。
+- `ai-production-governance`、`prd-v2-local-feature-gaps`、`frontend-business-pages` 继续为 `PARTIAL`。
+- 设备 / 物料 / 安环 / 成本 / 奖惩只能写成“一期基础可演示闭环 / PARTIAL”，不能写成 READY；是否继续补到 READY 依赖客户 / PM 是否列为一期硬交付。
+- Task 8 仍保持 `NOT_READY`。
+
 ## D-141 任务 9D.90 产品参数 / 价格体系一期最小后台
 
 状态：已确认并执行第一增量。

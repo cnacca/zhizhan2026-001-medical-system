@@ -12,6 +12,7 @@
     "check:codex-token-cost": "node scripts/check-codex-token-cost-control.mjs",
     "check:openapi": "ruby scripts/check-openapi-contract.rb && npx --yes @apidevtools/swagger-cli validate docs/api/openapi.yaml && npx --yes @redocly/cli lint docs/api/openapi.yaml",
     "check:deployment-env": "node scripts/check-deployment-env-readiness.mjs",
+    "check:phase-one-closure-plan": "node scripts/check-phase-one-closure-technical-plan.mjs",
     "check:task8-readiness-gaps": "node scripts/check-task8-readiness-gaps.mjs",
     "check:task8-final-readiness": "node scripts/check-task8-final-readiness-report.mjs",
     "check:task9d1": "node scripts/check-task-9d1-frontend.mjs",

@@ -13,6 +13,8 @@
 
 本矩阵只做最新版 PRD 对齐与差异拆解，不新增业务功能，不替代客户 / PM 书面确认，不把 Task 8 标完成。
 
+一期收口执行顺序以 `docs/development/phase-one-closure-technical-plan.md` 为准：先做状态基线校准，再优先推进真实客户 / PM 确认项与真实环境 AI 验收收口，随后处理 PRD V2 本地功能差异和生产支持模块 PARTIAL 收口。
+
 ## 判定规则
 
 | 状态 | 含义 |

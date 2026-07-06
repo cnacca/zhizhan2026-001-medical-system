@@ -7,64 +7,64 @@
       "reason": "README.md already exists and should be updated compatibly."
     },
     "AGENT.md": {
-      "policy": "create",
-      "state": "missing",
-      "reason": "AGENT.md does not exist."
+      "policy": "supplement",
+      "state": "populated",
+      "reason": "AGENT.md already exists and should be updated compatibly."
     },
     "PROJECT.md": {
-      "policy": "create",
-      "state": "missing",
-      "reason": "PROJECT.md does not exist."
+      "policy": "preserve",
+      "state": "populated",
+      "reason": "Keep the existing project definition and preserve the authoritative source."
     },
     "STATUS.md": {
-      "policy": "create",
-      "state": "missing",
-      "reason": "STATUS.md does not exist."
+      "policy": "supplement",
+      "state": "populated",
+      "reason": "STATUS.md already exists and should be updated compatibly."
     },
     "DECISIONS.md": {
-      "policy": "create",
-      "state": "missing",
-      "reason": "DECISIONS.md does not exist."
+      "policy": "supplement",
+      "state": "populated",
+      "reason": "DECISIONS.md already exists and should be updated compatibly."
     },
     "acceptance.json": {
-      "policy": "create",
-      "state": "missing",
-      "reason": "acceptance.json does not exist."
+      "policy": "supplement",
+      "state": "populated",
+      "reason": "Existing acceptance.json is managed by RepoFrame and can be updated."
     },
     "goals/": {
-      "policy": "create",
-      "state": "missing",
+      "policy": "supplement",
+      "state": "present",
       "reason": "Create the goals directory if absent; otherwise add a real goal file."
     },
     "tasks/": {
-      "policy": "create",
-      "state": "missing",
+      "policy": "supplement",
+      "state": "present",
       "reason": "Create the tasks directory if absent; otherwise add a real task file."
     },
     ".agent/": {
-      "policy": "create",
-      "state": "missing",
+      "policy": "supplement",
+      "state": "present",
       "reason": "Create the generated agent-rule directory without touching unrelated docs content."
     },
     ".agent/operating-rules.md": {
-      "policy": "create",
-      "state": "missing",
-      "reason": ".agent/operating-rules.md does not exist."
+      "policy": "supplement",
+      "state": "populated",
+      "reason": ".agent/operating-rules.md is managed or empty and can be updated."
     },
     ".agent/replanning.md": {
-      "policy": "create",
-      "state": "missing",
-      "reason": ".agent/replanning.md does not exist."
+      "policy": "supplement",
+      "state": "populated",
+      "reason": ".agent/replanning.md is managed or empty and can be updated."
     },
     ".agent/file-contract.md": {
-      "policy": "create",
-      "state": "missing",
-      "reason": ".agent/file-contract.md does not exist."
+      "policy": "supplement",
+      "state": "populated",
+      "reason": ".agent/file-contract.md is managed or empty and can be updated."
     },
     ".agent/collaboration-rule-changes.md": {
-      "policy": "create",
-      "state": "missing",
-      "reason": ".agent/collaboration-rule-changes.md does not exist."
+      "policy": "supplement",
+      "state": "populated",
+      "reason": ".agent/collaboration-rule-changes.md is managed or empty and can be updated."
     }
   }
 }

@@ -6,9 +6,11 @@
 
 当前总目标是严格按照最新版 PRD V2.0 / 2026-07-04 完成一期交付。后续所有 9D 小任务都只作为补齐一期 12 步主链路、PRD V2.0 差异矩阵和上线硬缺口的执行单元；最新版 PRD 差异基线见 `docs/acceptance/prd-v2-gap-matrix.md`，前端是否匹配一期范围见 `docs/acceptance/phase-one-frontend-alignment.md`，按端口拆任务、处理已完成和超一期入口时使用 `docs/acceptance/phase-one-frontend-task-scope.md`。
 
-当前已完成项目工作流初始化、任务 0 到任务 8B 基线、任务 9A 到 9B.8 权限/DataScope 第一轮、任务 9C.1 到 9C.3 通知第一轮，以及任务 9D.1 到 9D.90 的多条一期硬缺口第一增量；其中 9D.83 已补患者管理基础版，9D.84 已补人工支付流水 / 收支记录，9D.85 已补客户 / 诊所档案与偏好，9D.86 已补人员档案 / 工作量看板，9D.87 已补质量记录 CRUD / 外返登记，9D.88 已补客服订单 / 沟通完整可见性 smoke，9D.89 已补医生账户设置基础闭环，9D.90 已补产品参数 / 价格体系一期最小后台。9D.90 新增 `product_catalog`、`/products`、`/products/{productId}` 和产品管理页基础价维护入口，支持 CS / ADMIN 维护产品类型、材料规格和人工基础价。本轮不做自动报价、客户分层价格、价格审批、账单重算或真实财务结算。Task 8 总体仍为 `NOT_READY`。
+当前已完成项目工作流初始化、任务 0 到任务 8B 基线、任务 9A 到 9B.8 权限/DataScope 第一轮、任务 9C.1 到 9C.3 通知第一轮，以及任务 9D.1 到 9D.98 的多条一期硬缺口第一增量；其中 9D.90 已补产品参数 / 价格体系一期最小后台，9D.91 已补客服配送管理页 / 物流异常跟进第一增量，9D.92 已补 AI-2 客服查询助手完整入口第一增量，9D.97 已补 AI-2 引用数据说明和知识上下文第一增量，9D.98 已补 AI-5 生产备注默认模板、知识上下文和人工确认写入第一增量。本轮不接真实 DeepSeek key，不伪装真实 webhook、客户生产备注模板或客户签字。当前唯一推荐目标是客户 / PM 确认项与真实环境 AI 验收收口，技术方案见 `docs/development/phase-one-closure-technical-plan.md`。Task 8 总体仍为 `NOT_READY`。
 
-2026-07-05 交接摘要：Task 8 总体仍为 `NOT_READY`；9D.48、9D.48.1、9D.48.2 已完成 AI 外部告警 outbox 监控、列表筛选和失败/死信可见性第一增量；Task 8 readiness 终检报告、部署安全 / 环境变量 readiness 检查和验收矩阵机器可读缺口清单第一增量已完成；9D.55 已按 RuoYi-Vue-Pro / 若依 Pro 的字典、CRUD、菜单、权限码范式补返工字典后台维护第一增量；9D.56 已补 `final-inspection:manage`、`final_inspection_report_file` 和终检报告 `attachment_file_ids`；9D.57 已补 `/rework-final` 返工影响只读图；9D.58 客服协同闭环第一增量已补客服端 `/collaboration` 待审核消息、订单消息上下文和消息通过/驳回入口；9D.59 客服资料缺失提示与 AI 翻译草稿确认第一增量已补客服初审页资料缺失提示、AI 翻译草稿和人工写入生产备注入口；9D.60 设计稿预览 URL 聚合第一增量已补医生端设计稿版本按需预览链接；9D.61 账单物流预览/录入闭环第一增量已补客服/内部账单文件绑定和医生端账单预览链接；9D.62 到 9D.63 已把 12 步主链路 smoke 推进到固定演示订单、派工、入检/工时/出检、设计稿、账单物流、确认收货和返工异常路径；9D.64 已补客服端设计稿版本列表和客服设计稿预览链接；9D.65 已补终检报告内部 PDF file_id 绑定和 `signature_status=PENDING` 签名占位；9D.66 已补绩效周期筛选第一段；9D.67 文件上传限制与 bucket 隔离第一段已补 `FILE_MAX_FILE_SIZE_BYTES`、`FILE_ALLOWED_CONTENT_TYPES`、`FILE_MAX_FILES_PER_ORDER` 服务端校验和医生端选择提示；9D.68 12 步主链路客户验收版收敛已新增 `docs/acceptance/phase-one-main-chain-customer-acceptance.md`；9D.69 部署基础设施第一段已新增 `backend/platform-server/Dockerfile`、`frontend/Dockerfile`、`deploy/docker-compose.phase-one.yml`、`deploy/env/phase-one.prod.example` 和 `docs/deployment/phase-one-docker-env.md`；9D.70 操作手册与交付材料第一段已新增 `docs/operations/phase-one-role-operation-manual.md`、`docs/operations/phase-one-troubleshooting-guide.md` 和 `docs/operations/phase-one-delivery-materials-index.md`；9D.71 AI 外部告警接收端验签 / 防重放第一段已新增 `/ai/external-alerts/receive` 本地接收端验收桩和 timestamp / nonce 签名口径；9D.72 客户 / PM 确认项清单第一段已新增 `docs/acceptance/phase-one-customer-pm-confirmations.md`；9D.73 账单 / 付款状态 / 物流一期闭环第一段已新增 `order_bill.payment_status`、`/orders/{orderId}/bill/payment-status` 和前端人工维护付款状态入口；9D.74 绩效标准工时与完整公式口径第一段已新增 `performance_formula_version=PHASE_ONE_DEFAULT_V1`、标准工时覆盖率和默认绩效分；9D.75 正式鉴权与 DataScope 收口第一段已新增 `APP_AUTH_ALLOW_ROLE_FALLBACK`，生产环境固定权限码优先，角色-only token 不再绕过声明权限码的接口。`acceptance.json` 现在维护 `task8_readiness_gaps`、9D.55 到 9D.75 必备文本检查，可通过 `npm run check:task8-readiness-gaps` 查看当前上线缺口。下一轮唯一推荐目标是 WebSocket / 通知生产验收第一段。继续开发前请从 `STATUS.md` 和 `tasks/README.md` 的当前交接摘要开始。
+9D.72 客户 / PM 确认项清单第一段已建立 `docs/acceptance/phase-one-customer-pm-confirmations.md`；它只记录 CP-001 到 CP-009 的默认方案、负责人占位、状态和风险，不代表客户 / PM 已签字。
+
+2026-07-05 交接摘要：Task 8 总体仍为 `NOT_READY`；9D.48、9D.48.1、9D.48.2 已完成 AI 外部告警 outbox 监控、列表筛选和失败/死信可见性第一增量；Task 8 readiness 终检报告、部署安全 / 环境变量 readiness 检查和验收矩阵机器可读缺口清单第一增量已完成；9D.55 到 9D.75 已补返工字典、终检附件、返工影响、客服协同、设计稿/账单物流、12 步 smoke、部署骨架、操作手册、客户 / PM 确认项、付款状态、绩效公式和生产权限码优先模式。该历史交接摘要之后，9D.76 到 9D.98 已继续补齐通知网关、文件/AI/部署真实环境模板、PRD V2 本地差异、LangChain + DeepSeek 底座、生产支持模块基础闭环、AI-2 引用数据说明和 AI-5 人工确认写入链路。当前继续开发前请从 `docs/development/phase-one-closure-technical-plan.md`、`STATUS.md` 和 `tasks/README.md` 的最新指针开始。
 
 2026-07-04 上传交接摘要：`feature/project-skeleton` 已推送到 GitHub；本轮业务开发基线为 `5e9ee18`，后续文档回补提交不改变业务代码边界。本轮提交已按边界拆分：`1895f79` 生产汇总、`f395584` AI 治理、`c781eae` Task 8 文档回写、`5e9ee18` workflow helper 整理。当前工作区只剩未跟踪 `test-results/` 运行产物，未纳入提交。9D.49 到 9D.54 已完成生产端质量、设备、物料异常、安环、成本、奖惩六类真实只读汇总第一增量；后续仍缺录入/审批/CRUD、演示种子数据、工作台趋势真实统计和完整业务验收用例。
 
@@ -1364,9 +1366,10 @@ Task 8A smoke 注意事项：
 
 优先处理 `tasks/README.md`：
 
-1. 下一轮唯一推荐目标：客服配送管理页 / 物流异常跟进第一增量。
-2. 9D.83 已补患者管理基础版，9D.84 已补人工支付流水 / 收支记录，9D.85 已补客户 / 诊所档案与偏好，9D.86 已补人员档案 / 工作量看板，9D.87 已补质量记录 / 外返登记，9D.88 已补客服订单 / 沟通完整可见性，9D.89 已补医生账户设置，9D.90 已补产品参数 / 价格体系一期最小后台；下一步继续按 `docs/acceptance/prd-v2-gap-matrix.md` 关闭 PRD V2.0 本地可实现的一期缺口。
-3. 不做独立网盘、Tus/tusd 独立服务、真实弱网全量验收、跨设备复杂续传、真实电子签章平台、物流平台 API 自动同步、支付系统、复杂 CRM、自动报价或 AI 自动审核/发送；每补一个缺口，都要回写 `docs/acceptance/task-8-acceptance-matrix.md` 和 `docs/deployment/readiness-checklist.md` 的状态。
+1. 当前唯一推荐目标：真实客户 / PM 确认项与真实环境 AI 验收收口。
+2. 执行入口：`docs/development/phase-one-closure-technical-plan.md`，先做“第零段：状态基线校准”，再做客户 / PM 确认项和真实环境 AI 验收模板收口。
+3. 9D.90、9D.91、9D.92、9D.97、9D.98 均为已完成第一增量，不得在入口文档里继续写成下一步；剩余工作主要是真实 key、真实 webhook、客户正式模板、客户签字、真实环境部署和生产支持模块完整 READY 的外部确认 / 后续闭环。
+4. 不做独立网盘、Tus/tusd 独立服务、真实弱网全量验收、跨设备复杂续传、真实电子签章平台、物流平台 API 自动同步、支付系统、复杂 CRM、自动报价或 AI 自动审核/发送；每补一个缺口，都要回写 `docs/acceptance/task-8-acceptance-matrix.md` 和 `docs/deployment/readiness-checklist.md` 的状态。
 
 ## 9D.77 文件上传弱网 / 跨设备验收第一段
 
