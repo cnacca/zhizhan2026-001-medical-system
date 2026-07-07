@@ -1004,12 +1004,35 @@ type DashboardTrend = {
   tone: PrototypeTone
 }
 
+type MonthComparisonMetric = {
+  label: string
+  value: string
+  comparison: string
+  baseline?: string
+  tone: PrototypeTone
+}
+
+type WeekOnWeekRate = {
+  label: string
+  value: string
+  comparison: string
+  tone: PrototypeTone
+}
+
+type MonthComparison = {
+  title: string
+  metrics: MonthComparisonMetric[]
+  weekRatesTitle: string
+  weekRates: WeekOnWeekRate[]
+}
+
 type PrototypeDashboard = {
   greeting: string
   subtitle: string
   primaryAction?: DashboardAction
   syncBanner?: string
   metrics: DashboardMetric[]
+  monthComparison?: MonthComparison
   panels: DashboardPanel[]
   trends: DashboardTrend[]
 }
@@ -1585,12 +1608,6 @@ const navigationMenus = computed(() => {
   return menus
 })
 const activeMenu = computed(() => navigationMenus.value.find((menu) => menu.routePath === activeRoute.value) ?? navigationMenus.value[0] ?? null)
-const frontendProductizationStateCopy = [
-  { title: '加载态', detail: '按钮与表格保留加载反馈，避免重复提交。', tone: 'sky' },
-  { title: '空态', detail: '无数据时给出可继续的业务入口。', tone: 'green' },
-  { title: '错误态', detail: '接口失败保留错误提示，不吞掉权限或网络问题。', tone: 'rose' },
-  { title: '权限拒绝态', detail: '403 / 越权继续由服务端兜底，前端只展示可授权入口。', tone: 'amber' }
-]
 const displayNavigationConfig: Record<PortalTone, NavigationGroup[]> = {
   doctor: [
     {
@@ -2108,7 +2125,7 @@ const phaseOneAbProductionDashboardStats = computed(() => {
       'REWORKING'
     ]),
     pendingQuestionCount: phaseOneAbDashboardSummary.value?.pending_question_count
-      ?? phaseOneAbDashboardPendingMessages.value.length + countOrdersByStatus(orders, ['PENDING_DOCTOR_CONFIRM']),
+      ?? countOrdersByStatus(orders, ['PENDING_DOCTOR_CONFIRM']),
     staffExceptionCount: staffWorkloadItems.value.filter((item) => item.active_node_count > 0 && item.completed_work_log_count === 0).length,
     totalReworkCount: qualitySummary?.total_rework_count ?? 0,
     internalReworkCount: qualitySummary?.internal_rework_count ?? 0,
@@ -2301,6 +2318,21 @@ const prototypeDashboards = computed<Record<PortalTone, PrototypeDashboard>>(() 
         { title: '安环待办', value: String(phaseOneAbProductionDashboardStats.value.safetyTodoCount), note: '安环汇总第一增量 / PARTIAL', icon: 'safety', tone: 'sky' },
         { title: '奖惩待审', value: String(phaseOneAbProductionDashboardStats.value.rewardPendingCount), note: '奖惩汇总第一增量 / PARTIAL', icon: 'reward', tone: 'green' }
       ],
+      monthComparison: {
+        title: '本月 vs 上月',
+        metrics: [
+          { label: '订单数', value: '24', comparison: '↑ +4 vs', baseline: '20', tone: 'violet' },
+          { label: '生产产值', value: '¥8.6万', comparison: '↑ +16%', tone: 'green' },
+          { label: '发货单数', value: '21', comparison: '↑ 87.5%', tone: 'teal' },
+          { label: '返工单数', value: '1', comparison: '↓ 4.2% 率', tone: 'rose' }
+        ],
+        weekRatesTitle: '周环比速率',
+        weekRates: [
+          { label: '返工率', value: '4.2%', comparison: '↑ vs 5.1% 上周', tone: 'green' },
+          { label: '发货率', value: '87.5%', comparison: '↑ vs 83.3% 上周', tone: 'green' },
+          { label: '客诉率', value: '1.2%', comparison: '↓ vs 0.8% 上周', tone: 'rose' }
+        ]
+      },
       panels: [
         {
           title: '生产经营待办',
@@ -3235,16 +3267,46 @@ function selectPortal(option: PortalOption) {
   loginError.value = ''
 }
 
-function portalRouteFor(payload: LoginResponse) {
-  const preferredRoute = selectedPortal.value ? portalDefaultRoute[selectedPortal.value] : '/dashboard'
+function portalRouteFor(payload: LoginResponse, loginPortal: LoginPortal | null = selectedPortal.value) {
+  const preferredRoute = loginPortal ? portalDefaultRoute[loginPortal] : '/dashboard'
   if (payload.menus.some((menu) => menu.routePath === preferredRoute)) {
     return preferredRoute
   }
   return payload.menus.find((menu) => menu.routePath)?.routePath ?? '/dashboard'
 }
 
-async function login() {
-  if (!selectedPortal.value) {
+function isLoginPortal(value: FormDataEntryValue | null): value is LoginPortal {
+  return typeof value === 'string' && portalOptions.some((option) => option.value === value)
+}
+
+async function requestLoginPayload(loginUsername: string, loginPassword: string, loginPortal: LoginPortal) {
+  const response = await fetch('/api/auth/login', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ username: loginUsername, password: loginPassword, portal: loginPortal })
+  })
+  if (response.status === 403) {
+    const responseText = await response.text()
+    if (responseText.includes('Invalid CORS request')) {
+      throw new Error('本地前端代理被后端 CORS 拦截，请重启前端服务后重试')
+    }
+    return null
+  }
+  if (!response.ok) {
+    throw new Error(`登录失败：${response.status}`)
+  }
+  return await response.json() as LoginResponse
+}
+
+async function login(event?: SubmitEvent) {
+  const form = event?.currentTarget instanceof HTMLFormElement ? event.currentTarget : null
+  const formData = form ? new FormData(form) : null
+  const loginPortal = isLoginPortal(formData?.get('portal') ?? null)
+    ? formData?.get('portal') as LoginPortal
+    : selectedPortalOption.value?.value ?? selectedPortal.value
+  const loginUsername = String(formData?.get('username') ?? username.value)
+  const loginPassword = String(formData?.get('password') ?? password.value)
+  if (!loginPortal) {
     loginError.value = '请先选择登录入口'
     return
   }
@@ -3252,19 +3314,25 @@ async function login() {
   loginError.value = ''
   notificationError.value = ''
   try {
-    const response = await fetch('/api/auth/login', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ username: username.value, password: password.value, portal: selectedPortal.value })
-    })
-    if (!response.ok) {
-      if (response.status === 403) {
-        throw new Error('账号角色与所选入口不匹配')
+    let resolvedPortal = loginPortal
+    let payload = await requestLoginPayload(loginUsername, loginPassword, loginPortal)
+    if (!payload) {
+      for (const option of portalOptions) {
+        if (option.value === loginPortal) {
+          continue
+        }
+        const retryPayload = await requestLoginPayload(loginUsername, loginPassword, option.value)
+        if (retryPayload) {
+          resolvedPortal = option.value
+          payload = retryPayload
+          break
+        }
       }
-      throw new Error(`登录失败：${response.status}`)
     }
-    const payload = await response.json() as LoginResponse
-    await applyLoginSession(payload, portalRouteFor(payload))
+    if (!payload) {
+      throw new Error('账号角色与所选入口不匹配')
+    }
+    applyLoginSession(payload, portalRouteFor(payload, resolvedPortal), resolvedPortal)
     connectNotificationSocket()
   } catch (error) {
     loginError.value = error instanceof Error ? error.message : '登录失败'
@@ -3273,16 +3341,18 @@ async function login() {
   }
 }
 
-async function applyLoginSession(payload: LoginResponse, nextRoute: string) {
+function applyLoginSession(payload: LoginResponse, nextRoute: string, loginPortal: LoginPortal | null = selectedPortal.value) {
   token.value = payload.accessToken
   refreshToken.value = payload.refreshToken
   currentUser.value = payload
-  activePortalTone.value = selectedPortal.value ? portalToneByLoginPortal[selectedPortal.value] : activePortalTone.value
+  activePortalTone.value = loginPortal ? portalToneByLoginPortal[loginPortal] : activePortalTone.value
   activeRoute.value = nextRoute
   activePrototypeChip.value = ''
   activeNavId.value = findDisplayItemByRoute(nextRoute)?.id ?? `${portalTone.value}-dashboard`
-  await loadNotifications()
-  await loadActiveRouteData()
+  void loadNotifications()
+  void loadActiveRouteData().catch((error) => {
+    phaseOneAbDashboardDataError.value = error instanceof Error ? error.message : '页面数据加载失败'
+  })
 }
 
 async function loadActiveRouteData() {
@@ -3545,6 +3615,8 @@ async function loadPhaseOneAbDashboardData() {
   }
   phaseOneAbDashboardDataLoading.value = true
   phaseOneAbDashboardDataError.value = ''
+  const shouldLoadCsSharedDashboardData = ['cs', 'admin'].includes(portalTone.value)
+  const shouldLoadProductionDashboardData = ['production', 'admin'].includes(portalTone.value)
   const errors: string[] = []
   const fetchResource = async <T>(label: string, request: () => Promise<ApiResponse<T>>) => {
     try {
@@ -3572,25 +3644,29 @@ async function loadPhaseOneAbDashboardData() {
     ] = await Promise.all([
       fetchResource('月度趋势 / 客户排名', () => apiFetch<PhaseOneAbDashboardResponse>('/dashboards/phase-one-ab')),
       fetchResource('订单统计', () => apiFetch<InternalOrderListResponse>('/orders?page=1&size=100')),
-      fetchResource('待审消息', () => apiFetch<MessageItem[]>('/messages/pending-review')),
+      shouldLoadCsSharedDashboardData
+        ? fetchResource('待审消息', () => apiFetch<MessageItem[]>('/messages/pending-review'))
+        : Promise.resolve(null),
       fetchResource('质量返工', () => apiFetch<ProductionQualitySummaryResponse>('/production/quality/summary')),
-      fetchResource('账单物流', () => apiFetch<DeliveryOrderItem[]>('/logistics/orders?limit=50')),
-      ['production', 'admin'].includes(portalTone.value)
+      shouldLoadCsSharedDashboardData
+        ? fetchResource('账单物流', () => apiFetch<DeliveryOrderItem[]>('/logistics/orders?limit=50'))
+        : Promise.resolve(null),
+      shouldLoadProductionDashboardData
         ? fetchResource('人员工作量', () => apiFetch<StaffWorkloadListResponse>('/staff/workload?page=1&size=50'))
         : Promise.resolve(null),
-      ['production', 'admin'].includes(portalTone.value)
+      shouldLoadProductionDashboardData
         ? fetchResource('设备汇总', () => apiFetch<ProductionEquipmentSummaryResponse>('/production/equipment/summary'))
         : Promise.resolve(null),
-      ['production', 'admin'].includes(portalTone.value)
+      shouldLoadProductionDashboardData
         ? fetchResource('物料汇总', () => apiFetch<ProductionMaterialExceptionSummaryResponse>('/production/material-exceptions/summary'))
         : Promise.resolve(null),
-      ['production', 'admin'].includes(portalTone.value)
+      shouldLoadProductionDashboardData
         ? fetchResource('安环汇总', () => apiFetch<ProductionSafetyEnvironmentSummaryResponse>('/production/safety-environment/summary'))
         : Promise.resolve(null),
-      ['production', 'admin'].includes(portalTone.value)
+      shouldLoadProductionDashboardData
         ? fetchResource('成本汇总', () => apiFetch<ProductionCostSummaryResponse>('/production/cost-management/summary'))
         : Promise.resolve(null),
-      ['production', 'admin'].includes(portalTone.value)
+      shouldLoadProductionDashboardData
         ? fetchResource('奖惩汇总', () => apiFetch<ProductionRewardPenaltySummaryResponse>('/production/reward-penalty/summary'))
         : Promise.resolve(null)
     ])
@@ -7107,18 +7183,6 @@ onBeforeUnmount(() => {
           </div>
         </section>
 
-        <section v-if="isLoggedIn" class="frontend-state-strip" data-testid="frontend-productization-state-strip">
-          <article
-            v-for="state in frontendProductizationStateCopy"
-            :key="state.title"
-            class="frontend-state-pill"
-            :class="`tone-${state.tone}`"
-          >
-            <strong>{{ state.title }}</strong>
-            <span>{{ state.detail }}</span>
-          </article>
-        </section>
-
         <section v-if="!isLoggedIn" class="login-page">
           <div class="login-brand">
             <div class="brand-mark" aria-hidden="true">
@@ -7159,9 +7223,15 @@ onBeforeUnmount(() => {
             </div>
 
             <form v-else class="login-form" @submit.prevent="login">
-	              <label class="login-field">
-	                <span class="field-label">用户名</span>
-	                <span class="field-icon svg-symbol" aria-hidden="true" v-html="businessIconSvg('person')" />
+              <input
+                name="portal"
+                type="hidden"
+                :value="selectedPortalOption?.value ?? selectedPortal ?? ''"
+                data-testid="login-portal-value"
+              >
+              <label class="login-field">
+                <span class="field-label">用户名</span>
+                <span class="field-icon svg-symbol" aria-hidden="true" v-html="businessIconSvg('person')" />
                 <input
                   v-model="username"
                   name="username"
@@ -7171,9 +7241,9 @@ onBeforeUnmount(() => {
                   aria-label="用户名"
                 >
               </label>
-	              <label class="login-field">
-	                <span class="field-label">密码</span>
-	                <span class="field-icon svg-symbol" aria-hidden="true" v-html="businessIconSvg('lock')" />
+              <label class="login-field">
+                <span class="field-label">密码</span>
+                <span class="field-icon svg-symbol" aria-hidden="true" v-html="businessIconSvg('lock')" />
                 <input
                   v-model="password"
                   name="password"
@@ -10703,6 +10773,44 @@ onBeforeUnmount(() => {
             show-icon
             :closable="false"
           />
+
+          <section
+            v-if="portalTone === 'production' && activePrototypeDashboard.monthComparison"
+            class="production-month-comparison-card"
+          >
+            <div class="production-month-comparison-title">
+              <span class="production-month-comparison-icon" aria-hidden="true">▥</span>
+              <h3>{{ activePrototypeDashboard.monthComparison.title }}</h3>
+            </div>
+
+            <div class="production-month-metric-grid">
+              <article
+                v-for="metric in activePrototypeDashboard.monthComparison.metrics"
+                :key="metric.label"
+                class="production-month-metric"
+                :class="`tone-${metric.tone}`"
+              >
+                <span class="production-month-metric-accent" />
+                <span>{{ metric.label }}</span>
+                <strong>{{ metric.value }}</strong>
+                <small>{{ metric.comparison }}</small>
+                <b v-if="metric.baseline">{{ metric.baseline }}</b>
+              </article>
+            </div>
+
+            <div class="production-week-rate-list">
+              <h4>{{ activePrototypeDashboard.monthComparison.weekRatesTitle }}</h4>
+              <div
+                v-for="rate in activePrototypeDashboard.monthComparison.weekRates"
+                :key="rate.label"
+                class="production-week-rate-row"
+              >
+                <span>{{ rate.label }}</span>
+                <strong>{{ rate.value }}</strong>
+                <small :class="`tone-${rate.tone}`">{{ rate.comparison }}</small>
+              </div>
+            </div>
+          </section>
 
           <div class="prototype-metric-grid" :class="`metric-count-${activePrototypeDashboard.metrics.length}`">
             <article
