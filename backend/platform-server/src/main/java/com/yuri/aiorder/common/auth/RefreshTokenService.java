@@ -40,12 +40,32 @@ public class RefreshTokenService {
                 .param("userId", userId)
                 .param("expiresAt", expiresAt)
                 .update();
-        return new IssuedRefreshToken(token, expiresAt);
+        return new IssuedRefreshToken(token, expiresAt, userId);
     }
 
     @Transactional
     public ActiveRefreshToken requireActive(String refreshToken) {
         String tokenHash = hash(refreshToken);
+        RefreshTokenRow row = requireActiveByHash(tokenHash);
+        jdbcClient.sql("""
+                        UPDATE auth_refresh_token
+                        SET last_used_at = CURRENT_TIMESTAMP(3)
+                        WHERE token_id = :tokenId
+                        """)
+                .param("tokenId", row.tokenId())
+                .update();
+        return new ActiveRefreshToken(row.userId(), row.expiresAt());
+    }
+
+    @Transactional
+    public IssuedRefreshToken rotate(String refreshToken) {
+        String tokenHash = hash(refreshToken);
+        RefreshTokenRow row = requireActiveByHash(tokenHash);
+        revokeByHash(tokenHash);
+        return issue(row.userId());
+    }
+
+    private RefreshTokenRow requireActiveByHash(String tokenHash) {
         RefreshTokenRow row = jdbcClient.sql("""
                         SELECT token_id, user_id, expires_at, revoked_at
                         FROM auth_refresh_token
@@ -62,25 +82,22 @@ public class RefreshTokenService {
         if (row.revokedAt() != null || !row.expiresAt().isAfter(Instant.now())) {
             throw unauthorized();
         }
-        jdbcClient.sql("""
-                        UPDATE auth_refresh_token
-                        SET last_used_at = CURRENT_TIMESTAMP(3)
-                        WHERE token_id = :tokenId
-                        """)
-                .param("tokenId", row.tokenId())
-                .update();
-        return new ActiveRefreshToken(row.userId(), row.expiresAt());
+        return row;
     }
 
     @Transactional
     public void revoke(String refreshToken) {
+        revokeByHash(hash(refreshToken));
+    }
+
+    private void revokeByHash(String tokenHash) {
         jdbcClient.sql("""
                         UPDATE auth_refresh_token
                         SET revoked_at = CURRENT_TIMESTAMP(3)
                         WHERE token_hash = :tokenHash
                           AND revoked_at IS NULL
                         """)
-                .param("tokenHash", hash(refreshToken))
+                .param("tokenHash", tokenHash)
                 .update();
     }
 
@@ -115,7 +132,7 @@ public class RefreshTokenService {
         return new ResponseStatusException(HttpStatus.UNAUTHORIZED, "invalid refresh token");
     }
 
-    public record IssuedRefreshToken(String token, Instant expiresAt) {
+    public record IssuedRefreshToken(String token, Instant expiresAt, long userId) {
     }
 
     public record ActiveRefreshToken(long userId, Instant expiresAt) {

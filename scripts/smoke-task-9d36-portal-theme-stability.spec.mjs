@@ -38,7 +38,7 @@ const portalCases = [
     accent: '#0d9488',
     sidebar: '#0c2340',
     accountItem: '员工资料',
-    clicks: ['生产订单', '消息中心', '设备管理', '物料异常', '安环管理', '成本管理', '奖惩管理']
+    clicks: ['生产订单', '消息中心', '设备管理', '物料管理', '安环管理', '成本管理', '奖惩管理']
   },
   {
     title: '管理端',
@@ -127,7 +127,7 @@ test.describe('Task 9D.36 portal theme stability', () => {
       await expect(page.locator('.prototype-stat-icon')).toHaveCount(0)
       await expect(page.locator('.admin-menu-grid .admin-menu-card')).toHaveCount(0)
       if (portal.title === '生产端') {
-        await expect(page.locator('.prototype-stat-card')).toHaveCount(7)
+        await expect(page.locator('.prototype-stat-card')).toHaveCount(9)
         const firstMetricBox = await page.locator('.prototype-stat-card').first().boundingBox()
         expect(firstMetricBox?.height, 'production dashboard metric cards should stay compact').toBeLessThan(130)
       }

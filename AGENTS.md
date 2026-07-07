@@ -4,19 +4,32 @@
 
 本项目是一套牙科定制工厂的一期系统：在线下单、客服审核、生产工序流转、入检/出检、工时绩效、账单物流、AI 辅助查询与文本整理。
 
-当前阶段是项目初始化与 M1/M2 准备，不要直接进入业务功能开发，除非用户明确要求。
+当前工作区是 RepoFrame 接手后的 handoff worktree，不是新项目初始化。不要自动启用已卸载的 Yuri SOP / workflow；只有用户明确要求阶段级 goal、RepoFrame task 或项目文档回写时，才按 RepoFrame / workflow 执行。
 
-## 必读顺序
+当前目标目录固定为：
 
-新会话接手先读：
+```text
+/Users/yuri/Documents/AI智能下单平台-handoff-20260706
+```
+
+不要回到主目录 `/Users/yuri/Documents/AI智能下单平台` 开发或整理文档，除非用户明确改口。
+
+## 读取规则
+
+轻量问答、状态解释、局部文件查看和一次性命令结果，只读取回答所需的最少文件。
+
+只有在用户明确要求继续项目开发、阶段级 goal、RepoFrame task、验收矩阵收口或项目文档回写时，才按以下顺序读取：
 
 1. `STATUS.md`
-2. `PROJECT.md`
-3. `DECISIONS.md`
-4. `tasks/README.md`
-5. `.repo-init/README.md`
-6. `README.md`
-7. `AGENT.md` 和 `.agent/`，仅在需要 RepoFrame 细则时读取
+2. `tasks/README.md`
+3. `acceptance.json`
+4. `goals/GOAL-003-repoframe-doc-hydration-20260707.md`
+5. `tasks/TASK-004-repoframe-doc-hydration-20260707.md`
+6. `PROJECT.md`
+7. `DECISIONS.md`
+8. `README.md`
+9. `.repo-init/init-report.md`
+10. `AGENT.md` 和 `.agent/`，仅在需要 RepoFrame 细则时读取
 
 ## 技术方向
 
@@ -27,14 +40,13 @@
 - AI：后端 `ai-gateway` 默认承载模型适配；AI 服务不得直连业务数据库
 - 部署：Nginx + Docker / Docker Compose，测试环境和正式环境隔离
 
-## 当前最高优先级
+## 默认工作优先级
 
-1. 任务 1：项目骨架初始化。
-2. 设计 TRD V1.1 核心数据库表。
-3. 落 9 条工序链初始化脚本。
-4. 实现订单 `internal_status` / `external_status` 与 `OrderStatusProjector`。
-5. 设计医生端脱敏 VO、`order_external_projection` 和 AI-3 安全读模型。
-6. 实现 Uppy + MinIO 预签名 / Multipart 文件上传与访问控制。
+1. 轻量请求优先直接回答，不自动进入 SOP、RepoFrame、阶段级 goal 或文档回写。
+2. 用户明确要求开发时，先按当前 `STATUS.md`、`acceptance.json` 和相关任务文档确认范围，再做最小必要修改。
+3. 用户明确要求阶段级 goal 或“一批任务”时，才按 `docs/development/workflow.md` 建立/更新阶段级 goal、执行批次 task 和 checklist。
+4. 保持 Task 8 为 `NOT_READY`，除非真实外部上线条件全部满足且用户明确要求更新状态。
+5. 保持 GOAL-001 为历史初始化证据，GOAL-002 / TASK-003 为 superseded 证据；不要为了普通请求重跑 RepoFrame 初始化。
 
 ## 安全红线
 
@@ -51,6 +63,7 @@
 - 功能分支使用 `feature/xxx`，修复分支使用 `fix/xxx`。
 - 提交前运行当前技术栈可用的 lint/typecheck/build/test。
 - 所有关键模块必须有验收路径：权限、脱敏、工艺流、AI、文件、状态机。
+- 轻量问答、状态解释、局部文件查看和一次性命令结果，不进入阶段级 goal，不创建 RepoFrame task，不回写项目文档，除非用户明确要求。
 
 ## Token 成本治理
 
@@ -60,17 +73,20 @@
 - 每次长跑或继续下一步前，可运行 `npm run codex:token-report` 检查最近 token 消耗和高风险命令。
 - 详细规则见 `docs/development/codex-token-cost-control.md`。
 
-## SOP / Superpowers 分级启用
+## RepoFrame 协作规则
 
-- 默认轻量模式：状态查询、下一步确认、简短方案、普通文档确认和 token 排查，只读必要片段，不展开完整 SOP，不生成 superpowers spec / plan。
-- 标准模式：用户明确要求实现、修复、落地、改代码、改验收脚本或回写项目文档时启用；可使用 TDD / verification，但只读目标相关 skill 和文件片段。
-- 重型模式：完整审查、上线前检查、PR 前检查、全量验收、长跑执行、复杂故障、安全 / 权限 / 生产 / 数据风险任务时启用；必须新会话开始，先运行 token report，并设置停止条件。
-- superpowers 只在任务确实匹配时启用对应 skill，不为轻量问题连带读取无关 skill。
-- Yuri SOP 保留为项目质量边界；轻量任务只遵守原则，标准任务执行必要 TDD / 验证 / 文档回写，重型任务才完整展开。
+- 本项目保留 RepoFrame 文档作为协作证据，但不默认启动 RepoFrame 执行流；只有用户明确要求阶段级 goal、执行批次 task、项目文档回写或验收矩阵收口时才启用。
+- 不使用 Yuri workflow/SOP 作为默认流程，也不要引用已卸载的 `yuri-development-sop` 或 `yuri-project-workflow`。
+- 这是已有项目的 `repo-hydrate` 后续校准，不重新开始项目，不重跑 `initialize_repo.py`。
+- 启用 RepoFrame 执行流时，每个执行任务必须有目标、范围、非目标、验收标准、验证命令、Assumption Checks 和 Downstream Impact。
+- Planned task 可以重写、拆分、排序或 supersede；目标、硬约束、稳定范围、验收标准和协作契约变更需要用户明确确认。
+- 不删除或削弱 `acceptance.json` 的真实验收要求；过时检查只能校准为当前事实和当前阻塞。
+- 临时反馈写 `STATUS.md` 和任务记录；长期接受的决策写 `DECISIONS.md`。
+- 初始化产物在 `.repo-init/` 保留作证据；当前执行入口以 `STATUS.md`、active goal、active task 和 `acceptance.json` 为准。
 
 ## 项目文档维护
 
-每轮开发结束时更新：
+只有在发生实质开发、验收矩阵变化、阶段级 goal 推进或用户明确要求时，才更新：
 
 - `STATUS.md`：当前进度、阻塞、下一步。
 - `DECISIONS.md`：新增技术或产品决策。

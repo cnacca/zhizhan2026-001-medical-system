@@ -4,30 +4,47 @@ const checks = [
   ['backend/platform-server/src/main/java/com/yuri/aiorder/quality/QualityRecordController.java', [
     '/quality-records',
     '/quality-records/external-returns',
+    '/quality-records/{qualityRecordId}/status',
     'check:read-internal',
     'message:manage',
   ]],
   ['backend/platform-server/src/main/java/com/yuri/aiorder/quality/QualityRecordService.java', [
     'EXTERNAL_RETURN',
+    'quality_record',
     'check_record',
     'rework_record',
+    'updateStatus',
     'requireActiveDictionaryValue',
+  ]],
+  ['backend/platform-server/src/main/resources/db/migration/V35__quality_record_independent_fact.sql', [
+    'CREATE TABLE quality_record',
+    'source_check_id',
+    'status_note',
+    'uk_quality_record_source_check',
   ]],
   ['backend/platform-server/src/main/java/com/yuri/aiorder/quality/QualityRecordResponse.java', [
     'quality_record_id',
     'quality_record_type',
     'responsibility_type',
+    'status_note',
+  ]],
+  ['backend/platform-server/src/main/java/com/yuri/aiorder/quality/QualityRecordStatusUpdateRequest.java', [
+    'status_note',
   ]],
   ['backend/platform-server/src/test/java/com/yuri/aiorder/quality/QualityRecordTests.java', [
     'csCanRegisterExternalReturnAndListQualityRecords',
+    'externalReturnWritesIndependentQualityRecordFact',
+    'adminCanAdvanceQualityRecordStatusButDoctorCannot',
     'qualityRecordsCanFilterByStatusAndResponsibilityType',
     'doctorCannotReadOrCreateInternalQualityRecords',
   ]],
   ['frontend/src/App.vue', [
     'QualityRecordResponse',
     '/quality-records/external-returns',
+    '/quality-records/${qualityRecordId}/status',
     'quality-record-table',
     'quality-record-create-button',
+    'quality-record-status-button',
   ]],
   ['frontend/vite.config.ts', [
     "'/quality-records'",
@@ -37,6 +54,8 @@ const checks = [
     '"/quality-records/external-returns"',
     'QualityRecordResponse',
     'ExternalReturnQualityRecordRequest',
+    'QualityRecordStatusUpdateRequest',
+    'updateQualityRecordStatus',
   ]],
   ['docs/acceptance/prd-v2-gap-matrix.md', [
     '9D.87',

@@ -51,10 +51,10 @@ public class BootstrapAuthController {
 
     @PostMapping("/refresh")
     public LoginResponse refresh(@Valid @RequestBody RefreshTokenRequest request) {
-        RefreshTokenService.ActiveRefreshToken refreshToken =
-                refreshTokenService.requireActive(request.refreshToken());
+        RefreshTokenService.IssuedRefreshToken refreshToken =
+                refreshTokenService.rotate(request.refreshToken());
         AuthenticatedUser authenticatedUser = databaseAuthService.loadAuthenticatedUser(refreshToken.userId());
-        return loginResponse(authenticatedUser, request.refreshToken(), refreshToken.expiresAt());
+        return loginResponse(authenticatedUser, refreshToken.token(), refreshToken.expiresAt());
     }
 
     @PostMapping("/logout")

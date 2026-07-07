@@ -1,91 +1,45 @@
 import vue from '@vitejs/plugin-vue'
-import { defineConfig } from 'vite'
+import { defineConfig, type ProxyOptions } from 'vite'
+
+const backendProxy: ProxyOptions = {
+  target: 'http://localhost:8080',
+  changeOrigin: true,
+  configure(proxy) {
+    proxy.on('proxyReq', (proxyReq) => {
+      proxyReq.removeHeader('origin')
+    })
+  }
+}
 
 export default defineConfig({
   plugins: [vue()],
   server: {
     port: 5173,
     proxy: {
-      '/api': {
-        target: 'http://localhost:8080',
-        changeOrigin: true
-      },
-      '/notifications': {
-        target: 'http://localhost:8080',
-        changeOrigin: true
-      },
-      '/clinics': {
-        target: 'http://localhost:8080',
-        changeOrigin: true
-      },
-      '/orders': {
-        target: 'http://localhost:8080',
-        changeOrigin: true
-      },
-      '/files': {
-        target: 'http://localhost:8080',
-        changeOrigin: true
-      },
-      '/form-configs': {
-        target: 'http://localhost:8080',
-        changeOrigin: true
-      },
-      '/products': {
-        target: 'http://localhost:8080',
-        changeOrigin: true
-      },
-      '/workflow-chains': {
-        target: 'http://localhost:8080',
-        changeOrigin: true
-      },
-      '/tasks': {
-        target: 'http://localhost:8080',
-        changeOrigin: true
-      },
-      '/process-instance': {
-        target: 'http://localhost:8080',
-        changeOrigin: true
-      },
-      '/check-records': {
-        target: 'http://localhost:8080',
-        changeOrigin: true
-      },
-      '/reworks': {
-        target: 'http://localhost:8080',
-        changeOrigin: true
-      },
-      '/final-inspection-reports': {
-        target: 'http://localhost:8080',
-        changeOrigin: true
-      },
-      '/work-logs': {
-        target: 'http://localhost:8080',
-        changeOrigin: true
-      },
-      '/performance': {
-        target: 'http://localhost:8080',
-        changeOrigin: true
-      },
-      '/staff': {
-        target: 'http://localhost:8080',
-        changeOrigin: true
-      },
-      '/quality-records': {
-        target: 'http://localhost:8080',
-        changeOrigin: true
-      },
-      '/doctor': {
-        target: 'http://localhost:8080',
-        changeOrigin: true
-      },
-      '/production': {
-        target: 'http://localhost:8080',
-        changeOrigin: true
-      },
-      '/ai': {
-        target: 'http://localhost:8080',
-        changeOrigin: true
-      },
+      '/api': backendProxy,
+      '/notifications': backendProxy,
+      '/dashboards': backendProxy,
+      '/messages': backendProxy,
+      '/logistics': backendProxy,
+      '/clinics': backendProxy,
+      '/patients': backendProxy,
+      '/orders': backendProxy,
+      '/files': backendProxy,
+      '/form-configs': backendProxy,
+      '/products': backendProxy,
+      '/workflow-chains': backendProxy,
+      '/tasks': backendProxy,
+      '/process-instance': backendProxy,
+      '/check-records': backendProxy,
+      '/reworks': backendProxy,
+      '/final-inspection-reports': backendProxy,
+      '/work-logs': backendProxy,
+      '/performance': backendProxy,
+      '/staff': backendProxy,
+      '/quality-records': backendProxy,
+      '/doctor': backendProxy,
+      '/production': backendProxy,
+      '/ai': backendProxy,
       '/ws': {
         target: 'ws://localhost:8080',
         ws: true,

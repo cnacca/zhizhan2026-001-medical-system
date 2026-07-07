@@ -24,14 +24,18 @@ const requiredBackendFragments = [
   'RefreshTokenService',
   'token_hash',
   'revoked_at',
-  'refreshTokenCanIssueNewAccessTokenAndLogoutRevokesIt'
+  'refreshTokenCanIssueNewAccessTokenAndLogoutRevokesIt',
+  'refreshTokenRotatesAndRejectsOldTokenReuse',
+  'rotate(String refreshToken)',
+  'revokeByHash(tokenHash)'
 ]
 
 const requiredOpenApiFragments = [
   'RefreshTokenRequest',
   'refreshToken',
   'refreshExpiresAt',
-  '第一增量不轮换 refreshToken',
+  '轮换 refreshToken',
+  '客户端必须替换本地保存的 refreshToken',
   '等待自然过期'
 ]
 

@@ -657,6 +657,70 @@ function assertMainChainDataState(createdOrder, csReview, productionReview) {
   expect(productionReview.instance_id, 'production review should instantiate workflow').toBeGreaterThan(0)
 }
 
+function assertObjectDoesNotHaveKeys(value, forbiddenKeys, label) {
+  if (!value || typeof value !== 'object') {
+    return
+  }
+  for (const [key, child] of Object.entries(value)) {
+    if (forbiddenKeys.includes(key)) {
+      throw new Error(`${label} doctor forbidden internal field: ${key}`)
+    }
+    if (child && typeof child === 'object') {
+      assertObjectDoesNotHaveKeys(child, forbiddenKeys, label)
+    }
+  }
+}
+
+async function assertDoctorSafeProjection(orderId, doctorToken) {
+  const payload = await apiFetch(`/orders/${orderId}`, doctorToken)
+  expect(payload.data.order_id).toBe(orderId)
+  expect(payload.data.external_status).toBeTruthy()
+  assertObjectDoesNotHaveKeys(payload.data, [
+    'internal_status',
+    'node_instance_id',
+    'process_name',
+    'assigned_username',
+    'assigned_user_id',
+    'check_record',
+    'work_log',
+    'performance',
+    'rework',
+    'nodes'
+  ], 'GOAL-018 doctor safe projection')
+  return payload.data
+}
+
+async function assertCsInternalVisibility(orderId, csToken, productionReview) {
+  expect(productionReview.internal_status).toBe('PROCESS_INSTANCE_CREATED')
+  const instance = await loadProcessInstance(orderId, csToken)
+  expect(instance.order_id).toBe(orderId)
+  expect(instance.nodes.length).toBeGreaterThan(0)
+  expect(instance.nodes.some((node) => node.node_instance_id > 0)).toBe(true)
+  return instance
+}
+
+async function assertWorkerTaskScope(nodeInstanceId, workerToken, workerUserId, expectedStatus = 'READY') {
+  const payload = await apiFetch(`/tasks/mine?status=${expectedStatus}`, workerToken)
+  for (const task of payload.data) {
+    if ('assigned_user_id' in task) {
+      expect(task.assigned_user_id).toBe(workerUserId)
+    }
+  }
+  const task = payload.data.find((item) => item.node_instance_id === nodeInstanceId)
+  if (!task) {
+    throw new Error(`task 9D.62.GOAL018 worker scoped task ${nodeInstanceId} not visible with status ${expectedStatus}`)
+  }
+  expect(task.node_status).toBe(expectedStatus)
+  return task
+}
+
+async function assertAdminAssignmentAndReassignment(orderId, adminToken, workerUserId, assignedNode) {
+  expect(assignedNode.assigned_user_id).toBe(workerUserId)
+  const reassignedNode = await assignReadyNode(orderId, adminToken, workerUserId, assignedNode)
+  expect(reassignedNode.assigned_user_id).toBe(workerUserId)
+  return reassignedNode
+}
+
 async function prepareFixedDemoFirstThreeSteps() {
   if (dataMode !== 'fixed-demo-first-three') {
     console.log(`task 9D.62.1 fixed data chain skipped: TASK9D62_DATA_MODE=${dataMode}`)
@@ -670,17 +734,44 @@ async function prepareFixedDemoFirstThreeSteps() {
   const csReview = await approveCsReview(createdOrder.order_id, csSession.accessToken)
   const productionReview = await approveProductionReview(createdOrder.order_id, csSession.accessToken)
   assertMainChainDataState(createdOrder, csReview, productionReview)
+  const doctorProjection = await assertDoctorSafeProjection(createdOrder.order_id, doctorSession.accessToken)
+  const csInternalVisibility = await assertCsInternalVisibility(
+    createdOrder.order_id,
+    csSession.accessToken,
+    productionReview
+  )
   console.log(
     `task 9D.62.1 fixed data chain first increment ok: order_id=${createdOrder.order_id}, order_no=${createdOrder.order_no}, instance_id=${productionReview.instance_id}`
   )
   const assignedNode = await assignFirstReadyNode(createdOrder.order_id, adminSession.accessToken, workerSession.userId)
-  await completeAssignedNodeWithChecksAndWorklog(assignedNode.node_instance_id, workerSession.accessToken)
+  const reassignedNode = await assertAdminAssignmentAndReassignment(
+    createdOrder.order_id,
+    adminSession.accessToken,
+    workerSession.userId,
+    assignedNode
+  )
+  const scopedWorkerTask = await assertWorkerTaskScope(
+    reassignedNode.node_instance_id,
+    workerSession.accessToken,
+    workerSession.userId,
+    'READY'
+  )
   console.log(
-    `task 9D.62.2 assignment and node operation first increment ok: order_id=${createdOrder.order_id}, node_instance_id=${assignedNode.node_instance_id}, worker_user_id=${workerSession.userId}`
+    `task 9D.62.GOAL018 role boundary assertions ok: order_id=${createdOrder.order_id}, doctor_external_status=${doctorProjection.external_status}, cs_nodes=${csInternalVisibility.nodes.length}, worker_task=${scopedWorkerTask.node_instance_id}, reassigned_user_id=${reassignedNode.assigned_user_id}`
+  )
+  const roleAssertions = {
+    doctorProjection,
+    csInternalVisibility,
+    scopedWorkerTask,
+    reassignedNode
+  }
+  await completeAssignedNodeWithChecksAndWorklog(reassignedNode.node_instance_id, workerSession.accessToken)
+  console.log(
+    `task 9D.62.2 assignment and node operation first increment ok: order_id=${createdOrder.order_id}, node_instance_id=${reassignedNode.node_instance_id}, worker_user_id=${workerSession.userId}`
   )
   const closedRework = await createReworkExceptionPath(
     createdOrder.order_id,
-    assignedNode.node_instance_id,
+    reassignedNode.node_instance_id,
     adminSession.accessToken,
     workerSession.accessToken,
     workerSession.userId
@@ -721,7 +812,8 @@ async function prepareFixedDemoFirstThreeSteps() {
     createdOrder,
     csReview,
     productionReview,
-    assignedNode,
+    assignedNode: reassignedNode,
+    roleAssertions,
     rework: closedRework,
     designDraft: confirmedDesignDraft,
     bill,
