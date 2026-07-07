@@ -6,7 +6,8 @@ const requiredTexts = [
   ['docs/acceptance/prd-v2-gap-matrix.md', [
     '9D.93',
     '医生文件模块不属于项目需求范围，不开发',
-    '设备 / 物料 / 安环 / 成本 / 奖惩属于一期开发功能',
+    '2026-07-06 内部确认基准',
+    '不再继续拆编辑、历史、完整审批、真实趋势或完整管理闭环作为一期本地必做',
     '所有 AI 智能体使用 LangChain + DeepSeek 实现',
     '9D.94 已完成显式 `AI_PROVIDER=langchain-deepseek` 的底座第一增量',
   ]],
@@ -59,6 +60,7 @@ const forbiddenMatrixTexts = [
   '真实支付网关已完成',
   '真实物流 API 已完成',
   'LangChain + DeepSeek 已完成',
+  '设备 / 物料 / 安环 / 成本 / 奖惩属于一期开发功能；当前',
 ]
 
 for (const pattern of forbiddenMatrixTexts) {

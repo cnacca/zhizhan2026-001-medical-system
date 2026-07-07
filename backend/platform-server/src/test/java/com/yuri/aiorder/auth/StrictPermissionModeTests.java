@@ -52,4 +52,34 @@ class StrictPermissionModeTests {
                         .header("Authorization", "Bearer " + token))
                 .andExpect(status().isOk());
     }
+
+    @Test
+    void strictPermissionModeRejectsDoctorAccountRoleOnlyTokenWhenPermissionCodeIsRequired() throws Exception {
+        String token = tokenService.issue(new BootstrapIdentity(
+                UserRole.DOCTOR,
+                9701L,
+                1001L,
+                "strict-doctor",
+                Set.of(),
+                "CLINIC"));
+
+        mockMvc.perform(get("/doctor/account/settings")
+                        .header("Authorization", "Bearer " + token))
+                .andExpect(status().isForbidden());
+    }
+
+    @Test
+    void strictPermissionModeAllowsDoctorAccountTokenWithRequiredPermissionCode() throws Exception {
+        String token = tokenService.issue(new BootstrapIdentity(
+                UserRole.DOCTOR,
+                9701L,
+                1001L,
+                "strict-doctor",
+                Set.of("account:doctor"),
+                "CLINIC"));
+
+        mockMvc.perform(get("/doctor/account/settings")
+                        .header("Authorization", "Bearer " + token))
+                .andExpect(status().isOk());
+    }
 }

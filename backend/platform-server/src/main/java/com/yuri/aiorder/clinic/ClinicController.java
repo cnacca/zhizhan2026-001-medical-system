@@ -27,7 +27,7 @@ public class ClinicController {
     }
 
     @GetMapping("/clinics")
-    @RequirePermission(roles = {UserRole.CS, UserRole.ADMIN})
+    @RequirePermission(value = "clinic:read-internal", roles = {UserRole.CS, UserRole.ADMIN})
     public DataResponse<OrderListResponse<ClinicResponse>> listClinics(
             @RequestParam(required = false) String keyword,
             @RequestParam(defaultValue = "1") int page,
@@ -37,7 +37,7 @@ public class ClinicController {
     }
 
     @PostMapping("/clinics")
-    @RequirePermission(roles = {UserRole.ADMIN})
+    @RequirePermission(value = "clinic:create", roles = {UserRole.ADMIN})
     public DataResponse<ClinicResponse> createClinic(
             @Valid @RequestBody CreateClinicRequest request,
             BootstrapIdentity identity) {
@@ -45,13 +45,13 @@ public class ClinicController {
     }
 
     @GetMapping("/clinics/{clinicId}")
-    @RequirePermission(roles = {UserRole.CS, UserRole.ADMIN, UserRole.DOCTOR})
+    @RequirePermission(value = {"clinic:read-internal", "clinic:read-self"}, roles = {UserRole.CS, UserRole.ADMIN, UserRole.DOCTOR})
     public DataResponse<ClinicResponse> getClinic(@PathVariable long clinicId, BootstrapIdentity identity) {
         return new DataResponse<>(clinicService.getClinic(clinicId, identity));
     }
 
     @GetMapping("/clinics/{clinicId}/preference")
-    @RequirePermission(roles = {UserRole.CS, UserRole.ADMIN, UserRole.DOCTOR})
+    @RequirePermission(value = {"clinic:read-internal", "clinic:read-self"}, roles = {UserRole.CS, UserRole.ADMIN, UserRole.DOCTOR})
     public DataResponse<ClinicPreferenceResponse> getPreference(
             @PathVariable long clinicId,
             BootstrapIdentity identity) {
@@ -59,7 +59,7 @@ public class ClinicController {
     }
 
     @PutMapping("/clinics/{clinicId}/preference")
-    @RequirePermission(roles = {UserRole.CS, UserRole.ADMIN})
+    @RequirePermission(value = "clinic:preference:write", roles = {UserRole.CS, UserRole.ADMIN})
     public DataResponse<ClinicPreferenceResponse> updatePreference(
             @PathVariable long clinicId,
             @RequestBody Map<String, Object> preferences,

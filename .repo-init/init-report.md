@@ -1,15 +1,15 @@
 # Initialization Report
 
 - Selected mode: `plan-ingest`
-- Source files used: `/Users/yuri/Documents/AI智能下单平台/docs/customer-confirmation/AI智能下单平台_2026-07-06_新需求范围内部确认版.docx`
-- Primary source: `/Users/yuri/Documents/AI智能下单平台/docs/customer-confirmation/AI智能下单平台_2026-07-06_新需求范围内部确认版.docx`
+- Source files used: `/Users/yuri/Documents/AI智能下单平台-handoff-20260706/docs/customer-confirmation/AI智能下单平台_2026-07-06_新需求范围内部确认版.docx`
+- Primary source: `/Users/yuri/Documents/AI智能下单平台-handoff-20260706/docs/customer-confirmation/AI智能下单平台_2026-07-06_新需求范围内部确认版.docx`
 - Source count: `1`
 - Title: `一、已确认的一期口径`
 - Bundle confidence: `0.86`
 
 ## Source Roles
 
-- `AI智能下单平台_2026-07-06_新需求范围内部确认版.docx`: path=`/Users/yuri/Documents/AI智能下单平台/docs/customer-confirmation/AI智能下单平台_2026-07-06_新需求范围内部确认版.docx`, role=`authoritative`, confidence=`0.86`
+- `AI智能下单平台_2026-07-06_新需求范围内部确认版.docx`: path=`/Users/yuri/Documents/AI智能下单平台-handoff-20260706/docs/customer-confirmation/AI智能下单平台_2026-07-06_新需求范围内部确认版.docx`, role=`authoritative`, confidence=`0.86`
 
 ## Complexity Assessment
 
@@ -57,3 +57,9 @@
 ## Warnings
 
 - DOCX tables were flattened into plain text rows.
+
+## Post-init Correction
+
+- 2026-07-06: GOAL-002 / TASK-003 were marked `superseded` because the user confirmed the phase-one scope defaults, `docs/acceptance/phase-one-scope-baseline-20260706.md` now holds the active baseline, and development has advanced to 9D.99.
+- Current execution entry is `STATUS.md`, `tasks/README.md`, `acceptance.json`, and `docs/development/repo-init-document-design-20260706.md`.
+- 2026-07-07: GOAL-003 / TASK-004 were added for RepoFrame document hydration. This is a repo-hydrate follow-through, not a fresh initialization. Do not treat the original GOAL-002 / TASK-003 recommendation above as the current start.

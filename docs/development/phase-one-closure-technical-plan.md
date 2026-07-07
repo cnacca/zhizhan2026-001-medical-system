@@ -12,9 +12,21 @@ Task 8 继续保持 `NOT_READY`。真实 DeepSeek key、真实 webhook、客户�
 
 本方案只要求改文档、验收矩阵和检查脚本；不要求改后端业务代码、前端业务代码、数据库迁移或真实环境配置。
 
+## RepoFrame 纳入状态
+
+本文件已于 2026-07-07 作为一期收口伞形技术方案纳入 handoff worktree：`/Users/yuri/Documents/AI智能下单平台-handoff-20260706`。
+
+RepoFrame 记录：
+
+- 纳入目标：`goals/GOAL-005-phase-one-closure-plan-integration-20260707.md`
+- 纳入任务：`tasks/TASK-006-phase-one-closure-plan-integration-20260707.md`
+- 机器检查：`npm run check:phase-one-closure-plan`
+
+本文件不是重新初始化项目，也不是声明一期已完成。它用于约束后续任务拆解、验收命令和硬边界。GOAL-004 / TASK-005 已在本方案讨论后完成 A/B 类一期范围对齐第二段；后续任务应继续从本文档的阶段、`acceptance.json` 的 gap id、PRD V2 差异矩阵和 Task 8 readiness 缺口中拆分。
+
 ## Current Baseline
 
-当前仓库以 `/Users/yuri/Documents/AI智能下单平台` 为准，文档基线包括：
+当前仓库以 `/Users/yuri/Documents/AI智能下单平台-handoff-20260706` 为准，文档基线包括：
 
 - `STATUS.md`
 - `tasks/README.md`

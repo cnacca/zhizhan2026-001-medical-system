@@ -17,5 +17,7 @@ public record QualityRecordResponse(
         @JsonProperty("reason_detail") String reasonDetail,
         @JsonProperty("responsibility_type") String responsibilityType,
         String status,
+        @JsonProperty("status_note") String statusNote,
         @JsonProperty("created_at") LocalDateTime createdAt,
+        @JsonProperty("status_updated_at") LocalDateTime statusUpdatedAt,
         @JsonProperty("updated_at") LocalDateTime updatedAt) {}

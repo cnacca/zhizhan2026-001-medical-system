@@ -3,6 +3,7 @@ package com.yuri.aiorder.auth;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.hasItem;
 import static org.hamcrest.Matchers.not;
+import static org.junit.jupiter.api.Assertions.assertNotEquals;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.content;
@@ -260,14 +261,15 @@ class BearerIdentityTests {
                         .content("{\"refresh_token\":\"" + refreshToken + "\"}"))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.accessToken").isString())
-                .andExpect(jsonPath("$.refreshToken").value(refreshToken))
+                .andExpect(jsonPath("$.refreshToken").isString())
                 .andExpect(jsonPath("$.username").value("doctor"))
                 .andExpect(jsonPath("$.roles", hasItem("DOCTOR")))
                 .andReturn();
 
-        String refreshedAccessToken = objectMapper.readTree(refreshed.getResponse().getContentAsString())
-                .path("accessToken")
-                .asText();
+        JsonNode refreshedRoot = objectMapper.readTree(refreshed.getResponse().getContentAsString());
+        String refreshedAccessToken = refreshedRoot.path("accessToken").asText();
+        String rotatedRefreshToken = refreshedRoot.path("refreshToken").asText();
+        assertNotEquals(refreshToken, rotatedRefreshToken);
 
         mockMvc.perform(get("/orders/{orderId}", orderId)
                         .header("Authorization", "Bearer " + refreshedAccessToken))
@@ -277,12 +279,71 @@ class BearerIdentityTests {
 
         mockMvc.perform(post("/api/auth/logout")
                         .contentType(MediaType.APPLICATION_JSON)
-                        .content("{\"refresh_token\":\"" + refreshToken + "\"}"))
+                        .content("{\"refresh_token\":\"" + rotatedRefreshToken + "\"}"))
                 .andExpect(status().isOk());
 
         mockMvc.perform(post("/api/auth/refresh")
                         .contentType(MediaType.APPLICATION_JSON)
-                        .content("{\"refresh_token\":\"" + refreshToken + "\"}"))
+                        .content("{\"refresh_token\":\"" + rotatedRefreshToken + "\"}"))
+                .andExpect(status().isUnauthorized());
+    }
+
+    @Test
+    void refreshTokenRotatesAndRejectsOldTokenReuse() throws Exception {
+        MvcResult login = mockMvc.perform(post("/api/auth/login")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"username\":\"doctor\",\"password\":\"change-me-doctor\",\"portal\":\"DOCTOR\"}"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.accessToken").isString())
+                .andExpect(jsonPath("$.refreshToken").isString())
+                .andExpect(jsonPath("$.refreshExpiresAt").isString())
+                .andReturn();
+
+        String originalRefreshToken = objectMapper.readTree(login.getResponse().getContentAsString())
+                .path("refreshToken")
+                .asText();
+
+        MvcResult refreshed = mockMvc.perform(post("/api/auth/refresh")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"refresh_token\":\"" + originalRefreshToken + "\"}"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.accessToken").isString())
+                .andExpect(jsonPath("$.refreshToken").isString())
+                .andExpect(jsonPath("$.username").value("doctor"))
+                .andExpect(jsonPath("$.roles", hasItem("DOCTOR")))
+                .andReturn();
+
+        String rotatedRefreshToken = objectMapper.readTree(refreshed.getResponse().getContentAsString())
+                .path("refreshToken")
+                .asText();
+        assertNotEquals(originalRefreshToken, rotatedRefreshToken);
+
+        mockMvc.perform(post("/api/auth/refresh")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"refresh_token\":\"" + originalRefreshToken + "\"}"))
+                .andExpect(status().isUnauthorized());
+
+        MvcResult secondRefresh = mockMvc.perform(post("/api/auth/refresh")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"refresh_token\":\"" + rotatedRefreshToken + "\"}"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.accessToken").isString())
+                .andExpect(jsonPath("$.refreshToken").isString())
+                .andReturn();
+
+        String secondRotatedRefreshToken = objectMapper.readTree(secondRefresh.getResponse().getContentAsString())
+                .path("refreshToken")
+                .asText();
+        assertNotEquals(rotatedRefreshToken, secondRotatedRefreshToken);
+
+        mockMvc.perform(post("/api/auth/logout")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"refresh_token\":\"" + secondRotatedRefreshToken + "\"}"))
+                .andExpect(status().isOk());
+
+        mockMvc.perform(post("/api/auth/refresh")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"refresh_token\":\"" + secondRotatedRefreshToken + "\"}"))
                 .andExpect(status().isUnauthorized());
     }
 }

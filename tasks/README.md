@@ -4,13 +4,45 @@
 
 任务 8：专项验收矩阵与上线准备。
 
+任务 021：部署 / 运维本地补强已建立阶段级 RepoFrame 执行批次。Goal: `goals/GOAL-020-deployment-ops-local-hardening-20260707.md`；Task: `tasks/TASK-021-deployment-ops-local-hardening-20260707.md`。Scope：补本地 release / rollback dry-run、备份 / 恢复 dry-run 模板第一段、日志留存 / 监控告警配置模板第一段、compose / env / Nginx / healthcheck 静态检查、readiness 联动和阶段级机器检查。Non-goals：不启动真实生产环境，不填写真实服务器、HTTPS 证书、数据库密码、MinIO 密钥、DeepSeek key、webhook secret、监控接收人、客户名单或客户隐私数据，不声明真实服务器部署、HTTPS、备份恢复、日志留存、监控告警、发布回滚演练、正式客户培训签收、客户签字或真实环境验收完成。Acceptance：`check:deployment-ops-local-hardening` 和 `dry-run:phase-one-release-rollback` 通过，`docs/deployment/phase-one-local-ops-dry-run.md` 与 9D.81 / 回滚 / 培训 / readiness 文档互相索引，`deployment-infrastructure` 与 `operations-manuals` 仍为 `PARTIAL`。Verification：`npm run check:deployment-ops-local-hardening`、`npm run dry-run:phase-one-release-rollback`、`npm run check:deployment-env`、`npm run compose:phase-one:config`、`npm run check:task9d81`、`npm run check:operations-rollback-training-closure`、`npm run check:task8-readiness-gaps`、`npm run acceptance`、`git diff --check`。Task 8 仍保持 NOT_READY。
+
+任务 018：四端前端产品化体验收口已建立阶段级 RepoFrame 执行批次。Goal: `goals/GOAL-017-frontend-productization-closure-20260707.md`；Task: `tasks/TASK-018-frontend-productization-closure-20260707.md`。Scope：补四端本地可开发的前端产品化体验，新增 `npm run check:frontend-productization-closure`，并在 task 内拆 checklist。Non-goals：不恢复医生文件独立模块，不把设备 / 物料 / 安环 / 成本 / 奖惩扩成完整一期闭环，不填写真实 key / webhook / 客户签字 / 真实环境验收。Acceptance：客服设计稿 / 账单入口复用既有本地链路，生产 C 类入口为本地第一增量，管理端账号 / 角色 / 权限入口展示当前权限库存，统一加载态 / 空态 / 错误态 / 权限拒绝态提示存在，`frontend-business-pages` 仍为 `PARTIAL`。Verification：`npm run check:frontend-productization-closure`、`npm run check:frontend-customer-smoke-closure`、`npm run build:frontend`、`npm run check:task8-readiness-gaps`、`npm run acceptance`、`git diff --check`。Task 8 仍保持 NOT_READY。
+
+2026-07-07 权限 / DataScope 生产化补强 B 已完成阶段级 RepoFrame goal：当前 goal 记录为 `goals/GOAL-016-auth-datascope-production-closure-b-20260707.md`，执行批次 task 为 `tasks/TASK-017-auth-datascope-production-closure-b-20260707.md`。本批次在 task 内拆 checklist，不为 refresh token 轮换、检查脚本、OpenAPI 或入口回写单独建 task；已新增 `npm run check:auth-datascope-prod-closure-b`，统一复核 refresh token 轮换目标测试、后端轮换实现、OpenAPI 语义、RepoFrame 指针和禁止伪造 READY 边界。`auth-datascope-prod` 仍保持 `PARTIAL`，完整 Spring Security/JWT、完整 RuoYi DataScope、通用 SQL DataScope、access token 黑名单、多设备会话策略、真实环境验收和客户签字仍未关闭。Task 8 仍保持 `NOT_READY`。
+
+2026-07-07 操作手册 / 回滚 / 培训材料本地收口已完成阶段级 RepoFrame goal：当前 goal 记录为 `goals/GOAL-015-operations-rollback-training-closure-20260707.md`，执行批次 task 为 `tasks/TASK-016-operations-rollback-training-closure-20260707.md`。本批次在 task 内拆 checklist，不为操作手册、回滚模板、培训模板或入口回写单独建 task；已新增 `npm run check:operations-rollback-training-closure`，统一复核操作手册、故障处理清单、发布回滚手册本地模板、四端培训材料 / 签收模板、交付材料索引、RepoFrame 指针和禁止伪造 READY 边界。`operations-manuals` 仍保持 `PARTIAL`，真实发布回滚演练、备份恢复演练、监控告警、正式客户培训签收、客户 / PM 签字和真实环境验收仍未关闭。Task 8 仍保持 `NOT_READY`。
+
+2026-07-07 四端业务页面与客户验收 smoke 收口已完成阶段级 RepoFrame goal：当前 goal 记录为 `goals/GOAL-013-frontend-customer-smoke-closure-20260707.md`，执行批次 task 为 `tasks/TASK-014-frontend-customer-smoke-closure-20260707.md`。本批次在 task 内拆 checklist，不为每个 smoke 或端口单独建 task；已新增 `npm run check:frontend-customer-smoke-closure`，统一复核四端登录 / 主题 / 页面证据、`smoke:task9d62` 12 步主链路、`docs/acceptance/phase-one-main-chain-customer-acceptance.md` 客户验收版 PASS/FAIL 记录和四端操作手册。`frontend-business-pages` 仍保持 `PARTIAL`，`customer-pm-confirmations` 仍保持 `BLOCKED`；真实支付 / 物流平台、真实电子签章、真实 DeepSeek key、真实 webhook、客户签字和真实环境验收仍未关闭。Task 8 仍保持 `NOT_READY`。
+
+2026-07-07 权限 / DataScope 生产化收口第一段已完成阶段级 RepoFrame goal：当前 goal 记录为 `goals/GOAL-012-auth-datascope-production-closure-20260707.md`，执行批次 task 为 `tasks/TASK-013-auth-datascope-production-closure-20260707.md`。本批次在 task 内拆 checklist，不为每个小项单独建 task；已补严格权限模式目标测试、clinic / doctor account / notification 入口权限码、V36 权限码种子和 `npm run check:auth-datascope-prod-closure`。Task 8 仍保持 `NOT_READY`，完整 Spring Security/JWT、完整 RuoYi DataScope、通用 SQL DataScope 拦截器、refresh token 轮换、access token 黑名单、多设备会话策略、真实环境验收和客户签字仍未关闭。
+
+2026-07-07 客户 / PM 确认项与真实环境 AI 验收收口已完成阶段级 RepoFrame goal：当前 goal 记录为 `goals/GOAL-011-real-acceptance-confirmation-20260707.md`，执行批次 task 为 `tasks/TASK-012-real-acceptance-confirmation-20260707.md`。本批次在 task 内拆 checklist，不为每个确认项单独建 task；已新增 `npm run check:real-acceptance-confirmation`，并统一复核 `docs/acceptance/phase-one-customer-pm-confirmations.md`、`docs/acceptance/task-9d80-ai-production-integration-acceptance.md` 和 `docs/deployment/task-9d81-production-deployment-acceptance.md`。Task 8 仍保持 `NOT_READY`，真实 DeepSeek key、真实 webhook、真实服务器、HTTPS、备份监控、客户签字、客户 / PM 最终口径和真实环境验收仍未关闭。
+
+2026-07-07 PRD V2 本地功能差异收口 D 已完成阶段级 RepoFrame goal：当前 goal 记录为 `goals/GOAL-010-prd-v2-local-gap-closure-d-20260707.md`，执行批次 task 为 `tasks/TASK-011-prd-v2-local-gap-closure-d-20260707.md`。本批次在 task 内拆 checklist，不为每个小项单独建 task；已补 `/dashboards/phase-one-ab` 本地月度趋势 / 客户排名第一段、客服 / 生产工作台聚合消费、OpenAPI 契约和 `npm run check:prd-v2-gap-closure-d`。Task 8 仍保持 `NOT_READY`，真实支付 / 物流平台、真实 DeepSeek key、真实 webhook、客户最终统计口径、客户签字和真实环境验收仍未关闭。
+
+2026-07-07 PRD V2 本地功能差异收口 C 已完成阶段级 RepoFrame goal：当前 goal 记录为 `goals/GOAL-009-prd-v2-local-gap-closure-c-20260707.md`，执行批次 task 为 `tasks/TASK-010-prd-v2-local-gap-closure-c-20260707.md`。本批次在 task 内拆 checklist，不为每个小项单独建 task；已补 AI-2 `/ai/cs-query` 的 `attachment_contexts` 附件预览上下文、客服端 `/ai/cs` 附件预览上下文展示、OpenAPI 契约和 `npm run check:prd-v2-gap-closure-c`。附件预览通过既有文件权限校验生成短时效 URL，只供客服人工复核，不自动发送、不写订单。Task 8 仍保持 `NOT_READY`，真实 DeepSeek key、真实 webhook、RAG / tool calling、客户 AI-2 口径、客户签字和真实环境验收仍未关闭。
+
+2026-07-07 PRD V2 本地功能差异收口 B 已完成阶段级 RepoFrame goal：当前 goal 记录为 `goals/GOAL-008-prd-v2-local-gap-closure-b-20260707.md`，执行批次 task 为 `tasks/TASK-009-prd-v2-local-gap-closure-b-20260707.md`。本批次在 task 内拆 checklist，不为每个小项单独建 task；已补 `quality_record` 独立事实表第一段、质量记录状态工作流、生产端质量页状态更新入口、OpenAPI 契约和 `npm run check:prd-v2-gap-closure-b`。Task 8 仍保持 `NOT_READY`，客户最终质量口径、真实 key、真实 webhook、真实支付 / 物流平台、客户签字和真实环境验收仍未关闭。
+
+2026-07-07 PRD V2 本地功能差异收口 A 已完成阶段级 RepoFrame goal：当前 goal 记录为 `goals/GOAL-007-prd-v2-local-gap-closure-a-20260707.md`，执行批次 task 为 `tasks/TASK-008-prd-v2-local-gap-closure-a-20260707.md`。本批次在 task 内拆 checklist，不为每个小项单独建 task；已校准 9D.100 之后的 PRD V2 本地差异队列、acceptance/readiness 指针和机器检查，新增 `npm run check:prd-v2-gap-closure-a`。Task 8 仍保持 `NOT_READY`。
+
+2026-07-07 一期收口 workflow 已纳入 RepoFrame：`docs/development/workflow.md` 已建立为当前项目专用执行规则，`docs/development/stage-goal-window-guide.md` 已补每个 Codex 窗口的阶段级 goal 启动模板，当前 goal 记录为 `goals/GOAL-006-phase-one-workflow-doc-20260707.md`，完成任务为 `tasks/TASK-007-phase-one-workflow-doc-20260707.md`。该 workflow 明确后续默认使用阶段级 goal、执行批次 task 和 task 内 checklist，不恢复 Yuri workflow/SOP，不启用外部 SOP，不在小任务完成后只建议下一步小任务；新增 `npm run check:phase-one-workflow` 和 `npm run check:stage-goal-window`。Task 8 仍保持 `NOT_READY`。
+
+2026-07-07 一期收口技术方案已纳入 RepoFrame：`docs/development/phase-one-closure-technical-plan.md` 已作为当前伞形计划入口导入 handoff worktree，当前 goal 记录为 `goals/GOAL-005-phase-one-closure-plan-integration-20260707.md`，完成任务为 `tasks/TASK-006-phase-one-closure-plan-integration-20260707.md`。新增 `npm run check:phase-one-closure-plan`；本轮只做文档和非业务检查，不改业务代码，不伪装真实外部验收。Task 8 仍保持 `NOT_READY`。
+
+2026-07-07 9D.100 A/B 类一期范围对齐第二段已完成：当前 goal 记录为 `goals/GOAL-004-phase-one-ab-data-closure-20260707.md`，完成任务为 `tasks/TASK-005-phase-one-ab-data-closure-20260707.md`。客服 / 生产工作台统计已从展示口径推进到复用现有本地接口的数据闭环；新增 `npm run check:task9d100`。Task 8 仍保持 `NOT_READY`。
+
+2026-07-07 RepoFrame 文档校准任务已完成：当前 goal 记录为 `goals/GOAL-003-repoframe-doc-hydration-20260707.md`，完成任务为 `tasks/TASK-004-repoframe-doc-hydration-20260707.md`。本轮只校准 RepoFrame 文档、`acceptance.json` 和非业务检查脚本，未运行 `initialize_repo.py`，未改业务代码，未提交。GOAL-001 保留为历史初始化证据，GOAL-002 / TASK-003 保留为 superseded intake 证据。
+
+2026-07-06 接手基准已确认：当前工作区为 `/Users/yuri/Documents/AI智能下单平台-handoff-20260706`，分支为 `codex/continue-phase-one-20260706`，继续接手现有代码和历史，不重新开始开发。范围基准见 `docs/acceptance/phase-one-scope-baseline-20260706.md` 和 `docs/customer-confirmation/AI智能下单平台_2026-07-06_新需求范围内部确认版.docx`。
+
+当前一期范围按 A/B/C 分层执行：A 类四端菜单 / 命名 / 边界 / Manager 总览全部一期修正；B 类客服统计、生产异常、内外返、部门对比和客户排名做一期基础版；C 类设备、物料、安环、成本、奖惩、行政、财务只保留入口、基础台账或架构预留，不继续扩成一期完整管理闭环。已完成的 C 类基础记录和汇总能力保留，不删除。
+
 当前总目标是严格按照最新版 PRD V2.0 / 2026-07-04 完成一期交付，而不是单纯完成下一个 9D 编号。后续所有任务都必须能解释为补齐 `PROJECT.md` 的 P0 主业务链路、`docs/acceptance/prd-v2-gap-matrix.md` 的 PRD 差异矩阵、`docs/acceptance/task-8-acceptance-matrix.md` 的 12 步验收链路或 `docs/deployment/readiness-checklist.md` 的上线硬缺口。
 
-前端是否匹配一期范围的最新整理见 `docs/acceptance/phase-one-frontend-alignment.md`；后续按端口拆一期任务、判断已完成内容、处理多余或超过一期的入口时，使用 `docs/acceptance/phase-one-frontend-task-scope.md`。当前结论是：前端已经具备一期主链路演示版和多段真实接口第一增量，9D.94 已补 LangChain + DeepSeek AI 底座第一增量，但正式一期交付仍缺设备 / 物料 / 安环 / 成本 / 奖惩完整闭环、账单物流真实平台/付款状态、真实电子签章/复杂报告模板、绩效完整闭环、真实弱网/跨设备上传、生产级通知与部署验收。
+前端是否匹配一期范围的最新整理见 `docs/acceptance/phase-one-frontend-alignment.md`；后续按端口拆一期任务、判断已完成内容、处理多余或超过一期的入口时，使用 `docs/acceptance/phase-one-frontend-task-scope.md`。当前结论是：前端已经具备一期主链路演示版和多段真实接口第一增量，9D.94 已补 LangChain + DeepSeek AI 底座第一增量；正式一期交付仍缺 A/B 类范围对齐、账单物流真实平台/付款状态边界、真实电子签章/复杂报告模板、绩效完整闭环、真实弱网/跨设备上传、生产级通知与部署验收。设备 / 物料 / 安环 / 成本 / 奖惩不再作为一期完整闭环缺口，只保留入口、基础台账和已完成基础记录能力。
 
-当前目标是清理一期上线前硬缺口：已完成 readiness audit、OpenAPI 二次契约、Bearer 身份基线、后端权限守卫、数据库化 RBAC/DataScope 基础、权限注解/统一拦截器、订单/工序实例 DataScope SQL 第一增量、文件/协同/AI DataScope 扩展、菜单/部门/岗位/前端权限路由第一增量、生产鉴权启动门禁第一增量、Refresh Token/logout 第一增量、WebSocket 通知第一增量、通知未读/已读第一增量、通知实时前端/Redis 广播第一增量、医生订单工作台第一增量、医生下单/动态表单第一增量、客服初审第一增量、生产审核第一增量、生产任务入口第一增量、质检工时第一增量、绩效管理第一增量、生产看板第一增量、返工终检第一增量、Multipart 上传第一增量、本地恢复上传第一增量、服务端候选恢复第一增量、服务端候选恢复浏览器 smoke、上传中断后恢复浏览器 smoke、100MB+ 浏览器上传 smoke、医生订单草稿/补资料第一增量、动态表单 CRUD 第一增量、设计稿多文件多版本第一增量、终检发货拦截第一增量、真实 DeepSeek 接入第一增量、终检报告第一增量、返工关闭/责任分类第一增量、返工字典第一增量、返工通知联动第一增量、复杂返工影响范围第一增量、绩效归因联动第一增量、返工影响审计可视化第一增量、返工影响筛选第一增量、四入口登录页第一增量、绩效明细第一增量、绩效周期筛选第一段、文件上传限制与 bucket 隔离第一段、AI 调用限流第一增量、AI 成本审计第一增量、AI 模型重试第一增量、AI 模型失败审计第一增量、AI 治理摘要第一增量、AI 预算阈值第一增量、AI 预算超限审计第一增量、AI 预算超限内部通知第一增量、AI 预算通知策略开关第一增量、AI 预算熔断/降级第一增量、AI 预算外部告警待发送事实第一增量、AI 分角色预算第一增量、AI 分模型预算第一增量、AI 提示词版本与输出防护第一增量、AI 外部告警发送器第一增量、AI 成本趋势第一增量、AI 真实外部渠道适配第一增量、AI 外部告警调度器第一增量、AI 外部告警重试/死信第一增量、AI 外部告警幂等/并发领取第一增量、AI 外部告警 webhook 签名/鉴权第一增量、AI 外部告警监控/运维可观察第一增量、AI 外部告警 outbox 列表/筛选第一增量、AI 外部告警失败/死信可见性第一增量、Task 8 readiness 终检报告第一增量、部署安全 / 环境变量 readiness 检查第一增量、验收矩阵机器可读缺口清单第一增量、生产端质量与返工汇总后端适配第一增量、生产端设备/物料异常/安环/成本/奖惩只读汇总第一增量、9D.55 到 9D.81 多个 readiness 与交付材料第一增量、9D.82 最新 PRD V2.0 差异对齐矩阵第一段、9D.83 患者管理基础版第一增量、9D.84 人工支付流水 / 收支记录第一增量、9D.85 客户 / 诊所档案与偏好第一增量、9D.86 人员档案 / 工作量看板第一增量、9D.87 质量记录 CRUD / 外返登记第一增量、9D.88 客服订单 / 沟通完整可见性 smoke、9D.89 医生账户设置基础闭环、9D.90 产品参数 / 价格体系一期最小后台、9D.91 客服配送管理页 / 物流异常跟进第一增量、9D.92 AI-2 客服查询助手完整入口第一增量、9D.94 LangChain + DeepSeek AI 底座对齐第一增量。用户已确认设备 / 物料 / 安环 / 成本 / 奖惩属于一期开发功能；9D.95.1 已补设备台账 / 设备事件录入第一增量，9D.95.2 已补物料异常登记 / 处理状态第一增量，9D.95.3 已补安环巡检 / 隐患整改第一增量，9D.95.4 已补成本记录维护 / 趋势口径第一增量，9D.95.5 已补奖惩记录 / 审批状态第一增量，9D.96 已补医生提交前 AI-4 资料缺失自动触发体验，9D.97 已补 AI-2 客服查询引用数据说明 / 知识上下文补强，9D.98 已补 AI-5 生产备注客户模板 / 知识上下文补强第一增量；下一步优先推进真实客户 / PM 确认项与真实环境 AI 验收收口。
-
-一期收口技术方案可执行稿已新增：`docs/development/phase-one-closure-technical-plan.md`。执行顺序固定为第零段状态基线校准、第一段客户 / PM 确认项与真实环境 AI 验收收口、第二段 PRD V2 本地功能差异收口、第三段生产支持模块 PARTIAL 收口、第四段统一验收与文档回写；机器检查入口为 `npm run check:phase-one-closure-plan`。
+当前目标是清理一期上线前硬缺口：已完成 readiness audit、OpenAPI 二次契约、Bearer 身份基线、后端权限守卫、数据库化 RBAC/DataScope 基础、权限注解/统一拦截器、订单/工序实例 DataScope SQL 第一增量、文件/协同/AI DataScope 扩展、菜单/部门/岗位/前端权限路由第一增量、生产鉴权启动门禁第一增量、Refresh Token/logout 第一增量、WebSocket 通知第一增量、通知未读/已读第一增量、通知实时前端/Redis 广播第一增量、医生订单工作台第一增量、医生下单/动态表单第一增量、客服初审第一增量、生产审核第一增量、生产任务入口第一增量、质检工时第一增量、绩效管理第一增量、生产看板第一增量、返工终检第一增量、Multipart 上传第一增量、本地恢复上传第一增量、服务端候选恢复第一增量、服务端候选恢复浏览器 smoke、上传中断后恢复浏览器 smoke、100MB+ 浏览器上传 smoke、医生订单草稿/补资料第一增量、动态表单 CRUD 第一增量、设计稿多文件多版本第一增量、终检发货拦截第一增量、真实 DeepSeek 接入第一增量、终检报告第一增量、返工关闭/责任分类第一增量、返工字典第一增量、返工通知联动第一增量、复杂返工影响范围第一增量、绩效归因联动第一增量、返工影响审计可视化第一增量、返工影响筛选第一增量、四入口登录页第一增量、绩效明细第一增量、绩效周期筛选第一段、文件上传限制与 bucket 隔离第一段、AI 调用限流第一增量、AI 成本审计第一增量、AI 模型重试第一增量、AI 模型失败审计第一增量、AI 治理摘要第一增量、AI 预算阈值第一增量、AI 预算超限审计第一增量、AI 预算超限内部通知第一增量、AI 预算通知策略开关第一增量、AI 预算熔断/降级第一增量、AI 预算外部告警待发送事实第一增量、AI 分角色预算第一增量、AI 分模型预算第一增量、AI 提示词版本与输出防护第一增量、AI 外部告警发送器第一增量、AI 成本趋势第一增量、AI 真实外部渠道适配第一增量、AI 外部告警调度器第一增量、AI 外部告警重试/死信第一增量、AI 外部告警幂等/并发领取第一增量、AI 外部告警 webhook 签名/鉴权第一增量、AI 外部告警监控/运维可观察第一增量、AI 外部告警 outbox 列表/筛选第一增量、AI 外部告警失败/死信可见性第一增量、Task 8 readiness 终检报告第一增量、部署安全 / 环境变量 readiness 检查第一增量、验收矩阵机器可读缺口清单第一增量、生产端质量与返工汇总后端适配第一增量、生产端设备/物料异常/安环/成本/奖惩只读汇总第一增量、9D.55 到 9D.81 多个 readiness 与交付材料第一增量、9D.82 最新 PRD V2.0 差异对齐矩阵第一段、9D.83 患者管理基础版第一增量、9D.84 人工支付流水 / 收支记录第一增量、9D.85 客户 / 诊所档案与偏好第一增量、9D.86 人员档案 / 工作量看板第一增量、9D.87 质量记录 CRUD / 外返登记第一增量、9D.88 客服订单 / 沟通完整可见性 smoke、9D.89 医生账户设置基础闭环、9D.90 产品参数 / 价格体系一期最小后台、9D.94 LangChain + DeepSeek AI 底座对齐第一增量。2026-07-06 已确认 C 类设备 / 物料 / 安环 / 成本 / 奖惩只保留入口、基础台账或架构预留；9D.95.1 到 9D.95.5 已完成的基础登记 / 状态增量保留，不再继续拆完整闭环。9D.96 已补医生提交前 AI-4 资料缺失自动触发体验，9D.97 已补 AI-2 客服查询引用数据说明 / 知识上下文补强，9D.98 已补 AI-5 生产备注客户模板 / 知识上下文补强第一增量，9D.99 已补 A/B 类一期范围对齐第一段，9D.100 已补 A/B 类一期范围对齐第二段；后续继续关闭不依赖真实外部服务的剩余 PRD V2 本地缺口。
 
 当前计划已按 TRD V1.1 深度研究优化版和 2026-07 新版资料差异重排。任务 0、0.1、1、2、3、4、5A、5B、6、7、8A、8B、9A 已完成；9B.1 到 9B.8、9C.1 到 9C.3、9D.1 到 9D.25 第一增量已完成；任务 8 总体仍进行中，正式上线缺口未完成。
 
@@ -22,9 +54,21 @@
 
 任务 9D.98：AI-5 生产备注客户模板 / 知识上下文补强第一增量已完成。`/ai/production-note` 返回默认模板版本、知识上下文说明和客户模板未确认标记；`/ai/production-note/confirm` 只在 CS / WORKER / ADMIN 人工确认后追加写入 `production_note` 并审计；客服初审页新增 AI-5 草稿、上下文说明和确认写入入口。本轮不新增迁移、不接真实 DeepSeek key、不伪装真实客户模板或客户签字、不自动下发生产指令。验收命令：`npm run check:task9d98`、`AiGatewayTests#productionNoteDraftUsesDefaultTemplateAndHumanConfirmationWritesOrderNote`、`npm run check:openapi`、`npm run build:frontend`、`npm run acceptance`。
 
+任务 9D.99：A/B 类一期范围对齐第一段已完成。前端展示层按 2026-07-06 基准完成第一段命名和基础统计收口：生产端删除独立“工作单”入口，生产展示“生产中”改为“生产异常”，菜单“物料异常”改为“物料管理”，统一“待问异常”；客服工作台补客服统计基础版，包括翻译待审、账单超期、本月 / 上月对比、订单数量 / 件数和十大客户排名；生产工作台补生产统计基础版，包括生产异常、待问异常、员工异常、部门今日 vs 上月平均、返工率、出货率、完成率和内返 / 外返；账单 / 物流人工状态继续按一期人工维护能力展示。本轮不新增后端接口、不新增迁移、不接真实支付 / 物流平台、不伪造真实经营统计。验收命令：`npm run check:task9d99`、`npm run check:task9d36`、`npm run build:frontend`、`npm run acceptance`。
+
+任务 9D.100：A/B 类一期范围对齐第二段已完成。前端客服 / 生产工作台新增 `loadPhaseOneAbDashboardData`，复用现有本地接口把客服统计、生产统计、内返 / 外返和账单 / 物流人工状态从展示口径推进到数据闭环。客服侧复用订单列表、待审消息、通知未读、物流人工状态和质量外返汇总；生产侧复用订单列表、待审消息、人员工作量、质量返工汇总、物流人工状态，以及设备 / 物料 / 安环 / 成本 / 奖惩基础汇总。月度趋势、真实账期逾期、真实支付平台、真实物流平台和客户 / PM 最终统计口径仍为 PARTIAL / BLOCKED。验收命令：`npm run check:task9d100`、`npm run check:task9d99`、`npm run build:frontend`、`npm run acceptance`。
+
 2026-07-01 已确认新版 PRD/TRD/API 的默认对齐策略：以新资料为最新业务准绳，保留当前仓库已验证增量，OpenAPI 后续按“新版 API 业务口径 + 当前已实现增量”合并维护。草稿/补资料闭环、Refresh Token/logout、动态表单 CRUD 第一增量、设计稿多文件多版本第一增量、终检发货拦截第一增量、真实 DeepSeek 接入第一增量、终检报告第一增量、返工关闭/责任分类第一增量、返工字典第一增量、返工通知联动第一增量、复杂返工影响范围第一增量、绩效归因联动第一增量、返工影响审计可视化第一增量、返工影响筛选第一增量、四入口登录页第一增量、绩效明细第一增量和返工影响图形化第一增量已完成；后续优先级调整为：客服协同闭环 -> 设计稿确认闭环 / 账单物流闭环 -> 绩效与管理侧收口 -> 生产部署与弱网验收。
 
 当前执行指针：
+
+- GOAL-015 / TASK-016 操作手册 / 回滚 / 培训材料本地收口已完成；本批次新增 `npm run check:operations-rollback-training-closure`、`docs/operations/phase-one-rollback-runbook.md` 和 `docs/operations/phase-one-training-materials.md`，只收拢 9D.70 本地操作手册证据、发布回滚模板、四端培训模板和 `operations-manuals` 指针。真实发布回滚演练、备份恢复演练、日志留存、监控告警、正式客户培训签收、客户 / PM 签字和真实环境验收仍为外部阻塞；Task 8 仍保持 `NOT_READY`。
+- GOAL-014 / TASK-015 WebSocket / 通知生产 readiness 收口已完成；本批次新增 `npm run check:websocket-notification-readiness-closure` 和 `docs/deployment/websocket-notification-production-readiness.md`，只收拢 9D.76 本地通知网关证据、真实环境验收模板和 `websocket-notification-prod` 指针。真实双后端实例 Redis 联调、心跳 / 重连压测、Nginx HTTPS 生产网关、浏览器通知权限、完整业务页面联动、生产 webhook、监控告警、客户 / PM 签字和真实环境验收仍为外部阻塞；Task 8 仍保持 `NOT_READY`。
+- GOAL-010 / TASK-011 PRD V2 本地功能差异收口 D 已完成；本批次补月度趋势 / 客户排名本地聚合第一段，验收入口为 `npm run check:prd-v2-gap-closure-d`。
+- GOAL-009 / TASK-010 PRD V2 本地功能差异收口 C 已完成；本批次补 AI-2 `attachment_contexts` 附件预览上下文第一段，验收入口为 `npm run check:prd-v2-gap-closure-c`。
+- GOAL-008 / TASK-009 PRD V2 本地功能差异收口 B 已完成；本批次补质量记录独立模型 / 状态工作流第一段，验收入口为 `npm run check:prd-v2-gap-closure-b`。
+- GOAL-007 / TASK-008 PRD V2 本地功能差异收口 A 已完成；本批次只做本地差异队列、acceptance/readiness 和入口文档收口，验收入口为 `npm run check:prd-v2-gap-closure-a`。
+- GOAL-006 / TASK-007 一期收口 workflow 已完成；后续业务开发应按 `docs/development/workflow.md` 和 `docs/development/stage-goal-window-guide.md` 先设立阶段级 goal，再从 `docs/development/phase-one-closure-technical-plan.md` 和 `acceptance.json` gap id 拆执行批次 task。
 
 - T1 / 9D.57 返工影响图形化第一增量已收口：静态检查、前端构建、acceptance、`git diff --check` 和浏览器真实点击均已通过。
 - T2 / 9D.58 客服协同闭环第一增量已收口：客服端 `/collaboration` 复用既有消息接口，提供待审核消息、订单消息上下文和通过/驳回入口；静态检查、前端构建和基础验收已通过。
@@ -51,7 +95,7 @@
 - T6 / 9D.74 绩效标准工时与完整公式口径第一段已收口：绩效响应新增公式版本、标准工时覆盖率、缺失数量和默认绩效分，前端绩效页只读展示；本轮不做工资结算、申诉、导出或完整 HR。
 - 9D.75 正式鉴权与 DataScope 收口第一段已收口：新增 `APP_AUTH_ALLOW_ROLE_FALLBACK`，本地默认保留角色兜底，生产 profile / compose 固定关闭；严格模式下写了权限码的接口必须由 Bearer token 权限码放行，角色-only token 访问返回 403。
 - 9D.76 WebSocket / 通知生产验收第一段已收口：新增 `npm run check:task9d76`，一期 Nginx 同时代理 `/notifications` REST 和 `/ws/` WebSocket，避免生产前端通知中心落到 SPA fallback；检查脚本串联 compose Redis/后端依赖、Redis 广播代码路径、通知 REST 隔离/已读测试、WebSocket 脱敏测试和 Redis 远端广播测试。
-- 下一步增强：真实客户 / PM 确认项与真实环境 AI 验收收口。9D.83 到 9D.92、9D.94 到 9D.98 均已完成本地第一增量；后续不得把 9D.90、9D.91、9D.92、9D.97、9D.98 继续写成下一步。
+- 下一步增强：从不依赖真实外部服务的剩余 PRD V2 本地缺口中选择一个闭环；真实支付 / 物流平台、真实 DeepSeek key、真实 webhook、客户模板、客户签字和真实环境验收仍保持外部阻塞，不由本地代码伪装完成。
 - Task 8 仍是 `in-progress / NOT_READY`，不要因为 T1 完成就标记一期完成。
 
 ## 当前交接摘要
@@ -77,7 +121,7 @@
 - 9D.53 生产端成本管理汇总后端适配第一增量已完成；新增 `/production/cost-management/summary`，生产/客服/管理可读，医生端拒绝；前端生产端成本管理/外协成本已接真实汇总，展示工序成本、材料成本、人工成本、返工成本、外协成本和成本异常预警。
 - 9D.54 生产端奖惩管理汇总后端适配第一增量已完成；新增 `/production/reward-penalty/summary`，生产/客服/管理可读，医生端拒绝；前端生产端奖惩管理已接真实汇总，展示奖惩记录、奖惩原因、关联对象、审批状态、月度汇总和绩效影响。
 - 本轮 9D.57 状态：completed-first-increment；已通过 TDD 静态红灯/绿灯、frontend build、acceptance、静态检查和真实浏览器点击。本轮在 `/rework-final` 生产端返工终检页新增只读返工影响图，把既有返工目标和受影响后续节点渲染为“返工目标 -> 后续重置”路径。未完成原因：本轮不做复杂甘特、拖拽排产、重新派工大改、医生端返工可见、生产级通知联动或完整 12 步浏览器验收。
-- 下一轮唯一推荐目标：真实客户 / PM 确认项与真实环境 AI 验收收口。9D.98 已补 AI-5 生产备注客户模板 / 知识上下文补强第一增量，但客户正式模板、真实 DeepSeek key、生产 webhook / 真实环境联调和客户签字仍不能由本地代码替代。
+- 下一轮唯一推荐目标：客户培训签收 / 交付确认记录模板第一段；9D.81 已补部署真实环境 smoke / HTTPS / 备份监控验收记录模板第一段，下一段应围绕 `operations-manuals` 和 `customer-pm-confirmations` 补交付签收记录模板。
 - 继续开发前先复核 `STATUS.md`、`docs/acceptance/task-8-acceptance-matrix.md` 和 `docs/deployment/readiness-checklist.md`，并按 TDD 先补红灯测试。
 - 本轮 9D.25 状态：completed-first-increment；已通过 TDD 后端测试、Check/Worklog 模块回归、OpenAPI、frontend build、acceptance 和静态检查。本轮新增 `/performance/details` 绩效工时明细接口，并在绩效页展示最近完成明细。未完成原因：仍缺绩效完整公式/周期筛选/标准工时配置/申诉闭环、终检 PDF/签名、生产级 AI 治理、完整客服协同、账单物流闭环、完整弱网/跨设备续传和部署交付材料。
 - 本轮 9D.24 状态：completed-first-increment；已通过 TDD 后端测试、四入口登录静态检查、OpenAPI、frontend build、acceptance 和登录相关后端回归。未完成原因：仍缺生产级 Spring Security/JWT、完整 RuoYi 管理 UI、refresh token 轮换、access token 黑名单、多设备会话策略和正式环境浏览器全链路验收。
@@ -112,6 +156,8 @@
 
 - `websocket-notification-prod` 仍为 Task 8 上线缺口。
 - 既有后端已有单实例 WebSocket、通知 REST、前端通知中心和 Redis 广播代码路径，但一期生产 Nginx 只代理 `/api/` 和 `/ws/`，缺 `/notifications` REST 代理。
+
+2026-07-06 覆盖说明：本任务记录保留历史执行事实；其中“设备 / 物料 / 安环 / 成本 / 奖惩属于一期开发功能、后续继续完整闭环”的旧口径已被 `docs/acceptance/phase-one-scope-baseline-20260706.md` 覆盖。当前只保留 C 类入口、基础台账、基础登记、状态更新或架构预留。
 
 目标：
 
@@ -198,6 +244,43 @@
 
 - 9D.75 只关闭生产权限码兜底第一段。
 - 完整 Spring Security/JWT、通用 DataScope SQL、完整 RuoYi 管理 UI、token 黑名单、refresh token 轮换和多设备会话策略仍未完成。
+
+## TASK-017：权限 / DataScope 生产化补强 B
+
+状态：completed / PARTIAL。
+
+目标：
+
+- 围绕 `auth-datascope-prod` 缺口补 refresh token 轮换，减少 refresh token 被长期复用的风险。
+- 保持本阶段为一个 RepoFrame 执行批次 task，不拆成多个小 task。
+- 继续保持 Task 8 `NOT_READY` 和 `auth-datascope-prod=PARTIAL`。
+
+范围：
+
+- 新增 `goals/GOAL-016-auth-datascope-production-closure-b-20260707.md` 和 `tasks/TASK-017-auth-datascope-production-closure-b-20260707.md`。
+- 新增 `npm run check:auth-datascope-prod-closure-b`。
+- 新增 `BearerIdentityTests#refreshTokenRotatesAndRejectsOldTokenReuse`。
+- `/api/auth/refresh` 成功后轮换 refresh token，旧 token 立即吊销，旧 token 复用返回 401。
+- 更新 OpenAPI、auth refresh 检查、STATUS、PROJECT、DECISIONS、README、acceptance 和 Task 8 / readiness 文档。
+
+非目标：
+
+- 不重写 Spring Security/JWT。
+- 不做完整 RuoYi 管理 UI或通用 SQL DataScope 拦截器。
+- 不做 access token 黑名单或多设备会话策略。
+- 不接真实环境，不填写真实密钥、token、证书、客户数据或客户签字。
+- 不把 Task 8、`auth-datascope-prod` 或正式上线状态写成 READY。
+
+验收结果：
+
+- 红灯：`BearerIdentityTests#refreshTokenRotatesAndRejectsOldTokenReuse` 首次失败于 refresh 返回原 refresh token。
+- 绿灯：补 `RefreshTokenService#rotate` 和 controller refresh 路径后，refresh 返回新 refresh token，旧 token 复用 401，logout 可吊销最新 refresh token。
+- 静态检查：`npm run check:auth-datascope-prod-closure-b` 覆盖 GOAL-016 / TASK-017、测试、后端实现、OpenAPI、文档回写、readiness gap 和禁止伪造 READY 边界。
+
+未完成原因：
+
+- TASK-017 只关闭 refresh token 轮换本地补强。
+- 完整 Spring Security/JWT、通用 DataScope SQL、完整 RuoYi 管理 UI、access token 黑名单、多设备会话策略、真实环境验收和客户 / PM 签字仍未完成。
 
 ## 任务 9D.74：绩效标准工时与完整公式口径第一段
 
@@ -5504,7 +5587,7 @@ git diff --check
 
 未完成原因：
 
-- 9D.87 只关闭质量记录 / 外返登记第一增量；完整独立质量记录事实表、状态工作流、编辑/删除和客户最终质量口径确认仍未完成。
+- 9D.87 先关闭质量记录 / 外返登记第一增量；PRD V2 本地功能差异收口 B 已补 `quality_record` 独立事实表和状态工作流第一段。编辑/删除、投诉/退货系统、质量复盘完整流程和客户最终质量口径确认仍未完成。
 - Task 8 仍保持 NOT_READY。
 
 ## 任务 9D.88：客服订单 / 沟通完整可见性 smoke
@@ -5687,7 +5770,7 @@ git diff --check
 
 - 按用户最新确认纠偏 9D.93 范围口径。
 - 移除医生端独立“文件资料 / 医生文件”入口，避免把不属于需求范围的独立文件模块纳入一期验收。
-- 固定设备 / 物料 / 安环 / 成本 / 奖惩属于一期开发功能；当前 9D.50-9D.54 只读汇总只是第一增量，不足以 READY。
+- 历史上曾固定设备 / 物料 / 安环 / 成本 / 奖惩属于一期开发功能；2026-07-06 后该旧口径已覆盖为 C 类基础能力，不再继续扩成一期完整管理闭环。
 - 固定所有 AI 智能体使用 LangChain + DeepSeek 实现；9D.94 已补 LangChain4j + DeepSeek 底座第一增量，仍需真实 key / 生产验收和后续 AI 功能闭环。
 
 范围：
@@ -5707,14 +5790,14 @@ git diff --check
 
 验收结果：
 
-- 红灯：`npm run check:task9d93` 首次失败于 PRD V2 gap matrix 缺少“设备 / 物料 / 安环 / 成本 / 奖惩属于一期开发功能”。
-- 绿灯：`npm run check:task9d93` 覆盖医生端独立文件入口移除、设备 / 物料 / 安环 / 成本 / 奖惩一期口径、所有 AI 智能体使用 LangChain + DeepSeek 和项目文档回写。
+- 红灯：`npm run check:task9d93` 首次失败于当时 PRD V2 gap matrix 缺少旧 C 类范围文本。
+- 绿灯：`npm run check:task9d93` 覆盖医生端独立文件入口移除、当时的 C 类范围口径、所有 AI 智能体使用 LangChain + DeepSeek 和项目文档回写；2026-07-06 后另由 `npm run check:scope-baseline-20260706` 固定新基准。
 
 未完成原因：
 
 - 9D.93.1 只关闭目标口径纠偏，不实现完整业务功能。
-- LangChain + DeepSeek AI 底座对齐第一增量已由 9D.94 关闭；AI-4 提交前自动触发体验已由 9D.96 补齐第一增量，AI-2 引用数据说明已由 9D.97 补齐第一增量，AI-5 客户模板 / 知识上下文和人工确认写入已由 9D.98 补齐第一增量；真实 key / 生产联调、客户模板最终确认和客户 / PM 签字仍未完成。
-- Task 8 仍保持 NOT_READY；下一步推荐 9D.95.4 成本记录维护 / 趋势口径第一增量。
+- LangChain + DeepSeek AI 底座对齐第一增量已由 9D.94 关闭，但真实 key / 生产联调、AI-2 知识上下文补强和 AI-4 提交前自动触发体验仍未完成。
+- Task 8 仍保持 NOT_READY；2026-07-06 后下一步改为 A/B 类一期范围对齐第一段。
 
 ## 任务 9D.95.3：安环巡检 / 隐患整改第一增量
 
@@ -5856,9 +5939,11 @@ git diff --check
 - 9D.95.1 只关闭设备台账 / 设备事件人工录入第一增量，不做设备编辑、事件状态更新、复杂审批、IoT 或真实设备联动。
 - Task 8 仍保持 NOT_READY；下一步推荐 9D.95.3 安环巡检 / 隐患整改第一增量。
 
-## 任务 9D.95：设备 / 物料 / 安环 / 成本 / 奖惩一期闭环拆解第一增量
+## 任务 9D.95：设备 / 物料 / 安环 / 成本 / 奖惩基础台账拆解记录
 
 状态：completed-first-increment / PARTIAL。
+
+2026-07-06 覆盖说明：本任务块保留历史拆解记录；当前不再作为一期完整闭环排期，9D.95.1 到 9D.95.5 只作为 C 类基础台账 / 基础登记 / 状态更新证据。
 
 目标：
 
@@ -5889,6 +5974,109 @@ git diff --check
 
 - 9D.95 只关闭拆解第一增量，不实现五类模块的录入 / 编辑 / 处理状态 / 趋势闭环。
 - Task 8 仍保持 NOT_READY；下一步推荐 9D.95.3 安环巡检 / 隐患整改第一增量。
+
+## 任务 019：本地 12 步主链路验收增强
+
+状态：completed。
+
+Goal：`GOAL-018` / `goals/GOAL-018-local-main-chain-acceptance-hardening-20260707.md`。
+
+Task：`TASK-019` / `tasks/TASK-019-local-main-chain-acceptance-hardening-20260707.md`。
+
+Scope：
+
+- 新增阶段级检查 `npm run check:local-main-chain-acceptance-hardening`。
+- 增强 `smoke:task9d62`，在固定演示数据主链路中补医生端脱敏、客服端可见性、生产端任务范围和管理端派工 / 转派断言。
+- 回写 STATUS、PROJECT、README、DECISIONS、acceptance、Task 8 matrix、PRD V2 matrix、readiness checklist、Task 8 final readiness report 和 12 步客户验收版记录。
+
+Non-goals：
+
+- 不做真实客户验收、不填写客户 / PM 签字、不填写真实 key、真实 webhook、真实服务器、证书、token 或客户隐私数据。
+- 不接真实支付、真实物流、真实电子签章、HTTPS、备份监控或生产环境。
+- 不把 Task 8、生产上线或客户验收写成 READY。
+
+Acceptance：
+
+- `GOAL-018` / `TASK-019` 成为 active RepoFrame 指针。
+- `check:local-main-chain-acceptance-hardening` 覆盖本阶段文档、smoke 增强、readiness 边界和禁止伪造 READY 文案。
+- `smoke:task9d62` 保留本地 12 步固定演示数据主链路，并新增角色边界诊断。
+- Task 8 仍保持 NOT_READY。
+
+Verification：
+
+- `npm run check:local-main-chain-acceptance-hardening`
+- `npm run check:task9d62`
+- `npm run smoke:task9d62`
+- `npm run check:task9d68`
+- `npm run check:task8-readiness-gaps`
+- `npm run acceptance`
+- `git diff --check`
+
+完成记录：
+
+- 红灯：`npm run check:local-main-chain-acceptance-hardening` 首次失败于 GOAL-018 / TASK-019、acceptance 指针、smoke 角色边界断言和文档回写缺失。
+- 绿灯：补阶段级检查、RepoFrame goal/task、smoke 断言、acceptance 指针和验收 / readiness 文档后通过本阶段检查。
+- 本轮不 push；Task 8 仍保持 NOT_READY。
+
+未完成原因：
+
+- GOAL-018 只增强本地自动化与验收记录，不替代客户 / PM 真实点击、签字或真实环境验收。
+- 真实支付、真实物流、真实电子签章、真实 DeepSeek key、生产 webhook、HTTPS、备份监控和客户 / PM 书面确认仍未完成。
+
+## 任务 020：AI 生产治理本地补强
+
+Goal：`GOAL-019` / `goals/GOAL-019-ai-production-governance-local-hardening-20260707.md`。
+
+Task：`TASK-020` / `tasks/TASK-020-ai-production-governance-local-hardening-20260707.md`。
+
+Scope：
+
+- 新增阶段级检查 `npm run check:ai-production-governance-local-hardening`。
+- 新增 `GET /ai/governance/local-hardening` 本地只读治理总览，覆盖提示词版本、输出安全边界、预算 / 熔断策略、AI-3 安全矩阵、AI-5 默认模板未确认和真实外部联调待完成状态。
+- 管理端 `/admin/ai-governance` 从占位入口升级为本地只读治理页。
+- 补 AI-3 医生端内部问题安全矩阵回归。
+- 回写 STATUS、PROJECT、README、DECISIONS、acceptance、PRD V2 matrix、Task 8 matrix、9D.80 AI 真实联调模板、readiness checklist 和 Task 8 final readiness report。
+
+Non-goals：
+
+- 不接真实 DeepSeek key。
+- 不填写真实 webhook URL、signing secret、receiver secret、生产主机、证书、token 或客户隐私数据。
+- 不把 `PHASE_ONE_DEFAULT_V1` 写成客户正式 AI-5 模板。
+- 不自动外发 AI 输出，不自动写订单，不自动写客服消息，不做 AI 自动决策。
+- 不把 `ai-production-governance`、Task 8、生产上线或客户验收写成 READY。
+
+Acceptance：
+
+- `GOAL-019` / `TASK-020` 成为 active RepoFrame 指针。
+- `check:ai-production-governance-local-hardening` 覆盖本阶段后端、前端、OpenAPI、文档、readiness 边界和禁止伪造 READY 文案。
+- CS / ADMIN 可读取本地 AI 治理补强总览，DOCTOR 被拒绝。
+- 管理端 AI 治理页显示提示词版本、输出安全边界、预算 / 熔断、AI-3 安全矩阵、AI-5 模板状态和真实 key / webhook 仍待验收。
+- Task 8 仍保持 NOT_READY。
+
+Verification：
+
+- `npm run check:ai-production-governance-local-hardening`
+- `./scripts/with-jdk21.sh mvn -f backend/pom.xml -pl platform-server -Dtest=AiGatewayTests test`
+- `npm run check:task9d80`
+- `npm run check:task9d94`
+- `npm run check:task9d97`
+- `npm run check:task9d98`
+- `npm run check:task8-readiness-gaps`
+- `npm run check:openapi`
+- `npm run build:frontend`
+- `npm run acceptance`
+- `git diff --check`
+
+完成记录：
+
+- 红灯：`npm run check:ai-production-governance-local-hardening` 首次失败于 active 指针、GOAL-019 / TASK-020、后端接口、前端页面、OpenAPI 和文档回写缺失；目标后端测试首次失败于 `/ai/governance/local-hardening` 返回 404。
+- 绿灯：补本地只读治理接口、管理端只读页面、AI-3 安全矩阵回归、OpenAPI、RepoFrame 指针和验收 / readiness 文档后通过本阶段检查。
+- 本轮不 push；Task 8 仍保持 NOT_READY。
+
+未完成原因：
+
+- GOAL-019 只关闭本地 AI 生产治理补强第一段，不替代真实 DeepSeek key、生产 webhook、客户 / PM AI 验收、客户正式 AI-5 模板或真实环境验收。
+- 流式输出安全边界仍保持 `GUARDED_STREAMING_NOT_ENABLED`；RAG / tool calling 如需后续另拆，不自动外发或自动写订单。
 
 ## Codex Token 成本治理
 

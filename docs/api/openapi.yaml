@@ -65,6 +65,8 @@ tags:
   description: 客户偏好
 - name: AI
   description: AI 智能体接口
+- name: Dashboard
+  description: 内部看板与一期 A/B 本地统计
 - name: Notification
   description: 通知 REST 与 WebSocket 事件定义
 components:
@@ -166,7 +168,7 @@ components:
       properties:
         refresh_token:
           type: string
-          description: 登录或刷新时返回的 refreshToken
+          description: 登录或最近一次刷新时返回的 refreshToken；刷新成功后客户端必须替换本地保存的 refreshToken
     CurrentUserResponse:
       type: object
       properties:
@@ -1056,13 +1058,14 @@ components:
     QualityRecordResponse:
       type: object
       description: |
-        任务 9D.87 第一增量：质量记录只读响应。当前复用 check_record + rework_record 表达外返质量记录；
-        不返回医生端脱敏外的内部生产敏感扩展，也不代表完整 quality_record 独立事实表已完成。
+        PRD V2 本地功能差异收口 B：质量记录独立模型 / 状态工作流第一段。
+        当前以 quality_record 独立事实表作为列表与状态主记录，同时保留 check_record / rework_record 兼容证据；
+        不代表客户最终质量口径、投诉 / 退货系统或完整编辑删除工作流已完成。
       properties:
         quality_record_id:
           type: integer
           format: int64
-          description: 当前第一增量复用 check_id 作为质量记录 ID。
+          description: quality_record 独立事实表主键。
         quality_record_type:
           type: string
           enum:
@@ -1099,10 +1102,21 @@ components:
           nullable: true
         status:
           type: string
+          enum:
+          - PENDING
+          - IN_PROGRESS
+          - RESOLVED
+          - CLOSED
+        status_note:
+          type: string
           nullable: true
         created_at:
           type: string
           format: date-time
+        status_updated_at:
+          type: string
+          format: date-time
+          nullable: true
         updated_at:
           type: string
           format: date-time
@@ -1141,6 +1155,22 @@ components:
         reason_detail:
           type: string
           maxLength: 512
+    QualityRecordStatusUpdateRequest:
+      type: object
+      required:
+      - status
+      properties:
+        status:
+          type: string
+          enum:
+          - PENDING
+          - IN_PROGRESS
+          - RESOLVED
+          - CLOSED
+        status_note:
+          type: string
+          maxLength: 512
+          nullable: true
     ProductionEquipmentSummary:
       type: object
       description: 生产端设备管理汇总，来自设备台账和设备事件基础表。
@@ -2972,6 +3002,100 @@ components:
           description: AI-2 客服查询使用的只读内部数据来源说明；其他 AI 回答可为空。
           items:
             type: string
+        attachment_contexts:
+          type: array
+          description: AI-2 客服查询聚合的订单附件短时效预览上下文，仅供客服人工复核，不自动发送或写入订单。
+          items:
+            "$ref": "#/components/schemas/AiAttachmentContext"
+    AiAttachmentContext:
+      type: object
+      properties:
+        file_id:
+          type: integer
+        source_type:
+          type: string
+          description: 附件来源类型，例如 MESSAGE_ATTACHMENT、ORDER_ATTACHMENT 或 DESIGN_DRAFT。
+        visibility:
+          type: string
+        original_filename:
+          type: string
+        content_type:
+          type: string
+          nullable: true
+        file_size:
+          type: integer
+          format: int64
+          nullable: true
+        preview_url:
+          type: string
+          description: 经过现有文件权限校验后生成的短时效预览 URL。
+        expires_in_seconds:
+          type: integer
+        review_note:
+          type: string
+    PhaseOneAbMonthSummary:
+      type: object
+      properties:
+        month:
+          type: string
+          example: "2026-07"
+        order_count:
+          type: integer
+          format: int64
+        item_count:
+          type: integer
+          format: int64
+    PhaseOneAbCustomerRanking:
+      type: object
+      properties:
+        clinic_id:
+          type: integer
+          format: int64
+        clinic_name:
+          type: string
+        order_count:
+          type: integer
+          format: int64
+        item_count:
+          type: integer
+          format: int64
+    PhaseOneAbDashboardResponse:
+      type: object
+      description: PRD V2 本地功能差异收口 D 的内部一期 A/B 月度趋势 / 客户排名聚合；仅供 CS / ADMIN / WORKER 内部看板使用。
+      properties:
+        current_month:
+          "$ref": "#/components/schemas/PhaseOneAbMonthSummary"
+        previous_month:
+          "$ref": "#/components/schemas/PhaseOneAbMonthSummary"
+        monthly_order_delta:
+          type: integer
+          format: int64
+        monthly_item_delta:
+          type: integer
+          format: int64
+        top_customers:
+          type: array
+          items:
+            "$ref": "#/components/schemas/PhaseOneAbCustomerRanking"
+        production_exception_count:
+          type: integer
+          format: int64
+        pending_question_count:
+          type: integer
+          format: int64
+        shipping_rate:
+          type: integer
+          minimum: 0
+          maximum: 100
+        completion_rate:
+          type: integer
+          minimum: 0
+          maximum: 100
+        source_note:
+          type: string
+        generated_at:
+          type: string
+          format: date-time
     AiProductionNoteResponse:
       type: object
       properties:
@@ -3014,6 +3138,134 @@ components:
         requires_customer_template_confirmation:
           type: boolean
           description: true 表示客户正式模板仍待客户 / PM 确认。
+    AiGovernanceLocalHardeningResponse:
+      type: object
+      properties:
+        stage_goal:
+          type: string
+          description: 当前阶段级 RepoFrame goal；GOAL-019。
+        stage_task:
+          type: string
+          description: 当前执行批次 task；TASK-020。
+        prompt_templates:
+          type: array
+          items:
+            "$ref": "#/components/schemas/AiPromptTemplate"
+        output_safety_boundary:
+          "$ref": "#/components/schemas/AiOutputSafetyBoundary"
+        budget_circuit_breaker_policy:
+          "$ref": "#/components/schemas/AiBudgetCircuitBreakerPolicy"
+        ai3_safety_cases:
+          type: array
+          items:
+            "$ref": "#/components/schemas/Ai3SafetyCase"
+        ai5_template_boundary:
+          "$ref": "#/components/schemas/Ai5TemplateBoundary"
+        real_external_integration_status:
+          "$ref": "#/components/schemas/AiRealExternalIntegrationStatus"
+    AiPromptTemplate:
+      type: object
+      properties:
+        agent_code:
+          type: string
+        prompt_version:
+          type: string
+        context_type:
+          type: string
+        owner_role:
+          type: string
+        template_source:
+          type: string
+          description: 本地代码版本来源；不返回 prompt 原文。
+        mutation_allowed:
+          type: boolean
+        human_confirmation_required:
+          type: boolean
+    AiOutputSafetyBoundary:
+      type: object
+      properties:
+        guarded_status:
+          type: string
+          description: 命中敏感输出后的审计状态，如 AI_OUTPUT_GUARDED。
+        guarded_model_name:
+          type: string
+        streaming_status:
+          type: string
+          description: 本地阶段保持流式输出未启用，后续需单独做 guarded streaming。
+        blocked_pattern_count:
+          type: integer
+        raw_model_output_exposed:
+          type: boolean
+        manual_review_required:
+          type: boolean
+    AiBudgetCircuitBreakerPolicy:
+      type: object
+      properties:
+        daily_budget_microusd:
+          type: integer
+          format: int64
+        admin_daily_budget_microusd:
+          type: integer
+          format: int64
+        cs_daily_budget_microusd:
+          type: integer
+          format: int64
+        doctor_daily_budget_microusd:
+          type: integer
+          format: int64
+        worker_daily_budget_microusd:
+          type: integer
+          format: int64
+        model_daily_budget_microusd:
+          type: integer
+          format: int64
+        budget_notification_enabled:
+          type: boolean
+        budget_circuit_breaker_enabled:
+          type: boolean
+    Ai3SafetyCase:
+      type: object
+      properties:
+        case_id:
+          type: string
+        question_family:
+          type: string
+        expected_status:
+          type: string
+        safe_read_model:
+          type: string
+        forbidden_fields:
+          type: array
+          items:
+            type: string
+    Ai5TemplateBoundary:
+      type: object
+      properties:
+        template_version:
+          type: string
+        customer_template_status:
+          type: string
+          description: CUSTOMER_TEMPLATE_UNCONFIRMED 表示客户模板仍未确认。
+        requires_customer_template_confirmation:
+          type: boolean
+        auto_write_allowed:
+          type: boolean
+        human_confirmation_required:
+          type: boolean
+    AiRealExternalIntegrationStatus:
+      type: object
+      properties:
+        integration_status:
+          type: string
+          description: REAL_EXTERNAL_INTEGRATION_PENDING 表示真实 key / webhook / 签字仍待验收。
+        deepseek_key_status:
+          type: string
+        webhook_status:
+          type: string
+        customer_signature_status:
+          type: string
+        task8_status:
+          type: string
     AiGovernanceCostTrendResponse:
       type: object
       properties:
@@ -3285,6 +3537,42 @@ components:
 security:
 - BearerAuth: []
 paths:
+  "/dashboards/phase-one-ab":
+    get:
+      tags:
+      - Dashboard
+      summary: 一期 A/B 内部看板月度趋势与客户排名
+      description: |
+        权限：CS / ADMIN / WORKER。
+        返回当前数据范围内的本地月度趋势 / 客户排名第一段聚合，用于客服和生产内部看板。
+        该接口不代表客户最终统计口径、真实支付平台、真实物流平台或真实环境验收完成；DOCTOR 禁止访问。
+      responses:
+        '200':
+          description: 一期 A/B 内部看板聚合
+          content:
+            application/json:
+              schema:
+                allOf:
+                - "$ref": "#/components/schemas/CommonResponse"
+                - type: object
+                  properties:
+                    data:
+                      "$ref": "#/components/schemas/PhaseOneAbDashboardResponse"
+        '400':
+          "$ref": "#/components/responses/BadRequest"
+        '401':
+          "$ref": "#/components/responses/Unauthorized"
+        '403':
+          "$ref": "#/components/responses/Forbidden"
+        '404':
+          "$ref": "#/components/responses/NotFound"
+        '409':
+          "$ref": "#/components/responses/Conflict"
+        default:
+          "$ref": "#/components/responses/DefaultError"
+        '503':
+          "$ref": "#/components/responses/ServiceUnavailable"
+      operationId: getPhaseOneAbDashboard
   "/patients":
     get:
       tags:
@@ -3490,7 +3778,7 @@ paths:
       tags:
       - Auth
       summary: 刷新 Access Token
-      description: 使用仍有效且未登出的 refresh token 返回新的 accessToken；第一增量不轮换 refreshToken。
+      description: 使用仍有效且未登出的 refresh token 返回新的 accessToken，并轮换 refreshToken；客户端必须替换本地保存的 refreshToken。
       security: []
       requestBody:
         required: true
@@ -3500,7 +3788,7 @@ paths:
               "$ref": "#/components/schemas/RefreshTokenRequest"
       responses:
         '200':
-          description: 刷新成功，返回新的 accessToken 和原 refreshToken
+          description: 刷新成功，返回新的 accessToken 和轮换后的 refreshToken
           content:
             application/json:
               schema:
@@ -5522,7 +5810,8 @@ paths:
       summary: 查询质量记录
       description: |
         任务 9D.87 第一增量：ADMIN / CS 查询内部质量记录。
-        当前仅覆盖 EXTERNAL_RETURN 外返质量记录，底层复用 check_record 与 rework_record；医生端禁止读取。
+        PRD V2 本地功能差异收口 B 后，当前仅覆盖 EXTERNAL_RETURN 外返质量记录，
+        列表和状态来自 quality_record 独立事实表，同时保留 check_record / rework_record 兼容证据；医生端禁止读取。
       parameters:
       - name: record_type
         in: query
@@ -5593,7 +5882,8 @@ paths:
       summary: 登记外返质量记录
       description: |
         任务 9D.87 第一增量：ADMIN / CS 登记外返质量记录。
-        创建 check_type=EXTERNAL_RETURN 的 check_record，并创建 PENDING rework_record；不接真实退货 / 投诉系统。
+        创建 quality_record 独立事实，同时保留 check_type=EXTERNAL_RETURN 的 check_record 和 PENDING rework_record；
+        不接真实退货 / 投诉系统，不代表客户最终质量口径完成。
       requestBody:
         required: true
         content:
@@ -5627,6 +5917,54 @@ paths:
         '503':
           "$ref": "#/components/responses/ServiceUnavailable"
       operationId: createExternalReturnQualityRecord
+  "/quality-records/{qualityRecordId}/status":
+    put:
+      tags:
+      - Quality
+      summary: 更新质量记录状态
+      description: |
+        PRD V2 本地功能差异收口 B：ADMIN / CS 在 quality_record 独立事实表上更新内部处理状态。
+        仅支持 PENDING / IN_PROGRESS / RESOLVED / CLOSED；医生端禁止访问。
+      parameters:
+      - name: qualityRecordId
+        in: path
+        required: true
+        schema:
+          type: integer
+          format: int64
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              "$ref": "#/components/schemas/QualityRecordStatusUpdateRequest"
+      responses:
+        '200':
+          description: 已更新质量记录状态
+          content:
+            application/json:
+              schema:
+                allOf:
+                - "$ref": "#/components/schemas/CommonResponse"
+                - type: object
+                  properties:
+                    data:
+                      "$ref": "#/components/schemas/QualityRecordResponse"
+        '400':
+          "$ref": "#/components/responses/BadRequest"
+        '401':
+          "$ref": "#/components/responses/Unauthorized"
+        '403':
+          "$ref": "#/components/responses/Forbidden"
+        '404':
+          "$ref": "#/components/responses/NotFound"
+        '409':
+          "$ref": "#/components/responses/Conflict"
+        default:
+          "$ref": "#/components/responses/DefaultError"
+        '503':
+          "$ref": "#/components/responses/ServiceUnavailable"
+      operationId: updateQualityRecordStatus
   "/production/quality/summary":
     get:
       tags:
@@ -7968,6 +8306,42 @@ paths:
         '503':
           "$ref": "#/components/responses/ServiceUnavailable"
       operationId: postAiProductionNoteConfirm
+  "/ai/governance/local-hardening":
+    get:
+      tags:
+      - AI
+      summary: AI 生产治理本地补强只读总览
+      description: |
+        权限：CS / ADMIN
+        GOAL-019 / TASK-020 第一增量：只读返回提示词版本、输出安全边界、预算 / 熔断策略、AI-3 安全矩阵、AI-5 模板确认边界和真实外部联调待完成状态。
+        本接口不返回 prompt 原文、真实 DeepSeek key、真实 webhook URL、密钥、token、模型原始响应或客户隐私数据，不代表真实 key / 生产 webhook 已联调完成。
+      responses:
+        '200':
+          description: AI 生产治理本地补强只读总览
+          content:
+            application/json:
+              schema:
+                allOf:
+                - "$ref": "#/components/schemas/CommonResponse"
+                - type: object
+                  properties:
+                    data:
+                      "$ref": "#/components/schemas/AiGovernanceLocalHardeningResponse"
+        '400':
+          "$ref": "#/components/responses/BadRequest"
+        '401':
+          "$ref": "#/components/responses/Unauthorized"
+        '403':
+          "$ref": "#/components/responses/Forbidden"
+        '404':
+          "$ref": "#/components/responses/NotFound"
+        '409':
+          "$ref": "#/components/responses/Conflict"
+        default:
+          "$ref": "#/components/responses/DefaultError"
+        '503':
+          "$ref": "#/components/responses/ServiceUnavailable"
+      operationId: getAiGovernanceLocalHardening
   "/ai/governance/cost-trend":
     get:
       tags:

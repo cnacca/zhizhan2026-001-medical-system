@@ -5,7 +5,7 @@
 ## Metadata
 
 - ID: `TASK-003`
-- Status: `planned`
+- Status: `superseded`
 - Owner: `shared`
 - Goal: `GOAL-002-scope-clarified-for.md`
 - Created: `2026-04-22`
@@ -13,20 +13,19 @@
 
 ## Why
 
-Resolve missing or low-confidence project facts before scheduling implementation work.
+Superseded. The missing scope was resolved by the 2026-07-06 confirmed baseline, and subsequent development already advanced to 9D.99.
 
 ## Scope
 
-- In scope: Resolve missing or low-confidence project facts before scheduling implementation work.
-- In scope: preserve observations that affect the active goal or later tasks
-- Out of scope: changing the goal or hard constraints without explicit human confirmation
-- Out of scope: starting unrelated implementation slices
+- In scope: preserve this file as repo-init traceability.
+- In scope: point future agents to the current baseline and active task route.
+- Out of scope: using this task as the current implementation entry.
 
 ## Acceptance Criteria
 
-- This task advances the active goal or produces a clear observation that changes the route to it.
-- Dependencies, assumptions, and validation expectations are explicit before execution begins.
-- Any replan-worthy observation is recorded in this task and the active goal.
+- Future agents can see that TASK-003 is superseded.
+- Future agents start from `STATUS.md`, `tasks/README.md`, `acceptance.json`, `goals/GOAL-003-repoframe-doc-hydration-20260707.md`, `tasks/TASK-004-repoframe-doc-hydration-20260707.md`, and `docs/acceptance/phase-one-scope-baseline-20260706.md`.
+- No implementation work is scheduled from this task.
 
 ## Dependencies
 
@@ -36,9 +35,9 @@ Resolve missing or low-confidence project facts before scheduling implementation
 
 ## Plan
 
-1. Review the source bundle and conflicts.
-2. Confirm unresolved project facts with the user.
-3. Only then schedule implementation work.
+1. Do not execute this task as a live task.
+2. Use the current next step in `STATUS.md`.
+3. If the source bundle changes, create a new task instead of reviving this one silently.
 
 ## Goal Alignment
 
@@ -56,7 +55,7 @@ Resolve missing or low-confidence project facts before scheduling implementation
 
 ## Open Questions
 
-- The project goal is still unclear. Confirm the primary outcome before implementation proceeds.
+- none for this superseded task.
 
 ## Notes
 
@@ -70,15 +69,20 @@ Update these lists whenever current execution validates or invalidates the task'
 
 ### Validated
 
-- none
+- 2026-07-06 scope baseline exists.
+- 9D.99 A/B 类一期范围对齐第一段 exists.
+- 2026-07-07 GOAL-003 / TASK-004 exists as the current RepoFrame hydration route.
 
 ### Invalidated
 
-- none
+- The project goal is not currently unclear.
+- This task is not the recommended implementation start.
+- GOAL-002 is not the active milestone goal.
 
 ### Still Open
 
-- Execution feedback from this task may change later planned tasks or create new tasks.
+- A/B 类一期范围对齐第二段 still needs a real data-closure task.
+- TASK-004 must finish documentation calibration before the next business development task starts.
 
 ## Downstream Impact
 
@@ -98,4 +102,6 @@ Record milestone-level progress here. Each entry should summarize one meaningful
 
 Do not log every file save, every tiny edit, or every formatting-only change.
 
-- `2026-04-22`: task planned during repository initialization
+- `2026-04-22`: task planned during repository initialization.
+- `2026-07-06`: superseded after confirmed scope baseline and 9D.99 first increment; retained for traceability only.
+- `2026-07-07`: confirmed superseded after GOAL-003 / TASK-004 became the active RepoFrame hydration route.

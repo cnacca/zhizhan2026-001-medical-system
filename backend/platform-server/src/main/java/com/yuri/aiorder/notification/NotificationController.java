@@ -23,7 +23,7 @@ public class NotificationController {
     }
 
     @GetMapping("/notifications")
-    @RequirePermission(roles = {UserRole.ADMIN, UserRole.CS, UserRole.WORKER, UserRole.DOCTOR})
+    @RequirePermission(value = "notification:read-self", roles = {UserRole.ADMIN, UserRole.CS, UserRole.WORKER, UserRole.DOCTOR})
     public DataResponse<List<NotificationResponse>> listNotifications(
             @RequestParam(name = "unread_only", defaultValue = "false") boolean unreadOnly,
             @RequestParam(name = "limit", defaultValue = "50") int limit,
@@ -32,13 +32,13 @@ public class NotificationController {
     }
 
     @GetMapping("/notifications/unread-count")
-    @RequirePermission(roles = {UserRole.ADMIN, UserRole.CS, UserRole.WORKER, UserRole.DOCTOR})
+    @RequirePermission(value = "notification:read-self", roles = {UserRole.ADMIN, UserRole.CS, UserRole.WORKER, UserRole.DOCTOR})
     public DataResponse<UnreadCountResponse> unreadCount(BootstrapIdentity identity) {
         return new DataResponse<>(notificationService.unreadCount(identity));
     }
 
     @PostMapping("/notifications/{notificationId}/read")
-    @RequirePermission(roles = {UserRole.ADMIN, UserRole.CS, UserRole.WORKER, UserRole.DOCTOR})
+    @RequirePermission(value = "notification:write-self", roles = {UserRole.ADMIN, UserRole.CS, UserRole.WORKER, UserRole.DOCTOR})
     public DataResponse<NotificationResponse> markRead(
             @PathVariable long notificationId,
             BootstrapIdentity identity) {
@@ -46,7 +46,7 @@ public class NotificationController {
     }
 
     @PostMapping("/notifications/read-all")
-    @RequirePermission(roles = {UserRole.ADMIN, UserRole.CS, UserRole.WORKER, UserRole.DOCTOR})
+    @RequirePermission(value = "notification:write-self", roles = {UserRole.ADMIN, UserRole.CS, UserRole.WORKER, UserRole.DOCTOR})
     public DataResponse<MarkAllReadResponse> markAllRead(BootstrapIdentity identity) {
         return new DataResponse<>(notificationService.markAllRead(identity));
     }

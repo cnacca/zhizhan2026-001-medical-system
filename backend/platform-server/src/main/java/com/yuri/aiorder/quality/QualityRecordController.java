@@ -7,7 +7,9 @@ import com.yuri.aiorder.common.auth.RequirePermission;
 import com.yuri.aiorder.order.api.OrderProjectionQueryService.OrderListResponse;
 import org.springframework.web.bind.annotation.CrossOrigin;
 import org.springframework.web.bind.annotation.GetMapping;
+import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
+import org.springframework.web.bind.annotation.PutMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
@@ -42,5 +44,14 @@ public class QualityRecordController {
             BootstrapIdentity identity,
             @RequestBody ExternalReturnQualityRecordRequest request) {
         return new DataResponse<>(qualityRecordService.createExternalReturn(identity, request));
+    }
+
+    @PutMapping("/quality-records/{qualityRecordId}/status")
+    @RequirePermission(value = {"check:write", "message:manage"}, roles = {UserRole.ADMIN, UserRole.CS})
+    public DataResponse<QualityRecordResponse> updateQualityRecordStatus(
+            BootstrapIdentity identity,
+            @PathVariable long qualityRecordId,
+            @RequestBody QualityRecordStatusUpdateRequest request) {
+        return new DataResponse<>(qualityRecordService.updateStatus(identity, qualityRecordId, request));
     }
 }

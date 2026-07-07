@@ -18,14 +18,15 @@ const requireText = (file, fragments) => {
 }
 
 requireText('docs/acceptance/phase-one-production-support-closure-plan.md', [
-  '9D.95 设备 / 物料 / 安环 / 成本 / 奖惩一期闭环拆解第一增量',
-  '当前 9D.50-9D.54 只读汇总只是第一增量',
+  '9D.95 设备 / 物料 / 安环 / 成本 / 奖惩基础台账拆解记录',
+  '2026-07-06 范围基准更新',
+  '历史拆解与基础能力索引',
   '设备管理',
   '物料异常',
   '安环管理',
   '成本管理',
   '奖惩管理',
-  '推荐实现顺序',
+  '历史实现顺序',
   '9D.95.1 设备台账 / 设备事件录入第一增量',
   '9D.95.2 物料异常登记 / 处理状态第一增量',
   '9D.95.3 安环巡检 / 隐患整改第一增量',
@@ -34,37 +35,39 @@ requireText('docs/acceptance/phase-one-production-support-closure-plan.md', [
   '不接 IoT',
   '不接真实财务系统',
   '不作为工资发放结果',
+  '不继续把 C 类完整管理闭环列为一期本地必做',
   'Task 8 仍保持 NOT_READY',
 ])
 
 requireText('docs/acceptance/prd-v2-gap-matrix.md', [
-  '9D.95 设备 / 物料 / 安环 / 成本 / 奖惩一期闭环拆解第一增量',
+  '9D.95 设备 / 物料 / 安环 / 成本 / 奖惩基础台账拆解记录',
   'docs/acceptance/phase-one-production-support-closure-plan.md',
 ])
 
 requireText('docs/acceptance/task-8-acceptance-matrix.md', [
-  '9D.95 设备 / 物料 / 安环 / 成本 / 奖惩一期闭环拆解第一增量',
+  '9D.95 设备 / 物料 / 安环 / 成本 / 奖惩基础台账拆解记录',
 ])
 
 requireText('docs/deployment/readiness-checklist.md', [
-  '9D.95 设备 / 物料 / 安环 / 成本 / 奖惩一期闭环拆解第一增量',
+  '9D.95 设备 / 物料 / 安环 / 成本 / 奖惩基础台账拆解记录',
 ])
 
 requireText('docs/deployment/task-8-final-readiness-report.md', [
-  '9D.95 设备 / 物料 / 安环 / 成本 / 奖惩一期闭环拆解第一增量',
+  '9D.95 设备 / 物料 / 安环 / 成本 / 奖惩基础台账拆解记录',
 ])
 
 requireText('STATUS.md', [
-  '9D.95 设备 / 物料 / 安环 / 成本 / 奖惩一期闭环拆解第一增量',
+  '9D.95 设备 / 物料 / 安环 / 成本 / 奖惩拆解第一增量',
+  '历史拆解记录和已完成基础能力索引',
   '9D.95.4 成本记录维护 / 趋势口径第一增量',
 ])
 
 requireText('DECISIONS.md', [
-  'D-080 任务 9D.95 设备 / 物料 / 安环 / 成本 / 奖惩一期闭环拆解第一增量',
+  '2026-07-06 一期范围内部确认基准',
 ])
 
 requireText('tasks/README.md', [
-  '任务 9D.95：设备 / 物料 / 安环 / 成本 / 奖惩一期闭环拆解第一增量',
+  '设备 / 物料 / 安环 / 成本 / 奖惩不再作为一期完整闭环缺口',
 ])
 
 requireText('README.md', [

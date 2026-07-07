@@ -14,7 +14,23 @@ export default defineConfig({
         target: 'http://localhost:8080',
         changeOrigin: true
       },
+      '/dashboards': {
+        target: 'http://localhost:8080',
+        changeOrigin: true
+      },
+      '/messages': {
+        target: 'http://localhost:8080',
+        changeOrigin: true
+      },
+      '/logistics': {
+        target: 'http://localhost:8080',
+        changeOrigin: true
+      },
       '/clinics': {
+        target: 'http://localhost:8080',
+        changeOrigin: true
+      },
+      '/patients': {
         target: 'http://localhost:8080',
         changeOrigin: true
       },

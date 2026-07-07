@@ -8,6 +8,17 @@
 
 ## 当前依据
 
+- 2026-07-07 部署 / 运维本地补强：当前 active goal 为 `GOAL-020`，active task 为 `TASK-021`；本轮新增 `check:deployment-ops-local-hardening` 和 `dry-run:phase-one-release-rollback`，统一校验 GOAL-020 / TASK-021、本地 release / rollback dry-run、备份 / 恢复 dry-run 模板第一段、日志留存 / 监控告警配置模板第一段、compose / env / Nginx / healthcheck 静态检查、9D.81 模板联动和禁止伪造 READY 边界。该阶段只做本地可开发补强，不代表真实服务器、HTTPS、备份恢复、日志留存、监控告警、发布回滚演练、正式客户培训签收、客户签字或真实环境验收完成。`deployment-infrastructure` 和 `operations-manuals` 仍保持 `PARTIAL`，Task 8 仍保持 `NOT_READY`。
+- 2026-07-07 AI 生产治理本地补强：当前 active goal 为 `GOAL-019`，active task 为 `TASK-020`；本轮新增 `check:ai-production-governance-local-hardening`，统一校验 GOAL-019 / TASK-020、本地只读治理接口、管理端 AI 治理页、OpenAPI、AI-3 安全矩阵、文档回写和禁止伪造 READY 边界。该阶段只做本地可开发补强：提示词版本只读目录、输出安全边界、预算 / 熔断策略展示、AI-3 安全矩阵、AI-5 默认模板未确认提示和真实 key / webhook 待验状态。真实 DeepSeek key、真实 webhook、客户正式 AI-5 模板、客户签字和真实环境验收仍未完成，Task 8 仍保持 `NOT_READY`。
+- 2026-07-07 本地 12 步主链路验收增强：当前 active goal 为 `GOAL-018`，active task 为 `TASK-019`；本轮新增 `check:local-main-chain-acceptance-hardening`，统一校验 GOAL-018 / TASK-019、`smoke:task9d62` 角色边界增强、客户验收记录、Task 8 readiness 边界和禁止伪造 READY 边界。该阶段只补本地固定演示数据验收增强：医生端脱敏、客服端可见性、生产端任务范围、管理端派工 / 转派断言和客户可读证据回写。真实支付 / 物流 / 签章 / key / webhook / 客户签字 / 真实环境验收仍未完成，Task 8 仍保持 `NOT_READY`。
+- 2026-07-07 四端前端产品化体验收口：当前 active goal 为 `GOAL-017`，active task 为 `TASK-018`；本轮新增 `check:frontend-productization-closure`，统一校验 GOAL-017 / TASK-018、四端本地产品化入口、统一前端状态表面、`frontend-business-pages` readiness 边界和禁止伪造 READY 边界。该阶段只补本地可开发的前端体验收口：医生端继续保持订单中心八大模块，客服设计稿 / 账单入口复用已有订单详情与配送账单链路，生产 C 类入口升级为本地第一增量汇总 / 表单，管理端补账号 / 角色 / 权限清单入口。`frontend-business-pages` 仍为 `PARTIAL`，不恢复医生文件独立模块，不扩大 C 类为完整闭环，真实支付 / 物流 / 签章 / key / webhook / 客户签字 / 真实环境验收仍未完成，Task 8 仍保持 `NOT_READY`。
+- 2026-07-07 权限 / DataScope 生产化补强 B：当前 active goal 为 `GOAL-016`，active task 为 `TASK-017`；本轮新增 `check:auth-datascope-prod-closure-b`，统一校验 GOAL-016 / TASK-017、refresh token 轮换目标测试、后端轮换实现、OpenAPI 语义、入口文档和禁止伪造 READY 边界。该阶段已完成本地 refresh token 轮换补强，但 `auth-datascope-prod` 仍为 `PARTIAL`，完整 Spring Security/JWT、完整 RuoYi DataScope、通用 SQL DataScope、access token 黑名单、多设备会话策略和真实环境验收仍未完成，Task 8 仍保持 `NOT_READY`。
+- 2026-07-07 操作手册 / 回滚 / 培训材料本地收口：当前 active goal 为 `GOAL-015`，active task 为 `TASK-016`；本轮新增 `check:operations-rollback-training-closure`，统一校验 GOAL-015 / TASK-016、操作手册、故障处理清单、发布回滚手册本地模板、培训材料 / 签收模板、交付材料索引、`operations-manuals` readiness 边界和禁止伪造 READY 边界。该阶段已完成本地收口，但 `operations-manuals` 仍为 `PARTIAL`，真实发布回滚演练、备份恢复演练、日志留存、监控告警、正式客户培训签收、客户 / PM 签字和真实环境验收仍未完成，Task 8 仍保持 `NOT_READY`。
+- 2026-07-07 WebSocket / 通知生产 readiness 收口：当前 active goal 为 `GOAL-014`，active task 为 `TASK-015`；本轮新增 `check:websocket-notification-readiness-closure`，统一校验 WebSocket / 通知生产 readiness 收口、真实环境验收记录模板、9D.76 通知网关证据、RepoFrame 指针和禁止伪造 READY 边界。该阶段已完成本地收口，但 `websocket-notification-prod` 仍为 `PARTIAL`，真实双实例 Redis、Nginx HTTPS、生产 webhook、监控告警、客户 / PM 签字和真实环境验收仍未完成，Task 8 仍保持 `NOT_READY`。
+- 2026-07-07 四端业务页面与客户验收 smoke 收口：当前 active goal 为 `GOAL-013`，active task 为 `TASK-014`；本轮新增 `check:frontend-customer-smoke-closure`，统一校验四端业务页面证据、12 步 smoke、客户验收版 PASS/FAIL 文档、操作手册、RepoFrame 指针和禁止伪造 READY 边界。`frontend-business-pages` 仍为 `PARTIAL`，`customer-pm-confirmations` 仍为 `BLOCKED`，Task 8 仍保持 `NOT_READY`。
+- 2026-07-07 权限 / DataScope 生产化收口第一段：当前 active goal 为 `GOAL-012`，active task 为 `TASK-013`；本轮补严格权限模式目标测试、roles-only 权限注解清零、V36 权限码种子和 `check:auth-datascope-prod-closure`。Task 8 仍保持 `NOT_READY`。
+- 2026-07-07 客户 / PM 确认项与真实环境 AI 验收收口：`GOAL-011` / `TASK-012` 已完成为外部确认闸门；真实 key、webhook、客户签字和真实环境验收仍未完成。
+- 2026-07-07 RepoFrame hydration 校准：`GOAL-003` / `TASK-004` 已完成，只作为历史校准证据保留；当前不重新初始化项目，不改变一期业务范围。
 - 2026-07 最新 PRD V2.0 / 2026-07-04：最新一期产品范围边界；源文件名仍含 `PRD_V1.0`，正文末尾存在 `V1.1` 字样，后续以正文版本 `V2.0` 为准，差异基线见 `docs/acceptance/prd-v2-gap-matrix.md`。
 - 2026-07 新版 TRD V1.0.1：最新技术执行口径。
 - 2026-07 新版 API 规范：最新业务接口口径，不直接覆盖仓库当前稳定契约。
@@ -26,7 +37,7 @@
 - 账号、登录、JWT / Refresh Token、RBAC 权限。
 - 医生端在线下单、动态表单、草稿/补资料、文件上传、订单列表/详情、外部进度、设计稿确认、基础患者管理、基础支付流水 / 账单查看、账户设置、线上沟通、通知中心、AI 订单助手。
 - 客服端订单初审、AI 翻译、资料缺失检查、客户档案与偏好、产品参数 / 价格体系维护、订单消息审核、设计稿审核、账单 / 人工支付流水、物流录入 / 异常跟进、客服查询助手；外协管理为一期选做，需 PM 确认是否纳入硬交付。
-- 生产端数据审核、工序任务池、入检、出检、返工、工时、绩效、终检、人员档案 / 工作量看板、专项质量管理；设备 / 物料 / 安环 / 成本 / 奖惩属于一期开发功能。
+- 生产端数据审核、工序任务池、入检、出检、返工、工时、绩效、终检、人员档案 / 工作量看板、专项质量管理；设备 / 物料 / 安环 / 成本 / 奖惩按 2026-07-06 基准只保留 C 类入口、基础台账、基础登记、状态更新或架构预留。
 - 管理端 9 条工序链只读查看、订单工序实例查看、派工、转派、审计。
 - 5 个 AI 智能体：翻译助手、客服查询助手、客户订单助手、资料缺失助手、生产备注助手。
 - MinIO 私有桶、短时效签名 URL、WebSocket 通知、Docker 部署。
@@ -51,7 +62,7 @@
 ## 关键技术边界
 
 - 订单必须维护 `internal_status` 和 `external_status` 两套状态。
-- 登录当前采用短时效 HMAC Bearer access token + 可吊销 refresh token 第一增量；refresh token 只保存 hash，logout 吊销 refresh token，后续仍需确认 refresh token 轮换、access token 黑名单或完整 Spring Security/JWT 策略。
+- 登录当前采用短时效 HMAC Bearer access token + 可吊销并轮换的 refresh token；refresh token 只保存 hash，refresh 成功后旧 refresh token 立即吊销并返回新 refresh token，logout 吊销当前 refresh token。后续仍需确认 access token 黑名单、多设备会话策略或完整 Spring Security/JWT 策略。
 - 医生端只能使用 `external_status`。
 - 状态更新必须统一封装在 `OrderStatusService`。
 - 所有内部状态和工序节点状态变化后，由 `OrderStatusProjector` 统一刷新 `external_status` 与 `order_external_projection`。
@@ -90,8 +101,7 @@
 
 ## 下一阶段优先级
 
-1. 设备 / 物料 / 安环 / 成本 / 奖惩一期闭环拆解第一增量：把 9D.50-9D.54 只读汇总推进为可连续开发的录入、编辑、处理状态、趋势和验收队列。
-2. 设备台账 / 设备事件录入第一增量：优先复用 9D.50 设备基础表，补内部创建与医生端隔离。
-3. 物料异常登记 / 处理状态第一增量：复用 9D.51 物料异常基础表，补异常登记和处理状态。
-4. 医生提交前 AI-4 资料缺失自动触发体验：只做前端触发与人工确认，不接新外部服务。
-5. AI-2 客服查询引用数据说明 / 知识上下文补强：保持只读草稿和人工确认边界。
+1. 完成 RepoFrame 文档校准与验收入口收口：GOAL-003 / TASK-004。
+2. 另起 RepoFrame task 继续 A/B 类一期范围对齐第二段：客服统计、生产统计、内返 / 外返和账单 / 物流人工状态的数据闭环。
+3. 真实客户 / PM 确认项与真实环境 AI 验收：只在真实模板、真实 key、生产 webhook、真实环境和签字具备后关闭。
+4. 部署 / 通知 / 文件真实环境验收：继续保持测试环境与正式环境隔离，不提交真实密钥。

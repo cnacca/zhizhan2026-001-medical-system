@@ -15,14 +15,15 @@ const checks = [
     '人员管理',
     '专项质量管理',
     '设备 / 物料 / 安环 / 成本 / 奖惩',
-    '设备 / 物料 / 安环 / 成本 / 奖惩属于一期开发功能',
+    '2026-07-06 内部确认基准',
+    'PARTIAL / C_BASELINE',
     'LangChain + DeepSeek',
     '所有 AI 智能体使用 LangChain + DeepSeek 实现',
     'AI-5 生产备注',
     'patient',
     'quality_record',
     'Task 8 仍保持 `in-progress / NOT_READY`',
-    '患者管理基础版第一增量',
+    'A/B 类一期范围对齐第一段',
     '9D.93.1 PRD V2 范围纠偏记录',
     '医生文件模块不属于项目需求范围，不开发'
   ]],
@@ -34,25 +35,27 @@ const checks = [
     '客户档案与偏好',
     '人员档案',
     '专项质量管理',
-    '设备 / 物料 / 安环 / 成本 / 奖惩属于一期开发功能',
+    '2026-07-06 基准',
+    'C 类入口、基础台账、基础登记、状态更新或架构预留',
     '所有 AI 智能体使用 LangChain + DeepSeek 实现'
   ]],
   ['STATUS.md', [
     '9D.82 最新 PRD V2.0 差异对齐矩阵第一段',
     'docs/acceptance/prd-v2-gap-matrix.md',
     '9D.93.1 PRD V2 范围纠偏第一闭环',
-    '下一步唯一推荐目标：9D.95.4 成本记录维护 / 趋势口径第一增量'
+    '9D.100 A/B 类一期范围对齐第二段已完成',
+    'PRD V2 本地功能差异收口 A'
   ]],
   ['DECISIONS.md', [
     'D-133 任务 9D.82 最新 PRD V2.0 差异对齐矩阵第一段',
     'PRD V2.0 / 2026-07-04',
-    '设备 / 物料 / 安环 / 成本 / 奖惩属于一期开发功能',
+    '2026-07-06 一期范围内部确认基准',
     '所有 AI 智能体使用 LangChain + DeepSeek'
   ]],
   ['tasks/README.md', [
     '任务 9D.82：最新 PRD V2.0 差异对齐矩阵第一段',
     'docs/acceptance/prd-v2-gap-matrix.md',
-    '患者管理基础版第一增量'
+    '2026-07-06 接手基准已确认'
   ]],
   ['README.md', [
     'docs/acceptance/prd-v2-gap-matrix.md',
@@ -71,9 +74,10 @@ const checks = [
     'docs/acceptance/prd-v2-gap-matrix.md'
   ]],
   ['acceptance.json', [
-    'task-9d82-prd-v2-gap-matrix-required-text',
+    'GOAL-007',
     'prd-v2-gap-matrix.md',
-    'check:task9d82'
+    'check:task9d82',
+    'check:prd-v2-gap-closure-a'
   ]],
   ['package.json', [
     'check:task9d82'
