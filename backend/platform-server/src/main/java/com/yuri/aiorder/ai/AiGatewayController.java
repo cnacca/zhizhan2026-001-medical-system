@@ -54,7 +54,10 @@ public class AiGatewayController {
             BootstrapIdentity identity) {
         AiGatewayService.CsQueryResult result =
                 aiGatewayService.csQuery(request.orderId(), request.question(), identity);
-        return new DataResponse<>(new QueryResponse(result.answer(), result.referenceDataNotes()));
+        return new DataResponse<>(new QueryResponse(
+                result.answer(),
+                result.referenceDataNotes(),
+                result.attachmentContexts()));
     }
 
     @PostMapping("/ai/production-note")
@@ -92,6 +95,12 @@ public class AiGatewayController {
     @RequirePermission(value = "ai:cs", roles = {UserRole.ADMIN, UserRole.CS})
     public DataResponse<AiGovernanceSummaryResponse> governanceSummary(BootstrapIdentity identity) {
         return new DataResponse<>(aiGatewayService.governanceSummary(identity));
+    }
+
+    @GetMapping("/ai/governance/local-hardening")
+    @RequirePermission(value = "ai:cs", roles = {UserRole.ADMIN, UserRole.CS})
+    public DataResponse<AiGovernanceLocalHardeningResponse> governanceLocalHardening(BootstrapIdentity identity) {
+        return new DataResponse<>(aiGatewayService.governanceLocalHardening(identity));
     }
 
     @GetMapping("/ai/governance/cost-trend")
@@ -157,7 +166,8 @@ public class AiGatewayController {
 
     public record QueryResponse(
             String answer,
-            @JsonProperty("reference_data_notes") java.util.List<String> referenceDataNotes) {
+            @JsonProperty("reference_data_notes") java.util.List<String> referenceDataNotes,
+            @JsonProperty("attachment_contexts") java.util.List<AiGatewayService.CsAttachmentContext> attachmentContexts) {
     }
 
     public record ProductionNoteConfirmRequest(

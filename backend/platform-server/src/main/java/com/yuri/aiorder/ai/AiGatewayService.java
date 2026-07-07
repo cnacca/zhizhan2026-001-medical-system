@@ -1,11 +1,14 @@
 package com.yuri.aiorder.ai;
 
+import com.fasterxml.jackson.annotation.JsonProperty;
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.yuri.aiorder.common.BootstrapIdentity;
 import com.yuri.aiorder.common.UserRole;
 import com.yuri.aiorder.common.auth.AccessControlService;
+import com.yuri.aiorder.file.api.FileResourceService;
+import com.yuri.aiorder.file.api.FileSignedUrlResponse;
 import com.yuri.aiorder.notification.NotificationPushService;
 import com.yuri.aiorder.order.api.DoctorOrderAssistantReadModel;
 import com.yuri.aiorder.order.api.OrderProjectionQueryService;
@@ -53,6 +56,10 @@ public class AiGatewayService {
     private static final String BUDGET_MODEL_CIRCUIT_OPEN_STATUS = "AI_BUDGET_MODEL_CIRCUIT_OPEN";
     private static final String OUTPUT_GUARD_MODEL_NAME = "ai-governance-output-guard";
     private static final String OUTPUT_GUARD_STATUS = "AI_OUTPUT_GUARDED";
+    private static final String GUARDED_STREAMING_NOT_ENABLED = "GUARDED_STREAMING_NOT_ENABLED";
+    private static final String CUSTOMER_TEMPLATE_UNCONFIRMED = "CUSTOMER_TEMPLATE_UNCONFIRMED";
+    private static final String REAL_EXTERNAL_INTEGRATION_PENDING = "REAL_EXTERNAL_INTEGRATION_PENDING";
+    private static final String AI3_DOCTOR_INTERNAL_SAFETY_MATRIX = "AI3_DOCTOR_INTERNAL_SAFETY_MATRIX";
     private static final String EXTERNAL_ALERT_CHANNEL = "EXTERNAL_ALERT";
     private static final String EXTERNAL_ALERT_PENDING_STATUS = "PENDING";
     private static final String EXTERNAL_ALERT_SENDING_STATUS = "SENDING";
@@ -83,6 +90,7 @@ public class AiGatewayService {
     private final ObjectMapper objectMapper;
     private final OrderProjectionQueryService orderProjectionQueryService;
     private final AccessControlService accessControlService;
+    private final FileResourceService fileResourceService;
     private final AiModelClient aiModelClient;
     private final AiGatewayProperties properties;
     private final NotificationPushService notificationPushService;
@@ -93,6 +101,7 @@ public class AiGatewayService {
             ObjectMapper objectMapper,
             OrderProjectionQueryService orderProjectionQueryService,
             AccessControlService accessControlService,
+            FileResourceService fileResourceService,
             AiModelClient aiModelClient,
             AiGatewayProperties properties,
             NotificationPushService notificationPushService,
@@ -101,6 +110,7 @@ public class AiGatewayService {
         this.objectMapper = objectMapper;
         this.orderProjectionQueryService = orderProjectionQueryService;
         this.accessControlService = accessControlService;
+        this.fileResourceService = fileResourceService;
         this.aiModelClient = aiModelClient;
         this.properties = properties;
         this.notificationPushService = notificationPushService;
@@ -135,7 +145,11 @@ public class AiGatewayService {
         accessControlService.requireAnyRole(identity, CS_AND_ADMIN, "AI-2 is CS/ADMIN only");
         OrderAiContext context = loadOrderContext(orderId, identity, "identity cannot access this order");
         List<String> referenceDataNotes = buildCsReferenceDataNotes(context);
+        List<CsAttachmentContext> attachmentContexts = buildCsAttachmentContexts(context.orderId(), identity);
         String referenceDataText = String.join("\n", referenceDataNotes);
+        String attachmentContextText = attachmentContexts.isEmpty()
+                ? "消息附件预览：当前未聚合到可预览附件。"
+                : "消息附件预览：\n" + attachmentContextText(attachmentContexts);
         enforceAiRateLimit(orderId, identity, "AI_CS_QUERY", "INTERNAL_ORDER_SUMMARY", question);
         AiModelResult answer = completeWithModel(
                 "你是牙科工厂客服查询助手。可以辅助客服理解内部订单摘要，但输出必须提示人工确认。",
@@ -145,6 +159,7 @@ public class AiGatewayService {
                         + "\n外部状态：" + context.externalStatus()
                         + "\n生产备注：" + nullToBlank(context.productionNote())
                         + "\n引用数据说明：\n" + referenceDataText
+                        + "\n" + attachmentContextText
                         + "\n客服问题：" + question,
                 () -> deterministic("客服查询草稿：订单"
                         + context.orderNo()
@@ -153,6 +168,9 @@ public class AiGatewayService {
                         + "，外部状态为"
                         + context.externalStatus()
                         + "。引用数据包括：" + String.join("；", referenceDataNotes)
+                        + (attachmentContexts.isEmpty()
+                                ? ""
+                                : "。消息附件预览已聚合 " + attachmentContexts.size() + " 个，需客服人工复核")
                         + "。对外发送前需人工确认。"),
                 orderId,
                 identity,
@@ -160,7 +178,7 @@ public class AiGatewayService {
                 "INTERNAL_ORDER_SUMMARY",
                 question);
         audit(orderId, identity, "AI_CS_QUERY", "INTERNAL_ORDER_SUMMARY", question, "SUCCESS", answer);
-        return new CsQueryResult(answer.content(), referenceDataNotes);
+        return new CsQueryResult(answer.content(), referenceDataNotes, attachmentContexts);
     }
 
     @Transactional
@@ -314,6 +332,44 @@ public class AiGatewayService {
                         rs.getObject("latest_model_failure_at", LocalDateTime.class),
                         rs.getObject("latest_budget_alert_at", LocalDateTime.class)))
                 .single();
+    }
+
+    @Transactional(readOnly = true)
+    public AiGovernanceLocalHardeningResponse governanceLocalHardening(BootstrapIdentity identity) {
+        accessControlService.requireAnyRole(identity, CS_AND_ADMIN, "AI governance local hardening is CS/ADMIN only");
+        return new AiGovernanceLocalHardeningResponse(
+                "GOAL-019",
+                "TASK-020",
+                promptVersionCatalog(),
+                new AiGovernanceLocalHardeningResponse.OutputSafetyBoundary(
+                        OUTPUT_GUARD_STATUS,
+                        OUTPUT_GUARD_MODEL_NAME,
+                        GUARDED_STREAMING_NOT_ENABLED,
+                        OUTPUT_GUARD_PATTERNS.size(),
+                        false,
+                        true),
+                new AiGovernanceLocalHardeningResponse.BudgetCircuitBreakerPolicy(
+                        Math.max(0, properties.getDailyBudgetMicrousd()),
+                        Math.max(0, properties.getAdminDailyBudgetMicrousd()),
+                        Math.max(0, properties.getCsDailyBudgetMicrousd()),
+                        Math.max(0, properties.getDoctorDailyBudgetMicrousd()),
+                        Math.max(0, properties.getWorkerDailyBudgetMicrousd()),
+                        Math.max(0, properties.getDeepseek().getDailyBudgetMicrousd()),
+                        properties.isBudgetNotificationEnabled(),
+                        properties.isBudgetCircuitBreakerEnabled()),
+                ai3SafetyMatrix(),
+                new AiGovernanceLocalHardeningResponse.Ai5TemplateBoundary(
+                        PRODUCTION_NOTE_TEMPLATE_VERSION,
+                        CUSTOMER_TEMPLATE_UNCONFIRMED,
+                        true,
+                        false,
+                        true),
+                new AiGovernanceLocalHardeningResponse.RealExternalIntegrationStatus(
+                        REAL_EXTERNAL_INTEGRATION_PENDING,
+                        "PENDING_EXTERNAL_KEY",
+                        "PENDING_PRODUCTION_WEBHOOK",
+                        "PENDING_CUSTOMER_PM_SIGNATURE",
+                        "NOT_READY"));
     }
 
     @Transactional(readOnly = true)
@@ -709,6 +765,46 @@ public class AiGatewayService {
         return new AiModelResult(content, DETERMINISTIC_MODEL_NAME, estimateTokenCount(content), null);
     }
 
+    private List<AiGovernanceLocalHardeningResponse.PromptTemplate> promptVersionCatalog() {
+        return List.of(
+                promptTemplate("AI_TRANSLATE", "ORDER_TRANSLATION_DRAFT", "CS", true),
+                promptTemplate("AI_CS_QUERY", "INTERNAL_ORDER_SUMMARY", "CS", true),
+                promptTemplate("AI_DOCTOR_ORDER_QUERY", "DOCTOR_ORDER_ASSISTANT_READ_MODEL", "DOCTOR", false),
+                promptTemplate("AI_CHECK_MISSING", "ORDER_FORM_REQUIRED_FIELDS", "DOCTOR/CS", false),
+                promptTemplate("AI_PRODUCTION_NOTE", "PRODUCTION_NOTE_DRAFT", "CS/WORKER", true));
+    }
+
+    private AiGovernanceLocalHardeningResponse.PromptTemplate promptTemplate(
+            String agentCode,
+            String contextType,
+            String ownerRole,
+            boolean humanConfirmationRequired) {
+        return new AiGovernanceLocalHardeningResponse.PromptTemplate(
+                agentCode,
+                promptVersionFor(agentCode),
+                contextType,
+                ownerRole,
+                "LOCAL_CODE_VERSIONED",
+                false,
+                humanConfirmationRequired);
+    }
+
+    private List<AiGovernanceLocalHardeningResponse.Ai3SafetyCase> ai3SafetyMatrix() {
+        return List.of(
+                new AiGovernanceLocalHardeningResponse.Ai3SafetyCase(
+                        AI3_DOCTOR_INTERNAL_SAFETY_MATRIX,
+                        "内部工序 / 员工 / 返工 / 工时 / 绩效",
+                        "SAFE_REFUSAL",
+                        "DoctorOrderAssistantReadModel",
+                        List.of("internal_status", "process_name", "assigned_username", "work_log", "performance", "rework")),
+                new AiGovernanceLocalHardeningResponse.Ai3SafetyCase(
+                        "AI3_DOCTOR_PUBLIC_STATUS_ONLY",
+                        "公开进度 / 账单 / 物流 / 医生可见消息",
+                        "SUCCESS_OR_SAFE_REFUSAL",
+                        "DoctorOrderAssistantReadModel",
+                        List.of("production_note", "check_record", "node_instance_id", "employee_name")));
+    }
+
     private void enforceAiRateLimit(
             long orderId,
             BootstrapIdentity identity,
@@ -805,6 +901,7 @@ public class AiGatewayService {
         notes.add("生产上下文：orders.internal_status 与 production_note，仅供客服内部理解，不自动写入生产备注");
         notes.add(messageReferenceNote(context.orderId()));
         notes.add(fileReferenceNote(context.orderId()));
+        notes.add(attachmentPreviewReferenceNote(context.orderId()));
         notes.add(billReferenceNote(context.orderId()));
         notes.add(logisticsReferenceNote(context.orderId()));
         return notes;
@@ -917,6 +1014,76 @@ public class AiGatewayService {
                         + rs.getString("status"))
                 .list();
         return "附件：file_resource 共 " + count + " 个，最近类型 " + String.join("、", samples);
+    }
+
+    private String attachmentPreviewReferenceNote(long orderId) {
+        Long count = jdbcClient.sql("""
+                        SELECT COUNT(*)
+                        FROM file_resource
+                        WHERE order_id = :orderId
+                          AND source_type = 'MESSAGE_ATTACHMENT'
+                          AND status = 'ACTIVE'
+                          AND upload_status = 'COMPLETED'
+                        """)
+                .param("orderId", orderId)
+                .query(Long.class)
+                .single();
+        if (count == null || count == 0) {
+            return "消息附件预览：未找到可预览的已完成附件";
+        }
+        return "消息附件预览：file_resource 已聚合 " + Math.min(count, 5)
+                + " 个短时效预览上下文，仅供客服人工复核";
+    }
+
+    private List<CsAttachmentContext> buildCsAttachmentContexts(long orderId, BootstrapIdentity identity) {
+        List<FileContextRow> files = jdbcClient.sql("""
+                        SELECT file_id, source_type, visibility, original_filename, content_type, file_size
+                        FROM file_resource
+                        WHERE order_id = :orderId
+                          AND source_type = 'MESSAGE_ATTACHMENT'
+                          AND status = 'ACTIVE'
+                          AND upload_status = 'COMPLETED'
+                        ORDER BY created_at DESC, file_id DESC
+                        LIMIT 5
+                        """)
+                .param("orderId", orderId)
+                .query((rs, rowNum) -> new FileContextRow(
+                        rs.getLong("file_id"),
+                        rs.getString("source_type"),
+                        rs.getString("visibility"),
+                        rs.getString("original_filename"),
+                        rs.getString("content_type"),
+                        rs.getObject("file_size", Long.class)))
+                .list();
+        List<CsAttachmentContext> contexts = new ArrayList<>();
+        for (FileContextRow file : files) {
+            FileSignedUrlResponse signedUrl = fileResourceService.createPreviewUrl(file.fileId(), identity);
+            contexts.add(new CsAttachmentContext(
+                    file.fileId(),
+                    file.sourceType(),
+                    file.visibility(),
+                    file.originalFilename(),
+                    file.contentType(),
+                    file.fileSize(),
+                    signedUrl.previewUrl(),
+                    signedUrl.expiresInSeconds(),
+                    "AI-2 附件预览上下文，仅供客服人工复核，不会自动发送给医生或写入订单。"));
+        }
+        return contexts;
+    }
+
+    private String attachmentContextText(List<CsAttachmentContext> attachmentContexts) {
+        return attachmentContexts.stream()
+                .map(context -> "- file_id="
+                        + context.fileId()
+                        + "，source_type="
+                        + context.sourceType()
+                        + "，filename="
+                        + context.originalFilename()
+                        + "，content_type="
+                        + nullToBlank(context.contentType()))
+                .reduce((left, right) -> left + "\n" + right)
+                .orElse("");
     }
 
     private String billReferenceNote(long orderId) {
@@ -1366,7 +1533,22 @@ public class AiGatewayService {
         return Math.max(1, value.trim().length() / 2);
     }
 
-    public record CsQueryResult(String answer, List<String> referenceDataNotes) {
+    public record CsQueryResult(
+            String answer,
+            List<String> referenceDataNotes,
+            List<CsAttachmentContext> attachmentContexts) {
+    }
+
+    public record CsAttachmentContext(
+            @JsonProperty("file_id") long fileId,
+            @JsonProperty("source_type") String sourceType,
+            String visibility,
+            @JsonProperty("original_filename") String originalFilename,
+            @JsonProperty("content_type") String contentType,
+            @JsonProperty("file_size") Long fileSize,
+            @JsonProperty("preview_url") String previewUrl,
+            @JsonProperty("expires_in_seconds") int expiresInSeconds,
+            @JsonProperty("review_note") String reviewNote) {
     }
 
     public record ProductionNoteDraftResult(
@@ -1395,6 +1577,15 @@ public class AiGatewayService {
     }
 
     private record RequiredField(String fieldKey, String fieldLabel) {
+    }
+
+    private record FileContextRow(
+            long fileId,
+            String sourceType,
+            String visibility,
+            String originalFilename,
+            String contentType,
+            Long fileSize) {
     }
 
     private record AiBudgetNotificationPayload(

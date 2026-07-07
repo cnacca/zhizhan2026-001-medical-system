@@ -285,6 +285,42 @@ type DeliveryOrderItem = {
   last_follow_up_note: string | null
 }
 
+type PhaseOneAbDashboardSource = 'reused-api' | 'partial' | 'blocked'
+
+type PhaseOneAbCustomerRanking = {
+  clinicId?: number
+  clinicName: string
+  orderCount: number
+  itemCount?: number
+}
+
+type PhaseOneAbMonthSummary = {
+  month: string
+  order_count: number
+  item_count: number
+}
+
+type PhaseOneAbDashboardCustomerRanking = {
+  clinic_id: number
+  clinic_name: string
+  order_count: number
+  item_count: number
+}
+
+type PhaseOneAbDashboardResponse = {
+  current_month: PhaseOneAbMonthSummary
+  previous_month: PhaseOneAbMonthSummary
+  monthly_order_delta: number
+  monthly_item_delta: number
+  top_customers: PhaseOneAbDashboardCustomerRanking[]
+  production_exception_count: number
+  pending_question_count: number
+  shipping_rate: number
+  completion_rate: number
+  source_note: string
+  generated_at: string
+}
+
 type DoctorOrderWorkspace = {
   order: DoctorOrderItem
   messages: MessageItem[]
@@ -297,6 +333,19 @@ type DoctorOrderWorkspace = {
 type DoctorAiAnswer = {
   answer: string
   reference_data_notes?: string[]
+  attachment_contexts?: AiAttachmentContext[]
+}
+
+type AiAttachmentContext = {
+  file_id: number
+  source_type: string
+  visibility: string
+  original_filename: string
+  content_type?: string
+  file_size?: number
+  preview_url: string
+  expires_in_seconds: number
+  review_note: string
 }
 
 type MissingInfoItem = {
@@ -325,6 +374,71 @@ type AiProductionNoteConfirmResponse = {
   production_note: string
   template_version: string
   requires_customer_template_confirmation: boolean
+}
+
+type AiPromptTemplate = {
+  agent_code: string
+  prompt_version: string
+  context_type: string
+  owner_role: string
+  template_source: string
+  mutation_allowed: boolean
+  human_confirmation_required: boolean
+}
+
+type AiOutputSafetyBoundary = {
+  guarded_status: string
+  guarded_model_name: string
+  streaming_status: string
+  blocked_pattern_count: number
+  raw_model_output_exposed: boolean
+  manual_review_required: boolean
+}
+
+type AiBudgetCircuitBreakerPolicy = {
+  daily_budget_microusd: number
+  admin_daily_budget_microusd: number
+  cs_daily_budget_microusd: number
+  doctor_daily_budget_microusd: number
+  worker_daily_budget_microusd: number
+  model_daily_budget_microusd: number
+  budget_notification_enabled: boolean
+  budget_circuit_breaker_enabled: boolean
+}
+
+type Ai3SafetyCase = {
+  case_id: string
+  question_family: string
+  expected_status: string
+  safe_read_model: string
+  forbidden_fields: string[]
+}
+
+type Ai5TemplateBoundary = {
+  template_version: string
+  customer_template_status: string
+  requires_customer_template_confirmation: boolean
+  auto_write_allowed: boolean
+  human_confirmation_required: boolean
+}
+
+type AiRealExternalIntegrationStatus = {
+  integration_status: string
+  deepseek_key_status: string
+  webhook_status: string
+  customer_signature_status: string
+  task8_status: string
+}
+
+type AiGovernanceLocalHardeningResponse = {
+  stage_goal: string
+  stage_task: string
+  prompt_templates: AiPromptTemplate[]
+  output_safety_boundary: AiOutputSafetyBoundary
+  budget_circuit_breaker_policy: AiBudgetCircuitBreakerPolicy
+  ai3_safety_cases: Ai3SafetyCase[]
+  ai5_template_boundary: Ai5TemplateBoundary
+  real_external_integration_status: AiRealExternalIntegrationStatus
 }
 
 type FormFieldConfig = {
@@ -624,7 +738,9 @@ type QualityRecordResponse = {
   reason_detail: string | null
   responsibility_type: string | null
   status: string | null
+  status_note: string | null
   created_at: string
+  status_updated_at: string | null
   updated_at: string | null
 }
 
@@ -1107,8 +1223,12 @@ const csAiQueryOrderId = ref('')
 const csAiQueryQuestion = ref('请汇总这笔订单当前内部状态、外部状态和客服下一步建议')
 const csAiQueryAnswer = ref('')
 const csAiQueryReferenceNotes = ref<string[]>([])
+const csAiQueryAttachmentContexts = ref<AiAttachmentContext[]>([])
 const csAiQueryError = ref('')
 const csAiQueryLoading = ref(false)
+const aiGovernanceLocalHardening = ref<AiGovernanceLocalHardeningResponse | null>(null)
+const aiGovernanceLocalHardeningLoading = ref(false)
+const aiGovernanceLocalHardeningError = ref('')
 const customerCollaborationPendingMessages = ref<MessageItem[]>([])
 const customerCollaborationOrderMessages = ref<MessageItem[]>([])
 const customerCollaborationOrderId = ref('')
@@ -1224,8 +1344,12 @@ const qualityRecordOrderId = ref('')
 const qualityRecordResponsibilityType = ref('DOCTOR')
 const qualityRecordReasonCategory = ref('FIT_ISSUE')
 const qualityRecordReasonDetail = ref('')
+const qualityRecordStatusId = ref('')
+const qualityRecordStatus = ref('IN_PROGRESS')
+const qualityRecordStatusNote = ref('')
 const qualityRecordLoading = ref(false)
 const qualityRecordSaving = ref(false)
+const qualityRecordStatusSaving = ref(false)
 const qualityRecordError = ref('')
 const qualityRecordResult = ref('')
 const productionEquipmentSummary = ref<ProductionEquipmentSummaryResponse | null>(null)
@@ -1323,6 +1447,13 @@ const selectedDeliveryOrder = ref<DeliveryOrderItem | null>(null)
 const deliveryStatusFilter = ref('EXCEPTION')
 const deliveryFollowUpStatus = ref('EXCEPTION')
 const deliveryFollowUpNote = ref('')
+const phaseOneAbDashboardDataLoading = ref(false)
+const phaseOneAbDashboardDataError = ref('')
+const phaseOneAbDashboardLastSyncedAt = ref('')
+const phaseOneAbDashboardOrders = ref<InternalOrderItem[]>([])
+const phaseOneAbDashboardPendingMessages = ref<MessageItem[]>([])
+const phaseOneAbDashboardDeliveryOrders = ref<DeliveryOrderItem[]>([])
+const phaseOneAbDashboardSummary = ref<PhaseOneAbDashboardResponse | null>(null)
 const deliveryLoading = ref(false)
 const deliverySaving = ref(false)
 const deliveryError = ref('')
@@ -1454,6 +1585,12 @@ const navigationMenus = computed(() => {
   return menus
 })
 const activeMenu = computed(() => navigationMenus.value.find((menu) => menu.routePath === activeRoute.value) ?? navigationMenus.value[0] ?? null)
+const frontendProductizationStateCopy = [
+  { title: '加载态', detail: '按钮与表格保留加载反馈，避免重复提交。', tone: 'sky' },
+  { title: '空态', detail: '无数据时给出可继续的业务入口。', tone: 'green' },
+  { title: '错误态', detail: '接口失败保留错误提示，不吞掉权限或网络问题。', tone: 'rose' },
+  { title: '权限拒绝态', detail: '403 / 越权继续由服务端兜底，前端只展示可授权入口。', tone: 'amber' }
+]
 const displayNavigationConfig: Record<PortalTone, NavigationGroup[]> = {
   doctor: [
     {
@@ -1510,8 +1647,8 @@ const displayNavigationConfig: Record<PortalTone, NavigationGroup[]> = {
         },
         { id: 'cs-customers', title: '客户管理', description: '维护诊所档案、联系人、历史订单和客户偏好。', icon: 'customer', routePath: '/customers' },
         { id: 'cs-products', title: '产品管理', description: '查看产品类型、产品资料和动态表单字段。', icon: 'product', routePath: '/system/form-configs' },
-        { id: 'cs-designs', title: '设计稿管理', description: '审核生产端上传的设计稿并发给医生确认。', icon: 'design', routePath: '/design-drafts', placeholder: true },
-        { id: 'cs-billing', title: '账单管理', description: '上传账单文件、查看订单费用和客户账单。', icon: 'bill', routePath: '/billing', placeholder: true },
+        { id: 'cs-designs', title: '设计稿管理', description: '审核生产端上传的设计稿并发给医生确认。', icon: 'design', routePath: '/orders/internal' },
+        { id: 'cs-billing', title: '账单管理', description: '上传账单文件、查看订单费用和客户账单。', icon: 'bill', routePath: '/delivery' },
         { id: 'cs-delivery', title: '配送管理', description: '录入承运商、运单号并跟进待发货订单。', icon: 'delivery', routePath: '/delivery' },
         { id: 'cs-outsourcing', title: '外协管理', description: '跟踪外协订单、外协工厂、外协进度和费用。', icon: 'partner', routePath: '/outsourcing', placeholder: true },
         {
@@ -1535,9 +1672,8 @@ const displayNavigationConfig: Record<PortalTone, NavigationGroup[]> = {
       title: '生产执行',
       items: [
         { id: 'production-dashboard', title: '工作台', description: '集中查看本人任务、异常提醒和生产待办。', icon: 'dashboard', routePath: '/dashboard' },
-        { id: 'production-orders', title: '生产订单', description: '查看待生产、生产中和待发货订单。', icon: 'order', routePath: '/production/board' },
+        { id: 'production-orders', title: '生产订单', description: '查看待生产、生产异常和待发货订单。', icon: 'order', routePath: '/production/board' },
         { id: 'production-board', title: '生产看板', description: '跨状态查看生产订单、节点进度和终检发货门禁。', icon: 'dashboard', routePath: '/production/board' },
-        { id: 'production-work-orders', title: '工作单', description: '查看工序工作单、操作要求、交付时间和当前负责人。', icon: 'workorder', routePath: '/production/work-orders', placeholder: true },
         { id: 'production-tasks', title: '我的任务', description: '处理分配给当前员工的工序任务。', icon: 'task', routePath: '/tasks/mine' },
         { id: 'production-scan', title: '扫码登记', description: '通过扫码记录入检、开工、暂停、完工和流转节点。', icon: 'scan', routePath: '/production/scan', placeholder: true }
       ]
@@ -1564,27 +1700,27 @@ const displayNavigationConfig: Record<PortalTone, NavigationGroup[]> = {
       items: [
         { id: 'production-staff', title: '员工管理', description: '查看生产人员、岗位能力、在岗状态和任务负载。', icon: 'staff', routePath: '/production/staff' },
         { id: 'production-performance', title: '绩效管理', description: '查看有效工时、完成数量、返工次数和通过率。', icon: 'performance', routePath: '/performance' },
-        { id: 'production-reward-penalty', title: '奖惩管理', description: '维护奖惩记录、原因、关联订单/工序/员工和审批状态。', icon: 'reward', routePath: '/production/reward-penalty', placeholder: true }
+        { id: 'production-reward-penalty', title: '奖惩管理', description: '维护奖惩记录、原因、关联订单/工序/员工和审批状态。', icon: 'reward', routePath: '/production/reward-penalty' }
       ]
     },
     {
       title: '设备物料',
       items: [
-        { id: 'production-device', title: '设备管理', description: '查看设备台账、设备状态、保养计划、故障报修和稼动率。', icon: 'device', routePath: '/production/devices', placeholder: true },
-        { id: 'production-material', title: '物料异常', description: '登记缺料、错料、批次异常、材料损耗和处理状态。', icon: 'material', routePath: '/production/material-exceptions', placeholder: true }
+        { id: 'production-device', title: '设备管理', description: '查看设备台账、设备状态、保养计划、故障报修和稼动率。', icon: 'device', routePath: '/production/devices' },
+        { id: 'production-material', title: '物料管理', description: '登记缺料、错料、批次异常、材料损耗和处理状态。', icon: 'material', routePath: '/production/material-exceptions' }
       ]
     },
     {
       title: '经营成本',
       items: [
-        { id: 'production-cost', title: '成本管理', description: '查看工序、材料、人工、返工、外协成本和异常预警。', icon: 'cost', routePath: '/production/cost-management', placeholder: true },
+        { id: 'production-cost', title: '成本管理', description: '查看工序、材料、人工、返工、外协成本和异常预警。', icon: 'cost', routePath: '/production/cost-management' },
         { id: 'production-outsourcing-cost', title: '外协成本', description: '跟踪外协订单成本、外协供应商费用和成本偏差。', icon: 'partner', routePath: '/production/outsourcing-cost', placeholder: true }
       ]
     },
     {
       title: '安全合规',
       items: [
-        { id: 'production-safety', title: '安环管理', description: '管理安全巡检、隐患整改、环境记录和安环事件统计。', icon: 'safety', routePath: '/production/safety-environment', placeholder: true }
+        { id: 'production-safety', title: '安环管理', description: '管理安全巡检、隐患整改、环境记录和安环事件统计。', icon: 'safety', routePath: '/production/safety-environment' }
       ]
     },
     {
@@ -1638,12 +1774,12 @@ const displayNavigationConfig: Record<PortalTone, NavigationGroup[]> = {
         },
         { id: 'admin-staff', title: '人员管理', description: '管理生产人员、岗位能力和任务负载。', icon: 'staff', routePath: '/admin/staff' },
         { id: 'admin-device', title: '设备管理', description: '管理设备档案、运行状态和维护记录。', icon: 'device', routePath: '/admin/devices', placeholder: true },
-        { id: 'admin-material', title: '物料异常', description: '查看物料缺失、材料不符和异常处理。', icon: 'material', routePath: '/admin/material-exceptions', placeholder: true },
+        { id: 'admin-material', title: '物料管理', description: '查看物料缺失、材料不符和异常处理。', icon: 'material', routePath: '/admin/material-exceptions', placeholder: true },
         { id: 'admin-outsourcing', title: '外协管理', description: '管理外协工厂、外协订单和外协费用。', icon: 'partner', routePath: '/admin/outsourcing', placeholder: true },
         { id: 'admin-billing-delivery', title: '账单配送', description: '查看账单、物流和发货协同状态。', icon: 'delivery', routePath: '/admin/billing-delivery', placeholder: true },
         { id: 'admin-performance', title: '绩效统计', description: '查看全员工时、绩效指标和返工归因。', icon: 'performance', routePath: '/performance' },
         { id: 'admin-audit', title: '审计通知', description: '查看关键操作、通知和系统安全事件。', icon: 'audit', routePath: '/notifications' },
-        { id: 'admin-ai', title: 'AI 治理', description: '查看模型调用、预算、失败和治理摘要。', icon: 'ai', routePath: '/admin/ai-governance', placeholder: true }
+        { id: 'admin-ai', title: 'AI 治理', description: '查看模型调用、预算、失败和治理摘要。', icon: 'ai', routePath: '/admin/ai-governance' }
       ]
     }
   ]
@@ -1698,7 +1834,7 @@ const accountNavigationConfig: Record<PortalTone, NavigationGroup[]> = {
 }
 const placeholderContentMap: Record<string, PlaceholderContentItem[]> = {
   'production-work-orders': [
-    { title: '工序工作单', detail: '展示订单号、产品类型、工序节点、标准工时和交付时间。', tone: 'teal' },
+    { title: '工序任务详情', detail: '展示订单号、产品类型、工序节点、标准工时和交付时间。', tone: 'teal' },
     { title: '操作要求', detail: '沉淀每个节点的操作规范、注意事项和质检要求。', tone: 'sky' },
     { title: '负责人', detail: '显示当前员工、班组负责人和待交接状态。', tone: 'green' }
   ],
@@ -1850,6 +1986,159 @@ const navigationGroups = computed<NavigationGroup[]>(() => displayNavigationConf
 const accountNavigationGroups = computed<NavigationGroup[]>(() => accountNavigationConfig[portalTone.value])
 const visiblePermissions = computed(() => currentUser.value?.permissions.slice().sort() ?? [])
 const hasUnreadNotifications = computed(() => unreadCount.value > 0)
+function phaseOnePercent(value: number | null | undefined) {
+  const normalized = Number(value ?? 0)
+  if (!Number.isFinite(normalized)) {
+    return 0
+  }
+  return Math.max(0, Math.min(100, Math.round(normalized)))
+}
+function phaseOneProgress(value: number | null | undefined) {
+  return Math.max(8, phaseOnePercent(value))
+}
+function estimatePhaseOneOrderItemCount(order: InternalOrderItem) {
+  const form = order.form_data ?? {}
+  const candidateKeys = ['quantity', 'qty', 'case_count', 'item_count', 'teeth_count', 'tooth_count']
+  for (const key of candidateKeys) {
+    const value = form[key]
+    if (typeof value === 'number' && Number.isFinite(value) && value > 0) {
+      return value
+    }
+    if (typeof value === 'string') {
+      const parsed = Number(value)
+      if (Number.isFinite(parsed) && parsed > 0) {
+        return parsed
+      }
+    }
+  }
+  const toothNumbers = form.tooth_numbers
+  if (Array.isArray(toothNumbers) && toothNumbers.length > 0) {
+    return toothNumbers.length
+  }
+  return 1
+}
+function countOrdersByStatus(orders: InternalOrderItem[], statuses: string[]) {
+  const statusSet = new Set(statuses)
+  return orders.filter((order) => statusSet.has(order.internal_status) || statusSet.has(order.external_status)).length
+}
+function countDeliveryByStatus(orders: DeliveryOrderItem[], statuses: string[]) {
+  const statusSet = new Set(statuses)
+  return orders.filter((order) => statusSet.has(order.logistics_status) || statusSet.has(order.payment_status)).length
+}
+function topPhaseOneCustomerRanking(orders: InternalOrderItem[]): PhaseOneAbCustomerRanking {
+  const dashboardRanking = phaseOneAbDashboardSummary.value?.top_customers[0]
+  if (dashboardRanking) {
+    return {
+      clinicId: dashboardRanking.clinic_id,
+      clinicName: dashboardRanking.clinic_name,
+      orderCount: dashboardRanking.order_count,
+      itemCount: dashboardRanking.item_count
+    }
+  }
+  const ranking = new Map<string, number>()
+  for (const order of orders) {
+    const clinicName = order.clinic_name || `诊所 ${order.clinic_id}`
+    ranking.set(clinicName, (ranking.get(clinicName) ?? 0) + 1)
+  }
+  const [clinicName, orderCount] = [...ranking.entries()].sort((left, right) => right[1] - left[1])[0] ?? ['暂无客户数据', 0]
+  return { clinicName, orderCount }
+}
+const phaseOneAbMonthlyComparison = computed(() => {
+  const summary = phaseOneAbDashboardSummary.value
+  if (!summary) {
+    return {
+      orderLabel: '本地月度趋势接口待同步',
+      productionLabel: '本地月度趋势接口待同步',
+      orderPercent: 8,
+      productionPercent: 8
+    }
+  }
+  const direction = summary.monthly_order_delta >= 0 ? '+' : ''
+  const itemDirection = summary.monthly_item_delta >= 0 ? '+' : ''
+  return {
+    orderLabel: `${summary.current_month.order_count} 单 / ${direction}${summary.monthly_order_delta} 单`,
+    productionLabel: `${summary.current_month.item_count} 件 / ${itemDirection}${summary.monthly_item_delta} 件`,
+    orderPercent: phaseOneProgress(summary.current_month.order_count * 4),
+    productionPercent: phaseOneProgress(summary.current_month.item_count * 3)
+  }
+})
+const phaseOneAbCsDashboardStats = computed(() => {
+  const orders = phaseOneAbDashboardOrders.value
+  const deliveryOrdersForDashboard = phaseOneAbDashboardDeliveryOrders.value
+  const pendingMessages = phaseOneAbDashboardPendingMessages.value
+  const customerRanking = topPhaseOneCustomerRanking(orders)
+  const orderCount = orders.length
+  const itemCount = orders.reduce((total, order) => total + estimatePhaseOneOrderItemCount(order), 0)
+  const billManualFollowUpCount = deliveryOrdersForDashboard.filter((order) =>
+    !['PAID', 'SETTLED'].includes(order.payment_status)
+  ).length
+  const logisticsManualFollowUpCount = deliveryOrdersForDashboard.filter((order) =>
+    ['PENDING', 'EXCEPTION', 'FOLLOWING'].includes(order.logistics_status)
+  ).length
+  const source: PhaseOneAbDashboardSource = phaseOneAbDashboardDataError.value ? 'partial' : 'reused-api'
+  return {
+    source,
+    orderCount: phaseOneAbDashboardSummary.value?.current_month.order_count ?? orderCount,
+    itemCount: phaseOneAbDashboardSummary.value?.current_month.item_count ?? itemCount,
+    pendingReviewCount: countOrdersByStatus(orders, ['PENDING_CS_REVIEW', 'CS_REJECTED']),
+    pendingMessageReviewCount: pendingMessages.length,
+    pendingReplyCount: unreadCount.value,
+    designUpdateCount: countOrdersByStatus(orders, ['DESIGN_UPLOADED', 'PENDING_DOCTOR_CONFIRM']),
+    shipmentFollowUpCount: countDeliveryByStatus(deliveryOrdersForDashboard, ['SHIPPED', 'IN_TRANSIT', 'DELIVERED']),
+    billManualFollowUpCount,
+    logisticsManualFollowUpCount,
+    reworkFollowUpCount: productionQualitySummary.value?.external_rework_count ?? 0,
+    customerRanking
+  }
+})
+const phaseOneAbProductionDashboardStats = computed(() => {
+  const orders = phaseOneAbDashboardOrders.value
+  const deliveryOrdersForDashboard = phaseOneAbDashboardDeliveryOrders.value
+  const qualitySummary = productionQualitySummary.value
+  const shippedCount = countDeliveryByStatus(deliveryOrdersForDashboard, ['SHIPPED', 'IN_TRANSIT', 'DELIVERED'])
+  const deliveryTotal = deliveryOrdersForDashboard.length
+  const completedCount = countOrdersByStatus(orders, ['COMPLETED', 'SHIPPED', 'RECEIVED'])
+  const source: PhaseOneAbDashboardSource = phaseOneAbDashboardDataError.value ? 'partial' : 'reused-api'
+  return {
+    source,
+    productionExceptionCount: phaseOneAbDashboardSummary.value?.production_exception_count ?? countOrdersByStatus(orders, [
+      'PENDING_PRODUCTION_REVIEW',
+      'PROCESS_INSTANCE_CREATED',
+      'PRODUCING',
+      'REWORKING'
+    ]),
+    pendingQuestionCount: phaseOneAbDashboardSummary.value?.pending_question_count
+      ?? phaseOneAbDashboardPendingMessages.value.length + countOrdersByStatus(orders, ['PENDING_DOCTOR_CONFIRM']),
+    staffExceptionCount: staffWorkloadItems.value.filter((item) => item.active_node_count > 0 && item.completed_work_log_count === 0).length,
+    totalReworkCount: qualitySummary?.total_rework_count ?? 0,
+    internalReworkCount: qualitySummary?.internal_rework_count ?? 0,
+    externalReworkCount: qualitySummary?.external_rework_count ?? 0,
+    equipmentExceptionCount: (productionEquipmentSummary.value?.open_fault_count ?? 0) + (productionEquipmentSummary.value?.pending_maintenance_count ?? 0),
+    materialPendingCount: (productionMaterialExceptionSummary.value?.pending_count ?? 0) + (productionMaterialExceptionSummary.value?.in_progress_count ?? 0),
+    safetyTodoCount: (productionSafetyEnvironmentSummary.value?.pending_count ?? 0) + (productionSafetyEnvironmentSummary.value?.in_progress_count ?? 0) + (productionSafetyEnvironmentSummary.value?.overdue_count ?? 0),
+    costWarningCount: productionCostSummary.value?.abnormal_warning_count ?? 0,
+    rewardPendingCount: productionRewardPenaltySummary.value?.pending_count ?? 0,
+    shippingRate: phaseOneAbDashboardSummary.value?.shipping_rate
+      ?? (deliveryTotal > 0 ? Math.round((shippedCount / deliveryTotal) * 100) : 0),
+    completionRate: phaseOneAbDashboardSummary.value?.completion_rate
+      ?? (orders.length > 0 ? Math.round((completedCount / orders.length) * 100) : 0),
+    firstPassRate: qualitySummary?.first_pass_rate ?? 0,
+    finalPassRate: qualitySummary?.final_pass_rate ?? 0,
+    totalReworkRate: qualitySummary?.total_rework_rate ?? 0,
+    internalReworkRate: qualitySummary?.internal_rework_rate ?? 0,
+    externalReworkRate: qualitySummary?.external_rework_rate ?? 0
+  }
+})
+const phaseOneAbDashboardSourceNote = computed(() => {
+  if (phaseOneAbDashboardDataError.value) {
+    return phaseOneAbDashboardDataError.value
+  }
+  if (phaseOneAbDashboardLastSyncedAt.value) {
+    const source = phaseOneAbDashboardSummary.value?.source_note ?? '复用本地接口'
+    return `${source}：${compactDateTime(phaseOneAbDashboardLastSyncedAt.value)}`
+  }
+  return '登录后同步本地接口数据'
+})
 const businessOverviewCards = computed<BusinessCard[]>(() => {
   const roleText = roleLabels(currentUser.value?.roles)
   const menuCount = String(businessShortcuts.value.length)
@@ -1866,13 +2155,13 @@ const businessOverviewCards = computed<BusinessCard[]>(() => {
       { title: '账号角色', value: roleText, note: dataScopeLabel(currentUser.value?.dataScope), icon: 'customer' },
       { title: '订单协同', value: menuCount, note: '审核、沟通、发货联动', icon: 'order' },
       { title: '未读通知', value: unreadText, note: notificationSocketStatus.value, icon: 'notification' },
-      { title: '客户服务', value: '跟进中', note: '客户、账单、外协统一处理', icon: 'chat' }
+      { title: '客服统计基础版', value: phaseOneAbCsDashboardStats.value.source === 'reused-api' ? '接口数据' : 'PARTIAL', note: '复用 /orders 列表、待审消息和物流人工状态', icon: 'chat' }
     ],
     production: [
       { title: '账号角色', value: roleText, note: dataScopeLabel(currentUser.value?.dataScope), icon: 'staff' },
       { title: '生产任务', value: menuCount, note: '任务、工序、质检联动', icon: 'task' },
       { title: '未读通知', value: unreadText, note: notificationSocketStatus.value, icon: 'notification' },
-      { title: '现场状态', value: systemState, note: '人员、设备、物料异常待接入', icon: 'device' }
+      { title: '现场状态', value: systemState, note: '质检、设备、物料、安环汇总第一增量', icon: 'device' }
     ],
     admin: [
       { title: '账号角色', value: roleText, note: dataScopeLabel(currentUser.value?.dataScope), icon: 'system' },
@@ -1949,47 +2238,49 @@ const prototypeDashboards = computed<Record<PortalTone, PrototypeDashboard>>(() 
         navId: 'cs-order-review'
       },
       metrics: [
-        { title: '今日新订单', value: '12', note: '较昨日 +3', icon: 'order', tone: 'violet' },
-        { title: '待审核', value: String(Math.max(internalOrders.value.length, 5)), note: '资料和生产备注', icon: 'audit', tone: 'amber' },
-        { title: '待回复', value: '8', note: '医生/生产沟通', icon: 'chat', tone: 'sky' },
-        { title: '设计更新', value: '5', note: '待通知客户', icon: 'design', tone: 'green' },
-        { title: '延期提醒', value: '2', note: '需主动说明', icon: 'timer', tone: 'orange' },
-        { title: '今日发货', value: '4', note: '物流单待确认', icon: 'delivery', tone: 'teal' },
-        { title: '账单异常', value: '3', note: '逾期或待付款', icon: 'bill', tone: 'rose' },
-        { title: '投诉/返工', value: '1', note: '需客服跟进', icon: 'quality', tone: 'rose' }
+        { title: '订单数量 / 件数', value: `${phaseOneAbCsDashboardStats.value.orderCount} / ${phaseOneAbCsDashboardStats.value.itemCount}`, note: '复用 /orders 列表', icon: 'order', tone: 'violet' },
+        { title: '待审核', value: String(phaseOneAbCsDashboardStats.value.pendingReviewCount), note: '资料和生产备注', icon: 'audit', tone: 'amber' },
+        { title: '翻译待审', value: String(phaseOneAbCsDashboardStats.value.pendingMessageReviewCount), note: '复用 /messages/pending-review，AI 草稿仍需人工确认', icon: 'ai', tone: 'sky' },
+        { title: '待回复', value: String(phaseOneAbCsDashboardStats.value.pendingReplyCount), note: '复用通知未读数', icon: 'chat', tone: 'sky' },
+        { title: '设计更新', value: String(phaseOneAbCsDashboardStats.value.designUpdateCount), note: '复用订单外部状态', icon: 'design', tone: 'green' },
+        { title: '延期提醒', value: String(phaseOneAbCsDashboardStats.value.logisticsManualFollowUpCount), note: '复用物流人工状态', icon: 'timer', tone: 'orange' },
+        { title: '今日发货', value: String(phaseOneAbCsDashboardStats.value.shipmentFollowUpCount), note: '复用物流人工状态，缺少今日维度', icon: 'delivery', tone: 'teal' },
+        { title: '账单超期', value: String(phaseOneAbCsDashboardStats.value.billManualFollowUpCount), note: '复用账单 / 物流人工状态，真实账期 PARTIAL', icon: 'bill', tone: 'rose' },
+        { title: '投诉/返工', value: String(phaseOneAbCsDashboardStats.value.reworkFollowUpCount), note: '复用质检外返汇总', icon: 'quality', tone: 'rose' }
       ],
       panels: [
         {
           title: '需要关注',
-          badge: '8 项',
+          badge: `${phaseOneAbCsDashboardStats.value.pendingReviewCount + phaseOneAbCsDashboardStats.value.pendingMessageReviewCount + phaseOneAbCsDashboardStats.value.billManualFollowUpCount} 项`,
           tone: 'rose',
           items: [
-            { title: '资料缺失', detail: 'PDL-0475 缺少比色照片，医生未补传', meta: '等待医生', tone: 'amber', actionLabel: '发送提醒', routePath: '/orders/internal', navId: 'cs-order-review' },
-            { title: '设计确认', detail: 'PDL-0474 设计检查完成，等待医生确认', meta: '0.5 天', tone: 'violet', actionLabel: '追问医生', routePath: '/design-drafts', navId: 'cs-designs' },
-            { title: '账单逾期', detail: '客户账单已逾期 31 天，发货需拦截', meta: '高优先级', tone: 'rose', actionLabel: '去处理', routePath: '/billing', navId: 'cs-billing' }
+            { title: '资料初审', detail: `${phaseOneAbCsDashboardStats.value.pendingReviewCount} 单等待资料和生产备注审核`, meta: '本地订单队列', tone: 'amber', actionLabel: '去审核', routePath: '/orders/internal', navId: 'cs-order-review' },
+            { title: '沟通待审', detail: `${phaseOneAbCsDashboardStats.value.pendingMessageReviewCount} 条消息或 AI 草稿待人工确认`, meta: '客服确认后可见', tone: 'violet', actionLabel: '去审核', routePath: '/collaboration', navId: 'cs-message-review' },
+            { title: '账单物流', detail: `${phaseOneAbCsDashboardStats.value.billManualFollowUpCount} 单付款状态待跟进，${phaseOneAbCsDashboardStats.value.logisticsManualFollowUpCount} 单物流需人工关注`, meta: '一期人工状态', tone: 'rose', actionLabel: '去处理', routePath: '/delivery', navId: 'cs-delivery' }
           ]
         },
         {
           title: '今日发货 / 客户账单',
-          badge: '6 单',
+          badge: `${phaseOneAbCsDashboardStats.value.shipmentFollowUpCount + phaseOneAbCsDashboardStats.value.billManualFollowUpCount} 单`,
           tone: 'teal',
           items: [
-            { title: '今日发货', detail: '4 个订单等待物流单号确认', meta: 'DHL / FedEx', tone: 'green', actionLabel: '录入物流', routePath: '/delivery', navId: 'cs-delivery' },
-            { title: '客户到期', detail: '2 个客户合同或账期需要跟进', meta: '客户管理', tone: 'orange', actionLabel: '查看客户', routePath: '/customers', navId: 'cs-customers' }
+            { title: '发货状态', detail: `${phaseOneAbCsDashboardStats.value.shipmentFollowUpCount} 单已有发货/配送人工状态`, meta: '真实物流平台未接', tone: 'green', actionLabel: '录入物流', routePath: '/delivery', navId: 'cs-delivery' },
+            { title: '客户排名', detail: `${phaseOneAbCsDashboardStats.value.customerRanking.clinicName}：${phaseOneAbCsDashboardStats.value.customerRanking.orderCount} 单`, meta: '复用 /orders 诊所字段', tone: 'orange', actionLabel: '查看客户', routePath: '/customers', navId: 'cs-customers' }
           ]
         }
       ],
       trends: [
-        { label: '本月订单', value: '24', percent: 74, tone: 'violet' },
-        { label: '本月收入', value: '8.6 万', percent: 68, tone: 'green' },
-        { label: '今日发货', value: '4', percent: 42, tone: 'teal' },
-        { label: '返工投诉', value: '1', percent: 14, tone: 'rose' }
+        { label: '本月订单', value: `${phaseOneAbCsDashboardStats.value.orderCount} 单`, percent: phaseOneProgress(phaseOneAbCsDashboardStats.value.orderCount * 4), tone: 'violet' },
+        { label: '本月 / 上月对比', value: phaseOneAbMonthlyComparison.value.orderLabel, percent: phaseOneAbMonthlyComparison.value.orderPercent, tone: 'green' },
+        { label: '十大客户排名', value: phaseOneAbCsDashboardStats.value.customerRanking.clinicName, percent: phaseOneProgress(phaseOneAbCsDashboardStats.value.customerRanking.orderCount * 10), tone: 'blue' },
+        { label: '今日发货', value: `${phaseOneAbCsDashboardStats.value.shipmentFollowUpCount} 单`, percent: phaseOneProgress(phaseOneAbCsDashboardStats.value.shipmentFollowUpCount * 12), tone: 'teal' },
+        { label: '返工投诉', value: `${phaseOneAbCsDashboardStats.value.reworkFollowUpCount} 单`, percent: phaseOneProgress(phaseOneAbCsDashboardStats.value.reworkFollowUpCount * 10), tone: 'rose' }
       ]
     },
     production: {
       greeting: '生产仪表盘',
-      subtitle: '全工序、人员、设备、物料与异常状态实时汇总。',
-      syncBanner: '医生端与客服端实时同步：7 单生产中，2 单等待医生确认，1 单发货前需客服复核。',
+      subtitle: '生产统计基础版：异常、待问、部门对比、返工和出货完成情况集中查看。',
+      syncBanner: `医生端与客服端实时同步：${phaseOneAbProductionDashboardStats.value.productionExceptionCount} 单生产异常跟进中，${phaseOneAbProductionDashboardStats.value.pendingQuestionCount} 单等待确认，数据来源为本地既有接口第一增量。`,
       primaryAction: {
         title: '查看生产看板',
         detail: '按工序队列查看订单状态',
@@ -2000,42 +2291,49 @@ const prototypeDashboards = computed<Record<PortalTone, PrototypeDashboard>>(() 
         navId: 'production-orders'
       },
       metrics: [
-        { title: '生产中', value: '7', note: '当前活跃订单', icon: 'process', tone: 'teal' },
-        { title: '质量与返工', value: '3', note: '内返 2 / 外返 1', icon: 'quality', tone: 'rose' },
-        { title: '设备异常', value: '2', note: '保养或停机待处理', icon: 'device', tone: 'orange' },
-        { title: '物料异常', value: '4', note: '缺料、错料、批次异常', icon: 'material', tone: 'amber' },
-        { title: '成本预警', value: '2', note: '返工与外协成本偏高', icon: 'cost', tone: 'violet' },
-        { title: '安环待办', value: '5', note: '巡检、整改、PPE 提醒', icon: 'safety', tone: 'sky' },
-        { title: '奖惩待审', value: '3', note: '关联订单/工序/员工', icon: 'reward', tone: 'green' }
+        { title: '生产异常', value: String(phaseOneAbProductionDashboardStats.value.productionExceptionCount), note: '复用 /orders 列表当前生产状态', icon: 'process', tone: 'teal' },
+        { title: '待问异常', value: String(phaseOneAbProductionDashboardStats.value.pendingQuestionCount), note: '复用待审沟通与医生确认状态', icon: 'chat', tone: 'amber' },
+        { title: '员工异常', value: String(phaseOneAbProductionDashboardStats.value.staffExceptionCount), note: '复用人员工作量第一增量', icon: 'staff', tone: 'orange' },
+        { title: '质量与返工', value: String(phaseOneAbProductionDashboardStats.value.totalReworkCount), note: `内返 ${phaseOneAbProductionDashboardStats.value.internalReworkCount} / 外返 ${phaseOneAbProductionDashboardStats.value.externalReworkCount}`, icon: 'quality', tone: 'rose' },
+        { title: '设备异常', value: String(phaseOneAbProductionDashboardStats.value.equipmentExceptionCount), note: '设备汇总第一增量 / PARTIAL', icon: 'device', tone: 'orange' },
+        { title: '物料管理', value: String(phaseOneAbProductionDashboardStats.value.materialPendingCount), note: '物料异常汇总第一增量 / PARTIAL', icon: 'material', tone: 'amber' },
+        { title: '成本预警', value: String(phaseOneAbProductionDashboardStats.value.costWarningCount), note: '成本汇总第一增量 / PARTIAL', icon: 'cost', tone: 'violet' },
+        { title: '安环待办', value: String(phaseOneAbProductionDashboardStats.value.safetyTodoCount), note: '安环汇总第一增量 / PARTIAL', icon: 'safety', tone: 'sky' },
+        { title: '奖惩待审', value: String(phaseOneAbProductionDashboardStats.value.rewardPendingCount), note: '奖惩汇总第一增量 / PARTIAL', icon: 'reward', tone: 'green' }
       ],
       panels: [
         {
           title: '生产经营待办',
-          badge: '12 项',
+          badge: `${phaseOneAbProductionDashboardStats.value.safetyTodoCount + phaseOneAbProductionDashboardStats.value.costWarningCount + phaseOneAbProductionDashboardStats.value.rewardPendingCount} 项`,
           tone: 'rose',
           items: [
-            { title: '安环巡检', detail: '本班次 3 项安全巡检未完成', meta: '安全合规', tone: 'sky', actionLabel: '查看安环', routePath: '/production/safety-environment', navId: 'production-safety' },
-            { title: '成本异常', detail: '返工成本和外协成本超过预警线', meta: '经营成本', tone: 'violet', actionLabel: '查看成本', routePath: '/production/cost-management', navId: 'production-cost' },
-            { title: '奖惩审批', detail: '3 条奖惩记录等待主管确认', meta: '人员绩效', tone: 'green', actionLabel: '查看奖惩', routePath: '/production/reward-penalty', navId: 'production-reward-penalty' }
+            { title: '安环巡检', detail: `${phaseOneAbProductionDashboardStats.value.safetyTodoCount} 项安环事件待处理或复核`, meta: '基础汇总 / PARTIAL', tone: 'sky', actionLabel: '查看安环', routePath: '/production/safety-environment', navId: 'production-safety' },
+            { title: '成本异常', detail: `${phaseOneAbProductionDashboardStats.value.costWarningCount} 条成本记录处于预警状态`, meta: '基础汇总 / PARTIAL', tone: 'violet', actionLabel: '查看成本', routePath: '/production/cost-management', navId: 'production-cost' },
+            { title: '奖惩审批', detail: `${phaseOneAbProductionDashboardStats.value.rewardPendingCount} 条奖惩记录等待主管确认`, meta: '基础汇总 / PARTIAL', tone: 'green', actionLabel: '查看奖惩', routePath: '/production/reward-penalty', navId: 'production-reward-penalty' }
           ]
         },
         {
           title: '质量 / 设备 / 物料',
-          badge: '9 项',
+          badge: `${phaseOneAbProductionDashboardStats.value.totalReworkCount + phaseOneAbProductionDashboardStats.value.equipmentExceptionCount + phaseOneAbProductionDashboardStats.value.materialPendingCount} 项`,
           tone: 'green',
           items: [
-            { title: '内返率', detail: '内部返修 2 单，集中在入检与修整环节', meta: '质量与返工', tone: 'rose', actionLabel: '看返工', routePath: '/rework-final', navId: 'production-rework-management' },
-            { title: '外返率', detail: '客户退回返修 1 单，需追踪投诉和退货原因', meta: '质量与返工', tone: 'orange', actionLabel: '看返工', routePath: '/rework-final', navId: 'production-rework-management' },
-            { title: '设备维护', detail: '切削设备维护，影响 PDL-0474', meta: '预计 +2 天', tone: 'amber', actionLabel: '看设备', routePath: '/production/devices', navId: 'production-device' },
-            { title: '物料缺失', detail: '透明保持器材料库存低于安全线', meta: '需补料', tone: 'rose', actionLabel: '处理物料', routePath: '/production/material-exceptions', navId: 'production-material' }
+            { title: '内返率', detail: `内部返修 ${phaseOneAbProductionDashboardStats.value.internalReworkCount} 单，内返率 ${formatRate(phaseOneAbProductionDashboardStats.value.internalReworkRate)}`, meta: '质量与返工', tone: 'rose', actionLabel: '看返工', routePath: '/rework-final', navId: 'production-rework-management' },
+            { title: '外返率', detail: `客户退回返修 ${phaseOneAbProductionDashboardStats.value.externalReworkCount} 单，外返率 ${formatRate(phaseOneAbProductionDashboardStats.value.externalReworkRate)}`, meta: '质量与返工', tone: 'orange', actionLabel: '看返工', routePath: '/rework-final', navId: 'production-rework-management' },
+            { title: '设备维护', detail: `${phaseOneAbProductionDashboardStats.value.equipmentExceptionCount} 项设备保养或故障待处理`, meta: '基础汇总 / PARTIAL', tone: 'amber', actionLabel: '看设备', routePath: '/production/devices', navId: 'production-device' },
+            { title: '物料缺失', detail: `${phaseOneAbProductionDashboardStats.value.materialPendingCount} 条物料异常处理中`, meta: '基础汇总 / PARTIAL', tone: 'rose', actionLabel: '处理物料', routePath: '/production/material-exceptions', navId: 'production-material' }
           ]
         }
       ],
       trends: [
-        { label: '一次通过率', value: '91%', percent: 91, tone: 'green' },
-        { label: '终检通过率', value: '96%', percent: 96, tone: 'teal' },
-        { label: '内返率', value: '3.2%', percent: 32, tone: 'amber' },
-        { label: '外返率', value: '1.1%', percent: 18, tone: 'rose' }
+        { label: '部门今日 vs 上月平均', value: phaseOneAbMonthlyComparison.value.productionLabel, percent: phaseOneAbMonthlyComparison.value.productionPercent, tone: 'blue' },
+        { label: '出货率', value: `${phaseOneAbProductionDashboardStats.value.shippingRate}%`, percent: phaseOneProgress(phaseOneAbProductionDashboardStats.value.shippingRate), tone: 'teal' },
+        { label: '完成率', value: `${phaseOneAbProductionDashboardStats.value.completionRate}%`, percent: phaseOneProgress(phaseOneAbProductionDashboardStats.value.completionRate), tone: 'green' },
+        { label: '一次通过率', value: formatRate(phaseOneAbProductionDashboardStats.value.firstPassRate), percent: phaseOneProgress(phaseOneAbProductionDashboardStats.value.firstPassRate), tone: 'green' },
+        { label: '终检通过率', value: formatRate(phaseOneAbProductionDashboardStats.value.finalPassRate), percent: phaseOneProgress(phaseOneAbProductionDashboardStats.value.finalPassRate), tone: 'teal' },
+        { label: '返工率', value: formatRate(phaseOneAbProductionDashboardStats.value.totalReworkRate), percent: phaseOneProgress(phaseOneAbProductionDashboardStats.value.totalReworkRate), tone: 'amber' },
+        { label: '内返 / 外返', value: `${phaseOneAbProductionDashboardStats.value.internalReworkCount} / ${phaseOneAbProductionDashboardStats.value.externalReworkCount}`, percent: phaseOneProgress(phaseOneAbProductionDashboardStats.value.totalReworkCount * 10), tone: 'rose' },
+        { label: '内返率', value: formatRate(phaseOneAbProductionDashboardStats.value.internalReworkRate), percent: phaseOneProgress(phaseOneAbProductionDashboardStats.value.internalReworkRate), tone: 'amber' },
+        { label: '外返率', value: formatRate(phaseOneAbProductionDashboardStats.value.externalReworkRate), percent: phaseOneProgress(phaseOneAbProductionDashboardStats.value.externalReworkRate), tone: 'rose' }
       ]
     },
     admin: {
@@ -2122,7 +2420,7 @@ const prototypeQueueChips = computed<QueueChip[]>(() => {
     return [
       { label: '全部生产订单', count: '8', tone: 'teal', active: true, filter: 'ALL' },
       { label: '待派工', count: '6', tone: 'sky', filter: 'PROCESS_INSTANCE_CREATED' },
-      { label: '生产中', count: '7', tone: 'teal', filter: 'PRODUCING' },
+      { label: '生产异常', count: '7', tone: 'teal', filter: 'PRODUCING' },
       { label: '超时风险', count: '2', tone: 'rose' },
       { label: '医生待确认', count: '2', tone: 'violet', filter: 'PENDING_DOCTOR_CONFIRM' }
     ]
@@ -2266,6 +2564,24 @@ const isProductionCostSummaryRoute = computed(() => [
   'production-outsourcing-cost'
 ].includes(activeDisplayItem.value?.id ?? ''))
 const isProductionRewardPenaltySummaryRoute = computed(() => activeDisplayItem.value?.id === 'production-reward-penalty')
+const isProductizedProductionSupportRoute = computed(() =>
+  isProductionEquipmentSummaryRoute.value ||
+  isProductionMaterialExceptionSummaryRoute.value ||
+  isProductionSafetyEnvironmentSummaryRoute.value ||
+  isProductionCostSummaryRoute.value ||
+  isProductionRewardPenaltySummaryRoute.value)
+const isProductizedCsDesignRoute = computed(() => activeNavId.value === 'cs-designs')
+const isProductizedCsBillingRoute = computed(() => activeNavId.value === 'cs-billing')
+const isAdminPermissionInventoryRoute = computed(() => [
+  'admin-account',
+  'admin-users',
+  'admin-roles',
+  'admin-account-users',
+  'admin-account-roles',
+  'admin-account-departments',
+  'admin-account-status'
+].includes(activeDisplayItem.value?.id ?? ''))
+const isAdminAiGovernanceRoute = computed(() => activeRoute.value === '/admin/ai-governance')
 const isDeliveryManagementRoute = computed(() => activeRoute.value === '/delivery')
 const isFormConfigsRoute = computed(() => activeRoute.value === '/system/form-configs')
 const isReworkDictionariesRoute = computed(() => activeRoute.value === '/system/rework-dictionaries')
@@ -2351,6 +2667,9 @@ const routeChrome = computed<RouteChrome>(() => {
   if (route === '/production/board') {
     return { eyebrow: '生产端 / 看板', title: '生产看板', description: '跨状态查看生产订单、节点进度和终检发货门禁。', icon: 'view_kanban' }
   }
+  if (route === '/admin/ai-governance') {
+    return { eyebrow: '管理端 / AI 治理', title: 'AI 治理', description: '查看提示词版本、输出安全边界、预算熔断、AI-3 安全矩阵和真实联调阻塞。', icon: 'ai' }
+  }
   if (route === '/production/quality') {
     return { eyebrow: '生产端 / 质量记录', title: '质量与返工', description: '查看质量汇总，登记外返质量记录，并追踪返工责任分类。', icon: 'quality' }
   }
@@ -2396,6 +2715,7 @@ const menuIconSvgMap: Record<string, string> = {
   '/files': '<svg viewBox="0 0 24 24"><path d="M4 6h6l2 3h8v10H4z"/><path d="M7 13h10M7 16h7"/></svg>',
   '/collaboration': '<svg viewBox="0 0 24 24"><path d="M4 6h10v8H8l-4 4z"/><path d="M14 9h6v8h-3l-3 3v-3h-2"/></svg>',
   '/ai/cs': '<svg viewBox="0 0 24 24"><path d="M7 10a5 5 0 0 1 10 0v4"/><path d="M5 13h3v4H5zM16 13h3v4h-3zM9 19h4M13 19c3 0 5-2 5-5"/></svg>',
+  '/admin/ai-governance': '<svg viewBox="0 0 24 24"><path d="M7 10a5 5 0 0 1 10 0v4"/><path d="M5 13h3v4H5zM16 13h3v4h-3zM9 19h4M13 19c3 0 5-2 5-5"/><path d="M12 3v2M4 6l2 2M20 6l-2 2"/></svg>',
   '/ai/production': '<svg viewBox="0 0 24 24"><path d="M4 18V9l5 3V8l5 4V7l6 4v7z"/><path d="M8 18v-3M12 18v-3M16 18v-3"/></svg>',
   '/system/rbac': '<svg viewBox="0 0 24 24"><path d="M12 3l7 3v5c0 5-3 8-7 10-4-2-7-5-7-10V6z"/><path d="M9 12l2 2 4-5"/></svg>',
   '/system/form-configs': '<svg viewBox="0 0 24 24"><path d="M6 4h12v16H6z"/><path d="M9 8h6M9 12h6M9 16h3"/></svg>',
@@ -2966,7 +3286,9 @@ async function applyLoginSession(payload: LoginResponse, nextRoute: string) {
 }
 
 async function loadActiveRouteData() {
-  if (activeRoute.value === '/doctor/orders') {
+  if (activeRoute.value === '/dashboard') {
+    await loadPhaseOneAbDashboardData()
+  } else if (activeRoute.value === '/doctor/orders') {
     await loadDoctorOrderForm()
     await loadDoctorOrders()
   } else if (activeRoute.value === '/orders/internal') {
@@ -2993,6 +3315,8 @@ async function loadActiveRouteData() {
     await loadStaffWorkload()
   } else if (activeRoute.value === '/production/board') {
     await loadProductionBoardOrders()
+  } else if (activeRoute.value === '/admin/ai-governance') {
+    await loadAiGovernanceLocalHardening()
   } else if (activeRoute.value === '/delivery') {
     await loadDeliveryOrders()
   } else if (isProductionQualitySummaryRoute.value) {
@@ -3075,13 +3399,22 @@ function clearLoginSession() {
   unreadCount.value = 0
   notifications.value = []
   lastRealtimeNotification.value = null
+  phaseOneAbDashboardDataError.value = ''
+  phaseOneAbDashboardLastSyncedAt.value = ''
+  phaseOneAbDashboardOrders.value = []
+  phaseOneAbDashboardPendingMessages.value = []
+  phaseOneAbDashboardDeliveryOrders.value = []
+  aiGovernanceLocalHardening.value = null
+  aiGovernanceLocalHardeningError.value = ''
   closeNotificationSocket()
 }
 
 function navigateToRoute(routePath: string) {
   activeRoute.value = routePath
   activePrototypeChip.value = ''
-  if (routePath === '/notifications') {
+  if (routePath === '/dashboard') {
+    void loadPhaseOneAbDashboardData()
+  } else if (routePath === '/notifications') {
     void loadNotifications()
   } else if (routePath === '/doctor/orders') {
     void loadDoctorOrderForm()
@@ -3115,6 +3448,8 @@ function navigateToRoute(routePath: string) {
     void loadStaffWorkload()
   } else if (routePath === '/production/board') {
     void loadProductionBoardOrders()
+  } else if (routePath === '/admin/ai-governance') {
+    void loadAiGovernanceLocalHardening()
   } else if ([
     '/production/quality',
     '/production/rework-management'
@@ -3202,6 +3537,96 @@ async function apiFetch<T>(path: string, options: RequestInit = {}) {
     throw new Error(`请求失败：${response.status}`)
   }
   return await response.json() as ApiResponse<T>
+}
+
+async function loadPhaseOneAbDashboardData() {
+  if (!token.value || !['cs', 'production', 'admin'].includes(portalTone.value)) {
+    return
+  }
+  phaseOneAbDashboardDataLoading.value = true
+  phaseOneAbDashboardDataError.value = ''
+  const errors: string[] = []
+  const fetchResource = async <T>(label: string, request: () => Promise<ApiResponse<T>>) => {
+    try {
+      const payload = await request()
+      return payload.data
+    } catch (error) {
+      const message = error instanceof Error ? error.message : '未知错误'
+      errors.push(`${label} ${message}`)
+      return null
+    }
+  }
+  try {
+    const [
+      dashboardSummary,
+      orderList,
+      pendingMessages,
+      qualitySummary,
+      deliveryList,
+      staffWorkload,
+      equipmentSummary,
+      materialSummary,
+      safetySummary,
+      costSummary,
+      rewardSummary
+    ] = await Promise.all([
+      fetchResource('月度趋势 / 客户排名', () => apiFetch<PhaseOneAbDashboardResponse>('/dashboards/phase-one-ab')),
+      fetchResource('订单统计', () => apiFetch<InternalOrderListResponse>('/orders?page=1&size=100')),
+      fetchResource('待审消息', () => apiFetch<MessageItem[]>('/messages/pending-review')),
+      fetchResource('质量返工', () => apiFetch<ProductionQualitySummaryResponse>('/production/quality/summary')),
+      fetchResource('账单物流', () => apiFetch<DeliveryOrderItem[]>('/logistics/orders?limit=50')),
+      ['production', 'admin'].includes(portalTone.value)
+        ? fetchResource('人员工作量', () => apiFetch<StaffWorkloadListResponse>('/staff/workload?page=1&size=50'))
+        : Promise.resolve(null),
+      ['production', 'admin'].includes(portalTone.value)
+        ? fetchResource('设备汇总', () => apiFetch<ProductionEquipmentSummaryResponse>('/production/equipment/summary'))
+        : Promise.resolve(null),
+      ['production', 'admin'].includes(portalTone.value)
+        ? fetchResource('物料汇总', () => apiFetch<ProductionMaterialExceptionSummaryResponse>('/production/material-exceptions/summary'))
+        : Promise.resolve(null),
+      ['production', 'admin'].includes(portalTone.value)
+        ? fetchResource('安环汇总', () => apiFetch<ProductionSafetyEnvironmentSummaryResponse>('/production/safety-environment/summary'))
+        : Promise.resolve(null),
+      ['production', 'admin'].includes(portalTone.value)
+        ? fetchResource('成本汇总', () => apiFetch<ProductionCostSummaryResponse>('/production/cost-management/summary'))
+        : Promise.resolve(null),
+      ['production', 'admin'].includes(portalTone.value)
+        ? fetchResource('奖惩汇总', () => apiFetch<ProductionRewardPenaltySummaryResponse>('/production/reward-penalty/summary'))
+        : Promise.resolve(null)
+    ])
+    phaseOneAbDashboardSummary.value = dashboardSummary
+    phaseOneAbDashboardOrders.value = orderList?.items ?? []
+    phaseOneAbDashboardPendingMessages.value = pendingMessages ?? []
+    phaseOneAbDashboardDeliveryOrders.value = deliveryList ?? []
+    if (qualitySummary) {
+      productionQualitySummary.value = qualitySummary
+    }
+    if (staffWorkload) {
+      staffWorkloadItems.value = staffWorkload.items
+      staffWorkloadTotal.value = staffWorkload.total
+    }
+    if (equipmentSummary) {
+      productionEquipmentSummary.value = equipmentSummary
+    }
+    if (materialSummary) {
+      productionMaterialExceptionSummary.value = materialSummary
+    }
+    if (safetySummary) {
+      productionSafetyEnvironmentSummary.value = safetySummary
+    }
+    if (costSummary) {
+      productionCostSummary.value = costSummary
+    }
+    if (rewardSummary) {
+      productionRewardPenaltySummary.value = rewardSummary
+    }
+    phaseOneAbDashboardLastSyncedAt.value = new Date().toISOString()
+    phaseOneAbDashboardDataError.value = errors.length > 0
+      ? `部分统计待同步：${errors.join('；')}`
+      : ''
+  } finally {
+    phaseOneAbDashboardDataLoading.value = false
+  }
 }
 
 async function loadNotifications() {
@@ -4757,6 +5182,7 @@ async function runCsAiQuery() {
   csAiQueryError.value = ''
   csAiQueryAnswer.value = ''
   csAiQueryReferenceNotes.value = []
+  csAiQueryAttachmentContexts.value = []
   try {
     const payload = await apiFetch<DoctorAiAnswer>('/ai/cs-query', {
       method: 'POST',
@@ -4767,10 +5193,24 @@ async function runCsAiQuery() {
     })
     csAiQueryAnswer.value = `${payload.data.answer}\n\n对外发送前需人工确认。`
     csAiQueryReferenceNotes.value = payload.data.reference_data_notes ?? []
+    csAiQueryAttachmentContexts.value = payload.data.attachment_contexts ?? []
   } catch (error) {
     csAiQueryError.value = error instanceof Error ? error.message : 'AI 客服查询失败'
   } finally {
     csAiQueryLoading.value = false
+  }
+}
+
+async function loadAiGovernanceLocalHardening() {
+  aiGovernanceLocalHardeningLoading.value = true
+  aiGovernanceLocalHardeningError.value = ''
+  try {
+    const payload = await apiFetch<AiGovernanceLocalHardeningResponse>('/ai/governance/local-hardening')
+    aiGovernanceLocalHardening.value = payload.data
+  } catch (error) {
+    aiGovernanceLocalHardeningError.value = error instanceof Error ? error.message : 'AI 治理本地补强加载失败'
+  } finally {
+    aiGovernanceLocalHardeningLoading.value = false
   }
 }
 
@@ -5825,6 +6265,7 @@ async function createExternalReturnQualityRecord() {
       })
     })
     qualityRecordResult.value = `已登记外返质量记录 ${payload.data.quality_record_id} / 返工 ${payload.data.rework_id ?? '-'}`
+    qualityRecordStatusId.value = String(payload.data.quality_record_id)
     qualityRecordReasonDetail.value = ''
     await Promise.all([
       loadQualityRecords(),
@@ -5834,6 +6275,33 @@ async function createExternalReturnQualityRecord() {
     qualityRecordError.value = error instanceof Error ? error.message : '外返登记失败'
   } finally {
     qualityRecordSaving.value = false
+  }
+}
+
+async function updateQualityRecordStatus() {
+  const qualityRecordId = Number(qualityRecordStatusId.value.trim())
+  if (!Number.isInteger(qualityRecordId) || qualityRecordId <= 0) {
+    qualityRecordError.value = '质量记录 ID 必须是正整数'
+    return
+  }
+  qualityRecordStatusSaving.value = true
+  qualityRecordError.value = ''
+  qualityRecordResult.value = ''
+  try {
+    const payload = await apiFetch<QualityRecordResponse>(`/quality-records/${qualityRecordId}/status`, {
+      method: 'PUT',
+      body: JSON.stringify({
+        status: qualityRecordStatus.value,
+        status_note: qualityRecordStatusNote.value.trim()
+      })
+    })
+    qualityRecordResult.value = `已更新质量记录 ${payload.data.quality_record_id} 状态为 ${statusLabel(payload.data.status)}`
+    qualityRecordStatusNote.value = ''
+    await loadQualityRecords()
+  } catch (error) {
+    qualityRecordError.value = error instanceof Error ? error.message : '质量状态更新失败'
+  } finally {
+    qualityRecordStatusSaving.value = false
   }
 }
 
@@ -6639,6 +7107,18 @@ onBeforeUnmount(() => {
           </div>
         </section>
 
+        <section v-if="isLoggedIn" class="frontend-state-strip" data-testid="frontend-productization-state-strip">
+          <article
+            v-for="state in frontendProductizationStateCopy"
+            :key="state.title"
+            class="frontend-state-pill"
+            :class="`tone-${state.tone}`"
+          >
+            <strong>{{ state.title }}</strong>
+            <span>{{ state.detail }}</span>
+          </article>
+        </section>
+
         <section v-if="!isLoggedIn" class="login-page">
           <div class="login-brand">
             <div class="brand-mark" aria-hidden="true">
@@ -6737,9 +7217,20 @@ onBeforeUnmount(() => {
 
         <section v-else-if="isInternalOrdersRoute" class="panel route-panel internal-order-panel">
           <div class="route-heading">
-            <h2>客服初审</h2>
-            <el-tag round>{{ internalOrders.length }} 单</el-tag>
+            <h2>{{ isProductizedCsDesignRoute ? '设计稿管理' : '客服初审' }}</h2>
+            <div class="notification-heading-tags">
+              <el-tag round>{{ internalOrders.length }} 单</el-tag>
+              <el-tag v-if="isProductizedCsDesignRoute" type="success" round>本地第一增量</el-tag>
+            </div>
           </div>
+
+          <el-alert
+            v-if="isProductizedCsDesignRoute"
+            title="设计稿管理已复用客服订单详情内的设计稿版本、预览 URL 和审核入口；真实电子签章和客户最终验收仍为外部阻塞。"
+            type="info"
+            show-icon
+            :closable="false"
+          />
 
           <div class="prototype-chip-row">
             <button
@@ -8442,12 +8933,21 @@ onBeforeUnmount(() => {
 
         <section v-else-if="isDeliveryManagementRoute" class="panel route-panel production-board-panel" data-testid="cs-delivery-management-panel">
           <div class="route-heading">
-            <h2>配送管理</h2>
+            <h2>{{ isProductizedCsBillingRoute ? '账单管理' : '配送管理' }}</h2>
             <div class="heading-tags">
               <el-tag round>{{ deliveryOrders.length }} 单</el-tag>
               <el-tag type="info" round>人工跟进</el-tag>
+              <el-tag v-if="isProductizedCsBillingRoute" type="success" round>本地第一增量</el-tag>
             </div>
           </div>
+
+          <el-alert
+            v-if="isProductizedCsBillingRoute"
+            title="账单管理已复用账单文件、人工付款状态、物流发货和异常跟进本地链路；真实支付平台、电子发票和真实物流 API 未接入。"
+            type="info"
+            show-icon
+            :closable="false"
+          />
 
           <div class="production-board-toolbar">
             <el-select
@@ -10078,6 +10578,31 @@ onBeforeUnmount(() => {
                     <li v-for="note in csAiQueryReferenceNotes" :key="note">{{ note }}</li>
                   </ul>
                 </div>
+                <div
+                  v-if="csAiQueryAttachmentContexts.length"
+                  class="attachment-context-list"
+                  data-testid="cs-ai-query-attachment-contexts"
+                >
+                  <h4>附件预览上下文</h4>
+                  <div
+                    v-for="attachment in csAiQueryAttachmentContexts"
+                    :key="attachment.file_id"
+                    class="attachment-context-item"
+                  >
+                    <div>
+                      <strong>{{ attachment.original_filename }}</strong>
+                      <p>
+                        #{{ attachment.file_id }} / {{ attachment.source_type }} /
+                        {{ attachment.content_type || '未知类型' }} /
+                        {{ attachment.file_size ?? 0 }} bytes
+                      </p>
+                      <p>{{ attachment.review_note }}</p>
+                    </div>
+                    <a :href="attachment.preview_url" target="_blank" rel="noreferrer">
+                      预览
+                    </a>
+                  </div>
+                </div>
               </div>
               <div v-else class="empty-state">
                 输入订单 ID 和问题后生成客服内部查询草稿
@@ -10170,6 +10695,14 @@ onBeforeUnmount(() => {
               {{ activePrototypeDashboard.primaryAction.actionLabel }}
             </button>
           </div>
+
+          <el-alert
+            v-if="['cs', 'production'].includes(portalTone)"
+            :title="phaseOneAbDashboardSourceNote"
+            :type="phaseOneAbDashboardDataError ? 'warning' : 'success'"
+            show-icon
+            :closable="false"
+          />
 
           <div class="prototype-metric-grid" :class="`metric-count-${activePrototypeDashboard.metrics.length}`">
             <article
@@ -10383,6 +10916,31 @@ onBeforeUnmount(() => {
                 登记外返
               </el-button>
             </div>
+            <div class="compact-form-grid">
+              <el-input
+                v-model="qualityRecordStatusId"
+                placeholder="质量记录 ID"
+                data-testid="quality-record-status-id"
+              />
+              <el-select v-model="qualityRecordStatus" data-testid="quality-record-status">
+                <el-option label="待处理" value="PENDING" />
+                <el-option label="处理中" value="IN_PROGRESS" />
+                <el-option label="已解决" value="RESOLVED" />
+                <el-option label="已关闭" value="CLOSED" />
+              </el-select>
+              <el-input
+                v-model="qualityRecordStatusNote"
+                placeholder="状态处理说明"
+                data-testid="quality-record-status-note"
+              />
+              <el-button
+                :loading="qualityRecordStatusSaving"
+                data-testid="quality-record-status-button"
+                @click="updateQualityRecordStatus"
+              >
+                更新状态
+              </el-button>
+            </div>
             <el-table
               :data="qualityRecords"
               size="small"
@@ -10400,6 +10958,7 @@ onBeforeUnmount(() => {
                   <el-tag round>{{ statusLabel(row.status) }}</el-tag>
                 </template>
               </el-table-column>
+              <el-table-column prop="status_note" label="状态说明" min-width="160" show-overflow-tooltip />
               <el-table-column label="时间" width="120">
                 <template #default="{ row }">{{ compactDateTime(row.created_at) }}</template>
               </el-table-column>
@@ -10408,10 +10967,145 @@ onBeforeUnmount(() => {
           </div>
         </section>
 
-        <section v-else-if="isPlaceholderRoute && activeDisplayItem" class="panel route-panel placeholder-panel">
+        <section
+          v-else-if="isAdminAiGovernanceRoute"
+          class="panel route-panel performance-panel"
+          data-testid="ai-governance-local-hardening"
+        >
+          <div class="route-heading">
+            <h2>AI 生产治理本地补强</h2>
+            <div class="heading-tags">
+              <el-tag type="warning" round>PARTIAL</el-tag>
+              <el-tag type="info" round>{{ aiGovernanceLocalHardening?.stage_goal ?? 'GOAL-019' }}</el-tag>
+            </div>
+          </div>
+
+          <el-alert
+            title="真实 key / webhook 仍待验收；本页只展示本地治理边界、提示词版本、输出安全和 AI-3 安全矩阵。"
+            type="warning"
+            show-icon
+            :closable="false"
+          />
+          <el-alert
+            v-if="aiGovernanceLocalHardeningError"
+            :title="aiGovernanceLocalHardeningError"
+            type="error"
+            show-icon
+            :closable="false"
+          />
+
+          <div v-if="aiGovernanceLocalHardening" v-loading="aiGovernanceLocalHardeningLoading">
+            <div class="performance-grid">
+              <article class="performance-card">
+                <span>输出安全边界</span>
+                <strong>{{ aiGovernanceLocalHardening.output_safety_boundary.guarded_status }}</strong>
+                <small>{{ aiGovernanceLocalHardening.output_safety_boundary.streaming_status }}</small>
+              </article>
+              <article class="performance-card">
+                <span>预算 / 熔断</span>
+                <strong>{{ aiGovernanceLocalHardening.budget_circuit_breaker_policy.daily_budget_microusd }}</strong>
+                <small>通知 {{ aiGovernanceLocalHardening.budget_circuit_breaker_policy.budget_notification_enabled ? '开启' : '关闭' }} / 熔断 {{ aiGovernanceLocalHardening.budget_circuit_breaker_policy.budget_circuit_breaker_enabled ? '开启' : '关闭' }}</small>
+              </article>
+              <article class="performance-card">
+                <span>AI-5 模板状态</span>
+                <strong>{{ aiGovernanceLocalHardening.ai5_template_boundary.template_version }}</strong>
+                <small>{{ aiGovernanceLocalHardening.ai5_template_boundary.customer_template_status }}</small>
+              </article>
+              <article class="performance-card">
+                <span>真实外部联调</span>
+                <strong>{{ aiGovernanceLocalHardening.real_external_integration_status.integration_status }}</strong>
+                <small>Task 8 {{ aiGovernanceLocalHardening.real_external_integration_status.task8_status }}</small>
+              </article>
+            </div>
+
+            <div class="prototype-queue-card">
+              <div class="prototype-table-head">
+                <div>
+                  <h3>提示词版本</h3>
+                  <small>本地代码版本管理，不暴露 prompt 原文，不提供在线编辑。</small>
+                </div>
+                <el-tag type="success" round>只读</el-tag>
+              </div>
+              <el-table :data="aiGovernanceLocalHardening.prompt_templates" size="small" border>
+                <el-table-column prop="agent_code" label="智能体" min-width="150" />
+                <el-table-column prop="prompt_version" label="版本" min-width="180" />
+                <el-table-column prop="context_type" label="上下文" min-width="220" />
+                <el-table-column prop="owner_role" label="角色" width="120" />
+                <el-table-column label="人工确认" width="110">
+                  <template #default="{ row }">
+                    <el-tag :type="row.human_confirmation_required ? 'warning' : 'info'" size="small" round>
+                      {{ row.human_confirmation_required ? '需要' : '按规则' }}
+                    </el-tag>
+                  </template>
+                </el-table-column>
+              </el-table>
+            </div>
+
+            <div class="prototype-queue-card">
+              <div class="prototype-table-head">
+                <div>
+                  <h3>AI-3 安全矩阵</h3>
+                  <small>医生端只读安全模型回归，不暴露内部工序、员工、返工、工时或绩效。</small>
+                </div>
+                <el-tag type="warning" round>SAFE_REFUSAL</el-tag>
+              </div>
+              <div class="compact-list">
+                <article
+                  v-for="item in aiGovernanceLocalHardening.ai3_safety_cases"
+                  :key="item.case_id"
+                >
+                  <strong>{{ item.question_family }}</strong>
+                  <p>{{ item.safe_read_model }} / {{ item.expected_status }}</p>
+                  <span>禁止字段：{{ item.forbidden_fields.join('、') }}</span>
+                </article>
+              </div>
+            </div>
+
+            <div class="prototype-queue-card">
+              <div class="prototype-table-head">
+                <div>
+                  <h3>AI-5 模板状态</h3>
+                  <small>PHASE_ONE_DEFAULT_V1 仍是默认模板，不是客户正式模板。</small>
+                </div>
+                <el-tag type="danger" round>客户模板未确认</el-tag>
+              </div>
+              <div class="doctor-order-summary">
+                <div>
+                  <span>模板版本</span>
+                  <strong>{{ aiGovernanceLocalHardening.ai5_template_boundary.template_version }}</strong>
+                </div>
+                <div>
+                  <span>客户确认</span>
+                  <strong>{{ aiGovernanceLocalHardening.ai5_template_boundary.customer_template_status }}</strong>
+                </div>
+                <div>
+                  <span>自动写入</span>
+                  <strong>{{ aiGovernanceLocalHardening.ai5_template_boundary.auto_write_allowed ? '允许' : '禁止' }}</strong>
+                </div>
+                <div>
+                  <span>人工确认</span>
+                  <strong>{{ aiGovernanceLocalHardening.ai5_template_boundary.human_confirmation_required ? '必须' : '否' }}</strong>
+                </div>
+              </div>
+            </div>
+          </div>
+          <div v-else class="empty-state">
+            AI 治理本地补强数据加载中
+          </div>
+        </section>
+
+        <section
+          v-else-if="(isPlaceholderRoute || isProductizedProductionSupportRoute || isAdminPermissionInventoryRoute) && activeDisplayItem"
+          class="panel route-panel placeholder-panel"
+          :class="{ 'frontend-productized-support-panel': isProductizedProductionSupportRoute }"
+        >
           <div class="route-heading">
             <h2>{{ activeDisplayItem.title }}</h2>
-            <el-tag round>演示入口</el-tag>
+            <div class="heading-tags">
+              <el-tag v-if="isProductizedProductionSupportRoute" type="success" round>本地第一增量</el-tag>
+              <el-tag v-else-if="isAdminPermissionInventoryRoute" type="warning" round>权限清单入口</el-tag>
+              <el-tag v-else round>演示入口</el-tag>
+            </div>
           </div>
           <div class="placeholder-hero">
             <span class="admin-menu-icon" aria-hidden="true" v-html="businessIconSvg(activeDisplayItem.icon)" />
@@ -10421,13 +11115,53 @@ onBeforeUnmount(() => {
             </div>
           </div>
           <el-alert
-            :title="isProductionQualitySummaryRoute || isProductionEquipmentSummaryRoute || isProductionMaterialExceptionSummaryRoute || isProductionSafetyEnvironmentSummaryRoute || isProductionCostSummaryRoute || isProductionRewardPenaltySummaryRoute
-              ? '该功能已接入当前后端汇总数据，细项管理、编辑和审批流程后续确认正式范围后再补齐。'
+            :title="isProductizedProductionSupportRoute
+              ? '该功能已接入当前后端汇总数据和本地第一增量表单；完整编辑、审批、真实趋势和客户验收仍保持 PARTIAL。'
               : '该功能已纳入前端演示导航，后续确认正式范围后再接入接口、权限和数据表。'"
             type="info"
             show-icon
             :closable="false"
           />
+          <div v-if="isAdminPermissionInventoryRoute" class="prototype-queue-card admin-permission-inventory-panel">
+            <div class="prototype-table-head">
+              <div>
+                <h3>账号 / 角色 / 权限清单</h3>
+                <small>本地第一增量展示当前登录身份、菜单和权限库存；完整 RuoYi 管理 UI 仍未完成。</small>
+              </div>
+              <el-tag type="warning" round>PARTIAL</el-tag>
+            </div>
+            <div class="doctor-order-summary">
+              <div>
+                <span>当前账号</span>
+                <strong>{{ currentUser?.username ?? '-' }}</strong>
+              </div>
+              <div>
+                <span>角色</span>
+                <strong>{{ roleLabels(currentUser?.roles) }}</strong>
+              </div>
+              <div>
+                <span>数据范围</span>
+                <strong>{{ dataScopeLabel(currentUser?.dataScope) }}</strong>
+              </div>
+              <div>
+                <span>菜单入口</span>
+                <strong>{{ navigationMenus.length }}</strong>
+              </div>
+            </div>
+            <div class="permission-chip-grid">
+              <el-tag
+                v-for="permission in visiblePermissions"
+                :key="permission"
+                effect="plain"
+                round
+              >
+                {{ permission }}
+              </el-tag>
+              <div v-if="visiblePermissions.length === 0" class="empty-state">
+                当前账号未返回权限码清单
+              </div>
+            </div>
+          </div>
           <div v-if="isProductionQualitySummaryRoute" class="prototype-queue-card">
             <div class="prototype-table-head">
               <div>

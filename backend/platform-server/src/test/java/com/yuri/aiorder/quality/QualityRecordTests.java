@@ -1,9 +1,11 @@
 package com.yuri.aiorder.quality;
 
+import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.not;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.put;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
@@ -86,6 +88,84 @@ class QualityRecordTests {
     }
 
     @Test
+    void externalReturnWritesIndependentQualityRecordFact() throws Exception {
+        long qualityRecordId = registerExternalReturn("CS", 8806L, "DOCTOR", "FIT_ISSUE", "独立质量记录事实");
+
+        long independentRecordCount = jdbcClient.sql("""
+                        SELECT COUNT(*)
+                        FROM quality_record qr
+                        JOIN check_record c ON c.check_id = qr.source_check_id
+                        JOIN rework_record r ON r.rework_id = qr.rework_id
+                        WHERE qr.quality_record_id = :qualityRecordId
+                          AND qr.order_id = :orderId
+                          AND qr.record_type = 'EXTERNAL_RETURN'
+                          AND qr.status = 'PENDING'
+                          AND c.check_type = 'EXTERNAL_RETURN'
+                          AND r.status = 'PENDING'
+                        """)
+                .param("qualityRecordId", qualityRecordId)
+                .param("orderId", orderId)
+                .query(Long.class)
+                .single();
+        assertEquals(1L, independentRecordCount);
+    }
+
+    @Test
+    void adminCanAdvanceQualityRecordStatusButDoctorCannot() throws Exception {
+        long qualityRecordId = registerExternalReturn("CS", 8807L, "CS", "FIT_ISSUE", "状态流转质量记录");
+
+        mockMvc.perform(put("/quality-records/{qualityRecordId}/status", qualityRecordId)
+                        .header("X-Bootstrap-Role", "ADMIN")
+                        .header("X-Bootstrap-User-Id", 8808L)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("""
+                                {
+                                  "status": "IN_PROGRESS",
+                                  "status_note": "已安排质量复盘"
+                                }
+                                """))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.quality_record_id").value(qualityRecordId))
+                .andExpect(jsonPath("$.data.status").value("IN_PROGRESS"))
+                .andExpect(jsonPath("$.data.status_note").value("已安排质量复盘"));
+
+        mockMvc.perform(get("/quality-records")
+                        .header("X-Bootstrap-Role", "CS")
+                        .header("X-Bootstrap-User-Id", 8809L)
+                        .param("status", "IN_PROGRESS")
+                        .param("order_id", String.valueOf(orderId)))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.total").value(1))
+                .andExpect(jsonPath("$.data.items[0].quality_record_id").value(qualityRecordId))
+                .andExpect(jsonPath("$.data.items[0].status_note").value("已安排质量复盘"));
+
+        mockMvc.perform(put("/quality-records/{qualityRecordId}/status", qualityRecordId)
+                        .header("X-Bootstrap-Role", "DOCTOR")
+                        .header("X-Bootstrap-User-Id", 8810L)
+                        .header("X-Bootstrap-Clinic-Id", 1L)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("""
+                                {
+                                  "status": "CLOSED",
+                                  "status_note": "医生端不能关闭内部质量记录"
+                                }
+                                """))
+                .andExpect(status().isForbidden());
+
+        mockMvc.perform(put("/quality-records/{qualityRecordId}/status", qualityRecordId)
+                        .header("X-Bootstrap-Role", "CS")
+                        .header("X-Bootstrap-User-Id", 8811L)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("""
+                                {
+                                  "status": "DELETED",
+                                  "status_note": "不允许的状态"
+                                }
+                                """))
+                .andExpect(status().isBadRequest());
+    }
+
+    @Test
     void qualityRecordsCanFilterByStatusAndResponsibilityType() throws Exception {
         seedExternalReturn(orderId, "DOCTOR", "FIT_ISSUE", "医生退回");
         seedExternalReturn(orderId, "CS", "MARGIN_ISSUE", "客服录入异常");
@@ -124,6 +204,31 @@ class QualityRecordTests {
                                 }
                                 """.formatted(orderId)))
                 .andExpect(status().isForbidden());
+    }
+
+    private long registerExternalReturn(
+            String role, long userId, String responsibilityType, String reasonCategory, String reasonDetail) throws Exception {
+        String response = mockMvc.perform(post("/quality-records/external-returns")
+                        .header("X-Bootstrap-Role", role)
+                        .header("X-Bootstrap-User-Id", userId)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("""
+                                {
+                                  "order_id": %d,
+                                  "reason_category": "%s",
+                                  "responsibility_type": "%s",
+                                  "reason_detail": "%s"
+                                }
+                                """.formatted(orderId, reasonCategory, responsibilityType, reasonDetail)))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.quality_record_id").isNumber())
+                .andReturn()
+                .getResponse()
+                .getContentAsString();
+        String marker = "\"quality_record_id\":";
+        int start = response.indexOf(marker) + marker.length();
+        int end = response.indexOf(',', start);
+        return Long.parseLong(response.substring(start, end).trim());
     }
 
     private long createClinic(String clinicName) {
@@ -176,6 +281,24 @@ class QualityRecordTests {
                         """)
                 .param("orderId", targetOrderId)
                 .param("checkId", checkId)
+                .param("reasonCategory", reasonCategory)
+                .param("reasonDetail", reasonDetail)
+                .param("responsibilityType", responsibilityType)
+                .update();
+        long reworkId = jdbcClient.sql("SELECT LAST_INSERT_ID()")
+                .query(Long.class)
+                .single();
+        jdbcClient.sql("""
+                        INSERT INTO quality_record
+                            (order_id, record_type, source_check_id, rework_id, check_result, reason_category,
+                             reason_detail, responsibility_type, status, created_by_user_id)
+                        VALUES
+                            (:orderId, 'EXTERNAL_RETURN', :checkId, :reworkId, 'FAIL', :reasonCategory,
+                             :reasonDetail, :responsibilityType, 'PENDING', 8800)
+                        """)
+                .param("orderId", targetOrderId)
+                .param("checkId", checkId)
+                .param("reworkId", reworkId)
                 .param("reasonCategory", reasonCategory)
                 .param("reasonDetail", reasonDetail)
                 .param("responsibilityType", responsibilityType)

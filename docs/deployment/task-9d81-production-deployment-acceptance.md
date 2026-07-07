@@ -4,6 +4,8 @@
 
 本模板用于真实测试环境或正式环境具备后记录部署上线验收。当前只提供记录模板，不代表真实服务器已部署完成，不代表 HTTPS 已验收完成，不代表备份恢复、日志留存、监控告警或发布回滚已验收完成。
 
+GOAL-020 / TASK-021 已补本地 dry-run 补强：`docs/deployment/phase-one-local-ops-dry-run.md`、`npm run check:deployment-ops-local-hardening` 和 `npm run dry-run:phase-one-release-rollback`。该补强只检查本地 release / rollback、备份 / 恢复模板、日志 / 监控模板和 compose / env / Nginx / healthcheck 静态边界；真实环境字段仍为 `待填写` 或 `待确认`，不代表真实环境验收完成。
+
 ## 基本信息
 
 | 项目 | 记录 |

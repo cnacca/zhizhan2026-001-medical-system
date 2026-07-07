@@ -1818,9 +1818,45 @@ p {
 }
 
 .content-grid.with-nav > .health-panel,
-.content-grid.with-nav > .route-panel {
+.content-grid.with-nav > .route-panel,
+.content-grid.with-nav > .frontend-state-strip {
   grid-column: 2;
   min-width: 0;
+}
+
+.frontend-state-strip {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 10px;
+  margin: 0 28px;
+}
+
+.frontend-state-pill {
+  display: grid;
+  gap: 4px;
+  min-height: 74px;
+  padding: 12px;
+  border: 1px solid var(--portal-line);
+  border-radius: 8px;
+  background: #ffffff;
+  box-shadow: var(--portal-shadow-sm);
+}
+
+.frontend-state-pill strong {
+  color: #111827;
+  font-size: 13px;
+}
+
+.frontend-state-pill span {
+  color: var(--portal-muted);
+  font-size: 12px;
+  line-height: 1.5;
+}
+
+.permission-chip-grid {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
 }
 
 .route-panel {

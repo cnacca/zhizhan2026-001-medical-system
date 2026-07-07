@@ -11,7 +11,7 @@ import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RestController;
 
 @RestController
-@RequirePermission(roles = UserRole.DOCTOR)
+@RequirePermission(value = "account:doctor", roles = UserRole.DOCTOR)
 public class DoctorAccountController {
 
     private final DoctorAccountService accountService;

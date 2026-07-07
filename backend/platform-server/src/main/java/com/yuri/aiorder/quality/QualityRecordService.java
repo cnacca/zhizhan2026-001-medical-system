@@ -8,6 +8,7 @@ import java.time.LocalDateTime;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Locale;
+import java.util.Set;
 import org.springframework.dao.EmptyResultDataAccessException;
 import org.springframework.http.HttpStatus;
 import org.springframework.jdbc.core.simple.JdbcClient;
@@ -21,6 +22,7 @@ public class QualityRecordService {
     private static final String EXTERNAL_RETURN = "EXTERNAL_RETURN";
     private static final String REASON_CATEGORY = "REASON_CATEGORY";
     private static final String RESPONSIBILITY_TYPE = "RESPONSIBILITY_TYPE";
+    private static final Set<String> QUALITY_RECORD_STATUSES = Set.of("PENDING", "IN_PROGRESS", "RESOLVED", "CLOSED");
 
     private final JdbcClient jdbcClient;
     private final AccessControlService accessControlService;
@@ -55,68 +57,73 @@ public class QualityRecordService {
 
         List<String> filters = new ArrayList<>();
         if (normalizedRecordType != null) {
-            filters.add("c.check_type = :recordType");
+            filters.add("qr.record_type = :recordType");
         }
         if (normalizedStatus != null) {
-            filters.add("r.status = :status");
+            filters.add("qr.status = :status");
         }
         if (normalizedResponsibilityType != null) {
-            filters.add("r.responsibility_type = :responsibilityType");
+            filters.add("qr.responsibility_type = :responsibilityType");
         }
         if (orderId != null) {
-            filters.add("c.order_id = :orderId");
+            filters.add("qr.order_id = :orderId");
         }
         String whereClause = filters.isEmpty() ? "" : " WHERE " + String.join(" AND ", filters) + " ";
 
         JdbcClient.StatementSpec dataSpec = bindFilters(jdbcClient.sql("""
                         SELECT
-                            c.check_id,
-                            c.check_type,
-                            c.result,
-                            c.created_at,
+                            qr.quality_record_id,
+                            qr.record_type,
+                            qr.check_result,
+                            qr.status,
+                            qr.status_note,
+                            qr.created_at,
+                            qr.status_updated_at,
+                            qr.updated_at,
                             o.order_id,
                             o.order_no,
                             o.product_type,
                             cl.clinic_name,
+                            c.check_id,
                             r.rework_id,
-                            r.reason_category,
-                            r.reason_detail,
-                            r.responsibility_type,
-                            r.status,
-                            r.updated_at
-                        FROM check_record c
-                        JOIN orders o ON o.order_id = c.order_id
+                            qr.reason_category,
+                            qr.reason_detail,
+                            qr.responsibility_type
+                        FROM quality_record qr
+                        JOIN orders o ON o.order_id = qr.order_id
                         JOIN clinic cl ON cl.clinic_id = o.clinic_id
-                        LEFT JOIN rework_record r ON r.source_check_id = c.check_id
+                        LEFT JOIN check_record c ON c.check_id = qr.source_check_id
+                        LEFT JOIN rework_record r ON r.rework_id = qr.rework_id
                         """ + whereClause + """
-                        ORDER BY c.created_at DESC, c.check_id DESC
+                        ORDER BY qr.created_at DESC, qr.quality_record_id DESC
                         LIMIT :limit OFFSET :offset
                         """), normalizedRecordType, normalizedStatus, normalizedResponsibilityType, orderId)
                 .param("limit", safeSize)
                 .param("offset", offset);
 
         List<QualityRecordResponse> items = dataSpec.query((rs, rowNum) -> new QualityRecordResponse(
-                        rs.getLong("check_id"),
-                        rs.getString("check_type"),
+                        rs.getLong("quality_record_id"),
+                        rs.getString("record_type"),
                         rs.getLong("order_id"),
                         rs.getString("order_no"),
                         rs.getString("product_type"),
                         rs.getString("clinic_name"),
-                        rs.getLong("check_id"),
-                        rs.getString("result"),
+                        rs.getObject("check_id", Long.class) == null ? 0L : rs.getLong("check_id"),
+                        rs.getString("check_result"),
                         rs.getObject("rework_id", Long.class),
                         rs.getString("reason_category"),
                         rs.getString("reason_detail"),
                         rs.getString("responsibility_type"),
                         rs.getString("status"),
+                        rs.getString("status_note"),
                         rs.getObject("created_at", LocalDateTime.class),
+                        rs.getObject("status_updated_at", LocalDateTime.class),
                         rs.getObject("updated_at", LocalDateTime.class)))
                 .list();
 
         long total = bindFilters(jdbcClient.sql("""
                         SELECT COUNT(*)
-                        FROM check_record c
-                        LEFT JOIN rework_record r ON r.source_check_id = c.check_id
+                        FROM quality_record qr
                         """ + whereClause), normalizedRecordType, normalizedStatus, normalizedResponsibilityType, orderId)
                 .query(Long.class)
                 .single();
@@ -163,49 +170,103 @@ public class QualityRecordService {
                 .param("reasonDetail", reasonDetail)
                 .param("responsibilityType", responsibilityType)
                 .update();
-        return requireQualityRecord(checkId);
+        long reworkId = lastInsertId();
+
+        jdbcClient.sql("""
+                        INSERT INTO quality_record
+                            (order_id, record_type, source_check_id, rework_id, check_result, reason_category,
+                             reason_detail, responsibility_type, status, created_by_user_id)
+                        VALUES
+                            (:orderId, :recordType, :sourceCheckId, :reworkId, 'FAIL', :reasonCategory,
+                             :reasonDetail, :responsibilityType, 'PENDING', :createdByUserId)
+                        """)
+                .param("orderId", request.orderId())
+                .param("recordType", EXTERNAL_RETURN)
+                .param("sourceCheckId", checkId)
+                .param("reworkId", reworkId)
+                .param("reasonCategory", reasonCategory)
+                .param("reasonDetail", reasonDetail)
+                .param("responsibilityType", responsibilityType)
+                .param("createdByUserId", identity.userId())
+                .update();
+        return requireQualityRecord(lastInsertId());
     }
 
-    private QualityRecordResponse requireQualityRecord(long checkId) {
+    @Transactional
+    public QualityRecordResponse updateStatus(
+            BootstrapIdentity identity, long qualityRecordId, QualityRecordStatusUpdateRequest request) {
+        accessControlService.requireAnyRole(
+                identity, java.util.EnumSet.of(UserRole.ADMIN, UserRole.CS), "quality record status is internal only");
+        String status = normalizeRequired(request.status(), "status");
+        if (!QUALITY_RECORD_STATUSES.contains(status)) {
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "unsupported quality record status");
+        }
+        String statusNote = normalizeOptionalText(request.statusNote());
+        int updated = jdbcClient.sql("""
+                        UPDATE quality_record
+                        SET status = :status,
+                            status_note = :statusNote,
+                            status_updated_by_user_id = :statusUpdatedByUserId,
+                            status_updated_at = CURRENT_TIMESTAMP(3)
+                        WHERE quality_record_id = :qualityRecordId
+                        """)
+                .param("status", status)
+                .param("statusNote", statusNote)
+                .param("statusUpdatedByUserId", identity.userId())
+                .param("qualityRecordId", qualityRecordId)
+                .update();
+        if (updated == 0) {
+            throw new ResponseStatusException(HttpStatus.NOT_FOUND, "quality record not found");
+        }
+        return requireQualityRecord(qualityRecordId);
+    }
+
+    private QualityRecordResponse requireQualityRecord(long qualityRecordId) {
         try {
             return jdbcClient.sql("""
                             SELECT
+                                qr.quality_record_id,
+                                qr.record_type,
+                                qr.check_result,
+                                qr.status,
+                                qr.status_note,
+                                qr.created_at,
+                                qr.status_updated_at,
+                                qr.updated_at,
                                 c.check_id,
-                                c.check_type,
-                                c.result,
-                                c.created_at,
                                 o.order_id,
                                 o.order_no,
                                 o.product_type,
                                 cl.clinic_name,
                                 r.rework_id,
-                                r.reason_category,
-                                r.reason_detail,
-                                r.responsibility_type,
-                                r.status,
-                                r.updated_at
-                            FROM check_record c
-                            JOIN orders o ON o.order_id = c.order_id
+                                qr.reason_category,
+                                qr.reason_detail,
+                                qr.responsibility_type
+                            FROM quality_record qr
+                            JOIN orders o ON o.order_id = qr.order_id
                             JOIN clinic cl ON cl.clinic_id = o.clinic_id
-                            LEFT JOIN rework_record r ON r.source_check_id = c.check_id
-                            WHERE c.check_id = :checkId
+                            LEFT JOIN check_record c ON c.check_id = qr.source_check_id
+                            LEFT JOIN rework_record r ON r.rework_id = qr.rework_id
+                            WHERE qr.quality_record_id = :qualityRecordId
                             """)
-                    .param("checkId", checkId)
+                    .param("qualityRecordId", qualityRecordId)
                     .query((rs, rowNum) -> new QualityRecordResponse(
-                            rs.getLong("check_id"),
-                            rs.getString("check_type"),
+                            rs.getLong("quality_record_id"),
+                            rs.getString("record_type"),
                             rs.getLong("order_id"),
                             rs.getString("order_no"),
                             rs.getString("product_type"),
                             rs.getString("clinic_name"),
-                            rs.getLong("check_id"),
-                            rs.getString("result"),
+                            rs.getObject("check_id", Long.class) == null ? 0L : rs.getLong("check_id"),
+                            rs.getString("check_result"),
                             rs.getObject("rework_id", Long.class),
                             rs.getString("reason_category"),
                             rs.getString("reason_detail"),
                             rs.getString("responsibility_type"),
                             rs.getString("status"),
+                            rs.getString("status_note"),
                             rs.getObject("created_at", LocalDateTime.class),
+                            rs.getObject("status_updated_at", LocalDateTime.class),
                             rs.getObject("updated_at", LocalDateTime.class)))
                     .single();
         } catch (EmptyResultDataAccessException ex) {
@@ -271,6 +332,10 @@ public class QualityRecordService {
 
     private String normalizeOptional(String value) {
         return value == null || value.isBlank() ? null : value.trim().toUpperCase(Locale.ROOT);
+    }
+
+    private String normalizeOptionalText(String value) {
+        return value == null || value.isBlank() ? null : value.trim();
     }
 
     private long lastInsertId() {
