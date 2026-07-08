@@ -1,0 +1,196 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>生产工作台改造预览</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&family=Lora:wght@600&display=swap" rel="stylesheet">
+<style>
+:root{
+  --white:#fff;--off:#f7f9fc;--off2:#eef2f8;
+  --teal-50:#f0fdfa;--teal-100:#ccfbf1;--teal-200:#99f6e4;--teal-500:#14b8a6;--teal-600:#0d9488;--teal-700:#0f766e;
+  --blue-50:#eff6ff;--blue-500:#3b82f6;--blue-600:#2563eb;
+  --amber:#fffbeb;--amber-txt:#d97706;--amber-bdr:#fde68a;
+  --rose:#fff1f2;--rose-txt:#e11d48;--rose-bdr:#fecdd3;
+  --violet:#f5f3ff;--violet-txt:#7c3aed;--violet-bdr:#ddd6fe;
+  --orange:#fff7ed;--orange-txt:#ea580c;--orange-bdr:#fed7aa;
+  --mint:#ecfdf5;--mint-txt:#059669;--mint-bdr:#a7f3d0;
+  --t1:#0f172a;--t2:#475569;--t3:#94a3b8;--t4:#cbd5e1;
+  --bdr:#e2e8f0;--bdr2:#cbd5e1;--navy:#0c2340;
+  --head:'Lora',serif;--body:'Plus Jakarta Sans',system-ui,sans-serif;
+  --shadow-sm:0 1px 3px rgba(12,35,64,.06);--shadow:0 4px 16px rgba(12,35,64,.09);
+}
+*{box-sizing:border-box;margin:0;padding:0}
+body{min-height:100vh;background:var(--off);color:var(--t1);font-family:var(--body);font-size:14px;display:flex}
+.sidebar{width:230px;min-height:100vh;background:var(--navy);position:fixed;left:0;top:0;z-index:10;box-shadow:4px 0 24px rgba(12,35,64,.18);overflow:hidden}
+.sidebar:before{content:'';position:absolute;inset:0;background:repeating-linear-gradient(135deg,rgba(255,255,255,.025) 0,rgba(255,255,255,.025) 1px,transparent 1px,transparent 12px)}
+.brand{position:relative;padding:18px 16px 14px;border-bottom:1px solid rgba(255,255,255,.08)}
+.brand h1{font-family:var(--head);font-size:15px;color:#fff;line-height:1.25}
+.brand p{font-size:10px;color:rgba(255,255,255,.42);margin-top:4px;letter-spacing:.8px}
+.user{position:relative;padding:13px 14px;border-bottom:1px solid rgba(255,255,255,.08);display:flex;gap:10px;align-items:center}
+.avatar{width:34px;height:34px;border-radius:50%;background:linear-gradient(135deg,var(--teal-500),var(--blue-600));display:grid;place-items:center;color:#fff;font-weight:800}
+.user b{display:block;color:#fff;font-size:13px}.user span{display:block;color:rgba(255,255,255,.45);font-size:10px;margin-top:2px}
+.nav-section{position:relative;padding:12px 8px 4px}
+.nav-label{font-size:9px;font-weight:800;color:rgba(255,255,255,.28);letter-spacing:1.4px;padding:0 8px;margin-bottom:5px}
+.nav-item{height:35px;border-radius:7px;display:flex;align-items:center;gap:9px;padding:0 10px;margin-bottom:2px;color:rgba(255,255,255,.58);font-size:12px;font-weight:600}
+.nav-item.active{background:rgba(255,255,255,.1);color:#fff;box-shadow:inset 3px 0 0 var(--teal-500)}
+.nav-ico{width:15px;height:15px;border:1.6px solid currentColor;border-radius:3px;opacity:.9}
+.nav-dot{margin-left:auto;font-size:9px;font-weight:800;padding:2px 7px;border-radius:999px;background:#fecdd3;color:#e11d48}
+.main{margin-left:230px;flex:1;min-width:0}
+.sync{height:30px;background:linear-gradient(90deg,var(--teal-600),var(--teal-700));color:#fff;display:flex;align-items:center;gap:10px;padding:0 24px;font-size:12px;font-weight:700}
+.pulse{width:7px;height:7px;border-radius:50%;background:#5eead4;box-shadow:0 0 0 5px rgba(94,234,212,.16)}
+.topbar{height:56px;background:#fff;border-bottom:1.5px solid var(--bdr);display:flex;align-items:center;padding:0 24px;gap:12px;position:sticky;top:0;z-index:5;box-shadow:var(--shadow-sm)}
+.topbar h2{font-family:var(--head);font-size:16px;flex:1}.search{width:220px;height:34px;border:1.5px solid var(--bdr);background:var(--off);border-radius:8px;color:var(--t3);display:flex;align-items:center;padding:0 12px;font-size:12px}
+.pill{border:1.5px solid var(--bdr);background:#fff;border-radius:999px;padding:6px 11px;font-size:11px;font-weight:800;color:var(--t2)}
+.page{padding:20px 24px 28px}
+.head{display:flex;justify-content:space-between;align-items:flex-start;gap:16px;margin-bottom:16px}
+.head h1{font-family:var(--head);font-size:22px;line-height:1.2}.head p{font-size:12px;color:var(--t2);margin-top:5px}
+.btn{border:0;background:var(--teal-600);color:#fff;border-radius:8px;height:34px;padding:0 14px;font-size:12px;font-weight:800;box-shadow:0 2px 8px rgba(13,148,136,.28)}
+.stats{display:grid;grid-template-columns:repeat(6,minmax(122px,1fr));gap:10px;margin-bottom:16px}
+.stat{background:#fff;border:1.5px solid var(--bdr);border-radius:12px;box-shadow:var(--shadow-sm);padding:12px 13px;position:relative;overflow:hidden;min-height:104px}
+.stat:before{content:'';position:absolute;left:0;top:0;right:0;height:4px;background:var(--accent)}
+.stat label{display:block;font-size:11px;font-weight:800;color:var(--t2);letter-spacing:.2px}.stat strong{display:block;font-size:28px;line-height:1;margin-top:12px;color:var(--accent)}.stat span{display:block;font-size:10px;color:var(--t3);margin-top:9px;line-height:1.4}
+.grid-2{display:grid;grid-template-columns:1.05fr .95fr;gap:14px;margin-bottom:16px;align-items:start}
+.card{background:#fff;border:1.5px solid var(--bdr);border-radius:14px;box-shadow:var(--shadow-sm);overflow:hidden}
+.card-h{height:42px;background:#fff;border-bottom:1.5px solid var(--bdr);display:flex;align-items:center;justify-content:space-between;padding:0 14px}
+.card-h h3{font-family:var(--head);font-size:13px}.badge{font-size:10px;font-weight:800;border-radius:999px;padding:3px 8px;border:1px solid transparent}.br{background:var(--rose);color:var(--rose-txt);border-color:var(--rose-bdr)}.ba{background:var(--amber);color:var(--amber-txt);border-color:var(--amber-bdr)}.bt{background:var(--teal-50);color:var(--teal-700);border-color:var(--teal-200)}
+.row{display:grid;grid-template-columns:1fr auto auto;gap:12px;align-items:center;padding:12px 14px;border-bottom:1px solid var(--off2)}
+.row:last-child{border-bottom:0}.row:hover{background:var(--teal-50)}
+.row b{font-size:12px}.row p{font-size:10px;color:var(--t3);margin-top:3px}.meta{font-size:10px;font-weight:800;color:var(--t3)}.action{font-size:11px;font-weight:800;color:var(--teal-700)}
+.side-stack{display:grid;gap:10px}.mini{background:#fff;border:1.5px solid var(--bdr);border-radius:12px;padding:13px;box-shadow:var(--shadow-sm)}
+.mini h4{font-family:var(--head);font-size:12px;margin-bottom:9px}.mini p{font-size:12px;color:var(--t2);line-height:1.55}.bar{height:7px;background:var(--off2);border-radius:999px;overflow:hidden;margin-top:10px}.bar i{display:block;height:100%;background:var(--accent);border-radius:999px}
+.dept-grid{display:grid;grid-template-columns:1.15fr .85fr;gap:14px}
+.legacy-grid{display:grid;grid-template-columns:1fr 1fr;gap:14px;margin-top:16px}
+.legacy-items{display:grid;grid-template-columns:1fr;gap:0}
+.legacy-item{display:grid;grid-template-columns:10px 1fr auto;align-items:center;gap:12px;padding:13px 14px;border-bottom:1px solid var(--off2)}
+.legacy-item:last-child{border-bottom:0}.legacy-dot{width:8px;height:8px;border-radius:50%;background:var(--accent)}.legacy-item b{font-size:12px}.legacy-item p{font-size:10px;color:var(--t3);margin-top:3px}.legacy-link{font-size:11px;font-weight:800;color:var(--teal-700)}
+.month-card{padding:12px 14px}.month-title{display:flex;align-items:center;gap:8px;margin-bottom:10px}.month-icon{width:28px;height:28px;border-radius:9px;background:var(--teal-50);color:var(--teal-700);display:grid;place-items:center;font-weight:900}.month-title h3{font-family:var(--head);font-size:15px}.month-metrics{display:grid;grid-template-columns:repeat(2,1fr);gap:9px;margin-bottom:10px}.month-metric{border:1.5px solid var(--bdr);border-radius:12px;padding:12px 12px;min-height:90px;position:relative;overflow:hidden}.month-metric:before{content:'';position:absolute;left:12px;right:12px;top:0;height:4px;border-radius:0 0 99px 99px;background:var(--accent)}.month-metric label{font-size:11px;color:var(--t2);font-weight:800}.month-metric strong{display:block;font-size:25px;line-height:1;margin-top:11px;color:var(--accent)}.month-metric span{display:block;margin-top:8px;font-size:11px;color:var(--teal-700);font-weight:900}.week-rates{border-top:1.5px solid var(--off2);padding-top:8px}.week-rates h4{font-size:10px;color:var(--t3);font-weight:900;letter-spacing:.8px;margin-bottom:5px}.rate-row{display:grid;grid-template-columns:1fr 60px 112px;align-items:center;border-top:1px solid var(--off2);padding:5px 0;font-size:11px}.rate-row:first-of-type{border-top:0}.rate-row b{font-size:13px}.rate-row span{font-size:11px;font-weight:900;color:var(--teal-700)}.rate-row.bad span{color:var(--rose-txt)}
+table{width:100%;border-collapse:collapse}th{text-align:left;font-size:10px;font-weight:800;color:var(--t3);letter-spacing:.6px;text-transform:uppercase;background:var(--off);padding:9px 12px;border-bottom:1.5px solid var(--bdr);white-space:nowrap}td{padding:10px 12px;border-bottom:1px solid var(--off2);font-size:12px;vertical-align:middle}tr:last-child td{border-bottom:0}.dept-name{font-weight:800}.sub{display:block;font-size:9px;color:var(--t3);font-weight:700;margin-top:2px}.delta-up{color:var(--mint-txt);font-weight:800}.delta-down{color:var(--rose-txt);font-weight:800}
+.workload{padding:12px 14px;border-bottom:1px solid var(--off2)}.workload:last-child{border-bottom:0}.workload-top{display:flex;justify-content:space-between;gap:8px;margin-bottom:8px}.workload b{font-size:12px}.workload span{font-size:11px;color:var(--t2);font-weight:800}.tiny{height:6px;background:var(--off2);border-radius:999px;overflow:hidden}.tiny i{display:block;height:100%;background:var(--accent);border-radius:999px}
+@media(max-width:1180px){.stats{grid-template-columns:repeat(3,1fr)}.grid-2,.dept-grid{grid-template-columns:1fr}.sidebar{display:none}.main{margin-left:0}}
+</style>
+</head>
+<body>
+  <aside class="sidebar">
+    <div class="brand"><h1>AI智能下单平台</h1><p>下单 · 审核 · 生产</p></div>
+    <div class="user"><div class="avatar">W</div><div><b>worker</b><span>生产人员 / 生产部</span></div></div>
+    <div class="nav-section">
+      <div class="nav-label">生产执行</div>
+      <div class="nav-item active"><i class="nav-ico"></i>工作台<span class="nav-dot">7</span></div>
+      <div class="nav-item"><i class="nav-ico"></i>生产订单</div>
+      <div class="nav-item"><i class="nav-ico"></i>生产看板</div>
+      <div class="nav-item"><i class="nav-ico"></i>我的任务</div>
+    </div>
+    <div class="nav-section">
+      <div class="nav-label">质量与返工</div>
+      <div class="nav-item"><i class="nav-ico"></i>质量总览</div>
+      <div class="nav-item"><i class="nav-ico"></i>内返管理</div>
+      <div class="nav-item"><i class="nav-ico"></i>外返管理</div>
+      <div class="nav-item"><i class="nav-ico"></i>终检报告</div>
+    </div>
+    <div class="nav-section">
+      <div class="nav-label">设备物料</div>
+      <div class="nav-item"><i class="nav-ico"></i>设备管理</div>
+      <div class="nav-item"><i class="nav-ico"></i>物料管理</div>
+    </div>
+  </aside>
+
+  <main class="main">
+    <div class="sync"><span class="pulse"></span>医生端与客服端实时同步：7 单生产异常、4 单待问异常、3 个员工异常需要跟进。</div>
+    <div class="topbar">
+      <h2>生产仪表盘</h2>
+      <div class="search">搜索订单 / 部门 / 员工</div>
+      <span class="pill">今日</span>
+      <span class="pill">全部部门</span>
+    </div>
+
+    <section class="page">
+      <div class="head">
+        <div><h1>生产工作台</h1><p>集中查看生产异常、待问异常、员工异常、部门今日数据和上月平均对比。</p></div>
+        <button class="btn">查看生产看板</button>
+      </div>
+
+      <div class="stats">
+        <div class="stat" style="--accent:var(--teal-600)"><label>生产异常</label><strong>7</strong><span>替换原“生产中”，聚焦超时、卡工序、扫码异常。</span></div>
+        <div class="stat" style="--accent:var(--amber-txt)"><label>待问异常</label><strong>4</strong><span>医生、客服、生产三方待确认问题。</span></div>
+        <div class="stat" style="--accent:var(--orange-txt)"><label>员工异常</label><strong>3</strong><span>工作量偏低、超时未处理、异常扫码。</span></div>
+        <div class="stat" style="--accent:var(--rose-txt)"><label>质量与返工</label><strong>5</strong><span>内返 3 单 / 外返 2 单，进入质量与返工。</span></div>
+        <div class="stat" style="--accent:var(--blue-600)"><label>今日出货</label><strong>21</strong><span>目标 24 单，当前出货率 87.5%。</span></div>
+        <div class="stat" style="--accent:var(--mint-txt)"><label>今日完成率</label><strong>87.5%</strong><span>对比上月日均 +6.2%。</span></div>
+      </div>
+
+      <div class="grid-2">
+        <div class="card">
+          <div class="card-h"><h3>生产异常待办</h3><span class="badge br">7 项</span></div>
+          <div class="row"><div><b>CAD-0234 卡在设计审核 2.4 小时</b><p>医生资料已齐，等待部门组长确认。</p></div><span class="meta">设计部</span><span class="action">处理</span></div>
+          <div class="row"><div><b>PRINT-0198 重复扫码 3 次</b><p>同一节点重复扫码，需确认是否返工或误扫。</p></div><span class="meta">打印部</span><span class="action">核查</span></div>
+          <div class="row"><div><b>QC-0311 返工未关闭</b><p>内返记录已有责任归属，缺关闭结果。</p></div><span class="meta">质检部</span><span class="action">关闭</span></div>
+          <div class="row"><div><b>MILL-0220 设备保养导致排队</b><p>切削中心产能低于今日计划。</p></div><span class="meta">车金部</span><span class="action">调度</span></div>
+        </div>
+
+        <div class="card month-card">
+          <div class="month-title"><div class="month-icon">▥</div><h3>本月 vs 上月</h3></div>
+          <div class="month-metrics">
+            <div class="month-metric" style="--accent:var(--violet-txt)"><label>订单数</label><strong>24</strong><span>↑ +4 vs 20</span></div>
+            <div class="month-metric" style="--accent:var(--teal-700)"><label>生产产值</label><strong>¥8.6万</strong><span>↑ +16%</span></div>
+            <div class="month-metric" style="--accent:var(--teal-600)"><label>发货单数</label><strong>21</strong><span>↑ 87.5%</span></div>
+            <div class="month-metric" style="--accent:var(--rose-txt)"><label>返工单数</label><strong>1</strong><span>↓ 4.2% 率</span></div>
+          </div>
+          <div class="week-rates">
+            <h4>周环比速率</h4>
+            <div class="rate-row"><div>返工率</div><b>4.2%</b><span>↑ vs 5.1% 上周</span></div>
+            <div class="rate-row"><div>发货率</div><b>87.5%</b><span>↑ vs 83.3% 上周</span></div>
+            <div class="rate-row bad"><div>客诉率</div><b>1.2%</b><span>↓ vs 0.8% 上周</span></div>
+          </div>
+        </div>
+      </div>
+
+      <div class="dept-grid">
+        <div class="card">
+          <div class="card-h"><h3>部门今日 vs 上月平均</h3><span class="badge bt">全部部门</span></div>
+          <table>
+            <thead><tr><th>部门</th><th>今日工作量</th><th>上月日均</th><th>今日完成率</th><th>返工率 / 上月</th><th>出货率 / 上月</th><th>状态</th></tr></thead>
+            <tbody>
+              <tr><td><span class="dept-name">数据处理</span><span class="sub">Data Review</span></td><td>38</td><td>34</td><td><span class="delta-up">92%</span></td><td>2.1% / 2.8%</td><td>88% / 84%</td><td><span class="badge bt">正常</span></td></tr>
+              <tr><td><span class="dept-name">CAD</span><span class="sub">Design</span></td><td>26</td><td>31</td><td><span class="delta-down">74%</span></td><td><span class="delta-down">4.8% / 3.1%</span></td><td>79% / 86%</td><td><span class="badge br">关注</span></td></tr>
+              <tr><td><span class="dept-name">车金切削</span><span class="sub">Milling</span></td><td>18</td><td>22</td><td><span class="delta-down">68%</span></td><td>3.2% / 2.9%</td><td>76% / 82%</td><td><span class="badge ba">调度</span></td></tr>
+              <tr><td><span class="dept-name">质检</span><span class="sub">QC</span></td><td>44</td><td>39</td><td><span class="delta-up">96%</span></td><td>1.4% / 1.9%</td><td>91% / 88%</td><td><span class="badge bt">正常</span></td></tr>
+              <tr><td><span class="dept-name">包装出货</span><span class="sub">Dispatch</span></td><td>21</td><td>19</td><td><span class="delta-up">87.5%</span></td><td>0.8% / 1.1%</td><td>87.5% / 83.3%</td><td><span class="badge bt">正常</span></td></tr>
+            </tbody>
+          </table>
+        </div>
+
+        <div class="card">
+          <div class="card-h"><h3>部门今日工作量完成率</h3><span class="badge bt">对比上月日均</span></div>
+          <div class="workload" style="--accent:var(--mint-txt)"><div class="workload-top"><b>数据处理</b><span>38 / 41，+12%</span></div><div class="tiny"><i style="width:92%"></i></div></div>
+          <div class="workload" style="--accent:var(--rose-txt)"><div class="workload-top"><b>CAD</b><span>26 / 35，-16%</span></div><div class="tiny"><i style="width:74%"></i></div></div>
+          <div class="workload" style="--accent:var(--amber-txt)"><div class="workload-top"><b>车金切削</b><span>18 / 26，-18%</span></div><div class="tiny"><i style="width:68%"></i></div></div>
+          <div class="workload" style="--accent:var(--mint-txt)"><div class="workload-top"><b>质检</b><span>44 / 46，+13%</span></div><div class="tiny"><i style="width:96%"></i></div></div>
+          <div class="workload" style="--accent:var(--blue-600)"><div class="workload-top"><b>包装出货</b><span>21 / 24，+10%</span></div><div class="tiny"><i style="width:87.5%"></i></div></div>
+        </div>
+      </div>
+
+      <div class="legacy-grid">
+        <div class="card">
+          <div class="card-h"><h3>原有经营待办保留</h3><span class="badge ba">去掉成本</span></div>
+          <div class="legacy-items">
+            <div class="legacy-item" style="--accent:var(--blue-600)"><i class="legacy-dot"></i><div><b>安环巡检</b><p>保留原工作台安环待办入口，不再和成本放在同一组里抢首页重点。</p></div><span class="legacy-link">查看安环</span></div>
+            <div class="legacy-item" style="--accent:var(--mint-txt)"><i class="legacy-dot"></i><div><b>奖惩审批</b><p>保留奖惩待审提醒，作为生产经营辅助待办。</p></div><span class="legacy-link">查看奖惩</span></div>
+          </div>
+        </div>
+
+        <div class="card">
+          <div class="card-h"><h3>原有质量 / 设备 / 物料保留</h3><span class="badge bt">融合新结构</span></div>
+          <div class="legacy-items">
+            <div class="legacy-item" style="--accent:var(--rose-txt)"><i class="legacy-dot"></i><div><b>内返管理</b><p>沿用原质量与返工数据，入口拆成内返管理。</p></div><span class="legacy-link">看内返</span></div>
+            <div class="legacy-item" style="--accent:var(--orange-txt)"><i class="legacy-dot"></i><div><b>外返管理</b><p>沿用原质量与返工数据，入口拆成外返管理。</p></div><span class="legacy-link">看外返</span></div>
+            <div class="legacy-item" style="--accent:var(--amber-txt)"><i class="legacy-dot"></i><div><b>设备维护</b><p>保留设备异常、保养、故障待处理入口。</p></div><span class="legacy-link">看设备</span></div>
+            <div class="legacy-item" style="--accent:var(--violet-txt)"><i class="legacy-dot"></i><div><b>物料管理</b><p>保留物料缺失、错料、批次异常处理入口。</p></div><span class="legacy-link">处理物料</span></div>
+          </div>
+        </div>
+      </div>
+    </section>
+  </main>
+</body>
+</html>

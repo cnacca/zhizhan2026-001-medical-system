@@ -1032,6 +1032,7 @@ type PrototypeDashboard = {
   primaryAction?: DashboardAction
   syncBanner?: string
   metrics: DashboardMetric[]
+  featuredPanel?: DashboardPanel
   monthComparison?: MonthComparison
   panels: DashboardPanel[]
   trends: DashboardTrend[]
@@ -1706,7 +1707,8 @@ const displayNavigationConfig: Record<PortalTone, NavigationGroup[]> = {
           routePath: '/production/quality',
           children: [
             { id: 'production-quality-overview', title: '质量总览', description: '查看总返工率、一次通过率、终检通过率、投诉率和退货率。', icon: 'quality', routePath: '/production/quality' },
-            { id: 'production-rework-management', title: '返工管理', description: '统一处理内返、外返、原因、责任归属和处理状态。', icon: 'quality', routePath: '/rework-final' },
+            { id: 'production-internal-rework-management', title: '内返管理', description: '处理内部质检发现的返修、原因、责任归属和关闭状态。', icon: 'quality', routePath: '/rework-final' },
+            { id: 'production-external-rework-management', title: '外返管理', description: '处理医生或客户退回返修、投诉反馈和外部闭环状态。', icon: 'quality', routePath: '/rework-final' },
             { id: 'production-final-report', title: '终检报告', description: '查看终检报告生成、结论、摘要和报告状态。', icon: 'report', routePath: '/production/final-inspection-reports', placeholder: true }
           ]
         }
@@ -1730,8 +1732,16 @@ const displayNavigationConfig: Record<PortalTone, NavigationGroup[]> = {
     {
       title: '经营成本',
       items: [
-        { id: 'production-cost', title: '成本管理', description: '查看工序、材料、人工、返工、外协成本和异常预警。', icon: 'cost', routePath: '/production/cost-management' },
-        { id: 'production-outsourcing-cost', title: '外协成本', description: '跟踪外协订单成本、外协供应商费用和成本偏差。', icon: 'partner', routePath: '/production/outsourcing-cost', placeholder: true }
+        {
+          id: 'production-cost',
+          title: '成本管理',
+          description: '查看工序、材料、人工、返工、外协成本和异常预警。',
+          icon: 'cost',
+          routePath: '/production/cost-management',
+          children: [
+            { id: 'production-cost-outsourcing', title: '外协成本', description: '跟踪外协订单、供应商费用和结算偏差。', icon: 'partner', routePath: '/production/cost-management' }
+          ]
+        }
       ]
     },
     {
@@ -1876,12 +1886,17 @@ const placeholderContentMap: Record<string, PlaceholderContentItem[]> = {
     { title: '终检通过率', detail: '查看终检出检通过比例和异常趋势。', tone: 'teal' },
     { title: '投诉率 / 退货率', detail: '追踪客户投诉、退货原因和质量闭环。', tone: 'violet' }
   ],
-  'production-rework-management': [
+  'production-internal-rework-management': [
     { title: '内返率', detail: '内部质检发现返修的订单数 / 内部完成订单数。', tone: 'amber' },
+    { title: '内返记录', detail: '查看厂内发现、厂内责任和内部返修处理状态。', tone: 'orange' },
+    { title: '责任归属', detail: '关联内部责任分类、返工记录和绩效扣减依据。', tone: 'violet' },
+    { title: '闭环处理', detail: '跟踪内返处理状态、补救方案和复核结果。', tone: 'teal' }
+  ],
+  'production-external-rework-management': [
     { title: '外返率', detail: '医生或客户退回返修的订单数 / 已交付订单数。', tone: 'rose' },
-    { title: '返工记录', detail: '统一查看内返、外返、返工原因、责任归属和处理状态。', tone: 'orange' },
-    { title: '责任归属', detail: '关联责任分类、返工记录和绩效扣减依据。', tone: 'violet' },
-    { title: '闭环处理', detail: '跟踪返工处理状态、补救方案和医生/客户确认结果。', tone: 'teal' }
+    { title: '外返记录', detail: '查看医生或客户退回返修、投诉原因和处理进度。', tone: 'orange' },
+    { title: '客户反馈', detail: '关联售后沟通、补救方案和医生/客户确认结果。', tone: 'violet' },
+    { title: '闭环处理', detail: '跟踪外返处理状态、质量复盘和最终确认。', tone: 'teal' }
   ],
   'production-final-report': [
     { title: '报告状态', detail: '展示待生成、已生成、已复核和已归档终检报告。', tone: 'teal' },
@@ -1916,11 +1931,6 @@ const placeholderContentMap: Record<string, PlaceholderContentItem[]> = {
     { title: '返工成本', detail: '拆分内返成本、外返成本和责任归因。', tone: 'rose' },
     { title: '外协成本', detail: '跟踪外协供应商、外协订单和结算偏差。', tone: 'violet' },
     { title: '成本异常预警', detail: '识别超预算、异常损耗和高返工成本订单。', tone: 'orange' }
-  ],
-  'production-outsourcing-cost': [
-    { title: '外协订单成本', detail: '记录外协项目、供应商报价和实际结算成本。', tone: 'violet' },
-    { title: '供应商费用', detail: '按供应商查看加工费、物流费和异常扣款。', tone: 'sky' },
-    { title: '成本偏差', detail: '追踪预计成本与实际结算差异。', tone: 'amber' }
   ],
   'production-safety': [
     { title: '安全巡检', detail: '记录班前、班中、班后安全巡检事项。', tone: 'sky' },
@@ -2314,10 +2324,20 @@ const prototypeDashboards = computed<Record<PortalTone, PrototypeDashboard>>(() 
         { title: '质量与返工', value: String(phaseOneAbProductionDashboardStats.value.totalReworkCount), note: `内返 ${phaseOneAbProductionDashboardStats.value.internalReworkCount} / 外返 ${phaseOneAbProductionDashboardStats.value.externalReworkCount}`, icon: 'quality', tone: 'rose' },
         { title: '设备异常', value: String(phaseOneAbProductionDashboardStats.value.equipmentExceptionCount), note: '设备汇总第一增量 / PARTIAL', icon: 'device', tone: 'orange' },
         { title: '物料管理', value: String(phaseOneAbProductionDashboardStats.value.materialPendingCount), note: '物料异常汇总第一增量 / PARTIAL', icon: 'material', tone: 'amber' },
-        { title: '成本预警', value: String(phaseOneAbProductionDashboardStats.value.costWarningCount), note: '成本汇总第一增量 / PARTIAL', icon: 'cost', tone: 'violet' },
         { title: '安环待办', value: String(phaseOneAbProductionDashboardStats.value.safetyTodoCount), note: '安环汇总第一增量 / PARTIAL', icon: 'safety', tone: 'sky' },
         { title: '奖惩待审', value: String(phaseOneAbProductionDashboardStats.value.rewardPendingCount), note: '奖惩汇总第一增量 / PARTIAL', icon: 'reward', tone: 'green' }
       ],
+      featuredPanel: {
+        title: '生产异常待办',
+        badge: `${phaseOneAbProductionDashboardStats.value.productionExceptionCount} 项`,
+        tone: 'rose',
+        items: [
+          { title: '工序超时', detail: `${phaseOneAbProductionDashboardStats.value.productionExceptionCount} 单生产异常跟进中，优先处理卡工序和超时节点`, meta: '生产看板', tone: 'rose', actionLabel: '处理', routePath: '/production/board', navId: 'production-orders' },
+          { title: '扫码异常', detail: '重复扫码、漏扫、回退扫码统一在生产看板中复核', meta: '生产执行', tone: 'orange', actionLabel: '核查', routePath: '/production/board', navId: 'production-orders' },
+          { title: '返工未关闭', detail: `${phaseOneAbProductionDashboardStats.value.totalReworkCount} 条质量返工记录需要确认关闭状态`, meta: '质量与返工', tone: 'rose', actionLabel: '跟进', routePath: '/rework-final', navId: 'production-quality-overview' },
+          { title: '设备排队', detail: `${phaseOneAbProductionDashboardStats.value.equipmentExceptionCount} 项设备保养或故障可能影响产能`, meta: '设备管理', tone: 'amber', actionLabel: '调度', routePath: '/production/devices', navId: 'production-device' }
+        ]
+      },
       monthComparison: {
         title: '本月 vs 上月',
         metrics: [
@@ -2336,11 +2356,10 @@ const prototypeDashboards = computed<Record<PortalTone, PrototypeDashboard>>(() 
       panels: [
         {
           title: '生产经营待办',
-          badge: `${phaseOneAbProductionDashboardStats.value.safetyTodoCount + phaseOneAbProductionDashboardStats.value.costWarningCount + phaseOneAbProductionDashboardStats.value.rewardPendingCount} 项`,
+          badge: `${phaseOneAbProductionDashboardStats.value.safetyTodoCount + phaseOneAbProductionDashboardStats.value.rewardPendingCount} 项`,
           tone: 'rose',
           items: [
             { title: '安环巡检', detail: `${phaseOneAbProductionDashboardStats.value.safetyTodoCount} 项安环事件待处理或复核`, meta: '基础汇总 / PARTIAL', tone: 'sky', actionLabel: '查看安环', routePath: '/production/safety-environment', navId: 'production-safety' },
-            { title: '成本异常', detail: `${phaseOneAbProductionDashboardStats.value.costWarningCount} 条成本记录处于预警状态`, meta: '基础汇总 / PARTIAL', tone: 'violet', actionLabel: '查看成本', routePath: '/production/cost-management', navId: 'production-cost' },
             { title: '奖惩审批', detail: `${phaseOneAbProductionDashboardStats.value.rewardPendingCount} 条奖惩记录等待主管确认`, meta: '基础汇总 / PARTIAL', tone: 'green', actionLabel: '查看奖惩', routePath: '/production/reward-penalty', navId: 'production-reward-penalty' }
           ]
         },
@@ -2349,8 +2368,8 @@ const prototypeDashboards = computed<Record<PortalTone, PrototypeDashboard>>(() 
           badge: `${phaseOneAbProductionDashboardStats.value.totalReworkCount + phaseOneAbProductionDashboardStats.value.equipmentExceptionCount + phaseOneAbProductionDashboardStats.value.materialPendingCount} 项`,
           tone: 'green',
           items: [
-            { title: '内返率', detail: `内部返修 ${phaseOneAbProductionDashboardStats.value.internalReworkCount} 单，内返率 ${formatRate(phaseOneAbProductionDashboardStats.value.internalReworkRate)}`, meta: '质量与返工', tone: 'rose', actionLabel: '看返工', routePath: '/rework-final', navId: 'production-rework-management' },
-            { title: '外返率', detail: `客户退回返修 ${phaseOneAbProductionDashboardStats.value.externalReworkCount} 单，外返率 ${formatRate(phaseOneAbProductionDashboardStats.value.externalReworkRate)}`, meta: '质量与返工', tone: 'orange', actionLabel: '看返工', routePath: '/rework-final', navId: 'production-rework-management' },
+            { title: '内返率', detail: `内部返修 ${phaseOneAbProductionDashboardStats.value.internalReworkCount} 单，内返率 ${formatRate(phaseOneAbProductionDashboardStats.value.internalReworkRate)}`, meta: '质量与返工', tone: 'rose', actionLabel: '看内返', routePath: '/rework-final', navId: 'production-internal-rework-management' },
+            { title: '外返率', detail: `客户退回返修 ${phaseOneAbProductionDashboardStats.value.externalReworkCount} 单，外返率 ${formatRate(phaseOneAbProductionDashboardStats.value.externalReworkRate)}`, meta: '质量与返工', tone: 'orange', actionLabel: '看外返', routePath: '/rework-final', navId: 'production-external-rework-management' },
             { title: '设备维护', detail: `${phaseOneAbProductionDashboardStats.value.equipmentExceptionCount} 项设备保养或故障待处理`, meta: '基础汇总 / PARTIAL', tone: 'amber', actionLabel: '看设备', routePath: '/production/devices', navId: 'production-device' },
             { title: '物料缺失', detail: `${phaseOneAbProductionDashboardStats.value.materialPendingCount} 条物料异常处理中`, meta: '基础汇总 / PARTIAL', tone: 'rose', actionLabel: '处理物料', routePath: '/production/material-exceptions', navId: 'production-material' }
           ]
@@ -2586,14 +2605,15 @@ const isProductionBoardRoute = computed(() => activeRoute.value === '/production
 const isProductionQualitySummaryRoute = computed(() => [
   'production-quality',
   'production-quality-overview',
-  'production-rework-management'
+  'production-internal-rework-management',
+  'production-external-rework-management'
 ].includes(activeDisplayItem.value?.id ?? ''))
 const isProductionEquipmentSummaryRoute = computed(() => activeDisplayItem.value?.id === 'production-device')
 const isProductionMaterialExceptionSummaryRoute = computed(() => activeDisplayItem.value?.id === 'production-material')
 const isProductionSafetyEnvironmentSummaryRoute = computed(() => activeDisplayItem.value?.id === 'production-safety')
 const isProductionCostSummaryRoute = computed(() => [
   'production-cost',
-  'production-outsourcing-cost'
+  'production-cost-outsourcing'
 ].includes(activeDisplayItem.value?.id ?? ''))
 const isProductionRewardPenaltySummaryRoute = computed(() => activeDisplayItem.value?.id === 'production-reward-penalty')
 const isProductizedProductionSupportRoute = computed(() =>
@@ -3531,7 +3551,7 @@ function navigateToRoute(routePath: string) {
     void loadProductionMaterialExceptionSummary()
   } else if (routePath === '/production/safety-environment') {
     void loadProductionSafetyEnvironmentSummary()
-  } else if (routePath === '/production/cost-management' || routePath === '/production/outsourcing-cost') {
+  } else if (routePath === '/production/cost-management') {
     void loadProductionCostSummary()
   } else if (routePath === '/production/reward-penalty') {
     void loadProductionRewardPenaltySummary()
@@ -10774,44 +10794,6 @@ onBeforeUnmount(() => {
             :closable="false"
           />
 
-          <section
-            v-if="portalTone === 'production' && activePrototypeDashboard.monthComparison"
-            class="production-month-comparison-card"
-          >
-            <div class="production-month-comparison-title">
-              <span class="production-month-comparison-icon" aria-hidden="true">▥</span>
-              <h3>{{ activePrototypeDashboard.monthComparison.title }}</h3>
-            </div>
-
-            <div class="production-month-metric-grid">
-              <article
-                v-for="metric in activePrototypeDashboard.monthComparison.metrics"
-                :key="metric.label"
-                class="production-month-metric"
-                :class="`tone-${metric.tone}`"
-              >
-                <span class="production-month-metric-accent" />
-                <span>{{ metric.label }}</span>
-                <strong>{{ metric.value }}</strong>
-                <small>{{ metric.comparison }}</small>
-                <b v-if="metric.baseline">{{ metric.baseline }}</b>
-              </article>
-            </div>
-
-            <div class="production-week-rate-list">
-              <h4>{{ activePrototypeDashboard.monthComparison.weekRatesTitle }}</h4>
-              <div
-                v-for="rate in activePrototypeDashboard.monthComparison.weekRates"
-                :key="rate.label"
-                class="production-week-rate-row"
-              >
-                <span>{{ rate.label }}</span>
-                <strong>{{ rate.value }}</strong>
-                <small :class="`tone-${rate.tone}`">{{ rate.comparison }}</small>
-              </div>
-            </div>
-          </section>
-
           <div class="prototype-metric-grid" :class="`metric-count-${activePrototypeDashboard.metrics.length}`">
             <article
               v-for="metric in activePrototypeDashboard.metrics"
@@ -10824,6 +10806,80 @@ onBeforeUnmount(() => {
               <strong>{{ metric.value }}</strong>
               <small>{{ metric.note }}</small>
             </article>
+          </div>
+
+          <div
+            v-if="portalTone === 'production' && (activePrototypeDashboard.featuredPanel || activePrototypeDashboard.monthComparison)"
+            class="production-workbench-highlight-row"
+          >
+            <section
+              v-if="activePrototypeDashboard.featuredPanel"
+              class="prototype-panel-card production-exception-panel"
+            >
+              <div class="prototype-panel-head">
+                <h3>{{ activePrototypeDashboard.featuredPanel.title }}</h3>
+                <span
+                  v-if="activePrototypeDashboard.featuredPanel.badge"
+                  class="prototype-badge"
+                  :class="`tone-${activePrototypeDashboard.featuredPanel.tone ?? 'slate'}`"
+                >
+                  {{ activePrototypeDashboard.featuredPanel.badge }}
+                </span>
+              </div>
+              <button
+                v-for="item in activePrototypeDashboard.featuredPanel.items"
+                :key="`${activePrototypeDashboard.featuredPanel.title}-${item.title}`"
+                type="button"
+                class="prototype-attention-item"
+                @click="selectDashboardAction(item)"
+              >
+                <span class="attention-dot" :class="`tone-${item.tone}`" />
+                <span>
+                  <strong>{{ item.title }}</strong>
+                  <small>{{ item.detail }}</small>
+                </span>
+                <em>{{ item.meta }}</em>
+                <b>{{ item.actionLabel }}</b>
+              </button>
+            </section>
+
+            <section
+              v-if="activePrototypeDashboard.monthComparison"
+              class="production-month-comparison-card"
+            >
+              <div class="production-month-comparison-title">
+                <span class="production-month-comparison-icon" aria-hidden="true">▥</span>
+                <h3>{{ activePrototypeDashboard.monthComparison.title }}</h3>
+              </div>
+
+              <div class="production-month-metric-grid">
+                <article
+                  v-for="metric in activePrototypeDashboard.monthComparison.metrics"
+                  :key="metric.label"
+                  class="production-month-metric"
+                  :class="`tone-${metric.tone}`"
+                >
+                  <span class="production-month-metric-accent" />
+                  <span>{{ metric.label }}</span>
+                  <strong>{{ metric.value }}</strong>
+                  <small>{{ metric.comparison }}</small>
+                  <b v-if="metric.baseline">{{ metric.baseline }}</b>
+                </article>
+              </div>
+
+              <div class="production-week-rate-list">
+                <h4>{{ activePrototypeDashboard.monthComparison.weekRatesTitle }}</h4>
+                <div
+                  v-for="rate in activePrototypeDashboard.monthComparison.weekRates"
+                  :key="rate.label"
+                  class="production-week-rate-row"
+                >
+                  <span>{{ rate.label }}</span>
+                  <strong>{{ rate.value }}</strong>
+                  <small :class="`tone-${rate.tone}`">{{ rate.comparison }}</small>
+                </div>
+              </div>
+            </section>
           </div>
 
           <div class="prototype-dashboard-layout">
@@ -10856,7 +10912,10 @@ onBeforeUnmount(() => {
             </section>
           </div>
 
-          <section class="prototype-panel-card prototype-chart-card">
+          <section
+            v-if="portalTone !== 'production'"
+            class="prototype-panel-card prototype-chart-card"
+          >
             <div class="prototype-panel-head">
               <h3>{{ portalTitle }}趋势图</h3>
               <span class="prototype-badge tone-slate">近 6 周</span>

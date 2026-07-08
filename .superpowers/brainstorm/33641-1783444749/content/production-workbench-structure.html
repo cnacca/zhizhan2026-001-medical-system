@@ -1,0 +1,96 @@
+<h2>生产工作台改造预览</h2>
+<p class="subtitle">只看首页信息结构：生产异常、待问异常、员工异常、部门今日数据 vs 上月平均。</p>
+
+<div class="mockup">
+  <div class="mockup-header">生产工作台：首页结构建议</div>
+  <div class="mockup-body" style="background:#f6f8fb;padding:18px">
+    <div style="display:grid;grid-template-columns:repeat(6,minmax(120px,1fr));gap:10px;margin-bottom:16px">
+      <div style="background:white;border:1px solid #dfe6ef;border-top:4px solid #0f9f8f;border-radius:8px;padding:12px">
+        <div style="font-size:12px;color:#64748b;font-weight:700">生产异常</div>
+        <div style="font-size:28px;font-weight:800;color:#0f172a;margin-top:6px">7</div>
+        <div style="font-size:11px;color:#0f9f8f">超时 / 卡工序 / 扫码异常</div>
+      </div>
+      <div style="background:white;border:1px solid #dfe6ef;border-top:4px solid #f59e0b;border-radius:8px;padding:12px">
+        <div style="font-size:12px;color:#64748b;font-weight:700">待问异常</div>
+        <div style="font-size:28px;font-weight:800;color:#0f172a;margin-top:6px">4</div>
+        <div style="font-size:11px;color:#b45309">医生 / 客服 / 生产待确认</div>
+      </div>
+      <div style="background:white;border:1px solid #dfe6ef;border-top:4px solid #ea580c;border-radius:8px;padding:12px">
+        <div style="font-size:12px;color:#64748b;font-weight:700">员工异常</div>
+        <div style="font-size:28px;font-weight:800;color:#0f172a;margin-top:6px">3</div>
+        <div style="font-size:11px;color:#ea580c">工作量 / 超时 / 扫码</div>
+      </div>
+      <div style="background:white;border:1px solid #dfe6ef;border-top:4px solid #e11d48;border-radius:8px;padding:12px">
+        <div style="font-size:12px;color:#64748b;font-weight:700">质量与返工</div>
+        <div style="font-size:28px;font-weight:800;color:#0f172a;margin-top:6px">5</div>
+        <div style="font-size:11px;color:#e11d48">内返 3 / 外返 2</div>
+      </div>
+      <div style="background:white;border:1px solid #dfe6ef;border-top:4px solid #2563eb;border-radius:8px;padding:12px">
+        <div style="font-size:12px;color:#64748b;font-weight:700">今日出货</div>
+        <div style="font-size:28px;font-weight:800;color:#0f172a;margin-top:6px">21</div>
+        <div style="font-size:11px;color:#2563eb">目标 24 单</div>
+      </div>
+      <div style="background:white;border:1px solid #dfe6ef;border-top:4px solid #16a34a;border-radius:8px;padding:12px">
+        <div style="font-size:12px;color:#64748b;font-weight:700">今日完成率</div>
+        <div style="font-size:28px;font-weight:800;color:#0f172a;margin-top:6px">87.5%</div>
+        <div style="font-size:11px;color:#16a34a">对比上月日均 +6.2%</div>
+      </div>
+    </div>
+
+    <div style="display:grid;grid-template-columns:1.35fr .9fr;gap:14px;margin-bottom:16px">
+      <div style="background:white;border:1px solid #dfe6ef;border-radius:8px;overflow:hidden">
+        <div style="padding:10px 12px;border-bottom:1px solid #e5eaf2;font-weight:800">生产异常待办</div>
+        <div style="display:grid;grid-template-columns:1fr;gap:0">
+          <div style="padding:11px 12px;border-bottom:1px solid #eef2f7;display:flex;justify-content:space-between">
+            <span>CAD-0234 卡在设计审核 2.4 小时</span><b style="color:#e11d48">超时</b>
+          </div>
+          <div style="padding:11px 12px;border-bottom:1px solid #eef2f7;display:flex;justify-content:space-between">
+            <span>PRINT-0198 重复扫码 3 次</span><b style="color:#ea580c">扫码异常</b>
+          </div>
+          <div style="padding:11px 12px;display:flex;justify-content:space-between">
+            <span>QC-0311 返工未关闭</span><b style="color:#e11d48">待处理</b>
+          </div>
+        </div>
+      </div>
+
+      <div style="display:grid;grid-template-columns:1fr;gap:10px">
+        <div style="background:white;border:1px solid #dfe6ef;border-radius:8px;padding:12px">
+          <div style="font-weight:800;margin-bottom:8px">待问异常</div>
+          <div style="font-size:13px;color:#475569">医生待确认 2 单，客服待补资料 1 单，生产待确认 1 单</div>
+        </div>
+        <div style="background:white;border:1px solid #dfe6ef;border-radius:8px;padding:12px">
+          <div style="font-weight:800;margin-bottom:8px">员工异常</div>
+          <div style="font-size:13px;color:#475569">2 人今日完成率低于 60%，1 人存在超时未处理</div>
+        </div>
+        <div style="background:white;border:1px solid #dfe6ef;border-radius:8px;padding:12px">
+          <div style="font-weight:800;margin-bottom:8px">今日出货</div>
+          <div style="height:8px;background:#e5eaf2;border-radius:99px;overflow:hidden"><div style="height:100%;width:87.5%;background:#2563eb"></div></div>
+        </div>
+      </div>
+    </div>
+
+    <div style="background:white;border:1px solid #dfe6ef;border-radius:8px;overflow:hidden">
+      <div style="padding:10px 12px;border-bottom:1px solid #e5eaf2;font-weight:800">部门今日 vs 上月平均</div>
+      <table style="width:100%;border-collapse:collapse;font-size:12px">
+        <thead>
+          <tr style="background:#f8fafc;color:#64748b">
+            <th style="text-align:left;padding:9px">部门</th>
+            <th style="text-align:left;padding:9px">今日工作量</th>
+            <th style="text-align:left;padding:9px">上月日均</th>
+            <th style="text-align:left;padding:9px">完成率</th>
+            <th style="text-align:left;padding:9px">返工率 / 上月</th>
+            <th style="text-align:left;padding:9px">出货率 / 上月</th>
+            <th style="text-align:left;padding:9px">状态</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr><td style="padding:9px">数据处理</td><td style="padding:9px">38</td><td style="padding:9px">34</td><td style="padding:9px">92%</td><td style="padding:9px">2.1% / 2.8%</td><td style="padding:9px">88% / 84%</td><td style="padding:9px;color:#16a34a;font-weight:800">正常</td></tr>
+          <tr><td style="padding:9px">CAD</td><td style="padding:9px">26</td><td style="padding:9px">31</td><td style="padding:9px">74%</td><td style="padding:9px">4.8% / 3.1%</td><td style="padding:9px">79% / 86%</td><td style="padding:9px;color:#e11d48;font-weight:800">关注</td></tr>
+          <tr><td style="padding:9px">质检</td><td style="padding:9px">44</td><td style="padding:9px">39</td><td style="padding:9px">96%</td><td style="padding:9px">1.4% / 1.9%</td><td style="padding:9px">91% / 88%</td><td style="padding:9px;color:#16a34a;font-weight:800">正常</td></tr>
+        </tbody>
+      </table>
+    </div>
+  </div>
+</div>
+
+<p class="subtitle" style="margin-top:14px">你可以先看这个布局方向：成本管理没有放在首页，但左侧菜单和成本页面后续可以保留。</p>

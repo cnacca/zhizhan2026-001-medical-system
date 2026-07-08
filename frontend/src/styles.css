@@ -2128,7 +2128,8 @@ p {
   font-size: 23px;
 }
 
-.portal-production .prototype-metric-grid.metric-count-7 {
+.portal-production .prototype-metric-grid.metric-count-7,
+.portal-production .prototype-metric-grid.metric-count-8 {
   grid-template-columns: repeat(4, minmax(0, 1fr));
   align-items: stretch;
 }
@@ -2139,12 +2140,14 @@ p {
 }
 
 .portal-production .prototype-metric-grid.metric-count-7 .prototype-stat-card,
+.portal-production .prototype-metric-grid.metric-count-8 .prototype-stat-card,
 .portal-production .prototype-metric-grid.metric-count-9 .prototype-stat-card {
   min-height: 96px;
   padding: 12px 14px 10px;
 }
 
 .portal-production .prototype-metric-grid.metric-count-7 .prototype-stat-card strong,
+.portal-production .prototype-metric-grid.metric-count-8 .prototype-stat-card strong,
 .portal-production .prototype-metric-grid.metric-count-9 .prototype-stat-card strong {
   font-size: 24px;
   line-height: 1;
@@ -2217,6 +2220,24 @@ p {
   box-shadow: var(--portal-shadow-sm);
 }
 
+.production-workbench-highlight-row {
+  display: grid;
+  grid-template-columns: minmax(0, 1.05fr) minmax(320px, 0.95fr);
+  gap: 14px;
+  align-items: start;
+}
+
+.production-exception-panel {
+  min-height: 100%;
+}
+
+.production-workbench-highlight-row .production-month-comparison-card {
+  width: 100%;
+  justify-self: stretch;
+  gap: 10px;
+  padding: 12px 14px;
+}
+
 .production-month-comparison-title {
   display: flex;
   align-items: center;
@@ -2249,6 +2270,11 @@ p {
   gap: 10px;
 }
 
+.production-workbench-highlight-row .production-month-metric-grid {
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 8px;
+}
+
 .production-month-metric {
   position: relative;
   display: grid;
@@ -2262,6 +2288,13 @@ p {
   border-radius: 12px;
   background: #ffffff;
   box-shadow: 0 3px 10px rgba(15, 23, 42, 0.08);
+}
+
+.production-workbench-highlight-row .production-month-metric {
+  min-height: 88px;
+  gap: 5px;
+  padding: 13px 10px 10px;
+  box-shadow: none;
 }
 
 .production-month-metric-accent {
@@ -2284,6 +2317,10 @@ p {
   font-size: 28px;
   font-weight: 700;
   line-height: 1;
+}
+
+.production-workbench-highlight-row .production-month-metric strong {
+  font-size: 24px;
 }
 
 .production-month-metric small,
@@ -2309,6 +2346,11 @@ p {
   letter-spacing: 0.04em;
 }
 
+.production-workbench-highlight-row .production-week-rate-list h4 {
+  margin-bottom: 4px;
+  font-size: 10px;
+}
+
 .production-week-rate-row {
   display: grid;
   grid-template-columns: minmax(0, 1fr) auto minmax(112px, auto);
@@ -2316,6 +2358,12 @@ p {
   align-items: center;
   min-height: 30px;
   border-bottom: 1px solid #edf2f7;
+}
+
+.production-workbench-highlight-row .production-week-rate-row {
+  grid-template-columns: minmax(0, 1fr) 58px minmax(96px, auto);
+  gap: 8px;
+  min-height: 24px;
 }
 
 .production-week-rate-row:last-child {
@@ -2327,6 +2375,10 @@ p {
   font-size: 16px;
 }
 
+.production-workbench-highlight-row .production-week-rate-row span {
+  font-size: 11px;
+}
+
 .production-week-rate-row strong {
   color: #111827;
   font-family: Lora, "Plus Jakarta Sans", "PingFang SC", sans-serif;
@@ -2334,10 +2386,18 @@ p {
   font-weight: 800;
 }
 
+.production-workbench-highlight-row .production-week-rate-row strong {
+  font-size: 13px;
+}
+
 .production-week-rate-row small {
   font-size: 13px;
   font-weight: 900;
   white-space: nowrap;
+}
+
+.production-workbench-highlight-row .production-week-rate-row small {
+  font-size: 11px;
 }
 
 .prototype-dashboard-layout {
@@ -3232,11 +3292,13 @@ p {
   }
 
   .prototype-dashboard-layout,
+  .production-workbench-highlight-row,
   .prototype-chart-body {
     grid-template-columns: minmax(0, 1fr);
   }
 
   .portal-production .prototype-metric-grid.metric-count-7,
+  .portal-production .prototype-metric-grid.metric-count-8,
   .portal-production .prototype-metric-grid.metric-count-9 {
     grid-template-columns: repeat(2, minmax(0, 1fr));
   }
@@ -3292,6 +3354,7 @@ p {
   }
 
   .portal-production .prototype-metric-grid.metric-count-7,
+  .portal-production .prototype-metric-grid.metric-count-8,
   .portal-production .prototype-metric-grid.metric-count-9,
   .portal-cs .prototype-metric-grid.metric-count-9 {
     grid-template-columns: minmax(0, 1fr);
