@@ -23,9 +23,21 @@ const requiredFragments = [
   [files.app, 'frontend/src/App.vue', '客服统计基础版'],
   [files.app, 'frontend/src/App.vue', '翻译待审'],
   [files.app, 'frontend/src/App.vue', '账单超期'],
+  [files.app, 'frontend/src/App.vue', '客服经营看板'],
+  [files.app, 'frontend/src/App.vue', '本月 vs 上月'],
+  [files.app, 'frontend/src/App.vue', '销售额'],
+  [files.app, 'frontend/src/App.vue', '已发货'],
+  [files.app, 'frontend/src/App.vue', '返工数'],
+  [files.app, 'frontend/src/App.vue', '周环比指标'],
+  [files.app, 'frontend/src/App.vue', '返工率'],
+  [files.app, 'frontend/src/App.vue', '发货率'],
+  [files.app, 'frontend/src/App.vue', '投诉率'],
+  [files.app, 'frontend/src/App.vue', '年度销售趋势'],
   [files.app, 'frontend/src/App.vue', '本月 / 上月对比'],
   [files.app, 'frontend/src/App.vue', '订单数量 / 件数'],
   [files.app, 'frontend/src/App.vue', '十大客户排名'],
+  [files.app, 'frontend/src/App.vue', '销量 / 件数'],
+  [files.app, 'frontend/src/App.vue', "v-if=\"portalTone !== 'cs'\""],
   [files.app, 'frontend/src/App.vue', '生产统计基础版'],
   [files.app, 'frontend/src/App.vue', '员工异常'],
   [files.app, 'frontend/src/App.vue', '部门今日 vs 上月平均'],
@@ -47,7 +59,8 @@ const requiredFragments = [
 const forbiddenAppFragments = [
   "title: '工作单'",
   "title: '物料异常'",
-  '代问异常'
+  '代问异常',
+  "title: '沟通待审'"
 ]
 
 const failures = []

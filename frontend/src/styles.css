@@ -1058,7 +1058,7 @@ body {
 
 .production-board-toolbar {
   display: grid;
-  grid-template-columns: minmax(0, 220px) minmax(0, 1fr) auto;
+  grid-template-columns: minmax(0, 180px) minmax(0, 170px) minmax(0, 150px) minmax(220px, 1fr) auto;
   gap: 10px;
 }
 
@@ -1066,6 +1066,209 @@ body {
   display: grid;
   grid-template-columns: minmax(260px, 0.82fr) minmax(0, 1.5fr);
   gap: 16px;
+}
+
+.production-dispatch-workspace {
+  display: grid;
+  grid-template-columns: minmax(0, 1.42fr) minmax(340px, 0.58fr);
+  gap: 16px;
+  align-items: start;
+}
+
+.production-queue-shell,
+.production-dispatch-detail {
+  min-width: 0;
+  border: 1px solid #e5edf5;
+  border-radius: 8px;
+  background: #ffffff;
+  box-shadow: 0 8px 20px rgba(15, 23, 42, 0.06);
+}
+
+.production-queue-shell {
+  overflow: hidden;
+}
+
+.production-dispatch-detail {
+  display: grid;
+  gap: 14px;
+  padding: 14px;
+}
+
+.production-board-section-head {
+  display: flex;
+  justify-content: space-between;
+  gap: 12px;
+  align-items: center;
+  padding: 14px 16px;
+  border-bottom: 1px solid #e5edf5;
+}
+
+.production-board-section-head h3 {
+  margin: 0 0 4px;
+  color: #111827;
+  font-size: 18px;
+  line-height: 1.2;
+}
+
+.production-board-section-head span {
+  color: #8ba0bb;
+  font-size: 13px;
+}
+
+.production-queue-board {
+  display: grid;
+  grid-auto-columns: minmax(230px, 250px);
+  grid-auto-flow: column;
+  gap: 12px;
+  min-height: 560px;
+  overflow-x: auto;
+  padding: 14px;
+  background: #f8fbff;
+}
+
+.production-queue-column {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  min-height: 520px;
+  padding: 12px;
+  border: 1px solid #e5edf5;
+  border-top: 4px solid #14b8a6;
+  border-radius: 8px;
+  background: #ffffff;
+}
+
+.production-queue-column.tone-sky {
+  border-top-color: #38bdf8;
+}
+
+.production-queue-column.tone-amber {
+  border-top-color: #f59e0b;
+}
+
+.production-queue-column.tone-orange {
+  border-top-color: #ea580c;
+}
+
+.production-queue-column.tone-rose {
+  border-top-color: #e11d48;
+}
+
+.production-queue-column.tone-green {
+  border-top-color: #10b981;
+}
+
+.production-queue-column.tone-violet {
+  border-top-color: #7c3aed;
+}
+
+.production-queue-head {
+  display: flex;
+  justify-content: space-between;
+  gap: 10px;
+  align-items: flex-start;
+  padding-bottom: 10px;
+  border-bottom: 1px solid #eef2f7;
+}
+
+.production-queue-head div {
+  display: grid;
+  gap: 4px;
+}
+
+.production-queue-head strong {
+  color: #111827;
+  font-size: 16px;
+}
+
+.production-queue-head span,
+.production-queue-head small {
+  color: #8ba0bb;
+  font-size: 12px;
+}
+
+.production-order-card {
+  display: grid;
+  gap: 8px;
+  width: 100%;
+  min-height: 116px;
+  padding: 12px;
+  border: 1px solid #e5edf5;
+  border-radius: 8px;
+  background: #ffffff;
+  color: inherit;
+  cursor: pointer;
+  font: inherit;
+  text-align: left;
+}
+
+.production-order-card:hover,
+.production-order-card.active {
+  border-color: #14b8a6;
+  background: #effcf8;
+}
+
+.production-order-card-top {
+  display: flex;
+  justify-content: space-between;
+  gap: 8px;
+  align-items: center;
+}
+
+.production-order-card strong {
+  color: #111827;
+}
+
+.production-order-card span,
+.production-order-card small {
+  color: #64748b;
+  font-size: 13px;
+}
+
+.production-order-card em {
+  padding: 3px 8px;
+  border-radius: 999px;
+  background: #e6fffb;
+  color: #0f9b8e;
+  font-size: 12px;
+  font-style: normal;
+  font-weight: 700;
+  white-space: nowrap;
+}
+
+.production-order-card em.tone-sky {
+  background: #e0f2fe;
+  color: #0284c7;
+}
+
+.production-order-card em.tone-amber {
+  background: #fff7ed;
+  color: #d97706;
+}
+
+.production-order-card em.tone-rose {
+  background: #fff1f2;
+  color: #e11d48;
+}
+
+.production-order-card em.tone-green {
+  background: #ecfdf5;
+  color: #059669;
+}
+
+.production-order-card em.tone-violet {
+  background: #f5f3ff;
+  color: #7c3aed;
+}
+
+.production-queue-empty {
+  display: grid;
+  place-items: center;
+  min-height: 120px;
+  border: 1px dashed #d7e3ef;
+  border-radius: 8px;
+  color: #8ba0bb;
+  font-size: 13px;
 }
 
 .production-board-stats {
@@ -1278,6 +1481,7 @@ p {
   .performance-grid,
   .production-board-toolbar,
   .production-board-workspace,
+  .production-dispatch-workspace,
   .production-board-stats,
   .form-config-layout,
   .form-grid,
@@ -1286,6 +1490,17 @@ p {
   .process-node-row,
   .worker-task-card {
     grid-template-columns: minmax(0, 1fr);
+  }
+
+  .production-queue-board {
+    grid-auto-flow: row;
+    grid-auto-columns: auto;
+    grid-template-columns: minmax(0, 1fr);
+    min-height: 0;
+  }
+
+  .production-queue-column {
+    min-height: 0;
   }
 }
 
@@ -2128,6 +2343,26 @@ p {
   font-size: 23px;
 }
 
+.portal-admin .prototype-metric-grid.metric-count-10 {
+  grid-template-columns: repeat(5, minmax(0, 1fr));
+  align-items: stretch;
+}
+
+.portal-admin .prototype-metric-grid.metric-count-10 .prototype-stat-card {
+  min-height: 82px;
+  gap: 5px;
+  padding: 13px 14px 11px;
+}
+
+.portal-admin .prototype-metric-grid.metric-count-10 .prototype-stat-label {
+  font-size: 10px;
+}
+
+.portal-admin .prototype-metric-grid.metric-count-10 .prototype-stat-card strong {
+  font-size: 22px;
+  line-height: 1;
+}
+
 .portal-production .prototype-metric-grid.metric-count-7,
 .portal-production .prototype-metric-grid.metric-count-8 {
   grid-template-columns: repeat(4, minmax(0, 1fr));
@@ -2608,6 +2843,425 @@ p {
   height: 100%;
   border-radius: inherit;
   background: currentColor;
+}
+
+.cs-business-board {
+  display: grid;
+  gap: 14px;
+  margin-top: 16px;
+  padding: 14px;
+  border: 1.5px solid #e2e8f0;
+  border-radius: 12px;
+  background: #ffffff;
+  box-shadow: 0 8px 28px rgba(15, 23, 42, 0.06);
+}
+
+.cs-business-board > .prototype-panel-head {
+  padding: 0 2px 2px;
+}
+
+.cs-business-overview {
+  display: grid;
+  grid-template-columns: minmax(520px, 1fr) minmax(520px, 1.08fr);
+  gap: 14px;
+}
+
+.cs-month-card,
+.cs-annual-card,
+.cs-customer-rank-card {
+  overflow: hidden;
+}
+
+.cs-business-metric-grid {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 12px;
+  padding: 16px 16px 14px;
+}
+
+.cs-business-metric {
+  position: relative;
+  min-height: 108px;
+  overflow: hidden;
+  padding: 18px 14px 14px;
+  border: 1.5px solid #e2e8f0;
+  border-radius: 12px;
+  background: #ffffff;
+  box-shadow: 0 4px 14px rgba(15, 23, 42, 0.06);
+}
+
+.cs-business-metric small,
+.cs-business-metric em {
+  display: block;
+  color: #64748b;
+  font-size: 11px;
+  font-style: normal;
+  font-weight: 800;
+}
+
+.cs-business-metric strong {
+  display: block;
+  margin: 8px 0 6px;
+  color: currentColor;
+  font-family: Lora, "Plus Jakarta Sans", "PingFang SC", sans-serif;
+  font-size: 23px;
+  line-height: 1;
+}
+
+.cs-week-rate-block {
+  margin: 16px;
+  padding-top: 14px;
+  border-top: 1.5px solid #e2e8f0;
+}
+
+.cs-week-rate-block h4 {
+  margin: 0 0 10px;
+  color: #94a3b8;
+  font-size: 12px;
+  font-weight: 900;
+}
+
+.cs-week-rate-row {
+  display: grid;
+  grid-template-columns: minmax(120px, 1fr) minmax(72px, auto) minmax(150px, auto);
+  gap: 12px;
+  align-items: center;
+  min-height: 34px;
+  border-bottom: 1px solid #eef2f8;
+}
+
+.cs-week-rate-row span {
+  color: #475569;
+  font-size: 13px;
+  font-weight: 800;
+}
+
+.cs-week-rate-row strong {
+  color: #111827;
+  font-size: 15px;
+  font-weight: 900;
+  text-align: right;
+}
+
+.cs-week-rate-row em {
+  font-size: 12px;
+  font-style: normal;
+  font-weight: 900;
+  text-align: right;
+  white-space: nowrap;
+}
+
+.cs-week-rate-row em.direction-flat {
+  color: #94a3b8;
+}
+
+.cs-annual-chart {
+  width: 100%;
+  min-height: 220px;
+  padding: 8px 12px 0;
+}
+
+.cs-annual-chart line {
+  stroke: #cbd5e1;
+  stroke-width: 1.5;
+}
+
+.cs-annual-chart .chart-grid {
+  stroke: #e2e8f0;
+  stroke-dasharray: 7 10;
+}
+
+.cs-annual-chart .chart-line-primary,
+.cs-annual-chart .chart-line-secondary {
+  fill: none;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
+
+.cs-annual-chart .chart-line-primary {
+  stroke: #7c3aed;
+  stroke-width: 4;
+}
+
+.cs-annual-chart .chart-line-secondary {
+  stroke: #94a3b8;
+  stroke-dasharray: 7 8;
+  stroke-width: 3;
+}
+
+.cs-annual-points circle {
+  fill: #ffffff;
+  stroke: #7c3aed;
+  stroke-width: 3;
+}
+
+.cs-annual-points circle.muted {
+  fill: #e2e8f0;
+  stroke: #cbd5e1;
+  stroke-width: 2;
+}
+
+.cs-business-note {
+  margin: 0;
+  padding: 0 16px 14px;
+  color: #94a3b8;
+  font-size: 11px;
+  font-weight: 700;
+}
+
+.cs-customer-rank-head,
+.cs-customer-rank-row {
+  display: grid;
+  grid-template-columns: minmax(180px, 1fr) minmax(240px, 2.8fr) minmax(88px, 0.5fr) minmax(80px, 0.5fr);
+  gap: 12px;
+  align-items: center;
+}
+
+.cs-customer-rank-head {
+  padding: 12px 16px 8px;
+  color: #94a3b8;
+  font-size: 10px;
+  font-weight: 900;
+}
+
+.cs-customer-rank-row {
+  min-height: 38px;
+  padding: 8px 16px;
+  border-top: 1px solid #eef2f8;
+}
+
+.cs-customer-rank-row strong {
+  min-width: 0;
+  overflow: hidden;
+  color: #111827;
+  font-size: 12px;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.cs-customer-rank-row b,
+.cs-customer-rank-row small {
+  color: #111827;
+  font-size: 12px;
+  font-weight: 900;
+  white-space: nowrap;
+}
+
+.cs-customer-rank-row small {
+  color: #64748b;
+  font-weight: 800;
+}
+
+.cs-customer-rank-track {
+  height: 8px;
+  overflow: hidden;
+  border-radius: 999px;
+  background: #e2e8f0;
+}
+
+.cs-customer-rank-track i {
+  display: block;
+  height: 100%;
+  border-radius: inherit;
+  background: currentColor;
+}
+
+.admin-business-board {
+  display: grid;
+  gap: 14px;
+  margin-top: 16px;
+}
+
+.admin-efficiency-card,
+.admin-sales-card,
+.admin-customer-rank-card {
+  overflow: hidden;
+}
+
+.admin-efficiency-grid {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 12px;
+  padding: 14px;
+}
+
+.admin-efficiency-item {
+  display: grid;
+  gap: 6px;
+  min-height: 92px;
+  padding: 12px;
+  border: 1.5px solid #e2e8f0;
+  border-radius: 12px;
+  background: #ffffff;
+}
+
+.admin-efficiency-item small,
+.admin-efficiency-item em {
+  color: #64748b;
+  font-size: 10px;
+  font-style: normal;
+  font-weight: 800;
+}
+
+.admin-efficiency-item strong {
+  color: currentColor;
+  font-family: Lora, "Plus Jakarta Sans", "PingFang SC", sans-serif;
+  font-size: 22px;
+  font-weight: 600;
+  line-height: 1;
+}
+
+.admin-efficiency-track,
+.admin-customer-rank-track {
+  height: 7px;
+  overflow: hidden;
+  border-radius: 999px;
+  background: #e2e8f0;
+}
+
+.admin-efficiency-track i,
+.admin-customer-rank-track i {
+  display: block;
+  height: 100%;
+  border-radius: inherit;
+  background: currentColor;
+}
+
+.admin-business-lower {
+  display: grid;
+  grid-template-columns: minmax(520px, 7fr) minmax(360px, 5fr);
+  gap: 14px;
+  align-items: stretch;
+}
+
+.admin-sales-summary {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 10px;
+  padding: 14px 14px 6px;
+}
+
+.admin-sales-summary article {
+  display: grid;
+  gap: 5px;
+  min-height: 76px;
+  padding: 12px;
+  border: 1.5px solid #e2e8f0;
+  border-radius: 12px;
+  background: #f8fafc;
+}
+
+.admin-sales-summary small,
+.admin-sales-summary em {
+  color: #64748b;
+  font-size: 10px;
+  font-style: normal;
+  font-weight: 800;
+}
+
+.admin-sales-summary strong {
+  color: #2563eb;
+  font-family: Lora, "Plus Jakarta Sans", "PingFang SC", sans-serif;
+  font-size: 20px;
+  font-weight: 600;
+}
+
+.admin-sales-chart {
+  width: 100%;
+  min-height: 220px;
+  padding: 4px 12px 0;
+}
+
+.admin-sales-chart line {
+  stroke: #cbd5e1;
+  stroke-width: 1.5;
+}
+
+.admin-sales-chart .chart-grid {
+  stroke: #e2e8f0;
+  stroke-dasharray: 7 10;
+}
+
+.admin-sales-chart .chart-line-primary,
+.admin-sales-chart .chart-line-secondary {
+  fill: none;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
+
+.admin-sales-chart .chart-line-primary {
+  stroke: #2563eb;
+  stroke-width: 4;
+}
+
+.admin-sales-chart .chart-line-secondary {
+  stroke: #94a3b8;
+  stroke-dasharray: 7 8;
+  stroke-width: 3;
+}
+
+.admin-sales-points circle {
+  fill: #ffffff;
+  stroke: #2563eb;
+  stroke-width: 3;
+}
+
+.admin-sales-points circle.muted {
+  fill: #e2e8f0;
+  stroke: #cbd5e1;
+  stroke-width: 2;
+}
+
+.admin-business-note {
+  margin: 0;
+  padding: 0 14px 14px;
+  color: #94a3b8;
+  font-size: 11px;
+  font-weight: 700;
+}
+
+.admin-customer-rank-head,
+.admin-customer-rank-row {
+  display: grid;
+  grid-template-columns: minmax(150px, 1fr) minmax(140px, 1.4fr) minmax(76px, auto) minmax(66px, auto);
+  gap: 10px;
+  align-items: center;
+}
+
+.admin-customer-rank-head {
+  padding: 12px 14px 8px;
+  color: #94a3b8;
+  font-size: 10px;
+  font-weight: 900;
+}
+
+.admin-customer-rank-row {
+  min-height: 38px;
+  padding: 8px 14px;
+  border-top: 1px solid #eef2f8;
+}
+
+.admin-customer-rank-row strong {
+  min-width: 0;
+  overflow: hidden;
+  color: #111827;
+  font-size: 12px;
+  font-weight: 600;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.admin-customer-rank-row b,
+.admin-customer-rank-row small {
+  color: #111827;
+  font-size: 12px;
+  font-weight: 900;
+  white-space: nowrap;
+}
+
+.admin-customer-rank-row small {
+  color: #64748b;
+  font-weight: 800;
 }
 
 .prototype-chip-row {
@@ -3293,6 +3947,8 @@ p {
 
   .prototype-dashboard-layout,
   .production-workbench-highlight-row,
+  .cs-business-overview,
+  .admin-business-lower,
   .prototype-chart-body {
     grid-template-columns: minmax(0, 1fr);
   }
@@ -3307,12 +3963,36 @@ p {
     grid-template-columns: repeat(2, minmax(0, 1fr));
   }
 
+  .portal-admin .prototype-metric-grid.metric-count-10,
+  .admin-efficiency-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
   .production-month-comparison-card {
     width: 100%;
   }
 
   .production-month-metric-grid {
     grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .cs-business-metric-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .cs-customer-rank-card {
+    overflow-x: auto;
+  }
+
+  .cs-customer-rank-head,
+  .cs-customer-rank-row,
+  .admin-customer-rank-head,
+  .admin-customer-rank-row {
+    min-width: 680px;
+  }
+
+  .admin-customer-rank-card {
+    overflow-x: auto;
   }
 
   .placeholder-content-grid {
@@ -3334,6 +4014,7 @@ p {
   .admin-menu-grid,
   .placeholder-content-grid,
   .production-month-metric-grid,
+  .cs-business-metric-grid,
   .prototype-metric-grid,
   .prototype-trend-grid {
     grid-template-columns: minmax(0, 1fr);
@@ -3343,10 +4024,16 @@ p {
     padding: 16px;
   }
 
-  .production-week-rate-row {
+  .production-week-rate-row,
+  .cs-week-rate-row {
     grid-template-columns: minmax(0, 1fr);
     gap: 4px;
     padding: 10px 0;
+  }
+
+  .cs-week-rate-row strong,
+  .cs-week-rate-row em {
+    text-align: left;
   }
 
   .production-week-rate-row small {

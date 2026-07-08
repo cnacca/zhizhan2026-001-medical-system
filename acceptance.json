@@ -36,7 +36,7 @@
       "id": "file-upload-prod",
       "status": "PARTIAL",
       "source": "docs/deployment/readiness-checklist.md#文件上传",
-      "current_evidence": "105MB Multipart、本地恢复、服务端候选恢复和中断恢复浏览器 smoke 已通过；9D.67 已补 FILE_MAX_FILE_SIZE_BYTES、FILE_ALLOWED_CONTENT_TYPES、FILE_MAX_FILES_PER_ORDER 服务端校验和医生端选择提示；9D.77 弱网 / 跨设备验收第一段已新增本地 Playwright smoke，使用两个浏览器 context 模拟设备 A 弱网中断、设备 B 无 localStorage 通过服务端 pending 候选恢复同一 file_id；9D.78 测试 / 正式对象存储 bucket 隔离验收记录第一段已新增 check:task9d78 和 bucket 隔离记录；9D.79 已新增真实环境文件上传人工验收记录模板和 check:task9d79。",
+      "current_evidence": "105MB Multipart、本地恢复、服务端候选恢复和中断恢复浏览器 smoke 已通过；9D.67 已补 FILE_MAX_FILE_SIZE_BYTES、FILE_ALLOWED_CONTENT_TYPES、FILE_MAX_FILES_PER_ORDER 服务端校验和医生端选择提示；9D.77 弱网 / 跨设备验收第一段已新增本地 Playwright smoke，使用两个浏览器 context 模拟设备 A 弱网中断、设备 B 无 localStorage 通过服务端 pending 候选恢复同一 file_id；9D.78 测试 / 正式对象存储 bucket 隔离验收记录第一段已新增 check:task9d78 和 bucket 隔离记录；9D.79 已新增真实环境文件上传人工验收记录模板第一段、task-9d79-real-env-file-upload-manual-acceptance-required-text 和 check:task9d79。",
       "remaining_reason": "仍缺真实测试 bucket、真实正式 bucket、对象存储账号隔离、真实弱网物理网络、真实跨设备实机、真实对象存储联调、客户最终 Multipart 限制签字和客户 / PM 书面确认。",
       "minimum_closure_loop": "真实测试环境具备后，按 9D.79 模板填写文件上传人工验收记录并由客户 / PM 确认；本地下一优先级转向剩余 PRD V2 本地缺口，继续保持 Task 8 NOT_READY。",
       "verification": "npm run check:task9d67; npm run check:task9d77; npm run check:task9d78; npm run check:task9d79; npm run smoke:task9d10-large-upload; npm run smoke:task9d10-server-resume; npm run smoke:task9d10-interrupted-resume; npm run smoke:task9d77-file-upload-resilience"

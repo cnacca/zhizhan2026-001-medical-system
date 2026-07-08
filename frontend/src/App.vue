@@ -937,6 +937,31 @@ type ProductionBoardStatusOption = {
   value: string
 }
 
+type ProductionQueueTone = 'teal' | 'sky' | 'amber' | 'orange' | 'rose' | 'green' | 'violet'
+
+type ProductionQueueDefinition = {
+  key: string
+  label: string
+  subtitle: string
+  tone: ProductionQueueTone
+}
+
+type ProductionQueueOrderCard = {
+  queueKey: string
+  order: InternalOrderItem
+  statusLabel: string
+  externalStatusLabel: string
+  productLabel: string
+  riskLabel: string
+  riskTone: ProductionQueueTone
+}
+
+type ProductionQueueGroup = ProductionQueueDefinition & {
+  orders: ProductionQueueOrderCard[]
+  activeCount: number
+  riskCount: number
+}
+
 type PortalOption = {
   value: LoginPortal
   title: string
@@ -1018,6 +1043,51 @@ type WeekOnWeekRate = {
   comparison: string
   tone: PrototypeTone
 }
+
+type CsBusinessMetric = {
+  label: string
+  value: string
+  comparison: string
+  tone: PrototypeTone
+}
+
+type CsWeekOnWeekRate = {
+  label: string
+  value: string
+  comparison: string
+  tone: PrototypeTone
+  direction: 'up' | 'down' | 'flat'
+}
+
+type CsAnnualTrendPoint = {
+  label: string
+  current: number
+  previous: number
+  isSynced: boolean
+}
+
+type CsCustomerRankRow = {
+  clinicName: string
+  orderCount: number
+  itemCount: number
+  percent: number
+  comparison: string
+  tone: PrototypeTone
+}
+
+type AdminBusinessMetric = DashboardMetric
+
+type AdminEfficiencyMetric = {
+  label: string
+  value: string
+  percent: number
+  note: string
+  tone: PrototypeTone
+}
+
+type AdminSalesTrendPoint = CsAnnualTrendPoint
+
+type AdminCustomerRankRow = CsCustomerRankRow
 
 type MonthComparison = {
   title: string
@@ -1460,6 +1530,9 @@ const selectedProductionBoardOrder = ref<InternalOrderItem | null>(null)
 const productionBoardInstance = ref<ProcessInstanceDetail | null>(null)
 const productionBoardKeyword = ref('')
 const productionBoardStatus = ref('PROCESS_INSTANCE_CREATED')
+const productionBoardDepartmentFilter = ref('ALL')
+const productionBoardRiskFilter = ref('ALL')
+const productionBoardRouteParamApplied = ref(false)
 const productionBoardLoading = ref(false)
 const productionBoardError = ref('')
 const productionBoardShippingLoading = ref(false)
@@ -1530,6 +1603,21 @@ const productionBoardStatusOptions: ProductionBoardStatusOption[] = [
   { label: '生产中', value: 'PRODUCING' },
   { label: '已发货', value: 'SHIPPED' },
   { label: '已完成', value: 'COMPLETED' }
+]
+const productionQueueDefinitions: ProductionQueueDefinition[] = [
+  { key: 'DATA_REVIEW', label: '数据处理', subtitle: '资料、口扫、订单数据', tone: 'teal' },
+  { key: 'CAD', label: 'CAD', subtitle: '固定/活动/种植设计', tone: 'sky' },
+  { key: 'IMPLANT', label: '种植', subtitle: '种植设计与修复', tone: 'violet' },
+  { key: 'MILLING', label: '车金切削', subtitle: '切削、研磨、车金', tone: 'orange' },
+  { key: 'PRINTING_3D', label: '3D打印', subtitle: '打印、模型、树脂件', tone: 'teal' },
+  { key: 'PORCELAIN', label: '车瓷', subtitle: '车瓷与瓷修整', tone: 'green' },
+  { key: 'STAINING', label: '上瓷上釉', subtitle: '上瓷、上釉、染色', tone: 'amber' },
+  { key: 'STEEL_FRAMEWORK', label: '钢托', subtitle: '钢托与支架', tone: 'sky' },
+  { key: 'ACRYLIC', label: '胶托', subtitle: '胶托与基托', tone: 'violet' },
+  { key: 'FLEXIBLE', label: '隐形', subtitle: '隐形义齿与保持器', tone: 'green' },
+  { key: 'ORTHO', label: '正畸', subtitle: '正畸与矫治器', tone: 'teal' },
+  { key: 'QC', label: '质检', subtitle: '入检、出检、终检', tone: 'rose' },
+  { key: 'DISPATCH', label: '包装出货', subtitle: '包装、物流、发货', tone: 'amber' }
 ]
 const formFieldTypeOptions = ['text', 'textarea', 'select', 'multi-select', 'number', 'date', 'file']
 const reworkDictionaryTypeOptions = [
@@ -1775,7 +1863,11 @@ const displayNavigationConfig: Record<PortalTone, NavigationGroup[]> = {
             { id: 'admin-roles', title: '角色权限', description: '维护角色、权限范围和菜单可见性。', icon: 'system', routePath: '/system/rbac/roles', placeholder: true }
           ]
         },
-        { id: 'admin-customers', title: '客户诊所', description: '管理诊所档案、客户偏好和联系人。', icon: 'customer', routePath: '/admin/clinics' },
+        { id: 'admin-orders', title: '订单管理', description: '查看内部订单、审核状态和订单流转进度。', icon: 'order', routePath: '/orders/internal' },
+        { id: 'admin-communication-center', title: '沟通中心', description: '集中查看订单消息、待审核消息和跨端沟通记录。', icon: 'chat', routePath: '/collaboration' },
+        { id: 'admin-communication-management', title: '沟通管理', description: '管理沟通记录、消息审计和客服响应统计。', icon: 'audit', routePath: '/admin/communication-management', placeholder: true },
+        { id: 'admin-customers', title: '客户管理', description: '管理诊所档案、客户偏好和联系人。', icon: 'customer', routePath: '/admin/clinics' },
+        { id: 'admin-files', title: '文件资料', description: '查看订单资料、设计稿、账单附件和生产文件索引。', icon: 'cloud', routePath: '/admin/files', placeholder: true },
         {
           id: 'admin-products',
           title: '产品配置',
@@ -1799,6 +1891,9 @@ const displayNavigationConfig: Record<PortalTone, NavigationGroup[]> = {
             { id: 'admin-workflow-assign', title: '员工派工', description: '为工序节点绑定员工或调整执行人。', icon: 'staff', routePath: '/workflow/assign' }
           ]
         },
+        { id: 'admin-quality', title: '质量管理', description: '查看质量汇总、外返记录、返工责任和终检状态。', icon: 'quality', routePath: '/production/quality' },
+        { id: 'admin-safety', title: '安环管理', description: '查看安全巡检、隐患整改、环境记录和安环事件统计。', icon: 'safety', routePath: '/production/safety-environment' },
+        { id: 'admin-cost-control', title: '成本管控', description: '查看工序、材料、人工、返工、外协成本和异常预警。', icon: 'cost', routePath: '/production/cost-management' },
         { id: 'admin-staff', title: '人员管理', description: '管理生产人员、岗位能力和任务负载。', icon: 'staff', routePath: '/admin/staff' },
         { id: 'admin-device', title: '设备管理', description: '管理设备档案、运行状态和维护记录。', icon: 'device', routePath: '/admin/devices', placeholder: true },
         { id: 'admin-material', title: '物料管理', description: '查看物料缺失、材料不符和异常处理。', icon: 'material', routePath: '/admin/material-exceptions', placeholder: true },
@@ -2118,6 +2213,197 @@ const phaseOneAbCsDashboardStats = computed(() => {
     customerRanking
   }
 })
+const csBusinessMetrics = computed<CsBusinessMetric[]>(() => {
+  const summary = phaseOneAbDashboardSummary.value
+  const stats = phaseOneAbCsDashboardStats.value
+  const currentOrders = summary?.current_month.order_count ?? stats.orderCount
+  const previousOrders = summary?.previous_month.order_count ?? Math.max(0, currentOrders - Math.max(summary?.monthly_order_delta ?? 0, 0))
+  const orderDelta = summary?.monthly_order_delta ?? (currentOrders - previousOrders)
+  const shippedCount = stats.shipmentFollowUpCount
+  const shippingRate = summary?.shipping_rate ?? (currentOrders > 0 ? (shippedCount / currentOrders) * 100 : 0)
+  const reworkRate = productionQualitySummary.value?.total_rework_rate ?? 0
+
+  return [
+    {
+      label: '订单',
+      value: `${currentOrders} 单`,
+      comparison: `${orderDelta >= 0 ? '+' : ''}${orderDelta} vs 上月 ${previousOrders} 单`,
+      tone: 'violet'
+    },
+    {
+      label: '销售额',
+      value: '待接入',
+      comparison: '财务金额口径待接入',
+      tone: 'teal'
+    },
+    {
+      label: '已发货',
+      value: `${shippedCount} 单`,
+      comparison: `发货率 ${formatRate(shippingRate)}`,
+      tone: 'sky'
+    },
+    {
+      label: '返工数',
+      value: `${stats.reworkFollowUpCount} 单`,
+      comparison: `返工率 ${formatRate(reworkRate)}`,
+      tone: 'rose'
+    }
+  ]
+})
+const csWeekOnWeekRates = computed<CsWeekOnWeekRate[]>(() => {
+  const summary = phaseOneAbDashboardSummary.value
+  const qualitySummary = productionQualitySummary.value
+  const shippingRate = summary?.shipping_rate ?? 0
+  const reworkRate = qualitySummary?.total_rework_rate ?? 0
+  const complaintRate = qualitySummary?.complaint_rate ?? 0
+
+  return [
+    {
+      label: '返工率',
+      value: formatRate(reworkRate),
+      comparison: '上周口径待接入',
+      tone: 'teal',
+      direction: reworkRate > 0 ? 'down' : 'flat'
+    },
+    {
+      label: '发货率',
+      value: formatRate(shippingRate),
+      comparison: '上周口径待接入',
+      tone: 'teal',
+      direction: shippingRate > 0 ? 'up' : 'flat'
+    },
+    {
+      label: '投诉率',
+      value: formatRate(complaintRate),
+      comparison: '上周口径待接入',
+      tone: 'rose',
+      direction: complaintRate > 0 ? 'down' : 'flat'
+    }
+  ]
+})
+const csAnnualTrendPoints = computed<CsAnnualTrendPoint[]>(() => {
+  const months = ['1月', '2月', '3月', '4月', '5月', '6月', '7月', '8月', '9月', '10月', '11月', '12月']
+  const summary = phaseOneAbDashboardSummary.value
+  const points = months.map((label) => ({ label, current: 0, previous: 0, isSynced: false }))
+  if (!summary) {
+    return points
+  }
+  const currentMonthIndex = Math.max(0, Math.min(11, Number(summary.current_month.month.slice(5, 7)) - 1))
+  const previousMonthIndex = Math.max(0, Math.min(11, Number(summary.previous_month.month.slice(5, 7)) - 1))
+  points[previousMonthIndex] = {
+    ...points[previousMonthIndex],
+    current: summary.previous_month.item_count,
+    previous: Math.max(0, summary.previous_month.item_count - summary.monthly_item_delta),
+    isSynced: true
+  }
+  points[currentMonthIndex] = {
+    ...points[currentMonthIndex],
+    current: summary.current_month.item_count,
+    previous: summary.previous_month.item_count,
+    isSynced: true
+  }
+  return points
+})
+const csAnnualTrendMax = computed(() => Math.max(...csAnnualTrendPoints.value.flatMap((point) => [point.current, point.previous]), 1))
+const csAnnualTrendPolyline = computed(() => {
+  return csAnnualTrendPoints.value.map((point, index) => {
+    const x = 42 + index * 58
+    const y = 164 - (point.current / csAnnualTrendMax.value) * 112
+    return `${x},${y}`
+  }).join(' ')
+})
+const csAnnualTrendBaselinePolyline = computed(() => {
+  return csAnnualTrendPoints.value.map((point, index) => {
+    const x = 42 + index * 58
+    const y = 164 - (point.previous / csAnnualTrendMax.value) * 112
+    return `${x},${y}`
+  }).join(' ')
+})
+const csCustomerRankRows = computed<CsCustomerRankRow[]>(() => {
+  const topCustomers = phaseOneAbDashboardSummary.value?.top_customers ?? []
+  if (topCustomers.length === 0) {
+    const fallback = phaseOneAbCsDashboardStats.value.customerRanking
+    return [{
+      clinicName: fallback.clinicName,
+      orderCount: fallback.orderCount,
+      itemCount: fallback.itemCount ?? fallback.orderCount,
+      percent: phaseOneProgress((fallback.itemCount ?? fallback.orderCount) * 10),
+      comparison: '等待月度接口同步',
+      tone: 'slate'
+    }]
+  }
+  const maxItems = Math.max(...topCustomers.map((customer) => customer.item_count), 1)
+  return topCustomers.slice(0, 10).map((customer) => ({
+    clinicName: customer.clinic_name,
+    orderCount: customer.order_count,
+    itemCount: customer.item_count,
+    percent: phaseOneProgress((customer.item_count / maxItems) * 100),
+    comparison: `${customer.order_count} 单`,
+    tone: customer.item_count >= maxItems ? 'violet' : 'teal'
+  }))
+})
+const adminBusinessMetrics = computed<AdminBusinessMetric[]>(() => {
+  const summary = phaseOneAbDashboardSummary.value
+  const csStats = phaseOneAbCsDashboardStats.value
+  const productionStats = phaseOneAbProductionDashboardStats.value
+  const orders = phaseOneAbDashboardOrders.value
+  const deliveryOrders = phaseOneAbDashboardDeliveryOrders.value
+  const shippedCount = countDeliveryByStatus(deliveryOrders, ['SHIPPED', 'IN_TRANSIT', 'DELIVERED'])
+  const inboundCount = summary?.current_month.order_count ?? orders.length
+  const outboundCount = shippedCount
+  const shippedItems = summary?.current_month.item_count ?? Math.max(shippedCount, csStats.itemCount)
+  const csExceptionCount = csStats.pendingReviewCount
+    + csStats.pendingMessageReviewCount
+    + csStats.billManualFollowUpCount
+    + csStats.logisticsManualFollowUpCount
+  const customerExceptionCount = productionStats.externalReworkCount + productionStats.pendingQuestionCount
+
+  return [
+    { title: '总入货', value: `${inboundCount}`, note: '本月接收订单', icon: 'order', tone: 'blue' },
+    { title: '总发货', value: `${outboundCount}`, note: '物流状态已同步', icon: 'delivery', tone: 'teal' },
+    { title: '出货份数', value: `${shippedItems}`, note: '本地件数口径', icon: 'dashboard', tone: 'green' },
+    { title: '返工份数', value: `${productionStats.totalReworkCount}`, note: `返工率 ${formatRate(productionStats.totalReworkRate)}`, icon: 'quality', tone: 'rose' },
+    { title: '内返份数', value: `${productionStats.internalReworkCount}`, note: `内返率 ${formatRate(productionStats.internalReworkRate)}`, icon: 'quality', tone: 'amber' },
+    { title: '生产异常', value: `${productionStats.productionExceptionCount}`, note: '工序与生产待办', icon: 'process', tone: 'orange' },
+    { title: '客服异常', value: `${csExceptionCount}`, note: '审核、消息、账单物流', icon: 'chat', tone: 'violet' },
+    { title: '客户异常', value: `${customerExceptionCount}`, note: '外返与待确认', icon: 'customer', tone: 'rose' },
+    { title: '物料异常', value: `${productionStats.materialPendingCount}`, note: '缺料/错料处理中', icon: 'material', tone: 'amber' },
+    { title: '成本异常', value: `${productionStats.costWarningCount}`, note: '成本预警记录', icon: 'cost', tone: 'orange' }
+  ]
+})
+const adminEfficiencyMetrics = computed<AdminEfficiencyMetric[]>(() => {
+  const stats = phaseOneAbProductionDashboardStats.value
+  const totalExceptions = stats.productionExceptionCount
+    + stats.materialPendingCount
+    + stats.costWarningCount
+    + phaseOneAbCsDashboardStats.value.pendingMessageReviewCount
+  const baseCount = Math.max(phaseOneAbDashboardOrders.value.length, phaseOneAbDashboardSummary.value?.current_month.order_count ?? 0, 1)
+  const exceptionRate = Math.round((totalExceptions / baseCount) * 100)
+
+  return [
+    { label: '当日出货率', value: formatRate(stats.shippingRate), percent: phaseOneProgress(stats.shippingRate), note: '已发货 / 待发货', tone: 'teal' },
+    { label: '返工率', value: formatRate(stats.totalReworkRate), percent: phaseOneProgress(stats.totalReworkRate), note: '返工份数 / 总件数', tone: 'rose' },
+    { label: '内返率', value: formatRate(stats.internalReworkRate), percent: phaseOneProgress(stats.internalReworkRate), note: '内部质检返修', tone: 'amber' },
+    { label: '异常率', value: formatRate(exceptionRate), percent: phaseOneProgress(exceptionRate), note: '生产/客服/物料/成本', tone: 'orange' }
+  ]
+})
+const adminSalesTrendPoints = computed<AdminSalesTrendPoint[]>(() => csAnnualTrendPoints.value)
+const adminSalesTrendMax = computed(() => Math.max(...adminSalesTrendPoints.value.flatMap((point) => [point.current, point.previous]), 1))
+const adminSalesTrendPolyline = computed(() => {
+  return adminSalesTrendPoints.value.map((point, index) => {
+    const x = 42 + index * 58
+    const y = 164 - (point.current / adminSalesTrendMax.value) * 112
+    return `${x},${y}`
+  }).join(' ')
+})
+const adminSalesTrendBaselinePolyline = computed(() => {
+  return adminSalesTrendPoints.value.map((point, index) => {
+    const x = 42 + index * 58
+    const y = 164 - (point.previous / adminSalesTrendMax.value) * 112
+    return `${x},${y}`
+  }).join(' ')
+})
+const adminCustomerRankRows = computed<AdminCustomerRankRow[]>(() => csCustomerRankRows.value)
 const phaseOneAbProductionDashboardStats = computed(() => {
   const orders = phaseOneAbDashboardOrders.value
   const deliveryOrdersForDashboard = phaseOneAbDashboardDeliveryOrders.value
@@ -2282,7 +2568,7 @@ const prototypeDashboards = computed<Record<PortalTone, PrototypeDashboard>>(() 
           tone: 'rose',
           items: [
             { title: '资料初审', detail: `${phaseOneAbCsDashboardStats.value.pendingReviewCount} 单等待资料和生产备注审核`, meta: '本地订单队列', tone: 'amber', actionLabel: '去审核', routePath: '/orders/internal', navId: 'cs-order-review' },
-            { title: '沟通待审', detail: `${phaseOneAbCsDashboardStats.value.pendingMessageReviewCount} 条消息或 AI 草稿待人工确认`, meta: '客服确认后可见', tone: 'violet', actionLabel: '去审核', routePath: '/collaboration', navId: 'cs-message-review' },
+            { title: '翻译待审', detail: `${phaseOneAbCsDashboardStats.value.pendingMessageReviewCount} 条外文说明或 AI 翻译草稿待客服确认`, meta: '确认后写入生产备注', tone: 'violet', actionLabel: '去审核', routePath: '/collaboration', navId: 'cs-message-review' },
             { title: '账单物流', detail: `${phaseOneAbCsDashboardStats.value.billManualFollowUpCount} 单付款状态待跟进，${phaseOneAbCsDashboardStats.value.logisticsManualFollowUpCount} 单物流需人工关注`, meta: '一期人工状态', tone: 'rose', actionLabel: '去处理', routePath: '/delivery', navId: 'cs-delivery' }
           ]
         },
@@ -2388,51 +2674,24 @@ const prototypeDashboards = computed<Record<PortalTone, PrototypeDashboard>>(() 
       ]
     },
     admin: {
-      greeting: '管理控制台',
-      subtitle: '平台账号、订单、工艺、生产、账单配送和 AI 治理统一总览。',
+      greeting: '管理经营驾驶舱',
+      subtitle: '总入货、出货、返工、异常、销售同比和十大客户排名集中查看。',
       primaryAction: {
-        title: '检查系统治理',
-        detail: '查看 AI、预算、通知和审计状态',
+        title: '查看订单经营',
+        detail: '进入订单管理核对入货、出货和异常明细',
         meta: '管理端',
-        tone: 'blue',
+        tone: 'teal',
         actionLabel: '查看',
-        routePath: '/admin/ai-governance',
-        navId: 'admin-ai'
+        routePath: '/orders/internal',
+        navId: 'admin-orders'
       },
-      metrics: [
-        { title: '总订单', value: '148', note: '本月业务量', icon: 'order', tone: 'blue' },
-        { title: '待处理异常', value: '11', note: '跨端待办', icon: 'audit', tone: 'rose' },
-        { title: '活跃账号', value: '32', note: '医生/客服/生产', icon: 'customer', tone: 'green' },
-        { title: '今日生产', value: '27', note: '节点流转', icon: 'process', tone: 'teal' },
-        { title: 'AI 调用', value: '86', note: '近 24 小时', icon: 'ai', tone: 'violet' },
-        { title: '预算告警', value: '2', note: '待治理', icon: 'bill', tone: 'amber' }
-      ],
-      panels: [
-        {
-          title: '系统待办',
-          badge: '11 项',
-          tone: 'rose',
-          items: [
-            { title: '权限检查', detail: '2 个账号权限范围需复核', meta: '账号权限', tone: 'amber', actionLabel: '查看角色', routePath: '/system/rbac/roles', navId: 'admin-roles' },
-            { title: '生产瓶颈', detail: '切削与染色部门负载偏高', meta: '产能风险', tone: 'orange', actionLabel: '查看工序', routePath: '/workflow/process-instance', navId: 'admin-process-progress' },
-            { title: 'AI 预算告警', detail: '模型预算接近阈值，需确认策略', meta: 'AI 治理', tone: 'violet', actionLabel: '去治理', routePath: '/admin/ai-governance', navId: 'admin-ai' }
-          ]
-        },
-        {
-          title: '业务健康',
-          badge: '今日',
-          tone: 'blue',
-          items: [
-            { title: '账单配送', detail: '3 单账单/物流状态需客服跟进', meta: '跨端协同', tone: 'rose', actionLabel: '查看', routePath: '/admin/billing-delivery', navId: 'admin-billing-delivery' },
-            { title: '外协订单', detail: '2 单外协正在等待回传资料', meta: '外协管理', tone: 'teal', actionLabel: '查看外协', routePath: '/admin/outsourcing', navId: 'admin-outsourcing' }
-          ]
-        }
-      ],
+      metrics: adminBusinessMetrics.value,
+      panels: [],
       trends: [
-        { label: '订单增长', value: '+16%', percent: 68, tone: 'blue' },
-        { label: '生产效率', value: '88%', percent: 88, tone: 'teal' },
-        { label: '权限健康', value: '94%', percent: 94, tone: 'green' },
-        { label: 'AI 预算', value: '72%', percent: 72, tone: 'amber' }
+        { label: '当日出货率', value: adminEfficiencyMetrics.value[0]?.value ?? '0%', percent: adminEfficiencyMetrics.value[0]?.percent ?? 0, tone: 'teal' },
+        { label: '返工率', value: adminEfficiencyMetrics.value[1]?.value ?? '0%', percent: adminEfficiencyMetrics.value[1]?.percent ?? 0, tone: 'rose' },
+        { label: '内返率', value: adminEfficiencyMetrics.value[2]?.value ?? '0%', percent: adminEfficiencyMetrics.value[2]?.percent ?? 0, tone: 'amber' },
+        { label: '异常率', value: adminEfficiencyMetrics.value[3]?.value ?? '0%', percent: adminEfficiencyMetrics.value[3]?.percent ?? 0, tone: 'orange' }
       ]
     }
   }
@@ -2989,6 +3248,51 @@ function formatRate(value: number | null | undefined) {
 function formatMoney(value: number | null | undefined) {
   return `¥${Number(value ?? 0).toFixed(2)}`
 }
+function normalizeProductionQueueText(value: string | null | undefined) {
+  return `${value ?? ''}`.toUpperCase()
+}
+function inferProductionQueueKey(order: InternalOrderItem) {
+  const text = [
+    normalizeProductionQueueText(order.product_type),
+    normalizeProductionQueueText(order.internal_status),
+    normalizeProductionQueueText(order.external_status),
+    order.production_note ?? ''
+  ].join(' ')
+  if (text.includes('IMPLANT') || text.includes('种植')) return 'IMPLANT'
+  if (text.includes('ORTHO') || text.includes('正畸')) return 'ORTHO'
+  if (text.includes('3D') || text.includes('PRINT') || text.includes('打印')) return 'PRINTING_3D'
+  if (text.includes('PORCELAIN') || text.includes('车瓷') || text.includes('瓷')) return 'PORCELAIN'
+  if (text.includes('STAIN') || text.includes('上瓷') || text.includes('上釉') || text.includes('染色')) return 'STAINING'
+  if (text.includes('STEEL') || text.includes('钢托') || text.includes('钢架')) return 'STEEL_FRAMEWORK'
+  if (text.includes('ACRYLIC') || text.includes('胶托')) return 'ACRYLIC'
+  if (text.includes('FLEXIBLE') || text.includes('隐形')) return 'FLEXIBLE'
+  if (text.includes('MILL') || text.includes('车金') || text.includes('切削') || text.includes('研磨')) return 'MILLING'
+  if (text.includes('SHIPPED') || text.includes('COMPLETED') || text.includes('出货') || text.includes('包装')) return 'DISPATCH'
+  if (text.includes('REWORK') || text.includes('QUALITY') || text.includes('质检') || text.includes('终检') || text.includes('返工')) return 'QC'
+  if (text.includes('CAD') || text.includes('DESIGN') || text.includes('设计')) return 'CAD'
+  return 'DATA_REVIEW'
+}
+function productionBoardRisk(order: InternalOrderItem): { label: string; tone: ProductionQueueTone } {
+  if (order.internal_status === 'PENDING_DOCTOR_CONFIRM') {
+    return { label: '待医生确认', tone: 'violet' }
+  }
+  if (order.internal_status === 'PRODUCING') {
+    return { label: '生产中', tone: 'teal' }
+  }
+  if (order.internal_status === 'PROCESS_INSTANCE_CREATED') {
+    return { label: '待派工', tone: 'sky' }
+  }
+  if (order.internal_status === 'PENDING_PRODUCTION_REVIEW') {
+    return { label: '待生产审核', tone: 'amber' }
+  }
+  if (order.external_status === 'SHIPPED') {
+    return { label: '已发货', tone: 'green' }
+  }
+  if (order.reject_reason) {
+    return { label: '需复核', tone: 'rose' }
+  }
+  return { label: '正常', tone: 'teal' }
+}
 const productionBoardNodeStats = computed(() => {
   const stats = {
     READY: 0,
@@ -3004,6 +3308,61 @@ const productionBoardNodeStats = computed(() => {
   }
   return stats
 })
+const productionBoardDepartmentOptions = computed(() => [
+  { label: '全部工序', value: 'ALL' },
+  ...productionQueueDefinitions.map((queue) => ({ label: queue.label, value: queue.key }))
+])
+const productionBoardQueueGroups = computed<ProductionQueueGroup[]>(() => {
+  const groups = new Map<string, ProductionQueueGroup>()
+  for (const definition of productionQueueDefinitions) {
+    groups.set(definition.key, {
+      ...definition,
+      orders: [],
+      activeCount: 0,
+      riskCount: 0
+    })
+  }
+
+  for (const order of productionBoardOrders.value) {
+    const risk = productionBoardRisk(order)
+    const queueKey = inferProductionQueueKey(order)
+    const group = groups.get(queueKey) ?? groups.get('DATA_REVIEW')
+    if (!group) continue
+    if (productionBoardDepartmentFilter.value !== 'ALL' && productionBoardDepartmentFilter.value !== group.key) {
+      continue
+    }
+    if (productionBoardRiskFilter.value === 'RISK' && risk.label === '正常') {
+      continue
+    }
+    group.orders.push({
+      queueKey: group.key,
+      order,
+      statusLabel: statusLabel(order.internal_status),
+      externalStatusLabel: statusLabel(order.external_status),
+      productLabel: productTypeLabel(order.product_type),
+      riskLabel: risk.label,
+      riskTone: risk.tone
+    })
+    group.activeCount += 1
+    if (risk.label !== '正常') {
+      group.riskCount += 1
+    }
+  }
+
+  return Array.from(groups.values()).filter((group) =>
+    productionBoardDepartmentFilter.value === 'ALL' || group.key === productionBoardDepartmentFilter.value
+  )
+})
+function applyProductionBoardRouteParams() {
+  if (productionBoardRouteParamApplied.value) {
+    return
+  }
+  productionBoardRouteParamApplied.value = true
+  const department = new URLSearchParams(window.location.search).get('department')
+  if (department && productionQueueDefinitions.some((definition) => definition.key === department)) {
+    productionBoardDepartmentFilter.value = department
+  }
+}
 const productionQualitySummaryCards = computed(() => {
   const summary = productionQualitySummary.value
   if (!summary) {
@@ -6790,6 +7149,7 @@ async function loadProductionBoardOrders() {
   if (!token.value) {
     return
   }
+  applyProductionBoardRouteParams()
   productionBoardLoading.value = true
   productionBoardError.value = ''
   try {
@@ -8846,7 +9206,10 @@ onBeforeUnmount(() => {
 
         <section v-else-if="isProductionBoardRoute" class="panel route-panel production-board-panel">
           <div class="route-heading">
-            <h2>生产看板</h2>
+            <div>
+              <h2>生产看板</h2>
+              <p>工序队列按当前生产订单、状态和异常集中展示。</p>
+            </div>
             <el-tag round>{{ productionBoardOrders.length }} 单</el-tag>
           </div>
 
@@ -8873,6 +9236,18 @@ onBeforeUnmount(() => {
                 :value="option.value"
               />
             </el-select>
+            <el-select v-model="productionBoardDepartmentFilter" placeholder="全部工序">
+              <el-option
+                v-for="option in productionBoardDepartmentOptions"
+                :key="option.value"
+                :label="option.label"
+                :value="option.value"
+              />
+            </el-select>
+            <el-select v-model="productionBoardRiskFilter" placeholder="异常筛选">
+              <el-option label="全部订单" value="ALL" />
+              <el-option label="只看待处理" value="RISK" />
+            </el-select>
             <el-input
               v-model="productionBoardKeyword"
               placeholder="跨状态生产检索：订单号或患者"
@@ -8892,26 +9267,56 @@ onBeforeUnmount(() => {
             :closable="false"
           />
 
-          <div class="production-board-workspace">
-            <aside class="doctor-order-list">
-              <button
-                v-for="order in productionBoardOrders"
-                :key="order.order_id"
-                class="doctor-order-row"
-                :class="{ active: selectedProductionBoardOrder?.order_id === order.order_id }"
-                type="button"
-                @click="selectProductionBoardOrder(order)"
-              >
-                <strong>{{ order.order_no }}</strong>
-                <span>{{ order.clinic_name }} / {{ productTypeLabel(order.product_type) }}</span>
-                <small>{{ statusLabel(order.internal_status) }} / {{ statusLabel(order.external_status) }}</small>
-              </button>
-              <div v-if="productionBoardOrders.length === 0" class="empty-state">
-                暂无生产订单
+          <div class="production-dispatch-workspace">
+            <section class="production-queue-shell">
+              <div class="production-board-section-head">
+                <div>
+                  <h3>工序队列</h3>
+                  <span>横向查看各工序当前订单，点击订单查看节点和发货动作。</span>
+                </div>
+                <el-tag type="info" round>{{ productionBoardQueueGroups.length }} 组</el-tag>
               </div>
-            </aside>
 
-            <section v-if="selectedProductionBoardOrder" class="doctor-order-detail">
+              <div class="production-queue-board">
+                <article
+                  v-for="group in productionBoardQueueGroups"
+                  :key="group.key"
+                  class="production-queue-column"
+                  :class="`tone-${group.tone}`"
+                >
+                  <header class="production-queue-head">
+                    <div>
+                      <strong>{{ group.label }}</strong>
+                      <span>{{ group.subtitle }}</span>
+                    </div>
+                    <small>{{ group.activeCount }} 单</small>
+                  </header>
+
+                  <button
+                    v-for="card in group.orders"
+                    :key="card.order.order_id"
+                    class="production-order-card"
+                    :class="{ active: selectedProductionBoardOrder?.order_id === card.order.order_id }"
+                    type="button"
+                    @click="selectProductionBoardOrder(card.order)"
+                  >
+                    <span class="production-order-card-top">
+                      <strong>{{ card.order.order_no }}</strong>
+                      <em :class="`tone-${card.riskTone}`">{{ card.riskLabel }}</em>
+                    </span>
+                    <span>{{ card.order.clinic_name }}</span>
+                    <small>{{ card.productLabel }} / {{ card.statusLabel }}</small>
+                  </button>
+
+                  <div v-if="group.orders.length === 0" class="production-queue-empty">
+                    当前无订单
+                  </div>
+                </article>
+              </div>
+            </section>
+
+            <section class="production-dispatch-detail">
+              <template v-if="selectedProductionBoardOrder">
               <div class="doctor-order-summary">
                 <div>
                   <span>订单</span>
@@ -9016,6 +9421,11 @@ onBeforeUnmount(() => {
 
               <div v-else class="empty-state">
                 该订单暂无可展示的工序进度
+              </div>
+              </template>
+
+              <div v-else class="empty-state">
+                选择左侧工序队列中的订单查看节点进度
               </div>
             </section>
           </div>
@@ -10882,7 +11292,7 @@ onBeforeUnmount(() => {
             </section>
           </div>
 
-          <div class="prototype-dashboard-layout">
+          <div v-if="activePrototypeDashboard.panels.length" class="prototype-dashboard-layout">
             <section
               v-for="panel in activePrototypeDashboard.panels"
               :key="panel.title"
@@ -10912,57 +11322,271 @@ onBeforeUnmount(() => {
             </section>
           </div>
 
-          <section
-            v-if="portalTone !== 'production'"
-            class="prototype-panel-card prototype-chart-card"
-          >
-            <div class="prototype-panel-head">
-              <h3>{{ portalTitle }}趋势图</h3>
-              <span class="prototype-badge tone-slate">近 6 周</span>
-            </div>
-            <div class="prototype-chart-body">
-              <svg class="prototype-line-chart" viewBox="0 0 760 210" role="img" aria-label="近六周趋势图">
-                <line x1="42" y1="34" x2="42" y2="170" />
-                <line x1="42" y1="170" x2="720" y2="170" />
-                <line x1="42" y1="124" x2="720" y2="124" class="chart-grid" />
-                <line x1="42" y1="80" x2="720" y2="80" class="chart-grid" />
-                <path class="chart-area-primary" d="M42 142 L176 126 L310 132 L444 96 L578 108 L720 70 L720 170 L42 170 Z" />
-                <path class="chart-line-primary" d="M42 142 L176 126 L310 132 L444 96 L578 108 L720 70" />
-                <path class="chart-line-secondary" d="M42 154 L176 146 L310 118 L444 132 L578 92 L720 104" />
-                <g class="chart-points">
-                  <circle cx="42" cy="142" r="4" />
-                  <circle cx="176" cy="126" r="4" />
-                  <circle cx="310" cy="132" r="4" />
-                  <circle cx="444" cy="96" r="4" />
-                  <circle cx="578" cy="108" r="4" />
-                  <circle cx="720" cy="70" r="4" />
-                </g>
-                <g class="chart-labels">
-                  <text x="42" y="195">第1周</text>
-                  <text x="176" y="195">第2周</text>
-                  <text x="310" y="195">第3周</text>
-                  <text x="444" y="195">第4周</text>
-                  <text x="578" y="195">第5周</text>
-                  <text x="720" y="195">本周</text>
-                </g>
-              </svg>
-              <div class="prototype-trend-grid">
+          <section v-if="portalTone === 'admin'" class="admin-business-board">
+            <section class="prototype-panel-card admin-efficiency-card">
+              <div class="prototype-panel-head">
+                <h3>当日效率统计</h3>
+                <span class="prototype-badge tone-teal">经营效率</span>
+              </div>
+              <div class="admin-efficiency-grid">
                 <article
-                  v-for="trend in activePrototypeDashboard.trends"
-                  :key="trend.label"
-                  class="prototype-trend-row"
+                  v-for="metric in adminEfficiencyMetrics"
+                  :key="metric.label"
+                  class="admin-efficiency-item"
+                  :class="`tone-${metric.tone}`"
                 >
-                  <div>
-                    <span>{{ trend.label }}</span>
-                    <strong>{{ trend.value }}</strong>
+                  <small>{{ metric.label }}</small>
+                  <strong>{{ metric.value }}</strong>
+                  <div class="admin-efficiency-track">
+                    <i :style="{ width: `${metric.percent}%` }" />
                   </div>
-                  <div class="prototype-progress">
-                    <i :class="`tone-${trend.tone}`" :style="{ width: `${trend.percent}%` }" />
-                  </div>
+                  <em>{{ metric.note }}</em>
                 </article>
               </div>
+            </section>
+
+            <div class="admin-business-lower">
+              <section class="prototype-panel-card admin-sales-card">
+                <div class="prototype-panel-head">
+                  <h3>销售总计与同比</h3>
+                  <span class="prototype-badge tone-slate">财务口径待接入</span>
+                </div>
+                <div class="admin-sales-summary">
+                  <article>
+                    <small>销售总计</small>
+                    <strong>待接入</strong>
+                    <em>当前仅同步订单 / 件数</em>
+                  </article>
+                  <article>
+                    <small>去年同期</small>
+                    <strong>待接入</strong>
+                    <em>真实财务口径待确认</em>
+                  </article>
+                  <article>
+                    <small>同比去年同期</small>
+                    <strong>待接入</strong>
+                    <em>金额同比暂不伪造</em>
+                  </article>
+                </div>
+                <svg class="admin-sales-chart" viewBox="0 0 720 220" role="img" aria-label="销售总计与同比趋势">
+                  <line x1="42" y1="42" x2="42" y2="164" />
+                  <line x1="42" y1="164" x2="680" y2="164" />
+                  <line x1="42" y1="82" x2="680" y2="82" class="chart-grid" />
+                  <line x1="42" y1="124" x2="680" y2="124" class="chart-grid" />
+                  <polyline class="chart-line-secondary" :points="adminSalesTrendBaselinePolyline" />
+                  <polyline class="chart-line-primary" :points="adminSalesTrendPolyline" />
+                  <g class="admin-sales-points">
+                    <circle
+                      v-for="(point, index) in adminSalesTrendPoints"
+                      :key="`admin-sales-point-${point.label}`"
+                      :cx="42 + index * 58"
+                      :cy="164 - (point.current / adminSalesTrendMax) * 112"
+                      :r="point.isSynced ? 4 : 2.5"
+                      :class="{ muted: !point.isSynced }"
+                    />
+                  </g>
+                  <g class="chart-labels">
+                    <text
+                      v-for="(point, index) in adminSalesTrendPoints"
+                      :key="`admin-sales-label-${point.label}`"
+                      :x="42 + index * 58"
+                      y="196"
+                    >
+                      {{ point.label }}
+                    </text>
+                  </g>
+                </svg>
+                <p class="admin-business-note">
+                  销售趋势第一版以本地订单 / 件数趋势占位展示，真实销售金额、去年同期金额和财务结算口径待接入。
+                </p>
+              </section>
+
+              <section class="prototype-panel-card admin-customer-rank-card">
+                <div class="prototype-panel-head">
+                  <h3>十大客户排名</h3>
+                  <span class="prototype-badge tone-violet">Top 10 排名条</span>
+                </div>
+                <div class="admin-customer-rank-head">
+                  <span>客户</span>
+                  <span>占比条</span>
+                  <span>本月件数</span>
+                  <span>订单数</span>
+                </div>
+                <article
+                  v-for="(customer, index) in adminCustomerRankRows"
+                  :key="customer.clinicName"
+                  class="admin-customer-rank-row"
+                >
+                  <strong>{{ index + 1 }}. {{ customer.clinicName }}</strong>
+                  <div class="admin-customer-rank-track">
+                    <i :class="`tone-${customer.tone}`" :style="{ width: `${customer.percent}%` }" />
+                  </div>
+                  <b>{{ customer.itemCount }} 件</b>
+                  <small>{{ customer.orderCount }} 单</small>
+                </article>
+              </section>
             </div>
           </section>
+
+          <section v-if="portalTone === 'cs'" class="cs-business-board">
+            <div class="prototype-panel-head">
+              <h3>客服经营看板</h3>
+              <span class="prototype-badge tone-violet">本地统计</span>
+            </div>
+
+            <div class="cs-business-overview">
+              <section class="prototype-panel-card cs-month-card">
+                <div class="prototype-panel-head">
+                  <h3>本月 vs 上月</h3>
+                  <span class="prototype-badge tone-slate">本月 / 上月对比</span>
+                </div>
+                <div class="cs-business-metric-grid">
+                  <article
+                    v-for="metric in csBusinessMetrics"
+                    :key="metric.label"
+                    class="cs-business-metric"
+                    :class="`tone-${metric.tone}`"
+                  >
+                    <span class="prototype-card-accent" />
+                    <small>{{ metric.label }}</small>
+                    <strong>{{ metric.value }}</strong>
+                    <em>{{ metric.comparison }}</em>
+                  </article>
+                </div>
+                <div class="cs-week-rate-block">
+                  <h4>周环比指标</h4>
+                  <article
+                    v-for="rate in csWeekOnWeekRates"
+                    :key="rate.label"
+                    class="cs-week-rate-row"
+                  >
+                    <span>{{ rate.label }}</span>
+                    <strong>{{ rate.value }}</strong>
+                    <em :class="[`tone-${rate.tone}`, `direction-${rate.direction}`]">
+                      {{ rate.direction === 'up' ? '↑' : rate.direction === 'down' ? '↓' : '→' }} {{ rate.comparison }}
+                    </em>
+                  </article>
+                </div>
+              </section>
+
+              <section class="prototype-panel-card cs-annual-card">
+                <div class="prototype-panel-head">
+                  <h3>年度销售趋势</h3>
+                  <span class="prototype-badge tone-slate">本月 / 上月已同步</span>
+                </div>
+                <svg class="cs-annual-chart" viewBox="0 0 720 220" role="img" aria-label="年度销售趋势">
+                  <line x1="42" y1="42" x2="42" y2="164" />
+                  <line x1="42" y1="164" x2="680" y2="164" />
+                  <line x1="42" y1="82" x2="680" y2="82" class="chart-grid" />
+                  <line x1="42" y1="124" x2="680" y2="124" class="chart-grid" />
+                  <polyline class="chart-line-secondary" :points="csAnnualTrendBaselinePolyline" />
+                  <polyline class="chart-line-primary" :points="csAnnualTrendPolyline" />
+                  <g class="cs-annual-points">
+                    <circle
+                      v-for="(point, index) in csAnnualTrendPoints"
+                      :key="`cs-trend-point-${point.label}`"
+                      :cx="42 + index * 58"
+                      :cy="164 - (point.current / csAnnualTrendMax) * 112"
+                      :r="point.isSynced ? 4 : 2.5"
+                      :class="{ muted: !point.isSynced }"
+                    />
+                  </g>
+                  <g class="chart-labels">
+                    <text
+                      v-for="(point, index) in csAnnualTrendPoints"
+                      :key="`cs-trend-label-${point.label}`"
+                      :x="42 + index * 58"
+                      y="196"
+                    >
+                      {{ point.label }}
+                    </text>
+                  </g>
+                </svg>
+                <p class="cs-business-note">
+                  年度销售趋势当前仅使用一期本地月度聚合，未接真实财务结算口径。
+                </p>
+              </section>
+            </div>
+
+            <section class="prototype-panel-card cs-customer-rank-card">
+              <div class="prototype-panel-head">
+                <h3>十大客户排名</h3>
+                <span class="prototype-badge tone-teal">按销量 / 件数</span>
+              </div>
+              <div class="cs-customer-rank-head">
+                <span>客户</span>
+                <span>销量条</span>
+                <span>本月件数</span>
+                <span>订单数</span>
+              </div>
+              <article
+                v-for="(customer, index) in csCustomerRankRows"
+                :key="customer.clinicName"
+                class="cs-customer-rank-row"
+              >
+                <strong>{{ index + 1 }}. {{ customer.clinicName }}</strong>
+                <div class="cs-customer-rank-track">
+                  <i :class="`tone-${customer.tone}`" :style="{ width: `${customer.percent}%` }" />
+                </div>
+                <b>{{ customer.itemCount }} 件</b>
+                <small>{{ customer.comparison }}</small>
+              </article>
+            </section>
+          </section>
+
+          <template v-if="portalTone !== 'cs'">
+            <section
+              v-if="portalTone !== 'production' && portalTone !== 'admin'"
+              class="prototype-panel-card prototype-chart-card"
+            >
+              <div class="prototype-panel-head">
+                <h3>{{ portalTitle }}趋势图</h3>
+                <span class="prototype-badge tone-slate">近 6 周</span>
+              </div>
+              <div class="prototype-chart-body">
+                <svg class="prototype-line-chart" viewBox="0 0 760 210" role="img" aria-label="近六周趋势图">
+                  <line x1="42" y1="34" x2="42" y2="170" />
+                  <line x1="42" y1="170" x2="720" y2="170" />
+                  <line x1="42" y1="124" x2="720" y2="124" class="chart-grid" />
+                  <line x1="42" y1="80" x2="720" y2="80" class="chart-grid" />
+                  <path class="chart-area-primary" d="M42 142 L176 126 L310 132 L444 96 L578 108 L720 70 L720 170 L42 170 Z" />
+                  <path class="chart-line-primary" d="M42 142 L176 126 L310 132 L444 96 L578 108 L720 70" />
+                  <path class="chart-line-secondary" d="M42 154 L176 146 L310 118 L444 132 L578 92 L720 104" />
+                  <g class="chart-points">
+                    <circle cx="42" cy="142" r="4" />
+                    <circle cx="176" cy="126" r="4" />
+                    <circle cx="310" cy="132" r="4" />
+                    <circle cx="444" cy="96" r="4" />
+                    <circle cx="578" cy="108" r="4" />
+                    <circle cx="720" cy="70" r="4" />
+                  </g>
+                  <g class="chart-labels">
+                    <text x="42" y="195">第1周</text>
+                    <text x="176" y="195">第2周</text>
+                    <text x="310" y="195">第3周</text>
+                    <text x="444" y="195">第4周</text>
+                    <text x="578" y="195">第5周</text>
+                    <text x="720" y="195">本周</text>
+                  </g>
+                </svg>
+                <div class="prototype-trend-grid">
+                  <article
+                    v-for="trend in activePrototypeDashboard.trends"
+                    :key="trend.label"
+                    class="prototype-trend-row"
+                  >
+                    <div>
+                      <span>{{ trend.label }}</span>
+                      <strong>{{ trend.value }}</strong>
+                    </div>
+                    <div class="prototype-progress">
+                      <i :class="`tone-${trend.tone}`" :style="{ width: `${trend.percent}%` }" />
+                    </div>
+                  </article>
+                </div>
+              </div>
+            </section>
+          </template>
         </section>
 
         <section v-else-if="isProductionQualitySummaryRoute" class="panel route-panel performance-panel">
