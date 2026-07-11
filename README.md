@@ -119,6 +119,23 @@ npm run compose:up
 docker compose ps
 ```
 
+### 一键后台运行（本地开发）
+
+日常开发可在 Codex 下方终端执行：
+
+```bash
+npm run local:start
+```
+
+该命令会在后台保持 MySQL、Redis、MinIO、Spring Boot 后端和 Vite 前端运行；浏览器访问 `http://localhost:5173`。若 Docker 尚未运行且已安装 Colima，脚本会先启动 Colima。
+
+```bash
+npm run local:status  # 查看容器、前端和后端状态
+npm run local:stop    # 仅停止本工具启动的前端和后端
+```
+
+前后端日志与 PID 保存在 `.local-runtime/`；该目录不会纳入 Git。每次启动都会记录一次性运行标识和进程身份，`local:stop` 只处理匹配该记录的完整前后端进程树，不会停止 Docker 基础服务、删除本地数据或终止其他程序。若端口 5173 或 8080 被其他程序占用，脚本会提示占用情况而不会接管该程序。
+
 一期 Docker / Compose 配置静态验收：
 
 ```bash

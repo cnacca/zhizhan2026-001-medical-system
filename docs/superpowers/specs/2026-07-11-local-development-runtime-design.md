@@ -27,7 +27,7 @@
 
 ## 结构与流程
 
-`scripts/local-runtime.sh` 接受 `start`、`status`、`stop` 子命令。启动时先执行 `npm run compose:up`；然后分别以 `nohup npm run dev:backend` 和 `nohup npm run dev:frontend` 启动服务，写入 PID 和日志。状态检查 PID 是否仍存活，并请求后端健康接口与前端首页。停止时基于 PID 文件停止相应进程，过期 PID 文件会被清理。
+`scripts/local-runtime.sh` 接受 `start`、`status`、`stop` 子命令。启动时先执行 `npm run compose:up`；然后通过 `scripts/local-runtime-runner.sh` 分别以唯一运行标识启动后端和前端，写入 PID、进程启动时间、运行标识和日志。状态同时校验这些身份信息，并请求后端健康接口与前端首页。停止时仅对匹配身份记录的完整进程树发送信号，确认全部退出后才清理记录；过期或不匹配的 PID 文件不会触碰对应进程。
 
 根 `package.json` 为三个命令提供稳定入口。`scripts/check-local-runtime.mjs` 作为自动检查，验证命令声明、脚本的安全边界、端口、日志/PID 路径和 README 使用说明，防止后续改动破坏约定。
 

@@ -157,6 +157,10 @@
     "dev:frontend": "pnpm --filter ai-order-platform-frontend dev",
     "install:frontend": "pnpm install",
     "test:backend": "scripts/with-jdk21.sh mvn -f backend/pom.xml test",
-    "build:frontend": "pnpm --filter ai-order-platform-frontend build"
+    "build:frontend": "pnpm --filter ai-order-platform-frontend build",
+    "check:local-runtime": "node scripts/check-local-runtime.mjs",
+    "local:start": "bash scripts/local-runtime.sh start",
+    "local:status": "bash scripts/local-runtime.sh status",
+    "local:stop": "bash scripts/local-runtime.sh stop"
   }
 }

@@ -156,6 +156,7 @@ target/
 
 # Local source documents and private intake materials
 .local-context/
+.local-runtime/
 
 # Local generated review artifacts
 tmp/
