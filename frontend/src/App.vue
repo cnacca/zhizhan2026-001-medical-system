@@ -1020,7 +1020,7 @@ type ProductionKanbanSummary = {
   tone: PrototypeTone
 }
 
-type ProductionBoardActionSummaryKey = 'all' | 'dispatch' | 'overdue' | 'rework' | 'confirm'
+type ProductionBoardActionSummaryKey = 'all' | 'review' | 'dispatch' | 'producing' | 'confirm' | 'final' | 'overdue' | 'rework' | 'rush'
 
 type ProductionBoardActionSummaryItem = {
   key: ProductionBoardActionSummaryKey
@@ -3502,8 +3502,20 @@ function matchesProductionBoardActionSummary(card: ProductionKanbanCard, key: Pr
   if (key === 'all') {
     return true
   }
+  if (key === 'review') {
+    return card.order.internal_status === 'PENDING_PRODUCTION_REVIEW'
+  }
   if (key === 'dispatch') {
     return card.order.internal_status === 'PROCESS_INSTANCE_CREATED' && card.syncState === 'synced' && !card.node
+  }
+  if (key === 'producing') {
+    return card.order.internal_status === 'PRODUCING'
+  }
+  if (key === 'confirm') {
+    return card.risk === 'confirm' || card.order.internal_status === 'PENDING_DOCTOR_CONFIRM'
+  }
+  if (key === 'final') {
+    return card.order.internal_status === 'COMPLETED'
   }
   if (key === 'overdue') {
     return card.risk === 'overdue'
@@ -3511,7 +3523,7 @@ function matchesProductionBoardActionSummary(card: ProductionKanbanCard, key: Pr
   if (key === 'rework') {
     return card.risk === 'rework' || card.order.internal_status === 'REWORKING'
   }
-  return card.risk === 'confirm' || card.order.internal_status === 'PENDING_DOCTOR_CONFIRM'
+  return card.risk === 'rush'
 }
 
 const productionBoardActionSummaryGroups = computed<ProductionBoardActionSummaryGroup[]>(() => {
@@ -3523,14 +3535,17 @@ const productionBoardActionSummaryGroups = computed<ProductionBoardActionSummary
       items: [
         { key: 'overdue', label: '工序超时', count: count('overdue'), tone: 'rose' },
         { key: 'rework', label: '返工处理中', count: count('rework'), tone: 'orange' },
-        { key: 'confirm', label: '医生待确认', count: count('confirm'), tone: 'violet' }
+        { key: 'rush', label: '加急', count: count('rush'), tone: 'amber' }
       ]
     },
     {
       label: '生产进度',
       items: [
-        { key: 'all', label: '在制订单', count: cards.length, tone: 'teal' },
-        { key: 'dispatch', label: '待派工', count: count('dispatch'), tone: 'sky' }
+        { key: 'review', label: '待生产审核', count: count('review'), tone: 'amber' },
+        { key: 'dispatch', label: '待派工', count: count('dispatch'), tone: 'sky' },
+        { key: 'producing', label: '生产中', count: count('producing'), tone: 'teal' },
+        { key: 'confirm', label: '医生待确认', count: count('confirm'), tone: 'violet' },
+        { key: 'final', label: '终检待发', count: count('final'), tone: 'green' }
       ]
     }
   ]
@@ -3541,7 +3556,7 @@ const productionBoardFilteredKanbanCards = computed(() =>
 )
 
 function selectProductionBoardActionSummary(key: ProductionBoardActionSummaryKey) {
-  productionBoardActionSummaryFilter.value = key
+  productionBoardActionSummaryFilter.value = productionBoardActionSummaryFilter.value === key ? 'all' : key
 }
 
 const productionBoardAuxiliaryColumns = computed<ProductionKanbanColumn[]>(() => {

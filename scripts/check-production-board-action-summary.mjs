@@ -15,9 +15,12 @@ const requiredFragments = [
   'const productionBoardActionSummaryGroups = computed<ProductionBoardActionSummaryGroup[]>(() =>',
   "label: '工序超时'",
   "label: '返工处理中'",
+  "label: '加急'",
   "label: '医生待确认'",
-  "label: '在制订单'",
+  "label: '待生产审核'",
   "label: '待派工'",
+  "label: '生产中'",
+  "label: '终检待发'",
   'productionBoardActionSummaryFilter === item.key',
   'v-for="group in productionBoardActionSummaryGroups"',
   'v-for="item in group.items"'
@@ -29,7 +32,8 @@ const failures = [
     .filter((fragment) => !app.includes(fragment))
     .map((fragment) => `App.vue 缺少待办概览片段: ${fragment}`),
   ...(board.includes('v-for="chip in prototypeQueueChips"') ? ['生产看板不应继续复用固定状态标签'] : []),
-  ...(board.includes('生产异常') ? ['生产看板不应继续显示泛化的生产异常标签'] : [])
+  ...(board.includes('生产异常') ? ['生产看板不应继续显示泛化的生产异常标签'] : []),
+  ...(board.includes("label: '在制订单'") ? ['生产看板顶部不应继续显示在制订单'] : [])
 ]
 
 const requiredStyleFragments = [
