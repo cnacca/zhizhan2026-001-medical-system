@@ -78,13 +78,12 @@ const phaseOneMainChainSteps = [
     portal: 'PRODUCTION',
     menuPath: ['扫码登记'],
     heading: '扫码登记',
-    visibleText: ['通过扫码记录入检、开工、暂停、完工和流转节点。']
+    visibleText: ['通过人工核验登记入检、开工、暂停、完工和流转节点。']
   },
   {
     name: '7. 返工可见',
     portal: 'PRODUCTION',
-    menuPath: ['工作台'],
-    actionText: '看返工',
+    menuPath: ['质量与返工', '内返管理'],
     heading: '返工终检',
     visibleText: ['生产端 / 返工终检', '终检入口']
   },
@@ -843,7 +842,7 @@ async function loginViaPortal(page, portalName) {
 
 async function clickMenuItem(page, label) {
   const nav = page.locator('.route-menu')
-  const item = nav.getByText(label, { exact: true }).filter({ visible: true }).first()
+  const item = nav.getByRole('menuitem', { name: label }).filter({ visible: true }).first()
   await expect(item, `menu item "${label}" should be visible`).toBeVisible({ timeout: 10_000 })
   await item.click()
 }

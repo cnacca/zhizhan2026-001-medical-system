@@ -231,6 +231,23 @@ type MessageItem = {
   content: string
   visible_to: string
   review_status: string
+  mention_user_ids: number[]
+}
+
+type MentionableUser = {
+  user_id: number
+  display_name: string
+  user_role: string
+}
+
+type MessageAttentionItem = {
+  message_id: number
+  order_id: number
+  order_no: string
+  sender_role: string
+  content: string
+  created_at: string
+  demo?: boolean
 }
 
 type DesignDraftItem = {
@@ -937,29 +954,49 @@ type ProductionBoardStatusOption = {
   value: string
 }
 
-type ProductionQueueTone = 'teal' | 'sky' | 'amber' | 'orange' | 'rose' | 'green' | 'violet'
+type ProductionKanbanSyncState = 'idle' | 'syncing' | 'synced' | 'failed' | 'skipped'
+type ProductionKanbanRisk = 'overdue' | 'rework' | 'confirm' | 'rush' | 'normal'
 
-type ProductionQueueDefinition = {
-  key: string
-  label: string
-  subtitle: string
-  tone: ProductionQueueTone
-}
-
-type ProductionQueueOrderCard = {
-  queueKey: string
+type ProductionKanbanCard = {
   order: InternalOrderItem
-  statusLabel: string
-  externalStatusLabel: string
+  orderId: number
+  orderNo: string
   productLabel: string
+  clinicLabel: string
+  toothLabel: string
+  currentProcess: string
+  currentNodeCode: string
+  currentNodeStatus: string
+  assignedUserLabel: string
+  slaLabel: string
+  elapsedLabel: string
+  progressPercent: number
+  risk: ProductionKanbanRisk
   riskLabel: string
-  riskTone: ProductionQueueTone
+  syncState: ProductionKanbanSyncState
+  syncLabel: string
+  node: ProcessNodeItem | null
+  instance: ProcessInstanceDetail | null
+  sortScore: number
 }
 
-type ProductionQueueGroup = ProductionQueueDefinition & {
-  orders: ProductionQueueOrderCard[]
+type ProductionKanbanColumn = {
+  key: string
+  title: string
+  subtitle: string
+  tone: PrototypeTone
+  cards: ProductionKanbanCard[]
+  stepOrder: number
+  auxiliary?: boolean
+}
+
+type ProductionKanbanSummary = {
+  key: string
+  title: string
+  count: number
   activeCount: number
   riskCount: number
+  tone: PrototypeTone
 }
 
 type PortalOption = {
@@ -1333,6 +1370,13 @@ const customerCollaborationLoading = ref(false)
 const customerCollaborationActionLoading = ref(false)
 const customerCollaborationError = ref('')
 const customerCollaborationResult = ref('')
+const customerAttentionItems = ref<MessageAttentionItem[]>([])
+const customerAttentionLoading = ref(false)
+const customerAttentionExpanded = ref(false)
+const customerCollaborationMentionableUsers = ref<MentionableUser[]>([])
+const customerCollaborationMentionUserIds = ref<number[]>([])
+const customerCollaborationDraft = ref('')
+const customerCollaborationSending = ref(false)
 const productionReviewOrders = ref<InternalOrderItem[]>([])
 const selectedProductionReviewOrder = ref<InternalOrderItem | null>(null)
 const productionReviewKeyword = ref('')
@@ -1424,6 +1468,7 @@ const performanceStartDate = ref('')
 const performanceEndDate = ref('')
 const performanceLoading = ref(false)
 const performanceError = ref('')
+const performanceNotice = ref('')
 const staffWorkloadItems = ref<StaffWorkloadResponse[]>([])
 const staffWorkloadKeyword = ref('')
 const staffWorkloadTotal = ref(0)
@@ -1529,12 +1574,17 @@ const productionBoardOrders = ref<InternalOrderItem[]>([])
 const selectedProductionBoardOrder = ref<InternalOrderItem | null>(null)
 const productionBoardInstance = ref<ProcessInstanceDetail | null>(null)
 const productionBoardKeyword = ref('')
-const productionBoardStatus = ref('PROCESS_INSTANCE_CREATED')
-const productionBoardDepartmentFilter = ref('ALL')
-const productionBoardRiskFilter = ref('ALL')
-const productionBoardRouteParamApplied = ref(false)
+const productionBoardStatus = ref('ALL')
 const productionBoardLoading = ref(false)
 const productionBoardError = ref('')
+const productionBoardDrawerVisible = ref(false)
+const productionBoardSelectedCard = ref<ProductionKanbanCard | null>(null)
+const productionBoardKanbanDate = ref(new Date().toISOString().slice(0, 10))
+const productionBoardLastSyncedAt = ref('')
+const productionBoardProcessInstances = ref<Record<number, ProcessInstanceDetail>>({})
+const productionBoardProcessSyncStates = ref<Record<number, ProductionKanbanSyncState>>({})
+const productionBoardProcessSyncErrors = ref<Record<number, string>>({})
+let productionBoardSyncRunId = 0
 const productionBoardShippingLoading = ref(false)
 const productionBoardLogisticsCarrier = ref('')
 const productionBoardLogisticsTrackingNo = ref('')
@@ -1596,28 +1646,13 @@ const formConfigEditStatus = ref('ACTIVE')
 let notificationReconnectTimer: number | null = null
 
 const productionBoardStatusOptions: ProductionBoardStatusOption[] = [
-  { label: '全部生产状态', value: 'ALL' },
+  { label: '活跃生产状态', value: 'ALL' },
   { label: '待生产审核', value: 'PENDING_PRODUCTION_REVIEW' },
   { label: '医生待确认', value: 'PENDING_DOCTOR_CONFIRM' },
   { label: '已生成工序', value: 'PROCESS_INSTANCE_CREATED' },
   { label: '生产中', value: 'PRODUCING' },
   { label: '已发货', value: 'SHIPPED' },
   { label: '已完成', value: 'COMPLETED' }
-]
-const productionQueueDefinitions: ProductionQueueDefinition[] = [
-  { key: 'DATA_REVIEW', label: '数据处理', subtitle: '资料、口扫、订单数据', tone: 'teal' },
-  { key: 'CAD', label: 'CAD', subtitle: '固定/活动/种植设计', tone: 'sky' },
-  { key: 'IMPLANT', label: '种植', subtitle: '种植设计与修复', tone: 'violet' },
-  { key: 'MILLING', label: '车金切削', subtitle: '切削、研磨、车金', tone: 'orange' },
-  { key: 'PRINTING_3D', label: '3D打印', subtitle: '打印、模型、树脂件', tone: 'teal' },
-  { key: 'PORCELAIN', label: '车瓷', subtitle: '车瓷与瓷修整', tone: 'green' },
-  { key: 'STAINING', label: '上瓷上釉', subtitle: '上瓷、上釉、染色', tone: 'amber' },
-  { key: 'STEEL_FRAMEWORK', label: '钢托', subtitle: '钢托与支架', tone: 'sky' },
-  { key: 'ACRYLIC', label: '胶托', subtitle: '胶托与基托', tone: 'violet' },
-  { key: 'FLEXIBLE', label: '隐形', subtitle: '隐形义齿与保持器', tone: 'green' },
-  { key: 'ORTHO', label: '正畸', subtitle: '正畸与矫治器', tone: 'teal' },
-  { key: 'QC', label: '质检', subtitle: '入检、出检、终检', tone: 'rose' },
-  { key: 'DISPATCH', label: '包装出货', subtitle: '包装、物流、发货', tone: 'amber' }
 ]
 const formFieldTypeOptions = ['text', 'textarea', 'select', 'multi-select', 'number', 'date', 'file']
 const reworkDictionaryTypeOptions = [
@@ -1720,6 +1755,7 @@ const displayNavigationConfig: Record<PortalTone, NavigationGroup[]> = {
         },
         { id: 'doctor-patients', title: '患者管理', description: '维护患者档案、检索患者并查看绑定历史订单。', icon: 'customer', routePath: '/doctor/patients' },
         { id: 'doctor-ai', title: '订单助手', description: '查询订单进度、预计发货和物流信息。', icon: 'ai', routePath: '/doctor/orders', doctorSection: 'ai', doctorDetailTab: 'ai' },
+        { id: 'doctor-collaboration', title: '沟通中心', description: '查看订单沟通并 @ 当前订单客服。', icon: 'chat', routePath: '/collaboration' },
         { id: 'doctor-notifications', title: '通知中心', description: '查看设计稿、账单、发货和收货通知。', icon: 'notification', routePath: '/notifications' }
       ]
     }
@@ -1756,7 +1792,7 @@ const displayNavigationConfig: Record<PortalTone, NavigationGroup[]> = {
         { id: 'cs-designs', title: '设计稿管理', description: '审核生产端上传的设计稿并发给医生确认。', icon: 'design', routePath: '/orders/internal' },
         { id: 'cs-billing', title: '账单管理', description: '上传账单文件、查看订单费用和客户账单。', icon: 'bill', routePath: '/delivery' },
         { id: 'cs-delivery', title: '配送管理', description: '录入承运商、运单号并跟进待发货订单。', icon: 'delivery', routePath: '/delivery' },
-        { id: 'cs-outsourcing', title: '外协管理', description: '跟踪外协订单、外协工厂、外协进度和费用。', icon: 'partner', routePath: '/outsourcing', placeholder: true },
+        { id: 'cs-outsourcing', title: '外协管理', description: '登记并查询外协成本台账和异常预警。', icon: 'partner', routePath: '/production/cost-management' },
         {
           id: 'cs-ai',
           title: '智能助手',
@@ -1766,7 +1802,7 @@ const displayNavigationConfig: Record<PortalTone, NavigationGroup[]> = {
           children: [
             { id: 'cs-ai-translate', title: '翻译助手', description: '把外文描述整理成中文生产指令草稿。', icon: 'ai', routePath: '/orders/internal' },
             { id: 'cs-ai-query', title: '客服查询助手', description: '查询内部订单、工序、客户偏好和物流。', icon: 'ai', routePath: '/ai/cs' },
-            { id: 'cs-ai-note', title: '生产备注助手', description: '整理客户要求并生成生产备注草稿。', icon: 'ai', routePath: '/ai/production', placeholder: true }
+            { id: 'cs-ai-note', title: '生产备注助手', description: '整理客户要求并生成、确认生产备注草稿。', icon: 'ai', routePath: '/orders/internal' }
           ]
         },
         { id: 'cs-notifications', title: '通知中心', description: '查看订单、消息、设计稿和预算通知。', icon: 'notification', routePath: '/notifications' }
@@ -1781,7 +1817,7 @@ const displayNavigationConfig: Record<PortalTone, NavigationGroup[]> = {
         { id: 'production-orders', title: '生产订单', description: '查看待生产、生产异常和待发货订单。', icon: 'order', routePath: '/production/board' },
         { id: 'production-board', title: '生产看板', description: '跨状态查看生产订单、节点进度和终检发货门禁。', icon: 'dashboard', routePath: '/production/board' },
         { id: 'production-tasks', title: '我的任务', description: '处理分配给当前员工的工序任务。', icon: 'task', routePath: '/tasks/mine' },
-        { id: 'production-scan', title: '扫码登记', description: '通过扫码记录入检、开工、暂停、完工和流转节点。', icon: 'scan', routePath: '/production/scan', placeholder: true }
+        { id: 'production-scan', title: '扫码登记', description: '通过人工核验登记入检、开工、暂停、完工和流转节点。', icon: 'scan', routePath: '/checks' }
       ]
     },
     {
@@ -1797,7 +1833,7 @@ const displayNavigationConfig: Record<PortalTone, NavigationGroup[]> = {
             { id: 'production-quality-overview', title: '质量总览', description: '查看总返工率、一次通过率、终检通过率、投诉率和退货率。', icon: 'quality', routePath: '/production/quality' },
             { id: 'production-internal-rework-management', title: '内返管理', description: '处理内部质检发现的返修、原因、责任归属和关闭状态。', icon: 'quality', routePath: '/rework-final' },
             { id: 'production-external-rework-management', title: '外返管理', description: '处理医生或客户退回返修、投诉反馈和外部闭环状态。', icon: 'quality', routePath: '/rework-final' },
-            { id: 'production-final-report', title: '终检报告', description: '查看终检报告生成、结论、摘要和报告状态。', icon: 'report', routePath: '/production/final-inspection-reports', placeholder: true }
+            { id: 'production-final-report', title: '终检报告', description: '生成并查询终检报告、结论、摘要和附件。', icon: 'report', routePath: '/rework-final' }
           ]
         }
       ]
@@ -1841,8 +1877,8 @@ const displayNavigationConfig: Record<PortalTone, NavigationGroup[]> = {
     {
       title: '协同消息',
       items: [
-        { id: 'production-message', title: '消息中心', description: '查看客服消息、订单消息和审核状态。', icon: 'chat', routePath: '/production/messages', placeholder: true },
-        { id: 'production-cloud-data', title: '云端数据中心', description: '查看设计稿、口扫数据、生产附件和云端同步状态。', icon: 'cloud', routePath: '/production/cloud-data', placeholder: true }
+        { id: 'production-message', title: '沟通中心', description: '查看订单沟通、@ 提醒和待处理消息。', icon: 'chat', routePath: '/collaboration' },
+        { id: 'production-cloud-data', title: '云端数据中心', description: '查看订单设计稿和生产附件台账。', icon: 'cloud', routePath: '/orders/internal' }
       ]
     }
   ],
@@ -1857,10 +1893,9 @@ const displayNavigationConfig: Record<PortalTone, NavigationGroup[]> = {
           description: '管理用户、角色、权限范围和菜单可见性。',
           icon: 'system',
           routePath: '/system/rbac',
-          placeholder: true,
           children: [
-            { id: 'admin-users', title: '用户管理', description: '创建账号、维护账号状态和所属诊所。', icon: 'customer', routePath: '/system/rbac/users', placeholder: true },
-            { id: 'admin-roles', title: '角色权限', description: '维护角色、权限范围和菜单可见性。', icon: 'system', routePath: '/system/rbac/roles', placeholder: true }
+            { id: 'admin-users', title: '用户管理', description: '查看当前账号、角色、菜单和数据范围清单。', icon: 'customer', routePath: '/system/rbac/users' },
+            { id: 'admin-roles', title: '角色权限', description: '查看当前角色、权限范围和菜单可见性清单。', icon: 'system', routePath: '/system/rbac/roles' }
           ]
         },
         { id: 'admin-orders', title: '订单管理', description: '查看内部订单、审核状态和订单流转进度。', icon: 'order', routePath: '/orders/internal' },
@@ -1895,10 +1930,10 @@ const displayNavigationConfig: Record<PortalTone, NavigationGroup[]> = {
         { id: 'admin-safety', title: '安环管理', description: '查看安全巡检、隐患整改、环境记录和安环事件统计。', icon: 'safety', routePath: '/production/safety-environment' },
         { id: 'admin-cost-control', title: '成本管控', description: '查看工序、材料、人工、返工、外协成本和异常预警。', icon: 'cost', routePath: '/production/cost-management' },
         { id: 'admin-staff', title: '人员管理', description: '管理生产人员、岗位能力和任务负载。', icon: 'staff', routePath: '/admin/staff' },
-        { id: 'admin-device', title: '设备管理', description: '管理设备档案、运行状态和维护记录。', icon: 'device', routePath: '/admin/devices', placeholder: true },
-        { id: 'admin-material', title: '物料管理', description: '查看物料缺失、材料不符和异常处理。', icon: 'material', routePath: '/admin/material-exceptions', placeholder: true },
-        { id: 'admin-outsourcing', title: '外协管理', description: '管理外协工厂、外协订单和外协费用。', icon: 'partner', routePath: '/admin/outsourcing', placeholder: true },
-        { id: 'admin-billing-delivery', title: '账单配送', description: '查看账单、物流和发货协同状态。', icon: 'delivery', routePath: '/admin/billing-delivery', placeholder: true },
+        { id: 'admin-device', title: '设备管理', description: '查询设备台账、运行状态和维护记录。', icon: 'device', routePath: '/production/devices' },
+        { id: 'admin-material', title: '物料管理', description: '查询物料异常、登记处理并更新状态。', icon: 'material', routePath: '/production/material-exceptions' },
+        { id: 'admin-outsourcing', title: '外协管理', description: '登记并查询外协成本台账和异常预警。', icon: 'partner', routePath: '/production/cost-management' },
+        { id: 'admin-billing-delivery', title: '账单配送', description: '查询账单、物流和发货协同状态。', icon: 'delivery', routePath: '/delivery' },
         { id: 'admin-performance', title: '绩效统计', description: '查看全员工时、绩效指标和返工归因。', icon: 'performance', routePath: '/performance' },
         { id: 'admin-audit', title: '审计通知', description: '查看关键操作、通知和系统安全事件。', icon: 'audit', routePath: '/notifications' },
         { id: 'admin-ai', title: 'AI 治理', description: '查看模型调用、预算、失败和治理摘要。', icon: 'ai', routePath: '/admin/ai-governance' }
@@ -2551,27 +2586,17 @@ const prototypeDashboards = computed<Record<PortalTone, PrototypeDashboard>>(() 
         navId: 'cs-order-review'
       },
       metrics: [
-        { title: '订单数量 / 件数', value: `${phaseOneAbCsDashboardStats.value.orderCount} / ${phaseOneAbCsDashboardStats.value.itemCount}`, note: '复用 /orders 列表', icon: 'order', tone: 'violet' },
-        { title: '待审核', value: String(phaseOneAbCsDashboardStats.value.pendingReviewCount), note: '资料和生产备注', icon: 'audit', tone: 'amber' },
-        { title: '翻译待审', value: String(phaseOneAbCsDashboardStats.value.pendingMessageReviewCount), note: '复用 /messages/pending-review，AI 草稿仍需人工确认', icon: 'ai', tone: 'sky' },
-        { title: '待回复', value: String(phaseOneAbCsDashboardStats.value.pendingReplyCount), note: '复用通知未读数', icon: 'chat', tone: 'sky' },
-        { title: '设计更新', value: String(phaseOneAbCsDashboardStats.value.designUpdateCount), note: '复用订单外部状态', icon: 'design', tone: 'green' },
-        { title: '延期提醒', value: String(phaseOneAbCsDashboardStats.value.logisticsManualFollowUpCount), note: '复用物流人工状态', icon: 'timer', tone: 'orange' },
-        { title: '今日发货', value: String(phaseOneAbCsDashboardStats.value.shipmentFollowUpCount), note: '复用物流人工状态，缺少今日维度', icon: 'delivery', tone: 'teal' },
-        { title: '账单超期', value: String(phaseOneAbCsDashboardStats.value.billManualFollowUpCount), note: '复用账单 / 物流人工状态，真实账期 PARTIAL', icon: 'bill', tone: 'rose' },
-        { title: '投诉/返工', value: String(phaseOneAbCsDashboardStats.value.reworkFollowUpCount), note: '复用质检外返汇总', icon: 'quality', tone: 'rose' }
+        { title: '订单数量 / 件数', value: `${phaseOneAbCsDashboardStats.value.orderCount} / ${phaseOneAbCsDashboardStats.value.itemCount}`, note: '当前订单总量与累计件数', icon: 'order', tone: 'violet' },
+        { title: '信息评审', value: String(phaseOneAbCsDashboardStats.value.pendingReviewCount), note: '待核对订单资料及生产备注', icon: 'audit', tone: 'amber' },
+        { title: '翻译待审', value: String(phaseOneAbCsDashboardStats.value.pendingMessageReviewCount), note: 'AI 翻译结果待人工确认', icon: 'ai', tone: 'sky' },
+        { title: '待回复', value: String(phaseOneAbCsDashboardStats.value.pendingReplyCount), note: '客户与内部消息待回复', icon: 'chat', tone: 'sky' },
+        { title: '设计更新', value: String(phaseOneAbCsDashboardStats.value.designUpdateCount), note: '设计进度有更新，请及时跟进', icon: 'design', tone: 'green' },
+        { title: '延期提醒', value: String(phaseOneAbCsDashboardStats.value.logisticsManualFollowUpCount), note: '临近交期订单，请优先跟进', icon: 'timer', tone: 'orange' },
+        { title: '今日发货', value: String(phaseOneAbCsDashboardStats.value.shipmentFollowUpCount), note: '今日待发货订单数量', icon: 'delivery', tone: 'teal' },
+        { title: '账单超期', value: String(phaseOneAbCsDashboardStats.value.billManualFollowUpCount), note: '超期账单待催收或确认', icon: 'bill', tone: 'rose' },
+        { title: '投诉/返工', value: String(phaseOneAbCsDashboardStats.value.reworkFollowUpCount), note: '客诉与返工事项待跟进', icon: 'quality', tone: 'rose' }
       ],
       panels: [
-        {
-          title: '需要关注',
-          badge: `${phaseOneAbCsDashboardStats.value.pendingReviewCount + phaseOneAbCsDashboardStats.value.pendingMessageReviewCount + phaseOneAbCsDashboardStats.value.billManualFollowUpCount} 项`,
-          tone: 'rose',
-          items: [
-            { title: '资料初审', detail: `${phaseOneAbCsDashboardStats.value.pendingReviewCount} 单等待资料和生产备注审核`, meta: '本地订单队列', tone: 'amber', actionLabel: '去审核', routePath: '/orders/internal', navId: 'cs-order-review' },
-            { title: '翻译待审', detail: `${phaseOneAbCsDashboardStats.value.pendingMessageReviewCount} 条外文说明或 AI 翻译草稿待客服确认`, meta: '确认后写入生产备注', tone: 'violet', actionLabel: '去审核', routePath: '/collaboration', navId: 'cs-message-review' },
-            { title: '账单物流', detail: `${phaseOneAbCsDashboardStats.value.billManualFollowUpCount} 单付款状态待跟进，${phaseOneAbCsDashboardStats.value.logisticsManualFollowUpCount} 单物流需人工关注`, meta: '一期人工状态', tone: 'rose', actionLabel: '去处理', routePath: '/delivery', navId: 'cs-delivery' }
-          ]
-        },
         {
           title: '今日发货 / 客户账单',
           badge: `${phaseOneAbCsDashboardStats.value.shipmentFollowUpCount + phaseOneAbCsDashboardStats.value.billManualFollowUpCount} 单`,
@@ -2850,6 +2875,10 @@ const isDoctorClinicRoute = computed(() => activeRoute.value === '/doctor/accoun
 const isDoctorAccountSettingsRoute = computed(() => activeRoute.value === '/doctor/account/settings')
 const isInternalOrdersRoute = computed(() => activeRoute.value === '/orders/internal')
 const isCustomerCollaborationRoute = computed(() => activeRoute.value === '/collaboration')
+const canReviewCustomerCollaboration = computed(() => currentUser.value?.roles.some((role) => ['CS', 'ADMIN'].includes(role)) ?? false)
+const visibleCustomerAttentionItems = computed(() => customerAttentionExpanded.value
+  ? customerAttentionItems.value
+  : customerAttentionItems.value.slice(0, 3))
 const isCsAiQueryRoute = computed(() => activeRoute.value === '/ai/cs')
 const isProductionReviewRoute = computed(() => activeRoute.value === '/workflow/review')
 const isProcessInstanceRoute = computed(() => activeRoute.value === '/workflow/process-instance')
@@ -2867,12 +2896,20 @@ const isProductionQualitySummaryRoute = computed(() => [
   'production-internal-rework-management',
   'production-external-rework-management'
 ].includes(activeDisplayItem.value?.id ?? ''))
-const isProductionEquipmentSummaryRoute = computed(() => activeDisplayItem.value?.id === 'production-device')
-const isProductionMaterialExceptionSummaryRoute = computed(() => activeDisplayItem.value?.id === 'production-material')
+const isProductionEquipmentSummaryRoute = computed(() => [
+  'production-device',
+  'admin-device'
+].includes(activeDisplayItem.value?.id ?? ''))
+const isProductionMaterialExceptionSummaryRoute = computed(() => [
+  'production-material',
+  'admin-material'
+].includes(activeDisplayItem.value?.id ?? ''))
 const isProductionSafetyEnvironmentSummaryRoute = computed(() => activeDisplayItem.value?.id === 'production-safety')
 const isProductionCostSummaryRoute = computed(() => [
   'production-cost',
-  'production-cost-outsourcing'
+  'production-cost-outsourcing',
+  'cs-outsourcing',
+  'admin-outsourcing'
 ].includes(activeDisplayItem.value?.id ?? ''))
 const isProductionRewardPenaltySummaryRoute = computed(() => activeDisplayItem.value?.id === 'production-reward-penalty')
 const isProductizedProductionSupportRoute = computed(() =>
@@ -2881,8 +2918,15 @@ const isProductizedProductionSupportRoute = computed(() =>
   isProductionSafetyEnvironmentSummaryRoute.value ||
   isProductionCostSummaryRoute.value ||
   isProductionRewardPenaltySummaryRoute.value)
-const isProductizedCsDesignRoute = computed(() => activeNavId.value === 'cs-designs')
-const isProductizedCsBillingRoute = computed(() => activeNavId.value === 'cs-billing')
+const isProductizedCsDesignRoute = computed(() => [
+  'cs-designs',
+  'production-cloud-data'
+].includes(activeNavId.value))
+const isProductizedCsProductionNoteRoute = computed(() => activeNavId.value === 'cs-ai-note')
+const isProductizedCsBillingRoute = computed(() => [
+  'cs-billing',
+  'admin-billing-delivery'
+].includes(activeNavId.value))
 const isAdminPermissionInventoryRoute = computed(() => [
   'admin-account',
   'admin-users',
@@ -2961,6 +3005,9 @@ const routeChrome = computed<RouteChrome>(() => {
     return { eyebrow: '生产端 / 我的工单', title: '我的任务', description: '按待开工、进行中、已完成等状态处理本人生产任务。', icon: 'task_alt' }
   }
   if (route === '/checks') {
+    if (activeDisplayItem.value?.id === 'production-scan') {
+      return { eyebrow: '生产端 / 扫码登记', title: '扫码登记', description: '通过人工核验登记入检、开工、暂停、完工和流转节点。', icon: 'scan' }
+    }
     return { eyebrow: '生产端 / 入检出检', title: '入检出检', description: '执行节点入检、出检，出检不通过时进入返工链路。', icon: 'rule' }
   }
   if (route === '/rework-final') {
@@ -3248,51 +3295,220 @@ function formatRate(value: number | null | undefined) {
 function formatMoney(value: number | null | undefined) {
   return `¥${Number(value ?? 0).toFixed(2)}`
 }
-function normalizeProductionQueueText(value: string | null | undefined) {
-  return `${value ?? ''}`.toUpperCase()
+function productionBoardFormValue(order: InternalOrderItem, keys: string[]) {
+  for (const key of keys) {
+    const value = order.form_data?.[key]
+    if (Array.isArray(value) && value.length > 0) {
+      return value.join(',')
+    }
+    if (typeof value === 'string' && value.trim()) {
+      return value.trim()
+    }
+    if (typeof value === 'number' && Number.isFinite(value)) {
+      return String(value)
+    }
+  }
+  return ''
 }
-function inferProductionQueueKey(order: InternalOrderItem) {
-  const text = [
-    normalizeProductionQueueText(order.product_type),
-    normalizeProductionQueueText(order.internal_status),
-    normalizeProductionQueueText(order.external_status),
-    order.production_note ?? ''
-  ].join(' ')
-  if (text.includes('IMPLANT') || text.includes('种植')) return 'IMPLANT'
-  if (text.includes('ORTHO') || text.includes('正畸')) return 'ORTHO'
-  if (text.includes('3D') || text.includes('PRINT') || text.includes('打印')) return 'PRINTING_3D'
-  if (text.includes('PORCELAIN') || text.includes('车瓷') || text.includes('瓷')) return 'PORCELAIN'
-  if (text.includes('STAIN') || text.includes('上瓷') || text.includes('上釉') || text.includes('染色')) return 'STAINING'
-  if (text.includes('STEEL') || text.includes('钢托') || text.includes('钢架')) return 'STEEL_FRAMEWORK'
-  if (text.includes('ACRYLIC') || text.includes('胶托')) return 'ACRYLIC'
-  if (text.includes('FLEXIBLE') || text.includes('隐形')) return 'FLEXIBLE'
-  if (text.includes('MILL') || text.includes('车金') || text.includes('切削') || text.includes('研磨')) return 'MILLING'
-  if (text.includes('SHIPPED') || text.includes('COMPLETED') || text.includes('出货') || text.includes('包装')) return 'DISPATCH'
-  if (text.includes('REWORK') || text.includes('QUALITY') || text.includes('质检') || text.includes('终检') || text.includes('返工')) return 'QC'
-  if (text.includes('CAD') || text.includes('DESIGN') || text.includes('设计')) return 'CAD'
-  return 'DATA_REVIEW'
+
+function productionBoardToothLabel(order: InternalOrderItem) {
+  const value = productionBoardFormValue(order, ['tooth_numbers', 'tooth_number', 'tooth', 'teeth', 'toothNo'])
+  return value ? `牙位 ${value}` : '牙位待同步'
 }
-function productionBoardRisk(order: InternalOrderItem): { label: string; tone: ProductionQueueTone } {
-  if (order.internal_status === 'PENDING_DOCTOR_CONFIRM') {
-    return { label: '待医生确认', tone: 'violet' }
-  }
-  if (order.internal_status === 'PRODUCING') {
-    return { label: '生产中', tone: 'teal' }
-  }
-  if (order.internal_status === 'PROCESS_INSTANCE_CREATED') {
-    return { label: '待派工', tone: 'sky' }
-  }
-  if (order.internal_status === 'PENDING_PRODUCTION_REVIEW') {
-    return { label: '待生产审核', tone: 'amber' }
-  }
-  if (order.external_status === 'SHIPPED') {
-    return { label: '已发货', tone: 'green' }
-  }
-  if (order.reject_reason) {
-    return { label: '需复核', tone: 'rose' }
-  }
-  return { label: '正常', tone: 'teal' }
+
+function productionBoardCurrentNode(instance: ProcessInstanceDetail | null) {
+  const nodes = instance?.nodes.slice().sort((a, b) => a.step_order - b.step_order) ?? []
+  return nodes.find((node) => node.node_status === 'IN_PROGRESS')
+    ?? nodes.find((node) => node.node_status === 'READY')
+    ?? nodes.find((node) => node.node_status === 'PENDING')
+    ?? nodes.find((node) => node.node_status !== 'COMPLETED' && node.node_status !== 'SKIPPED')
+    ?? null
 }
+
+function productionBoardProgress(instance: ProcessInstanceDetail | null) {
+  const nodes = instance?.nodes ?? []
+  if (nodes.length === 0) {
+    return 8
+  }
+  const completed = nodes.filter((node) => node.node_status === 'COMPLETED' || node.node_status === 'SKIPPED').length
+  return phaseOneProgress((completed / nodes.length) * 100)
+}
+
+function productionBoardRisk(order: InternalOrderItem, node: ProcessNodeItem | null): ProductionKanbanRisk {
+  const statusText = `${order.internal_status} ${order.external_status}`.toUpperCase()
+  const note = `${order.production_note ?? ''} ${JSON.stringify(order.form_data ?? {})}`.toLowerCase()
+  if (statusText.includes('OVERDUE')) {
+    return 'overdue'
+  }
+  if (statusText.includes('REWORK')) {
+    return 'rework'
+  }
+  if (statusText.includes('PENDING_DOCTOR_CONFIRM') || node?.node_status === 'PENDING_CONFIRM') {
+    return 'confirm'
+  }
+  if (note.includes('rush') || note.includes('urgent') || note.includes('加急')) {
+    return 'rush'
+  }
+  return 'normal'
+}
+
+function productionBoardRiskLabel(risk: ProductionKanbanRisk) {
+  const labels: Record<ProductionKanbanRisk, string> = {
+    overdue: '超时',
+    rework: '返工',
+    confirm: '待确认',
+    rush: '加急',
+    normal: '正常'
+  }
+  return labels[risk]
+}
+
+function productionBoardRiskScore(risk: ProductionKanbanRisk) {
+  const scores: Record<ProductionKanbanRisk, number> = {
+    overdue: 400,
+    rework: 300,
+    confirm: 200,
+    rush: 100,
+    normal: 0
+  }
+  return scores[risk]
+}
+
+function productionBoardSyncLabel(syncState: ProductionKanbanSyncState) {
+  const labels: Record<ProductionKanbanSyncState, string> = {
+    idle: '工序待同步',
+    syncing: '工序同步中',
+    synced: '已同步',
+    failed: '工序待同步',
+    skipped: '无需同步'
+  }
+  return labels[syncState]
+}
+
+function productionBoardToneForProcess(node: ProcessNodeItem | null): PrototypeTone {
+  if (!node) {
+    return 'slate'
+  }
+  const tones: PrototypeTone[] = ['teal', 'sky', 'violet', 'green', 'amber', 'orange', 'rose']
+  return tones[Math.abs(node.step_order - 1) % tones.length]
+}
+
+function productionBoardColumnKeyForProcess(node: ProcessNodeItem) {
+  return `process-${node.step_order}-${node.node_code || node.process_name}`.replace(/[^a-zA-Z0-9_-]+/g, '-').toLowerCase()
+}
+
+function buildProductionKanbanCard(order: InternalOrderItem): ProductionKanbanCard {
+  const instance = productionBoardProcessInstances.value[order.order_id] ?? null
+  const syncState = productionBoardProcessSyncStates.value[order.order_id]
+    ?? (['PENDING_PRODUCTION_REVIEW', 'PENDING_DOCTOR_CONFIRM', 'COMPLETED', 'SHIPPED', 'RECEIVED'].includes(order.internal_status) ? 'skipped' : 'idle')
+  const rawNode = productionBoardCurrentNode(instance)
+  const node = ['PENDING_PRODUCTION_REVIEW', 'PENDING_DOCTOR_CONFIRM', 'COMPLETED'].includes(order.internal_status) ? null : rawNode
+  const risk = productionBoardRisk(order, node)
+  const fallbackProcess = order.internal_status === 'PENDING_PRODUCTION_REVIEW'
+    ? '生产审核'
+    : order.internal_status === 'PENDING_DOCTOR_CONFIRM'
+      ? '医生待确认'
+      : order.internal_status === 'COMPLETED'
+        ? '终检待发'
+        : order.internal_status === 'REWORKING'
+          ? '返工中'
+          : productionBoardSyncLabel(syncState)
+  const progressPercent = node?.standard_duration
+    ? productionBoardProgress(instance)
+    : productionBoardProgress(instance)
+  return {
+    order,
+    orderId: order.order_id,
+    orderNo: order.order_no,
+    productLabel: productTypeLabel(order.product_type),
+    clinicLabel: order.clinic_name || `诊所 ${order.clinic_id}`,
+    toothLabel: productionBoardToothLabel(order),
+    currentProcess: node?.process_name ?? fallbackProcess,
+    currentNodeCode: node?.node_code ?? statusLabel(order.internal_status),
+    currentNodeStatus: node?.node_status ?? order.internal_status,
+    assignedUserLabel: node?.assigned_user_id ? `员工 ${node.assigned_user_id}` : '负责人待同步',
+    slaLabel: node?.standard_duration ? `SLA ${node.standard_duration} 分钟` : 'SLA 待同步',
+    elapsedLabel: '耗时待同步',
+    progressPercent,
+    risk,
+    riskLabel: productionBoardRiskLabel(risk),
+    syncState,
+    syncLabel: productionBoardSyncLabel(syncState),
+    node,
+    instance,
+    sortScore: productionBoardRiskScore(risk) + progressPercent
+  }
+}
+
+const visibleProductionBoardOrders = computed(() => {
+  if (productionBoardStatus.value !== 'ALL') {
+    return productionBoardOrders.value
+  }
+  return productionBoardOrders.value.filter((order) => !['SHIPPED', 'RECEIVED'].includes(order.internal_status))
+})
+
+const productionBoardKanbanCards = computed<ProductionKanbanCard[]>(() => {
+  return visibleProductionBoardOrders.value
+    .map((order) => buildProductionKanbanCard(order))
+    .sort((a, b) => b.sortScore - a.sortScore || a.orderNo.localeCompare(b.orderNo))
+})
+
+const productionBoardAuxiliaryColumns = computed<ProductionKanbanColumn[]>(() => {
+  const cards = productionBoardKanbanCards.value
+  const byStatus = (statuses: string[]) => cards.filter((card) => statuses.includes(card.order.internal_status))
+  const syncCards = cards.filter((card) => !card.node && ['idle', 'syncing', 'failed'].includes(card.syncState) && !['PENDING_PRODUCTION_REVIEW', 'PENDING_DOCTOR_CONFIRM', 'COMPLETED'].includes(card.order.internal_status))
+  return [
+    { key: 'aux-review', title: '待生产审核', subtitle: '资料 / 生产备注', tone: 'amber', stepOrder: -30, auxiliary: true, cards: byStatus(['PENDING_PRODUCTION_REVIEW']) },
+    { key: 'aux-dispatch', title: '待派工', subtitle: '工序待生成', tone: 'sky', stepOrder: -20, auxiliary: true, cards: byStatus(['PROCESS_INSTANCE_CREATED']).filter((card) => card.syncState === 'synced' && !card.node) },
+    { key: 'aux-sync', title: '工序待同步', subtitle: '渐进读取中', tone: 'slate', stepOrder: -10, auxiliary: true, cards: syncCards },
+    { key: 'aux-doctor', title: '医生待确认', subtitle: '设计 / 照片确认', tone: 'violet', stepOrder: 900, auxiliary: true, cards: byStatus(['PENDING_DOCTOR_CONFIRM']) },
+    { key: 'aux-final', title: '终检待发', subtitle: '完工 / 物流门禁', tone: 'green', stepOrder: 910, auxiliary: true, cards: byStatus(['COMPLETED']) }
+  ]
+})
+
+const productionBoardProcessColumns = computed<ProductionKanbanColumn[]>(() => {
+  const groups = new Map<string, ProductionKanbanColumn>()
+  for (const card of productionBoardKanbanCards.value) {
+    if (!card.node || ['PENDING_PRODUCTION_REVIEW', 'PENDING_DOCTOR_CONFIRM', 'COMPLETED'].includes(card.order.internal_status)) {
+      continue
+    }
+    const key = productionBoardColumnKeyForProcess(card.node)
+    const existing = groups.get(key)
+    if (existing) {
+      existing.cards.push(card)
+    } else {
+      groups.set(key, {
+        key,
+        title: card.node.process_name,
+        subtitle: `${card.slaLabel} / ${card.node.node_code}`,
+        tone: productionBoardToneForProcess(card.node),
+        stepOrder: card.node.step_order,
+        cards: [card]
+      })
+    }
+  }
+  return Array.from(groups.values()).sort((a, b) => a.stepOrder - b.stepOrder || a.title.localeCompare(b.title))
+})
+
+const productionBoardKanbanColumns = computed<ProductionKanbanColumn[]>(() => {
+  const auxiliary = productionBoardAuxiliaryColumns.value
+  return [
+    ...auxiliary.filter((column) => column.stepOrder < 0),
+    ...productionBoardProcessColumns.value,
+    ...auxiliary.filter((column) => column.stepOrder > 0)
+  ]
+})
+
+const productionBoardKanbanSummaries = computed<ProductionKanbanSummary[]>(() => {
+  return productionBoardKanbanColumns.value.map((column) => ({
+    key: column.key,
+    title: column.title,
+    count: column.cards.length,
+    activeCount: column.cards.filter((card) => card.currentNodeStatus === 'IN_PROGRESS').length,
+    riskCount: column.cards.filter((card) => card.risk !== 'normal').length,
+    tone: column.tone
+  }))
+})
 const productionBoardNodeStats = computed(() => {
   const stats = {
     READY: 0,
@@ -3308,61 +3524,6 @@ const productionBoardNodeStats = computed(() => {
   }
   return stats
 })
-const productionBoardDepartmentOptions = computed(() => [
-  { label: '全部工序', value: 'ALL' },
-  ...productionQueueDefinitions.map((queue) => ({ label: queue.label, value: queue.key }))
-])
-const productionBoardQueueGroups = computed<ProductionQueueGroup[]>(() => {
-  const groups = new Map<string, ProductionQueueGroup>()
-  for (const definition of productionQueueDefinitions) {
-    groups.set(definition.key, {
-      ...definition,
-      orders: [],
-      activeCount: 0,
-      riskCount: 0
-    })
-  }
-
-  for (const order of productionBoardOrders.value) {
-    const risk = productionBoardRisk(order)
-    const queueKey = inferProductionQueueKey(order)
-    const group = groups.get(queueKey) ?? groups.get('DATA_REVIEW')
-    if (!group) continue
-    if (productionBoardDepartmentFilter.value !== 'ALL' && productionBoardDepartmentFilter.value !== group.key) {
-      continue
-    }
-    if (productionBoardRiskFilter.value === 'RISK' && risk.label === '正常') {
-      continue
-    }
-    group.orders.push({
-      queueKey: group.key,
-      order,
-      statusLabel: statusLabel(order.internal_status),
-      externalStatusLabel: statusLabel(order.external_status),
-      productLabel: productTypeLabel(order.product_type),
-      riskLabel: risk.label,
-      riskTone: risk.tone
-    })
-    group.activeCount += 1
-    if (risk.label !== '正常') {
-      group.riskCount += 1
-    }
-  }
-
-  return Array.from(groups.values()).filter((group) =>
-    productionBoardDepartmentFilter.value === 'ALL' || group.key === productionBoardDepartmentFilter.value
-  )
-})
-function applyProductionBoardRouteParams() {
-  if (productionBoardRouteParamApplied.value) {
-    return
-  }
-  productionBoardRouteParamApplied.value = true
-  const department = new URLSearchParams(window.location.search).get('department')
-  if (department && productionQueueDefinitions.some((definition) => definition.key === department)) {
-    productionBoardDepartmentFilter.value = department
-  }
-}
 const productionQualitySummaryCards = computed(() => {
   const summary = productionQualitySummary.value
   if (!summary) {
@@ -3693,25 +3854,11 @@ async function login(event?: SubmitEvent) {
   loginError.value = ''
   notificationError.value = ''
   try {
-    let resolvedPortal = loginPortal
-    let payload = await requestLoginPayload(loginUsername, loginPassword, loginPortal)
-    if (!payload) {
-      for (const option of portalOptions) {
-        if (option.value === loginPortal) {
-          continue
-        }
-        const retryPayload = await requestLoginPayload(loginUsername, loginPassword, option.value)
-        if (retryPayload) {
-          resolvedPortal = option.value
-          payload = retryPayload
-          break
-        }
-      }
-    }
+    const payload = await requestLoginPayload(loginUsername, loginPassword, loginPortal)
     if (!payload) {
       throw new Error('账号角色与所选入口不匹配')
     }
-    applyLoginSession(payload, portalRouteFor(payload, resolvedPortal), resolvedPortal)
+    applyLoginSession(payload, portalRouteFor(payload, loginPortal), loginPortal)
     connectNotificationSocket()
   } catch (error) {
     loginError.value = error instanceof Error ? error.message : '登录失败'
@@ -3729,6 +3876,7 @@ function applyLoginSession(payload: LoginResponse, nextRoute: string, loginPorta
   activePrototypeChip.value = ''
   activeNavId.value = findDisplayItemByRoute(nextRoute)?.id ?? `${portalTone.value}-dashboard`
   void loadNotifications()
+  void loadCustomerAttentionItems()
   void loadActiveRouteData().catch((error) => {
     phaseOneAbDashboardDataError.value = error instanceof Error ? error.message : '页面数据加载失败'
   })
@@ -3863,6 +4011,7 @@ function navigateToRoute(routePath: string) {
   activePrototypeChip.value = ''
   if (routePath === '/dashboard') {
     void loadPhaseOneAbDashboardData()
+    void loadCustomerAttentionItems()
   } else if (routePath === '/notifications') {
     void loadNotifications()
   } else if (routePath === '/doctor/orders') {
@@ -3933,6 +4082,14 @@ function selectDisplayNavigationItem(item: DisplayNavigationItem | BusinessShort
   if (item.routePath) {
     navigateToRoute(item.routePath)
   }
+}
+
+function selectSubMenuNavigationItem(item: DisplayNavigationItem, event: MouseEvent) {
+  const target = event.target
+  if (!(target instanceof Element) || !target.closest('.el-sub-menu__title')) {
+    return
+  }
+  selectDisplayNavigationItem(item)
 }
 
 function selectMenu(menu: AuthMenu) {
@@ -5745,9 +5902,66 @@ async function loadCustomerCollaborationPage() {
     return
   }
   customerCollaborationResult.value = ''
-  await loadCustomerCollaborationPendingMessages()
+  customerCollaborationError.value = ''
+  if (canReviewCustomerCollaboration.value) {
+    await loadCustomerCollaborationPendingMessages()
+  } else {
+    customerCollaborationPendingMessages.value = []
+  }
   if (customerCollaborationOrderId.value.trim()) {
     await loadCustomerCollaborationOrderMessages()
+  }
+}
+
+async function loadCustomerAttentionItems() {
+  if (!token.value || portalTone.value !== 'cs') {
+    return
+  }
+  customerAttentionLoading.value = true
+  const acceptanceDemoItems: MessageAttentionItem[] = [
+    { message_id: -101, order_id: 0, order_no: '示例订单 A-1024', sender_role: 'DOCTOR', content: '客户补充资料：请跟进缺少的比色照片。', created_at: '刚刚', demo: true },
+    { message_id: -102, order_id: 0, order_no: '示例订单 A-1028', sender_role: 'WORKER', content: '沟通待确认：请确认客户的交期要求。', created_at: '10 分钟前', demo: true },
+    { message_id: -103, order_id: 0, order_no: '示例订单 A-1031', sender_role: 'CS', content: '客服备注待补全：请补充客户的特殊要求说明。', created_at: '30 分钟前', demo: true }
+  ]
+  try {
+    const payload = await apiFetch<MessageAttentionItem[]>('/messages/attention-items')
+    customerAttentionItems.value = [...payload.data, ...acceptanceDemoItems]
+  } catch (error) {
+    customerCollaborationError.value = error instanceof Error ? error.message : '需要关注事项加载失败'
+    customerAttentionItems.value = acceptanceDemoItems
+  } finally {
+    customerAttentionLoading.value = false
+  }
+}
+
+async function openCustomerAttentionConversation(item: MessageAttentionItem) {
+  if (item.demo) {
+    customerCollaborationOrderId.value = ''
+    customerCollaborationOrderMessages.value = []
+    customerCollaborationResult.value = `客服验收示例：${item.content}`
+    navigateToRoute('/collaboration')
+    return
+  }
+  customerCollaborationOrderId.value = String(item.order_id)
+  navigateToRoute('/collaboration')
+  await loadCustomerCollaborationOrderMessages()
+}
+
+async function resolveCustomerAttentionItem(item: MessageAttentionItem) {
+  customerAttentionLoading.value = true
+  try {
+    if (item.demo) {
+      customerAttentionItems.value = customerAttentionItems.value.filter((attention) => attention.message_id !== item.message_id)
+      customerCollaborationResult.value = '示例待办已处理，待关注数量已同步减少。'
+      return
+    }
+    await apiFetch(`/messages/attention-items/${item.message_id}/resolve`, { method: 'POST' })
+    customerAttentionItems.value = customerAttentionItems.value.filter((attention) => attention.message_id !== item.message_id)
+    await openCustomerAttentionConversation(item)
+  } catch (error) {
+    customerCollaborationError.value = error instanceof Error ? error.message : '待办处理失败'
+  } finally {
+    customerAttentionLoading.value = false
   }
 }
 
@@ -5879,12 +6093,48 @@ async function loadCustomerCollaborationOrderMessages() {
   customerCollaborationLoading.value = true
   customerCollaborationError.value = ''
   try {
-    const payload = await apiFetch<MessageItem[]>(`/orders/${orderId}/messages`)
-    customerCollaborationOrderMessages.value = payload.data
+    const [messagePayload, mentionablePayload] = await Promise.all([
+      apiFetch<MessageItem[]>(`/orders/${orderId}/messages`),
+      apiFetch<MentionableUser[]>(`/orders/${orderId}/message-mentionable-users`)
+    ])
+    customerCollaborationOrderMessages.value = messagePayload.data
+    customerCollaborationMentionableUsers.value = mentionablePayload.data
+    customerCollaborationMentionUserIds.value = customerCollaborationMentionUserIds.value
+      .filter((userId) => mentionablePayload.data.some((user) => user.user_id === userId))
   } catch (error) {
     customerCollaborationError.value = error instanceof Error ? error.message : '订单消息上下文加载失败'
   } finally {
     customerCollaborationLoading.value = false
+  }
+}
+
+async function sendCustomerCollaborationMessage() {
+  const orderId = Number(customerCollaborationOrderId.value.trim())
+  if (!Number.isInteger(orderId) || orderId <= 0) {
+    customerCollaborationError.value = '请先填写有效订单 ID'
+    return
+  }
+  if (!customerCollaborationDraft.value.trim()) {
+    customerCollaborationError.value = '请输入沟通内容'
+    return
+  }
+  customerCollaborationSending.value = true
+  customerCollaborationError.value = ''
+  try {
+    await apiFetch<MessageItem>(`/orders/${orderId}/messages`, {
+      method: 'POST',
+      body: JSON.stringify({
+        content: customerCollaborationDraft.value.trim(),
+        mention_user_ids: customerCollaborationMentionUserIds.value
+      })
+    })
+    customerCollaborationDraft.value = ''
+    customerCollaborationMentionUserIds.value = []
+    await loadCustomerCollaborationOrderMessages()
+  } catch (error) {
+    customerCollaborationError.value = error instanceof Error ? error.message : '发送沟通消息失败'
+  } finally {
+    customerCollaborationSending.value = false
   }
 }
 
@@ -6582,14 +6832,21 @@ async function loadPerformanceStats() {
   }
   performanceLoading.value = true
   performanceError.value = ''
+  performanceNotice.value = ''
   try {
     const params = new URLSearchParams()
-    if (performanceUserId.value.trim()) {
-      const userId = Number(performanceUserId.value.trim())
+    const requestedUserId = performanceUserId.value.trim()
+    if (requestedUserId) {
+      const userId = Number(requestedUserId)
       if (!Number.isInteger(userId) || userId <= 0) {
         throw new Error('员工编号必须是正整数')
       }
       params.set('user_id', String(userId))
+    } else if (currentUser.value?.roles.includes('ADMIN')) {
+      performanceStats.value = null
+      performanceDetails.value = []
+      performanceNotice.value = '请输入员工编号后查询绩效统计'
+      return
     }
     if (performanceStartDate.value.trim()) {
       params.set('start_date', performanceStartDate.value.trim())
@@ -7149,7 +7406,6 @@ async function loadProductionBoardOrders() {
   if (!token.value) {
     return
   }
-  applyProductionBoardRouteParams()
   productionBoardLoading.value = true
   productionBoardError.value = ''
   try {
@@ -7171,13 +7427,20 @@ async function loadProductionBoardOrders() {
     if (payload.data.items.length === 0) {
       selectedProductionBoardOrder.value = null
       productionBoardInstance.value = null
+      productionBoardSelectedCard.value = null
+      productionBoardDrawerVisible.value = false
       return
     }
     if (!selectedStillVisible) {
-      await selectProductionBoardOrder(payload.data.items[0])
+      selectedProductionBoardOrder.value = null
+      productionBoardInstance.value = null
+      productionBoardSelectedCard.value = null
+      productionBoardDrawerVisible.value = false
     } else if (selectedProductionBoardOrder.value) {
       await loadProductionBoardInstance(selectedProductionBoardOrder.value.order_id)
     }
+    productionBoardLastSyncedAt.value = new Date().toISOString()
+    void syncProductionBoardProcessInstances(payload.data.items)
   } catch (error) {
     productionBoardError.value = error instanceof Error ? error.message : '生产看板订单加载失败'
   } finally {
@@ -7185,12 +7448,73 @@ async function loadProductionBoardOrders() {
   }
 }
 
-async function selectProductionBoardOrder(order: InternalOrderItem) {
+async function syncProductionBoardProcessInstances(orders: InternalOrderItem[]) {
+  const runId = ++productionBoardSyncRunId
+  const syncableOrders = orders.filter((order) => !['PENDING_PRODUCTION_REVIEW', 'PENDING_DOCTOR_CONFIRM', 'COMPLETED', 'SHIPPED', 'RECEIVED'].includes(order.internal_status))
+  for (const order of syncableOrders) {
+    if (!productionBoardProcessInstances.value[order.order_id]) {
+      productionBoardProcessSyncStates.value = {
+        ...productionBoardProcessSyncStates.value,
+        [order.order_id]: 'syncing'
+      }
+    }
+  }
+  const queue = syncableOrders.slice()
+  const worker = async () => {
+    while (queue.length > 0 && runId === productionBoardSyncRunId) {
+      const order = queue.shift()
+      if (!order) {
+        continue
+      }
+      try {
+        const payload = await apiFetch<ProcessInstanceDetail>(`/orders/${order.order_id}/process-instance`)
+        if (runId !== productionBoardSyncRunId) {
+          return
+        }
+        productionBoardProcessInstances.value = {
+          ...productionBoardProcessInstances.value,
+          [order.order_id]: payload.data
+        }
+        productionBoardProcessSyncStates.value = {
+          ...productionBoardProcessSyncStates.value,
+          [order.order_id]: 'synced'
+        }
+        const { [order.order_id]: _removed, ...remainingErrors } = productionBoardProcessSyncErrors.value
+        productionBoardProcessSyncErrors.value = remainingErrors
+        if (selectedProductionBoardOrder.value?.order_id === order.order_id) {
+          productionBoardInstance.value = payload.data
+          productionBoardSelectedCard.value = buildProductionKanbanCard(order)
+        }
+      } catch (error) {
+        if (runId !== productionBoardSyncRunId) {
+          return
+        }
+        productionBoardProcessSyncStates.value = {
+          ...productionBoardProcessSyncStates.value,
+          [order.order_id]: 'failed'
+        }
+        productionBoardProcessSyncErrors.value = {
+          ...productionBoardProcessSyncErrors.value,
+          [order.order_id]: error instanceof Error ? error.message : '工序同步失败'
+        }
+      }
+    }
+  }
+  await Promise.all(Array.from({ length: Math.min(4, queue.length) }, () => worker()))
+  if (runId === productionBoardSyncRunId) {
+    productionBoardLastSyncedAt.value = new Date().toISOString()
+  }
+}
+
+async function selectProductionBoardOrder(order: InternalOrderItem, card?: ProductionKanbanCard) {
   selectedProductionBoardOrder.value = order
+  productionBoardSelectedCard.value = card ?? buildProductionKanbanCard(order)
+  productionBoardDrawerVisible.value = true
   productionBoardLogisticsCarrier.value = ''
   productionBoardLogisticsTrackingNo.value = ''
   productionBoardShippingResult.value = ''
   await loadProductionBoardInstance(order.order_id)
+  productionBoardSelectedCard.value = buildProductionKanbanCard(order)
 }
 
 async function loadProductionBoardInstance(orderId: number) {
@@ -7203,9 +7527,40 @@ async function loadProductionBoardInstance(orderId: number) {
   try {
     const payload = await apiFetch<ProcessInstanceDetail>(`/orders/${orderId}/process-instance`)
     productionBoardInstance.value = payload.data
+    productionBoardProcessInstances.value = {
+      ...productionBoardProcessInstances.value,
+      [orderId]: payload.data
+    }
+    productionBoardProcessSyncStates.value = {
+      ...productionBoardProcessSyncStates.value,
+      [orderId]: 'synced'
+    }
   } catch (error) {
+    productionBoardProcessSyncStates.value = {
+      ...productionBoardProcessSyncStates.value,
+      [orderId]: 'failed'
+    }
     productionBoardError.value = error instanceof Error ? error.message : '生产看板工序进度加载失败'
   }
+}
+
+function shiftProductionBoardKanbanDate(days: number) {
+  const current = new Date(`${productionBoardKanbanDate.value}T00:00:00`)
+  if (Number.isNaN(current.getTime())) {
+    productionBoardKanbanDate.value = new Date().toISOString().slice(0, 10)
+    return
+  }
+  current.setDate(current.getDate() + days)
+  productionBoardKanbanDate.value = current.toISOString().slice(0, 10)
+}
+
+function resetProductionBoardKanbanDate() {
+  productionBoardKanbanDate.value = new Date().toISOString().slice(0, 10)
+}
+
+function scrollProductionBoardColumn(key: string) {
+  const el = document.querySelector(`[data-production-column="${key}"]`)
+  el?.scrollIntoView({ behavior: 'smooth', inline: 'center', block: 'nearest' })
 }
 
 async function shipProductionBoardOrder() {
@@ -7233,6 +7588,10 @@ async function shipProductionBoardOrder() {
       internal_status: 'SHIPPED',
       external_status: 'SHIPPED'
     }
+    productionBoardOrders.value = productionBoardOrders.value.map((order) => order.order_id === selectedProductionBoardOrder.value?.order_id
+      ? { ...order, internal_status: 'SHIPPED', external_status: 'SHIPPED' }
+      : order)
+    productionBoardSelectedCard.value = buildProductionKanbanCard(selectedProductionBoardOrder.value)
     await loadNotifications()
   } catch (error) {
     const message = error instanceof Error ? error.message : '发货失败'
@@ -7508,7 +7867,7 @@ onBeforeUnmount(() => {
             <template v-for="group in navigationGroups" :key="group.title">
               <div class="nav-section-title">{{ group.title }}</div>
               <template v-for="item in group.items" :key="item.id">
-                <el-sub-menu v-if="item.children?.length" :index="item.id">
+                <el-sub-menu v-if="item.children?.length" :index="item.id" @click="selectSubMenuNavigationItem(item, $event)">
                   <template #title>
                     <span class="menu-icon" aria-hidden="true" v-html="businessIconSvg(item.icon)" />
                     <span>{{ item.title }}</span>
@@ -7667,7 +8026,7 @@ onBeforeUnmount(() => {
 
         <section v-else-if="isInternalOrdersRoute" class="panel route-panel internal-order-panel">
           <div class="route-heading">
-            <h2>{{ isProductizedCsDesignRoute ? '设计稿管理' : '客服初审' }}</h2>
+            <h2>{{ isProductizedCsDesignRoute ? '设计稿管理' : isProductizedCsProductionNoteRoute ? '生产备注助手' : '客服初审' }}</h2>
             <div class="notification-heading-tags">
               <el-tag round>{{ internalOrders.length }} 单</el-tag>
               <el-tag v-if="isProductizedCsDesignRoute" type="success" round>本地第一增量</el-tag>
@@ -7677,6 +8036,13 @@ onBeforeUnmount(() => {
           <el-alert
             v-if="isProductizedCsDesignRoute"
             title="设计稿管理已复用客服订单详情内的设计稿版本、预览 URL 和审核入口；真实电子签章和客户最终验收仍为外部阻塞。"
+            type="info"
+            show-icon
+            :closable="false"
+          />
+          <el-alert
+            v-else-if="isProductizedCsProductionNoteRoute"
+            title="生产备注助手复用订单详情内的 AI 草稿、人工确认和写入生产备注能力；请先选择订单后操作。"
             type="info"
             show-icon
             :closable="false"
@@ -9019,6 +9385,14 @@ onBeforeUnmount(() => {
           </div>
 
           <el-alert
+            v-if="performanceNotice"
+            :title="performanceNotice"
+            type="info"
+            show-icon
+            :closable="false"
+          />
+
+          <el-alert
             v-if="performanceError"
             :title="performanceError"
             type="error"
@@ -9206,57 +9580,79 @@ onBeforeUnmount(() => {
 
         <section v-else-if="isProductionBoardRoute" class="panel route-panel production-board-panel">
           <div class="route-heading">
-            <div>
-              <h2>生产看板</h2>
-              <p>工序队列按当前生产订单、状态和异常集中展示。</p>
+            <h2>生产看板</h2>
+            <div class="heading-tags">
+              <el-tag round>{{ visibleProductionBoardOrders.length }} 活跃单</el-tag>
+              <el-tag type="info" round>最后同步 {{ compactDateTime(productionBoardLastSyncedAt) }}</el-tag>
             </div>
-            <el-tag round>{{ productionBoardOrders.length }} 单</el-tag>
           </div>
 
-          <div class="prototype-chip-row">
-            <button
-              v-for="chip in prototypeQueueChips"
-              :key="`board-${chip.label}`"
-              class="prototype-chip"
-              :class="[`tone-${chip.tone}`, { active: isPrototypeChipActive(chip) }]"
-              type="button"
-              @click="selectPrototypeQueueChip(chip)"
-            >
-              {{ chip.label }}
-              <span>{{ chip.count }}</span>
-            </button>
-          </div>
+          <div class="production-board-control-deck">
+            <div class="production-board-date-row">
+              <div class="production-board-date-actions">
+                <button class="btn-g" type="button" @click="shiftProductionBoardKanbanDate(-1)">← 前一天</button>
+                <input
+                  v-model="productionBoardKanbanDate"
+                  class="production-board-date-input"
+                  type="date"
+                  aria-label="生产看板日期"
+                >
+                <button class="btn-g" type="button" @click="shiftProductionBoardKanbanDate(1)">后一天 →</button>
+                <button class="btn-g primary" type="button" @click="resetProductionBoardKanbanDate">Today</button>
+              </div>
+              <div class="production-board-sync-note">
+                超时 {{ productionBoardKanbanCards.filter((card) => card.risk === 'overdue').length }} 单 · 工序同步 {{ productionBoardKanbanCards.filter((card) => card.syncState === 'synced').length }}/{{ productionBoardKanbanCards.length }}
+              </div>
+            </div>
 
-          <div class="production-board-toolbar">
-            <el-select v-model="productionBoardStatus" @change="loadProductionBoardOrders">
-              <el-option
-                v-for="option in productionBoardStatusOptions"
-                :key="option.value"
-                :label="option.label"
-                :value="option.value"
+            <div class="prototype-chip-row production-board-chip-row">
+              <button
+                v-for="chip in prototypeQueueChips"
+                :key="`board-${chip.label}`"
+                class="prototype-chip compact"
+                :class="[`tone-${chip.tone}`, { active: isPrototypeChipActive(chip) }]"
+                type="button"
+                @click="selectPrototypeQueueChip(chip)"
+              >
+                {{ chip.label }}
+                <span>{{ chip.count }}</span>
+              </button>
+            </div>
+
+            <div class="production-kanban-summary-row">
+              <button
+                v-for="summary in productionBoardKanbanSummaries"
+                :key="summary.key"
+                class="production-kanban-summary-chip"
+                :class="`tone-${summary.tone}`"
+                type="button"
+                @click="scrollProductionBoardColumn(summary.key)"
+              >
+                <strong>{{ summary.title }}</strong>
+                <span>{{ summary.count }} 单</span>
+                <small>{{ summary.activeCount }} 进行中 · {{ summary.riskCount }} 风险</small>
+              </button>
+            </div>
+
+            <div class="production-board-toolbar">
+              <el-select v-model="productionBoardStatus" @change="loadProductionBoardOrders">
+                <el-option
+                  v-for="option in productionBoardStatusOptions"
+                  :key="option.value"
+                  :label="option.label"
+                  :value="option.value"
+                />
+              </el-select>
+              <el-input
+                v-model="productionBoardKeyword"
+                placeholder="跨状态生产检索：订单号或患者"
+                clearable
+                @keyup.enter="loadProductionBoardOrders"
               />
-            </el-select>
-            <el-select v-model="productionBoardDepartmentFilter" placeholder="全部工序">
-              <el-option
-                v-for="option in productionBoardDepartmentOptions"
-                :key="option.value"
-                :label="option.label"
-                :value="option.value"
-              />
-            </el-select>
-            <el-select v-model="productionBoardRiskFilter" placeholder="异常筛选">
-              <el-option label="全部订单" value="ALL" />
-              <el-option label="只看待处理" value="RISK" />
-            </el-select>
-            <el-input
-              v-model="productionBoardKeyword"
-              placeholder="跨状态生产检索：订单号或患者"
-              clearable
-              @keyup.enter="loadProductionBoardOrders"
-            />
-            <el-button type="primary" :loading="productionBoardLoading" @click="loadProductionBoardOrders">
-              查询生产订单
-            </el-button>
+              <el-button type="primary" :loading="productionBoardLoading" @click="loadProductionBoardOrders">
+                刷新看板
+              </el-button>
+            </div>
           </div>
 
           <el-alert
@@ -9267,56 +9663,78 @@ onBeforeUnmount(() => {
             :closable="false"
           />
 
-          <div class="production-dispatch-workspace">
-            <section class="production-queue-shell">
-              <div class="production-board-section-head">
-                <div>
-                  <h3>工序队列</h3>
-                  <span>横向查看各工序当前订单，点击订单查看节点和发货动作。</span>
-                </div>
-                <el-tag type="info" round>{{ productionBoardQueueGroups.length }} 组</el-tag>
-              </div>
-
-              <div class="production-queue-board">
+          <div class="production-board-workspace">
+            <section class="production-kanban-area">
+              <div class="production-kanban-scroll">
                 <article
-                  v-for="group in productionBoardQueueGroups"
-                  :key="group.key"
-                  class="production-queue-column"
-                  :class="`tone-${group.tone}`"
+                  v-for="column in productionBoardKanbanColumns"
+                  :key="column.key"
+                  class="production-kanban-column"
+                  :class="[`tone-${column.tone}`, { auxiliary: column.auxiliary }]"
+                  :data-production-column="column.key"
                 >
-                  <header class="production-queue-head">
+                  <div class="production-kanban-head">
                     <div>
-                      <strong>{{ group.label }}</strong>
-                      <span>{{ group.subtitle }}</span>
+                      <strong>{{ column.title }}</strong>
+                      <small>{{ column.subtitle }}</small>
                     </div>
-                    <small>{{ group.activeCount }} 单</small>
-                  </header>
-
-                  <button
-                    v-for="card in group.orders"
-                    :key="card.order.order_id"
-                    class="production-order-card"
-                    :class="{ active: selectedProductionBoardOrder?.order_id === card.order.order_id }"
-                    type="button"
-                    @click="selectProductionBoardOrder(card.order)"
-                  >
-                    <span class="production-order-card-top">
-                      <strong>{{ card.order.order_no }}</strong>
-                      <em :class="`tone-${card.riskTone}`">{{ card.riskLabel }}</em>
-                    </span>
-                    <span>{{ card.order.clinic_name }}</span>
-                    <small>{{ card.productLabel }} / {{ card.statusLabel }}</small>
-                  </button>
-
-                  <div v-if="group.orders.length === 0" class="production-queue-empty">
-                    当前无订单
+                    <span>{{ column.cards.length }}</span>
+                  </div>
+                  <div class="production-kanban-body">
+                    <button
+                      v-for="card in column.cards"
+                      :key="card.orderId"
+                      class="production-kanban-card"
+                      :class="[`risk-${card.risk}`, `sync-${card.syncState}`, { active: selectedProductionBoardOrder?.order_id === card.orderId }]"
+                      type="button"
+                      @click="selectProductionBoardOrder(card.order, card)"
+                    >
+                      <span class="prototype-order-no">{{ card.orderNo }}</span>
+                      <strong>{{ card.productLabel }}</strong>
+                      <small>{{ card.clinicLabel }} · {{ card.toothLabel }}</small>
+                      <div class="production-kanban-card-meta">
+                        <span>{{ card.currentProcess }}</span>
+                        <em>{{ card.assignedUserLabel }}</em>
+                      </div>
+                      <div class="production-kanban-card-progress" aria-hidden="true">
+                        <span :style="{ width: `${card.progressPercent}%` }"></span>
+                      </div>
+                      <div class="production-kanban-card-tags">
+                        <span :class="`risk-${card.risk}`">{{ card.riskLabel }}</span>
+                        <span>{{ card.slaLabel }}</span>
+                        <span>{{ card.elapsedLabel }}</span>
+                        <span v-if="!['synced', 'skipped'].includes(card.syncState)">{{ card.syncLabel }}</span>
+                      </div>
+                    </button>
+                    <div v-if="column.cards.length === 0" class="production-kanban-empty">
+                      ✓ 暂无积压
+                    </div>
                   </div>
                 </article>
               </div>
             </section>
+          </div>
 
-            <section class="production-dispatch-detail">
-              <template v-if="selectedProductionBoardOrder">
+          <el-drawer
+            v-model="productionBoardDrawerVisible"
+            class="production-board-drawer"
+            direction="rtl"
+            size="520px"
+            :title="selectedProductionBoardOrder ? `订单 ${selectedProductionBoardOrder.order_no}` : '订单详情'"
+          >
+            <section v-if="selectedProductionBoardOrder" class="production-board-drawer-content">
+              <div v-if="productionBoardSelectedCard" class="production-board-current-context">
+                <span>{{ productionBoardSelectedCard.currentProcess }}</span>
+                <strong>{{ productionBoardSelectedCard.currentNodeCode }}</strong>
+                <div class="production-kanban-card-tags">
+                  <span :class="`risk-${productionBoardSelectedCard.risk}`">{{ productionBoardSelectedCard.riskLabel }}</span>
+                  <span>{{ productionBoardSelectedCard.assignedUserLabel }}</span>
+                  <span>{{ productionBoardSelectedCard.slaLabel }}</span>
+                  <span>{{ productionBoardSelectedCard.elapsedLabel }}</span>
+                </div>
+              </div>
+
+              <div class="section-subtitle">订单摘要</div>
               <div class="doctor-order-summary">
                 <div>
                   <span>订单</span>
@@ -9336,6 +9754,7 @@ onBeforeUnmount(() => {
                 </div>
               </div>
 
+              <div class="section-subtitle">节点统计</div>
               <div v-if="productionBoardInstance" class="production-board-stats">
                 <article class="performance-card">
                   <span>待开工</span>
@@ -9357,6 +9776,26 @@ onBeforeUnmount(() => {
                   <strong>{{ productionBoardNodeStats.SKIPPED }} / {{ productionBoardNodeStats.PENDING }}</strong>
                   <small>跳过或未激活节点</small>
                 </article>
+              </div>
+              <div v-else class="empty-state">
+                该订单暂无可展示的工序进度
+              </div>
+
+              <div class="section-subtitle">节点进度</div>
+              <div v-if="productionBoardInstance" class="process-node-list">
+                <button
+                  v-for="node in productionBoardInstance.nodes"
+                  :key="node.node_instance_id"
+                  class="process-node-row"
+                  type="button"
+                >
+                  <span class="node-order">{{ node.step_order }}</span>
+                  <strong>{{ node.process_name }}</strong>
+                  <span>{{ node.node_code }}</span>
+                  <span>{{ statusLabel(node.node_status) }}</span>
+                  <span>员工 {{ node.assigned_user_id ?? '-' }}</span>
+                  <span>{{ node.standard_duration ?? '-' }} 分钟</span>
+                </button>
               </div>
 
               <div class="review-form">
@@ -9399,36 +9838,8 @@ onBeforeUnmount(() => {
                   </el-tag>
                 </div>
               </div>
-
-              <div v-if="productionBoardInstance" class="process-node-list">
-                <div class="section-subtitle">
-                  节点进度
-                </div>
-                <button
-                  v-for="node in productionBoardInstance.nodes"
-                  :key="node.node_instance_id"
-                  class="process-node-row"
-                  type="button"
-                >
-                  <span class="node-order">{{ node.step_order }}</span>
-                  <strong>{{ node.process_name }}</strong>
-                  <span>{{ node.node_code }}</span>
-                  <span>{{ statusLabel(node.node_status) }}</span>
-                  <span>员工 {{ node.assigned_user_id ?? '-' }}</span>
-                  <span>{{ node.standard_duration ?? '-' }} 分钟</span>
-                </button>
-              </div>
-
-              <div v-else class="empty-state">
-                该订单暂无可展示的工序进度
-              </div>
-              </template>
-
-              <div v-else class="empty-state">
-                选择左侧工序队列中的订单查看节点进度
-              </div>
             </section>
-          </div>
+          </el-drawer>
         </section>
 
         <section v-else-if="isDeliveryManagementRoute" class="panel route-panel production-board-panel" data-testid="cs-delivery-management-panel">
@@ -10867,8 +11278,9 @@ onBeforeUnmount(() => {
 
         <section v-else-if="isCustomerCollaborationRoute" class="panel route-panel customer-collaboration-panel">
           <div class="route-heading">
-            <h2>客服协同台</h2>
-            <el-tag round>{{ customerCollaborationPendingMessages.length }} 条待审核消息</el-tag>
+            <h2>沟通中心</h2>
+            <el-tag v-if="canReviewCustomerCollaboration" round>{{ customerCollaborationPendingMessages.length }} 条待审核消息</el-tag>
+            <el-tag v-else type="info" round>订单协同沟通</el-tag>
           </div>
 
           <div class="doctor-order-toolbar">
@@ -10902,8 +11314,40 @@ onBeforeUnmount(() => {
             :closable="false"
           />
 
+          <section class="customer-collaboration-card collaboration-composer" data-testid="collaboration-composer">
+            <div class="subheading-row">
+              <h3>发送沟通</h3>
+              <el-tag type="info" round>@ 仅可选择当前订单参与人</el-tag>
+            </div>
+            <el-input
+              v-model="customerCollaborationDraft"
+              type="textarea"
+              :rows="3"
+              placeholder="输入沟通内容；需要对方处理时可选择 @ 对方"
+            />
+            <el-select
+              v-model="customerCollaborationMentionUserIds"
+              multiple
+              clearable
+              collapse-tags
+              collapse-tags-tooltip
+              placeholder="选择要 @ 的订单参与人"
+              :disabled="customerCollaborationMentionableUsers.length === 0"
+            >
+              <el-option
+                v-for="user in customerCollaborationMentionableUsers"
+                :key="user.user_id"
+                :label="`${user.display_name}（${roleLabel(user.user_role)}）`"
+                :value="user.user_id"
+              />
+            </el-select>
+            <div class="inline-actions">
+              <el-button type="primary" :loading="customerCollaborationSending" @click="sendCustomerCollaborationMessage">发送消息</el-button>
+            </div>
+          </section>
+
           <div class="customer-collaboration-grid">
-            <section class="customer-collaboration-card">
+            <section v-if="canReviewCustomerCollaboration" class="customer-collaboration-card">
               <div class="subheading-row">
                 <h3>待审核消息</h3>
                 <el-tag type="warning" round>{{ customerCollaborationPendingMessages.length }}</el-tag>
@@ -10966,7 +11410,7 @@ onBeforeUnmount(() => {
             </section>
           </div>
 
-          <section class="customer-collaboration-card customer-collaboration-review-box">
+          <section v-if="canReviewCustomerCollaboration" class="customer-collaboration-card customer-collaboration-review-box">
             <div class="subheading-row">
               <h3>消息审核</h3>
               <el-tag v-if="selectedCustomerCollaborationMessage" round>
@@ -11218,6 +11662,55 @@ onBeforeUnmount(() => {
             </article>
           </div>
 
+          <div v-if="portalTone === 'cs'" class="customer-dashboard-pair" data-testid="customer-dashboard-pair">
+          <section class="prototype-panel-card customer-attention-panel" data-testid="customer-attention-panel">
+            <div class="prototype-panel-head">
+              <div>
+                <h3>需要关注</h3>
+              </div>
+              <span class="prototype-badge tone-rose">{{ customerAttentionItems.length }} 项</span>
+            </div>
+            <div v-if="customerAttentionLoading" class="empty-state">正在同步待办事项…</div>
+            <div v-else-if="visibleCustomerAttentionItems.length === 0" class="empty-state">暂无需要关注的事项</div>
+            <article v-for="item in visibleCustomerAttentionItems" :key="item.message_id" class="customer-attention-item" data-testid="customer-attention-item" @click="openCustomerAttentionConversation(item)">
+              <span class="attention-dot tone-rose" />
+              <div>
+                <strong>{{ item.demo ? item.content.split('：')[0] : '沟通待确认' }}</strong>
+                <p>{{ item.content }}</p>
+                <small>{{ item.order_no }} / {{ roleLabel(item.sender_role) }} / {{ item.created_at }}</small>
+              </div>
+              <div class="inline-actions compact-actions">
+                <el-button size="small" @click.stop="openCustomerAttentionConversation(item)">去沟通</el-button>
+                <el-button size="small" type="primary" :loading="customerAttentionLoading" @click.stop="resolveCustomerAttentionItem(item)">处理完成</el-button>
+              </div>
+            </article>
+            <el-button
+              v-if="customerAttentionItems.length > 3"
+              text
+              type="primary"
+              class="customer-attention-toggle"
+              @click="customerAttentionExpanded = !customerAttentionExpanded"
+            >
+              {{ customerAttentionExpanded ? '收起' : '查看全部' }}
+            </el-button>
+          </section>
+          <section
+            v-for="panel in activePrototypeDashboard.panels"
+            :key="panel.title"
+            class="prototype-panel-card"
+          >
+            <div class="prototype-panel-head">
+              <h3>{{ panel.title }}</h3>
+              <span v-if="panel.badge" class="prototype-badge" :class="`tone-${panel.tone ?? 'slate'}`">{{ panel.badge }}</span>
+            </div>
+            <button v-for="item in panel.items" :key="`${panel.title}-${item.title}`" type="button" class="prototype-attention-item" @click="selectDashboardAction(item)">
+              <span class="attention-dot" :class="`tone-${item.tone}`" />
+              <span><strong>{{ item.title }}</strong><small>{{ item.detail }}</small></span>
+              <em>{{ item.meta }}</em><b>{{ item.actionLabel }}</b>
+            </button>
+          </section>
+          </div>
+
           <div
             v-if="portalTone === 'production' && (activePrototypeDashboard.featuredPanel || activePrototypeDashboard.monthComparison)"
             class="production-workbench-highlight-row"
@@ -11292,7 +11785,7 @@ onBeforeUnmount(() => {
             </section>
           </div>
 
-          <div v-if="activePrototypeDashboard.panels.length" class="prototype-dashboard-layout">
+          <div v-if="portalTone !== 'cs' && activePrototypeDashboard.panels.length" class="prototype-dashboard-layout">
             <section
               v-for="panel in activePrototypeDashboard.panels"
               :key="panel.title"
@@ -11908,7 +12401,9 @@ onBeforeUnmount(() => {
           <el-alert
             :title="isProductizedProductionSupportRoute
               ? '该功能已接入当前后端汇总数据和本地第一增量表单；完整编辑、审批、真实趋势和客户验收仍保持 PARTIAL。'
-              : '该功能已纳入前端演示导航，后续确认正式范围后再接入接口、权限和数据表。'"
+              : isAdminPermissionInventoryRoute
+                ? '该功能展示当前登录账号、角色、权限、菜单和数据范围的真实清单；完整账号和角色配置后台不属于本期范围。'
+                : '该功能已纳入前端演示导航，后续确认正式范围后再接入接口、权限和数据表。'"
             type="info"
             show-icon
             :closable="false"

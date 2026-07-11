@@ -11,7 +11,7 @@ const portalCases = [
     username: process.env.TASK9D24_DOCTOR_USERNAME ?? 'doctor',
     password: process.env.TASK9D24_DOCTOR_PASSWORD ?? 'change-me-doctor',
     loggedInText: '医生已登录',
-    heading: '早上好，医生'
+    portalTitle: '医生工作台'
   },
   {
     title: '客服端',
@@ -19,7 +19,7 @@ const portalCases = [
     username: process.env.TASK9D24_CS_USERNAME ?? 'cs',
     password: process.env.TASK9D24_CS_PASSWORD ?? 'change-me-cs',
     loggedInText: '客服已登录',
-    heading: '客服工作台'
+    portalTitle: '客服协同台'
   },
   {
     title: '生产端',
@@ -27,7 +27,7 @@ const portalCases = [
     username: process.env.TASK9D24_WORKER_USERNAME ?? 'worker',
     password: process.env.TASK9D24_WORKER_PASSWORD ?? 'change-me-worker',
     loggedInText: '生产人员已登录',
-    heading: '生产仪表盘'
+    portalTitle: '生产管理台'
   },
   {
     title: '管理端',
@@ -35,7 +35,7 @@ const portalCases = [
     username: process.env.TASK9D24_ADMIN_USERNAME ?? 'admin',
     password: process.env.TASK9D24_ADMIN_PASSWORD ?? 'change-me-admin',
     loggedInText: '管理员已登录',
-    heading: '管理控制台'
+    portalTitle: '管理控制台'
   }
 ]
 
@@ -66,7 +66,7 @@ async function loginViaPortal(page, portal) {
   await page.getByRole('button', { name: '登录' }).click()
   await expect(page.getByText(portal.loggedInText)).toBeVisible({ timeout: 10_000 })
   await expect(page.locator('.prototype-dashboard-panel')).toBeVisible({ timeout: 10_000 })
-  await expect(page.getByRole('heading', { name: portal.heading }).first()).toBeVisible({ timeout: 10_000 })
+  await expect(page.locator('.status-bar strong')).toHaveText(portal.portalTitle)
 }
 
 test.use({ channel: browserChannel })
@@ -81,7 +81,7 @@ test.describe('Task 9D.24 four portal login smoke', () => {
     try {
       for (const portal of portalCases) {
         await loginViaPortal(page, portal)
-        console.log(`task 9D.24 ${portal.title} smoke ok: ${portal.username} -> ${portal.heading}`)
+        console.log(`task 9D.24 ${portal.title} smoke ok: ${portal.username} -> ${portal.portalTitle}`)
       }
     } finally {
       await page.close()
@@ -95,6 +95,8 @@ test.describe('Task 9D.24 four portal login smoke', () => {
       await mismatchPage.getByLabel('密码').fill(process.env.TASK9D24_DOCTOR_PASSWORD ?? 'change-me-doctor')
       await mismatchPage.getByRole('button', { name: '登录' }).click()
       await expect(mismatchPage.getByText('账号角色与所选入口不匹配')).toBeVisible({ timeout: 10_000 })
+      await expect(mismatchPage.locator('.status-bar')).toHaveCount(0)
+      await expect(mismatchPage.locator('.login-shell')).toBeVisible()
       console.log('task 9D.24 mismatched portal smoke ok: doctor cannot enter ADMIN portal')
     } finally {
       await mismatchPage.close()

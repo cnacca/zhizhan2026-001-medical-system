@@ -41,7 +41,7 @@ public class QualityRecordService {
             int page,
             int size) {
         accessControlService.requireAnyRole(
-                identity, java.util.EnumSet.of(UserRole.ADMIN, UserRole.CS), "quality records are internal only");
+                identity, java.util.EnumSet.of(UserRole.ADMIN, UserRole.CS, UserRole.WORKER), "quality records are internal only");
         int safePage = Math.max(page, 1);
         int safeSize = Math.max(1, Math.min(size, 100));
         int offset = (safePage - 1) * safeSize;

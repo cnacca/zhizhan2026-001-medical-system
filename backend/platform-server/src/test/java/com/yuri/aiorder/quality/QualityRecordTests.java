@@ -88,6 +88,20 @@ class QualityRecordTests {
     }
 
     @Test
+    void workerCanReadQualityRecordsForTheProductionQualityOverview() throws Exception {
+        long qualityRecordId = registerExternalReturn("CS", 8812L, "DOCTOR", "FIT_ISSUE", "生产端质量总览读取");
+
+        mockMvc.perform(get("/quality-records")
+                        .header("X-Bootstrap-Role", "WORKER")
+                        .header("X-Bootstrap-User-Id", 8813L)
+                        .param("record_type", "EXTERNAL_RETURN")
+                        .param("order_id", String.valueOf(orderId)))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.total").value(1))
+                .andExpect(jsonPath("$.data.items[0].quality_record_id").value(qualityRecordId));
+    }
+
+    @Test
     void externalReturnWritesIndependentQualityRecordFact() throws Exception {
         long qualityRecordId = registerExternalReturn("CS", 8806L, "DOCTOR", "FIT_ISSUE", "独立质量记录事实");
 

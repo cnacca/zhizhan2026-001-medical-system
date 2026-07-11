@@ -25,7 +25,7 @@ public class QualityRecordController {
     }
 
     @GetMapping("/quality-records")
-    @RequirePermission(value = "check:read-internal", roles = {UserRole.ADMIN, UserRole.CS})
+    @RequirePermission(value = "check:read-internal", roles = {UserRole.ADMIN, UserRole.CS, UserRole.WORKER})
     public DataResponse<OrderListResponse<QualityRecordResponse>> listQualityRecords(
             BootstrapIdentity identity,
             @RequestParam(name = "record_type", required = false) String recordType,

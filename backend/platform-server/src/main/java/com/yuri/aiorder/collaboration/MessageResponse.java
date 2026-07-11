@@ -1,6 +1,7 @@
 package com.yuri.aiorder.collaboration;
 
 import com.fasterxml.jackson.annotation.JsonProperty;
+import java.util.List;
 
 public record MessageResponse(
         @JsonProperty("msg_id") long msgId,
@@ -12,5 +13,6 @@ public record MessageResponse(
         @JsonProperty("sender_role") String senderRole,
         String content,
         @JsonProperty("visible_to") String visibleTo,
-        @JsonProperty("review_status") String reviewStatus) {
+        @JsonProperty("review_status") String reviewStatus,
+        @JsonProperty("mention_user_ids") List<Long> mentionUserIds) {
 }

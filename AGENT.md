@@ -36,7 +36,7 @@ This file is the thin operating index for agents working in this repository.
 ## Core Invariants
 
 - Current mode is RepoFrame `repo-hydrate` follow-through, not fresh initialization.
-- Do not run `initialize_repo.py` for the current handoff worktree unless the user explicitly asks for a new initialization pass.
+- Do not run `initialize_repo.py` for the current worktree unless the user explicitly asks for a new initialization pass.
 - GOAL-001 is historical initialization evidence. GOAL-002 and TASK-003 are superseded intake evidence. GOAL-003 and TASK-004 are the current hydration route.
 - Preserve user-authored source plans by default.
 - Treat low-confidence intake as a clarification problem, not an implementation license.

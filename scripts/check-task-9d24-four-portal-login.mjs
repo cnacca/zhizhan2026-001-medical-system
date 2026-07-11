@@ -27,7 +27,7 @@ const requiredAppFragments = [
   'admin_panel_settings',
   'selectPortal',
   'portalDefaultRoute',
-  'body: JSON.stringify({ username: username.value, password: password.value, portal: selectedPortal.value })',
+  'body: JSON.stringify({ username: loginUsername, password: loginPassword, portal: loginPortal })',
   "DOCTOR: '/dashboard'",
   "CS: '/dashboard'",
   "PRODUCTION: '/dashboard'",
@@ -91,6 +91,17 @@ const missing = [
   ...requiredSmokeFragments.filter((fragment) => !smoke.includes(fragment)).map((fragment) => `smoke-task-9d24-four-portal-login.spec.mjs -> ${fragment}`),
   ...requiredPackageFragments.filter((fragment) => !packageJson.includes(fragment)).map((fragment) => `package.json -> ${fragment}`)
 ]
+
+const forbiddenAppFragments = [
+  'for (const option of portalOptions) {',
+  'const retryPayload = await requestLoginPayload'
+]
+
+for (const fragment of forbiddenAppFragments) {
+  if (app.includes(fragment)) {
+    missing.push(`frontend/src/App.vue -> must not retry a different portal after login rejection: ${fragment}`)
+  }
+}
 
 if (missing.length > 0) {
   console.error('task 9D.24 four portal login check failed:')

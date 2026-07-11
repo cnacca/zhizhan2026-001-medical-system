@@ -4,15 +4,7 @@
 
 本项目是一套牙科定制工厂的一期系统：在线下单、客服审核、生产工序流转、入检/出检、工时绩效、账单物流、AI 辅助查询与文本整理。
 
-当前工作区是 RepoFrame 接手后的 handoff worktree，不是新项目初始化。不要自动启用已卸载的 Yuri SOP / workflow；只有用户明确要求阶段级 goal、RepoFrame task 或项目文档回写时，才按 RepoFrame / workflow 执行。
-
-当前目标目录固定为：
-
-```text
-/Users/yuri/Documents/AI智能下单平台-handoff-20260706
-```
-
-不要回到主目录 `/Users/yuri/Documents/AI智能下单平台` 开发或整理文档，除非用户明确改口。
+当前工作区是已有项目工作树，不是新项目初始化。不要自动启用已卸载的 Yuri SOP / workflow；只有用户明确要求阶段级 goal、RepoFrame task 或项目文档回写时，才按 RepoFrame / workflow 执行。
 
 ## 读取规则
 

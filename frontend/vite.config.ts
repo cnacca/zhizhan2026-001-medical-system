@@ -2,7 +2,7 @@ import vue from '@vitejs/plugin-vue'
 import { defineConfig, type ProxyOptions } from 'vite'
 
 const backendProxy: ProxyOptions = {
-  target: 'http://localhost:8080',
+  target: 'http://127.0.0.1:8080',
   changeOrigin: true,
   configure(proxy) {
     proxy.on('proxyReq', (proxyReq) => {
@@ -41,7 +41,7 @@ export default defineConfig({
       '/production': backendProxy,
       '/ai': backendProxy,
       '/ws': {
-        target: 'ws://localhost:8080',
+        target: 'ws://127.0.0.1:8080',
         ws: true,
         changeOrigin: true
       }

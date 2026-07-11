@@ -42,6 +42,31 @@ public class CollaborationController {
         return new DataResponse<>(collaborationService.sendMessage(orderId, request, identity));
     }
 
+    @GetMapping("/orders/{orderId}/message-mentionable-users")
+    @RequirePermission(value = {"message:manage", "order:read-doctor"}, roles = {
+            UserRole.ADMIN, UserRole.CS, UserRole.WORKER, UserRole.DOCTOR})
+    public DataResponse<List<MentionableUserResponse>> listMentionableUsers(
+            @PathVariable long orderId,
+            BootstrapIdentity identity) {
+        return new DataResponse<>(collaborationService.listMentionableUsers(orderId, identity));
+    }
+
+    @GetMapping("/messages/attention-items")
+    @RequirePermission(value = {"message:manage", "order:read-doctor"}, roles = {
+            UserRole.ADMIN, UserRole.CS, UserRole.WORKER, UserRole.DOCTOR})
+    public DataResponse<List<MessageAttentionItemResponse>> listAttentionItems(BootstrapIdentity identity) {
+        return new DataResponse<>(collaborationService.listAttentionItems(identity));
+    }
+
+    @PostMapping("/messages/attention-items/{messageId}/resolve")
+    @RequirePermission(value = {"message:manage", "order:read-doctor"}, roles = {
+            UserRole.ADMIN, UserRole.CS, UserRole.WORKER, UserRole.DOCTOR})
+    public DataResponse<MessageAttentionItemResponse> resolveAttentionItem(
+            @PathVariable long messageId,
+            BootstrapIdentity identity) {
+        return new DataResponse<>(collaborationService.resolveAttentionItem(messageId, identity));
+    }
+
     @PostMapping("/messages/{msgId}/review")
     @RequirePermission(value = "message:manage", roles = {UserRole.ADMIN, UserRole.CS})
     public DataResponse<MessageResponse> reviewMessage(

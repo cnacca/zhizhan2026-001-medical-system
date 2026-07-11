@@ -59,12 +59,12 @@ public class CollaborationService {
         OrderRow order = loadOrder(orderId, identity, "identity cannot access this order");
         if (identity.isDoctor()) {
             identity.requireDoctorScope(order.doctorUserId(), order.clinicId());
-            return queryMessages(orderId, "AND visibility IN ('DOCTOR', 'DOCTOR_CS', 'ALL') AND review_status IN ('DIRECT', 'APPROVED')");
+            return queryMessages(orderId, "AND visibility IN ('DOCTOR', 'DOCTOR_CS', 'ALL') AND review_status IN ('DIRECT', 'APPROVED')", identity);
         }
         if (identity.role() == UserRole.WORKER) {
-            return queryMessages(orderId, "AND visibility IN ('CS_WORKER', 'ALL') AND review_status <> 'REJECTED'");
+            return queryMessages(orderId, "AND visibility IN ('CS_WORKER', 'ALL') AND review_status <> 'REJECTED'", identity);
         }
-        return queryMessages(orderId, "");
+        return queryMessages(orderId, "", identity);
     }
 
     @Transactional
@@ -73,6 +73,8 @@ public class CollaborationService {
             throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "content is required");
         }
         OrderRow order = loadOrder(orderId, identity, "identity cannot access this order");
+        List<MentionableUserResponse> mentionableUsers = loadMentionableUsers(order, identity);
+        List<Long> mentionedUserIds = validateMentionedUserIds(mentionableUsers, request.mentionUserIds(), identity.userId());
         String reviewStatus;
         String visibility;
         if (identity.role() == UserRole.DOCTOR) {
@@ -84,7 +86,7 @@ public class CollaborationService {
             visibility = "ALL";
         } else {
             reviewStatus = "DIRECT";
-            visibility = normalizeOrDefault(request.visibleTo(), "DOCTOR_CS");
+            visibility = resolveInternalMessageVisibility(request.visibleTo(), mentionedUserIds, mentionableUsers);
         }
         jdbcClient.sql("""
                         INSERT INTO order_message
@@ -100,12 +102,16 @@ public class CollaborationService {
                 .param("reviewStatus", reviewStatus)
                 .update();
         long messageId = lastInsertId();
+        persistMentions(messageId, mentionedUserIds);
         if ("PENDING_REVIEW".equals(reviewStatus)) {
             emit(order, "MESSAGE_PENDING_REVIEW", "CS", order.csUserId(), "生产端消息待审核");
         } else if (doctorVisible(visibility)) {
             emit(order, "MESSAGE_RECEIVED", "DOCTOR", order.doctorUserId(), request.content());
         }
-        return loadMessage(messageId);
+        if (!"PENDING_REVIEW".equals(reviewStatus)) {
+            emitMentions(order, mentionedUserIds, request.content());
+        }
+        return loadMessage(messageId, identity);
     }
 
     @Transactional
@@ -155,15 +161,75 @@ public class CollaborationService {
         if ("APPROVED".equals(toStatus) && doctorVisible(message.visibility())) {
             emit(order, "MESSAGE_RECEIVED", "DOCTOR", order.doctorUserId(), content);
         }
+        if ("APPROVED".equals(toStatus)) {
+            emitMentions(order, loadMentionUserIds(messageId), content);
+        }
         if ("REJECTED".equals(toStatus)) {
             emit(order, "MESSAGE_REVIEW_REJECTED", message.senderRole(), message.senderUserId(), "消息审核未通过");
         }
-        return loadMessage(messageId);
+        return loadMessage(messageId, identity);
     }
 
     public List<MessageResponse> pendingMessages(BootstrapIdentity identity) {
         requireCsOrAdmin(identity);
-        return queryMessages(null, "AND review_status = 'PENDING_REVIEW'");
+        return queryMessages(null, "AND review_status = 'PENDING_REVIEW'", identity);
+    }
+
+    public List<MentionableUserResponse> listMentionableUsers(long orderId, BootstrapIdentity identity) {
+        OrderRow order = loadOrder(orderId, identity, "identity cannot access this order");
+        return loadMentionableUsers(order, identity);
+    }
+
+    private List<MentionableUserResponse> loadMentionableUsers(OrderRow order, BootstrapIdentity identity) {
+        String doctorFilter = identity.isDoctor() ? "AND u.user_id = :csUserId" : "";
+        return jdbcClient.sql("""
+                        SELECT DISTINCT u.user_id, u.display_name, u.user_type
+                        FROM system_user u
+                        WHERE u.status = 'ACTIVE'
+                          AND (
+                              u.user_id = :doctorUserId
+                              OR u.user_id = :csUserId
+                              OR EXISTS (
+                                  SELECT 1
+                                  FROM order_process_instance i
+                                  JOIN order_process_node n ON n.instance_id = i.instance_id
+                                  WHERE i.order_id = :orderId
+                                    AND n.assigned_user_id = u.user_id
+                              )
+                          )
+                          %s
+                        ORDER BY u.display_name, u.user_id
+                        """.formatted(doctorFilter))
+                .param("orderId", order.orderId())
+                .param("doctorUserId", order.doctorUserId())
+                .param("csUserId", order.csUserId())
+                .query((rs, rowNum) -> new MentionableUserResponse(
+                        rs.getLong("user_id"),
+                        rs.getString("display_name"),
+                        rs.getString("user_type")))
+                .list();
+    }
+
+    public List<MessageAttentionItemResponse> listAttentionItems(BootstrapIdentity identity) {
+        return queryAttentionItems(identity, null);
+    }
+
+    @Transactional
+    public MessageAttentionItemResponse resolveAttentionItem(long messageId, BootstrapIdentity identity) {
+        MessageAttentionItemResponse item = queryAttentionItems(identity, messageId).stream()
+                .findFirst()
+                .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "unresolved attention item not found"));
+        jdbcClient.sql("""
+                        UPDATE order_message_mention
+                        SET resolved_at = CURRENT_TIMESTAMP(3)
+                        WHERE message_id = :messageId
+                          AND mentioned_user_id = :userId
+                          AND resolved_at IS NULL
+                        """)
+                .param("messageId", messageId)
+                .param("userId", identity.userId())
+                .update();
+        return loadAttentionItem(messageId, identity.userId());
     }
 
     public List<DesignDraftResponse> listDesignDrafts(long orderId, BootstrapIdentity identity) {
@@ -671,7 +737,7 @@ public class CollaborationService {
         }
     }
 
-    private List<MessageResponse> queryMessages(Long orderId, String extraWhere) {
+    private List<MessageResponse> queryMessages(Long orderId, String extraWhere, BootstrapIdentity identity) {
         String orderFilter = orderId == null ? "" : "AND m.order_id = :orderId";
         JdbcClient.StatementSpec spec = jdbcClient.sql("""
                         SELECT m.message_id, m.order_id, o.order_no, o.product_type, o.external_status,
@@ -696,15 +762,178 @@ public class CollaborationService {
                         rs.getString("sender_role"),
                         rs.getString("content"),
                         rs.getString("visibility"),
-                        rs.getString("review_status")))
+                        rs.getString("review_status"),
+                        visibleMentionUserIds(rs.getLong("message_id"), identity)))
                 .list();
     }
 
-    private MessageResponse loadMessage(long messageId) {
+    private MessageResponse loadMessage(long messageId, BootstrapIdentity identity) {
         MessageRow row = loadMessageRow(messageId);
         return new MessageResponse(
                 row.messageId(), row.orderId(), row.orderNo(), row.productType(), row.externalStatus(),
-                row.senderUserId(), row.senderRole(), row.content(), row.visibility(), row.reviewStatus());
+                row.senderUserId(), row.senderRole(), row.content(), row.visibility(), row.reviewStatus(),
+                visibleMentionUserIds(messageId, identity));
+    }
+
+    private List<Long> validateMentionedUserIds(
+            List<MentionableUserResponse> mentionableUsers,
+            List<Long> requestedUserIds,
+            Long senderUserId) {
+        List<Long> normalizedUserIds = normalizeFileIds(requestedUserIds == null ? List.of() : requestedUserIds);
+        if (senderUserId != null) {
+            normalizedUserIds.removeIf(senderUserId::equals);
+        }
+        Set<Long> mentionableUserIds = new LinkedHashSet<>();
+        for (MentionableUserResponse user : mentionableUsers) {
+            mentionableUserIds.add(user.userId());
+        }
+        for (Long userId : normalizedUserIds) {
+            if (!mentionableUserIds.contains(userId)) {
+                throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "mentioned user is not an order participant");
+            }
+        }
+        return normalizedUserIds;
+    }
+
+    private String resolveInternalMessageVisibility(
+            String requestedVisibility,
+            List<Long> mentionedUserIds,
+            List<MentionableUserResponse> mentionableUsers) {
+        if (requestedVisibility != null && !requestedVisibility.isBlank()) {
+            return normalizeOrDefault(requestedVisibility, "DOCTOR_CS");
+        }
+        Set<Long> mentionedUserIdSet = new LinkedHashSet<>(mentionedUserIds);
+        boolean mentionsDoctor = mentionableUsers.stream()
+                .anyMatch(user -> mentionedUserIdSet.contains(user.userId()) && "DOCTOR".equals(user.userRole()));
+        boolean mentionsWorker = mentionableUsers.stream()
+                .anyMatch(user -> mentionedUserIdSet.contains(user.userId()) && "WORKER".equals(user.userRole()));
+        if (mentionsDoctor && mentionsWorker) {
+            return "ALL";
+        }
+        if (mentionsWorker) {
+            return "CS_WORKER";
+        }
+        return "DOCTOR_CS";
+    }
+
+    private void persistMentions(long messageId, List<Long> mentionedUserIds) {
+        for (Long mentionedUserId : mentionedUserIds) {
+            jdbcClient.sql("""
+                            INSERT INTO order_message_mention (message_id, mentioned_user_id)
+                            VALUES (:messageId, :mentionedUserId)
+                            """)
+                    .param("messageId", messageId)
+                    .param("mentionedUserId", mentionedUserId)
+                    .update();
+        }
+    }
+
+    private List<Long> loadMentionUserIds(long messageId) {
+        return jdbcClient.sql("""
+                        SELECT mentioned_user_id
+                        FROM order_message_mention
+                        WHERE message_id = :messageId
+                        ORDER BY mentioned_user_id
+                        """)
+                .param("messageId", messageId)
+                .query(Long.class)
+                .list();
+    }
+
+    private List<Long> visibleMentionUserIds(long messageId, BootstrapIdentity identity) {
+        List<Long> mentionUserIds = loadMentionUserIds(messageId);
+        if (!identity.isDoctor()) {
+            return mentionUserIds;
+        }
+        return mentionUserIds.stream()
+                .filter(userId -> userId.equals(identity.userId()))
+                .toList();
+    }
+
+    private void emitMentions(OrderRow order, List<Long> mentionedUserIds, String content) {
+        for (Long mentionedUserId : mentionedUserIds) {
+            String audienceRole = jdbcClient.sql("""
+                            SELECT user_type
+                            FROM system_user
+                            WHERE user_id = :userId
+                            """)
+                    .param("userId", mentionedUserId)
+                    .query(String.class)
+                    .single();
+            emit(order, "MESSAGE_MENTIONED", audienceRole, mentionedUserId, content);
+        }
+    }
+
+    private List<MessageAttentionItemResponse> queryAttentionItems(BootstrapIdentity identity, Long messageId) {
+        String messageFilter = messageId == null ? "" : "AND mm.message_id = :messageId";
+        String visibilityFilter = attentionVisibilityFilter(identity);
+        JdbcClient.StatementSpec spec = jdbcClient.sql("""
+                        SELECT mm.message_id, m.order_id, o.order_no, m.sender_user_id, m.sender_role, m.content,
+                               mm.mentioned_user_id, m.created_at, mm.resolved_at
+                        FROM order_message_mention mm
+                        JOIN order_message m ON m.message_id = mm.message_id
+                        JOIN orders o ON o.order_id = m.order_id
+                        WHERE mm.mentioned_user_id = :userId
+                          AND mm.resolved_at IS NULL
+                          %s
+                          %s
+                        ORDER BY m.created_at DESC, mm.message_id DESC
+                        """.formatted(messageFilter, visibilityFilter))
+                .param("userId", identity.userId());
+        if (messageId != null) {
+            spec = spec.param("messageId", messageId);
+        }
+        if (identity.isDoctor()) {
+            spec = spec.param("clinicId", identity.clinicId());
+        }
+        return spec.query((rs, rowNum) -> new MessageAttentionItemResponse(
+                        rs.getLong("message_id"),
+                        rs.getLong("order_id"),
+                        rs.getString("order_no"),
+                        rs.getObject("sender_user_id", Long.class),
+                        rs.getString("sender_role"),
+                        rs.getString("content"),
+                        rs.getLong("mentioned_user_id"),
+                        rs.getObject("created_at", LocalDateTime.class),
+                        rs.getObject("resolved_at", LocalDateTime.class)))
+                .list();
+    }
+
+    private String attentionVisibilityFilter(BootstrapIdentity identity) {
+        if (identity.isDoctor()) {
+            return "AND o.doctor_user_id = :userId AND o.clinic_id = :clinicId "
+                    + "AND m.visibility IN ('DOCTOR', 'DOCTOR_CS', 'ALL') "
+                    + "AND m.review_status IN ('DIRECT', 'APPROVED')";
+        }
+        if (identity.role() == UserRole.WORKER) {
+            return "AND m.visibility IN ('CS_WORKER', 'ALL') AND m.review_status <> 'REJECTED'";
+        }
+        return "";
+    }
+
+    private MessageAttentionItemResponse loadAttentionItem(long messageId, Long userId) {
+        return jdbcClient.sql("""
+                        SELECT mm.message_id, m.order_id, o.order_no, m.sender_user_id, m.sender_role, m.content,
+                               mm.mentioned_user_id, m.created_at, mm.resolved_at
+                        FROM order_message_mention mm
+                        JOIN order_message m ON m.message_id = mm.message_id
+                        JOIN orders o ON o.order_id = m.order_id
+                        WHERE mm.message_id = :messageId
+                          AND mm.mentioned_user_id = :userId
+                        """)
+                .param("messageId", messageId)
+                .param("userId", userId)
+                .query((rs, rowNum) -> new MessageAttentionItemResponse(
+                        rs.getLong("message_id"),
+                        rs.getLong("order_id"),
+                        rs.getString("order_no"),
+                        rs.getObject("sender_user_id", Long.class),
+                        rs.getString("sender_role"),
+                        rs.getString("content"),
+                        rs.getLong("mentioned_user_id"),
+                        rs.getObject("created_at", LocalDateTime.class),
+                        rs.getObject("resolved_at", LocalDateTime.class)))
+                .single();
     }
 
     private MessageRow loadMessageRow(long messageId) {

@@ -46,6 +46,7 @@ class MessageDesignBillNotificationTests {
                 .param("clinicName", "协同测试诊所-" + suffix)
                 .update();
         clinicId = jdbcClient.sql("SELECT LAST_INSERT_ID()").query(Long.class).single();
+        ensureMentionUsers();
 
         jdbcClient.sql("""
                         INSERT INTO orders
@@ -76,6 +77,152 @@ class MessageDesignBillNotificationTests {
                 .param("objectKey", "test/collab/" + suffix + ".pdf")
                 .update();
         fileId = jdbcClient.sql("SELECT LAST_INSERT_ID()").query(Long.class).single();
+    }
+
+    @Test
+    void directMentionPersistsAttentionItemAndOnlyMentionedUserCanResolveIt() throws Exception {
+        MvcResult sendResult = mockMvc.perform(post("/orders/{orderId}/messages", orderId)
+                        .header("X-Bootstrap-Role", "CS")
+                        .header("X-Bootstrap-User-Id", CS_USER_ID)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"content\":\"请确认交期\",\"mention_user_ids\":[" + DOCTOR_USER_ID + "]}"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.mention_user_ids[0]").value(DOCTOR_USER_ID))
+                .andReturn();
+        long messageId = extractId(sendResult, "msg_id");
+
+        mockMvc.perform(get("/messages/attention-items")
+                        .header("X-Bootstrap-Role", "DOCTOR")
+                        .header("X-Bootstrap-User-Id", DOCTOR_USER_ID)
+                        .header("X-Bootstrap-Clinic-Id", clinicId))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data[0].message_id").value(messageId))
+                .andExpect(jsonPath("$.data[0].mention_user_id").value(DOCTOR_USER_ID));
+
+        mockMvc.perform(post("/messages/attention-items/{messageId}/resolve", messageId)
+                        .header("X-Bootstrap-Role", "DOCTOR")
+                        .header("X-Bootstrap-User-Id", DOCTOR_USER_ID)
+                        .header("X-Bootstrap-Clinic-Id", clinicId))
+                .andExpect(status().isOk());
+
+        mockMvc.perform(get("/messages/attention-items")
+                        .header("X-Bootstrap-Role", "DOCTOR")
+                        .header("X-Bootstrap-User-Id", DOCTOR_USER_ID)
+                        .header("X-Bootstrap-Clinic-Id", clinicId))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data").isEmpty());
+    }
+
+    @Test
+    void doctorCanOnlyMentionCsAndNeverReceivesWorkerMentionIds() throws Exception {
+        mockMvc.perform(get("/orders/{orderId}/message-mentionable-users", orderId)
+                        .header("X-Bootstrap-Role", "DOCTOR")
+                        .header("X-Bootstrap-User-Id", DOCTOR_USER_ID)
+                        .header("X-Bootstrap-Clinic-Id", clinicId))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.length()").value(1))
+                .andExpect(jsonPath("$.data[0].user_id").value(CS_USER_ID));
+
+        mockMvc.perform(post("/orders/{orderId}/messages", orderId)
+                        .header("X-Bootstrap-Role", "DOCTOR")
+                        .header("X-Bootstrap-User-Id", DOCTOR_USER_ID)
+                        .header("X-Bootstrap-Clinic-Id", clinicId)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"content\":\"请生产确认\",\"mention_user_ids\":[" + WORKER_USER_ID + "]}"))
+                .andExpect(status().isBadRequest());
+
+        mockMvc.perform(post("/orders/{orderId}/messages", orderId)
+                        .header("X-Bootstrap-Role", "CS")
+                        .header("X-Bootstrap-User-Id", CS_USER_ID)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"content\":\"内部生产确认\",\"visible_to\":\"ALL\",\"mention_user_ids\":[" + WORKER_USER_ID + "]}"))
+                .andExpect(status().isOk());
+
+        mockMvc.perform(get("/orders/{orderId}/messages", orderId)
+                        .header("X-Bootstrap-Role", "DOCTOR")
+                        .header("X-Bootstrap-User-Id", DOCTOR_USER_ID)
+                        .header("X-Bootstrap-Clinic-Id", clinicId))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data[0].mention_user_ids").isEmpty());
+    }
+
+    @Test
+    void csMentionDefaultsKeepEveryMentionedRecipientAbleToSeeTheMessage() throws Exception {
+        mockMvc.perform(post("/orders/{orderId}/messages", orderId)
+                        .header("X-Bootstrap-Role", "CS")
+                        .header("X-Bootstrap-User-Id", CS_USER_ID)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"content\":\"生产确认\",\"mention_user_ids\":[" + WORKER_USER_ID + "]}"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.visible_to").value("CS_WORKER"));
+
+        mockMvc.perform(post("/orders/{orderId}/messages", orderId)
+                        .header("X-Bootstrap-Role", "CS")
+                        .header("X-Bootstrap-User-Id", CS_USER_ID)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"content\":\"全员确认\",\"mention_user_ids\":[" + DOCTOR_USER_ID + "," + WORKER_USER_ID + "]}"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.visible_to").value("ALL"));
+    }
+
+    @Test
+    void workerMentionOfDoctorCreatesNoDoctorAttentionOrMentionNotificationBeforeApproval() throws Exception {
+        MvcResult sendResult = mockMvc.perform(post("/orders/{orderId}/messages", orderId)
+                        .header("X-Bootstrap-Role", "WORKER")
+                        .header("X-Bootstrap-User-Id", WORKER_USER_ID)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"content\":\"请医生确认修复方案\",\"mention_user_ids\":[" + DOCTOR_USER_ID + "]}"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.review_status").value("PENDING_REVIEW"))
+                .andReturn();
+        long messageId = extractId(sendResult, "msg_id");
+
+        assertThat(notificationCount("MESSAGE_MENTIONED", "DOCTOR")).isZero();
+        mockMvc.perform(get("/messages/attention-items")
+                        .header("X-Bootstrap-Role", "DOCTOR")
+                        .header("X-Bootstrap-User-Id", DOCTOR_USER_ID)
+                        .header("X-Bootstrap-Clinic-Id", clinicId))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data").isEmpty());
+
+        mockMvc.perform(post("/messages/{msgId}/review", messageId)
+                        .header("X-Bootstrap-Role", "CS")
+                        .header("X-Bootstrap-User-Id", CS_USER_ID)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"action\":\"APPROVE\"}"))
+                .andExpect(status().isOk());
+
+        assertThat(notificationCount("MESSAGE_MENTIONED", "DOCTOR")).isEqualTo(1L);
+        mockMvc.perform(get("/messages/attention-items")
+                        .header("X-Bootstrap-Role", "DOCTOR")
+                        .header("X-Bootstrap-User-Id", DOCTOR_USER_ID)
+                        .header("X-Bootstrap-Clinic-Id", clinicId))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data[0].message_id").value(messageId));
+    }
+
+    @Test
+    void userWhoWasNotMentionedCannotResolveAnotherUsersAttentionItem() throws Exception {
+        MvcResult sendResult = mockMvc.perform(post("/orders/{orderId}/messages", orderId)
+                        .header("X-Bootstrap-Role", "CS")
+                        .header("X-Bootstrap-User-Id", CS_USER_ID)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"content\":\"仅医生处理\",\"mention_user_ids\":[" + DOCTOR_USER_ID + "]}"))
+                .andExpect(status().isOk())
+                .andReturn();
+        long messageId = extractId(sendResult, "msg_id");
+
+        mockMvc.perform(post("/messages/attention-items/{messageId}/resolve", messageId)
+                        .header("X-Bootstrap-Role", "WORKER")
+                        .header("X-Bootstrap-User-Id", WORKER_USER_ID))
+                .andExpect(status().isNotFound());
+
+        mockMvc.perform(get("/messages/attention-items")
+                        .header("X-Bootstrap-Role", "DOCTOR")
+                        .header("X-Bootstrap-User-Id", DOCTOR_USER_ID)
+                        .header("X-Bootstrap-Clinic-Id", clinicId))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data[0].message_id").value(messageId));
     }
 
     @Test
@@ -499,6 +646,27 @@ class MessageDesignBillNotificationTests {
                 .param("audienceRole", audienceRole)
                 .query(Long.class)
                 .single();
+    }
+
+    private void ensureMentionUsers() {
+        insertMentionUser(CS_USER_ID, "collab-cs", "CS");
+        insertMentionUser(WORKER_USER_ID, "collab-worker", "WORKER");
+        insertMentionUser(DOCTOR_USER_ID, "collab-doctor", "DOCTOR");
+        insertMentionUser(OTHER_DOCTOR_USER_ID, "collab-other-doctor", "DOCTOR");
+    }
+
+    private void insertMentionUser(long userId, String username, String userType) {
+        jdbcClient.sql("""
+                        INSERT IGNORE INTO system_user
+                            (user_id, username, password_hash, display_name, user_type, status)
+                        VALUES
+                            (:userId, :username, 'test-password-hash', :displayName, :userType, 'ACTIVE')
+                        """)
+                .param("userId", userId)
+                .param("username", username)
+                .param("displayName", username)
+                .param("userType", userType)
+                .update();
     }
 
     private String latestNotificationPayload(String eventType, String audienceRole) {
