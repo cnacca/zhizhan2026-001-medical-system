@@ -89,6 +89,15 @@ public class WorkflowExecutionController {
         return new DataResponse<>(workflowExecutionService.getProductionQualitySummary(productType, identity));
     }
 
+    @GetMapping("/production/workbench/department-summary")
+    @RequirePermission(value = "check:read-internal", roles = {UserRole.ADMIN, UserRole.CS, UserRole.WORKER})
+    public DataResponse<ProductionWorkbenchDepartmentSummaryResponse> getProductionWorkbenchDepartmentSummary(
+            BootstrapIdentity identity,
+            @RequestParam(name = "order_no_prefix", required = false) String orderNoPrefix) {
+        return new DataResponse<>(
+                workflowExecutionService.getProductionWorkbenchDepartmentSummary(orderNoPrefix, identity));
+    }
+
     @GetMapping("/production/equipment/summary")
     @RequirePermission(value = "check:read-internal", roles = {UserRole.ADMIN, UserRole.CS, UserRole.WORKER})
     public DataResponse<ProductionEquipmentSummaryResponse> getProductionEquipmentSummary(

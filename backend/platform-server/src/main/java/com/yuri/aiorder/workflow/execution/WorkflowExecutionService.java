@@ -8,10 +8,19 @@ import com.yuri.aiorder.common.auth.AccessControlService;
 import com.yuri.aiorder.notification.NotificationPushService;
 import java.math.BigDecimal;
 import java.math.RoundingMode;
+import java.sql.ResultSet;
+import java.sql.SQLException;
 import java.time.LocalDate;
 import java.time.LocalDateTime;
+import java.time.YearMonth;
+import java.time.ZoneId;
+import java.util.ArrayList;
+import java.util.Comparator;
+import java.util.HashMap;
+import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Locale;
+import java.util.Map;
 import java.util.Set;
 import org.springframework.dao.EmptyResultDataAccessException;
 import org.springframework.dao.DuplicateKeyException;
@@ -25,6 +34,21 @@ import org.springframework.web.server.ResponseStatusException;
 public class WorkflowExecutionService {
 
     private static final String PERFORMANCE_FORMULA_VERSION = "PHASE_ONE_DEFAULT_V1";
+    private static final ZoneId WORKBENCH_ZONE = ZoneId.of("Asia/Shanghai");
+    private static final List<WorkbenchDepartmentDefinition> WORKBENCH_DEPARTMENTS = List.of(
+            new WorkbenchDepartmentDefinition("DATA_REVIEW", "数据处理", "Data Review", 10),
+            new WorkbenchDepartmentDefinition("CAD", "CAD", "Design", 20),
+            new WorkbenchDepartmentDefinition("IMPLANT", "种植", "Implant", 30),
+            new WorkbenchDepartmentDefinition("MILLING", "车金切削", "Milling", 40),
+            new WorkbenchDepartmentDefinition("PRINTING_3D", "3D打印", "3D Printing", 50),
+            new WorkbenchDepartmentDefinition("PORCELAIN", "车瓷", "Porcelain", 60),
+            new WorkbenchDepartmentDefinition("STAINING", "上瓷上釉", "Staining", 70),
+            new WorkbenchDepartmentDefinition("STEEL_FRAMEWORK", "钢托", "Steel Framework", 80),
+            new WorkbenchDepartmentDefinition("ACRYLIC", "胶托", "Acrylic", 90),
+            new WorkbenchDepartmentDefinition("FLEXIBLE", "隐形", "Flexible", 100),
+            new WorkbenchDepartmentDefinition("ORTHO", "正畸", "Ortho", 110),
+            new WorkbenchDepartmentDefinition("QC", "质检", "QC", 120),
+            new WorkbenchDepartmentDefinition("DISPATCH", "包装出货", "Dispatch", 130));
 
     private static final TypeReference<List<Long>> LONG_LIST_TYPE = new TypeReference<>() {
     };
@@ -368,6 +392,384 @@ public class WorkflowExecutionService {
                 0.0,
                 0.0,
                 LocalDateTime.now());
+    }
+
+    public ProductionWorkbenchDepartmentSummaryResponse getProductionWorkbenchDepartmentSummary(
+            String orderNoPrefix, BootstrapIdentity identity) {
+        accessControlService.requireCheckRecordRead(identity);
+        String normalizedOrderNoPrefix = blankToNull(orderNoPrefix);
+        LocalDate today = LocalDate.now(WORKBENCH_ZONE);
+        LocalDateTime tomorrowStart = today.plusDays(1).atStartOfDay();
+        YearMonth lastMonth = YearMonth.from(today).minusMonths(1);
+        LocalDateTime lastMonthStart = lastMonth.atDay(1).atStartOfDay();
+        YearMonth currentMonth = YearMonth.from(today);
+
+        Map<String, WorkbenchDepartmentAccumulator> departments = newWorkbenchDepartmentAccumulators();
+        loadWorkbenchCompletedWorkLogs(normalizedOrderNoPrefix, lastMonthStart, tomorrowStart, departments);
+        loadWorkbenchCompletedNodes(normalizedOrderNoPrefix, lastMonthStart, tomorrowStart, departments);
+        loadWorkbenchReworks(normalizedOrderNoPrefix, lastMonthStart, tomorrowStart, departments);
+        loadWorkbenchActiveNodes(normalizedOrderNoPrefix, departments);
+
+        List<ProductionWorkbenchDepartmentSummaryResponse.DepartmentRow> rows = WORKBENCH_DEPARTMENTS.stream()
+                .sorted(Comparator.comparingInt(WorkbenchDepartmentDefinition::displayOrder))
+                .map(department -> buildWorkbenchDepartmentRow(
+                        department,
+                        departments.get(department.key()),
+                        today,
+                        lastMonth,
+                        currentMonth))
+                .toList();
+        List<LocalDate> trendDates = new ArrayList<>();
+        for (int index = 6; index >= 0; index--) {
+            trendDates.add(today.minusDays(index));
+        }
+        List<ProductionWorkbenchDepartmentSummaryResponse.DepartmentTrend> trends = new ArrayList<>();
+        trends.add(buildAllWorkbenchTrend(departments, trendDates, today));
+        WORKBENCH_DEPARTMENTS.stream()
+                .sorted(Comparator.comparingInt(WorkbenchDepartmentDefinition::displayOrder))
+                .map(department -> buildWorkbenchTrend(department, departments.get(department.key()), trendDates, today))
+                .forEach(trends::add);
+
+        return new ProductionWorkbenchDepartmentSummaryResponse(
+                LocalDateTime.now(WORKBENCH_ZONE),
+                today,
+                lastMonth.toString(),
+                rows,
+                List.of(
+                        new ProductionWorkbenchDepartmentSummaryResponse.TrendMetric("completion_rate", "完成率"),
+                        new ProductionWorkbenchDepartmentSummaryResponse.TrendMetric("rework_rate", "返工率"),
+                        new ProductionWorkbenchDepartmentSummaryResponse.TrendMetric("shipping_rate", "出货率")),
+                trends);
+    }
+
+    private Map<String, WorkbenchDepartmentAccumulator> newWorkbenchDepartmentAccumulators() {
+        Map<String, WorkbenchDepartmentAccumulator> departments = new LinkedHashMap<>();
+        WORKBENCH_DEPARTMENTS.forEach(department ->
+                departments.put(department.key(), new WorkbenchDepartmentAccumulator()));
+        return departments;
+    }
+
+    private void loadWorkbenchCompletedWorkLogs(
+            String orderNoPrefix,
+            LocalDateTime startAt,
+            LocalDateTime endExclusive,
+            Map<String, WorkbenchDepartmentAccumulator> departments) {
+        String orderClause = orderNoPrefix == null ? "" : " AND o.order_no LIKE :orderNoPattern\n";
+        JdbcClient.StatementSpec spec = jdbcClient.sql("""
+                        SELECT
+                            COALESCE(n.stage_name, '') AS stage_name,
+                            COALESCE(n.process_name, '') AS process_name,
+                            COALESCE(n.node_category, '') AS node_category,
+                            DATE(w.finished_at) AS production_date,
+                            COUNT(*) AS item_count
+                        FROM work_log w
+                        JOIN orders o ON o.order_id = w.order_id
+                        JOIN order_process_node n ON n.node_instance_id = w.node_instance_id
+                        WHERE w.status = 'COMPLETED'
+                          AND w.finished_at >= :startAt
+                          AND w.finished_at < :endExclusive
+                        """ + orderClause + """
+                        GROUP BY n.stage_name, n.process_name, n.node_category, DATE(w.finished_at)
+                        """)
+                .param("startAt", startAt)
+                .param("endExclusive", endExclusive);
+        if (orderNoPrefix != null) {
+            spec = spec.param("orderNoPattern", orderNoPrefix + "%");
+        }
+        spec.query((rs, rowNum) -> {
+                    WorkbenchDepartmentAccumulator accumulator = departments.get(workbenchDepartmentKey(rs));
+                    accumulator.day(rs.getDate("production_date").toLocalDate()).completedWorkLogs += rs.getLong("item_count");
+                    return null;
+                })
+                .list();
+    }
+
+    private void loadWorkbenchCompletedNodes(
+            String orderNoPrefix,
+            LocalDateTime startAt,
+            LocalDateTime endExclusive,
+            Map<String, WorkbenchDepartmentAccumulator> departments) {
+        String orderClause = orderNoPrefix == null ? "" : " AND o.order_no LIKE :orderNoPattern\n";
+        JdbcClient.StatementSpec spec = jdbcClient.sql("""
+                        SELECT
+                            COALESCE(n.stage_name, '') AS stage_name,
+                            COALESCE(n.process_name, '') AS process_name,
+                            COALESCE(n.node_category, '') AS node_category,
+                            DATE(n.completed_at) AS production_date,
+                            COUNT(*) AS item_count
+                        FROM order_process_node n
+                        JOIN order_process_instance pi ON pi.instance_id = n.instance_id
+                        JOIN orders o ON o.order_id = pi.order_id
+                        WHERE n.completed_at IS NOT NULL
+                          AND n.completed_at >= :startAt
+                          AND n.completed_at < :endExclusive
+                        """ + orderClause + """
+                        GROUP BY n.stage_name, n.process_name, n.node_category, DATE(n.completed_at)
+                        """)
+                .param("startAt", startAt)
+                .param("endExclusive", endExclusive);
+        if (orderNoPrefix != null) {
+            spec = spec.param("orderNoPattern", orderNoPrefix + "%");
+        }
+        spec.query((rs, rowNum) -> {
+                    WorkbenchDepartmentAccumulator accumulator = departments.get(workbenchDepartmentKey(rs));
+                    accumulator.day(rs.getDate("production_date").toLocalDate()).completedNodes += rs.getLong("item_count");
+                    return null;
+                })
+                .list();
+    }
+
+    private void loadWorkbenchReworks(
+            String orderNoPrefix,
+            LocalDateTime startAt,
+            LocalDateTime endExclusive,
+            Map<String, WorkbenchDepartmentAccumulator> departments) {
+        String orderClause = orderNoPrefix == null ? "" : " AND o.order_no LIKE :orderNoPattern\n";
+        JdbcClient.StatementSpec spec = jdbcClient.sql("""
+                        SELECT
+                            COALESCE(n.stage_name, '') AS stage_name,
+                            COALESCE(n.process_name, '') AS process_name,
+                            COALESCE(n.node_category, '') AS node_category,
+                            DATE(r.created_at) AS production_date,
+                            COUNT(*) AS item_count
+                        FROM rework_record r
+                        JOIN orders o ON o.order_id = r.order_id
+                        JOIN order_process_node n
+                          ON n.node_instance_id = COALESCE(r.target_node_instance_id, r.from_node_instance_id)
+                        WHERE r.created_at >= :startAt
+                          AND r.created_at < :endExclusive
+                        """ + orderClause + """
+                        GROUP BY n.stage_name, n.process_name, n.node_category, DATE(r.created_at)
+                        """)
+                .param("startAt", startAt)
+                .param("endExclusive", endExclusive);
+        if (orderNoPrefix != null) {
+            spec = spec.param("orderNoPattern", orderNoPrefix + "%");
+        }
+        spec.query((rs, rowNum) -> {
+                    WorkbenchDepartmentAccumulator accumulator = departments.get(workbenchDepartmentKey(rs));
+                    accumulator.day(rs.getDate("production_date").toLocalDate()).reworkCount += rs.getLong("item_count");
+                    return null;
+                })
+                .list();
+    }
+
+    private void loadWorkbenchActiveNodes(
+            String orderNoPrefix,
+            Map<String, WorkbenchDepartmentAccumulator> departments) {
+        String orderClause = orderNoPrefix == null ? "" : " AND o.order_no LIKE :orderNoPattern\n";
+        JdbcClient.StatementSpec spec = jdbcClient.sql("""
+                        SELECT
+                            COALESCE(n.stage_name, '') AS stage_name,
+                            COALESCE(n.process_name, '') AS process_name,
+                            COALESCE(n.node_category, '') AS node_category,
+                            COUNT(*) AS item_count
+                        FROM order_process_node n
+                        JOIN order_process_instance pi ON pi.instance_id = n.instance_id
+                        JOIN orders o ON o.order_id = pi.order_id
+                        WHERE n.node_status IN ('READY', 'IN_PROGRESS')
+                        """ + orderClause + """
+                        GROUP BY n.stage_name, n.process_name, n.node_category
+                        """);
+        if (orderNoPrefix != null) {
+            spec = spec.param("orderNoPattern", orderNoPrefix + "%");
+        }
+        spec.query((rs, rowNum) -> {
+                    WorkbenchDepartmentAccumulator accumulator = departments.get(workbenchDepartmentKey(rs));
+                    accumulator.activeNodes += rs.getLong("item_count");
+                    return null;
+                })
+                .list();
+    }
+
+    private ProductionWorkbenchDepartmentSummaryResponse.DepartmentRow buildWorkbenchDepartmentRow(
+            WorkbenchDepartmentDefinition department,
+            WorkbenchDepartmentAccumulator accumulator,
+            LocalDate today,
+            YearMonth lastMonth,
+            YearMonth currentMonth) {
+        WorkbenchDayStats todayStats = accumulator.day(today);
+        long todayTaskCount = todayStats.completedWorkLogs + accumulator.activeNodes;
+        double todayCompletionRate = percentage(todayStats.completedWorkLogs, todayTaskCount);
+        double todayReworkRate = percentage(todayStats.reworkCount, todayStats.completedWorkLogs);
+        double todayShippingRate = percentage(todayStats.completedNodes, todayTaskCount);
+        long lastMonthCompleted = accumulator.completedWorkLogs(lastMonth);
+        long lastMonthCompletedDays = accumulator.completedWorkLogDays(lastMonth);
+        long lastMonthDailyAverage = lastMonthCompletedDays == 0
+                ? 0
+                : Math.round(lastMonthCompleted / (double) lastMonthCompletedDays);
+        double lastMonthReworkRate = percentage(accumulator.reworkCount(lastMonth), lastMonthCompleted);
+        double lastMonthShippingRate = percentage(accumulator.completedNodes(lastMonth), lastMonthCompleted);
+        WorkbenchStatus status = resolveWorkbenchStatus(
+                todayCompletionRate,
+                todayReworkRate,
+                lastMonthReworkRate,
+                todayShippingRate,
+                lastMonthShippingRate,
+                todayTaskCount,
+                accumulator.completedWorkLogs(currentMonth));
+
+        return new ProductionWorkbenchDepartmentSummaryResponse.DepartmentRow(
+                department.key(),
+                department.name(),
+                department.subtitle(),
+                department.displayOrder(),
+                todayTaskCount,
+                lastMonthDailyAverage,
+                todayCompletionRate,
+                todayReworkRate,
+                lastMonthReworkRate,
+                todayShippingRate,
+                lastMonthShippingRate,
+                status.code(),
+                status.label());
+    }
+
+    private ProductionWorkbenchDepartmentSummaryResponse.DepartmentTrend buildAllWorkbenchTrend(
+            Map<String, WorkbenchDepartmentAccumulator> departments,
+            List<LocalDate> dates,
+            LocalDate today) {
+        List<ProductionWorkbenchDepartmentSummaryResponse.TrendPoint> points = dates.stream()
+                .map(date -> {
+                    WorkbenchDayStats stats = new WorkbenchDayStats();
+                    long activeNodes = 0;
+                    for (WorkbenchDepartmentAccumulator accumulator : departments.values()) {
+                        WorkbenchDayStats departmentStats = accumulator.day(date);
+                        stats.completedWorkLogs += departmentStats.completedWorkLogs;
+                        stats.completedNodes += departmentStats.completedNodes;
+                        stats.reworkCount += departmentStats.reworkCount;
+                        activeNodes += accumulator.activeNodes;
+                    }
+                    return buildWorkbenchTrendPoint(date, stats, date.equals(today) ? activeNodes : 0);
+                })
+                .toList();
+        return new ProductionWorkbenchDepartmentSummaryResponse.DepartmentTrend("ALL", "全部部门", points);
+    }
+
+    private ProductionWorkbenchDepartmentSummaryResponse.DepartmentTrend buildWorkbenchTrend(
+            WorkbenchDepartmentDefinition department,
+            WorkbenchDepartmentAccumulator accumulator,
+            List<LocalDate> dates,
+            LocalDate today) {
+        List<ProductionWorkbenchDepartmentSummaryResponse.TrendPoint> points = dates.stream()
+                .map(date -> buildWorkbenchTrendPoint(
+                        date,
+                        accumulator.day(date),
+                        date.equals(today) ? accumulator.activeNodes : 0))
+                .toList();
+        return new ProductionWorkbenchDepartmentSummaryResponse.DepartmentTrend(
+                department.key(), department.name(), points);
+    }
+
+    private ProductionWorkbenchDepartmentSummaryResponse.TrendPoint buildWorkbenchTrendPoint(
+            LocalDate date,
+            WorkbenchDayStats stats,
+            long activeNodes) {
+        long taskCount = stats.completedWorkLogs + activeNodes;
+        return new ProductionWorkbenchDepartmentSummaryResponse.TrendPoint(
+                date,
+                percentage(stats.completedWorkLogs, taskCount),
+                percentage(stats.reworkCount, stats.completedWorkLogs),
+                percentage(stats.completedNodes, taskCount));
+    }
+
+    private WorkbenchStatus resolveWorkbenchStatus(
+            double completionRate,
+            double todayReworkRate,
+            double lastMonthReworkRate,
+            double todayShippingRate,
+            double lastMonthShippingRate,
+            long todayTaskCount,
+            long currentMonthCompleted) {
+        if (todayTaskCount == 0 && currentMonthCompleted == 0) {
+            return new WorkbenchStatus("NORMAL", "正常");
+        }
+        int severity = 0;
+        if (completionRate < 60.0) {
+            severity = Math.max(severity, 3);
+        } else if (completionRate < 70.0) {
+            severity = Math.max(severity, 2);
+        } else if (completionRate < 80.0) {
+            severity = Math.max(severity, 1);
+        }
+        if (lastMonthReworkRate > 0.0) {
+            if (todayReworkRate >= lastMonthReworkRate * 2.0) {
+                severity = Math.max(severity, 3);
+            } else if (todayReworkRate >= lastMonthReworkRate * 1.5) {
+                severity = Math.max(severity, 2);
+            } else if (todayReworkRate > lastMonthReworkRate) {
+                severity = Math.max(severity, 1);
+            }
+        } else if (todayReworkRate > 0.0) {
+            severity = Math.max(severity, 1);
+        }
+        double shippingDrop = lastMonthShippingRate - todayShippingRate;
+        if (shippingDrop > 10.0) {
+            severity = Math.max(severity, 3);
+        } else if (shippingDrop > 5.0) {
+            severity = Math.max(severity, 2);
+        } else if (shippingDrop > 0.0) {
+            severity = Math.max(severity, 1);
+        }
+        return switch (severity) {
+            case 3 -> new WorkbenchStatus("RISK", "风险");
+            case 2 -> new WorkbenchStatus("DISPATCH", "调度");
+            case 1 -> new WorkbenchStatus("ATTENTION", "关注");
+            default -> new WorkbenchStatus("NORMAL", "正常");
+        };
+    }
+
+    private String workbenchDepartmentKey(ResultSet rs) throws SQLException {
+        return workbenchDepartmentKey(
+                rs.getString("stage_name"),
+                rs.getString("process_name"),
+                rs.getString("node_category"));
+    }
+
+    private String workbenchDepartmentKey(String stageName, String processName, String nodeCategory) {
+        String text = ((stageName == null ? "" : stageName)
+                        + " "
+                        + (processName == null ? "" : processName)
+                        + " "
+                        + (nodeCategory == null ? "" : nodeCategory))
+                .toUpperCase(Locale.ROOT);
+        if (text.contains("质检") || text.contains("检验") || text.contains("终检") || text.contains("CHECK")) {
+            return "QC";
+        }
+        if (text.contains("发货") || text.contains("出货") || text.contains("物流") || text.contains("包装")) {
+            return "DISPATCH";
+        }
+        if (text.contains("3D") || text.contains("打印")) {
+            return "PRINTING_3D";
+        }
+        if (text.contains("种植") || text.contains("IMPLANT")) {
+            return "IMPLANT";
+        }
+        if (text.contains("钢托") || text.contains("钢架") || text.contains("STEEL")) {
+            return "STEEL_FRAMEWORK";
+        }
+        if (text.contains("胶托") || text.contains("ACRYLIC")) {
+            return "ACRYLIC";
+        }
+        if (text.contains("隐形") || text.contains("FLEXIBLE")) {
+            return "FLEXIBLE";
+        }
+        if (text.contains("正畸") || text.contains("ORTHO")) {
+            return "ORTHO";
+        }
+        if (text.contains("车瓷") || text.contains("PORCELAIN")) {
+            return "PORCELAIN";
+        }
+        if (text.contains("上瓷") || text.contains("上釉") || text.contains("烧结") || text.contains("STAIN")) {
+            return "STAINING";
+        }
+        if (text.contains("车金") || text.contains("切削") || text.contains("研磨") || text.contains("MILL")) {
+            return "MILLING";
+        }
+        if (text.contains("CAD") || text.contains("设计") || text.contains("排版") || text.contains("DESIGN")) {
+            return "CAD";
+        }
+        return "DATA_REVIEW";
     }
 
     public ProductionEquipmentSummaryResponse getProductionEquipmentSummary(
@@ -2733,6 +3135,59 @@ public class WorkflowExecutionService {
             long internalReworkCount,
             long externalReworkCount,
             long unclassifiedReworkCount) {
+    }
+
+    private record WorkbenchDepartmentDefinition(
+            String key,
+            String name,
+            String subtitle,
+            int displayOrder) {
+    }
+
+    private record WorkbenchStatus(String code, String label) {
+    }
+
+    private static final class WorkbenchDepartmentAccumulator {
+        private final Map<LocalDate, WorkbenchDayStats> days = new HashMap<>();
+        private long activeNodes;
+
+        private WorkbenchDayStats day(LocalDate date) {
+            return days.computeIfAbsent(date, ignored -> new WorkbenchDayStats());
+        }
+
+        private long completedWorkLogs(YearMonth month) {
+            return days.entrySet().stream()
+                    .filter(entry -> YearMonth.from(entry.getKey()).equals(month))
+                    .mapToLong(entry -> entry.getValue().completedWorkLogs)
+                    .sum();
+        }
+
+        private long completedWorkLogDays(YearMonth month) {
+            return days.entrySet().stream()
+                    .filter(entry -> YearMonth.from(entry.getKey()).equals(month))
+                    .filter(entry -> entry.getValue().completedWorkLogs > 0)
+                    .count();
+        }
+
+        private long completedNodes(YearMonth month) {
+            return days.entrySet().stream()
+                    .filter(entry -> YearMonth.from(entry.getKey()).equals(month))
+                    .mapToLong(entry -> entry.getValue().completedNodes)
+                    .sum();
+        }
+
+        private long reworkCount(YearMonth month) {
+            return days.entrySet().stream()
+                    .filter(entry -> YearMonth.from(entry.getKey()).equals(month))
+                    .mapToLong(entry -> entry.getValue().reworkCount)
+                    .sum();
+        }
+    }
+
+    private static final class WorkbenchDayStats {
+        private long completedWorkLogs;
+        private long completedNodes;
+        private long reworkCount;
     }
 
     private record EquipmentSummaryRow(

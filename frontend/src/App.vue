@@ -741,6 +741,27 @@ type ProductionQualitySummaryResponse = {
   generated_at: string
 }
 
+type ProductionWorkbenchDepartmentStatus = 'NORMAL' | 'ATTENTION' | 'DISPATCH' | 'RISK'
+
+type ProductionWorkbenchDepartmentRow = {
+  department_key: string
+  department_name: string
+  department_subtitle: string
+  display_order: number
+  today_completion_rate: number
+  today_rework_rate: number
+  last_month_rework_rate: number
+  status: ProductionWorkbenchDepartmentStatus
+  status_label: string
+}
+
+type ProductionWorkbenchDepartmentSummaryResponse = {
+  generated_at: string
+  departments: ProductionWorkbenchDepartmentRow[]
+  trend_metrics: Array<{ key: 'completion_rate' | 'rework_rate' | 'shipping_rate'; label: string }>
+  trends: Array<{ department_key: string; department_name: string; points: Array<{ date: string; completion_rate: number; rework_rate: number; shipping_rate: number }> }>
+}
+
 type QualityRecordResponse = {
   quality_record_id: number
   quality_record_type: string
@@ -1477,6 +1498,10 @@ const staffWorkloadError = ref('')
 const productionQualitySummary = ref<ProductionQualitySummaryResponse | null>(null)
 const productionQualitySummaryLoading = ref(false)
 const productionQualitySummaryError = ref('')
+const productionWorkbenchDepartmentSummary = ref<ProductionWorkbenchDepartmentSummaryResponse | null>(null)
+const selectedProductionWorkbenchDepartmentKey = ref('')
+const showAllProductionWorkbenchDepartments = ref(false)
+const selectedProductionWorkbenchTrendMetric = ref<'completion_rate' | 'rework_rate' | 'shipping_rate'>('completion_rate')
 const qualityRecords = ref<QualityRecordResponse[]>([])
 const qualityRecordTotal = ref(0)
 const qualityRecordOrderId = ref('')
@@ -2477,6 +2502,29 @@ const phaseOneAbProductionDashboardStats = computed(() => {
     externalReworkRate: qualitySummary?.external_rework_rate ?? 0
   }
 })
+const productionWorkbenchDepartments = computed(() =>
+  [...(productionWorkbenchDepartmentSummary.value?.departments ?? [])]
+    .sort((left, right) => left.display_order - right.display_order)
+)
+const visibleProductionWorkbenchDepartments = computed(() =>
+  showAllProductionWorkbenchDepartments.value
+    ? productionWorkbenchDepartments.value
+    : productionWorkbenchDepartments.value.slice(0, 6)
+)
+const selectedProductionWorkbenchTrend = computed(() =>
+  productionWorkbenchDepartmentSummary.value?.trends.find((trend) => trend.department_key === selectedProductionWorkbenchDepartmentKey.value)
+  ?? productionWorkbenchDepartmentSummary.value?.trends.find((trend) => trend.department_key === 'ALL')
+)
+const selectedProductionWorkbenchTrendPoints = computed(() => selectedProductionWorkbenchTrend.value?.points ?? [])
+const productionWorkbenchTrendSvgPoints = computed(() => selectedProductionWorkbenchTrendPoints.value.map((point, index, points) => {
+  const value = point[selectedProductionWorkbenchTrendMetric.value]
+  const x = 42 + (index / Math.max(points.length - 1, 1)) * 678
+  const y = 170 - Math.min(Math.max(value, 0), 100) * 1.3
+  return `${x.toFixed(1)},${y.toFixed(1)}`
+}).join(' '))
+function selectProductionWorkbenchDepartment(departmentKey: string) {
+  selectedProductionWorkbenchDepartmentKey.value = departmentKey
+}
 const phaseOneAbDashboardSourceNote = computed(() => {
   if (phaseOneAbDashboardDataError.value) {
     return phaseOneAbDashboardDataError.value
@@ -2616,9 +2664,9 @@ const prototypeDashboards = computed<Record<PortalTone, PrototypeDashboard>>(() 
       ]
     },
     production: {
-      greeting: '生产仪表盘',
-      subtitle: '生产统计基础版：异常、待问、部门对比、返工和出货完成情况集中查看。',
-      syncBanner: `医生端与客服端实时同步：${phaseOneAbProductionDashboardStats.value.productionExceptionCount} 单生产异常跟进中，${phaseOneAbProductionDashboardStats.value.pendingQuestionCount} 单等待确认，数据来源为本地既有接口第一增量。`,
+      greeting: '今日生产',
+      subtitle: '异常、返工、设备、物料和出货按当前队列汇总。',
+      syncBanner: `生产播报：异常 ${phaseOneAbProductionDashboardStats.value.productionExceptionCount} 单 · 待确认 ${phaseOneAbProductionDashboardStats.value.pendingQuestionCount} 单 · 返工未关闭 ${phaseOneAbProductionDashboardStats.value.totalReworkCount} 条 · 设备待处理 ${phaseOneAbProductionDashboardStats.value.equipmentExceptionCount} 项`,
       primaryAction: {
         title: '查看生产看板',
         detail: '按工序队列查看订单状态',
@@ -2629,63 +2677,45 @@ const prototypeDashboards = computed<Record<PortalTone, PrototypeDashboard>>(() 
         navId: 'production-orders'
       },
       metrics: [
-        { title: '生产异常', value: String(phaseOneAbProductionDashboardStats.value.productionExceptionCount), note: '复用 /orders 列表当前生产状态', icon: 'process', tone: 'teal' },
-        { title: '待问异常', value: String(phaseOneAbProductionDashboardStats.value.pendingQuestionCount), note: '复用待审沟通与医生确认状态', icon: 'chat', tone: 'amber' },
-        { title: '员工异常', value: String(phaseOneAbProductionDashboardStats.value.staffExceptionCount), note: '复用人员工作量第一增量', icon: 'staff', tone: 'orange' },
+        { title: '生产异常', value: String(phaseOneAbProductionDashboardStats.value.productionExceptionCount), note: '当前队列异常订单', icon: 'process', tone: 'teal' },
+        { title: '待问异常', value: String(phaseOneAbProductionDashboardStats.value.pendingQuestionCount), note: '等待医生或客服确认', icon: 'chat', tone: 'amber' },
+        { title: '员工异常', value: String(phaseOneAbProductionDashboardStats.value.staffExceptionCount), note: '人员任务负载异常', icon: 'staff', tone: 'orange' },
         { title: '质量与返工', value: String(phaseOneAbProductionDashboardStats.value.totalReworkCount), note: `内返 ${phaseOneAbProductionDashboardStats.value.internalReworkCount} / 外返 ${phaseOneAbProductionDashboardStats.value.externalReworkCount}`, icon: 'quality', tone: 'rose' },
-        { title: '设备异常', value: String(phaseOneAbProductionDashboardStats.value.equipmentExceptionCount), note: '设备汇总第一增量 / PARTIAL', icon: 'device', tone: 'orange' },
-        { title: '物料管理', value: String(phaseOneAbProductionDashboardStats.value.materialPendingCount), note: '物料异常汇总第一增量 / PARTIAL', icon: 'material', tone: 'amber' },
-        { title: '安环待办', value: String(phaseOneAbProductionDashboardStats.value.safetyTodoCount), note: '安环汇总第一增量 / PARTIAL', icon: 'safety', tone: 'sky' },
-        { title: '奖惩待审', value: String(phaseOneAbProductionDashboardStats.value.rewardPendingCount), note: '奖惩汇总第一增量 / PARTIAL', icon: 'reward', tone: 'green' }
+        { title: '设备异常', value: String(phaseOneAbProductionDashboardStats.value.equipmentExceptionCount), note: '保养与故障待处理', icon: 'device', tone: 'orange' },
+        { title: '物料异常', value: String(phaseOneAbProductionDashboardStats.value.materialPendingCount), note: '缺料、错料、损耗处理中', icon: 'material', tone: 'amber' },
+        { title: '安环待办', value: String(phaseOneAbProductionDashboardStats.value.safetyTodoCount), note: '巡检与隐患待处理', icon: 'safety', tone: 'sky' },
+        { title: '奖惩待审', value: String(phaseOneAbProductionDashboardStats.value.rewardPendingCount), note: '等待主管确认', icon: 'reward', tone: 'green' }
       ],
       featuredPanel: {
         title: '生产异常待办',
-        badge: `${phaseOneAbProductionDashboardStats.value.productionExceptionCount} 项`,
+        badge: `${phaseOneAbProductionDashboardStats.value.productionExceptionCount + phaseOneAbProductionDashboardStats.value.safetyTodoCount + phaseOneAbProductionDashboardStats.value.rewardPendingCount} 项`,
         tone: 'rose',
         items: [
           { title: '工序超时', detail: `${phaseOneAbProductionDashboardStats.value.productionExceptionCount} 单生产异常跟进中，优先处理卡工序和超时节点`, meta: '生产看板', tone: 'rose', actionLabel: '处理', routePath: '/production/board', navId: 'production-orders' },
           { title: '扫码异常', detail: '重复扫码、漏扫、回退扫码统一在生产看板中复核', meta: '生产执行', tone: 'orange', actionLabel: '核查', routePath: '/production/board', navId: 'production-orders' },
           { title: '返工未关闭', detail: `${phaseOneAbProductionDashboardStats.value.totalReworkCount} 条质量返工记录需要确认关闭状态`, meta: '质量与返工', tone: 'rose', actionLabel: '跟进', routePath: '/rework-final', navId: 'production-quality-overview' },
-          { title: '设备排队', detail: `${phaseOneAbProductionDashboardStats.value.equipmentExceptionCount} 项设备保养或故障可能影响产能`, meta: '设备管理', tone: 'amber', actionLabel: '调度', routePath: '/production/devices', navId: 'production-device' }
+          { title: '设备排队', detail: `${phaseOneAbProductionDashboardStats.value.equipmentExceptionCount} 项设备保养或故障可能影响产能`, meta: '设备管理', tone: 'amber', actionLabel: '调度', routePath: '/production/devices', navId: 'production-device' },
+          { title: '安环巡检', detail: `${phaseOneAbProductionDashboardStats.value.safetyTodoCount} 项安环事件待处理或复核`, meta: '安环管理', tone: 'sky', actionLabel: '查看安环', routePath: '/production/safety-environment', navId: 'production-safety' },
+          { title: '奖惩审批', detail: `${phaseOneAbProductionDashboardStats.value.rewardPendingCount} 条奖惩记录等待主管确认`, meta: '奖惩管理', tone: 'green', actionLabel: '查看奖惩', routePath: '/production/reward-penalty', navId: 'production-reward-penalty' }
         ]
       },
       monthComparison: {
         title: '本月 vs 上月',
         metrics: [
-          { label: '订单数', value: '24', comparison: '↑ +4 vs', baseline: '20', tone: 'violet' },
-          { label: '生产产值', value: '¥8.6万', comparison: '↑ +16%', tone: 'green' },
-          { label: '发货单数', value: '21', comparison: '↑ 87.5%', tone: 'teal' },
-          { label: '返工单数', value: '1', comparison: '↓ 4.2% 率', tone: 'rose' }
+          { label: '订单数', value: '24', comparison: '较上月 +4', baseline: '上月 20', tone: 'violet' },
+          { label: '生产产值', value: '¥8.6万', comparison: '较上月 +16%', tone: 'green' },
+          { label: '发货单数', value: '21', comparison: '出货率 87.5%', tone: 'teal' },
+          { label: '物料异常', value: String(phaseOneAbProductionDashboardStats.value.materialPendingCount), comparison: '缺料、错料、损耗处理中', tone: 'amber' }
         ],
         weekRatesTitle: '周环比速率',
         weekRates: [
-          { label: '返工率', value: '4.2%', comparison: '↑ vs 5.1% 上周', tone: 'green' },
+          { label: '内返率', value: formatRate(phaseOneAbProductionDashboardStats.value.internalReworkRate), comparison: '较上周 -0.9%', tone: 'green' },
+          { label: '外返率', value: formatRate(phaseOneAbProductionDashboardStats.value.externalReworkRate), comparison: '较上周 -0.3%', tone: 'green' },
           { label: '发货率', value: '87.5%', comparison: '↑ vs 83.3% 上周', tone: 'green' },
           { label: '客诉率', value: '1.2%', comparison: '↓ vs 0.8% 上周', tone: 'rose' }
         ]
       },
-      panels: [
-        {
-          title: '生产经营待办',
-          badge: `${phaseOneAbProductionDashboardStats.value.safetyTodoCount + phaseOneAbProductionDashboardStats.value.rewardPendingCount} 项`,
-          tone: 'rose',
-          items: [
-            { title: '安环巡检', detail: `${phaseOneAbProductionDashboardStats.value.safetyTodoCount} 项安环事件待处理或复核`, meta: '基础汇总 / PARTIAL', tone: 'sky', actionLabel: '查看安环', routePath: '/production/safety-environment', navId: 'production-safety' },
-            { title: '奖惩审批', detail: `${phaseOneAbProductionDashboardStats.value.rewardPendingCount} 条奖惩记录等待主管确认`, meta: '基础汇总 / PARTIAL', tone: 'green', actionLabel: '查看奖惩', routePath: '/production/reward-penalty', navId: 'production-reward-penalty' }
-          ]
-        },
-        {
-          title: '质量 / 设备 / 物料',
-          badge: `${phaseOneAbProductionDashboardStats.value.totalReworkCount + phaseOneAbProductionDashboardStats.value.equipmentExceptionCount + phaseOneAbProductionDashboardStats.value.materialPendingCount} 项`,
-          tone: 'green',
-          items: [
-            { title: '内返率', detail: `内部返修 ${phaseOneAbProductionDashboardStats.value.internalReworkCount} 单，内返率 ${formatRate(phaseOneAbProductionDashboardStats.value.internalReworkRate)}`, meta: '质量与返工', tone: 'rose', actionLabel: '看内返', routePath: '/rework-final', navId: 'production-internal-rework-management' },
-            { title: '外返率', detail: `客户退回返修 ${phaseOneAbProductionDashboardStats.value.externalReworkCount} 单，外返率 ${formatRate(phaseOneAbProductionDashboardStats.value.externalReworkRate)}`, meta: '质量与返工', tone: 'orange', actionLabel: '看外返', routePath: '/rework-final', navId: 'production-external-rework-management' },
-            { title: '设备维护', detail: `${phaseOneAbProductionDashboardStats.value.equipmentExceptionCount} 项设备保养或故障待处理`, meta: '基础汇总 / PARTIAL', tone: 'amber', actionLabel: '看设备', routePath: '/production/devices', navId: 'production-device' },
-            { title: '物料缺失', detail: `${phaseOneAbProductionDashboardStats.value.materialPendingCount} 条物料异常处理中`, meta: '基础汇总 / PARTIAL', tone: 'rose', actionLabel: '处理物料', routePath: '/production/material-exceptions', navId: 'production-material' }
-          ]
-        }
-      ],
+      panels: [],
       trends: [
         { label: '部门今日 vs 上月平均', value: phaseOneAbMonthlyComparison.value.productionLabel, percent: phaseOneAbMonthlyComparison.value.productionPercent, tone: 'blue' },
         { label: '出货率', value: `${phaseOneAbProductionDashboardStats.value.shippingRate}%`, percent: phaseOneProgress(phaseOneAbProductionDashboardStats.value.shippingRate), tone: 'teal' },
@@ -4172,6 +4202,7 @@ async function loadPhaseOneAbDashboardData() {
       qualitySummary,
       deliveryList,
       staffWorkload,
+      departmentSummary,
       equipmentSummary,
       materialSummary,
       safetySummary,
@@ -4189,6 +4220,9 @@ async function loadPhaseOneAbDashboardData() {
         : Promise.resolve(null),
       shouldLoadProductionDashboardData
         ? fetchResource('人员工作量', () => apiFetch<StaffWorkloadListResponse>('/staff/workload?page=1&size=50'))
+        : Promise.resolve(null),
+      shouldLoadProductionDashboardData
+        ? fetchResource('部门效能', () => apiFetch<ProductionWorkbenchDepartmentSummaryResponse>('/production/workbench/department-summary'))
         : Promise.resolve(null),
       shouldLoadProductionDashboardData
         ? fetchResource('设备汇总', () => apiFetch<ProductionEquipmentSummaryResponse>('/production/equipment/summary'))
@@ -4216,6 +4250,9 @@ async function loadPhaseOneAbDashboardData() {
     if (staffWorkload) {
       staffWorkloadItems.value = staffWorkload.items
       staffWorkloadTotal.value = staffWorkload.total
+    }
+    if (departmentSummary) {
+      productionWorkbenchDepartmentSummary.value = departmentSummary
     }
     if (equipmentSummary) {
       productionEquipmentSummary.value = equipmentSummary
@@ -11783,6 +11820,48 @@ onBeforeUnmount(() => {
                 </div>
               </div>
             </section>
+          </div>
+
+          <div v-if="portalTone === 'production'" class="production-department-workspace">
+          <section class="production-department-card production-department-table-card">
+            <div class="production-department-card-head">
+              <div>
+                <h3>部门效能对比</h3>
+                <small>按部门查看内返与完成表现</small>
+              </div>
+              <button v-if="productionWorkbenchDepartments.length > 6" class="production-department-expand" type="button" @click="showAllProductionWorkbenchDepartments = !showAllProductionWorkbenchDepartments">
+                {{ showAllProductionWorkbenchDepartments ? '收起' : `查看全部（${productionWorkbenchDepartments.length}）` }}
+              </button>
+            </div>
+            <div class="production-department-table-wrap">
+              <table class="production-department-table">
+                <thead><tr><th>部门</th><th>内返率</th><th>外返率</th><th>客诉率</th><th>完成达成率</th><th>状态</th></tr></thead>
+                <tbody>
+                  <tr v-for="department in visibleProductionWorkbenchDepartments" :key="department.department_key" :class="{ active: selectedProductionWorkbenchDepartmentKey === department.department_key }" @click="selectProductionWorkbenchDepartment(department.department_key)">
+                    <td><strong>{{ department.department_name }}</strong><small>{{ department.department_subtitle }}</small></td>
+                    <td><b class="production-department-rate" :class="department.today_rework_rate > department.last_month_rework_rate ? 'tone-risk' : 'tone-good'">{{ formatRate(department.today_rework_rate) }}</b></td>
+                    <td><span class="production-department-pending-rate">待接入</span></td><td><span class="production-department-pending-rate">待接入</span></td>
+                    <td><b class="production-department-rate" :class="department.today_completion_rate >= 80 ? 'tone-good' : 'tone-warn'">{{ formatRate(department.today_completion_rate) }}</b></td>
+                    <td><span class="production-department-status">{{ department.status_label }}</span></td>
+                  </tr>
+                  <tr v-if="visibleProductionWorkbenchDepartments.length === 0"><td colspan="6" class="production-department-empty">暂无部门数据</td></tr>
+                </tbody>
+              </table>
+            </div>
+          </section>
+
+          <section class="production-department-card production-department-trend-row">
+            <div class="production-department-card-head">
+              <div><h3>近 7 个生产日趋势</h3><small>{{ selectedProductionWorkbenchTrend?.department_name ?? '全部部门' }}</small></div>
+              <div class="production-trend-metric-tabs">
+                <button v-for="metric in productionWorkbenchDepartmentSummary?.trend_metrics ?? []" :key="metric.key" type="button" :class="{ active: selectedProductionWorkbenchTrendMetric === metric.key }" @click="selectedProductionWorkbenchTrendMetric = metric.key">{{ metric.label }}</button>
+              </div>
+            </div>
+            <svg class="production-department-line-chart" viewBox="0 0 760 230" role="img" aria-label="近七个生产日趋势图">
+              <line x1="42" y1="170" x2="720" y2="170" />
+              <polyline v-if="productionWorkbenchTrendSvgPoints" class="department-chart-line" :points="productionWorkbenchTrendSvgPoints" />
+            </svg>
+          </section>
           </div>
 
           <div v-if="portalTone !== 'cs' && activePrototypeDashboard.panels.length" class="prototype-dashboard-layout">
