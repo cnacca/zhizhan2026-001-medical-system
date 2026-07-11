@@ -26,7 +26,7 @@
 - Consumes: `frontend/src/App.vue` source text.
 - Produces: `npm run check:production-board-action-summary`, which exits nonzero until the required production-board-only model and UI fragments exist.
 
-- [ ] **Step 1: Write the failing check**
+- [x] **Step 1: Write the failing check**
 
 Create a Node script that reads `frontend/src/App.vue` and requires these fragments:
 
@@ -47,7 +47,7 @@ const requiredFragments = [
 
 Also fail if the production-board section still renders `v-for="chip in prototypeQueueChips"` or contains `生产异常`.
 
-- [ ] **Step 2: Run the check and verify it fails**
+- [x] **Step 2: Run the check and verify it fails**
 
 Run: `node scripts/check-production-board-action-summary.mjs`
 
@@ -64,19 +64,19 @@ Expected: nonzero exit with a missing required fragment because the production-b
 - Consumes: `productionBoardKanbanCards`, each card's `risk`, `order.internal_status`, `node`, and `syncState`.
 - Produces: `productionBoardActionSummaryGroups`, `selectProductionBoardActionSummary`, and a filtered card set used by the board columns.
 
-- [ ] **Step 1: Add types and reactive filter state**
+- [x] **Step 1: Add types and reactive filter state**
 
 Add a union for `all | dispatch | overdue | rework | confirm` and a summary item/group shape. Store the current action filter in `productionBoardActionSummaryFilter`, defaulting to `all`.
 
-- [ ] **Step 2: Derive the five real-time summary items**
+- [x] **Step 2: Derive the five real-time summary items**
 
 Compute the items from the unfiltered active cards: `工序超时` matches `risk === 'overdue'`; `返工处理中` matches `risk === 'rework'` or `REWORKING`; `医生待确认` matches confirmation risk or `PENDING_DOCTOR_CONFIRM`; `待派工` matches `PROCESS_INSTANCE_CREATED` with a synchronized process and no current node; `在制订单` includes all active cards.
 
-- [ ] **Step 3: Apply the selected action summary filter locally**
+- [x] **Step 3: Apply the selected action summary filter locally**
 
 Filter the base Kanban cards before building columns. Keep the server status select independent, so changing either control only narrows the current result set. Add `selectProductionBoardActionSummary(key)` to update only the action filter.
 
-- [ ] **Step 4: Reset the action filter when a new server status is selected**
+- [x] **Step 4: Reset the action filter when a new server status is selected**
 
 Use a small production-board status-change handler that resets the action summary filter to `all` before calling `loadProductionBoardOrders`.
 
@@ -90,11 +90,11 @@ Use a small production-board status-change handler that resets the action summar
 - Consumes: `productionBoardActionSummaryGroups` and `productionBoardActionSummaryFilter`.
 - Produces: two labelled groups, each with clickable count buttons and active styles.
 
-- [ ] **Step 1: Replace the shared fixed chip row in the production-board template**
+- [x] **Step 1: Replace the shared fixed chip row in the production-board template**
 
 Render each group label and its item buttons. Bind classes for the item tone and active filter. Remove the shared `prototypeQueueChips` loop only from the production-board route.
 
-- [ ] **Step 2: Add compact grouped-summary styles**
+- [x] **Step 2: Add compact grouped-summary styles**
 
 Add scoped production-board summary selectors for a wrapping group row, muted group labels, stable-height buttons, and high-contrast risk tones. Preserve existing summary-card and mobile overflow behavior.
 
@@ -110,23 +110,23 @@ Add scoped production-board summary selectors for a wrapping group row, muted gr
 - Consumes: the completed summary model, template, styles, and static check.
 - Produces: build evidence and a clean diff.
 
-- [ ] **Step 1: Run the action-summary acceptance check**
+- [x] **Step 1: Run the action-summary acceptance check**
 
 Run: `npm run check:production-board-action-summary`
 
 Expected: `生产看板待办概览检查通过`.
 
-- [ ] **Step 2: Build the frontend**
+- [x] **Step 2: Build the frontend**
 
 Run: `pnpm --filter ai-order-platform-frontend build`
 
 Expected: Vue type check and Vite build exit with code 0.
 
-- [ ] **Step 3: Verify interaction in the browser**
+- [x] **Step 3: Verify interaction in the browser**
 
 Open `/production/board` as a production user and confirm the two groups display. Click `工序超时`, `返工处理中`, `医生待确认`, `在制订单`, and `待派工`; each should change the visible Kanban cards without changing the selected date. Confirm the production-review page still uses its existing chips.
 
-- [ ] **Step 4: Check the diff**
+- [x] **Step 4: Check the diff**
 
 Run: `git diff --check`
 

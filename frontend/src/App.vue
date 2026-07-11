@@ -1020,6 +1020,20 @@ type ProductionKanbanSummary = {
   tone: PrototypeTone
 }
 
+type ProductionBoardActionSummaryKey = 'all' | 'dispatch' | 'overdue' | 'rework' | 'confirm'
+
+type ProductionBoardActionSummaryItem = {
+  key: ProductionBoardActionSummaryKey
+  label: string
+  count: number
+  tone: PrototypeTone
+}
+
+type ProductionBoardActionSummaryGroup = {
+  label: string
+  items: ProductionBoardActionSummaryItem[]
+}
+
 type PortalOption = {
   value: LoginPortal
   title: string
@@ -1600,6 +1614,7 @@ const selectedProductionBoardOrder = ref<InternalOrderItem | null>(null)
 const productionBoardInstance = ref<ProcessInstanceDetail | null>(null)
 const productionBoardKeyword = ref('')
 const productionBoardStatus = ref('ALL')
+const productionBoardActionSummaryFilter = ref<ProductionBoardActionSummaryKey>('all')
 const productionBoardLoading = ref(false)
 const productionBoardError = ref('')
 const productionBoardDrawerVisible = ref(false)
@@ -3483,8 +3498,54 @@ const productionBoardKanbanCards = computed<ProductionKanbanCard[]>(() => {
     .sort((a, b) => b.sortScore - a.sortScore || a.orderNo.localeCompare(b.orderNo))
 })
 
-const productionBoardAuxiliaryColumns = computed<ProductionKanbanColumn[]>(() => {
+function matchesProductionBoardActionSummary(card: ProductionKanbanCard, key: ProductionBoardActionSummaryKey) {
+  if (key === 'all') {
+    return true
+  }
+  if (key === 'dispatch') {
+    return card.order.internal_status === 'PROCESS_INSTANCE_CREATED' && card.syncState === 'synced' && !card.node
+  }
+  if (key === 'overdue') {
+    return card.risk === 'overdue'
+  }
+  if (key === 'rework') {
+    return card.risk === 'rework' || card.order.internal_status === 'REWORKING'
+  }
+  return card.risk === 'confirm' || card.order.internal_status === 'PENDING_DOCTOR_CONFIRM'
+}
+
+const productionBoardActionSummaryGroups = computed<ProductionBoardActionSummaryGroup[]>(() => {
   const cards = productionBoardKanbanCards.value
+  const count = (key: ProductionBoardActionSummaryKey) => cards.filter((card) => matchesProductionBoardActionSummary(card, key)).length
+  return [
+    {
+      label: '需要处理',
+      items: [
+        { key: 'overdue', label: '工序超时', count: count('overdue'), tone: 'rose' },
+        { key: 'rework', label: '返工处理中', count: count('rework'), tone: 'orange' },
+        { key: 'confirm', label: '医生待确认', count: count('confirm'), tone: 'violet' }
+      ]
+    },
+    {
+      label: '生产进度',
+      items: [
+        { key: 'all', label: '在制订单', count: cards.length, tone: 'teal' },
+        { key: 'dispatch', label: '待派工', count: count('dispatch'), tone: 'sky' }
+      ]
+    }
+  ]
+})
+
+const productionBoardFilteredKanbanCards = computed(() =>
+  productionBoardKanbanCards.value.filter((card) => matchesProductionBoardActionSummary(card, productionBoardActionSummaryFilter.value))
+)
+
+function selectProductionBoardActionSummary(key: ProductionBoardActionSummaryKey) {
+  productionBoardActionSummaryFilter.value = key
+}
+
+const productionBoardAuxiliaryColumns = computed<ProductionKanbanColumn[]>(() => {
+  const cards = productionBoardFilteredKanbanCards.value
   const byStatus = (statuses: string[]) => cards.filter((card) => statuses.includes(card.order.internal_status))
   const syncCards = cards.filter((card) => !card.node && ['idle', 'syncing', 'failed'].includes(card.syncState) && !['PENDING_PRODUCTION_REVIEW', 'PENDING_DOCTOR_CONFIRM', 'COMPLETED'].includes(card.order.internal_status))
   return [
@@ -3498,7 +3559,7 @@ const productionBoardAuxiliaryColumns = computed<ProductionKanbanColumn[]>(() =>
 
 const productionBoardProcessColumns = computed<ProductionKanbanColumn[]>(() => {
   const groups = new Map<string, ProductionKanbanColumn>()
-  for (const card of productionBoardKanbanCards.value) {
+  for (const card of productionBoardFilteredKanbanCards.value) {
     if (!card.node || ['PENDING_PRODUCTION_REVIEW', 'PENDING_DOCTOR_CONFIRM', 'COMPLETED'].includes(card.order.internal_status)) {
       continue
     }
@@ -7595,6 +7656,11 @@ function resetProductionBoardKanbanDate() {
   productionBoardKanbanDate.value = new Date().toISOString().slice(0, 10)
 }
 
+function handleProductionBoardStatusChange() {
+  productionBoardActionSummaryFilter.value = 'all'
+  void loadProductionBoardOrders()
+}
+
 function scrollProductionBoardColumn(key: string) {
   const el = document.querySelector(`[data-production-column="${key}"]`)
   el?.scrollIntoView({ behavior: 'smooth', inline: 'center', block: 'nearest' })
@@ -9642,18 +9708,27 @@ onBeforeUnmount(() => {
               </div>
             </div>
 
-            <div class="prototype-chip-row production-board-chip-row">
-              <button
-                v-for="chip in prototypeQueueChips"
-                :key="`board-${chip.label}`"
-                class="prototype-chip compact"
-                :class="[`tone-${chip.tone}`, { active: isPrototypeChipActive(chip) }]"
-                type="button"
-                @click="selectPrototypeQueueChip(chip)"
+            <div class="production-board-action-summary">
+              <div
+                v-for="group in productionBoardActionSummaryGroups"
+                :key="group.label"
+                class="production-board-action-group"
               >
-                {{ chip.label }}
-                <span>{{ chip.count }}</span>
-              </button>
+                <span class="production-board-action-label">{{ group.label }}</span>
+                <div class="production-board-action-items">
+                  <button
+                    v-for="item in group.items"
+                    :key="item.key"
+                    class="production-board-action-item"
+                    :class="[`tone-${item.tone}`, { active: productionBoardActionSummaryFilter === item.key }]"
+                    type="button"
+                    @click="selectProductionBoardActionSummary(item.key)"
+                  >
+                    {{ item.label }}
+                    <span>{{ item.count }}</span>
+                  </button>
+                </div>
+              </div>
             </div>
 
             <div class="production-kanban-summary-row">
@@ -9672,7 +9747,7 @@ onBeforeUnmount(() => {
             </div>
 
             <div class="production-board-toolbar">
-              <el-select v-model="productionBoardStatus" @change="loadProductionBoardOrders">
+              <el-select v-model="productionBoardStatus" @change="handleProductionBoardStatusChange">
                 <el-option
                   v-for="option in productionBoardStatusOptions"
                   :key="option.value"

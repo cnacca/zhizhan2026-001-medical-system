@@ -1135,14 +1135,54 @@ body {
   font-weight: 800;
 }
 
-.production-board-chip-row {
-  margin-bottom: 0;
+.production-board-action-summary {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px 18px;
+  align-items: center;
+  margin-bottom: 2px;
 }
 
-.prototype-chip.compact {
-  min-height: 28px;
-  padding: 4px 10px;
+.production-board-action-group,
+.production-board-action-items {
+  display: inline-flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 7px;
+}
+
+.production-board-action-label {
+  color: #64748b;
   font-size: 11px;
+  font-weight: 800;
+  white-space: nowrap;
+}
+
+.production-board-action-item {
+  display: inline-flex;
+  min-height: 30px;
+  align-items: center;
+  gap: 8px;
+  padding: 5px 10px;
+  border: 1px solid #dbe4ee;
+  border-radius: 7px;
+  background: #ffffff;
+  color: #475569;
+  cursor: pointer;
+  font: inherit;
+  font-size: 11px;
+  font-weight: 800;
+}
+
+.production-board-action-item span {
+  color: currentColor;
+  font-size: 12px;
+}
+
+.production-board-action-item:hover,
+.production-board-action-item.active {
+  border-color: currentColor;
+  background: #f8fafc;
 }
 
 .production-kanban-summary-row {
