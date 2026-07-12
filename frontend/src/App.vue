@@ -1737,6 +1737,7 @@ const productCatalogEditPrice = ref(1)
 const productCatalogEditCurrency = ref('CNY')
 const productCatalogEditStatus = ref('ACTIVE')
 const productCatalogEditNote = ref('')
+const csPortalGlobalSearch = ref('')
 const formConfigProductType = ref('REGULAR_CROWN')
 const formConfigFields = ref<FormFieldConfig[]>([])
 const formConfigLoading = ref(false)
@@ -3292,6 +3293,7 @@ const statusLabelMap: Record<string, string> = {
   SKIPPED: '已跳过',
   FAILED: '失败',
   PENDING_REVIEW: '待审核',
+  DIRECT: '直接发送',
   PENDING_CS_REVIEW: '待客服初审',
   PENDING_PRODUCTION_REVIEW: '待生产审核',
   PROCESS_INSTANCE_CREATED: '已生成工序',
@@ -3331,6 +3333,27 @@ const productTypeLabelMap: Record<string, string> = {
   CLEAR_ALIGNER: '隐形矫治',
   NIGHT_GUARD: '夜磨牙垫',
   RUNTIME_TEST: '测试订单'
+}
+const notificationEventLabelMap: Record<string, string> = {
+  AI_BUDGET_EXCEEDED: 'AI 预算超限',
+  DESIGN_DRAFT_UPLOADED: '设计稿已上传',
+  DESIGN_DRAFT_CONFIRMED: '设计稿已确认',
+  DESIGN_DRAFT_REJECTED: '设计稿已驳回',
+  MESSAGE_CREATED: '收到新消息',
+  MESSAGE_REVIEW_APPROVED: '消息审核已通过',
+  MESSAGE_REVIEW_REJECTED: '消息审核已驳回',
+  BILL_UPLOADED: '账单已上传',
+  ORDER_SHIPPED: '订单已发货',
+  REWORK_CREATED: '新增返工记录',
+  MESSAGE_PENDING_REVIEW: '生产消息待客服审核',
+  MESSAGE_MENTIONED: '订单消息提及了你'
+}
+const messageVisibilityLabelMap: Record<string, string> = {
+  ALL: '订单参与人可见',
+  CS_WORKER: '客服与生产可见',
+  DOCTOR_CS: '医生与客服可见',
+  CS_ONLY: '仅客服可见',
+  DOCTOR: '医生可见'
 }
 const fieldTypeLabelMap: Record<string, string> = {
   text: '文本',
@@ -3406,6 +3429,12 @@ const reworkImpactSteps = computed<ReworkImpactStep[]>(() => {
 })
 function productTypeLabel(type: string | null | undefined) {
   return type ? (productTypeLabelMap[type] ?? type.replaceAll('_', ' ')) : '未分类'
+}
+function notificationEventLabel(event: string | null | undefined) {
+  return event ? (notificationEventLabelMap[event] ?? '业务通知') : '业务通知'
+}
+function messageVisibilityLabel(visibility: string | null | undefined) {
+  return visibility ? (messageVisibilityLabelMap[visibility] ?? '按订单权限可见') : '按订单权限可见'
 }
 function fieldTypeLabel(type: string | null | undefined) {
   return type ? (fieldTypeLabelMap[type] ?? type) : '未设置'
@@ -4419,6 +4448,29 @@ function navigateToRoute(routePath: string) {
     void loadFormConfigFields()
   } else if (routePath === '/system/rework-dictionaries') {
     void loadReworkDictionaryManageItems()
+  }
+}
+
+function runCsPortalGlobalSearch() {
+  const keyword = csPortalGlobalSearch.value.trim()
+  if (activeRoute.value === '/orders/internal') {
+    internalOrderKeyword.value = keyword
+    void loadInternalOrders()
+    return
+  }
+  if (activeRoute.value === '/customers') {
+    clinicKeyword.value = keyword
+    void loadClinics()
+    return
+  }
+  if (activeRoute.value === '/system/form-configs') {
+    productCatalogKeyword.value = keyword
+    void loadProductCatalog()
+    return
+  }
+  if (activeRoute.value === '/collaboration' && /^\d+$/.test(keyword)) {
+    customerCollaborationOrderId.value = keyword
+    void loadCustomerCollaborationOrderMessages()
   }
 }
 
@@ -8379,6 +8431,8 @@ onBeforeUnmount(() => {
       { 'login-shell': !isLoggedIn },
       { 'factory-board-mode': isProductionKanbanView },
       { 'factory-orders-mode': isProductionOrdersView },
+      { 'cs-reference-mode': portalTone === 'cs' && activeRoute !== '/dashboard' },
+      portalTone === 'cs' && activeDisplayItem ? `cs-page-${activeDisplayItem.id}` : '',
       isLoggedIn ? `portal-${portalTone}` : ''
     ]"
   >
@@ -8515,6 +8569,24 @@ onBeforeUnmount(() => {
         </aside>
 
         <section v-if="isLoggedIn && !isProductionCompactRoute" class="panel health-panel">
+          <template v-if="portalTone === 'cs' && activeRoute !== '/dashboard'">
+            <div class="cs-reference-topbar-title">{{ activeDisplayItem ? activeDisplayItem.title : routeChrome.title }}</div>
+            <div class="cs-reference-topbar-tools">
+              <el-input
+                v-model="csPortalGlobalSearch"
+                class="cs-reference-global-search"
+                clearable
+                placeholder="搜索订单、客户、消息..."
+                @keyup.enter="runCsPortalGlobalSearch"
+              />
+              <span class="cs-reference-date">{{ new Date().toLocaleDateString('zh-CN') }}</span>
+              <el-button circle plain aria-label="通知中心" @click="navigateToRoute('/notifications')">铃</el-button>
+              <el-tooltip content="客服代下单接口开放后启用" placement="bottom">
+                <span><el-button type="primary" disabled>＋ 新建订单</el-button></span>
+              </el-tooltip>
+            </div>
+          </template>
+          <template v-else>
           <div class="route-hero-icon">
             <span class="svg-symbol" aria-hidden="true" v-html="businessIconSvg(routeChrome.icon)" />
           </div>
@@ -8527,6 +8599,7 @@ onBeforeUnmount(() => {
             <el-button type="primary" @click="checkHealth">检查后端</el-button>
             <p class="result">后端状态：{{ health }}</p>
           </div>
+          </template>
         </section>
 
         <section v-if="!isLoggedIn" class="login-page">
@@ -8658,13 +8731,13 @@ onBeforeUnmount(() => {
             <h2>{{ isProductizedCsDesignRoute ? '设计稿管理' : isProductizedCsProductionNoteRoute ? '生产备注助手' : '客服初审' }}</h2>
             <div class="notification-heading-tags">
               <el-tag round>{{ internalOrders.length }} 单</el-tag>
-              <el-tag v-if="isProductizedCsDesignRoute" type="success" round>本地第一增量</el-tag>
+              <el-tag v-if="isProductizedCsDesignRoute" type="success" round>真实数据</el-tag>
             </div>
           </div>
 
           <el-alert
             v-if="isProductizedCsDesignRoute"
-            title="设计稿管理已复用客服订单详情内的设计稿版本、预览 URL 和审核入口；真实电子签章和客户最终验收仍为外部阻塞。"
+            title="设计稿管理使用现有版本记录、授权预览和审核能力；电子签章功能将在业务接口开放后启用。"
             type="info"
             show-icon
             :closable="false"
@@ -10650,13 +10723,13 @@ onBeforeUnmount(() => {
             <div class="heading-tags">
               <el-tag round>{{ deliveryOrders.length }} 单</el-tag>
               <el-tag type="info" round>人工跟进</el-tag>
-              <el-tag v-if="isProductizedCsBillingRoute" type="success" round>本地第一增量</el-tag>
+              <el-tag v-if="isProductizedCsBillingRoute" type="success" round>真实数据</el-tag>
             </div>
           </div>
 
           <el-alert
             v-if="isProductizedCsBillingRoute"
-            title="账单管理已复用账单文件、人工付款状态、物流发货和异常跟进本地链路；真实支付平台、电子发票和真实物流 API 未接入。"
+            title="账单管理使用现有账单文件、人工付款状态、发货和异常跟进能力；在线支付、电子发票和物流自动同步将在业务接口开放后启用。"
             type="info"
             show-icon
             :closable="false"
@@ -11793,7 +11866,7 @@ onBeforeUnmount(() => {
               :class="{ selected: item.product_id === selectedProductCatalogId }"
               @click="selectProductCatalogItem(item)"
             >
-              <strong>{{ item.product_name }} / {{ item.product_type }}</strong>
+              <strong>{{ item.product_name }} / {{ productTypeLabel(item.product_type) }}</strong>
               <p>{{ item.material_spec || '未填材料规格' }} / {{ statusLabel(item.status) }}</p>
               <span>{{ item.currency }} {{ (item.base_price_cents / 100).toFixed(2) }} / {{ item.price_note || '人工维护基础价' }}</span>
             </article>
@@ -12171,7 +12244,7 @@ onBeforeUnmount(() => {
                 >
                   <strong>#{{ message.msg_id }} / {{ message.order_no || `订单 ${message.order_id}` }}</strong>
                   <p>{{ message.content }}</p>
-                  <span>{{ message.product_type }} / {{ roleLabel(message.sender_role) }} / {{ statusLabel(message.review_status) }} / {{ statusLabel(message.external_status) }} / {{ message.visible_to }}</span>
+                  <span>{{ productTypeLabel(message.product_type) }} / {{ roleLabel(message.sender_role) }} / {{ statusLabel(message.review_status) }} / {{ statusLabel(message.external_status) }} / {{ messageVisibilityLabel(message.visible_to) }}</span>
                   <div class="inline-actions">
                     <el-button
                       size="small"
@@ -12210,7 +12283,7 @@ onBeforeUnmount(() => {
                 >
                   <strong>{{ roleLabel(message.sender_role) }} / {{ statusLabel(message.review_status) }}</strong>
                   <p>{{ message.content }}</p>
-                  <span>#{{ message.msg_id }} / {{ message.order_no || `订单 ${message.order_id}` }} / {{ statusLabel(message.external_status) }} / {{ message.visible_to }}</span>
+                  <span>#{{ message.msg_id }} / {{ message.order_no || `订单 ${message.order_id}` }} / {{ statusLabel(message.external_status) }} / {{ messageVisibilityLabel(message.visible_to) }}</span>
                 </article>
               </div>
             </section>
@@ -12382,7 +12455,7 @@ onBeforeUnmount(() => {
           </div>
 
           <div v-if="lastRealtimeNotification" class="realtime-strip">
-            <strong>{{ lastRealtimeNotification.event ?? '实时通知' }}</strong>
+            <strong>{{ notificationEventLabel(lastRealtimeNotification.event) }}</strong>
             <span>{{ lastRealtimeNotification.message ?? lastRealtimeNotification.order_no ?? '新通知已到达' }}</span>
           </div>
 
@@ -12406,7 +12479,7 @@ onBeforeUnmount(() => {
             >
               <div class="notification-main">
                 <div class="notification-title">
-                  <strong>{{ item.event }}</strong>
+                  <strong>{{ notificationEventLabel(item.event) }}</strong>
                   <el-tag v-if="!item.read_at" type="warning" round>未读</el-tag>
                   <el-tag v-else type="info" round>已读</el-tag>
                 </div>
@@ -13185,7 +13258,7 @@ onBeforeUnmount(() => {
             <div class="heading-tags">
               <el-tag v-if="isProductizedProductionSupportRoute" type="success" round>真实数据</el-tag>
               <el-tag v-else-if="isAdminPermissionInventoryRoute" type="warning" round>权限清单入口</el-tag>
-              <el-tag v-else round>演示入口</el-tag>
+              <el-tag v-else round>暂未开放</el-tag>
             </div>
           </header>
           <div v-if="!isProductizedProductionSupportRoute" class="placeholder-hero">
@@ -13198,10 +13271,10 @@ onBeforeUnmount(() => {
           <el-alert
             v-if="!isProductizedProductionSupportRoute"
             :title="isProductizedProductionSupportRoute
-              ? '该功能已接入当前后端汇总数据和本地第一增量表单；完整编辑、审批、真实趋势和客户验收仍保持 PARTIAL。'
+              ? '当前页面展示现有登记与汇总能力；未开放的编辑或审批功能将在相应业务接口开放后启用。'
               : isAdminPermissionInventoryRoute
                 ? '该功能展示当前登录账号、角色、权限、菜单和数据范围的真实清单；完整账号和角色配置后台不属于本期范围。'
-                : '该功能已纳入前端演示导航，后续确认正式范围后再接入接口、权限和数据表。'"
+                : '该功能将在业务接口、权限与数据范围开放后启用。'"
             type="info"
             show-icon
             :closable="false"
