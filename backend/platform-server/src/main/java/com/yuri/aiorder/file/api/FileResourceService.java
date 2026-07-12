@@ -15,6 +15,7 @@ import io.minio.StatObjectResponse;
 import io.minio.http.Method;
 import io.minio.messages.Part;
 import java.time.LocalDate;
+import java.time.LocalDateTime;
 import java.util.ArrayList;
 import java.util.Comparator;
 import java.util.List;
@@ -97,6 +98,30 @@ public class FileResourceService {
                 fileId,
                 presignedUrl(Method.PUT, objectKey, properties.uploadUrlTtlSeconds()),
                 properties.uploadUrlTtlSeconds());
+    }
+
+    public List<OrderFileResponse> listOrderFiles(long orderId, BootstrapIdentity identity) {
+        loadOrderScope(orderId, identity, "identity cannot access this order's files");
+        return jdbcClient.sql("""
+                        SELECT file_id, source_type, visibility, original_filename, content_type,
+                               file_size, upload_status, created_at
+                        FROM file_resource
+                        WHERE order_id = :orderId
+                          AND status = 'ACTIVE'
+                          AND upload_status = 'COMPLETED'
+                        ORDER BY created_at DESC, file_id DESC
+                        """)
+                .param("orderId", orderId)
+                .query((rs, rowNum) -> new OrderFileResponse(
+                        rs.getLong("file_id"),
+                        rs.getString("source_type"),
+                        rs.getString("visibility"),
+                        rs.getString("original_filename"),
+                        rs.getString("content_type"),
+                        rs.getObject("file_size", Long.class),
+                        rs.getString("upload_status"),
+                        rs.getObject("created_at", LocalDateTime.class)))
+                .list();
     }
 
     public MultipartInitiateResponse initiateMultipartUpload(MultipartInitiateRequest request, BootstrapIdentity identity) {

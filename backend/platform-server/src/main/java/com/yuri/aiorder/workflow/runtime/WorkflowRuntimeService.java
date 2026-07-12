@@ -9,9 +9,18 @@ import com.yuri.aiorder.common.auth.AccessControlService;
 import com.yuri.aiorder.order.status.ExternalOrderStatus;
 import com.yuri.aiorder.order.status.InternalOrderStatus;
 import com.yuri.aiorder.order.status.OrderStatusService;
+import java.time.LocalDate;
+import java.time.LocalDateTime;
+import java.time.ZoneId;
+import java.time.ZoneOffset;
+import java.util.ArrayList;
+import java.util.LinkedHashSet;
+import java.util.LinkedHashMap;
 import java.util.EnumSet;
 import java.util.List;
 import java.util.Locale;
+import java.util.Map;
+import java.util.Set;
 import org.springframework.dao.EmptyResultDataAccessException;
 import org.springframework.http.HttpStatus;
 import org.springframework.jdbc.core.simple.JdbcClient;
@@ -21,6 +30,12 @@ import org.springframework.web.server.ResponseStatusException;
 
 @Service
 public class WorkflowRuntimeService {
+
+    private static final ZoneId BUSINESS_ZONE = ZoneId.of("Asia/Shanghai");
+
+    private static final List<String> PRODUCTION_KANBAN_STAGES = List.of(
+            "CAD审核/扫描", "石膏", "CAD设计", "CAM排版/染色/切削", "车瓷", "车金", "上瓷",
+            "排牙", "蜡型", "充胶完成", "钢托打磨/就位", "胶托打磨/就位", "质检", "外发加工");
 
     private final JdbcClient jdbcClient;
     private final ObjectMapper objectMapper;
@@ -106,6 +121,83 @@ public class WorkflowRuntimeService {
                 loadEdges(instance.instanceId()));
     }
 
+    public ProductionKanbanSummaryResponse getProductionKanbanSummary(LocalDate date, BootstrapIdentity identity) {
+        accessControlService.requireInternalAccess(identity, "doctor cannot access production kanban");
+        String dataScope = accessControlService.effectiveDataScope(identity);
+        accessControlService.requireScopedIdentity(identity, dataScope);
+        LocalDateTime startAt = date.atStartOfDay(BUSINESS_ZONE)
+                .withZoneSameInstant(ZoneOffset.UTC)
+                .toLocalDateTime();
+        LocalDateTime endExclusive = date.plusDays(1).atStartOfDay(BUSINESS_ZONE)
+                .withZoneSameInstant(ZoneOffset.UTC)
+                .toLocalDateTime();
+        LocalDateTime asOf = date.equals(LocalDate.now(BUSINESS_ZONE))
+                ? currentDatabaseTime()
+                : endExclusive;
+        Map<String, StageMetricAccumulator> stages = new LinkedHashMap<>();
+        for (String stage : PRODUCTION_KANBAN_STAGES) {
+            stages.put(stage, new StageMetricAccumulator());
+        }
+        Set<Long> visibleOrderIds = new LinkedHashSet<>();
+        loadNodeKanbanMetrics(stages, visibleOrderIds, startAt, endExclusive, asOf, identity, dataScope);
+        loadQuestionKanbanMetrics(stages, endExclusive, asOf, identity, dataScope);
+        loadReworkKanbanMetrics(stages, endExclusive, asOf, identity, dataScope);
+        List<ProductionKanbanStageSummaryResponse> result = new ArrayList<>();
+        for (Map.Entry<String, StageMetricAccumulator> entry : stages.entrySet()) {
+            StageMetricAccumulator metric = entry.getValue();
+            result.add(new ProductionKanbanStageSummaryResponse(
+                    entry.getKey(), metric.unfinished, metric.inProgress, metric.completed, metric.overdue,
+                    metric.pendingQuestions, metric.internalReworks));
+        }
+        return new ProductionKanbanSummaryResponse(date, visibleOrderIds.stream().toList(), result);
+    }
+
+    private LocalDateTime currentDatabaseTime() {
+        return jdbcClient.sql("SELECT CURRENT_TIMESTAMP(3)")
+                .query(LocalDateTime.class)
+                .single();
+    }
+
+    @Transactional
+    public ProductionQuestionResponse createProductionQuestion(
+            long nodeInstanceId, ProductionQuestionRequest request, BootstrapIdentity identity) {
+        NodeRow node = lockNode(nodeInstanceId);
+        requireWorkerAssignment(node, identity);
+        jdbcClient.sql("""
+                        INSERT INTO production_question
+                            (order_id, node_instance_id, content, asked_by_user_id, status)
+                        VALUES (:orderId, :nodeInstanceId, :content, :askedByUserId, 'OPEN')
+                        """)
+                .param("orderId", node.orderId())
+                .param("nodeInstanceId", nodeInstanceId)
+                .param("content", request.content().trim())
+                .param("askedByUserId", identity.userId())
+                .update();
+        return loadProductionQuestion(lastInsertId());
+    }
+
+    @Transactional
+    public ProductionQuestionResponse resolveProductionQuestion(
+            long questionId, ProductionQuestionRequest request, BootstrapIdentity identity) {
+        QuestionScope question = lockProductionQuestion(questionId);
+        NodeRow node = lockNode(question.nodeInstanceId());
+        requireWorkerAssignment(node, identity);
+        jdbcClient.sql("""
+                        UPDATE production_question
+                        SET status = 'RESOLVED',
+                            resolved_by_user_id = :resolvedByUserId,
+                            resolved_at = CURRENT_TIMESTAMP(3),
+                            resolution_note = :resolutionNote
+                        WHERE question_id = :questionId
+                          AND status = 'OPEN'
+                        """)
+                .param("resolvedByUserId", identity.userId())
+                .param("resolutionNote", request.content().trim())
+                .param("questionId", questionId)
+                .update();
+        return loadProductionQuestion(questionId);
+    }
+
     @Transactional
     public void assign(long orderId, AssignmentRequest request, BootstrapIdentity identity) {
         accessControlService.requireProcessManagement(identity);
@@ -166,7 +258,11 @@ public class WorkflowRuntimeService {
         jdbcClient.sql("""
                         UPDATE order_process_node
                         SET node_status = 'IN_PROGRESS',
-                            started_at = COALESCE(started_at, CURRENT_TIMESTAMP(3))
+                            started_at = COALESCE(started_at, CURRENT_TIMESTAMP(3)),
+                            deadline_at = COALESCE(
+                                deadline_at,
+                                DATE_ADD(CURRENT_TIMESTAMP(3), INTERVAL COALESCE(standard_duration, 0) MINUTE)
+                            )
                         WHERE node_instance_id = :nodeInstanceId
                         """)
                 .param("nodeInstanceId", nodeInstanceId)
@@ -446,6 +542,282 @@ public class WorkflowRuntimeService {
         return branchKey.equalsIgnoreCase(params.path(branchGroup).asText());
     }
 
+    private void loadNodeKanbanMetrics(
+            Map<String, StageMetricAccumulator> stages,
+            Set<Long> visibleOrderIds,
+            LocalDateTime startAt,
+            LocalDateTime endExclusive,
+            LocalDateTime asOf,
+            BootstrapIdentity identity,
+            String dataScope) {
+        jdbcClient.sql("""
+                        WITH unfinished_candidates AS (
+                            SELECT
+                                i.order_id,
+                                COALESCE(n.stage_name, '') AS stage_name,
+                                n.process_name,
+                                o.internal_status,
+                                CASE
+                                    WHEN n.started_at IS NOT NULL AND n.started_at <= :asOf THEN 1
+                                    ELSE 0
+                                END AS in_progress,
+                                CASE
+                                    WHEN n.deadline_at IS NOT NULL AND n.deadline_at < :asOf THEN 1
+                                    ELSE 0
+                                END AS overdue,
+                                ROW_NUMBER() OVER (
+                                    PARTITION BY i.order_id
+                                    ORDER BY
+                                        CASE
+                                            WHEN n.started_at IS NOT NULL AND n.started_at <= :asOf THEN 0
+                                            ELSE 1
+                                        END,
+                                        n.step_order,
+                                        n.node_instance_id
+                                ) AS row_num
+                            FROM order_process_instance i
+                            JOIN order_process_node n ON n.instance_id = i.instance_id
+                            JOIN orders o ON o.order_id = i.order_id
+                            WHERE i.created_at <= :asOf
+                              AND n.created_at <= :asOf
+                              AND (n.completed_at IS NULL OR n.completed_at > :asOf)
+                              AND (n.skipped_at IS NULL OR n.skipped_at > :asOf)
+                              AND n.process_name <> 'DataScope节点'
+                              AND o.internal_status NOT IN ('COMPLETED', 'SHIPPED', 'RECEIVED')
+                              AND (
+                                  :dataScope = 'ALL'
+                                  OR (:dataScope = 'SELF' AND n.assigned_user_id = :userId)
+                              )
+                        )
+                        SELECT order_id, stage_name, process_name, internal_status, in_progress, overdue
+                        FROM unfinished_candidates
+                        WHERE row_num = 1
+                        """)
+                .param("asOf", asOf)
+                .param("dataScope", dataScope)
+                .param("userId", identity.userId())
+                .query((rs, rowNum) -> new UnfinishedOrderMetricRow(
+                        rs.getLong("order_id"),
+                        rs.getString("stage_name"),
+                        rs.getString("process_name"),
+                        rs.getString("internal_status"),
+                        rs.getInt("in_progress") == 1,
+                        rs.getInt("overdue") == 1))
+                .list()
+                .forEach(row -> {
+                    String stageName = resolveProductionKanbanStage(
+                            row.stageName(), row.processName(), row.internalStatus());
+                    StageMetricAccumulator metric = stages.get(stageName);
+                    if (metric != null) {
+                        visibleOrderIds.add(row.orderId());
+                        metric.unfinished += 1;
+                        if (row.inProgress()) {
+                            metric.inProgress += 1;
+                        }
+                        if (row.overdue()) {
+                            metric.overdue += 1;
+                        }
+                    }
+                });
+
+        jdbcClient.sql("""
+                        WITH completed_candidates AS (
+                            SELECT
+                                i.order_id,
+                                COALESCE(n.stage_name, '') AS stage_name,
+                                n.process_name,
+                                o.internal_status,
+                                ROW_NUMBER() OVER (
+                                    PARTITION BY i.order_id
+                                    ORDER BY n.completed_at DESC, n.step_order DESC, n.node_instance_id DESC
+                                ) AS row_num
+                            FROM order_process_instance i
+                            JOIN order_process_node n ON n.instance_id = i.instance_id
+                            JOIN orders o ON o.order_id = i.order_id
+                            WHERE i.instance_status = 'COMPLETED'
+                              AND n.process_name <> 'DataScope节点'
+                              AND i.updated_at >= :startAt
+                              AND i.updated_at < :endExclusive
+                              AND i.updated_at <= :asOf
+                              AND n.completed_at IS NOT NULL
+                              AND n.completed_at <= :asOf
+                              AND (
+                                  :dataScope = 'ALL'
+                                  OR (:dataScope = 'SELF' AND n.assigned_user_id = :userId)
+                              )
+                        )
+                        SELECT order_id, stage_name, process_name, internal_status
+                        FROM completed_candidates
+                        WHERE row_num = 1
+                        """)
+                .param("startAt", startAt)
+                .param("endExclusive", endExclusive)
+                .param("asOf", asOf)
+                .param("dataScope", dataScope)
+                .param("userId", identity.userId())
+                .query((rs, rowNum) -> new CompletedOrderMetricRow(
+                        rs.getLong("order_id"),
+                        rs.getString("stage_name"),
+                        rs.getString("process_name"),
+                        rs.getString("internal_status")))
+                .list()
+                .forEach(row -> {
+                    String stageName = resolveProductionKanbanStage(
+                            row.stageName(), row.processName(), row.internalStatus());
+                    StageMetricAccumulator metric = stages.get(stageName);
+                    if (metric != null) {
+                        visibleOrderIds.add(row.orderId());
+                        metric.completed += 1;
+                    }
+                });
+    }
+
+    private String resolveProductionKanbanStage(String rawStage, String processName, String internalStatus) {
+        String stage = rawStage == null ? "" : rawStage.trim();
+        if (PRODUCTION_KANBAN_STAGES.contains(stage)) {
+            return stage;
+        }
+        String process = processName == null ? "" : processName;
+        String combined = process + stage;
+        if (combined.contains("外发")) return "外发加工";
+        if (process.contains("质检") || List.of("COMPLETED", "PENDING_DOCTOR_CONFIRM").contains(internalStatus)) return "质检";
+        if (process.contains("排牙")) return "排牙";
+        if (process.contains("刻蜡") || process.contains("蜡型")) return "蜡型";
+        if (process.contains("充胶")) return "充胶完成";
+        if (combined.contains("钢托")) return "钢托打磨/就位";
+        if (combined.contains("胶托") && containsAny(process, "打磨", "抛光", "就位", "检验")) return "胶托打磨/就位";
+        if (containsAny(combined, "印模", "取模", "模型", "石膏")) return "石膏";
+        if (combined.contains("车瓷")) return "车瓷";
+        if (combined.contains("车金") || combined.contains("焊接")) return "车金";
+        if (combined.contains("上瓷")) return "上瓷";
+        if (containsAny(process, "审核", "扫描", "口扫", "下单", "收发", "取模", "检验")
+                || List.of("PENDING_PRODUCTION_REVIEW", "PROCESS_INSTANCE_CREATED").contains(internalStatus)) {
+            return "CAD审核/扫描";
+        }
+        if (containsAny(process, "排版", "染色", "切削", "烧结", "打印")) return "CAM排版/染色/切削";
+        if (containsAny(process, "打磨", "抛光", "就位")) return "胶托打磨/就位";
+        if (process.contains("设计") || containsAny(stage, "CAD", "种植", "基台", "内冠", "外冠", "焊接", "贴面", "隐形", "正畸")) {
+            return "CAD设计";
+        }
+        return "";
+    }
+
+    private boolean containsAny(String value, String... candidates) {
+        for (String candidate : candidates) {
+            if (value.contains(candidate)) {
+                return true;
+            }
+        }
+        return false;
+    }
+
+    private void loadQuestionKanbanMetrics(
+            Map<String, StageMetricAccumulator> stages,
+            LocalDateTime endExclusive,
+            LocalDateTime asOf,
+            BootstrapIdentity identity,
+            String dataScope) {
+        jdbcClient.sql("""
+                        SELECT COALESCE(n.stage_name, '') AS stage_name, COUNT(DISTINCT q.order_id) AS question_count
+                        FROM production_question q
+                        JOIN order_process_node n ON n.node_instance_id = q.node_instance_id
+                        WHERE q.asked_at < :endExclusive
+                          AND (q.resolved_at IS NULL OR q.resolved_at > :asOf)
+                          AND (
+                              :dataScope = 'ALL'
+                              OR (:dataScope = 'SELF' AND n.assigned_user_id = :userId)
+                          )
+                        GROUP BY COALESCE(n.stage_name, '')
+                        """)
+                .param("endExclusive", endExclusive)
+                .param("asOf", asOf)
+                .param("dataScope", dataScope)
+                .param("userId", identity.userId())
+                .query((rs, rowNum) -> new StageCountRow(rs.getString("stage_name"), rs.getLong("question_count")))
+                .list()
+                .forEach(row -> {
+                    StageMetricAccumulator metric = stages.get(row.stageName());
+                    if (metric != null) {
+                        metric.pendingQuestions = row.count();
+                    }
+                });
+    }
+
+    private void loadReworkKanbanMetrics(
+            Map<String, StageMetricAccumulator> stages,
+            LocalDateTime endExclusive,
+            LocalDateTime asOf,
+            BootstrapIdentity identity,
+            String dataScope) {
+        jdbcClient.sql("""
+                        SELECT COALESCE(target.stage_name, source.stage_name, '') AS stage_name,
+                               COUNT(DISTINCT r.order_id) AS rework_count
+                        FROM rework_record r
+                        LEFT JOIN order_process_node target ON target.node_instance_id = r.target_node_instance_id
+                        LEFT JOIN order_process_node source ON source.node_instance_id = r.from_node_instance_id
+                        WHERE r.created_at < :endExclusive
+                          AND (r.closed_at IS NULL OR r.closed_at > :asOf)
+                          AND (
+                              :dataScope = 'ALL'
+                              OR (:dataScope = 'SELF' AND (
+                                  target.assigned_user_id = :userId OR source.assigned_user_id = :userId
+                              ))
+                          )
+                        GROUP BY COALESCE(target.stage_name, source.stage_name, '')
+                        """)
+                .param("endExclusive", endExclusive)
+                .param("asOf", asOf)
+                .param("dataScope", dataScope)
+                .param("userId", identity.userId())
+                .query((rs, rowNum) -> new StageCountRow(rs.getString("stage_name"), rs.getLong("rework_count")))
+                .list()
+                .forEach(row -> {
+                    StageMetricAccumulator metric = stages.get(row.stageName());
+                    if (metric != null) {
+                        metric.internalReworks = row.count();
+                    }
+                });
+    }
+
+    private QuestionScope lockProductionQuestion(long questionId) {
+        try {
+            return jdbcClient.sql("""
+                            SELECT question_id, node_instance_id
+                            FROM production_question
+                            WHERE question_id = :questionId
+                            FOR UPDATE
+                            """)
+                    .param("questionId", questionId)
+                    .query((rs, rowNum) -> new QuestionScope(
+                            rs.getLong("question_id"), rs.getLong("node_instance_id")))
+                    .single();
+        } catch (EmptyResultDataAccessException ex) {
+            throw new ResponseStatusException(HttpStatus.NOT_FOUND, "production question not found", ex);
+        }
+    }
+
+    private ProductionQuestionResponse loadProductionQuestion(long questionId) {
+        return jdbcClient.sql("""
+                        SELECT question_id, order_id, node_instance_id, content, status, asked_at, resolved_at
+                        FROM production_question
+                        WHERE question_id = :questionId
+                        """)
+                .param("questionId", questionId)
+                .query((rs, rowNum) -> new ProductionQuestionResponse(
+                        rs.getLong("question_id"),
+                        rs.getLong("order_id"),
+                        rs.getLong("node_instance_id"),
+                        rs.getString("content"),
+                        rs.getString("status"),
+                        rs.getObject("asked_at", LocalDateTime.class),
+                        rs.getObject("resolved_at", LocalDateTime.class)))
+                .single();
+    }
+
+    private long lastInsertId() {
+        return jdbcClient.sql("SELECT LAST_INSERT_ID()").query(Long.class).single();
+    }
+
     private String branchParamsJson(ProductionReviewRequest request) {
         JsonNode params = request.branchParams();
         if (params == null || params.isNull()) {
@@ -603,12 +975,16 @@ public class WorkflowRuntimeService {
                             node_instance_id,
                             node_code,
                             process_name,
+                            stage_name,
                             step_order,
                             is_optional,
                             branch_group,
                             assigned_user_id,
                             node_status,
-                            standard_duration
+                            standard_duration,
+                            started_at,
+                            deadline_at,
+                            completed_at
                         FROM order_process_node
                         WHERE instance_id = :instanceId
                         ORDER BY step_order, node_instance_id
@@ -618,12 +994,16 @@ public class WorkflowRuntimeService {
                         rs.getLong("node_instance_id"),
                         rs.getString("node_code"),
                         rs.getString("process_name"),
+                        rs.getString("stage_name"),
                         rs.getInt("step_order"),
                         rs.getInt("is_optional"),
                         rs.getString("branch_group"),
                         rs.getObject("assigned_user_id", Long.class),
                         rs.getString("node_status"),
-                        rs.getObject("standard_duration", Integer.class)))
+                        rs.getObject("standard_duration", Integer.class),
+                        rs.getObject("started_at", java.time.LocalDateTime.class),
+                        rs.getObject("deadline_at", java.time.LocalDateTime.class),
+                        rs.getObject("completed_at", java.time.LocalDateTime.class)))
                 .list();
     }
 
@@ -666,6 +1046,34 @@ public class WorkflowRuntimeService {
             int needInCheck,
             Long assignedUserId,
             String nodeStatus) {
+    }
+
+    private record UnfinishedOrderMetricRow(
+            long orderId,
+            String stageName,
+            String processName,
+            String internalStatus,
+            boolean inProgress,
+            boolean overdue) {
+    }
+
+    private record CompletedOrderMetricRow(
+            long orderId, String stageName, String processName, String internalStatus) {
+    }
+
+    private record StageCountRow(String stageName, long count) {
+    }
+
+    private record QuestionScope(long questionId, long nodeInstanceId) {
+    }
+
+    private static final class StageMetricAccumulator {
+        private long unfinished;
+        private long inProgress;
+        private long completed;
+        private long overdue;
+        private long pendingQuestions;
+        private long internalReworks;
     }
 
     private record DefinitionNode(

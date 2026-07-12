@@ -4,7 +4,10 @@ import com.yuri.aiorder.common.BootstrapIdentity;
 import com.yuri.aiorder.common.DataResponse;
 import com.yuri.aiorder.common.UserRole;
 import com.yuri.aiorder.common.auth.RequirePermission;
+import jakarta.validation.Valid;
+import java.time.LocalDate;
 import java.util.List;
+import org.springframework.format.annotation.DateTimeFormat;
 import org.springframework.web.bind.annotation.CrossOrigin;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
@@ -38,6 +41,14 @@ public class WorkflowRuntimeController {
             @PathVariable long orderId,
             BootstrapIdentity identity) {
         return new DataResponse<>(workflowRuntimeService.getProcessInstance(orderId, identity));
+    }
+
+    @GetMapping("/production/kanban")
+    @RequirePermission(value = "workflow:read-internal", roles = {UserRole.ADMIN, UserRole.CS, UserRole.WORKER})
+    public DataResponse<ProductionKanbanSummaryResponse> getProductionKanbanSummary(
+            @RequestParam("date") @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate date,
+            BootstrapIdentity identity) {
+        return new DataResponse<>(workflowRuntimeService.getProductionKanbanSummary(date, identity));
     }
 
     @PostMapping("/orders/{orderId}/process-instance/assign")
@@ -75,6 +86,24 @@ public class WorkflowRuntimeController {
             @PathVariable long nodeInstanceId,
             BootstrapIdentity identity) {
         return new DataResponse<>(workflowRuntimeService.completeNode(nodeInstanceId, identity));
+    }
+
+    @PostMapping("/process-instance/nodes/{nodeInstanceId}/questions")
+    @RequirePermission(value = "workflow:operate-assigned", roles = {UserRole.ADMIN, UserRole.WORKER})
+    public DataResponse<ProductionQuestionResponse> createProductionQuestion(
+            @PathVariable long nodeInstanceId,
+            @Valid @RequestBody ProductionQuestionRequest request,
+            BootstrapIdentity identity) {
+        return new DataResponse<>(workflowRuntimeService.createProductionQuestion(nodeInstanceId, request, identity));
+    }
+
+    @PostMapping("/production/questions/{questionId}/resolve")
+    @RequirePermission(value = "workflow:operate-assigned", roles = {UserRole.ADMIN, UserRole.WORKER})
+    public DataResponse<ProductionQuestionResponse> resolveProductionQuestion(
+            @PathVariable long questionId,
+            @Valid @RequestBody ProductionQuestionRequest request,
+            BootstrapIdentity identity) {
+        return new DataResponse<>(workflowRuntimeService.resolveProductionQuestion(questionId, request, identity));
     }
 
     @PostMapping("/process-instance/nodes/{nodeInstanceId}/skip")

@@ -555,6 +555,12 @@ type FileCompleteResponse = {
   checksum: string | null
 }
 
+type UploadTokenResponse = {
+  file_id: number
+  upload_url: string
+  expires_in_seconds: number
+}
+
 type FilePreviewUrlResponse = {
   file_id: number
   preview_url: string
@@ -580,12 +586,43 @@ type ProcessNodeItem = {
   node_instance_id: number
   node_code: string
   process_name: string
+  stage_name: string | null
   step_order: number
   is_optional: number
   branch_group: string | null
   assigned_user_id: number | null
   node_status: string
   standard_duration: number | null
+  started_at: string | null
+  deadline_at: string | null
+  completed_at: string | null
+}
+
+type ProductionKanbanStageSummary = {
+  stage_name: string
+  unfinished_count: number
+  in_progress_count: number
+  completed_count: number
+  overdue_count: number
+  pending_question_count: number
+  internal_rework_count: number
+}
+
+type ProductionKanbanSummaryResponse = {
+  date: string
+  visible_order_ids: number[]
+  stages: ProductionKanbanStageSummary[]
+}
+
+type OrderFileItem = {
+  file_id: number
+  source_type: string
+  visibility: string
+  original_filename: string
+  content_type: string | null
+  file_size: number | null
+  upload_status: string
+  created_at: string
 }
 
 type ProcessEdgeItem = {
@@ -985,12 +1022,16 @@ type ProductionKanbanCard = {
   productLabel: string
   clinicLabel: string
   toothLabel: string
+  stageName: string
   currentProcess: string
   currentNodeCode: string
   currentNodeStatus: string
   assignedUserLabel: string
   slaLabel: string
   elapsedLabel: string
+  startedAt: string | null
+  deadlineAt: string | null
+  completedAt: string | null
   progressPercent: number
   risk: ProductionKanbanRisk
   riskLabel: string
@@ -1014,10 +1055,12 @@ type ProductionKanbanColumn = {
 type ProductionKanbanSummary = {
   key: string
   title: string
-  count: number
-  activeCount: number
-  riskCount: number
   tone: PrototypeTone
+  unfinishedCount: number
+  completedCount: number
+  overdueCount: number
+  pendingQuestionCount: number
+  internalReworkCount: number
 }
 
 type ProductionBoardActionSummaryKey = 'all' | 'review' | 'dispatch' | 'producing' | 'confirm' | 'final' | 'overdue' | 'rework' | 'rush'
@@ -1441,6 +1484,7 @@ const workerTasksLoading = ref(false)
 const workerTaskError = ref('')
 const workerTaskActionLoading = ref(false)
 const checkTaskStatus = ref('READY')
+const checkTaskLookup = ref('')
 const checkTasks = ref<WorkerTaskItem[]>([])
 const selectedCheckTask = ref<WorkerTaskItem | null>(null)
 const checkRecords = ref<CheckRecordResponse[]>([])
@@ -1609,17 +1653,38 @@ const productionRewardPenaltyCreateDescription = ref('')
 const productionRewardPenaltyStatusNo = ref('')
 const productionRewardPenaltyStatus = ref('APPROVED')
 const productionRewardPenaltyStatusDescription = ref('')
+const productionBoardDateFormatter = new Intl.DateTimeFormat('en-CA', {
+  timeZone: 'Asia/Shanghai',
+  year: 'numeric',
+  month: '2-digit',
+  day: '2-digit'
+})
+
+function productionBoardToday() {
+  return productionBoardDateFormatter.format(new Date())
+}
+
 const productionBoardOrders = ref<InternalOrderItem[]>([])
 const selectedProductionBoardOrder = ref<InternalOrderItem | null>(null)
 const productionBoardInstance = ref<ProcessInstanceDetail | null>(null)
 const productionBoardKeyword = ref('')
 const productionBoardStatus = ref('ALL')
+const productionOrdersFilter = ref<'ALL' | 'EXCEPTION' | 'PENDING_SHIPMENT' | 'PENDING_CONFIRMATION'>('ALL')
+const productionOrdersSelectedIds = ref<number[]>([])
+const productionOrderFilterOptions = [
+  { key: 'ALL', label: '全部订单' },
+  { key: 'EXCEPTION', label: '生产异常' },
+  { key: 'PENDING_SHIPMENT', label: '待发货' },
+  { key: 'PENDING_CONFIRMATION', label: '待确认' }
+] as const
 const productionBoardActionSummaryFilter = ref<ProductionBoardActionSummaryKey>('all')
 const productionBoardLoading = ref(false)
 const productionBoardError = ref('')
 const productionBoardDrawerVisible = ref(false)
 const productionBoardSelectedCard = ref<ProductionKanbanCard | null>(null)
-const productionBoardKanbanDate = ref(new Date().toISOString().slice(0, 10))
+const productionBoardKanbanDate = ref(productionBoardToday())
+const productionBoardStageMetrics = ref<Record<string, ProductionKanbanStageSummary>>({})
+const productionBoardVisibleOrderIds = ref<number[]>([])
 const productionBoardLastSyncedAt = ref('')
 const productionBoardProcessInstances = ref<Record<number, ProcessInstanceDetail>>({})
 const productionBoardProcessSyncStates = ref<Record<number, ProductionKanbanSyncState>>({})
@@ -1629,6 +1694,14 @@ const productionBoardShippingLoading = ref(false)
 const productionBoardLogisticsCarrier = ref('')
 const productionBoardLogisticsTrackingNo = ref('')
 const productionBoardShippingResult = ref('')
+const productionBoardFiles = ref<OrderFileItem[]>([])
+const productionBoardFilesLoading = ref(false)
+const productionBoardFilesError = ref('')
+const productionBoardFileUploading = ref(false)
+const productionBoardFileInput = ref<HTMLInputElement | null>(null)
+const productionBoardFileUploadMode = ref<'GENERAL' | 'DESIGN_RETURN'>('GENERAL')
+const productionBoardQuestionDraft = ref('')
+const productionBoardQuestionLoading = ref(false)
 const deliveryOrders = ref<DeliveryOrderItem[]>([])
 const selectedDeliveryOrder = ref<DeliveryOrderItem | null>(null)
 const deliveryStatusFilter = ref('EXCEPTION')
@@ -1917,7 +1990,7 @@ const displayNavigationConfig: Record<PortalTone, NavigationGroup[]> = {
     {
       title: '协同消息',
       items: [
-        { id: 'production-message', title: '沟通中心', description: '查看订单沟通、@ 提醒和待处理消息。', icon: 'chat', routePath: '/collaboration' },
+        { id: 'production-message', title: '沟通中心', description: '消息中心：查看订单沟通、@ 提醒和待处理消息。', icon: 'chat', routePath: '/collaboration' },
         { id: 'production-cloud-data', title: '云端数据中心', description: '查看订单设计稿和生产附件台账。', icon: 'cloud', routePath: '/orders/internal' }
       ]
     }
@@ -2935,12 +3008,26 @@ const isWorklogsRoute = computed(() => activeRoute.value === '/worklogs/self')
 const isPerformanceRoute = computed(() => activeRoute.value === '/performance')
 const isStaffWorkloadRoute = computed(() => activeRoute.value === '/production/staff' || activeRoute.value === '/admin/staff')
 const isProductionBoardRoute = computed(() => activeRoute.value === '/production/board')
+const isProductionOrdersView = computed(() => activeNavId.value === 'production-orders')
+const isProductionKanbanView = computed(() => activeNavId.value === 'production-board')
+const isProductionReferenceView = computed(() => isProductionBoardRoute.value && (isProductionOrdersView.value || isProductionKanbanView.value))
+const isProductionCompactRoute = computed(() => portalTone.value === 'production' && [
+  'production-orders', 'production-board', 'production-tasks', 'production-scan', 'production-quality', 'production-quality-overview',
+  'production-internal-rework-management', 'production-external-rework-management', 'production-final-report', 'production-staff',
+  'production-performance', 'production-reward-penalty', 'production-device', 'production-material', 'production-cost',
+  'production-cost-outsourcing', 'production-safety', 'production-message', 'production-cloud-data'
+].includes(activeNavId.value))
 const isProductionQualitySummaryRoute = computed(() => [
   'production-quality',
-  'production-quality-overview',
-  'production-internal-rework-management',
-  'production-external-rework-management'
+  'production-quality-overview'
 ].includes(activeDisplayItem.value?.id ?? ''))
+const isProductionQualityOverviewView = computed(() => [
+  'production-quality', 'production-quality-overview'
+].includes(activeNavId.value))
+const isInternalReworkView = computed(() => activeNavId.value === 'production-internal-rework-management')
+const isExternalReworkView = computed(() => activeNavId.value === 'production-external-rework-management')
+const isFinalReportView = computed(() => activeNavId.value === 'production-final-report')
+const isProductionCloudDataView = computed(() => activeNavId.value === 'production-cloud-data')
 const isProductionEquipmentSummaryRoute = computed(() => [
   'production-device',
   'admin-device'
@@ -2986,6 +3073,7 @@ const isDeliveryManagementRoute = computed(() => activeRoute.value === '/deliver
 const isFormConfigsRoute = computed(() => activeRoute.value === '/system/form-configs')
 const isReworkDictionariesRoute = computed(() => activeRoute.value === '/system/rework-dictionaries')
 const canCreateClinic = computed(() => currentUser.value?.roles.includes('ADMIN') ?? false)
+const canManageProductionBoard = computed(() => currentUser.value?.roles.some((role) => ['ADMIN', 'CS'].includes(role)) ?? false)
 const selectedOrderId = computed(() => selectedDoctorOrder.value?.order_id ?? doctorOrderWorkspace.value?.order.order_id ?? null)
 const selectedProductCatalogItem = computed(() =>
   productCatalogItems.value.find((item) => item.product_id === selectedProductCatalogId.value) ?? null)
@@ -3208,6 +3296,8 @@ const statusLabelMap: Record<string, string> = {
   PENDING_PRODUCTION_REVIEW: '待生产审核',
   PROCESS_INSTANCE_CREATED: '已生成工序',
   PRODUCING: '生产中',
+  IN_PRODUCTION: '生产中',
+  'IN PRODUCTION': '生产中',
   CS_REJECTED: '客服驳回',
   PRODUCTION_REJECTED: '生产驳回',
   SHIPPED: '已发货',
@@ -3358,7 +3448,7 @@ function productionBoardFormValue(order: InternalOrderItem, keys: string[]) {
 
 function productionBoardToothLabel(order: InternalOrderItem) {
   const value = productionBoardFormValue(order, ['tooth_numbers', 'tooth_number', 'tooth', 'teeth', 'toothNo'])
-  return value ? `牙位 ${value}` : '牙位待同步'
+  return value ? `牙位 ${value}` : '牙位未设置'
 }
 
 function productionBoardCurrentNode(instance: ProcessInstanceDetail | null) {
@@ -3367,6 +3457,7 @@ function productionBoardCurrentNode(instance: ProcessInstanceDetail | null) {
     ?? nodes.find((node) => node.node_status === 'READY')
     ?? nodes.find((node) => node.node_status === 'PENDING')
     ?? nodes.find((node) => node.node_status !== 'COMPLETED' && node.node_status !== 'SKIPPED')
+    ?? nodes.at(-1)
     ?? null
 }
 
@@ -3383,6 +3474,9 @@ function productionBoardRisk(order: InternalOrderItem, node: ProcessNodeItem | n
   const statusText = `${order.internal_status} ${order.external_status}`.toUpperCase()
   const note = `${order.production_note ?? ''} ${JSON.stringify(order.form_data ?? {})}`.toLowerCase()
   if (statusText.includes('OVERDUE')) {
+    return 'overdue'
+  }
+  if (node?.deadline_at && !node.completed_at && new Date(node.deadline_at).getTime() < Date.now()) {
     return 'overdue'
   }
   if (statusText.includes('REWORK')) {
@@ -3408,6 +3502,92 @@ function productionBoardRiskLabel(risk: ProductionKanbanRisk) {
   return labels[risk]
 }
 
+function productionOrderMatchesFilter(order: InternalOrderItem, filter = productionOrdersFilter.value) {
+  if (filter === 'ALL') {
+    return true
+  }
+  const statusText = `${order.internal_status} ${order.external_status}`.toUpperCase()
+  if (filter === 'EXCEPTION') {
+    return ['OVERDUE', 'REWORK', 'REJECT', 'EXCEPTION'].some((keyword) => statusText.includes(keyword))
+  }
+  if (filter === 'PENDING_SHIPMENT') {
+    return ['COMPLETED', 'PENDING_SHIPMENT', 'READY_TO_SHIP'].some((keyword) => statusText.includes(keyword))
+  }
+  return statusText.includes('PENDING_DOCTOR_CONFIRM')
+}
+
+const productionOrdersVisible = computed(() => productionBoardOrders.value.filter((order) => productionOrderMatchesFilter(order)))
+const productionOrdersAllSelected = computed(() =>
+  productionOrdersVisible.value.length > 0
+  && productionOrdersVisible.value.every((order) => productionOrdersSelectedIds.value.includes(order.order_id)))
+
+function productionOrdersFilterCount(filter: 'ALL' | 'EXCEPTION' | 'PENDING_SHIPMENT' | 'PENDING_CONFIRMATION') {
+  return productionBoardOrders.value.filter((order) => productionOrderMatchesFilter(order, filter)).length
+}
+
+function selectProductionOrdersFilter(filter: 'ALL' | 'EXCEPTION' | 'PENDING_SHIPMENT' | 'PENDING_CONFIRMATION') {
+  productionOrdersFilter.value = filter
+  productionOrdersSelectedIds.value = productionOrdersSelectedIds.value.filter((orderId) =>
+    productionOrdersVisible.value.some((order) => order.order_id === orderId))
+}
+
+function toggleProductionOrderSelection(orderId: number, checked: boolean) {
+  productionOrdersSelectedIds.value = checked
+    ? Array.from(new Set([...productionOrdersSelectedIds.value, orderId]))
+    : productionOrdersSelectedIds.value.filter((selectedId) => selectedId !== orderId)
+}
+
+function toggleProductionOrdersAll(checked: boolean) {
+  const visibleIds = productionOrdersVisible.value.map((order) => order.order_id)
+  productionOrdersSelectedIds.value = checked
+    ? Array.from(new Set([...productionOrdersSelectedIds.value, ...visibleIds]))
+    : productionOrdersSelectedIds.value.filter((orderId) => !visibleIds.includes(orderId))
+}
+
+function checkboxChecked(event: Event) {
+  return event.target instanceof HTMLInputElement && event.target.checked
+}
+
+function productionOrderOwnerLabel(order: InternalOrderItem) {
+  const namedOwner = productionBoardFormValue(order, ['assigned_user_name', 'assigned_to', 'technician_name', 'owner_name'])
+  if (namedOwner) {
+    return namedOwner
+  }
+  const node = productionBoardCurrentNode(productionBoardProcessInstances.value[order.order_id] ?? null)
+  return node?.assigned_user_id ? '已分配' : '待分配'
+}
+
+function productionOrderTargetDateLabel(order: InternalOrderItem) {
+  const targetDate = productionBoardFormValue(order, ['deadline_at', 'due_at', 'delivery_date', 'due_date'])
+  return targetDate ? compactDateTime(targetDate) : '未设置'
+}
+
+function productionOrderNoteLabel(order: InternalOrderItem) {
+  const note = order.production_note?.trim()
+  if (!note) {
+    return '暂无记录'
+  }
+  if (note.startsWith('权限测试')) {
+    return '已记录内部备注'
+  }
+  const normalized = note
+    .replace(/^\d+[A-Z]\.\d+(?:\.\d+)?\s*/i, '')
+    .replace(/^固定演示数据[:：]\s*/i, '')
+    .trim()
+  return normalized || '暂无记录'
+}
+
+function openProductionBoardOrder(order: InternalOrderItem) {
+  void selectProductionBoardOrder(order)
+}
+
+function printSelectedProductionOrders() {
+  if (productionOrdersSelectedIds.value.length === 0) {
+    return
+  }
+  window.print()
+}
+
 function productionBoardRiskScore(risk: ProductionKanbanRisk) {
   const scores: Record<ProductionKanbanRisk, number> = {
     overdue: 400,
@@ -3421,11 +3601,11 @@ function productionBoardRiskScore(risk: ProductionKanbanRisk) {
 
 function productionBoardSyncLabel(syncState: ProductionKanbanSyncState) {
   const labels: Record<ProductionKanbanSyncState, string> = {
-    idle: '工序待同步',
-    syncing: '工序同步中',
-    synced: '已同步',
-    failed: '工序待同步',
-    skipped: '无需同步'
+    idle: '待派工',
+    syncing: '待派工',
+    synced: '已派工',
+    failed: '待派工',
+    skipped: '无需派工'
   }
   return labels[syncState]
 }
@@ -3438,8 +3618,75 @@ function productionBoardToneForProcess(node: ProcessNodeItem | null): PrototypeT
   return tones[Math.abs(node.step_order - 1) % tones.length]
 }
 
-function productionBoardColumnKeyForProcess(node: ProcessNodeItem) {
-  return `process-${node.step_order}-${node.node_code || node.process_name}`.replace(/[^a-zA-Z0-9_-]+/g, '-').toLowerCase()
+function productionBoardTonePalette(tone: PrototypeTone) {
+  const palettes: Record<PrototypeTone, { color: string, background: string }> = {
+    teal: { color: '#0f766e', background: '#f0fdfa' },
+    sky: { color: '#2563eb', background: '#eff6ff' },
+    violet: { color: '#7c3aed', background: '#f5f3ff' },
+    green: { color: '#059669', background: '#ecfdf5' },
+    amber: { color: '#d97706', background: '#fffbeb' },
+    orange: { color: '#ea580c', background: '#fff7ed' },
+    rose: { color: '#e11d48', background: '#fff1f2' },
+    slate: { color: '#64748b', background: '#f8fafc' },
+    blue: { color: '#2563eb', background: '#eff6ff' }
+  }
+  return palettes[tone]
+}
+
+function productionBoardCardProgressColor(card: ProductionKanbanCard) {
+  if (card.risk === 'overdue' || card.risk === 'rework') {
+    return '#e11d48'
+  }
+  if (card.risk === 'rush' || card.progressPercent > 75) {
+    return '#d97706'
+  }
+  return '#14b8a6'
+}
+
+function productionBoardCardTimeLabel(card: ProductionKanbanCard) {
+  return `进度 ${card.progressPercent}%`
+}
+
+const productionBoardStageDefinitions: Array<Omit<ProductionKanbanColumn, 'cards'>> = [
+  { key: 'category-cad-review-scan', title: 'CAD审核/扫描', subtitle: '审核 / 扫描', tone: 'sky', stepOrder: 10 },
+  { key: 'category-plaster', title: '石膏', subtitle: '石膏模型', tone: 'slate', stepOrder: 20 },
+  { key: 'category-cad-design', title: 'CAD设计', subtitle: '数字化设计', tone: 'violet', stepOrder: 30 },
+  { key: 'category-cam', title: 'CAM排版/染色/切削', subtitle: '排版 / 染色 / 切削', tone: 'teal', stepOrder: 40 },
+  { key: 'category-ceramic', title: '车瓷', subtitle: '形态 / 修整', tone: 'rose', stepOrder: 50 },
+  { key: 'category-metal', title: '车金', subtitle: '金属加工', tone: 'amber', stepOrder: 60 },
+  { key: 'category-porcelain', title: '上瓷', subtitle: '上瓷制作', tone: 'rose', stepOrder: 70 },
+  { key: 'category-tooth-arrangement', title: '排牙', subtitle: '选牙 / 排牙', tone: 'violet', stepOrder: 80 },
+  { key: 'category-wax', title: '蜡型', subtitle: '刻蜡制作', tone: 'orange', stepOrder: 90 },
+  { key: 'category-acrylic-complete', title: '充胶完成', subtitle: '充胶 / 完成', tone: 'orange', stepOrder: 100 },
+  { key: 'category-steel-finish', title: '钢托打磨/就位', subtitle: '钢托打磨 / 就位', tone: 'amber', stepOrder: 110 },
+  { key: 'category-acrylic-finish', title: '胶托打磨/就位', subtitle: '胶托打磨 / 就位', tone: 'orange', stepOrder: 120 },
+  { key: 'category-quality', title: '质检', subtitle: '质量检查', tone: 'green', stepOrder: 130 },
+  { key: 'category-outsourcing', title: '外发加工', subtitle: '外发处理', tone: 'slate', stepOrder: 140 }
+]
+
+const productionBoardStageKeys = new Map(productionBoardStageDefinitions.map((stage) => [stage.title, stage.key]))
+
+function productionBoardStageName(order: InternalOrderItem, node: ProcessNodeItem | null) {
+  const processName = node?.process_name ?? ''
+  const stageName = node?.stage_name ?? ''
+  const status = order.internal_status
+
+  if (/外发/.test(`${processName}${stageName}`)) return '外发加工'
+  if (/质检/.test(processName) || ['COMPLETED', 'PENDING_DOCTOR_CONFIRM'].includes(status)) return '质检'
+  if (/排牙/.test(processName)) return '排牙'
+  if (/刻蜡|蜡型/.test(processName)) return '蜡型'
+  if (/充胶/.test(processName)) return '充胶完成'
+  if (/钢托/.test(`${processName}${stageName}`)) return '钢托打磨/就位'
+  if (/胶托/.test(`${processName}${stageName}`) && /打磨|抛光|就位|检验/.test(processName)) return '胶托打磨/就位'
+  if (/印模|取模|模型|石膏/.test(`${processName}${stageName}`)) return '石膏'
+  if (/车瓷/.test(`${processName}${stageName}`)) return '车瓷'
+  if (/车金|焊接/.test(`${processName}${stageName}`)) return '车金'
+  if (/上瓷/.test(`${processName}${stageName}`)) return '上瓷'
+  if (/审核|扫描|口扫|下单|收发|取模|检验/.test(processName) || ['PENDING_PRODUCTION_REVIEW', 'PROCESS_INSTANCE_CREATED'].includes(status)) return 'CAD审核/扫描'
+  if (/排版|染色|切削|烧结|打印/.test(processName)) return 'CAM排版/染色/切削'
+  if (/打磨|抛光|就位/.test(processName)) return '胶托打磨/就位'
+  if (/设计/.test(processName) || /CAD|种植|基台|内冠|外冠|焊接|贴面|隐形|正畸/.test(stageName)) return 'CAD设计'
+  return productionBoardStageKeys.has(stageName) ? stageName : ''
 }
 
 function buildProductionKanbanCard(order: InternalOrderItem): ProductionKanbanCard {
@@ -3447,7 +3694,7 @@ function buildProductionKanbanCard(order: InternalOrderItem): ProductionKanbanCa
   const syncState = productionBoardProcessSyncStates.value[order.order_id]
     ?? (['PENDING_PRODUCTION_REVIEW', 'PENDING_DOCTOR_CONFIRM', 'COMPLETED', 'SHIPPED', 'RECEIVED'].includes(order.internal_status) ? 'skipped' : 'idle')
   const rawNode = productionBoardCurrentNode(instance)
-  const node = ['PENDING_PRODUCTION_REVIEW', 'PENDING_DOCTOR_CONFIRM', 'COMPLETED'].includes(order.internal_status) ? null : rawNode
+  const node = ['PENDING_PRODUCTION_REVIEW', 'PENDING_DOCTOR_CONFIRM'].includes(order.internal_status) ? null : rawNode
   const risk = productionBoardRisk(order, node)
   const fallbackProcess = order.internal_status === 'PENDING_PRODUCTION_REVIEW'
     ? '生产审核'
@@ -3468,12 +3715,16 @@ function buildProductionKanbanCard(order: InternalOrderItem): ProductionKanbanCa
     productLabel: productTypeLabel(order.product_type),
     clinicLabel: order.clinic_name || `诊所 ${order.clinic_id}`,
     toothLabel: productionBoardToothLabel(order),
+    stageName: productionBoardStageName(order, node),
     currentProcess: node?.process_name ?? fallbackProcess,
     currentNodeCode: node?.node_code ?? statusLabel(order.internal_status),
     currentNodeStatus: node?.node_status ?? order.internal_status,
     assignedUserLabel: node?.assigned_user_id ? `员工 ${node.assigned_user_id}` : '负责人待同步',
-    slaLabel: node?.standard_duration ? `SLA ${node.standard_duration} 分钟` : 'SLA 待同步',
-    elapsedLabel: '耗时待同步',
+    slaLabel: node?.standard_duration ? `标准 ${node.standard_duration} 分钟` : '标准时长待配置',
+    elapsedLabel: node?.started_at ? `开始 ${compactDateTime(node.started_at)}` : '尚未开始',
+    startedAt: node?.started_at ?? null,
+    deadlineAt: node?.deadline_at ?? null,
+    completedAt: node?.completed_at ?? null,
     progressPercent,
     risk,
     riskLabel: productionBoardRiskLabel(risk),
@@ -3486,10 +3737,8 @@ function buildProductionKanbanCard(order: InternalOrderItem): ProductionKanbanCa
 }
 
 const visibleProductionBoardOrders = computed(() => {
-  if (productionBoardStatus.value !== 'ALL') {
-    return productionBoardOrders.value
-  }
-  return productionBoardOrders.value.filter((order) => !['SHIPPED', 'RECEIVED'].includes(order.internal_status))
+  const visibleOrderIds = new Set(productionBoardVisibleOrderIds.value)
+  return productionBoardOrders.value.filter((order) => visibleOrderIds.has(order.order_id))
 })
 
 const productionBoardKanbanCards = computed<ProductionKanbanCard[]>(() => {
@@ -3559,61 +3808,50 @@ function selectProductionBoardActionSummary(key: ProductionBoardActionSummaryKey
   productionBoardActionSummaryFilter.value = productionBoardActionSummaryFilter.value === key ? 'all' : key
 }
 
-const productionBoardAuxiliaryColumns = computed<ProductionKanbanColumn[]>(() => {
-  const cards = productionBoardFilteredKanbanCards.value
-  const byStatus = (statuses: string[]) => cards.filter((card) => statuses.includes(card.order.internal_status))
-  const syncCards = cards.filter((card) => !card.node && ['idle', 'syncing', 'failed'].includes(card.syncState) && !['PENDING_PRODUCTION_REVIEW', 'PENDING_DOCTOR_CONFIRM', 'COMPLETED'].includes(card.order.internal_status))
-  return [
-    { key: 'aux-review', title: '待生产审核', subtitle: '资料 / 生产备注', tone: 'amber', stepOrder: -30, auxiliary: true, cards: byStatus(['PENDING_PRODUCTION_REVIEW']) },
-    { key: 'aux-dispatch', title: '待派工', subtitle: '工序待生成', tone: 'sky', stepOrder: -20, auxiliary: true, cards: byStatus(['PROCESS_INSTANCE_CREATED']).filter((card) => card.syncState === 'synced' && !card.node) },
-    { key: 'aux-sync', title: '工序待同步', subtitle: '渐进读取中', tone: 'slate', stepOrder: -10, auxiliary: true, cards: syncCards },
-    { key: 'aux-doctor', title: '医生待确认', subtitle: '设计 / 照片确认', tone: 'violet', stepOrder: 900, auxiliary: true, cards: byStatus(['PENDING_DOCTOR_CONFIRM']) },
-    { key: 'aux-final', title: '终检待发', subtitle: '完工 / 物流门禁', tone: 'green', stepOrder: 910, auxiliary: true, cards: byStatus(['COMPLETED']) }
-  ]
-})
-
 const productionBoardProcessColumns = computed<ProductionKanbanColumn[]>(() => {
-  const groups = new Map<string, ProductionKanbanColumn>()
+  const cardsByStage = new Map<string, ProductionKanbanCard[]>()
   for (const card of productionBoardFilteredKanbanCards.value) {
-    if (!card.node || ['PENDING_PRODUCTION_REVIEW', 'PENDING_DOCTOR_CONFIRM', 'COMPLETED'].includes(card.order.internal_status)) {
+    if (!card.stageName) {
       continue
     }
-    const key = productionBoardColumnKeyForProcess(card.node)
-    const existing = groups.get(key)
-    if (existing) {
-      existing.cards.push(card)
-    } else {
-      groups.set(key, {
-        key,
-        title: card.node.process_name,
-        subtitle: `${card.slaLabel} / ${card.node.node_code}`,
-        tone: productionBoardToneForProcess(card.node),
-        stepOrder: card.node.step_order,
-        cards: [card]
-      })
-    }
+    const cards = cardsByStage.get(card.stageName) ?? []
+    cards.push(card)
+    cardsByStage.set(card.stageName, cards)
   }
-  return Array.from(groups.values()).sort((a, b) => a.stepOrder - b.stepOrder || a.title.localeCompare(b.title))
+  return productionBoardStageDefinitions.map((stage) => ({
+    ...stage,
+    cards: cardsByStage.get(stage.title) ?? []
+  }))
 })
 
+const productionBoardFlowIssueCount = computed(() =>
+  productionBoardFilteredKanbanCards.value.filter((card) => {
+    if (['PENDING_PRODUCTION_REVIEW', 'PROCESS_INSTANCE_CREATED', 'PENDING_DOCTOR_CONFIRM', 'COMPLETED'].includes(card.order.internal_status)) {
+      return false
+    }
+    return !card.node || !card.stageName
+  }).length
+)
+
 const productionBoardKanbanColumns = computed<ProductionKanbanColumn[]>(() => {
-  const auxiliary = productionBoardAuxiliaryColumns.value
-  return [
-    ...auxiliary.filter((column) => column.stepOrder < 0),
-    ...productionBoardProcessColumns.value,
-    ...auxiliary.filter((column) => column.stepOrder > 0)
-  ]
+  return productionBoardProcessColumns.value
 })
 
 const productionBoardKanbanSummaries = computed<ProductionKanbanSummary[]>(() => {
-  return productionBoardKanbanColumns.value.map((column) => ({
-    key: column.key,
-    title: column.title,
-    count: column.cards.length,
-    activeCount: column.cards.filter((card) => card.currentNodeStatus === 'IN_PROGRESS').length,
-    riskCount: column.cards.filter((card) => card.risk !== 'normal').length,
-    tone: column.tone
-  }))
+  return productionBoardStageDefinitions.map((stage) => {
+    const metric = productionBoardStageMetrics.value[stage.title]
+    const cards = productionBoardKanbanColumns.value.find((column) => column.title === stage.title)?.cards ?? []
+    return {
+      key: stage.key,
+      title: stage.title,
+      tone: stage.tone,
+      unfinishedCount: metric?.unfinished_count ?? cards.filter((card) => !['COMPLETED', 'SKIPPED'].includes(card.currentNodeStatus)).length,
+      completedCount: metric?.completed_count ?? 0,
+      overdueCount: metric?.overdue_count ?? cards.filter((card) => card.risk === 'overdue').length,
+      pendingQuestionCount: metric?.pending_question_count ?? 0,
+      internalReworkCount: metric?.internal_rework_count ?? cards.filter((card) => card.risk === 'rework').length
+    }
+  })
 })
 const productionBoardNodeStats = computed(() => {
   const stats = {
@@ -3668,8 +3906,8 @@ const productionQualitySummaryCards = computed(() => {
     },
     {
       title: '投诉率 / 退货率',
-      value: `${formatRate(summary.complaint_rate)} / ${formatRate(summary.return_rate)}`,
-      detail: '投诉和退货数据表待接入',
+      value: `${Object.prototype.hasOwnProperty.call(summary, 'complaint_rate') ? formatRate(summary.complaint_rate) : '暂无统计'} / ${Object.prototype.hasOwnProperty.call(summary, 'return_rate') ? formatRate(summary.return_rate) : '暂无统计'}`,
+      detail: '投诉和退货数据接入后会自动显示',
       tone: 'neutral'
     }
   ]
@@ -3980,12 +4218,19 @@ function applyLoginSession(payload: LoginResponse, nextRoute: string, loginPorta
   activePortalTone.value = loginPortal ? portalToneByLoginPortal[loginPortal] : activePortalTone.value
   activeRoute.value = nextRoute
   activePrototypeChip.value = ''
-  activeNavId.value = findDisplayItemByRoute(nextRoute)?.id ?? `${portalTone.value}-dashboard`
+  activeNavId.value = defaultDisplayNavIdForRoute(nextRoute)
   void loadNotifications()
   void loadCustomerAttentionItems()
   void loadActiveRouteData().catch((error) => {
     phaseOneAbDashboardDataError.value = error instanceof Error ? error.message : '页面数据加载失败'
   })
+}
+
+function defaultDisplayNavIdForRoute(routePath: string) {
+  if (routePath === '/production/board' && portalTone.value === 'production') {
+    return 'production-board'
+  }
+  return findDisplayItemByRoute(routePath)?.id ?? `${portalTone.value}-dashboard`
 }
 
 async function loadActiveRouteData() {
@@ -6533,6 +6778,28 @@ async function operateWorkerTask(task: WorkerTaskItem, action: 'START' | 'COMPLE
   }
 }
 
+async function setWorkerTaskFilter(status: string) {
+  workerTaskStatus.value = status
+  await loadWorkerTasks()
+}
+
+async function locateCheckTask() {
+  const lookup = checkTaskLookup.value.trim().toLowerCase()
+  if (!lookup) {
+    checkError.value = '请输入订单号或节点编号'
+    return
+  }
+  checkTaskStatus.value = ''
+  await loadCheckTasks()
+  const task = checkTasks.value.find((item) =>
+    item.order_no.toLowerCase().includes(lookup) || String(item.node_instance_id) === lookup)
+  if (!task) {
+    checkError.value = '未找到当前账号可执行的任务，请核对订单号或节点编号'
+    return
+  }
+  await selectCheckTask(task)
+}
+
 async function loadCheckTasks() {
   if (!token.value) {
     return
@@ -7432,6 +7699,13 @@ async function createProductionCostRecord() {
   }
 }
 
+async function createCurrentProductionCostRecord() {
+  if (activeNavId.value === 'production-cost-outsourcing') {
+    productionCostCreateType.value = 'OUTSOURCING'
+  }
+  await createProductionCostRecord()
+}
+
 async function loadProductionRewardPenaltySummary() {
   if (!token.value) {
     return
@@ -7522,22 +7796,32 @@ async function loadProductionBoardOrders() {
   productionBoardLoading.value = true
   productionBoardError.value = ''
   try {
-    const params = new URLSearchParams({
-      page: '1',
-      size: '50'
-    })
-    if (productionBoardStatus.value !== 'ALL') {
-      params.set('internal_status', productionBoardStatus.value)
-    }
-    if (productionBoardKeyword.value.trim()) {
-      params.set('keyword', productionBoardKeyword.value.trim())
-    }
-    const payload = await apiFetch<InternalOrderListResponse>(`/orders?${params.toString()}`)
-    productionBoardOrders.value = payload.data.items
+    await loadProductionBoardKanbanSummary()
+    const items: InternalOrderItem[] = []
+    let page = 1
+    let total = 0
+    do {
+      const params = new URLSearchParams({
+        page: String(page),
+        size: '100'
+      })
+      if (productionBoardStatus.value !== 'ALL') {
+        params.set('internal_status', productionBoardStatus.value)
+      }
+      if (productionBoardKeyword.value.trim()) {
+        params.set('keyword', productionBoardKeyword.value.trim())
+      }
+      const payload = await apiFetch<InternalOrderListResponse>(`/orders?${params.toString()}`)
+      items.push(...payload.data.items)
+      total = payload.data.total
+      page += 1
+    } while (items.length < total)
+    productionBoardOrders.value = items
+    const visibleOrders = visibleProductionBoardOrders.value
     const selectedStillVisible = selectedProductionBoardOrder.value
-      ? payload.data.items.some((item) => item.order_id === selectedProductionBoardOrder.value?.order_id)
+      ? visibleOrders.some((item) => item.order_id === selectedProductionBoardOrder.value?.order_id)
       : false
-    if (payload.data.items.length === 0) {
+    if (visibleOrders.length === 0) {
       selectedProductionBoardOrder.value = null
       productionBoardInstance.value = null
       productionBoardSelectedCard.value = null
@@ -7553,7 +7837,7 @@ async function loadProductionBoardOrders() {
       await loadProductionBoardInstance(selectedProductionBoardOrder.value.order_id)
     }
     productionBoardLastSyncedAt.value = new Date().toISOString()
-    void syncProductionBoardProcessInstances(payload.data.items)
+    void syncProductionBoardProcessInstances(visibleOrders)
   } catch (error) {
     productionBoardError.value = error instanceof Error ? error.message : '生产看板订单加载失败'
   } finally {
@@ -7626,8 +7910,201 @@ async function selectProductionBoardOrder(order: InternalOrderItem, card?: Produ
   productionBoardLogisticsCarrier.value = ''
   productionBoardLogisticsTrackingNo.value = ''
   productionBoardShippingResult.value = ''
+  productionBoardQuestionDraft.value = ''
+  void loadProductionBoardFiles(order.order_id)
   await loadProductionBoardInstance(order.order_id)
   productionBoardSelectedCard.value = buildProductionKanbanCard(order)
+}
+
+async function loadProductionBoardKanbanSummary() {
+  if (!token.value) {
+    return
+  }
+  try {
+    const payload = await apiFetch<ProductionKanbanSummaryResponse>(`/production/kanban?date=${encodeURIComponent(productionBoardKanbanDate.value)}`)
+    productionBoardStageMetrics.value = Object.fromEntries(payload.data.stages.map((stage) => [stage.stage_name, stage]))
+    productionBoardVisibleOrderIds.value = payload.data.visible_order_ids
+  } catch (error) {
+    productionBoardStageMetrics.value = {}
+    productionBoardVisibleOrderIds.value = []
+    productionBoardError.value = error instanceof Error ? error.message : '生产看板汇总加载失败'
+  }
+}
+
+async function loadProductionBoardFiles(orderId: number) {
+  productionBoardFilesLoading.value = true
+  productionBoardFilesError.value = ''
+  try {
+    const payload = await apiFetch<OrderFileItem[]>(`/orders/${orderId}/files`)
+    productionBoardFiles.value = payload.data
+  } catch (error) {
+    productionBoardFiles.value = []
+    productionBoardFilesError.value = error instanceof Error ? error.message : '订单文件加载失败'
+  } finally {
+    productionBoardFilesLoading.value = false
+  }
+}
+
+function triggerProductionBoardFileUpload(mode: 'GENERAL' | 'DESIGN_RETURN' = 'GENERAL') {
+  productionBoardFileUploadMode.value = mode
+  productionBoardFileInput.value?.click()
+}
+
+function productionBoardFileSourceType(file: File) {
+  if (productionBoardFileUploadMode.value === 'DESIGN_RETURN') return 'DESIGN_RETURN'
+  const extension = file.name.split('.').pop()?.toUpperCase() ?? ''
+  if (['STL', 'OBJ', 'EXO', 'PLY'].includes(extension)) return 'CAD_DATA'
+  if (['JPG', 'JPEG', 'PNG', 'WEBP'].includes(extension)) return 'PRODUCTION_PHOTO'
+  if (['PDF', 'DOC', 'DOCX'].includes(extension)) return 'PRODUCTION_DOCUMENT'
+  return 'PRODUCTION_ATTACHMENT'
+}
+
+async function uploadProductionBoardFile(event: Event) {
+  const file = (event.target as HTMLInputElement).files?.[0]
+  const order = selectedProductionBoardOrder.value
+  if (!file || !order) {
+    return
+  }
+  productionBoardFileUploading.value = true
+  productionBoardFilesError.value = ''
+  try {
+    const tokenPayload = await apiFetch<UploadTokenResponse>('/files/upload-token', {
+      method: 'POST',
+      body: JSON.stringify({
+        order_id: order.order_id,
+        source_type: productionBoardFileSourceType(file),
+        visibility: 'INTERNAL',
+        original_filename: file.name,
+        content_type: file.type || 'application/octet-stream',
+        file_size: file.size
+      })
+    })
+    const uploadResponse = await fetch(tokenPayload.data.upload_url, {
+      method: 'PUT',
+      headers: { 'Content-Type': file.type || 'application/octet-stream' },
+      body: file
+    })
+    if (!uploadResponse.ok) {
+      throw new Error(`文件上传失败：${uploadResponse.status}`)
+    }
+    await apiFetch<FileCompleteResponse>(`/files/${tokenPayload.data.file_id}/complete`, { method: 'POST' })
+    await loadProductionBoardFiles(order.order_id)
+  } catch (error) {
+    productionBoardFilesError.value = error instanceof Error ? error.message : '文件上传失败'
+  } finally {
+    productionBoardFileUploading.value = false
+    productionBoardFileUploadMode.value = 'GENERAL'
+    if (productionBoardFileInput.value) {
+      productionBoardFileInput.value.value = ''
+    }
+  }
+}
+
+async function downloadProductionBoardFile(file: OrderFileItem) {
+  try {
+    const payload = await apiFetch<FilePreviewUrlResponse>(`/files/${file.file_id}/download-url`)
+    window.open(payload.data.download_url ?? payload.data.preview_url, '_blank', 'noopener')
+  } catch (error) {
+    productionBoardFilesError.value = error instanceof Error ? error.message : '文件下载链接获取失败'
+  }
+}
+
+function productionBoardCadFiles() {
+  return productionBoardFiles.value.filter((file) => {
+    const extension = file.original_filename.split('.').pop()?.toUpperCase() ?? ''
+    return ['CAD_DATA', 'DESIGN_RETURN', 'DESIGN_DRAFT', 'ORDER_ATTACHMENT'].includes(file.source_type)
+      || ['STL', 'OBJ', 'EXO', 'PLY', 'DCM'].includes(extension)
+  })
+}
+
+async function downloadProductionBoardCadData() {
+  const file = productionBoardCadFiles()[0]
+  if (!file) {
+    productionBoardFilesError.value = '当前订单没有可下载的扫描或 CAD 数据'
+    return
+  }
+  await downloadProductionBoardFile(file)
+}
+
+async function previewProductionBoardCadData() {
+  const file = productionBoardCadFiles()[0]
+  if (!file) {
+    productionBoardFilesError.value = '当前订单没有可预览的 CAD 数据'
+    return
+  }
+  try {
+    const payload = await apiFetch<FilePreviewUrlResponse>(`/files/${file.file_id}/preview-url`)
+    window.open(payload.data.preview_url, '_blank', 'noopener')
+  } catch (error) {
+    productionBoardFilesError.value = error instanceof Error ? error.message : 'CAD 文件预览链接获取失败'
+  }
+}
+
+function openProductionBoardMessageCenter() {
+  productionBoardDrawerVisible.value = false
+  navigateToRoute('/collaboration')
+}
+
+async function advanceProductionBoardStage() {
+  const status = productionBoardSelectedCard.value?.node?.node_status
+  if (status === 'READY') {
+    await startProductionBoardNode()
+    return
+  }
+  if (status === 'IN_PROGRESS') {
+    await completeProductionBoardNode()
+    return
+  }
+  productionBoardFilesError.value = '当前工序已完成，无需再推进'
+}
+
+function printProductionBoardWorkOrder() {
+  window.print()
+}
+
+async function startProductionBoardNode() {
+  const node = productionBoardSelectedCard.value?.node
+  if (!node) return
+  try {
+    await apiFetch(`/process-instance/nodes/${node.node_instance_id}/start`, { method: 'POST' })
+    await loadProductionBoardInstance(selectedProductionBoardOrder.value?.order_id ?? 0)
+    if (selectedProductionBoardOrder.value) productionBoardSelectedCard.value = buildProductionKanbanCard(selectedProductionBoardOrder.value)
+    void loadProductionBoardKanbanSummary()
+  } catch (error) {
+    productionBoardError.value = error instanceof Error ? error.message : '开始工序失败'
+  }
+}
+
+async function completeProductionBoardNode() {
+  const node = productionBoardSelectedCard.value?.node
+  if (!node) return
+  try {
+    await apiFetch(`/process-instance/nodes/${node.node_instance_id}/complete`, { method: 'POST' })
+    await loadProductionBoardInstance(selectedProductionBoardOrder.value?.order_id ?? 0)
+    if (selectedProductionBoardOrder.value) productionBoardSelectedCard.value = buildProductionKanbanCard(selectedProductionBoardOrder.value)
+    void loadProductionBoardKanbanSummary()
+  } catch (error) {
+    productionBoardError.value = error instanceof Error ? error.message : '完成工序失败'
+  }
+}
+
+async function createProductionBoardQuestion() {
+  const node = productionBoardSelectedCard.value?.node
+  const content = productionBoardQuestionDraft.value.trim()
+  if (!node || !content) return
+  productionBoardQuestionLoading.value = true
+  try {
+    await apiFetch(`/process-instance/nodes/${node.node_instance_id}/questions`, {
+      method: 'POST',
+      body: JSON.stringify({ content })
+    })
+    productionBoardQuestionDraft.value = ''
+    void loadProductionBoardKanbanSummary()
+  } catch (error) {
+    productionBoardError.value = error instanceof Error ? error.message : '提交待问失败'
+  } finally {
+    productionBoardQuestionLoading.value = false
+  }
 }
 
 async function loadProductionBoardInstance(orderId: number) {
@@ -7658,17 +8135,18 @@ async function loadProductionBoardInstance(orderId: number) {
 }
 
 function shiftProductionBoardKanbanDate(days: number) {
-  const current = new Date(`${productionBoardKanbanDate.value}T00:00:00`)
+  const [year, month, day] = productionBoardKanbanDate.value.split('-').map(Number)
+  const current = new Date(Date.UTC(year, month - 1, day))
   if (Number.isNaN(current.getTime())) {
-    productionBoardKanbanDate.value = new Date().toISOString().slice(0, 10)
+    productionBoardKanbanDate.value = productionBoardToday()
     return
   }
-  current.setDate(current.getDate() + days)
+  current.setUTCDate(current.getUTCDate() + days)
   productionBoardKanbanDate.value = current.toISOString().slice(0, 10)
 }
 
 function resetProductionBoardKanbanDate() {
-  productionBoardKanbanDate.value = new Date().toISOString().slice(0, 10)
+  productionBoardKanbanDate.value = productionBoardToday()
 }
 
 function handleProductionBoardStatusChange() {
@@ -7883,6 +8361,12 @@ watch(activeDoctorOrderSection, (section) => {
   }
 })
 
+watch(productionBoardKanbanDate, () => {
+  if (isProductionBoardRoute.value) {
+    void loadProductionBoardOrders()
+  }
+})
+
 onBeforeUnmount(() => {
   closeNotificationSocket()
 })
@@ -7893,15 +8377,20 @@ onBeforeUnmount(() => {
     class="app-shell"
     :class="[
       { 'login-shell': !isLoggedIn },
+      { 'factory-board-mode': isProductionKanbanView },
+      { 'factory-orders-mode': isProductionOrdersView },
       isLoggedIn ? `portal-${portalTone}` : ''
     ]"
   >
     <section class="workspace" :class="{ 'login-workspace': !isLoggedIn }">
       <div v-if="isLoggedIn" class="status-bar">
-        <div>
+        <div v-if="isProductionReferenceView" class="factory-sync-banner">
+          生产同步 · {{ productionBoardKanbanCards.length }} 个生产订单 · 医生待确认 {{ productionBoardKanbanCards.filter((card) => card.risk === 'confirm').length }} 个
+        </div>
+        <div v-else>
           <strong>{{ portalTitle }}</strong>
         </div>
-        <div class="status-actions">
+        <div v-if="!isProductionReferenceView" class="status-actions">
           <el-tag type="success" round>{{ roleLabels(currentUser?.roles) }}已登录</el-tag>
           <el-tag effect="plain" round>{{ roleLabels(currentUser?.roles) }}</el-tag>
         </div>
@@ -8025,7 +8514,7 @@ onBeforeUnmount(() => {
           </div>
         </aside>
 
-        <section v-if="isLoggedIn" class="panel health-panel">
+        <section v-if="isLoggedIn && !isProductionCompactRoute" class="panel health-panel">
           <div class="route-hero-icon">
             <span class="svg-symbol" aria-hidden="true" v-html="businessIconSvg(routeChrome.icon)" />
           </div>
@@ -8139,6 +8628,28 @@ onBeforeUnmount(() => {
               <span>仅用于授权账号访问</span>
             </div>
             <p>© 2026 AI智能下单平台</p>
+          </div>
+        </section>
+
+        <section v-else-if="isProductionCloudDataView" class="factory-cloud-page">
+          <header class="factory-page-heading">
+            <div><h2>云端数据中心</h2><p>集中查看生产权限内订单的设计稿与附件信息。</p></div>
+            <button class="factory-btn-g" type="button" :disabled="internalOrdersLoading" @click="loadInternalOrders">↻ 刷新文件台账</button>
+          </header>
+          <div class="factory-cloud-layout">
+            <aside class="factory-cloud-order-list">
+              <div class="factory-section-title"><div><h3>订单文件</h3><small>选择订单查看真实设计稿版本</small></div><span>{{ internalOrders.length }} 单</span></div>
+              <label class="factory-table-search"><span aria-hidden="true">⌕</span><input v-model="internalOrderKeyword" type="search" placeholder="搜索订单号或诊所" @keyup.enter="loadInternalOrders"></label>
+              <button v-for="order in internalOrders" :key="order.order_id" class="factory-final-task-row" :class="{ active: selectedInternalOrder?.order_id === order.order_id }" type="button" @click="selectInternalOrder(order)"><strong>{{ order.order_no }}</strong><span>{{ order.clinic_name || '诊所未设置' }}</span><small>{{ productTypeLabel(order.product_type) }} · {{ statusLabel(order.internal_status) }}</small></button>
+              <div v-if="!internalOrdersLoading && internalOrders.length === 0" class="empty-state">暂无可查看的订单文件</div>
+            </aside>
+            <section class="factory-cloud-content">
+              <template v-if="selectedInternalOrder">
+                <div class="factory-final-summary"><div><span>订单</span><strong>{{ selectedInternalOrder.order_no }}</strong></div><div><span>诊所</span><strong>{{ selectedInternalOrder.clinic_name || '未设置' }}</strong></div><div><span>产品</span><strong>{{ productTypeLabel(selectedInternalOrder.product_type) }}</strong></div><div><span>设计稿版本</span><strong>{{ csDesignDrafts.length }} 个</strong></div></div>
+                <div class="factory-cloud-files"><div class="factory-section-title"><div><h3>设计稿与附件</h3><small>预览链接按现有短时效授权机制生成</small></div></div><article v-for="draft in csDesignDrafts" :key="draft.draft_id" class="factory-cloud-file-row"><div><strong>设计稿 V{{ draft.version }}</strong><span>{{ statusLabel(draft.status) }} · 文件 {{ designDraftFileIds(draft).length }} 个</span><small>设计稿版本信息来自订单附件记录</small></div><el-button plain :disabled="designDraftFileIds(draft).length === 0" :loading="csReviewActionLoading" @click="loadCsDesignDraftPreviewUrls(draft)">获取预览链接</el-button><div v-if="designDraftFileIds(draft).some((fileId) => csDesignDraftPreviewUrls[designDraftPreviewKey(draft, fileId)])" class="preview-link-list"><a v-for="fileId in designDraftFileIds(draft)" v-show="csDesignDraftPreviewUrls[designDraftPreviewKey(draft, fileId)]" :key="fileId" :href="csDesignDraftPreviewUrls[designDraftPreviewKey(draft, fileId)]" target="_blank" rel="noreferrer">预览文件 #{{ fileId }}</a></div></article><div v-if="csDesignDrafts.length === 0" class="empty-state">当前订单暂无设计稿或附件记录</div></div>
+              </template>
+              <div v-else class="empty-state">请选择左侧订单查看文件</div>
+            </section>
           </div>
         </section>
 
@@ -8862,96 +9373,48 @@ onBeforeUnmount(() => {
           </div>
         </section>
 
-        <section v-else-if="isWorkerTasksRoute" class="panel route-panel worker-task-panel">
-          <div class="route-heading">
-            <h2>我的任务</h2>
-            <el-tag round>{{ workerTasks.length }} 项</el-tag>
-          </div>
-
-          <div class="prototype-chip-row">
-            <button
-              v-for="chip in prototypeQueueChips"
-              :key="`worker-${chip.label}`"
-              class="prototype-chip"
-              :class="[`tone-${chip.tone}`, { active: isPrototypeChipActive(chip) }]"
-              type="button"
-              @click="selectPrototypeQueueChip(chip)"
-            >
-              {{ chip.label }}
-              <span>{{ chip.count }}</span>
+        <section v-else-if="isWorkerTasksRoute" class="factory-task-page">
+          <header class="factory-page-heading">
+            <div><h2>我的任务</h2><p>仅展示当前账号可执行的工序任务。</p></div>
+            <button class="factory-btn-g" type="button" :disabled="workerTasksLoading" @click="loadWorkerTasks">↻ 刷新任务</button>
+          </header>
+          <div class="factory-filter-row factory-task-filter-row">
+            <button v-for="filter in [
+              { key: '', label: '全部任务' }, { key: 'READY', label: '待开工' },
+              { key: 'IN_PROGRESS', label: '进行中' }, { key: 'COMPLETED', label: '已完成' },
+              { key: 'PENDING', label: '待处理' }
+            ]" :key="filter.label" class="factory-filter-chip" :class="{ active: workerTaskStatus === filter.key }" type="button" @click="setWorkerTaskFilter(filter.key)">
+              {{ filter.label }} <b>{{ filter.key === workerTaskStatus ? workerTasks.length : '' }}</b>
             </button>
           </div>
-
-          <div class="doctor-order-toolbar">
-            <el-select v-model="workerTaskStatus">
-              <el-option label="待开工" value="READY" />
-              <el-option label="进行中" value="IN_PROGRESS" />
-              <el-option label="已完成" value="COMPLETED" />
-              <el-option label="待处理" value="PENDING" />
-            </el-select>
-            <el-button type="primary" :loading="workerTasksLoading" @click="loadWorkerTasks">
-              刷新
-            </el-button>
-          </div>
-
-          <el-alert
-            v-if="workerTaskError"
-            :title="workerTaskError"
-            type="error"
-            show-icon
-            :closable="false"
-          />
-
-          <div class="worker-task-list">
-            <article v-for="task in workerTasks" :key="task.node_instance_id" class="worker-task-card">
-              <div>
-                <strong>{{ task.process_name }}</strong>
-                <span>{{ task.order_no }} / {{ statusLabel(task.node_status) }}</span>
-              </div>
-              <small>节点 {{ task.node_instance_id }} / 标准 {{ task.standard_duration ?? '-' }} 分钟</small>
-              <div class="inline-actions">
-                <el-button
-                  type="primary"
-                  plain
-                  :loading="workerTaskActionLoading"
-                  :disabled="task.node_status !== 'READY'"
-                  @click="operateWorkerTask(task, 'START')"
-                >
-                  开始任务
-                </el-button>
-                <el-button
-                  type="success"
-                  plain
-                  :loading="workerTaskActionLoading"
-                  :disabled="task.node_status !== 'IN_PROGRESS'"
-                  @click="operateWorkerTask(task, 'COMPLETE')"
-                >
-                  完成任务
-                </el-button>
+          <p v-if="workerTaskError" class="factory-orders-alert">{{ workerTaskError }}</p>
+          <div class="factory-task-grid">
+            <article v-for="task in workerTasks" :key="task.node_instance_id" class="factory-task-card" :class="`status-${task.node_status.toLowerCase()}`">
+              <div class="factory-task-card-head"><span>{{ task.order_no }}</span><b>{{ statusLabel(task.node_status) }}</b></div>
+              <h3>{{ task.process_name }}</h3>
+              <p>节点 {{ task.node_instance_id }} · 标准 {{ task.standard_duration ?? '未设置' }} 分钟</p>
+              <div class="factory-task-card-actions">
+                <button type="button" class="factory-action-primary" :disabled="workerTaskActionLoading || task.node_status !== 'READY'" @click="operateWorkerTask(task, 'START')">开始工作</button>
+                <button type="button" class="factory-action-secondary" :disabled="workerTaskActionLoading || task.node_status !== 'IN_PROGRESS'" @click="operateWorkerTask(task, 'COMPLETE')">✓ 标记完成</button>
               </div>
             </article>
-            <div v-if="workerTasks.length === 0" class="empty-state">
-              暂无当前状态任务
-            </div>
+            <div v-if="!workerTasksLoading && workerTasks.length === 0" class="factory-task-empty">暂无当前状态任务</div>
           </div>
         </section>
 
-        <section v-else-if="isCheckRecordsRoute" class="panel route-panel check-record-panel">
-          <div class="route-heading">
-            <h2>入检出检</h2>
-            <el-tag round>{{ checkTasks.length }} 项</el-tag>
-          </div>
+        <section v-else-if="isCheckRecordsRoute" class="factory-scan-page">
+          <header class="factory-page-heading">
+            <div><h2>扫码登记</h2><p>输入订单号或节点编号，定位当前账号可执行的真实任务。</p></div>
+            <button class="factory-btn-g" type="button" :disabled="checkTasksLoading" @click="loadCheckTasks">↻ 刷新任务</button>
+          </header>
 
-          <div class="doctor-order-toolbar">
-            <el-select v-model="checkTaskStatus" @change="loadCheckTasks">
-              <el-option label="待开工 / 入检" value="READY" />
-              <el-option label="已完成 / 出检" value="COMPLETED" />
-              <el-option label="进行中" value="IN_PROGRESS" />
-              <el-option label="待处理" value="PENDING" />
-            </el-select>
-            <el-button type="primary" :loading="checkTasksLoading" @click="loadCheckTasks">
-              刷新
-            </el-button>
+          <div class="factory-scan-lookup">
+            <input v-model="checkTaskLookup" placeholder="输入订单号或节点编号" @keyup.enter="locateCheckTask">
+            <button type="button" class="factory-action-primary" :disabled="checkTasksLoading" @click="locateCheckTask">定位任务</button>
+            <button v-for="filter in [
+              { key: 'READY', label: '待入检' }, { key: 'IN_PROGRESS', label: '进行中' },
+              { key: 'COMPLETED', label: '待出检' }, { key: 'PENDING', label: '待处理' }
+            ]" :key="filter.key" type="button" class="factory-filter-chip" :class="{ active: checkTaskStatus === filter.key }" @click="checkTaskStatus = filter.key; loadCheckTasks()">{{ filter.label }}</button>
           </div>
 
           <el-alert
@@ -8970,8 +9433,8 @@ onBeforeUnmount(() => {
             :closable="false"
           />
 
-          <div class="check-workspace">
-            <aside class="doctor-order-list">
+          <div class="factory-scan-layout">
+            <aside class="factory-scan-task-list">
               <button
                 v-for="task in checkTasks"
                 :key="task.node_instance_id"
@@ -8989,7 +9452,7 @@ onBeforeUnmount(() => {
               </div>
             </aside>
 
-            <section v-if="selectedCheckTask" class="doctor-order-detail">
+            <section v-if="selectedCheckTask" class="factory-scan-detail">
               <div class="doctor-order-summary">
                 <div>
                   <span>订单</span>
@@ -9038,7 +9501,7 @@ onBeforeUnmount(() => {
                 </el-button>
               </div>
 
-              <div class="check-record-list">
+              <div class="check-record-list factory-check-history">
                 <article v-for="record in checkRecords" :key="record.check_id" class="check-record-card">
                   <strong>{{ record.check_type === 1 ? '入检' : '出检' }} / {{ record.result }}</strong>
                   <span>记录 {{ record.check_id }} / 节点 {{ record.node_instance_id }}</span>
@@ -9052,11 +9515,11 @@ onBeforeUnmount(() => {
           </div>
         </section>
 
-        <section v-else-if="isReworkFinalRoute" class="panel route-panel check-record-panel">
-          <div class="route-heading">
-            <h2>返工终检</h2>
-            <el-tag round>{{ reworkRecords.length }} 条返工</el-tag>
-          </div>
+        <section v-else-if="isInternalReworkView" class="factory-rework-page">
+          <header class="factory-page-heading">
+            <div><h2>内返管理</h2><p>查看返工影响范围，并在真实流程完成后关闭返工。</p></div>
+            <button class="factory-btn-g" type="button" :disabled="reworkRecordsLoading || finalInspectionLoading" @click="loadReworkFinalPage">↻ 刷新返工</button>
+          </header>
 
           <div class="doctor-order-toolbar">
             <el-select v-model="reworkStatus" @change="loadReworkRecords">
@@ -9345,6 +9808,96 @@ onBeforeUnmount(() => {
           </div>
         </section>
 
+        <section v-else-if="isExternalReworkView" class="factory-external-rework-page">
+          <header class="factory-page-heading">
+            <div><h2>外返管理</h2><p>登记并跟进客户、诊所或客服侧反馈的质量问题。</p></div>
+            <button class="factory-btn-g" type="button" :disabled="qualityRecordLoading" @click="loadQualityRecords">↻ 刷新记录</button>
+          </header>
+
+          <div class="factory-rework-toolbar">
+            <el-input v-model="qualityRecordOrderId" placeholder="按订单 ID 查询" clearable data-testid="quality-record-order-id" @keyup.enter="loadQualityRecords" />
+            <el-select v-model="qualityRecordResponsibilityType" placeholder="责任类型" clearable data-testid="quality-record-responsibility">
+              <el-option v-for="option in reworkResponsibilityTypes" :key="option.code" :label="option.label" :value="option.code" />
+            </el-select>
+            <el-button :loading="qualityRecordLoading" @click="loadQualityRecords">筛选</el-button>
+          </div>
+
+          <el-alert v-if="qualityRecordError" :title="qualityRecordError" type="warning" show-icon :closable="false" />
+          <el-alert v-if="qualityRecordResult" :title="qualityRecordResult" type="success" show-icon :closable="false" />
+
+          <div class="factory-external-layout">
+            <section class="factory-rework-list">
+              <div class="factory-section-title"><div><h3>外返记录</h3><small>优先显示工序、责任和处理进度</small></div><span>{{ qualityRecords.length }} 条</span></div>
+              <div v-loading="qualityRecordLoading" class="factory-rework-rows">
+                <article v-for="record in qualityRecords" :key="record.quality_record_id" class="factory-rework-row">
+                  <div>
+                    <strong>{{ record.order_no || '订单未设置' }}</strong>
+                    <span>{{ record.reason_category || '原因待补充' }} · {{ record.responsibility_type || '责任待确认' }}</span>
+                    <small>{{ record.reason_detail || record.status_note || '暂无补充说明' }}</small>
+                  </div>
+                  <div class="factory-row-meta"><el-tag round>{{ statusLabel(record.status) }}</el-tag><small>{{ compactDateTime(record.created_at) }}</small></div>
+                </article>
+                <div v-if="!qualityRecordLoading && qualityRecords.length === 0" class="empty-state">暂无外返质量记录</div>
+              </div>
+            </section>
+
+            <aside class="factory-rework-action-card">
+              <div class="factory-section-title"><div><h3>登记外返</h3><small>使用已有质量记录接口保存</small></div></div>
+              <el-form label-position="top">
+                <el-form-item label="订单 ID"><el-input v-model="qualityRecordOrderId" placeholder="请输入订单 ID" /></el-form-item>
+                <el-form-item label="原因分类"><el-select v-model="qualityRecordReasonCategory" data-testid="quality-record-reason"><el-option v-for="option in reworkReasonCategories" :key="option.code" :label="option.label" :value="option.code" /></el-select></el-form-item>
+                <el-form-item label="责任类型"><el-select v-model="qualityRecordResponsibilityType"><el-option v-for="option in reworkResponsibilityTypes" :key="option.code" :label="option.label" :value="option.code" /></el-select></el-form-item>
+                <el-form-item label="问题说明"><el-input v-model="qualityRecordReasonDetail" type="textarea" :rows="3" placeholder="填写客户反馈或质量问题" data-testid="quality-record-reason-detail" /></el-form-item>
+                <el-button type="primary" :loading="qualityRecordSaving" data-testid="quality-record-create-button" @click="createExternalReturnQualityRecord">登记外返</el-button>
+              </el-form>
+              <div class="factory-status-update">
+                <strong>更新处理状态</strong>
+                <el-input v-model="qualityRecordStatusId" placeholder="质量记录 ID" data-testid="quality-record-status-id" />
+                <el-select v-model="qualityRecordStatus" data-testid="quality-record-status"><el-option label="待处理" value="PENDING" /><el-option label="处理中" value="IN_PROGRESS" /><el-option label="已解决" value="RESOLVED" /><el-option label="已关闭" value="CLOSED" /></el-select>
+                <el-input v-model="qualityRecordStatusNote" placeholder="处理说明" data-testid="quality-record-status-note" />
+                <el-button :loading="qualityRecordStatusSaving" data-testid="quality-record-status-button" @click="updateQualityRecordStatus">保存状态</el-button>
+              </div>
+            </aside>
+          </div>
+        </section>
+
+        <section v-else-if="isFinalReportView" class="factory-final-report-page">
+          <header class="factory-page-heading">
+            <div><h2>终检报告</h2><p>从已完成工序中选择终检任务，提交结果后生成正式报告。</p></div>
+            <button class="factory-btn-g" type="button" :disabled="finalInspectionLoading" @click="loadFinalInspectionTasks">↻ 刷新终检任务</button>
+          </header>
+          <el-alert v-if="finalInspectionResult" :title="`已提交终检出检：${finalInspectionResult.result}`" type="success" show-icon :closable="false" />
+
+          <div class="factory-final-layout">
+            <aside class="factory-final-task-list">
+              <div class="factory-section-title"><div><h3>待终检任务</h3><small>仅显示当前账号可处理的已完成节点</small></div><span>{{ finalInspectionTasks.length }} 项</span></div>
+              <button v-for="task in finalInspectionTasks" :key="task.node_instance_id" class="factory-final-task-row" :class="{ active: selectedFinalInspectionTask?.node_instance_id === task.node_instance_id }" type="button" @click="selectFinalInspectionTask(task)">
+                <strong>{{ task.process_name || '工序未设置' }}</strong><span>{{ task.order_no }}</span><small>节点 {{ task.node_instance_id }} · {{ statusLabel(task.node_status) }}</small>
+              </button>
+              <div v-if="finalInspectionTasks.length === 0" class="empty-state">暂无可终检任务</div>
+            </aside>
+
+            <section class="factory-final-report-content">
+              <template v-if="selectedFinalInspectionTask">
+                <div class="factory-final-summary"><div><span>订单</span><strong>{{ selectedFinalInspectionTask.order_no }}</strong></div><div><span>当前工序</span><strong>{{ selectedFinalInspectionTask.process_name || '未设置' }}</strong></div><div><span>节点</span><strong>{{ selectedFinalInspectionTask.node_instance_id }}</strong></div><div><span>状态</span><strong>{{ statusLabel(selectedFinalInspectionTask.node_status) }}</strong></div></div>
+                <el-form label-position="top" class="factory-final-form">
+                  <el-form-item label="终检备注"><el-input v-model="finalInspectionRemark" type="textarea" :rows="3" placeholder="记录终检结果和需要说明的事项" /></el-form-item>
+                  <el-button type="primary" :loading="finalInspectionLoading" @click="submitFinalInspectionCheck">提交终检出检</el-button>
+                  <el-divider />
+                  <el-form-item label="报告摘要"><el-input v-model="finalInspectionReportSummary" type="textarea" :rows="3" placeholder="终检通过后填写报告摘要" /></el-form-item>
+                  <div class="factory-final-file-grid"><el-form-item label="终检附件 file_id"><el-input v-model="finalInspectionAttachmentFileIds" placeholder="多个 ID 用逗号分隔" /></el-form-item><el-form-item label="终检 PDF file_id"><el-input v-model="finalInspectionPdfFileId" placeholder="已有内部 PDF 文件 ID" /></el-form-item></div>
+                  <el-button plain type="primary" :loading="finalInspectionReportLoading" @click="createFinalInspectionReport">生成终检报告</el-button>
+                </el-form>
+                <el-alert v-if="finalInspectionReport" :title="`终检报告 ${finalInspectionReport.report_no} / ${finalInspectionReport.conclusion}`" type="success" show-icon :closable="false">
+                  <template #default>PDF {{ finalInspectionReport.pdf_file_id || '未上传' }} · 签名 {{ statusLabel(finalInspectionReport.signature_status) }} · 附件 {{ finalInspectionReport.attachment_file_ids.length ? finalInspectionReport.attachment_file_ids.join('、') : '暂无' }}</template>
+                </el-alert>
+                <div class="factory-check-history"><div class="factory-section-title"><div><h3>检查历史</h3><small>与当前终检流程关联的检查记录</small></div></div><article v-for="record in finalInspectionRecords" :key="record.check_id" class="check-record-card"><strong>{{ record.check_type === 1 ? '入检' : '出检' }} / {{ record.result }}</strong><span>节点 {{ record.node_instance_id }} · 记录 {{ record.check_id }}</span><small v-if="record.rework_id">关联返工 {{ record.rework_id }}</small></article><div v-if="finalInspectionRecords.length === 0" class="empty-state">暂无终检检查记录</div></div>
+              </template>
+              <div v-else class="empty-state">请选择左侧终检任务以查看报告信息</div>
+            </section>
+          </div>
+        </section>
+
         <section v-else-if="isWorklogsRoute" class="panel route-panel worklog-panel">
           <div class="route-heading">
             <h2>工时记录</h2>
@@ -9460,9 +10013,9 @@ onBeforeUnmount(() => {
           </div>
         </section>
 
-        <section v-else-if="isPerformanceRoute" class="panel route-panel performance-panel">
-          <div class="route-heading">
-            <h2>绩效统计</h2>
+        <section v-else-if="isPerformanceRoute" class="factory-performance-page">
+          <header class="factory-page-heading">
+            <div><h2>绩效管理</h2><p>基于已完成工时、标准工时与返工记录生成的实时参考。</p></div>
             <div class="heading-tags">
               <el-tag round>{{ performanceStats ? `员工 ${performanceStats.user_id ?? '-'}` : '未加载' }}</el-tag>
               <el-tag
@@ -9471,10 +10024,10 @@ onBeforeUnmount(() => {
                 type="info"
                 round
               >
-                {{ performanceStats.performance_formula_version }}
+                当前绩效规则
               </el-tag>
             </div>
-          </div>
+          </header>
 
           <div class="performance-toolbar">
             <el-input
@@ -9518,7 +10071,8 @@ onBeforeUnmount(() => {
             :closable="false"
           />
 
-          <div v-if="performanceStats" class="performance-grid">
+          <section v-if="performanceStats" class="factory-performance-hero">
+          <div class="performance-grid">
             <article class="performance-card">
               <span>完成工序</span>
               <strong>{{ performanceStats.completed_count }}</strong>
@@ -9575,17 +10129,18 @@ onBeforeUnmount(() => {
               <small>标准工时 / 实际工时</small>
             </article>
             <article class="performance-card" data-testid="performance-score-card">
-              <span>默认绩效分</span>
+              <span>综合绩效参考分</span>
               <strong>{{ performanceStats.performance_score }}</strong>
-              <small>开发默认公式，不作工资结算</small>
+              <small>不作为工资结算结果</small>
             </article>
           </div>
+          </section>
           <div v-if="performanceStats" class="performance-detail-section">
             <div class="section-heading compact">
               <h3>工时明细</h3>
               <el-tag round>{{ performanceDetails.length }} 条</el-tag>
             </div>
-            <el-table :data="performanceDetails" border empty-text="暂无工时明细">
+            <el-table class="factory-performance-table" :data="performanceDetails" border empty-text="暂无工时明细">
               <el-table-column prop="order_no" label="订单号" min-width="160" />
               <el-table-column prop="node_name" label="工序" min-width="140" />
               <el-table-column prop="effective_duration" label="有效工时(分钟)" width="130" />
@@ -9605,14 +10160,14 @@ onBeforeUnmount(() => {
           </div>
         </section>
 
-        <section v-else-if="isStaffWorkloadRoute" class="panel route-panel performance-panel">
-          <div class="route-heading">
-            <h2>人员档案</h2>
+        <section v-else-if="isStaffWorkloadRoute" class="factory-staff-page">
+          <header class="factory-page-heading">
+            <div><h2>员工管理</h2><p>查看真实人员档案、任务负载、工时和返工情况。</p></div>
             <div class="heading-tags">
               <el-tag round>{{ staffWorkloadTotal }} 名员工</el-tag>
-              <el-tag type="info" round>PRD V2.0 一期</el-tag>
+              <el-tag type="info" round>人员数据实时汇总</el-tag>
             </div>
-          </div>
+          </header>
 
           <div class="performance-toolbar">
             <el-input
@@ -9640,7 +10195,16 @@ onBeforeUnmount(() => {
             :closable="false"
           />
 
+          <div v-if="staffWorkloadItems.length" class="factory-staff-grid">
+            <article v-for="staff in staffWorkloadItems" :key="staff.user_id" class="factory-staff-card">
+              <header><div><strong>{{ staff.display_name || staff.username || '未命名员工' }}</strong><span>{{ staff.dept_name || '未分配部门' }}</span></div><el-tag :type="staff.status === 'ACTIVE' ? 'success' : 'info'" round>{{ statusLabel(staff.status) }}</el-tag></header>
+              <div class="factory-staff-posts"><span v-for="post in staff.post_names" :key="post">{{ post }}</span><span v-if="staff.post_names.length === 0">岗位未设置</span></div>
+              <div class="factory-staff-metrics"><div><span>任务</span><strong>{{ staff.active_node_count }} / {{ staff.assigned_node_count }}</strong></div><div><span>有效工时</span><strong>{{ staff.effective_duration }}</strong></div><div><span>返工</span><strong>{{ staff.rework_count }}</strong></div></div>
+              <small>最近完工：{{ staff.last_work_finished_at ? compactDateTime(staff.last_work_finished_at) : '暂无记录' }}</small>
+            </article>
+          </div>
           <el-table
+            class="factory-staff-table"
             :data="staffWorkloadItems"
             border
             data-testid="staff-workload-table"
@@ -9696,273 +10260,384 @@ onBeforeUnmount(() => {
           </el-table>
         </section>
 
-        <section v-else-if="isProductionBoardRoute" class="panel route-panel production-board-panel">
-          <div class="route-heading">
-            <h2>生产看板</h2>
-            <div class="heading-tags">
-              <el-tag round>{{ visibleProductionBoardOrders.length }} 活跃单</el-tag>
-              <el-tag type="info" round>最后同步 {{ compactDateTime(productionBoardLastSyncedAt) }}</el-tag>
+        <section v-else-if="isProductionOrdersView" class="factory-orders-page" data-testid="production-orders-page">
+          <header class="factory-orders-topbar">
+            <strong>生产订单</strong>
+            <div>
+              <label class="factory-orders-global-search">
+                <span aria-hidden="true">⌕</span>
+                <input v-model="productionBoardKeyword" type="search" placeholder="搜索订单号、诊所或产品" @keyup.enter="loadProductionBoardOrders">
+              </label>
+              <button type="button" aria-label="查看通知" @click="navigateToRoute('/notifications')">🔔</button>
             </div>
-          </div>
-
-          <div class="production-board-control-deck">
-            <div class="production-board-date-row">
-              <div class="production-board-date-actions">
-                <button class="btn-g" type="button" @click="shiftProductionBoardKanbanDate(-1)">← 前一天</button>
-                <input
-                  v-model="productionBoardKanbanDate"
-                  class="production-board-date-input"
-                  type="date"
-                  aria-label="生产看板日期"
-                >
-                <button class="btn-g" type="button" @click="shiftProductionBoardKanbanDate(1)">后一天 →</button>
-                <button class="btn-g primary" type="button" @click="resetProductionBoardKanbanDate">Today</button>
-              </div>
-              <div class="production-board-sync-note">
-                超时 {{ productionBoardKanbanCards.filter((card) => card.risk === 'overdue').length }} 单 · 工序同步 {{ productionBoardKanbanCards.filter((card) => card.syncState === 'synced').length }}/{{ productionBoardKanbanCards.length }}
-              </div>
+          </header>
+          <div class="factory-orders-content">
+          <header class="factory-page-heading">
+            <div>
+              <h2>生产订单</h2>
+              <p>仅展示生产所需的订单信息；点击订单可查看工序、文件和沟通记录。</p>
             </div>
-
-            <div class="production-board-action-summary">
-              <div
-                v-for="group in productionBoardActionSummaryGroups"
-                :key="group.label"
-                class="production-board-action-group"
-              >
-                <span class="production-board-action-label">{{ group.label }}</span>
-                <div class="production-board-action-items">
-                  <button
-                    v-for="item in group.items"
-                    :key="item.key"
-                    class="production-board-action-item"
-                    :class="[`tone-${item.tone}`, { active: productionBoardActionSummaryFilter === item.key }]"
-                    type="button"
-                    @click="selectProductionBoardActionSummary(item.key)"
-                  >
-                    {{ item.label }}
-                    <span>{{ item.count }}</span>
-                  </button>
-                </div>
-              </div>
-            </div>
-
-            <div class="production-kanban-summary-row">
+            <div class="factory-page-actions">
               <button
-                v-for="summary in productionBoardKanbanSummaries"
-                :key="summary.key"
-                class="production-kanban-summary-chip"
-                :class="`tone-${summary.tone}`"
+                class="factory-btn-g"
                 type="button"
-                @click="scrollProductionBoardColumn(summary.key)"
-              >
-                <strong>{{ summary.title }}</strong>
-                <span>{{ summary.count }} 单</span>
-                <small>{{ summary.activeCount }} 进行中 · {{ summary.riskCount }} 风险</small>
-              </button>
+                :disabled="productionOrdersSelectedIds.length === 0"
+                @click="printSelectedProductionOrders"
+              >🖨 打印已选（{{ productionOrdersSelectedIds.length }}）</button>
             </div>
+          </header>
 
-            <div class="production-board-toolbar">
-              <el-select v-model="productionBoardStatus" @change="handleProductionBoardStatusChange">
-                <el-option
-                  v-for="option in productionBoardStatusOptions"
-                  :key="option.value"
-                  :label="option.label"
-                  :value="option.value"
-                />
-              </el-select>
-              <el-input
-                v-model="productionBoardKeyword"
-                placeholder="跨状态生产检索：订单号或患者"
-                clearable
-                @keyup.enter="loadProductionBoardOrders"
-              />
-              <el-button type="primary" :loading="productionBoardLoading" @click="loadProductionBoardOrders">
-                刷新看板
-              </el-button>
-            </div>
-          </div>
-
-          <el-alert
-            v-if="productionBoardError"
-            :title="productionBoardError"
-            type="warning"
-            show-icon
-            :closable="false"
-          />
-
-          <div class="production-board-workspace">
-            <section class="production-kanban-area">
-              <div class="production-kanban-scroll">
-                <article
-                  v-for="column in productionBoardKanbanColumns"
-                  :key="column.key"
-                  class="production-kanban-column"
-                  :class="[`tone-${column.tone}`, { auxiliary: column.auxiliary }]"
-                  :data-production-column="column.key"
-                >
-                  <div class="production-kanban-head">
-                    <div>
-                      <strong>{{ column.title }}</strong>
-                      <small>{{ column.subtitle }}</small>
-                    </div>
-                    <span>{{ column.cards.length }}</span>
-                  </div>
-                  <div class="production-kanban-body">
-                    <button
-                      v-for="card in column.cards"
-                      :key="card.orderId"
-                      class="production-kanban-card"
-                      :class="[`risk-${card.risk}`, `sync-${card.syncState}`, { active: selectedProductionBoardOrder?.order_id === card.orderId }]"
-                      type="button"
-                      @click="selectProductionBoardOrder(card.order, card)"
-                    >
-                      <span class="prototype-order-no">{{ card.orderNo }}</span>
-                      <strong>{{ card.productLabel }}</strong>
-                      <small>{{ card.clinicLabel }} · {{ card.toothLabel }}</small>
-                      <div class="production-kanban-card-meta">
-                        <span>{{ card.currentProcess }}</span>
-                        <em>{{ card.assignedUserLabel }}</em>
-                      </div>
-                      <div class="production-kanban-card-progress" aria-hidden="true">
-                        <span :style="{ width: `${card.progressPercent}%` }"></span>
-                      </div>
-                      <div class="production-kanban-card-tags">
-                        <span :class="`risk-${card.risk}`">{{ card.riskLabel }}</span>
-                        <span>{{ card.slaLabel }}</span>
-                        <span>{{ card.elapsedLabel }}</span>
-                        <span v-if="!['synced', 'skipped'].includes(card.syncState)">{{ card.syncLabel }}</span>
-                      </div>
-                    </button>
-                    <div v-if="column.cards.length === 0" class="production-kanban-empty">
-                      ✓ 暂无积压
-                    </div>
-                  </div>
-                </article>
+          <section class="factory-data-table">
+            <header class="factory-table-head">
+              <div class="factory-filter-row" aria-label="生产订单筛选">
+                <button
+                  v-for="filter in productionOrderFilterOptions"
+                  :key="filter.key"
+                  class="factory-filter-chip"
+                  :class="{ active: productionOrdersFilter === filter.key }"
+                  type="button"
+                  @click="selectProductionOrdersFilter(filter.key)"
+                >{{ filter.label }} <b>{{ productionOrdersFilterCount(filter.key) }}</b></button>
               </div>
-            </section>
-          </div>
+              <label class="factory-table-search">
+                <span aria-hidden="true">⌕</span>
+                <input v-model="productionBoardKeyword" type="search" placeholder="搜索订单号、诊所或产品" @keyup.enter="loadProductionBoardOrders">
+              </label>
+            </header>
 
+            <p v-if="productionBoardError" class="factory-orders-alert">{{ productionBoardError }}</p>
+            <div class="factory-table-scroll">
+              <table>
+                <thead>
+                  <tr>
+                    <th class="factory-check-cell">
+                      <input
+                        :checked="productionOrdersAllSelected"
+                        aria-label="全选当前订单"
+                        type="checkbox"
+                        @change="toggleProductionOrdersAll(checkboxChecked($event))"
+                      >
+                    </th>
+                    <th>订单编号</th>
+                    <th>诊所</th>
+                    <th>产品与牙位</th>
+                    <th>生产状态</th>
+                    <th>负责人</th>
+                    <th>交期</th>
+                    <th>生产备注</th>
+                  </tr>
+                </thead>
+                <tbody v-if="!productionBoardLoading && productionOrdersVisible.length">
+                  <tr
+                    v-for="order in productionOrdersVisible"
+                    :key="order.order_id"
+                    :class="{ 'factory-print-hidden': productionOrdersSelectedIds.length > 0 && !productionOrdersSelectedIds.includes(order.order_id) }"
+                    tabindex="0"
+                    @click="openProductionBoardOrder(order)"
+                    @keydown.enter="openProductionBoardOrder(order)"
+                  >
+                    <td class="factory-check-cell" @click.stop>
+                      <input
+                        :checked="productionOrdersSelectedIds.includes(order.order_id)"
+                        :aria-label="`选择订单 ${order.order_no}`"
+                        type="checkbox"
+                        @change="toggleProductionOrderSelection(order.order_id, checkboxChecked($event))"
+                      >
+                    </td>
+                    <td><strong class="factory-order-number">{{ order.order_no }}</strong><small>#{{ order.order_id }}</small></td>
+                    <td>{{ order.clinic_name || '暂无信息' }}</td>
+                    <td><strong>{{ productTypeLabel(order.product_type) }}</strong><small>{{ productionBoardToothLabel(order) }}</small></td>
+                    <td>
+                      <span class="factory-order-status">{{ statusLabel(order.internal_status) }}</span>
+                      <small>{{ statusLabel(order.external_status) }}</small>
+                    </td>
+                    <td>{{ productionOrderOwnerLabel(order) }}</td>
+                    <td>{{ productionOrderTargetDateLabel(order) }}</td>
+                    <td class="factory-order-note">{{ productionOrderNoteLabel(order) }}</td>
+                  </tr>
+                </tbody>
+                <tbody v-else>
+                  <tr><td class="factory-table-empty" colspan="8">{{ productionBoardLoading ? '订单加载中' : '暂无符合条件的生产订单' }}</td></tr>
+                </tbody>
+              </table>
+            </div>
+          </section>
           <el-drawer
             v-model="productionBoardDrawerVisible"
-            class="production-board-drawer"
+            class="factory-kanban-drawer factory-orders-drawer"
             direction="rtl"
-            size="520px"
-            :title="selectedProductionBoardOrder ? `订单 ${selectedProductionBoardOrder.order_no}` : '订单详情'"
+            size="560px"
+            :with-header="false"
           >
-            <section v-if="selectedProductionBoardOrder" class="production-board-drawer-content">
-              <div v-if="productionBoardSelectedCard" class="production-board-current-context">
-                <span>{{ productionBoardSelectedCard.currentProcess }}</span>
-                <strong>{{ productionBoardSelectedCard.currentNodeCode }}</strong>
-                <div class="production-kanban-card-tags">
-                  <span :class="`risk-${productionBoardSelectedCard.risk}`">{{ productionBoardSelectedCard.riskLabel }}</span>
-                  <span>{{ productionBoardSelectedCard.assignedUserLabel }}</span>
-                  <span>{{ productionBoardSelectedCard.slaLabel }}</span>
-                  <span>{{ productionBoardSelectedCard.elapsedLabel }}</span>
+            <section v-if="selectedProductionBoardOrder" class="factory-drawer" data-testid="production-orders-drawer">
+              <header class="factory-drawer-head">
+                <h3>订单详情 · {{ selectedProductionBoardOrder.order_no }}</h3>
+                <button type="button" aria-label="关闭" @click="productionBoardDrawerVisible = false">✕</button>
+              </header>
+              <div class="factory-drawer-body">
+                <div class="factory-drawer-notice">🔒 生产端仅展示生产所需订单信息，不展示金额信息</div>
+                <div class="factory-drawer-info-grid">
+                  <div><span>订单编号</span><strong>{{ selectedProductionBoardOrder.order_no }}</strong></div>
+                  <div><span>诊所</span><strong>{{ selectedProductionBoardOrder.clinic_name || '暂无信息' }}</strong></div>
+                  <div><span>产品</span><strong>{{ productTypeLabel(selectedProductionBoardOrder.product_type) }}</strong></div>
+                  <div><span>牙位</span><strong>{{ productionBoardToothLabel(selectedProductionBoardOrder) }}</strong></div>
+                  <div><span>负责人</span><strong>{{ productionOrderOwnerLabel(selectedProductionBoardOrder) }}</strong></div>
+                  <div><span>交期</span><strong>{{ productionOrderTargetDateLabel(selectedProductionBoardOrder) }}</strong></div>
+                  <div><span>内部状态</span><strong>{{ statusLabel(selectedProductionBoardOrder.internal_status) }}</strong></div>
+                  <div><span>外部状态</span><strong>{{ statusLabel(selectedProductionBoardOrder.external_status) }}</strong></div>
                 </div>
-              </div>
 
-              <div class="section-subtitle">订单摘要</div>
-              <div class="doctor-order-summary">
-                <div>
-                  <span>订单</span>
-                  <strong>{{ selectedProductionBoardOrder.order_no }}</strong>
+                <div class="factory-drawer-section-title">生产流程</div>
+                <div v-if="productionBoardInstance" class="factory-drawer-timeline">
+                  <article
+                    v-for="node in productionBoardInstance.nodes"
+                    :key="node.node_instance_id"
+                    :class="{
+                      completed: ['COMPLETED', 'SKIPPED'].includes(node.node_status),
+                      current: productionBoardSelectedCard?.node?.node_instance_id === node.node_instance_id,
+                      skipped: node.node_status === 'SKIPPED'
+                    }"
+                  >
+                    <span class="factory-drawer-timeline-marker">{{ ['COMPLETED', 'SKIPPED'].includes(node.node_status) ? '✓' : node.step_order }}</span>
+                    <div>
+                      <strong>{{ node.process_name }} <em v-if="node.stage_name">· {{ node.stage_name }}</em></strong>
+                      <small>{{ statusLabel(node.node_status) }} · 标准 {{ node.standard_duration ?? '未设置' }} 分钟</small>
+                      <small>开始 {{ node.started_at ? compactDateTime(node.started_at) : '未设置' }} · 截止 {{ node.deadline_at ? compactDateTime(node.deadline_at) : '未设置' }}</small>
+                      <p v-if="productionBoardSelectedCard?.node?.node_instance_id === node.node_instance_id && node.node_status === 'IN_PROGRESS'">⚡ 进行中</p>
+                    </div>
+                  </article>
                 </div>
-                <div>
-                  <span>内部状态</span>
-                  <strong>{{ statusLabel(selectedProductionBoardOrder.internal_status) }}</strong>
-                </div>
-                <div>
-                  <span>外部状态</span>
-                  <strong>{{ statusLabel(selectedProductionBoardOrder.external_status) }}</strong>
-                </div>
-                <div>
-                  <span>诊所</span>
-                  <strong>{{ selectedProductionBoardOrder.clinic_name }}</strong>
-                </div>
-              </div>
+                <p v-else class="factory-file-empty">暂无工序记录</p>
 
-              <div class="section-subtitle">节点统计</div>
-              <div v-if="productionBoardInstance" class="production-board-stats">
-                <article class="performance-card">
-                  <span>待开工</span>
-                  <strong>{{ productionBoardNodeStats.READY }}</strong>
-                  <small>待执行节点</small>
-                </article>
-                <article class="performance-card">
-                  <span>进行中</span>
-                  <strong>{{ productionBoardNodeStats.IN_PROGRESS }}</strong>
-                  <small>进行中节点</small>
-                </article>
-                <article class="performance-card">
-                  <span>已完成</span>
-                  <strong>{{ productionBoardNodeStats.COMPLETED }}</strong>
-                  <small>已完成节点</small>
-                </article>
-                <article class="performance-card">
-                  <span>已跳过 / 待处理</span>
-                  <strong>{{ productionBoardNodeStats.SKIPPED }} / {{ productionBoardNodeStats.PENDING }}</strong>
-                  <small>跳过或未激活节点</small>
-                </article>
-              </div>
-              <div v-else class="empty-state">
-                该订单暂无可展示的工序进度
-              </div>
+                <div class="factory-drawer-work-actions">
+                  <button v-if="productionBoardSelectedCard?.node?.node_status === 'READY'" type="button" class="factory-action-primary" @click="startProductionBoardNode">开始工作</button>
+                  <button v-else-if="productionBoardSelectedCard?.node?.node_status === 'IN_PROGRESS'" type="button" class="factory-action-primary" @click="completeProductionBoardNode">✓ 标记完成</button>
+                  <button v-else type="button" class="factory-action-primary" disabled>当前无可执行工序</button>
+                  <button type="button" class="factory-action-secondary" @click="openProductionBoardMessageCenter">联系客服</button>
+                </div>
 
-              <div class="section-subtitle">节点进度</div>
-              <div v-if="productionBoardInstance" class="process-node-list">
-                <button
-                  v-for="node in productionBoardInstance.nodes"
-                  :key="node.node_instance_id"
-                  class="process-node-row"
-                  type="button"
+                <section class="factory-drawer-files">
+                  <div class="factory-drawer-files-title">CAD数据与文件</div>
+                  <div class="factory-cad-actions">
+                    <button type="button" class="factory-action-primary" @click="downloadProductionBoardCadData">下载STL / 扫描数据</button>
+                    <button type="button" class="factory-action-secondary" @click="previewProductionBoardCadData">在浏览器中查看3D</button>
+                    <button type="button" class="factory-action-secondary" :disabled="productionBoardFileUploading" @click="triggerProductionBoardFileUpload('DESIGN_RETURN')">
+                      {{ productionBoardFileUploading ? '上传中' : '上传设计返回' }}
+                    </button>
+                    <input ref="productionBoardFileInput" class="factory-file-input" type="file" @change="uploadProductionBoardFile">
+                  </div>
+                  <p v-if="productionBoardFilesLoading" class="factory-file-empty">文件加载中</p>
+                  <p v-else-if="productionBoardFilesError" class="factory-file-empty factory-file-error">{{ productionBoardFilesError }}</p>
+                  <p v-else-if="productionBoardFiles.length === 0" class="factory-file-empty">暂无文件</p>
+                  <div v-else class="factory-file-list">
+                    <article v-for="file in productionBoardFiles" :key="file.file_id">
+                      <div>
+                        <strong>{{ file.original_filename }}</strong>
+                        <small>{{ file.source_type }} · {{ file.file_size ? `${Math.ceil(file.file_size / 1024)} KB` : '文件大小未设置' }}</small>
+                      </div>
+                      <button type="button" @click="downloadProductionBoardFile(file)">下载</button>
+                    </article>
+                  </div>
+                </section>
+              </div>
+            </section>
+          </el-drawer>
+          </div>
+        </section>
+
+        <section v-else-if="isProductionBoardRoute" class="panel route-panel production-board-panel">
+          <div class="factory-kanban-page-strip">生产看板</div>
+          <div class="factory-kanban-header">
+            <div>
+              <h2>生产看板 <span>{{ productionBoardKanbanDate }}</span></h2>
+              <p>{{ productionBoardKanbanColumns.length }} 个生产队列 · 每日视图 · ⏰ 表示超时</p>
+            </div>
+            <div class="factory-kanban-date-controls">
+              <button class="factory-btn-g" type="button" @click="shiftProductionBoardKanbanDate(-1)">← 前一天</button>
+              <input v-model="productionBoardKanbanDate" class="factory-date-input" type="date" aria-label="生产看板日期">
+              <button class="factory-btn-g" type="button" @click="shiftProductionBoardKanbanDate(1)">后一天 →</button>
+              <button class="factory-btn-g factory-btn-today" type="button" @click="resetProductionBoardKanbanDate">今天</button>
+              <span v-if="productionBoardKanbanCards.some((card) => card.risk === 'overdue')" class="factory-overtime-total">
+                ⏰ {{ productionBoardKanbanCards.filter((card) => card.risk === 'overdue').length }} 单超时
+              </span>
+            </div>
+          </div>
+
+          <div class="factory-kanban-summary-bar">
+            <div
+              v-for="summary in productionBoardKanbanSummaries"
+              :key="summary.key"
+              class="factory-kanban-summary factory-stage-summary"
+              :style="{
+                color: productionBoardTonePalette(summary.tone).color,
+                background: productionBoardTonePalette(summary.tone).background,
+                borderColor: `${productionBoardTonePalette(summary.tone).color}33`
+              }"
+              role="button"
+              tabindex="0"
+              @click="scrollProductionBoardColumn(summary.key)"
+              @keydown.enter="scrollProductionBoardColumn(summary.key)"
+            >
+              <div>{{ summary.title }}</div>
+              <div class="factory-stage-summary-metrics">
+                <span>未完成 <b>{{ summary.unfinishedCount }}</b></span>
+                <span>完成 <b>{{ summary.completedCount }}</b></span>
+                <span class="metric-overdue">超时 <b>{{ summary.overdueCount }}</b></span>
+                <span>待问 <b>{{ summary.pendingQuestionCount }}</b></span>
+                <span>内返 <b>{{ summary.internalReworkCount }}</b></span>
+              </div>
+            </div>
+          </div>
+
+          <div v-if="productionBoardError" class="factory-kanban-alert">{{ productionBoardError }}</div>
+          <div class="factory-kanban-board">
+            <div
+              class="factory-kanban-grid"
+              :style="{
+                gridTemplateColumns: `repeat(${productionBoardKanbanColumns.length}, minmax(210px, 1fr))`,
+                minWidth: `${Math.max(2800, productionBoardKanbanColumns.length * 218)}px`
+              }"
+            >
+              <article
+                v-for="column in productionBoardKanbanColumns"
+                :key="column.key"
+                class="factory-kanban-column"
+                :data-production-column="column.key"
+              >
+                <header
+                  class="factory-kanban-column-head"
+                  :style="{ background: productionBoardTonePalette(column.tone).background }"
                 >
-                  <span class="node-order">{{ node.step_order }}</span>
-                  <strong>{{ node.process_name }}</strong>
-                  <span>{{ node.node_code }}</span>
-                  <span>{{ statusLabel(node.node_status) }}</span>
-                  <span>员工 {{ node.assigned_user_id ?? '-' }}</span>
-                  <span>{{ node.standard_duration ?? '-' }} 分钟</span>
-                </button>
-              </div>
+                  <div>
+                    <strong :style="{ color: productionBoardTonePalette(column.tone).color }">{{ column.title }}</strong>
+                    <small>{{ column.subtitle }}</small>
+                  </div>
+                  <span
+                    class="factory-kanban-column-count"
+                    :style="{
+                      color: productionBoardTonePalette(column.tone).color,
+                      background: productionBoardTonePalette(column.tone).background,
+                      borderColor: `${productionBoardTonePalette(column.tone).color}33`
+                    }"
+                  >{{ column.cards.length }}</span>
+                </header>
+                <div class="factory-kanban-column-body">
+                  <button
+                    v-for="card in column.cards"
+                    :key="card.orderId"
+                    class="factory-kanban-card"
+                    :class="{ urgent: ['overdue', 'rework'].includes(card.risk), warning: card.risk === 'rush' }"
+                    :style="{ borderLeftColor: card.risk === 'overdue' || card.risk === 'rework' ? '#e11d48' : '#99f6e4' }"
+                    type="button"
+                    @click="selectProductionBoardOrder(card.order, card)"
+                  >
+                    <span v-if="card.risk === 'overdue'" class="factory-overtime-badge">⏰ 超时</span>
+                    <div><span class="factory-card-id">{{ card.orderNo }}</span></div>
+                    <div class="factory-card-product">{{ card.productLabel }}</div>
+                    <div class="factory-card-sub">{{ card.clinicLabel }} · {{ card.toothLabel }}</div>
+                    <div v-if="card.risk !== 'normal'" class="factory-card-tags">
+                      <span class="factory-tag-chip" :class="`risk-${card.risk}`">{{ card.riskLabel }}</span>
+                    </div>
+                    <div class="factory-card-dates">
+                      <span>开始：{{ card.startedAt ? compactDateTime(card.startedAt) : '-' }}</span>
+                      <span>截止：{{ card.deadlineAt ? compactDateTime(card.deadlineAt) : '-' }}</span>
+                    </div>
+                    <div class="factory-card-progress"><span :style="{ width: `${card.progressPercent}%`, background: productionBoardCardProgressColor(card) }"></span></div>
+                    <div class="factory-card-row">
+                      <span class="factory-card-tech">{{ card.assignedUserLabel }}</span>
+                      <span class="factory-card-time" :style="{ color: productionBoardCardProgressColor(card) }">{{ productionBoardCardTimeLabel(card) }}</span>
+                    </div>
+                  </button>
+                  <div v-if="column.cards.length === 0" class="factory-kanban-empty">✓ 暂无订单</div>
+                </div>
+              </article>
+            </div>
+          </div>
 
-              <div class="review-form">
-                <div class="section-subtitle">
-                  终检发货
+          <el-drawer v-model="productionBoardDrawerVisible" class="factory-kanban-drawer" direction="rtl" size="560px" :with-header="false">
+            <section v-if="selectedProductionBoardOrder" class="factory-drawer">
+              <header class="factory-drawer-head">
+                <h3>订单详情 · {{ selectedProductionBoardOrder.order_no }}</h3>
+                <button type="button" aria-label="关闭" @click="productionBoardDrawerVisible = false">✕</button>
+              </header>
+              <div class="factory-drawer-body">
+                <div class="factory-drawer-notice">🔒 生产端仅展示诊所与患者标识，不展示金额信息</div>
+                <div class="factory-drawer-info-grid">
+                  <div><span>订单编号</span><strong>{{ selectedProductionBoardOrder.order_no }}</strong></div>
+                  <div><span>诊所</span><strong>{{ selectedProductionBoardOrder.clinic_name }}</strong></div>
+                  <div><span>产品</span><strong>{{ productTypeLabel(selectedProductionBoardOrder.product_type) }}</strong></div>
+                  <div><span>当前工序</span><strong>{{ productionBoardSelectedCard?.currentProcess ?? '-' }}</strong></div>
+                  <div><span>牙位</span><strong>{{ productionBoardToothLabel(selectedProductionBoardOrder) }}</strong></div>
+                  <div><span>负责人</span><strong>{{ productionBoardSelectedCard?.assignedUserLabel ?? '-' }}</strong></div>
+                  <div><span>工段</span><strong>{{ productionBoardSelectedCard?.stageName || '-' }}</strong></div>
+                  <div><span>标准时长</span><strong>{{ productionBoardSelectedCard?.slaLabel ?? '-' }}</strong></div>
+                  <div><span>开始时间</span><strong>{{ productionBoardSelectedCard?.startedAt ? compactDateTime(productionBoardSelectedCard.startedAt) : '-' }}</strong></div>
+                  <div><span>截止时间</span><strong>{{ productionBoardSelectedCard?.deadlineAt ? compactDateTime(productionBoardSelectedCard.deadlineAt) : '-' }}</strong></div>
+                  <div><span>完成时间</span><strong>{{ productionBoardSelectedCard?.completedAt ? compactDateTime(productionBoardSelectedCard.completedAt) : '-' }}</strong></div>
+                  <div><span>内部状态</span><strong>{{ statusLabel(selectedProductionBoardOrder.internal_status) }}</strong></div>
+                  <div><span>外部状态</span><strong>{{ statusLabel(selectedProductionBoardOrder.external_status) }}</strong></div>
                 </div>
-                <div class="order-create-grid">
-                  <el-form-item label="承运商">
-                    <el-input
-                      v-model="productionBoardLogisticsCarrier"
-                      data-testid="production-board-logistics-carrier"
-                      placeholder="例如：顺丰速运"
-                    />
-                  </el-form-item>
-                  <el-form-item label="物流单号">
-                    <el-input
-                      v-model="productionBoardLogisticsTrackingNo"
-                      data-testid="production-board-logistics-tracking-no"
-                      placeholder="终检通过后才能发货"
-                    />
-                  </el-form-item>
+
+                <div class="factory-drawer-section-title">生产流程</div>
+                <div v-if="productionBoardInstance" class="factory-drawer-timeline">
+                  <article
+                    v-for="node in productionBoardInstance.nodes"
+                    :key="node.node_instance_id"
+                    :class="{
+                      completed: ['COMPLETED', 'SKIPPED'].includes(node.node_status),
+                      current: productionBoardSelectedCard?.node?.node_instance_id === node.node_instance_id,
+                      skipped: node.node_status === 'SKIPPED'
+                    }"
+                  >
+                    <span class="factory-drawer-timeline-marker">{{ ['COMPLETED', 'SKIPPED'].includes(node.node_status) ? '✓' : node.step_order }}</span>
+                    <div>
+                      <strong>{{ node.process_name }} <em v-if="node.stage_name">· {{ node.stage_name }}</em></strong>
+                      <small>{{ statusLabel(node.node_status) }} · 员工 {{ node.assigned_user_id ?? '-' }} · 标准 {{ node.standard_duration ?? '-' }} 分钟</small>
+                      <small>开始 {{ node.started_at ? compactDateTime(node.started_at) : '-' }} · 截止 {{ node.deadline_at ? compactDateTime(node.deadline_at) : '-' }}</small>
+                      <p v-if="productionBoardSelectedCard?.node?.node_instance_id === node.node_instance_id && node.node_status === 'IN_PROGRESS'">⚡ 进行中</p>
+                    </div>
+                  </article>
                 </div>
-                <div class="inline-actions">
-                  <el-button
-                    type="primary"
-                    :loading="productionBoardShippingLoading"
-                    :disabled="!productionBoardLogisticsCarrier.trim() || !productionBoardLogisticsTrackingNo.trim()"
-                    data-testid="production-board-ship-button"
-                    @click="shipProductionBoardOrder"
-                  >
-                    录入物流并发货
-                  </el-button>
-                  <el-tag
-                    v-if="productionBoardShippingResult"
-                    data-testid="production-board-shipping-result"
-                    type="success"
-                    round
-                  >
-                    {{ productionBoardShippingResult }}
-                  </el-tag>
+
+                <div class="factory-drawer-work-actions">
+                  <button v-if="productionBoardSelectedCard?.node?.node_status === 'READY'" type="button" class="factory-action-primary" @click="startProductionBoardNode">开始工作</button>
+                  <button v-else-if="productionBoardSelectedCard?.node?.node_status === 'IN_PROGRESS'" type="button" class="factory-action-primary" @click="completeProductionBoardNode">✓ 标记完成</button>
+                  <button v-else type="button" class="factory-action-primary" disabled>工序已完成</button>
+                  <button type="button" class="factory-action-secondary" @click="openProductionBoardMessageCenter">消息 CS</button>
+                </div>
+
+                <section class="factory-drawer-files">
+                  <div class="factory-drawer-files-title">CAD数据与文件</div>
+                  <div class="factory-cad-actions">
+                    <button type="button" class="factory-action-primary" @click="downloadProductionBoardCadData">下载STL / 扫描数据</button>
+                    <button type="button" class="factory-action-secondary" @click="previewProductionBoardCadData">在浏览器中查看3D</button>
+                    <button type="button" class="factory-action-secondary" :disabled="productionBoardFileUploading" @click="triggerProductionBoardFileUpload('DESIGN_RETURN')">
+                      {{ productionBoardFileUploading ? '上传中' : '上传设计返回' }}
+                    </button>
+                    <input ref="productionBoardFileInput" class="factory-file-input" type="file" @change="uploadProductionBoardFile">
+                  </div>
+                  <p v-if="productionBoardFilesLoading" class="factory-file-empty">文件加载中</p>
+                  <p v-else-if="productionBoardFilesError" class="factory-file-empty factory-file-error">{{ productionBoardFilesError }}</p>
+                  <p v-else-if="productionBoardFiles.length === 0" class="factory-file-empty">还没有返回文件，设计后在 CAD 软件中上传</p>
+                  <div v-else class="factory-file-list">
+                    <article v-for="file in productionBoardFiles" :key="file.file_id">
+                      <div>
+                        <strong>{{ file.original_filename }}</strong>
+                        <small>{{ file.source_type }} · {{ file.file_size ? `${Math.ceil(file.file_size / 1024)} KB` : '-' }} · {{ compactDateTime(file.created_at) }}</small>
+                      </div>
+                      <button type="button" @click="downloadProductionBoardFile(file)">下载</button>
+                    </article>
+                  </div>
+                </section>
+
+                <div class="factory-drawer-question">
+                  <input v-model="productionBoardQuestionDraft" aria-label="生产待问内容" placeholder="填写需要确认的问题" @keyup.enter="createProductionBoardQuestion">
+                  <button type="button" :disabled="!productionBoardQuestionDraft.trim() || productionBoardQuestionLoading" @click="createProductionBoardQuestion">提交待问</button>
+                </div>
+                <div v-if="canManageProductionBoard" class="factory-drawer-manager-actions">
+                  <button type="button" @click="advanceProductionBoardStage">更新阶段</button>
+                  <button type="button" @click="triggerProductionBoardFileUpload('GENERAL')">上传评审</button>
+                  <button type="button" @click="printProductionBoardWorkOrder">打印工单</button>
                 </div>
               </div>
             </section>
@@ -11403,12 +12078,15 @@ onBeforeUnmount(() => {
           </div>
         </section>
 
-        <section v-else-if="isCustomerCollaborationRoute" class="panel route-panel customer-collaboration-panel">
-          <div class="route-heading">
+        <section v-else-if="isCustomerCollaborationRoute" class="panel route-panel customer-collaboration-panel" :class="{ 'factory-message-page': portalTone === 'production' }">
+          <header class="route-heading" :class="{ 'factory-page-heading': portalTone === 'production' }">
+            <div v-if="portalTone === 'production'"><h2>沟通中心</h2><p>与客服围绕真实订单进行协同；生产端发送的消息需客服审核后对外可见。</p></div>
+            <template v-else>
             <h2>沟通中心</h2>
+            </template>
             <el-tag v-if="canReviewCustomerCollaboration" round>{{ customerCollaborationPendingMessages.length }} 条待审核消息</el-tag>
             <el-tag v-else type="info" round>订单协同沟通</el-tag>
-          </div>
+          </header>
 
           <div class="doctor-order-toolbar">
             <el-input
@@ -11471,9 +12149,10 @@ onBeforeUnmount(() => {
             <div class="inline-actions">
               <el-button type="primary" :loading="customerCollaborationSending" @click="sendCustomerCollaborationMessage">发送消息</el-button>
             </div>
+            <p v-if="portalTone === 'production'" class="factory-message-hint">发送后状态为“待客服审核”，生产端不提供审核操作。</p>
           </section>
 
-          <div class="customer-collaboration-grid">
+          <div class="customer-collaboration-grid factory-message-layout">
             <section v-if="canReviewCustomerCollaboration" class="customer-collaboration-card">
               <div class="subheading-row">
                 <h3>待审核消息</h3>
@@ -12251,11 +12930,11 @@ onBeforeUnmount(() => {
           </template>
         </section>
 
-        <section v-else-if="isProductionQualitySummaryRoute" class="panel route-panel performance-panel">
-          <div class="route-heading">
-            <h2>质量与返工</h2>
-            <el-tag round>{{ qualityRecordTotal }} 条外返记录</el-tag>
-          </div>
+        <section v-else-if="isProductionQualityOverviewView" class="factory-quality-page">
+          <header class="factory-page-heading">
+            <div><h2>质量总览</h2><p>基于现有出检、返工与质量记录实时汇总。</p></div>
+            <button class="factory-btn-g" type="button" :disabled="productionQualitySummaryLoading || qualityRecordLoading" @click="loadProductionQualityPage">↻ 刷新质量数据</button>
+          </header>
 
           <div class="prototype-queue-card">
             <div class="prototype-table-head">
@@ -12321,6 +13000,7 @@ onBeforeUnmount(() => {
                   />
                 </el-select>
                 <el-button :loading="qualityRecordLoading" @click="loadQualityRecords">筛选</el-button>
+                <el-button type="primary" plain @click="activeNavId = 'production-external-rework-management'; navigateToRoute('/rework-final')">外返登记与处理</el-button>
               </div>
             </div>
             <el-alert
@@ -12337,63 +13017,6 @@ onBeforeUnmount(() => {
               show-icon
               :closable="false"
             />
-            <div class="compact-form-grid">
-              <el-input v-model="qualityRecordOrderId" placeholder="订单 ID" />
-              <el-select v-model="qualityRecordReasonCategory" data-testid="quality-record-reason">
-                <el-option
-                  v-for="option in reworkReasonCategories"
-                  :key="option.code"
-                  :label="option.label"
-                  :value="option.code"
-                />
-              </el-select>
-              <el-select v-model="qualityRecordResponsibilityType">
-                <el-option
-                  v-for="option in reworkResponsibilityTypes"
-                  :key="option.code"
-                  :label="option.label"
-                  :value="option.code"
-                />
-              </el-select>
-              <el-input
-                v-model="qualityRecordReasonDetail"
-                placeholder="外返原因详情"
-                data-testid="quality-record-reason-detail"
-              />
-              <el-button
-                type="primary"
-                :loading="qualityRecordSaving"
-                data-testid="quality-record-create-button"
-                @click="createExternalReturnQualityRecord"
-              >
-                登记外返
-              </el-button>
-            </div>
-            <div class="compact-form-grid">
-              <el-input
-                v-model="qualityRecordStatusId"
-                placeholder="质量记录 ID"
-                data-testid="quality-record-status-id"
-              />
-              <el-select v-model="qualityRecordStatus" data-testid="quality-record-status">
-                <el-option label="待处理" value="PENDING" />
-                <el-option label="处理中" value="IN_PROGRESS" />
-                <el-option label="已解决" value="RESOLVED" />
-                <el-option label="已关闭" value="CLOSED" />
-              </el-select>
-              <el-input
-                v-model="qualityRecordStatusNote"
-                placeholder="状态处理说明"
-                data-testid="quality-record-status-note"
-              />
-              <el-button
-                :loading="qualityRecordStatusSaving"
-                data-testid="quality-record-status-button"
-                @click="updateQualityRecordStatus"
-              >
-                更新状态
-              </el-button>
-            </div>
             <el-table
               :data="qualityRecords"
               size="small"
@@ -12518,7 +13141,7 @@ onBeforeUnmount(() => {
               <div class="prototype-table-head">
                 <div>
                   <h3>AI-5 模板状态</h3>
-                  <small>PHASE_ONE_DEFAULT_V1 仍是默认模板，不是客户正式模板。</small>
+                  <small>当前采用默认绩效模板，以实际工时记录为准。</small>
                 </div>
                 <el-tag type="danger" round>客户模板未确认</el-tag>
               </div>
@@ -12550,17 +13173,22 @@ onBeforeUnmount(() => {
         <section
           v-else-if="(isPlaceholderRoute || isProductizedProductionSupportRoute || isAdminPermissionInventoryRoute) && activeDisplayItem"
           class="panel route-panel placeholder-panel"
-          :class="{ 'frontend-productized-support-panel': isProductizedProductionSupportRoute }"
+          :class="{
+            'frontend-productized-support-panel': isProductizedProductionSupportRoute,
+            'factory-support-page': isProductizedProductionSupportRoute,
+            'factory-reward-page': isProductionRewardPenaltySummaryRoute,
+            'factory-outsourcing-page': activeNavId === 'production-cost-outsourcing'
+          }"
         >
-          <div class="route-heading">
-            <h2>{{ activeDisplayItem.title }}</h2>
+          <header class="route-heading factory-page-heading">
+            <div><h2>{{ activeDisplayItem.title }}</h2><p v-if="isProductizedProductionSupportRoute">当前页面展示已接入的真实汇总与可用业务操作。</p></div>
             <div class="heading-tags">
-              <el-tag v-if="isProductizedProductionSupportRoute" type="success" round>本地第一增量</el-tag>
+              <el-tag v-if="isProductizedProductionSupportRoute" type="success" round>真实数据</el-tag>
               <el-tag v-else-if="isAdminPermissionInventoryRoute" type="warning" round>权限清单入口</el-tag>
               <el-tag v-else round>演示入口</el-tag>
             </div>
-          </div>
-          <div class="placeholder-hero">
+          </header>
+          <div v-if="!isProductizedProductionSupportRoute" class="placeholder-hero">
             <span class="admin-menu-icon" aria-hidden="true" v-html="businessIconSvg(activeDisplayItem.icon)" />
             <div>
               <strong>{{ activeDisplayItem.title }}</strong>
@@ -12568,6 +13196,7 @@ onBeforeUnmount(() => {
             </div>
           </div>
           <el-alert
+            v-if="!isProductizedProductionSupportRoute"
             :title="isProductizedProductionSupportRoute
               ? '该功能已接入当前后端汇总数据和本地第一增量表单；完整编辑、审批、真实趋势和客户验收仍保持 PARTIAL。'
               : isAdminPermissionInventoryRoute
@@ -13071,9 +13700,14 @@ onBeforeUnmount(() => {
             <div class="placeholder-content-grid">
               <article class="placeholder-content-card tone-sky">
                 <span class="placeholder-content-dot" />
-                <strong>登记成本记录</strong>
+                <strong>{{ activeNavId === 'production-cost-outsourcing' ? '登记外协成本' : '登记成本记录' }}</strong>
                 <el-input v-model="productionCostCreateNo" size="small" placeholder="成本编号" />
-                <el-select v-model="productionCostCreateType" size="small" placeholder="成本类型">
+                <el-select
+                  v-model="productionCostCreateType"
+                  size="small"
+                  placeholder="成本类型"
+                  :disabled="activeNavId === 'production-cost-outsourcing'"
+                >
                   <el-option label="工序成本" value="PROCESS" />
                   <el-option label="材料成本" value="MATERIAL" />
                   <el-option label="人工成本" value="LABOR" />
@@ -13099,9 +13733,9 @@ onBeforeUnmount(() => {
                   type="primary"
                   size="small"
                   :loading="productionCostSaving"
-                  @click="createProductionCostRecord"
+                  @click="createCurrentProductionCostRecord"
                 >
-                  登记成本记录
+                  {{ activeNavId === 'production-cost-outsourcing' ? '登记外协成本' : '登记成本记录' }}
                 </el-button>
               </article>
             </div>

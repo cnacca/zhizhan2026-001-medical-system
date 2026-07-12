@@ -5,6 +5,7 @@ import com.yuri.aiorder.common.DataResponse;
 import com.yuri.aiorder.common.UserRole;
 import com.yuri.aiorder.common.auth.RequirePermission;
 import jakarta.validation.Valid;
+import java.util.List;
 import org.springframework.web.bind.annotation.CrossOrigin;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
@@ -97,6 +98,15 @@ public class FileController {
             @PathVariable long fileId,
             BootstrapIdentity identity) {
         return new DataResponse<>(fileResourceService.completeUpload(fileId, identity));
+    }
+
+    @GetMapping("/orders/{orderId}/files")
+    @RequirePermission(value = {"file:manage-internal", "file:access-doctor"}, roles = {
+            UserRole.ADMIN, UserRole.CS, UserRole.WORKER, UserRole.DOCTOR})
+    public DataResponse<List<OrderFileResponse>> listOrderFiles(
+            @PathVariable long orderId,
+            BootstrapIdentity identity) {
+        return new DataResponse<>(fileResourceService.listOrderFiles(orderId, identity));
     }
 
     @GetMapping("/files/{fileId}/preview-url")

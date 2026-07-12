@@ -15,7 +15,10 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import com.yuri.aiorder.common.BootstrapIdentity;
 import com.yuri.aiorder.common.UserRole;
 import com.yuri.aiorder.common.auth.BearerTokenService;
+import java.time.LocalDate;
+import java.time.LocalDateTime;
 import java.util.UUID;
+import java.util.stream.StreamSupport;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -25,6 +28,7 @@ import org.springframework.http.MediaType;
 import org.springframework.jdbc.core.simple.JdbcClient;
 import org.springframework.test.web.servlet.MockMvc;
 import org.springframework.test.web.servlet.MvcResult;
+import org.springframework.transaction.annotation.Transactional;
 
 @SpringBootTest
 @AutoConfigureMockMvc
@@ -217,6 +221,64 @@ class WorkflowRuntimeTests {
                 .andExpect(status().isForbidden());
     }
 
+    @Test
+    @Transactional
+    void productionKanbanCarriesUnfinishedOrdersForwardAndDropsThemTheDayAfterCompletion() throws Exception {
+        jdbcClient.sql("DELETE FROM workflow_edge WHERE chain_id = :chainId")
+                .param("chainId", chainId)
+                .update();
+        jdbcClient.sql("DELETE FROM workflow_node WHERE chain_id = :chainId AND node_code <> 'START'")
+                .param("chainId", chainId)
+                .update();
+        jdbcClient.sql("UPDATE workflow_node SET stage_name = :stageName WHERE chain_id = :chainId")
+                .param("stageName", "CAD设计")
+                .param("chainId", chainId)
+                .update();
+
+        LocalDate selectedDate = LocalDate.now();
+        JsonNode baselineSnapshot = productionKanban(selectedDate, WORKER_USER_ID);
+        long baselineUnfinished = stageMetric(baselineSnapshot, "CAD设计", "unfinished_count");
+        long baselineCompleted = stageMetric(baselineSnapshot, "CAD设计", "completed_count");
+
+        long instanceId = approveProductionAndGetInstanceId();
+        long start = nodeId(instanceId, "START");
+        assign(orderId, start, WORKER_USER_ID);
+
+        LocalDateTime previousDay = selectedDate.minusDays(1).atTime(8, 0);
+        jdbcClient.sql("""
+                        UPDATE order_process_instance
+                        SET created_at = :previousDay, updated_at = :previousDay
+                        WHERE instance_id = :instanceId
+                        """)
+                .param("previousDay", previousDay)
+                .param("instanceId", instanceId)
+                .update();
+        jdbcClient.sql("""
+                        UPDATE order_process_node
+                        SET created_at = :previousDay, updated_at = :previousDay
+                        WHERE node_instance_id = :nodeInstanceId
+                        """)
+                .param("previousDay", previousDay)
+                .param("nodeInstanceId", start)
+                .update();
+
+        JsonNode unfinishedSnapshot = productionKanban(selectedDate, WORKER_USER_ID);
+        assertThat(visibleOrderIds(unfinishedSnapshot)).contains(orderId);
+        assertThat(stageMetric(unfinishedSnapshot, "CAD设计", "unfinished_count"))
+                .isEqualTo(baselineUnfinished + 1);
+
+        startNode(start, WORKER_USER_ID);
+        completeNode(start, WORKER_USER_ID);
+
+        JsonNode completionDaySnapshot = productionKanban(selectedDate, WORKER_USER_ID);
+        assertThat(visibleOrderIds(completionDaySnapshot)).contains(orderId);
+        assertThat(stageMetric(completionDaySnapshot, "CAD设计", "completed_count"))
+                .isEqualTo(baselineCompleted + 1);
+
+        JsonNode nextDaySnapshot = productionKanban(selectedDate.plusDays(1), WORKER_USER_ID);
+        assertThat(visibleOrderIds(nextDaySnapshot)).doesNotContain(orderId);
+    }
+
     private long approveProductionAndGetInstanceId() throws Exception {
         String body = """
                 {
@@ -239,6 +301,31 @@ class WorkflowRuntimeTests {
                 .andReturn();
         JsonNode root = objectMapper.readTree(result.getResponse().getContentAsString());
         return root.path("data").path("instance_id").asLong();
+    }
+
+    private JsonNode productionKanban(LocalDate date, long userId) throws Exception {
+        MvcResult result = mockMvc.perform(get("/production/kanban")
+                        .header("X-Bootstrap-Role", "WORKER")
+                        .header("X-Bootstrap-User-Id", userId)
+                        .param("date", date.toString()))
+                .andExpect(status().isOk())
+                .andReturn();
+        return objectMapper.readTree(result.getResponse().getContentAsString()).path("data");
+    }
+
+    private java.util.List<Long> visibleOrderIds(JsonNode snapshot) {
+        return StreamSupport.stream(snapshot.path("visible_order_ids").spliterator(), false)
+                .map(JsonNode::asLong)
+                .toList();
+    }
+
+    private long stageMetric(JsonNode snapshot, String stageName, String metricName) {
+        return StreamSupport.stream(snapshot.path("stages").spliterator(), false)
+                .filter(stage -> stageName.equals(stage.path("stage_name").asText()))
+                .findFirst()
+                .orElseThrow()
+                .path(metricName)
+                .asLong();
     }
 
     private long createRuntimeTestChain(String suffix) {

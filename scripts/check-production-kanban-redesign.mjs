@@ -6,6 +6,9 @@ const files = {
   packageJson: fs.readFileSync('package.json', 'utf8'),
   spec: fs.readFileSync('docs/design/production-kanban-redesign-20260709.md', 'utf8'),
 }
+const boardStart = files.app.indexOf('<section v-else-if="isProductionBoardRoute"')
+const boardEnd = files.app.indexOf('\n        <section v-else-if=', boardStart + 1)
+const board = boardStart === -1 || boardEnd === -1 ? '' : files.app.slice(boardStart, boardEnd)
 
 const requiredFragments = [
   [files.packageJson, 'package.json', 'check:production-kanban-redesign'],
@@ -16,24 +19,22 @@ const requiredFragments = [
   [files.app, 'frontend/src/App.vue', 'productionBoardProcessInstances'],
   [files.app, 'frontend/src/App.vue', 'syncProductionBoardProcessInstances'],
   [files.app, 'frontend/src/App.vue', 'buildProductionKanbanCard'],
-  [files.app, 'frontend/src/App.vue', 'productionBoardAuxiliaryColumns'],
-  [files.app, 'frontend/src/App.vue', 'productionBoardProcessColumns'],
-  [files.app, 'frontend/src/App.vue', 'productionBoardKanbanSummaries'],
-  [files.app, 'frontend/src/App.vue', 'productionBoardDrawerVisible'],
-  [files.app, 'frontend/src/App.vue', '<el-drawer'],
-  [files.app, 'frontend/src/App.vue', '工序待同步'],
-  [files.app, 'frontend/src/App.vue', '最后同步'],
-  [files.app, 'frontend/src/App.vue', 'Today'],
-  [files.styles, 'frontend/src/styles.css', '.production-board-control-deck'],
-  [files.styles, 'frontend/src/styles.css', '.production-kanban-summary-chip'],
-  [files.styles, 'frontend/src/styles.css', '.production-kanban-card-progress'],
-  [files.styles, 'frontend/src/styles.css', '.production-board-drawer'],
+  [files.app, 'frontend/src/App.vue', 'productionBoardStageDefinitions'],
+  [files.app, 'frontend/src/App.vue', 'class="factory-kanban-grid"'],
+  [files.app, 'frontend/src/App.vue', 'class="factory-kanban-card"'],
+  [files.app, 'frontend/src/App.vue', 'class="factory-kanban-drawer"'],
+  [files.app, 'frontend/src/App.vue', '今天'],
+  [files.styles, 'frontend/src/styles.css', '.factory-kanban-summary-bar'],
+  [files.styles, 'frontend/src/styles.css', '.factory-card-progress'],
+  [files.styles, 'frontend/src/styles.css', '.factory-drawer-timeline'],
 ]
 
 const forbiddenFragments = [
   [files.app, 'frontend/src/App.vue', 'draggable='],
   [files.app, 'frontend/src/App.vue', 'setInterval('],
   [files.app, 'frontend/src/App.vue', 'setTimeout(syncProductionBoardProcessInstances'],
+  [board, 'production board', 'production-board-action-summary'],
+  [board, 'production board', 'production-board-control-deck'],
 ]
 
 const failures = []
