@@ -32,16 +32,20 @@
   background: var(--doctor-off);
 }
 
+.doctor-reference-dashboard-menu {
+  --doctor-navy: #0f2554;
+}
+
 .doctor-portal-clone .workspace {
   background: var(--doctor-off);
 }
 
-.doctor-portal-clone .content-grid.with-nav {
+:is(.doctor-portal-clone, .doctor-reference-dashboard-menu) .content-grid.with-nav {
   grid-template-columns: 224px minmax(0, 1fr) !important;
   min-height: calc(100vh - 58px) !important;
 }
 
-.doctor-portal-clone .nav-panel {
+:is(.doctor-portal-clone, .doctor-reference-dashboard-menu) .nav-panel {
   display: grid;
   grid-template-rows: auto auto minmax(0, 1fr) auto;
   gap: 0;
@@ -53,7 +57,7 @@
   box-shadow: 4px 0 24px rgba(15, 37, 84, 0.15);
 }
 
-.doctor-portal-clone .portal-brand {
+:is(.doctor-portal-clone, .doctor-reference-dashboard-menu) .portal-brand {
   display: block;
   min-height: 89px;
   margin: 0 -10px;
@@ -61,7 +65,7 @@
   border-bottom: 1px solid rgba(255, 255, 255, 0.08);
 }
 
-.doctor-portal-clone .portal-brand strong {
+:is(.doctor-portal-clone, .doctor-reference-dashboard-menu) .portal-brand strong {
   color: #fff;
   font-family: Lora, "Songti SC", serif;
   font-size: 15px;
@@ -69,7 +73,7 @@
   line-height: 20px;
 }
 
-.doctor-portal-clone .portal-brand small {
+:is(.doctor-portal-clone, .doctor-reference-dashboard-menu) .portal-brand small {
   margin-top: 2px;
   color: rgba(255, 255, 255, 0.42);
   font-size: 9px;
@@ -78,7 +82,7 @@
   text-transform: uppercase;
 }
 
-.doctor-portal-clone .portal-brand::after {
+:is(.doctor-portal-clone, .doctor-reference-dashboard-menu) .portal-brand::after {
   content: "🦷 医生端";
   display: inline-flex;
   align-items: center;
@@ -94,7 +98,7 @@
   letter-spacing: 0.8px;
 }
 
-.doctor-portal-clone .user-block {
+:is(.doctor-portal-clone, .doctor-reference-dashboard-menu) .user-block {
   grid-template-columns: 34px minmax(0, 1fr) auto;
   gap: 10px;
   min-height: 65px;
@@ -105,7 +109,7 @@
   background: transparent;
 }
 
-.doctor-portal-clone .account-avatar {
+:is(.doctor-portal-clone, .doctor-reference-dashboard-menu) .account-avatar {
   width: 34px;
   height: 34px;
   background: linear-gradient(135deg, #60a5fa, #a78bfa);
@@ -113,41 +117,41 @@
   font-size: 12px;
 }
 
-.doctor-portal-clone .account-identity {
+:is(.doctor-portal-clone, .doctor-reference-dashboard-menu) .account-identity {
   gap: 1px;
 }
 
-.doctor-portal-clone .account-identity strong {
+:is(.doctor-portal-clone, .doctor-reference-dashboard-menu) .account-identity strong {
   font-size: 12px;
   font-weight: 600;
 }
 
-.doctor-portal-clone .account-identity span {
+:is(.doctor-portal-clone, .doctor-reference-dashboard-menu) .account-identity span {
   font-size: 9px;
   line-height: 14px;
 }
 
-.doctor-portal-clone .account-identity span:last-child {
+:is(.doctor-portal-clone, .doctor-reference-dashboard-menu) .account-identity span:last-child {
   display: none;
 }
 
-.doctor-portal-clone .account-caret {
+:is(.doctor-portal-clone, .doctor-reference-dashboard-menu) .account-caret {
   padding: 0;
   border: 0;
   color: rgba(255, 255, 255, 0.35);
   font-size: 0;
 }
 
-.doctor-portal-clone .account-caret::after {
+:is(.doctor-portal-clone, .doctor-reference-dashboard-menu) .account-caret::after {
   content: "⇄";
   font-size: 11px;
 }
 
-.doctor-portal-clone .route-menu {
+:is(.doctor-portal-clone, .doctor-reference-dashboard-menu) .route-menu {
   padding-top: 8px;
 }
 
-.doctor-portal-clone .nav-section-title {
+:is(.doctor-portal-clone, .doctor-reference-dashboard-menu) .nav-section-title {
   margin: 11px 10px 4px;
   color: rgba(255, 255, 255, 0.28);
   font-size: 9px;
@@ -156,8 +160,8 @@
   text-transform: uppercase;
 }
 
-.doctor-portal-clone .route-menu .el-menu-item,
-.doctor-portal-clone .route-menu .el-sub-menu__title {
+:is(.doctor-portal-clone, .doctor-reference-dashboard-menu) .route-menu .el-menu-item,
+:is(.doctor-portal-clone, .doctor-reference-dashboard-menu) .route-menu .el-sub-menu__title {
   gap: 9px;
   height: 35px;
   margin: 1px 0;
@@ -168,38 +172,38 @@
   font-weight: 500;
 }
 
-.doctor-portal-clone .route-menu .el-menu-item:hover,
-.doctor-portal-clone .route-menu .el-menu-item.is-active,
-.doctor-portal-clone .route-menu .el-sub-menu__title:hover,
-.doctor-portal-clone .route-menu .el-sub-menu.is-opened > .el-sub-menu__title {
+:is(.doctor-portal-clone, .doctor-reference-dashboard-menu) .route-menu .el-menu-item:hover,
+:is(.doctor-portal-clone, .doctor-reference-dashboard-menu) .route-menu .el-menu-item.is-active,
+:is(.doctor-portal-clone, .doctor-reference-dashboard-menu) .route-menu .el-sub-menu__title:hover,
+:is(.doctor-portal-clone, .doctor-reference-dashboard-menu) .route-menu .el-sub-menu.is-opened > .el-sub-menu__title {
   background: rgba(255, 255, 255, 0.08);
   color: #fff;
 }
 
-.doctor-portal-clone .route-menu .el-menu-item.is-active {
+:is(.doctor-portal-clone, .doctor-reference-dashboard-menu) .route-menu .el-menu-item.is-active {
   box-shadow: inset 3px 0 0 #60a5fa;
 }
 
-.doctor-portal-clone .route-menu .el-sub-menu .el-menu-item {
+:is(.doctor-portal-clone, .doctor-reference-dashboard-menu) .route-menu .el-sub-menu .el-menu-item {
   height: 32px;
   margin-left: 8px;
   padding-left: 14px !important;
   font-size: 11px;
 }
 
-.doctor-portal-clone .menu-icon {
+:is(.doctor-portal-clone, .doctor-reference-dashboard-menu) .menu-icon {
   flex-basis: 16px;
   width: 16px;
   height: 16px;
   color: rgba(255, 255, 255, 0.64);
 }
 
-.doctor-portal-clone .menu-icon svg {
+:is(.doctor-portal-clone, .doctor-reference-dashboard-menu) .menu-icon svg {
   width: 14px;
   height: 14px;
 }
 
-.doctor-portal-clone .nav-footnote {
+:is(.doctor-portal-clone, .doctor-reference-dashboard-menu) .nav-footnote {
   grid-template-columns: 1fr;
   gap: 4px;
   margin: 0;
@@ -210,8 +214,12 @@
   line-height: 1.5;
 }
 
-.doctor-portal-clone .nav-note-mark {
+:is(.doctor-portal-clone, .doctor-reference-dashboard-menu) .nav-note-mark {
   display: none;
+}
+
+.doctor-reference-dashboard-menu .status-bar {
+  padding-left: 252px;
 }
 
 .doctor-portal-clone .status-bar {
@@ -1312,11 +1320,11 @@
 }
 
 @media (max-width: 980px) {
-  .doctor-portal-clone .content-grid.with-nav {
+  :is(.doctor-portal-clone, .doctor-reference-dashboard-menu) .content-grid.with-nav {
     grid-template-columns: minmax(0, 1fr) !important;
   }
 
-  .doctor-portal-clone .nav-panel {
+  :is(.doctor-portal-clone, .doctor-reference-dashboard-menu) .nav-panel {
     position: relative;
     width: auto;
     height: auto;
@@ -1327,6 +1335,10 @@
   .doctor-portal-clone .status-bar {
     grid-template-columns: minmax(0, 1fr) auto;
     padding: 0 16px;
+  }
+
+  .doctor-reference-dashboard-menu .status-bar {
+    padding-left: 16px;
   }
 
   .doctor-clone-global-search {

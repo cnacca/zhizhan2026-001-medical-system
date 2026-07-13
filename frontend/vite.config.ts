@@ -11,6 +11,8 @@ const backendProxy: ProxyOptions = {
   }
 }
 
+const websocketTarget = process.env.VITE_WS_TARGET ?? 'ws://127.0.0.1:8080'
+
 export default defineConfig({
   plugins: [vue()],
   server: {
@@ -41,7 +43,7 @@ export default defineConfig({
       '/production': backendProxy,
       '/ai': backendProxy,
       '/ws': {
-        target: 'ws://127.0.0.1:8080',
+        target: websocketTarget,
         ws: true,
         changeOrigin: true
       }

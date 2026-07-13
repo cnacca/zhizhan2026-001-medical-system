@@ -793,6 +793,15 @@ components:
       properties:
         file_id:
           type: integer
+        amount_cents:
+          type: integer
+          format: int64
+          minimum: 1
+          nullable: true
+          description: 订单最终应收金额，单位分；旧调用可暂不传，客服页面新录入必须填写。
+        currency:
+          type: string
+          default: CNY
         file_name:
           type: string
         file_size:
@@ -2848,6 +2857,12 @@ components:
           - PARTIALLY_PAID
           - PAID
           - NOT_REQUIRED
+        amount_cents:
+          type: integer
+          format: int64
+          nullable: true
+        currency:
+          type: string
         file_id:
           type: integer
           nullable: true
@@ -3109,6 +3124,80 @@ components:
           type: integer
           minimum: 0
           maximum: 100
+        source_note:
+          type: string
+        generated_at:
+          type: string
+          format: date-time
+    SalesDashboardComparison:
+      type: object
+      description: 本年截至统计日与去年同期的人民币账单金额对比。
+      properties:
+        current_amount_cents:
+          type: integer
+          format: int64
+        previous_year_amount_cents:
+          type: integer
+          format: int64
+        year_over_year_percent:
+          type: number
+          format: double
+          nullable: true
+          description: 去年同期金额为 0 时返回 null。
+        current_order_count:
+          type: integer
+          format: int64
+        previous_year_order_count:
+          type: integer
+          format: int64
+        current_amount_order_count:
+          type: integer
+          format: int64
+          description: 本期已录入 CNY 账单金额的订单数，用于展示数据覆盖率。
+        previous_year_amount_order_count:
+          type: integer
+          format: int64
+    MonthlySalesTrend:
+      type: object
+      properties:
+        month:
+          type: integer
+          minimum: 1
+          maximum: 12
+        inbound_amount_cents:
+          type: integer
+          format: int64
+        outbound_amount_cents:
+          type: integer
+          format: int64
+        previous_year_inbound_amount_cents:
+          type: integer
+          format: int64
+        previous_year_outbound_amount_cents:
+          type: integer
+          format: int64
+    SalesDashboardResponse:
+      type: object
+      description: 管理端与客服端的接单、出货金额累计、去年同期与年度月度趋势；生产和医生端禁止读取。
+      properties:
+        current_year:
+          type: integer
+        through_date:
+          type: string
+          format: date
+        currency:
+          type: string
+          example: CNY
+        inbound:
+          "$ref": "#/components/schemas/SalesDashboardComparison"
+        outbound:
+          "$ref": "#/components/schemas/SalesDashboardComparison"
+        monthly_trend:
+          type: array
+          minItems: 12
+          maxItems: 12
+          items:
+            "$ref": "#/components/schemas/MonthlySalesTrend"
         source_note:
           type: string
         generated_at:
@@ -3591,6 +3680,43 @@ paths:
         '503':
           "$ref": "#/components/responses/ServiceUnavailable"
       operationId: getPhaseOneAbDashboard
+  "/dashboards/sales":
+    get:
+      tags:
+      - Dashboard
+      summary: 管理与客服接单、出货金额同比看板
+      description: |
+        权限：CS / ADMIN；WORKER / DOCTOR 禁止访问。
+        接单金额优先按客服审核通过时间统计，历史订单没有审核状态记录时回退订单创建时间；出货金额按实际 shipped_at 统计。
+        金额只累计 order_bill 中已录入的 CNY amount_cent，并返回已录金额订单数供页面展示覆盖率；不使用产品基础价推算或伪造销售额。
+        默认返回本年截至今天与去年同期的累计金额，以及本年和去年 1-12 月接单 / 出货金额趋势。
+      responses:
+        '200':
+          description: 接单与出货金额同比聚合
+          content:
+            application/json:
+              schema:
+                allOf:
+                - "$ref": "#/components/schemas/CommonResponse"
+                - type: object
+                  properties:
+                    data:
+                      "$ref": "#/components/schemas/SalesDashboardResponse"
+        '400':
+          "$ref": "#/components/responses/BadRequest"
+        '401':
+          "$ref": "#/components/responses/Unauthorized"
+        '403':
+          "$ref": "#/components/responses/Forbidden"
+        '404':
+          "$ref": "#/components/responses/NotFound"
+        '409':
+          "$ref": "#/components/responses/Conflict"
+        default:
+          "$ref": "#/components/responses/DefaultError"
+        '503':
+          "$ref": "#/components/responses/ServiceUnavailable"
+      operationId: getSalesDashboard
   "/patients":
     get:
       tags:

@@ -1,4 +1,8 @@
-/* 客服端参考页专属视觉层：仅作用于非工作台客服页面。 */
+/* 客服端参考视觉层：工作台复用菜单壳层，其余页面应用完整视觉。 */
+.cs-reference-dashboard-menu {
+  --cs-navy: #1e1b4b;
+}
+
 .cs-reference-mode {
   --cs-white: #ffffff;
   --cs-off: #f7f9fc;
@@ -19,12 +23,12 @@
   display: none;
 }
 
-.cs-reference-mode .content-grid.with-nav {
+:is(.cs-reference-mode, .cs-reference-dashboard-menu) .content-grid.with-nav {
   min-height: 100vh;
   grid-template-columns: 236px minmax(0, 1fr);
 }
 
-.cs-reference-mode .nav-panel {
+:is(.cs-reference-mode, .cs-reference-dashboard-menu) .nav-panel {
   width: 236px;
   gap: 0;
   padding: 0 8px 10px;
@@ -34,17 +38,17 @@
   box-shadow: 4px 0 24px rgba(30, 27, 75, 0.22);
 }
 
-.cs-reference-mode .portal-brand {
+:is(.cs-reference-mode, .cs-reference-dashboard-menu) .portal-brand {
   min-height: 78px;
   padding: 18px 10px 12px;
   border-bottom: 1px solid rgba(255, 255, 255, 0.08);
 }
 
-.cs-reference-mode .portal-brand strong {
+:is(.cs-reference-mode, .cs-reference-dashboard-menu) .portal-brand strong {
   font-size: 14px;
 }
 
-.cs-reference-mode .portal-brand small {
+:is(.cs-reference-mode, .cs-reference-dashboard-menu) .portal-brand small {
   margin-top: 2px;
   color: rgba(255, 255, 255, 0.38);
   font-size: 9px;
@@ -52,7 +56,7 @@
   text-transform: uppercase;
 }
 
-.cs-reference-mode .user-block {
+:is(.cs-reference-mode, .cs-reference-dashboard-menu) .user-block {
   margin: 0 -8px 8px;
   padding: 12px 16px;
   border: 0;
@@ -61,31 +65,31 @@
   background: transparent;
 }
 
-.cs-reference-mode .account-avatar {
+:is(.cs-reference-mode, .cs-reference-dashboard-menu) .account-avatar {
   width: 32px;
   height: 32px;
   background: linear-gradient(135deg, #8b5cf6, #ec4899);
   font-size: 11px;
 }
 
-.cs-reference-mode .account-identity strong {
+:is(.cs-reference-mode, .cs-reference-dashboard-menu) .account-identity strong {
   font-size: 12px;
 }
 
-.cs-reference-mode .account-identity span {
+:is(.cs-reference-mode, .cs-reference-dashboard-menu) .account-identity span {
   font-size: 9px;
 }
 
-.cs-reference-mode .account-caret {
+:is(.cs-reference-mode, .cs-reference-dashboard-menu) .account-caret {
   border: 0;
   color: rgba(255, 255, 255, 0.44);
 }
 
-.cs-reference-mode .route-menu {
+:is(.cs-reference-mode, .cs-reference-dashboard-menu) .route-menu {
   padding: 4px 0;
 }
 
-.cs-reference-mode .nav-section-title {
+:is(.cs-reference-mode, .cs-reference-dashboard-menu) .nav-section-title {
   padding: 7px 10px 3px;
   color: rgba(255, 255, 255, 0.28);
   font-size: 9px;
@@ -93,8 +97,8 @@
   text-transform: uppercase;
 }
 
-.cs-reference-mode .route-menu .el-menu-item,
-.cs-reference-mode .route-menu .el-sub-menu__title {
+:is(.cs-reference-mode, .cs-reference-dashboard-menu) .route-menu .el-menu-item,
+:is(.cs-reference-mode, .cs-reference-dashboard-menu) .route-menu .el-sub-menu__title {
   height: 34px;
   min-height: 34px;
   margin: 1px 0;
@@ -105,26 +109,26 @@
   font-weight: 500;
 }
 
-.cs-reference-mode .route-menu .el-sub-menu .el-menu-item {
+:is(.cs-reference-mode, .cs-reference-dashboard-menu) .route-menu .el-sub-menu .el-menu-item {
   height: 30px;
   min-height: 30px;
   margin-left: 10px;
   font-size: 11px;
 }
 
-.cs-reference-mode .route-menu .el-menu-item:hover,
-.cs-reference-mode .route-menu .el-menu-item.is-active,
-.cs-reference-mode .route-menu .el-sub-menu__title:hover,
-.cs-reference-mode .route-menu .el-sub-menu.is-opened > .el-sub-menu__title {
+:is(.cs-reference-mode, .cs-reference-dashboard-menu) .route-menu .el-menu-item:hover,
+:is(.cs-reference-mode, .cs-reference-dashboard-menu) .route-menu .el-menu-item.is-active,
+:is(.cs-reference-mode, .cs-reference-dashboard-menu) .route-menu .el-sub-menu__title:hover,
+:is(.cs-reference-mode, .cs-reference-dashboard-menu) .route-menu .el-sub-menu.is-opened > .el-sub-menu__title {
   background: rgba(255, 255, 255, 0.1);
   color: #ffffff;
 }
 
-.cs-reference-mode .route-menu .el-menu-item.is-active {
+:is(.cs-reference-mode, .cs-reference-dashboard-menu) .route-menu .el-menu-item.is-active {
   box-shadow: inset 3px 0 0 #a78bfa;
 }
 
-.cs-reference-mode .menu-icon {
+:is(.cs-reference-mode, .cs-reference-dashboard-menu) .menu-icon {
   flex-basis: 15px;
   width: 15px;
   height: 15px;
@@ -133,17 +137,21 @@
   color: #c4b5fd;
 }
 
-.cs-reference-mode .menu-icon svg {
+:is(.cs-reference-mode, .cs-reference-dashboard-menu) .menu-icon svg {
   width: 14px;
   height: 14px;
 }
 
-.cs-reference-mode .nav-footnote {
+:is(.cs-reference-mode, .cs-reference-dashboard-menu) .nav-footnote {
   margin-top: auto;
   padding: 10px 8px 0;
   border-top: 1px solid rgba(255, 255, 255, 0.08);
   color: rgba(255, 255, 255, 0.36);
   font-size: 10px;
+}
+
+.cs-reference-dashboard-menu .status-bar {
+  padding-left: 264px;
 }
 
 .cs-reference-mode .health-panel {

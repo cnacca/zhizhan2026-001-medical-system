@@ -26,7 +26,7 @@ GOAL-009 / TASK-010 PRD V2 本地功能差异收口 C 已完成，历史检查�
 
 GOAL-009 / TASK-010 的历史完成项为 AI-2 `/ai/cs-query` `attachment_contexts` 附件预览上下文第一段；GOAL-010 / TASK-011 在此之后完成 PRD V2 本地功能差异收口 D：本地月度趋势 / 客户排名聚合第一段，历史检查入口为 `npm run check:prd-v2-gap-closure-d`；GOAL-011 / TASK-012 在本地 PRD V2 队列收口后建立客户 / PM 确认项与真实环境 AI 验收收口闸门，历史检查入口为 `npm run check:real-acceptance-confirmation`；GOAL-012 / TASK-013 已完成权限 / DataScope 生产化收口第一段，历史检查入口为 `npm run check:auth-datascope-prod-closure`；GOAL-015 / TASK-016 已完成操作手册 / 回滚 / 培训材料本地收口，历史检查入口为 `npm run check:operations-rollback-training-closure`，并继续约束 `operations-manuals` 为 `PARTIAL`；GOAL-016 / TASK-017 已完成权限 / DataScope 生产化补强 B，历史检查入口为 `npm run check:auth-datascope-prod-closure-b`。
 
-当前已完成项目工作流初始化、任务 0 到任务 8B 基线、任务 9A 到 9B.8 权限/DataScope 第一轮、任务 9C.1 到 9C.3 通知第一轮，以及任务 9D.1 到 9D.100 的多条一期硬缺口第一增量；其中 9D.83 已补患者管理基础版，9D.84 已补人工支付流水 / 收支记录，9D.85 已补客户 / 诊所档案与偏好，9D.86 已补人员档案 / 工作量看板，9D.87 已补质量记录 CRUD / 外返登记，PRD V2 本地功能差异收口 B 已补 `quality_record` 独立事实表和质量记录状态工作流第一段，9D.88 已补客服订单 / 沟通完整可见性 smoke，9D.89 已补医生账户设置基础闭环，9D.90 已补产品参数 / 价格体系一期最小后台，9D.99 已补 A/B 类一期范围对齐第一段，9D.100 已补 A/B 类一期范围对齐第二段。9D.100 新增 `npm run check:task9d100`，并让客服 / 生产工作台统计复用现有本地接口：订单列表、待审消息、质量返工、账单 / 物流人工状态、人员工作量和生产支持汇总。月度趋势、真实支付平台、真实物流平台、客户 / PM 最终统计口径和客户最终质量口径仍为 PARTIAL / BLOCKED。Task 8 总体仍为 `NOT_READY`。
+当前已完成项目工作流初始化、任务 0 到任务 8B 基线、任务 9A 到 9B.8 权限/DataScope 第一轮、任务 9C.1 到 9C.3 通知第一轮，以及任务 9D.1 到 9D.100 的多条一期硬缺口第一增量；其中 9D.83 已补患者管理基础版，9D.84 已补人工支付流水 / 收支记录，9D.85 已补客户 / 诊所档案与偏好，9D.86 已补人员档案 / 工作量看板，9D.87 已补质量记录 CRUD / 外返登记，PRD V2 本地功能差异收口 B 已补 `quality_record` 独立事实表和质量记录状态工作流第一段，9D.88 已补客服订单 / 沟通完整可见性 smoke，9D.89 已补医生账户设置基础闭环，9D.90 已补产品参数 / 价格体系一期最小后台，9D.99 已补 A/B 类一期范围对齐第一段，9D.100 已补 A/B 类一期范围对齐第二段。9D.100 新增 `npm run check:task9d100`，并让客服 / 生产工作台统计复用现有本地接口：订单列表、待审消息、质量返工、账单 / 物流人工状态、人员工作量和生产支持汇总。2026-07-13 追加 `/dashboards/sales` 经营金额聚合与账单最终应收金额录入：客服 / 管理工作台展示本年接单金额、出货金额、去年同期、同比、覆盖率和四线月度趋势，医生端只读查看本订单应收金额。真实支付平台、真实物流平台、客户 / PM 最终统计口径和客户最终质量口径仍为 PARTIAL / BLOCKED。Task 8 总体仍为 `NOT_READY`。
 
 2026-07-05 交接摘要：Task 8 总体仍为 `NOT_READY`；9D.48、9D.48.1、9D.48.2 已完成 AI 外部告警 outbox 监控、列表筛选和失败/死信可见性第一增量；Task 8 readiness 终检报告、部署安全 / 环境变量 readiness 检查和验收矩阵机器可读缺口清单第一增量已完成；9D.55 已按 RuoYi-Vue-Pro / 若依 Pro 的字典、CRUD、菜单、权限码范式补返工字典后台维护第一增量；9D.56 已补 `final-inspection:manage`、`final_inspection_report_file` 和终检报告 `attachment_file_ids`；9D.57 已补 `/rework-final` 返工影响只读图；9D.58 客服协同闭环第一增量已补客服端 `/collaboration` 待审核消息、订单消息上下文和消息通过/驳回入口；9D.59 客服资料缺失提示与 AI 翻译草稿确认第一增量已补客服初审页资料缺失提示、AI 翻译草稿和人工写入生产备注入口；9D.60 设计稿预览 URL 聚合第一增量已补医生端设计稿版本按需预览链接；9D.61 账单物流预览/录入闭环第一增量已补客服/内部账单文件绑定和医生端账单预览链接；9D.62 到 9D.63 已把 12 步主链路 smoke 推进到固定演示订单、派工、入检/工时/出检、设计稿、账单物流、确认收货和返工异常路径；9D.64 客服端设计稿审核预览增强第一段已补客服端设计稿版本列表和客服设计稿预览链接；9D.65 已补终检报告内部 PDF file_id 绑定和 `signature_status=PENDING` 签名占位；9D.66 已补绩效周期筛选第一段；9D.67 文件上传限制与 bucket 隔离第一段已补 `FILE_MAX_FILE_SIZE_BYTES`、`FILE_ALLOWED_CONTENT_TYPES`、`FILE_MAX_FILES_PER_ORDER` 服务端校验和医生端选择提示；9D.68 12 步主链路客户验收版收敛已新增 `docs/acceptance/phase-one-main-chain-customer-acceptance.md`；9D.69 部署基础设施第一段已新增 `backend/platform-server/Dockerfile`、`frontend/Dockerfile`、`deploy/docker-compose.phase-one.yml`、`deploy/env/phase-one.prod.example` 和 `docs/deployment/phase-one-docker-env.md`；9D.70 操作手册与交付材料第一段已新增 `docs/operations/phase-one-role-operation-manual.md`、`docs/operations/phase-one-troubleshooting-guide.md` 和 `docs/operations/phase-one-delivery-materials-index.md`；9D.71 AI 外部告警接收端验签 / 防重放第一段已新增 `/ai/external-alerts/receive` 本地接收端验收桩和 timestamp / nonce 签名口径；9D.72 客户 / PM 确认项清单第一段已新增 `docs/acceptance/phase-one-customer-pm-confirmations.md`；9D.73 账单 / 付款状态 / 物流一期闭环第一段已新增 `order_bill.payment_status`、`/orders/{orderId}/bill/payment-status` 和前端人工维护付款状态入口；9D.74 绩效标准工时与完整公式口径第一段已新增 `performance_formula_version=PHASE_ONE_DEFAULT_V1`、标准工时覆盖率和默认绩效分；9D.75 正式鉴权与 DataScope 收口第一段已新增 `APP_AUTH_ALLOW_ROLE_FALLBACK`，生产环境固定权限码优先，角色-only token 不再绕过声明权限码的接口。`acceptance.json` 现在维护 `task8_readiness_gaps`、9D.55 到 9D.75 必备文本检查，可通过 `npm run check:task8-readiness-gaps` 查看当前上线缺口。下一轮唯一推荐目标是 WebSocket / 通知生产验收第一段。继续开发前请从 `STATUS.md` 和 `tasks/README.md` 的当前交接摘要开始。
 
@@ -137,6 +137,19 @@ npm run local:stop    # 仅停止本工具启动的前端和后端
 ```
 
 前后端日志与 PID 保存在 `.local-runtime/`；该目录不会纳入 Git。每次启动都会记录一次性运行标识和进程身份，`local:stop` 只处理匹配该记录的完整前后端进程树，不会停止 Docker 基础服务、删除本地数据或终止其他程序。若端口 5173 或 8080 被其他程序占用，脚本会提示占用情况而不会接管该程序。
+
+### 客户演示环境
+
+客户演示使用独立数据库 `ai_order_platform_demo`、独立 MinIO bucket `ai-order-demo-private` 和独立端口 `15173/18080`，不会向主展示库或自动化测试库造数。
+
+```bash
+npm run demo:prepare  # 启动、生成 7 个阶段场景并校验
+npm run demo:status
+npm run demo:check
+npm run demo:stop
+```
+
+浏览器访问 `http://127.0.0.1:15173`。需要让当前终端以前台方式持续守护演示服务时，可运行 `npm run demo:serve`。完整场景、幂等造数和受保护重置说明见 `docs/operations/demo-data-runbook.md`。
 
 一期 Docker / Compose 配置静态验收：
 

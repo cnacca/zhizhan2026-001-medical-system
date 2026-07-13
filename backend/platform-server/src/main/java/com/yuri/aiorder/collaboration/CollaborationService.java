@@ -8,6 +8,7 @@ import com.yuri.aiorder.common.auth.AccessControlService;
 import com.yuri.aiorder.notification.NotificationPushService;
 import com.yuri.aiorder.order.status.InternalOrderStatus;
 import com.yuri.aiorder.order.status.OrderStatusService;
+import java.sql.Types;
 import java.time.LocalDateTime;
 import java.util.ArrayList;
 import java.util.LinkedHashSet;
@@ -367,7 +368,7 @@ public class CollaborationService {
         OrderRow order = loadOrder(orderId, identity, "identity cannot access this order");
         requireDoctorScopeIfNeeded(order, identity);
         return jdbcClient.sql("""
-                        SELECT bill_id, order_id, bill_status, payment_status, file_id
+                        SELECT bill_id, order_id, bill_status, payment_status, amount_cent, currency, file_id
                         FROM order_bill
                         WHERE order_id = :orderId
                         """)
@@ -377,9 +378,11 @@ public class CollaborationService {
                         rs.getLong("order_id"),
                         rs.getString("bill_status"),
                         rs.getString("payment_status"),
+                        rs.getObject("amount_cent", Long.class),
+                        rs.getString("currency"),
                         rs.getObject("file_id", Long.class)))
                 .optional()
-                .orElse(new BillResponse(null, orderId, "PENDING", "PENDING_PAYMENT", null));
+                .orElse(new BillResponse(null, orderId, "PENDING", "PENDING_PAYMENT", null, "CNY", null));
     }
 
     public List<PaymentRecordResponse> listPaymentRecords(long orderId, BootstrapIdentity identity) {
@@ -438,16 +441,24 @@ public class CollaborationService {
         if (request.fileId() == null) {
             throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "file_id is required");
         }
+        if (request.amountCents() != null && request.amountCents() <= 0) {
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "amount_cents must be positive");
+        }
+        String currency = normalizeOrDefault(request.currency(), "CNY").toUpperCase(Locale.ROOT);
         OrderRow order = loadOrder(orderId, identity, "identity cannot access this order");
         jdbcClient.sql("""
-                        INSERT INTO order_bill (order_id, bill_status, file_id)
-                        VALUES (:orderId, 'UPLOADED', :fileId)
+                        INSERT INTO order_bill (order_id, amount_cent, currency, bill_status, file_id)
+                        VALUES (:orderId, :amountCents, :currency, 'UPLOADED', :fileId)
                         ON DUPLICATE KEY UPDATE
+                            amount_cent = COALESCE(VALUES(amount_cent), amount_cent),
+                            currency = CASE WHEN VALUES(amount_cent) IS NULL THEN currency ELSE VALUES(currency) END,
                             bill_status = 'UPLOADED',
                             file_id = VALUES(file_id),
                             updated_at = CURRENT_TIMESTAMP(3)
                         """)
                 .param("orderId", orderId)
+                .param("amountCents", request.amountCents(), Types.BIGINT)
+                .param("currency", currency)
                 .param("fileId", request.fileId())
                 .update();
         emit(order, "BILL_UPLOADED", "DOCTOR", order.doctorUserId(), "账单已上传");

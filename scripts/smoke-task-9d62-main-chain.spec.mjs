@@ -5,6 +5,22 @@ const frontendUrl = process.env.TASK9D62_FRONTEND_URL ?? ''
 const browserChannel = process.env.TASK9D62_BROWSER_CHANNEL ?? 'chrome'
 const timeoutMs = Number(process.env.TASK9D62_TIMEOUT_MS ?? 120_000)
 const dataMode = process.env.TASK9D62_DATA_MODE ?? 'fixed-demo-first-three'
+const dataOnly = process.env.TASK9D62_DATA_ONLY === 'true'
+const demoScenario = process.env.TASK9D62_DEMO_SCENARIO?.trim() ?? ''
+const stopAfter = process.env.TASK9D62_STOP_AFTER?.trim() || 'completed'
+const supportedStopStages = new Set([
+  'pending-cs',
+  'pending-production',
+  'assigned',
+  'rework-pending',
+  'design-pending',
+  'ready-to-ship',
+  'completed'
+])
+
+if (!supportedStopStages.has(stopAfter)) {
+  throw new Error(`unsupported TASK9D62_STOP_AFTER=${stopAfter}`)
+}
 
 function requireIsolatedTestEnvironment() {
   assertIsolatedSmokeTarget({
@@ -52,8 +68,8 @@ const phaseOneMainChainSteps = [
     name: '1. 医生下单',
     portal: 'DOCTOR',
     menuPath: ['订单管理', '新建订单'],
-    heading: '医生订单工作台',
-    visibleText: ['新建订单', '产品类型', '附件 file_id'],
+    heading: '新建订单',
+    visibleText: ['产品类型', '已上传附件编号（可选）'],
     testIds: ['doctor-upload-file-input', 'doctor-order-create-button']
   },
   {
@@ -68,7 +84,7 @@ const phaseOneMainChainSteps = [
     portal: 'CS',
     menuPath: ['订单管理', '待审核订单'],
     heading: '客服初审',
-    visibleText: ['客服端 / 审核与沟通', '核对医生提交资料，整理生产备注，并作为医生与工厂之间的审核中枢。']
+    visibleText: ['审核']
   },
   {
     name: '4. 派工到任务池',
@@ -82,55 +98,55 @@ const phaseOneMainChainSteps = [
     portal: 'PRODUCTION',
     menuPath: ['我的任务'],
     heading: '我的任务',
-    visibleText: ['我的任务', '刷新']
+    visibleText: ['↻ 刷新任务']
   },
   {
     name: '6. 出检推进',
     portal: 'PRODUCTION',
     menuPath: ['扫码登记'],
     heading: '扫码登记',
-    visibleText: ['通过人工核验登记入检、开工、暂停、完工和流转节点。']
+    visibleText: ['↻ 刷新任务', '定位任务']
   },
   {
     name: '7. 返工可见',
     portal: 'PRODUCTION',
     menuPath: ['质量与返工', '内返管理'],
-    heading: '返工终检',
-    visibleText: ['生产端 / 返工终检', '终检入口']
+    heading: '内返管理',
+    visibleText: ['终检入口']
   },
   {
     name: '8. 设计稿确认',
     portal: 'DOCTOR',
     menuPath: ['订单管理', '设计稿确认'],
-    heading: '医生订单工作台',
+    heading: '设计稿确认',
     visibleText: ['设计稿确认', '查询']
   },
   {
     name: '9. 消息客服审核',
     portal: 'CS',
     menuPath: ['沟通中心', '待审核消息'],
-    heading: '客服协同台',
+    heading: '沟通中心',
     visibleText: ['待审核消息', '订单消息上下文']
   },
   {
     name: '10. 账单物流',
     portal: 'DOCTOR',
     menuPath: ['订单管理', '账单物流'],
-    heading: '医生订单工作台',
+    heading: '账单物流',
     visibleText: ['账单物流', '查询']
   },
   {
     name: '11. 医生 AI 安全查询',
     portal: 'DOCTOR',
     menuPath: ['订单助手'],
-    heading: '医生订单工作台',
+    heading: '订单助手',
     visibleText: ['订单助手', '查询']
   },
   {
     name: '12. 医生确认收货',
     portal: 'DOCTOR',
     menuPath: ['订单管理', '我的订单'],
-    heading: '医生订单工作台',
+    heading: '我的订单',
     visibleText: ['我的订单', '查询']
   }
 ]
@@ -193,16 +209,23 @@ async function apiLogin(portalName) {
 
 async function createFixedDemoOrder(doctorToken) {
   const marker = Date.now()
+  const patientName = demoScenario
+    ? `演示-${demoScenario}-${marker}`
+    : `Task9D62Demo-${marker}`
+  const acceptanceMarker = demoScenario
+    ? `DEMO_DATA_V1:${demoScenario}`
+    : '9D.62.1 fixed-demo-first-three'
   const payload = await apiFetch('/orders', doctorToken, {
     method: 'POST',
     body: JSON.stringify({
       product_type: 'REGULAR_CROWN',
       form_data: {
-        patient_name: `Task9D62Demo-${marker}`,
+        patient_name: patientName,
         tooth_position: '16',
         material: '氧化锆',
         shade: 'A2',
-        acceptance_marker: '9D.62.1 fixed-demo-first-three'
+        acceptance_marker: acceptanceMarker,
+        demo_scenario: demoScenario || null
       },
       file_ids: [],
       is_draft: false
@@ -407,13 +430,24 @@ async function closeReworkAfterTargetRedo(orderId, rework, adminToken, workerTok
   return payload.data
 }
 
-async function createReworkExceptionPath(orderId, completedNodeId, adminToken, workerToken, workerUserId) {
+async function createReworkExceptionPath(
+  orderId,
+  completedNodeId,
+  adminToken,
+  workerToken,
+  workerUserId,
+  { leavePending = false } = {}
+) {
   const failedOutCheck = await submitFailedOutCheckForRework(completedNodeId, workerToken, completedNodeId)
   const pendingRework = await loadReworkRecord(failedOutCheck.rework_id, orderId, workerToken, 'PENDING')
   expect(pendingRework.from_node_instance_id).toBe(completedNodeId)
   expect(pendingRework.target_node_instance_id).toBe(completedNodeId)
   expect(pendingRework.target_node_status).toBe('READY')
   expect(pendingRework.reason_detail).toBe('9D.63 固定演示数据：出检失败，创建返工记录')
+
+  if (leavePending) {
+    return pendingRework
+  }
 
   const closedRework = await closeReworkAfterTargetRedo(
     orderId,
@@ -741,7 +775,19 @@ async function prepareFixedDemoFirstThreeSteps() {
   const adminSession = await apiLogin('ADMIN')
   const workerSession = await apiLogin('PRODUCTION')
   const createdOrder = await createFixedDemoOrder(doctorSession.accessToken)
+  if (stopAfter === 'pending-cs') {
+    console.log(
+      `task 9D.62 demo stage ready: scenario=${demoScenario || 'default'}, stage=${stopAfter}, order_id=${createdOrder.order_id}, order_no=${createdOrder.order_no}`
+    )
+    return { createdOrder, stage: stopAfter }
+  }
   const csReview = await approveCsReview(createdOrder.order_id, csSession.accessToken)
+  if (stopAfter === 'pending-production') {
+    console.log(
+      `task 9D.62 demo stage ready: scenario=${demoScenario || 'default'}, stage=${stopAfter}, order_id=${createdOrder.order_id}, order_no=${createdOrder.order_no}`
+    )
+    return { createdOrder, csReview, stage: stopAfter }
+  }
   const productionReview = await approveProductionReview(createdOrder.order_id, csSession.accessToken)
   assertMainChainDataState(createdOrder, csReview, productionReview)
   const doctorProjection = await assertDoctorSafeProjection(createdOrder.order_id, doctorSession.accessToken)
@@ -775,23 +821,70 @@ async function prepareFixedDemoFirstThreeSteps() {
     scopedWorkerTask,
     reassignedNode
   }
+  if (stopAfter === 'assigned') {
+    console.log(
+      `task 9D.62 demo stage ready: scenario=${demoScenario || 'default'}, stage=${stopAfter}, order_id=${createdOrder.order_id}, node_instance_id=${reassignedNode.node_instance_id}`
+    )
+    return {
+      createdOrder,
+      csReview,
+      productionReview,
+      assignedNode: reassignedNode,
+      roleAssertions,
+      stage: stopAfter
+    }
+  }
   await completeAssignedNodeWithChecksAndWorklog(reassignedNode.node_instance_id, workerSession.accessToken)
   console.log(
     `task 9D.62.2 assignment and node operation first increment ok: order_id=${createdOrder.order_id}, node_instance_id=${reassignedNode.node_instance_id}, worker_user_id=${workerSession.userId}`
   )
-  const closedRework = await createReworkExceptionPath(
+  const rework = await createReworkExceptionPath(
     createdOrder.order_id,
     reassignedNode.node_instance_id,
     adminSession.accessToken,
     workerSession.accessToken,
-    workerSession.userId
+    workerSession.userId,
+    { leavePending: stopAfter === 'rework-pending' }
   )
+  if (stopAfter === 'rework-pending') {
+    console.log(
+      `task 9D.62 demo stage ready: scenario=${demoScenario || 'default'}, stage=${stopAfter}, order_id=${createdOrder.order_id}, rework_id=${rework.rework_id}`
+    )
+    return {
+      createdOrder,
+      csReview,
+      productionReview,
+      assignedNode: reassignedNode,
+      roleAssertions,
+      rework,
+      stage: stopAfter
+    }
+  }
   console.log(
-    `task 9D.63 rework exception first increment ok: order_id=${createdOrder.order_id}, rework_id=${closedRework.rework_id}, target_node_instance_id=${closedRework.target_node_instance_id}, status=${closedRework.status}`
+    `task 9D.63 rework exception first increment ok: order_id=${createdOrder.order_id}, rework_id=${rework.rework_id}, target_node_instance_id=${rework.target_node_instance_id}, status=${rework.status}`
   )
   const designDraftFileId = await uploadDesignDraftFile(createdOrder.order_id, workerSession.accessToken)
   const designDraft = await uploadDesignDraft(createdOrder.order_id, workerSession.accessToken, designDraftFileId)
-  await approveDesignDraftByCs(createdOrder.order_id, designDraft.draft_id, csSession.accessToken)
+  const csApprovedDesignDraft = await approveDesignDraftByCs(
+    createdOrder.order_id,
+    designDraft.draft_id,
+    csSession.accessToken
+  )
+  if (stopAfter === 'design-pending') {
+    console.log(
+      `task 9D.62 demo stage ready: scenario=${demoScenario || 'default'}, stage=${stopAfter}, order_id=${createdOrder.order_id}, draft_id=${csApprovedDesignDraft.draft_id}`
+    )
+    return {
+      createdOrder,
+      csReview,
+      productionReview,
+      assignedNode: reassignedNode,
+      roleAssertions,
+      rework,
+      designDraft: csApprovedDesignDraft,
+      stage: stopAfter
+    }
+  }
   const confirmedDesignDraft = await completeDesignDraftConfirmation(
     createdOrder.order_id,
     designDraft.draft_id,
@@ -813,6 +906,23 @@ async function prepareFixedDemoFirstThreeSteps() {
     workerSession.accessToken,
     workerSession.userId
   )
+  if (stopAfter === 'ready-to-ship') {
+    console.log(
+      `task 9D.62 demo stage ready: scenario=${demoScenario || 'default'}, stage=${stopAfter}, order_id=${createdOrder.order_id}, completed_nodes=${completedWorkflow.completedNodeIds.length}`
+    )
+    return {
+      createdOrder,
+      csReview,
+      productionReview,
+      assignedNode: reassignedNode,
+      roleAssertions,
+      rework,
+      designDraft: confirmedDesignDraft,
+      bill,
+      completedWorkflow,
+      stage: stopAfter
+    }
+  }
   const logistics = await shipOrderAfterFinalInspection(createdOrder.order_id, csSession.accessToken)
   const completedOrder = await confirmReceiptByDoctor(createdOrder.order_id, doctorSession.accessToken)
   console.log(
@@ -824,7 +934,7 @@ async function prepareFixedDemoFirstThreeSteps() {
     productionReview,
     assignedNode: reassignedNode,
     roleAssertions,
-    rework: closedRework,
+    rework,
     designDraft: confirmedDesignDraft,
     bill,
     completedWorkflow,
@@ -888,6 +998,11 @@ test.describe('Task 9D.62 phase-one main-chain browser smoke', () => {
     requireIsolatedTestEnvironment()
     await assertReachable()
     await prepareFixedDemoFirstThreeSteps()
+
+    if (dataOnly) {
+      console.log(`task 9D.62 data-only mode ok: scenario=${demoScenario || 'default'}, stage=${stopAfter}`)
+      return
+    }
 
     const page = await browser.newPage({ viewport: { width: 1440, height: 1000 } })
     try {

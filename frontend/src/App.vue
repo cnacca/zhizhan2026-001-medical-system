@@ -266,6 +266,8 @@ type BillInfo = {
   order_id: number
   bill_status: string
   payment_status: string
+  amount_cents: number | null
+  currency: string
   file_id: number | null
 }
 
@@ -334,6 +336,35 @@ type PhaseOneAbDashboardResponse = {
   pending_question_count: number
   shipping_rate: number
   completion_rate: number
+  source_note: string
+  generated_at: string
+}
+
+type SalesDashboardComparison = {
+  current_amount_cents: number
+  previous_year_amount_cents: number
+  year_over_year_percent: number | null
+  current_order_count: number
+  previous_year_order_count: number
+  current_amount_order_count: number
+  previous_year_amount_order_count: number
+}
+
+type SalesDashboardTrendPoint = {
+  month: number
+  inbound_amount_cents: number
+  outbound_amount_cents: number
+  previous_year_inbound_amount_cents: number
+  previous_year_outbound_amount_cents: number
+}
+
+type SalesDashboardResponse = {
+  current_year: number
+  through_date: string
+  currency: string
+  inbound: SalesDashboardComparison
+  outbound: SalesDashboardComparison
+  monthly_trend: SalesDashboardTrendPoint[]
   source_note: string
   generated_at: string
 }
@@ -1182,9 +1213,10 @@ type CsWeekOnWeekRate = {
 
 type CsAnnualTrendPoint = {
   label: string
-  current: number
-  previous: number
-  isSynced: boolean
+  inbound: number
+  outbound: number
+  previousInbound: number
+  previousOutbound: number
 }
 
 type CsCustomerRankRow = {
@@ -1427,6 +1459,7 @@ const csDesignDraftResult = ref('')
 const csDesignDrafts = ref<DesignDraftItem[]>([])
 const csDesignDraftPreviewUrls = ref<Record<string, string>>({})
 const csBillFileId = ref('')
+const csBillAmountYuan = ref('')
 const csPaymentStatus = ref('PENDING_PAYMENT')
 const csBillResult = ref('')
 const csPaymentAmountCents = ref<number | null>(null)
@@ -1729,6 +1762,7 @@ const phaseOneAbDashboardOrders = ref<InternalOrderItem[]>([])
 const phaseOneAbDashboardPendingMessages = ref<MessageItem[]>([])
 const phaseOneAbDashboardDeliveryOrders = ref<DeliveryOrderItem[]>([])
 const phaseOneAbDashboardSummary = ref<PhaseOneAbDashboardResponse | null>(null)
+const salesDashboardSummary = ref<SalesDashboardResponse | null>(null)
 const deliveryLoading = ref(false)
 const deliverySaving = ref(false)
 const deliveryError = ref('')
@@ -2381,36 +2415,36 @@ const phaseOneAbCsDashboardStats = computed(() => {
 const csBusinessMetrics = computed<CsBusinessMetric[]>(() => {
   const summary = phaseOneAbDashboardSummary.value
   const stats = phaseOneAbCsDashboardStats.value
+  const sales = salesDashboardSummary.value
   const currentOrders = summary?.current_month.order_count ?? stats.orderCount
   const previousOrders = summary?.previous_month.order_count ?? Math.max(0, currentOrders - Math.max(summary?.monthly_order_delta ?? 0, 0))
   const orderDelta = summary?.monthly_order_delta ?? (currentOrders - previousOrders)
   const shippedCount = stats.shipmentFollowUpCount
   const shippingRate = summary?.shipping_rate ?? (currentOrders > 0 ? (shippedCount / currentOrders) * 100 : 0)
-  const reworkRate = productionQualitySummary.value?.total_rework_rate ?? 0
 
   return [
     {
-      label: '订单',
-      value: `${currentOrders} 单`,
-      comparison: `${orderDelta >= 0 ? '+' : ''}${orderDelta} vs 上月 ${previousOrders} 单`,
+      label: '接单金额',
+      value: formatSalesAmount(sales?.inbound.current_amount_cents),
+      comparison: salesComparisonNote(sales?.inbound),
       tone: 'violet'
     },
     {
-      label: '销售额',
-      value: '待接入',
-      comparison: '财务金额口径待接入',
+      label: '出货金额',
+      value: formatSalesAmount(sales?.outbound.current_amount_cents),
+      comparison: salesComparisonNote(sales?.outbound),
       tone: 'teal'
     },
     {
-      label: '已发货',
-      value: `${shippedCount} 单`,
-      comparison: `发货率 ${formatRate(shippingRate)}`,
+      label: '本月订单',
+      value: `${currentOrders} 单`,
+      comparison: `${orderDelta >= 0 ? '+' : ''}${orderDelta} vs 上月 ${previousOrders} 单`,
       tone: 'sky'
     },
     {
-      label: '返工数',
-      value: `${stats.reworkFollowUpCount} 单`,
-      comparison: `返工率 ${formatRate(reworkRate)}`,
+      label: '本月已发货',
+      value: `${shippedCount} 单`,
+      comparison: `发货率 ${formatRate(shippingRate)}`,
       tone: 'rose'
     }
   ]
@@ -2448,42 +2482,35 @@ const csWeekOnWeekRates = computed<CsWeekOnWeekRate[]>(() => {
 })
 const csAnnualTrendPoints = computed<CsAnnualTrendPoint[]>(() => {
   const months = ['1月', '2月', '3月', '4月', '5月', '6月', '7月', '8月', '9月', '10月', '11月', '12月']
-  const summary = phaseOneAbDashboardSummary.value
-  const points = months.map((label) => ({ label, current: 0, previous: 0, isSynced: false }))
-  if (!summary) {
-    return points
-  }
-  const currentMonthIndex = Math.max(0, Math.min(11, Number(summary.current_month.month.slice(5, 7)) - 1))
-  const previousMonthIndex = Math.max(0, Math.min(11, Number(summary.previous_month.month.slice(5, 7)) - 1))
-  points[previousMonthIndex] = {
-    ...points[previousMonthIndex],
-    current: summary.previous_month.item_count,
-    previous: Math.max(0, summary.previous_month.item_count - summary.monthly_item_delta),
-    isSynced: true
-  }
-  points[currentMonthIndex] = {
-    ...points[currentMonthIndex],
-    current: summary.current_month.item_count,
-    previous: summary.previous_month.item_count,
-    isSynced: true
-  }
-  return points
+  const trendByMonth = new Map((salesDashboardSummary.value?.monthly_trend ?? []).map((point) => [point.month, point]))
+  return months.map((label, index) => {
+    const point = trendByMonth.get(index + 1)
+    return {
+      label,
+      inbound: point?.inbound_amount_cents ?? 0,
+      outbound: point?.outbound_amount_cents ?? 0,
+      previousInbound: point?.previous_year_inbound_amount_cents ?? 0,
+      previousOutbound: point?.previous_year_outbound_amount_cents ?? 0
+    }
+  })
 })
-const csAnnualTrendMax = computed(() => Math.max(...csAnnualTrendPoints.value.flatMap((point) => [point.current, point.previous]), 1))
-const csAnnualTrendPolyline = computed(() => {
+const csAnnualTrendMax = computed(() => Math.max(...csAnnualTrendPoints.value.flatMap((point) => [
+  point.inbound,
+  point.outbound,
+  point.previousInbound,
+  point.previousOutbound
+]), 1))
+function salesTrendPolyline(key: 'inbound' | 'outbound' | 'previousInbound' | 'previousOutbound') {
   return csAnnualTrendPoints.value.map((point, index) => {
     const x = 42 + index * 58
-    const y = 164 - (point.current / csAnnualTrendMax.value) * 112
+    const y = 164 - (point[key] / csAnnualTrendMax.value) * 112
     return `${x},${y}`
   }).join(' ')
-})
-const csAnnualTrendBaselinePolyline = computed(() => {
-  return csAnnualTrendPoints.value.map((point, index) => {
-    const x = 42 + index * 58
-    const y = 164 - (point.previous / csAnnualTrendMax.value) * 112
-    return `${x},${y}`
-  }).join(' ')
-})
+}
+const csInboundTrendPolyline = computed(() => salesTrendPolyline('inbound'))
+const csOutboundTrendPolyline = computed(() => salesTrendPolyline('outbound'))
+const csPreviousInboundTrendPolyline = computed(() => salesTrendPolyline('previousInbound'))
+const csPreviousOutboundTrendPolyline = computed(() => salesTrendPolyline('previousOutbound'))
 const csCustomerRankRows = computed<CsCustomerRankRow[]>(() => {
   const topCustomers = phaseOneAbDashboardSummary.value?.top_customers ?? []
   if (topCustomers.length === 0) {
@@ -2553,21 +2580,7 @@ const adminEfficiencyMetrics = computed<AdminEfficiencyMetric[]>(() => {
   ]
 })
 const adminSalesTrendPoints = computed<AdminSalesTrendPoint[]>(() => csAnnualTrendPoints.value)
-const adminSalesTrendMax = computed(() => Math.max(...adminSalesTrendPoints.value.flatMap((point) => [point.current, point.previous]), 1))
-const adminSalesTrendPolyline = computed(() => {
-  return adminSalesTrendPoints.value.map((point, index) => {
-    const x = 42 + index * 58
-    const y = 164 - (point.current / adminSalesTrendMax.value) * 112
-    return `${x},${y}`
-  }).join(' ')
-})
-const adminSalesTrendBaselinePolyline = computed(() => {
-  return adminSalesTrendPoints.value.map((point, index) => {
-    const x = 42 + index * 58
-    const y = 164 - (point.previous / adminSalesTrendMax.value) * 112
-    return `${x},${y}`
-  }).join(' ')
-})
+const adminSalesTrendMax = computed(() => csAnnualTrendMax.value)
 const adminCustomerRankRows = computed<AdminCustomerRankRow[]>(() => csCustomerRankRows.value)
 const phaseOneAbProductionDashboardStats = computed(() => {
   const orders = phaseOneAbDashboardOrders.value
@@ -2656,7 +2669,7 @@ const businessOverviewCards = computed<BusinessCard[]>(() => {
       { title: '账号角色', value: roleText, note: dataScopeLabel(currentUser.value?.dataScope), icon: 'customer' },
       { title: '订单协同', value: menuCount, note: '审核、沟通、发货联动', icon: 'order' },
       { title: '未读通知', value: unreadText, note: notificationSocketStatus.value, icon: 'notification' },
-      { title: '客服统计基础版', value: phaseOneAbCsDashboardStats.value.source === 'reused-api' ? '接口数据' : 'PARTIAL', note: '复用 /orders 列表、待审消息和物流人工状态', icon: 'chat' }
+      { title: '客服统计基础版', value: phaseOneAbCsDashboardStats.value.source === 'reused-api' ? '接口数据' : 'PARTIAL', note: '复用 /orders 列表、待审消息；复用物流人工状态', icon: 'chat' }
     ],
     production: [
       { title: '账号角色', value: roleText, note: dataScopeLabel(currentUser.value?.dataScope), icon: 'staff' },
@@ -3501,6 +3514,26 @@ function formatRate(value: number | null | undefined) {
 }
 function formatMoney(value: number | null | undefined) {
   return `¥${Number(value ?? 0).toFixed(2)}`
+}
+function formatSalesAmount(amountCents: number | null | undefined) {
+  return new Intl.NumberFormat('zh-CN', {
+    style: 'currency',
+    currency: 'CNY',
+    minimumFractionDigits: 2,
+    maximumFractionDigits: 2
+  }).format(Number(amountCents ?? 0) / 100)
+}
+function formatYearOverYear(percent: number | null | undefined) {
+  if (percent === null || percent === undefined) {
+    return '暂无可比数据'
+  }
+  return `${percent >= 0 ? '↑' : '↓'} ${Math.abs(percent).toFixed(1)}%`
+}
+function salesComparisonNote(comparison: SalesDashboardComparison | null | undefined) {
+  if (!comparison) {
+    return '金额数据同步中'
+  }
+  return `同比 ${formatYearOverYear(comparison.year_over_year_percent)} · 已录 ${comparison.current_amount_order_count}/${comparison.current_order_count} 单`
 }
 function productionBoardFormValue(order: InternalOrderItem, keys: string[]) {
   for (const key of keys) {
@@ -4519,6 +4552,8 @@ function clearLoginSession() {
   phaseOneAbDashboardOrders.value = []
   phaseOneAbDashboardPendingMessages.value = []
   phaseOneAbDashboardDeliveryOrders.value = []
+  phaseOneAbDashboardSummary.value = null
+  salesDashboardSummary.value = null
   aiGovernanceLocalHardening.value = null
   aiGovernanceLocalHardeningError.value = ''
   closeNotificationSocket()
@@ -4754,6 +4789,7 @@ async function loadPhaseOneAbDashboardData() {
   try {
     const [
       dashboardSummary,
+      salesSummary,
       orderList,
       pendingMessages,
       qualitySummary,
@@ -4767,6 +4803,9 @@ async function loadPhaseOneAbDashboardData() {
       rewardSummary
     ] = await Promise.all([
       fetchResource('月度趋势 / 客户排名', () => apiFetch<PhaseOneAbDashboardResponse>('/dashboards/phase-one-ab')),
+      shouldLoadCsSharedDashboardData
+        ? fetchResource('接单 / 出货金额', () => apiFetch<SalesDashboardResponse>('/dashboards/sales'))
+        : Promise.resolve(null),
       fetchResource('订单统计', () => apiFetch<InternalOrderListResponse>('/orders?page=1&size=100')),
       shouldLoadCsSharedDashboardData
         ? fetchResource('待审消息', () => apiFetch<MessageItem[]>('/messages/pending-review'))
@@ -4798,6 +4837,7 @@ async function loadPhaseOneAbDashboardData() {
         : Promise.resolve(null)
     ])
     phaseOneAbDashboardSummary.value = dashboardSummary
+    salesDashboardSummary.value = salesSummary
     phaseOneAbDashboardOrders.value = orderList?.items ?? []
     phaseOneAbDashboardPendingMessages.value = pendingMessages ?? []
     phaseOneAbDashboardDeliveryOrders.value = deliveryList ?? []
@@ -6267,6 +6307,7 @@ function selectInternalOrder(order: InternalOrderItem) {
   csDesignDrafts.value = []
   csDesignDraftPreviewUrls.value = {}
   csBillFileId.value = ''
+  csBillAmountYuan.value = ''
   csBillResult.value = ''
   csMissingInfoItems.value = []
   csMissingInfoComplete.value = null
@@ -6644,6 +6685,12 @@ async function uploadInternalBill() {
     internalOrderError.value = '请填写账单 file_id'
     return
   }
+  const amountText = csBillAmountYuan.value.trim()
+  if (!/^\d+(\.\d{1,2})?$/.test(amountText) || Number(amountText) <= 0) {
+    internalOrderError.value = '请填写正确的应收金额（元，最多两位小数）'
+    return
+  }
+  const amountCents = Math.round(Number(amountText) * 100)
   csReviewActionLoading.value = true
   internalOrderError.value = ''
   csBillResult.value = ''
@@ -6653,12 +6700,15 @@ async function uploadInternalBill() {
       {
         method: 'POST',
         body: JSON.stringify({
-          file_id: fileId
+          file_id: fileId,
+          amount_cents: amountCents,
+          currency: 'CNY'
         })
       }
     )
-    csBillResult.value = `账单已上传：文件 ${payload.data.file_id ?? '-'} / ${statusLabel(payload.data.bill_status)}`
+    csBillResult.value = `账单已上传：${formatSalesAmount(payload.data.amount_cents)} / 文件 ${payload.data.file_id ?? '-'} / ${statusLabel(payload.data.bill_status)}`
     csBillFileId.value = ''
+    csBillAmountYuan.value = ''
     await loadNotifications()
   } catch (error) {
     internalOrderError.value = error instanceof Error ? error.message : '账单上传失败'
@@ -8781,8 +8831,10 @@ onBeforeUnmount(() => {
       { 'factory-board-mode': isProductionKanbanView },
       { 'factory-orders-mode': isProductionOrdersView },
       { 'cs-reference-mode': portalTone === 'cs' && activeRoute !== '/dashboard' },
+      { 'cs-reference-dashboard-menu': portalTone === 'cs' && activeRoute === '/dashboard' },
       portalTone === 'cs' && activeDisplayItem ? `cs-page-${activeDisplayItem.id}` : '',
       { 'doctor-portal-clone': isDoctorPortalClone },
+      { 'doctor-reference-dashboard-menu': portalTone === 'doctor' && activeRoute === '/dashboard' },
       { 'doctor-order-create-mode': isDoctorOrderCreateMode },
       isLoggedIn ? `portal-${portalTone}` : ''
     ]"
@@ -9454,6 +9506,14 @@ onBeforeUnmount(() => {
                         v-model="csBillFileId"
                         data-testid="internal-bill-file-id"
                         placeholder="填写已完成上传的账单文件 file_id"
+                      />
+                    </el-form-item>
+                    <el-form-item label="最终应收金额（元）">
+                      <el-input
+                        v-model="csBillAmountYuan"
+                        data-testid="internal-bill-amount-yuan"
+                        inputmode="decimal"
+                        placeholder="例如 1288.00"
                       />
                     </el-form-item>
                     <div class="inline-actions">
@@ -12103,6 +12163,10 @@ onBeforeUnmount(() => {
                       <strong data-testid="doctor-payment-status">{{ statusLabel(doctorOrderWorkspace.bill.payment_status) }}</strong>
                     </div>
                     <div>
+                      <span>应收金额</span>
+                      <strong data-testid="doctor-bill-amount">{{ doctorOrderWorkspace.bill.amount_cents ? formatSalesAmount(doctorOrderWorkspace.bill.amount_cents) : '暂无' }}</strong>
+                    </div>
+                    <div>
                       <span>账单文件</span>
                       <strong>{{ doctorOrderWorkspace.bill.file_id ?? '暂无' }}</strong>
                     </div>
@@ -13262,41 +13326,64 @@ onBeforeUnmount(() => {
             <div class="admin-business-lower">
               <section class="prototype-panel-card admin-sales-card">
                 <div class="prototype-panel-head">
-                  <h3>销售总计与同比</h3>
-                  <span class="prototype-badge tone-slate">财务口径待接入</span>
+                  <h3>接单与出货金额分析</h3>
+                  <span class="prototype-badge tone-teal">本年累计 / 去年同期</span>
                 </div>
                 <div class="admin-sales-summary">
-                  <article>
-                    <small>销售总计</small>
-                    <strong>待接入</strong>
-                    <em>当前仅同步订单 / 件数</em>
+                  <article class="tone-inbound">
+                    <small>接单金额总计</small>
+                    <strong>{{ formatSalesAmount(salesDashboardSummary?.inbound.current_amount_cents) }}</strong>
+                    <div class="sales-comparison-detail">
+                      <span>去年同期 <b>{{ formatSalesAmount(salesDashboardSummary?.inbound.previous_year_amount_cents) }}</b></span>
+                      <span class="sales-yoy" :class="{ negative: (salesDashboardSummary?.inbound.year_over_year_percent ?? 0) < 0 }">
+                        同比 {{ formatYearOverYear(salesDashboardSummary?.inbound.year_over_year_percent) }}
+                      </span>
+                    </div>
+                    <em>已录账单 {{ salesDashboardSummary?.inbound.current_amount_order_count ?? 0 }}/{{ salesDashboardSummary?.inbound.current_order_count ?? 0 }} 单</em>
                   </article>
-                  <article>
-                    <small>去年同期</small>
-                    <strong>待接入</strong>
-                    <em>真实财务口径待确认</em>
-                  </article>
-                  <article>
-                    <small>同比去年同期</small>
-                    <strong>待接入</strong>
-                    <em>金额同比暂不伪造</em>
+                  <article class="tone-outbound">
+                    <small>出货金额总计</small>
+                    <strong>{{ formatSalesAmount(salesDashboardSummary?.outbound.current_amount_cents) }}</strong>
+                    <div class="sales-comparison-detail">
+                      <span>去年同期 <b>{{ formatSalesAmount(salesDashboardSummary?.outbound.previous_year_amount_cents) }}</b></span>
+                      <span class="sales-yoy" :class="{ negative: (salesDashboardSummary?.outbound.year_over_year_percent ?? 0) < 0 }">
+                        同比 {{ formatYearOverYear(salesDashboardSummary?.outbound.year_over_year_percent) }}
+                      </span>
+                    </div>
+                    <em>已录账单 {{ salesDashboardSummary?.outbound.current_amount_order_count ?? 0 }}/{{ salesDashboardSummary?.outbound.current_order_count ?? 0 }} 单</em>
                   </article>
                 </div>
-                <svg class="admin-sales-chart" viewBox="0 0 720 220" role="img" aria-label="销售总计与同比趋势">
+                <div class="sales-trend-legend" aria-label="金额趋势图例">
+                  <span><i class="legend-inbound" />今年接单</span>
+                  <span><i class="legend-outbound" />今年出货</span>
+                  <span><i class="legend-inbound previous" />去年接单</span>
+                  <span><i class="legend-outbound previous" />去年出货</span>
+                </div>
+                <svg class="admin-sales-chart" viewBox="0 0 720 220" role="img" aria-label="接单与出货金额同比趋势">
                   <line x1="42" y1="42" x2="42" y2="164" />
                   <line x1="42" y1="164" x2="680" y2="164" />
                   <line x1="42" y1="82" x2="680" y2="82" class="chart-grid" />
                   <line x1="42" y1="124" x2="680" y2="124" class="chart-grid" />
-                  <polyline class="chart-line-secondary" :points="adminSalesTrendBaselinePolyline" />
-                  <polyline class="chart-line-primary" :points="adminSalesTrendPolyline" />
-                  <g class="admin-sales-points">
+                  <polyline class="sales-trend-line trend-inbound previous" :points="csPreviousInboundTrendPolyline" />
+                  <polyline class="sales-trend-line trend-outbound previous" :points="csPreviousOutboundTrendPolyline" />
+                  <polyline class="sales-trend-line trend-inbound" :points="csInboundTrendPolyline" />
+                  <polyline class="sales-trend-line trend-outbound" :points="csOutboundTrendPolyline" />
+                  <g class="admin-sales-points trend-inbound">
                     <circle
                       v-for="(point, index) in adminSalesTrendPoints"
-                      :key="`admin-sales-point-${point.label}`"
+                      :key="`admin-inbound-point-${point.label}`"
                       :cx="42 + index * 58"
-                      :cy="164 - (point.current / adminSalesTrendMax) * 112"
-                      :r="point.isSynced ? 4 : 2.5"
-                      :class="{ muted: !point.isSynced }"
+                      :cy="164 - (point.inbound / adminSalesTrendMax) * 112"
+                      r="3.5"
+                    />
+                  </g>
+                  <g class="admin-sales-points trend-outbound">
+                    <circle
+                      v-for="(point, index) in adminSalesTrendPoints"
+                      :key="`admin-outbound-point-${point.label}`"
+                      :cx="42 + index * 58"
+                      :cy="164 - (point.outbound / adminSalesTrendMax) * 112"
+                      r="3.5"
                     />
                   </g>
                   <g class="chart-labels">
@@ -13311,7 +13398,7 @@ onBeforeUnmount(() => {
                   </g>
                 </svg>
                 <p class="admin-business-note">
-                  销售趋势第一版以本地订单 / 件数趋势占位展示，真实销售金额、去年同期金额和财务结算口径待接入。
+                  {{ salesDashboardSummary?.source_note ?? '销售金额数据同步中' }}；统计截至 {{ salesDashboardSummary?.through_date ?? '-' }}。
                 </p>
               </section>
 
@@ -13351,8 +13438,8 @@ onBeforeUnmount(() => {
             <div class="cs-business-overview">
               <section class="prototype-panel-card cs-month-card">
                 <div class="prototype-panel-head">
-                  <h3>本月 vs 上月</h3>
-                  <span class="prototype-badge tone-slate">本月 / 上月对比</span>
+                  <h3>接单与出货金额</h3>
+                  <span class="prototype-badge tone-slate">本年累计 / 去年同期</span>
                 </div>
                 <div class="cs-business-metric-grid">
                   <article
@@ -13385,24 +13472,40 @@ onBeforeUnmount(() => {
 
               <section class="prototype-panel-card cs-annual-card">
                 <div class="prototype-panel-head">
-                  <h3>年度销售趋势</h3>
-                  <span class="prototype-badge tone-slate">本月 / 上月已同步</span>
+                  <h3>年度接单与出货趋势</h3>
+                  <span class="prototype-badge tone-slate">金额同比</span>
                 </div>
-                <svg class="cs-annual-chart" viewBox="0 0 720 220" role="img" aria-label="年度销售趋势">
+                <div class="sales-trend-legend" aria-label="金额趋势图例">
+                  <span><i class="legend-inbound" />今年接单</span>
+                  <span><i class="legend-outbound" />今年出货</span>
+                  <span><i class="legend-inbound previous" />去年接单</span>
+                  <span><i class="legend-outbound previous" />去年出货</span>
+                </div>
+                <svg class="cs-annual-chart" viewBox="0 0 720 220" role="img" aria-label="年度接单与出货金额同比趋势">
                   <line x1="42" y1="42" x2="42" y2="164" />
                   <line x1="42" y1="164" x2="680" y2="164" />
                   <line x1="42" y1="82" x2="680" y2="82" class="chart-grid" />
                   <line x1="42" y1="124" x2="680" y2="124" class="chart-grid" />
-                  <polyline class="chart-line-secondary" :points="csAnnualTrendBaselinePolyline" />
-                  <polyline class="chart-line-primary" :points="csAnnualTrendPolyline" />
-                  <g class="cs-annual-points">
+                  <polyline class="sales-trend-line trend-inbound previous" :points="csPreviousInboundTrendPolyline" />
+                  <polyline class="sales-trend-line trend-outbound previous" :points="csPreviousOutboundTrendPolyline" />
+                  <polyline class="sales-trend-line trend-inbound" :points="csInboundTrendPolyline" />
+                  <polyline class="sales-trend-line trend-outbound" :points="csOutboundTrendPolyline" />
+                  <g class="cs-annual-points trend-inbound">
                     <circle
                       v-for="(point, index) in csAnnualTrendPoints"
-                      :key="`cs-trend-point-${point.label}`"
+                      :key="`cs-inbound-point-${point.label}`"
                       :cx="42 + index * 58"
-                      :cy="164 - (point.current / csAnnualTrendMax) * 112"
-                      :r="point.isSynced ? 4 : 2.5"
-                      :class="{ muted: !point.isSynced }"
+                      :cy="164 - (point.inbound / csAnnualTrendMax) * 112"
+                      r="3.5"
+                    />
+                  </g>
+                  <g class="cs-annual-points trend-outbound">
+                    <circle
+                      v-for="(point, index) in csAnnualTrendPoints"
+                      :key="`cs-outbound-point-${point.label}`"
+                      :cx="42 + index * 58"
+                      :cy="164 - (point.outbound / csAnnualTrendMax) * 112"
+                      r="3.5"
                     />
                   </g>
                   <g class="chart-labels">
@@ -13417,7 +13520,7 @@ onBeforeUnmount(() => {
                   </g>
                 </svg>
                 <p class="cs-business-note">
-                  年度销售趋势当前仅使用一期本地月度聚合，未接真实财务结算口径。
+                  {{ salesDashboardSummary?.source_note ?? '销售金额数据同步中' }}；统计截至 {{ salesDashboardSummary?.through_date ?? '-' }}。
                 </p>
               </section>
             </div>

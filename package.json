@@ -166,6 +166,17 @@
     "check:local-runtime": "node scripts/check-local-runtime.mjs",
     "local:start": "bash scripts/local-runtime.sh start",
     "local:status": "bash scripts/local-runtime.sh status",
-    "local:stop": "bash scripts/local-runtime.sh stop"
+    "local:stop": "bash scripts/local-runtime.sh stop",
+    "demo:backend": "SERVER_PORT=18080 APP_CORS_ALLOWED_ORIGIN=http://localhost:15173,http://127.0.0.1:15173 MYSQL_DATABASE=ai_order_platform_demo MYSQL_USER=ai_order_demo MYSQL_PASSWORD=change-me-demo MINIO_BUCKET=ai-order-demo-private APP_INSTANCE_ID=demo-ai-order-1 APP_AUTH_TOKEN_SECRET=local-demo-change-me-auth-secret AI_PROVIDER=deterministic AI_DEEPSEEK_ENABLED=false AI_EXTERNAL_ALERT_WEBHOOK_ENABLED=false npm run dev:backend",
+    "demo:frontend": "VITE_BACKEND_TARGET=http://127.0.0.1:18080 VITE_WS_TARGET=ws://127.0.0.1:18080 pnpm --filter ai-order-platform-frontend dev --host 127.0.0.1 --port 15173",
+    "demo:start": "bash scripts/demo-runtime.sh start",
+    "demo:serve": "bash scripts/demo-runtime.sh serve",
+    "demo:status": "bash scripts/demo-runtime.sh status",
+    "demo:stop": "bash scripts/demo-runtime.sh stop",
+    "demo:seed": "DEMO_ISOLATED_ENV=true DEMO_FRONTEND_URL=http://127.0.0.1:15173 node scripts/seed-demo-data.mjs",
+    "demo:check": "DEMO_ISOLATED_ENV=true DEMO_FRONTEND_URL=http://127.0.0.1:15173 node scripts/check-demo-data.mjs",
+    "demo:prepare": "npm run demo:start && npm run demo:seed && npm run demo:check",
+    "demo:reset": "bash scripts/reset-demo-environment.sh",
+    "check:demo-data-tooling": "node scripts/check-demo-data-tooling.mjs"
   }
 }

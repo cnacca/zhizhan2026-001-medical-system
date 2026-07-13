@@ -7,5 +7,7 @@ public record BillResponse(
         @JsonProperty("order_id") long orderId,
         @JsonProperty("bill_status") String billStatus,
         @JsonProperty("payment_status") String paymentStatus,
+        @JsonProperty("amount_cents") Long amountCents,
+        @JsonProperty("currency") String currency,
         @JsonProperty("file_id") Long fileId) {
 }

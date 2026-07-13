@@ -3317,6 +3317,66 @@ p {
   stroke-linejoin: round;
 }
 
+.sales-trend-legend {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px 16px;
+  align-items: center;
+  padding: 12px 16px 0;
+  color: #64748b;
+  font-size: 10px;
+  font-weight: 900;
+}
+
+.sales-trend-legend span {
+  display: inline-flex;
+  gap: 6px;
+  align-items: center;
+}
+
+.sales-trend-legend i {
+  width: 20px;
+  height: 3px;
+  border-radius: 999px;
+  background: #7c3aed;
+}
+
+.sales-trend-legend .legend-outbound {
+  background: #0d9488;
+}
+
+.sales-trend-legend i.previous {
+  height: 0;
+  border-top: 2px dashed #7c3aed;
+  border-radius: 0;
+  background: transparent;
+}
+
+.sales-trend-legend i.legend-outbound.previous {
+  border-color: #0d9488;
+}
+
+.sales-trend-line {
+  fill: none;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+  stroke-width: 3.5;
+}
+
+.sales-trend-line.trend-inbound {
+  stroke: #7c3aed;
+}
+
+.sales-trend-line.trend-outbound {
+  stroke: #0d9488;
+}
+
+.sales-trend-line.previous {
+  opacity: 0.55;
+  stroke-dasharray: 7 8;
+  stroke-width: 2.5;
+}
+
 .cs-annual-chart .chart-line-primary {
   stroke: #7c3aed;
   stroke-width: 4;
@@ -3332,6 +3392,10 @@ p {
   fill: #ffffff;
   stroke: #7c3aed;
   stroke-width: 3;
+}
+
+.cs-annual-points.trend-outbound circle {
+  stroke: #0d9488;
 }
 
 .cs-annual-points circle.muted {
@@ -3475,7 +3539,7 @@ p {
 
 .admin-sales-summary {
   display: grid;
-  grid-template-columns: repeat(3, minmax(0, 1fr));
+  grid-template-columns: repeat(2, minmax(0, 1fr));
   gap: 10px;
   padding: 14px 14px 6px;
 }
@@ -3483,7 +3547,7 @@ p {
 .admin-sales-summary article {
   display: grid;
   gap: 5px;
-  min-height: 76px;
+  min-height: 128px;
   padding: 12px;
   border: 1.5px solid #e2e8f0;
   border-radius: 12px;
@@ -3503,6 +3567,35 @@ p {
   font-family: Lora, "Plus Jakarta Sans", "PingFang SC", sans-serif;
   font-size: 20px;
   font-weight: 600;
+}
+
+.admin-sales-summary article.tone-inbound strong {
+  color: #7c3aed;
+}
+
+.admin-sales-summary article.tone-outbound strong {
+  color: #0d9488;
+}
+
+.sales-comparison-detail {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px 12px;
+  color: #475569;
+  font-size: 10px;
+  font-weight: 800;
+}
+
+.sales-comparison-detail b {
+  color: #111827;
+}
+
+.sales-yoy {
+  color: #16a34a;
+}
+
+.sales-yoy.negative {
+  color: #dc2626;
 }
 
 .admin-sales-chart {
@@ -3543,6 +3636,14 @@ p {
   fill: #ffffff;
   stroke: #2563eb;
   stroke-width: 3;
+}
+
+.admin-sales-points.trend-inbound circle {
+  stroke: #7c3aed;
+}
+
+.admin-sales-points.trend-outbound circle {
+  stroke: #0d9488;
 }
 
 .admin-sales-points circle.muted {

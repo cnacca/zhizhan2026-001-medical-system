@@ -467,10 +467,12 @@ class MessageDesignBillNotificationTests {
                         .header("X-Bootstrap-Role", "CS")
                         .header("X-Bootstrap-User-Id", CS_USER_ID)
                         .contentType(MediaType.APPLICATION_JSON)
-                        .content("{\"file_id\":" + fileId + "}"))
+                        .content("{\"file_id\":" + fileId + ",\"amount_cents\":128800,\"currency\":\"CNY\"}"))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.data.bill_status").value("UPLOADED"))
-                .andExpect(jsonPath("$.data.payment_status").value("PENDING_PAYMENT"));
+                .andExpect(jsonPath("$.data.payment_status").value("PENDING_PAYMENT"))
+                .andExpect(jsonPath("$.data.amount_cents").value(128800))
+                .andExpect(jsonPath("$.data.currency").value("CNY"));
 
         mockMvc.perform(post("/orders/{orderId}/bill/payment-status", orderId)
                         .header("X-Bootstrap-Role", "CS")
@@ -487,6 +489,7 @@ class MessageDesignBillNotificationTests {
                         .header("X-Bootstrap-Clinic-Id", clinicId))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.data.payment_status").value("PARTIALLY_PAID"))
+                .andExpect(jsonPath("$.data.amount_cents").value(128800))
                 .andExpect(content().string(not(containsString("内部协同备注"))));
 
         mockMvc.perform(post("/orders/{orderId}/bill/payment-status", orderId)
