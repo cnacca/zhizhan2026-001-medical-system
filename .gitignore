@@ -163,3 +163,6 @@ target/
 tmp/
 output/
 test-results/
+.codex-tmp/
+docs/customer-confirmation/*.docx
+docs/customer-confirmation/*.pdf
