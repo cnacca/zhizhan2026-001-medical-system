@@ -244,8 +244,9 @@ public class WorkflowExecutionController {
     @RequirePermission(value = "check:read-internal", roles = {UserRole.ADMIN, UserRole.CS, UserRole.WORKER})
     public DataResponse<FinalInspectionReportResponse> getFinalInspectionReport(
             @PathVariable long orderId,
+            @RequestParam(name = "allow_absent", defaultValue = "false") boolean allowAbsent,
             BootstrapIdentity identity) {
-        return new DataResponse<>(workflowExecutionService.getFinalInspectionReport(orderId, identity));
+        return new DataResponse<>(workflowExecutionService.getFinalInspectionReport(orderId, identity, allowAbsent));
     }
 
     @PostMapping("/work-logs/start")

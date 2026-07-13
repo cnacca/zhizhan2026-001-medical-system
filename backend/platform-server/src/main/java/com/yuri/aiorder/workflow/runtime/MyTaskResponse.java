@@ -8,5 +8,7 @@ public record MyTaskResponse(
         @JsonProperty("order_no") String orderNo,
         @JsonProperty("process_name") String processName,
         @JsonProperty("node_status") String nodeStatus,
-        @JsonProperty("standard_duration") Integer standardDuration) {
+        @JsonProperty("standard_duration") Integer standardDuration,
+        @JsonProperty("can_start") boolean canStart,
+        @JsonProperty("start_block_reason") String startBlockReason) {
 }

@@ -119,7 +119,8 @@ public class WorkflowRuntimeController {
     @RequirePermission(value = "workflow:operate-assigned", roles = {UserRole.ADMIN, UserRole.WORKER})
     public DataResponse<List<MyTaskResponse>> getMyTasks(
             BootstrapIdentity identity,
-            @RequestParam(name = "status", required = false) String status) {
-        return new DataResponse<>(workflowRuntimeService.getMyTasks(identity, status));
+            @RequestParam(name = "status", required = false) String status,
+            @RequestParam(name = "final_only", defaultValue = "false") boolean finalOnly) {
+        return new DataResponse<>(workflowRuntimeService.getMyTasks(identity, status, finalOnly));
     }
 }

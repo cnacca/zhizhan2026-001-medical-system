@@ -2,8 +2,9 @@ import fs from 'node:fs/promises'
 import os from 'node:os'
 import path from 'node:path'
 import { expect, test } from '@playwright/test'
+import { assertIsolatedSmokeTarget } from './assert-isolated-smoke-target.mjs'
 
-const frontendUrl = process.env.TASK9D10_FRONTEND_URL ?? 'http://127.0.0.1:5173'
+const frontendUrl = process.env.TASK9D10_FRONTEND_URL
 const username = process.env.TASK9D10_DOCTOR_USERNAME ?? 'doctor'
 const password = process.env.TASK9D10_DOCTOR_PASSWORD ?? 'change-me-doctor'
 const uploadSizeBytes = Number(process.env.TASK9D10_INTERRUPTED_UPLOAD_SIZE_BYTES ?? 6 * 1024 * 1024)
@@ -13,6 +14,16 @@ const partSize = 5 * 1024 * 1024
 
 if (!Number.isFinite(uploadSizeBytes) || uploadSizeBytes <= partSize) {
   throw new Error('TASK9D10_INTERRUPTED_UPLOAD_SIZE_BYTES must be greater than 5242880')
+}
+
+function requireIsolatedTestEnvironment() {
+  assertIsolatedSmokeTarget({
+    isolatedEnv: process.env.TASK9D10_ISOLATED_ENV,
+    isolatedEnvVariable: 'TASK9D10_ISOLATED_ENV',
+    frontendUrl,
+    frontendUrlVariable: 'TASK9D10_FRONTEND_URL',
+    taskLabel: 'Task 9D.10 interrupted-resume smoke'
+  })
 }
 
 async function assertReachable() {
@@ -120,6 +131,7 @@ test.describe('Task 9D.10 interrupted resume smoke', () => {
   test.setTimeout(timeoutMs + 60_000)
 
   test('resumes the same multipart file_id after an interrupted browser upload', async ({ page }) => {
+    requireIsolatedTestEnvironment()
     await assertReachable()
     const apiSession = await apiLogin()
     const token = apiSession.accessToken

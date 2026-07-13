@@ -590,12 +590,15 @@ type ProcessNodeItem = {
   step_order: number
   is_optional: number
   branch_group: string | null
+  branch_key: string | null
   assigned_user_id: number | null
   node_status: string
   standard_duration: number | null
   started_at: string | null
   deadline_at: string | null
   completed_at: string | null
+  can_start?: boolean
+  start_block_reason?: string | null
 }
 
 type ProductionKanbanStageSummary = {
@@ -636,6 +639,7 @@ type ProcessInstanceDetail = {
   instance_id: number
   order_id: number
   instance_status: string
+  intake_branch_used: string | null
   nodes: ProcessNodeItem[]
   edges: ProcessEdgeItem[]
 }
@@ -647,6 +651,8 @@ type WorkerTaskItem = {
   process_name: string
   node_status: string
   standard_duration: number | null
+  can_start?: boolean
+  start_block_reason?: string | null
 }
 
 type CheckRecordResponse = {
@@ -1541,6 +1547,7 @@ const finalInspectionReportSummary = ref('')
 const finalInspectionPdfFileId = ref('')
 const finalInspectionAttachmentFileIds = ref('')
 const finalInspectionReportLoading = ref(false)
+const finalInspectionSelectionVersion = ref(0)
 const worklogTaskStatus = ref('IN_PROGRESS')
 const worklogTasks = ref<WorkerTaskItem[]>([])
 const selectedWorklogTask = ref<WorkerTaskItem | null>(null)
@@ -2000,6 +2007,7 @@ const displayNavigationConfig: Record<PortalTone, NavigationGroup[]> = {
       title: '协同消息',
       items: [
         { id: 'production-message', title: '沟通中心', description: '消息中心：查看订单沟通、@ 提醒和待处理消息。', icon: 'chat', routePath: '/collaboration' },
+        { id: 'production-notifications', title: '通知中心', description: '查看生产任务、质量、返工和系统通知。', icon: 'notification', routePath: '/notifications' },
         { id: 'production-cloud-data', title: '云端数据中心', description: '查看订单设计稿和生产附件台账。', icon: 'cloud', routePath: '/orders/internal' }
       ]
     }
@@ -2771,7 +2779,7 @@ const prototypeDashboards = computed<Record<PortalTone, PrototypeDashboard>>(() 
         tone: 'teal',
         actionLabel: '看板',
         routePath: '/production/board',
-        navId: 'production-orders'
+        navId: 'production-board'
       },
       metrics: [
         { title: '生产异常', value: String(phaseOneAbProductionDashboardStats.value.productionExceptionCount), note: '当前队列异常订单', icon: 'process', tone: 'teal' },
@@ -2788,9 +2796,9 @@ const prototypeDashboards = computed<Record<PortalTone, PrototypeDashboard>>(() 
         badge: `${phaseOneAbProductionDashboardStats.value.productionExceptionCount + phaseOneAbProductionDashboardStats.value.safetyTodoCount + phaseOneAbProductionDashboardStats.value.rewardPendingCount} 项`,
         tone: 'rose',
         items: [
-          { title: '工序超时', detail: `${phaseOneAbProductionDashboardStats.value.productionExceptionCount} 单生产异常跟进中，优先处理卡工序和超时节点`, meta: '生产看板', tone: 'rose', actionLabel: '处理', routePath: '/production/board', navId: 'production-orders' },
-          { title: '扫码异常', detail: '重复扫码、漏扫、回退扫码统一在生产看板中复核', meta: '生产执行', tone: 'orange', actionLabel: '核查', routePath: '/production/board', navId: 'production-orders' },
-          { title: '返工未关闭', detail: `${phaseOneAbProductionDashboardStats.value.totalReworkCount} 条质量返工记录需要确认关闭状态`, meta: '质量与返工', tone: 'rose', actionLabel: '跟进', routePath: '/rework-final', navId: 'production-quality-overview' },
+          { title: '工序超时', detail: `${phaseOneAbProductionDashboardStats.value.productionExceptionCount} 单生产异常跟进中，优先处理卡工序和超时节点`, meta: '生产看板', tone: 'rose', actionLabel: '处理', routePath: '/production/board', navId: 'production-board' },
+          { title: '扫码异常', detail: '重复扫码、漏扫、回退扫码统一在扫码登记中复核', meta: '生产执行', tone: 'orange', actionLabel: '核查', routePath: '/checks', navId: 'production-scan' },
+          { title: '返工未关闭', detail: `${phaseOneAbProductionDashboardStats.value.totalReworkCount} 条质量返工记录需要确认关闭状态`, meta: '质量与返工', tone: 'rose', actionLabel: '跟进', routePath: '/rework-final', navId: 'production-internal-rework-management' },
           { title: '设备排队', detail: `${phaseOneAbProductionDashboardStats.value.equipmentExceptionCount} 项设备保养或故障可能影响产能`, meta: '设备管理', tone: 'amber', actionLabel: '调度', routePath: '/production/devices', navId: 'production-device' },
           { title: '安环巡检', detail: `${phaseOneAbProductionDashboardStats.value.safetyTodoCount} 项安环事件待处理或复核`, meta: '安环管理', tone: 'sky', actionLabel: '查看安环', routePath: '/production/safety-environment', navId: 'production-safety' },
           { title: '奖惩审批', detail: `${phaseOneAbProductionDashboardStats.value.rewardPendingCount} 条奖惩记录等待主管确认`, meta: '奖惩管理', tone: 'green', actionLabel: '查看奖惩', routePath: '/production/reward-penalty', navId: 'production-reward-penalty' }
@@ -3044,14 +3052,14 @@ const isWorklogsRoute = computed(() => activeRoute.value === '/worklogs/self')
 const isPerformanceRoute = computed(() => activeRoute.value === '/performance')
 const isStaffWorkloadRoute = computed(() => activeRoute.value === '/production/staff' || activeRoute.value === '/admin/staff')
 const isProductionBoardRoute = computed(() => activeRoute.value === '/production/board')
-const isProductionOrdersView = computed(() => activeNavId.value === 'production-orders')
-const isProductionKanbanView = computed(() => activeNavId.value === 'production-board')
+const isProductionOrdersView = computed(() => isProductionBoardRoute.value && activeNavId.value === 'production-orders')
+const isProductionKanbanView = computed(() => isProductionBoardRoute.value && activeNavId.value === 'production-board')
 const isProductionReferenceView = computed(() => isProductionBoardRoute.value && (isProductionOrdersView.value || isProductionKanbanView.value))
 const isProductionCompactRoute = computed(() => portalTone.value === 'production' && [
   'production-orders', 'production-board', 'production-tasks', 'production-scan', 'production-quality', 'production-quality-overview',
   'production-internal-rework-management', 'production-external-rework-management', 'production-final-report', 'production-staff',
   'production-performance', 'production-reward-penalty', 'production-device', 'production-material', 'production-cost',
-  'production-cost-outsourcing', 'production-safety', 'production-message', 'production-cloud-data'
+  'production-cost-outsourcing', 'production-safety', 'production-message', 'production-notifications', 'production-cloud-data'
 ].includes(activeNavId.value))
 const isProductionQualitySummaryRoute = computed(() => [
   'production-quality',
@@ -3523,6 +3531,82 @@ function productionBoardCurrentNode(instance: ProcessInstanceDetail | null) {
     ?? nodes.find((node) => node.node_status !== 'COMPLETED' && node.node_status !== 'SKIPPED')
     ?? nodes.at(-1)
     ?? null
+}
+
+function productionFlowStepNumber(nodes: ProcessNodeItem[], node: ProcessNodeItem) {
+  const stepOrders = [...new Set(nodes.map((item) => item.step_order))].sort((left, right) => left - right)
+  return stepOrders.indexOf(node.step_order) + 1
+}
+
+function productionFlowStepLabel(nodes: ProcessNodeItem[], node: ProcessNodeItem) {
+  const isParallel = nodes.filter((item) => item.step_order === node.step_order).length > 1
+  return `第${productionFlowStepNumber(nodes, node)}步${isParallel ? '（并行）' : ''}`
+}
+
+const productionFlowBranchLabels: Record<string, Record<string, string>> = {
+  intake: {
+    SCAN: '口扫路径',
+    IMPRESSION: '印模路径',
+  },
+  implant_abutment: {
+    FINISHED_ABUTMENT: '基台方案：成品基台',
+    CUSTOM_ABUTMENT: '基台方案：个性化基台',
+  },
+  veneer_route: {
+    CAD_MILLING: '贴面路线：CAD切削',
+    TRADITIONAL_WAX: '贴面路线：传统切蜡',
+  },
+}
+
+function productionFlowBranchLabelByKey(branchGroup: string | null, branchKey: string | null) {
+  const normalizedGroup = branchGroup?.trim().toLowerCase()
+  const normalizedKey = branchKey?.trim().toUpperCase()
+  if (!normalizedGroup || !normalizedKey) {
+    return ''
+  }
+  return productionFlowBranchLabels[normalizedGroup]?.[normalizedKey] ?? '工艺分支'
+}
+
+function productionFlowPathLabel(instance: ProcessInstanceDetail | null) {
+  if (!instance) {
+    return '当前工艺路径'
+  }
+  const labels = new Set<string>()
+  const intakeLabel = productionFlowBranchLabelByKey('intake', instance.intake_branch_used)
+  if (intakeLabel) {
+    labels.add(intakeLabel)
+  }
+  instance.nodes.forEach((node) => {
+    const label = productionFlowBranchLabelByKey(node.branch_group, node.branch_key)
+    if (label) {
+      labels.add(label)
+    }
+  })
+  return [...labels].join('；') || '当前工艺路径'
+}
+
+function productionFlowBranchLabel(node: ProcessNodeItem) {
+  return productionFlowBranchLabelByKey(node.branch_group, node.branch_key)
+}
+
+function requiresInCheck(node: Pick<WorkerTaskItem, 'start_block_reason'> | Pick<ProcessNodeItem, 'start_block_reason'>) {
+  return node.start_block_reason === 'IN_CHECK_REQUIRED'
+}
+
+function canStartTask(node: Pick<WorkerTaskItem, 'can_start'> | Pick<ProcessNodeItem, 'can_start'>) {
+  // 在前后端滚动发布的短窗口兼容旧响应；新接口明确返回 false 时才阻止操作，服务端门禁仍是最终裁决。
+  return node.can_start !== false
+}
+
+function startTaskErrorMessage(error: unknown) {
+  const message = error instanceof Error ? error.message : ''
+  if (message.includes('node must pass in-check')) {
+    return '开始前需完成入检并通过，请先到“扫码登记”处理。'
+  }
+  if (message.includes('请求失败：409')) {
+    return '工序状态已变化，请刷新后再试。'
+  }
+  return message || '任务操作失败'
 }
 
 function productionBoardProgress(instance: ProcessInstanceDetail | null) {
@@ -4246,6 +4330,15 @@ async function requestLoginPayload(loginUsername: string, loginPassword: string,
   return await response.json() as LoginResponse
 }
 
+function showPasswordResetHelp() {
+  loginError.value = '请联系系统管理员重置账号密码'
+}
+
+function returnToPortalSelection() {
+  selectedPortal.value = null
+  loginError.value = ''
+}
+
 async function login(event?: SubmitEvent) {
   const form = event?.currentTarget instanceof HTMLFormElement ? event.currentTarget : null
   const formData = form ? new FormData(form) : null
@@ -4275,14 +4368,24 @@ async function login(event?: SubmitEvent) {
   }
 }
 
-function applyLoginSession(payload: LoginResponse, nextRoute: string, loginPortal: LoginPortal | null = selectedPortal.value) {
+function applyLoginSession(
+  payload: LoginResponse,
+  nextRoute: string,
+  loginPortal: LoginPortal | null = selectedPortal.value,
+  preserveNavId?: string
+) {
   token.value = payload.accessToken
   refreshToken.value = payload.refreshToken
   currentUser.value = payload
   activePortalTone.value = loginPortal ? portalToneByLoginPortal[loginPortal] : activePortalTone.value
   activeRoute.value = nextRoute
   activePrototypeChip.value = ''
-  activeNavId.value = defaultDisplayNavIdForRoute(nextRoute)
+  const preservedItem = preserveNavId ? findDisplayItemById(preserveNavId) : null
+  if (preserveNavId && preservedItem?.routePath === nextRoute) {
+    activeNavId.value = preserveNavId
+  } else {
+    activeNavId.value = defaultDisplayNavIdForRoute(nextRoute)
+  }
   void loadNotifications()
   void loadCustomerAttentionItems()
   void loadActiveRouteData().catch((error) => {
@@ -4368,7 +4471,7 @@ async function refreshSession() {
       throw new Error(`刷新登录失败：${response.status}`)
     }
     const payload = await response.json() as LoginResponse
-    await applyLoginSession(payload, activeRoute.value)
+    await applyLoginSession(payload, activeRoute.value, selectedPortal.value, activeNavId.value)
     connectNotificationSocket()
   } catch (error) {
     loginError.value = error instanceof Error ? error.message : '刷新登录失败'
@@ -4514,9 +4617,22 @@ function runCsPortalGlobalSearch() {
   }
 }
 
+function openNotificationCenter() {
+  const notificationItem = findDisplayItemByRoute('/notifications')
+  if (notificationItem) {
+    selectDisplayNavigationItem(notificationItem)
+    return
+  }
+  activeNavId.value = defaultDisplayNavIdForRoute('/notifications')
+  navigateToRoute('/notifications')
+}
+
 function selectDisplayNavigationItem(item: DisplayNavigationItem | BusinessShortcut) {
   accountMenuVisible.value = false
   activeNavId.value = item.id
+  if (item.id === 'production-cost-outsourcing') {
+    productionCostCreateType.value = 'OUTSOURCING'
+  }
   if (item.doctorSection) {
     activeDoctorOrderSection.value = item.doctorSection
   }
@@ -4604,7 +4720,14 @@ async function apiFetch<T>(path: string, options: RequestInit = {}) {
     }
   })
   if (!response.ok) {
-    throw new Error(`请求失败：${response.status}`)
+    let detail = ''
+    try {
+      const payload = await response.json() as { message?: unknown }
+      detail = typeof payload.message === 'string' ? payload.message.trim() : ''
+    } catch {
+      // 非 JSON 错误响应仍保留状态码，供调用方显示通用提示。
+    }
+    throw new Error(detail ? `请求失败：${detail}` : `请求失败：${response.status}`)
   }
   return await response.json() as ApiResponse<T>
 }
@@ -6435,6 +6558,8 @@ async function loadCustomerCollaborationPage() {
   }
   if (customerCollaborationOrderId.value.trim()) {
     await loadCustomerCollaborationOrderMessages()
+  } else {
+    clearCustomerCollaborationOrderContext()
   }
 }
 
@@ -6450,6 +6575,12 @@ async function loadDoctorCollaboration() {
   if (order) {
     await openDoctorCollaborationOrder(order)
   }
+}
+
+function clearCustomerCollaborationOrderContext() {
+  customerCollaborationOrderMessages.value = []
+  customerCollaborationMentionableUsers.value = []
+  customerCollaborationMentionUserIds.value = []
 }
 
 async function loadCustomerAttentionItems() {
@@ -6626,9 +6757,11 @@ async function loadCustomerCollaborationOrderMessages() {
   const orderIdText = customerCollaborationOrderId.value.trim()
   const orderId = Number(orderIdText)
   if (!orderIdText || Number.isNaN(orderId) || orderId <= 0) {
+    clearCustomerCollaborationOrderContext()
     customerCollaborationError.value = '请填写有效订单 ID'
     return
   }
+  clearCustomerCollaborationOrderContext()
   customerCollaborationLoading.value = true
   customerCollaborationError.value = ''
   try {
@@ -6641,6 +6774,7 @@ async function loadCustomerCollaborationOrderMessages() {
     customerCollaborationMentionUserIds.value = customerCollaborationMentionUserIds.value
       .filter((userId) => mentionablePayload.data.some((user) => user.user_id === userId))
   } catch (error) {
+    clearCustomerCollaborationOrderContext()
     customerCollaborationError.value = error instanceof Error ? error.message : '订单消息上下文加载失败'
   } finally {
     customerCollaborationLoading.value = false
@@ -6953,7 +7087,9 @@ async function operateWorkerTask(task: WorkerTaskItem, action: 'START' | 'COMPLE
     await apiFetch(`/process-instance/nodes/${task.node_instance_id}/${suffix}`, { method: 'POST' })
     await loadWorkerTasks()
   } catch (error) {
-    workerTaskError.value = error instanceof Error ? error.message : '任务操作失败'
+    workerTaskError.value = action === 'START'
+      ? startTaskErrorMessage(error)
+      : (error instanceof Error ? error.message : '任务操作失败')
   } finally {
     workerTaskActionLoading.value = false
   }
@@ -6962,6 +7098,13 @@ async function operateWorkerTask(task: WorkerTaskItem, action: 'START' | 'COMPLE
 async function setWorkerTaskFilter(status: string) {
   workerTaskStatus.value = status
   await loadWorkerTasks()
+}
+
+async function openTaskInCheck(task: { node_instance_id: number }) {
+  checkTaskLookup.value = String(task.node_instance_id)
+  activeNavId.value = 'production-scan'
+  navigateToRoute('/checks')
+  await locateCheckTask()
 }
 
 async function locateCheckTask() {
@@ -7071,6 +7214,17 @@ async function submitCheckRecord() {
 }
 
 async function loadReworkFinalPage() {
+  if (isExternalReworkView.value) {
+    await Promise.all([
+      loadReworkDictionaries(),
+      loadQualityRecords()
+    ])
+    return
+  }
+  if (isFinalReportView.value) {
+    await loadFinalInspectionTasks()
+    return
+  }
   await Promise.all([
     loadReworkDictionaries(),
     loadReworkRecords(),
@@ -7178,12 +7332,13 @@ async function loadFinalInspectionTasks() {
   reworkError.value = ''
   finalInspectionResult.value = null
   try {
-    const payload = await apiFetch<WorkerTaskItem[]>('/tasks/mine?status=COMPLETED')
+    const payload = await apiFetch<WorkerTaskItem[]>('/tasks/mine?status=COMPLETED&final_only=true')
     finalInspectionTasks.value = payload.data
     const selectedStillVisible = selectedFinalInspectionTask.value
       ? payload.data.some((task) => task.node_instance_id === selectedFinalInspectionTask.value?.node_instance_id)
       : false
     if (payload.data.length === 0) {
+      finalInspectionSelectionVersion.value += 1
       selectedFinalInspectionTask.value = null
       finalInspectionRecords.value = []
       return
@@ -7191,9 +7346,10 @@ async function loadFinalInspectionTasks() {
     if (!selectedStillVisible) {
       await selectFinalInspectionTask(payload.data[0])
     } else if (selectedFinalInspectionTask.value) {
-      await loadFinalInspectionRecords(selectedFinalInspectionTask.value.node_instance_id)
+      await loadFinalInspectionRecords(selectedFinalInspectionTask.value.node_instance_id, finalInspectionSelectionVersion.value)
     }
   } catch (error) {
+    finalInspectionSelectionVersion.value += 1
     finalInspectionTasks.value = []
     selectedFinalInspectionTask.value = null
     finalInspectionRecords.value = []
@@ -7204,14 +7360,20 @@ async function loadFinalInspectionTasks() {
 }
 
 async function selectFinalInspectionTask(task: WorkerTaskItem) {
+  const selectionVersion = finalInspectionSelectionVersion.value + 1
+  finalInspectionSelectionVersion.value = selectionVersion
   selectedFinalInspectionTask.value = task
   finalInspectionRemark.value = ''
   finalInspectionResult.value = null
+  finalInspectionReport.value = null
   finalInspectionReportSummary.value = ''
   finalInspectionPdfFileId.value = ''
   finalInspectionAttachmentFileIds.value = ''
-  await loadFinalInspectionRecords(task.node_instance_id)
-  await loadFinalInspectionReport(task.order_id)
+  await loadFinalInspectionRecords(task.node_instance_id, selectionVersion)
+  if (!isCurrentFinalInspectionSelection(task, selectionVersion)) {
+    return
+  }
+  await loadFinalInspectionReport(task.order_id, selectionVersion)
 }
 
 function selectFinalInspectionTaskById(nodeId: number) {
@@ -7221,12 +7383,30 @@ function selectFinalInspectionTaskById(nodeId: number) {
   }
 }
 
-async function loadFinalInspectionRecords(nodeInstanceId: number) {
+function isCurrentFinalInspectionSelection(task: WorkerTaskItem, selectionVersion: number) {
+  return finalInspectionSelectionVersion.value === selectionVersion
+    && selectedFinalInspectionTask.value?.node_instance_id === task.node_instance_id
+    && selectedFinalInspectionTask.value?.order_id === task.order_id
+}
+
+async function loadFinalInspectionRecords(nodeInstanceId: number, selectionVersion?: number) {
   reworkError.value = ''
   try {
     const payload = await apiFetch<CheckRecordResponse[]>(`/check-records/${nodeInstanceId}`)
+    if (selectionVersion !== undefined && (
+      selectionVersion !== finalInspectionSelectionVersion.value
+      || selectedFinalInspectionTask.value?.node_instance_id !== nodeInstanceId
+    )) {
+      return
+    }
     finalInspectionRecords.value = payload.data
   } catch (error) {
+    if (selectionVersion !== undefined && (
+      selectionVersion !== finalInspectionSelectionVersion.value
+      || selectedFinalInspectionTask.value?.node_instance_id !== nodeInstanceId
+    )) {
+      return
+    }
     finalInspectionRecords.value = []
     reworkError.value = error instanceof Error ? error.message : '终检检查记录加载失败'
   }
@@ -7262,16 +7442,35 @@ async function submitFinalInspectionCheck() {
   }
 }
 
-async function loadFinalInspectionReport(orderId: number) {
+async function loadFinalInspectionReport(orderId: number, selectionVersion?: number) {
+  if (selectionVersion !== undefined && (
+    selectionVersion !== finalInspectionSelectionVersion.value
+    || selectedFinalInspectionTask.value?.order_id !== orderId
+  )) {
+    return
+  }
   finalInspectionReport.value = null
   try {
-    const payload = await apiFetch<FinalInspectionReportResponse>(`/final-inspection-reports/${orderId}`)
-    finalInspectionReport.value = payload.data
-    finalInspectionReportSummary.value = payload.data.summary ?? ''
-    finalInspectionPdfFileId.value = payload.data.pdf_file_id ? String(payload.data.pdf_file_id) : ''
-    finalInspectionAttachmentFileIds.value = payload.data.attachment_file_ids?.join(', ') ?? ''
+    const payload = await apiFetch<FinalInspectionReportResponse | null>(`/final-inspection-reports/${orderId}?allow_absent=true`)
+    if (selectionVersion !== undefined && (
+      selectionVersion !== finalInspectionSelectionVersion.value
+      || selectedFinalInspectionTask.value?.order_id !== orderId
+    )) {
+      return
+    }
+    const report = payload.data
+    if (!report) {
+      return
+    }
+    finalInspectionReport.value = report
+    finalInspectionReportSummary.value = report.summary ?? ''
+    finalInspectionPdfFileId.value = report.pdf_file_id ? String(report.pdf_file_id) : ''
+    finalInspectionAttachmentFileIds.value = report.attachment_file_ids?.join(', ') ?? ''
   } catch (error) {
-    if (error instanceof Error && error.message.includes('404')) {
+    if (selectionVersion !== undefined && (
+      selectionVersion !== finalInspectionSelectionVersion.value
+      || selectedFinalInspectionTask.value?.order_id !== orderId
+    )) {
       return
     }
     reworkError.value = error instanceof Error ? error.message : '终检报告加载失败'
@@ -8221,9 +8420,17 @@ async function previewProductionBoardCadData() {
   }
 }
 
-function openProductionBoardMessageCenter() {
+async function openProductionBoardMessageCenter() {
+  const orderId = selectedProductionBoardOrder.value?.order_id
   productionBoardDrawerVisible.value = false
+  if (orderId) {
+    customerCollaborationOrderId.value = String(orderId)
+  }
+  activeNavId.value = defaultDisplayNavIdForRoute('/collaboration')
   navigateToRoute('/collaboration')
+  if (orderId) {
+    await loadCustomerCollaborationOrderMessages()
+  }
 }
 
 async function advanceProductionBoardStage() {
@@ -8246,13 +8453,26 @@ function printProductionBoardWorkOrder() {
 async function startProductionBoardNode() {
   const node = productionBoardSelectedCard.value?.node
   if (!node) return
+  if (!canStartTask(node)) {
+    productionBoardError.value = requiresInCheck(node)
+      ? '开始前需完成入检并通过，请先到“扫码登记”处理。'
+      : '当前工序暂不可开工，请刷新后再试。'
+    return
+  }
   try {
     await apiFetch(`/process-instance/nodes/${node.node_instance_id}/start`, { method: 'POST' })
     await loadProductionBoardInstance(selectedProductionBoardOrder.value?.order_id ?? 0)
     if (selectedProductionBoardOrder.value) productionBoardSelectedCard.value = buildProductionKanbanCard(selectedProductionBoardOrder.value)
     void loadProductionBoardKanbanSummary()
   } catch (error) {
-    productionBoardError.value = error instanceof Error ? error.message : '开始工序失败'
+    productionBoardError.value = startTaskErrorMessage(error)
+  }
+}
+
+async function openSelectedProductionBoardNodeInCheck() {
+  const node = productionBoardSelectedCard.value?.node
+  if (node) {
+    await openTaskInCheck(node)
   }
 }
 
@@ -8765,7 +8985,7 @@ onBeforeUnmount(() => {
                 <h2>{{ selectedPortalOption ? `${selectedPortalOption.title}登录` : '选择登录入口' }}</h2>
                 <span>{{ selectedPortalOption?.subtitle ?? '请选择授权端口，再输入账号密码' }}</span>
               </div>
-              <button v-if="selectedPortal" class="ghost-icon-button" type="button" @click="selectedPortal = null">
+              <button v-if="selectedPortal" class="ghost-icon-button" type="button" @click="returnToPortalSelection">
                 返回入口
               </button>
             </div>
@@ -8821,11 +9041,8 @@ onBeforeUnmount(() => {
                 >
               </label>
               <div class="login-options">
-                <label class="remember-option">
-                  <input type="checkbox">
-                  <span>记住我</span>
-                </label>
-                <button class="text-link" type="button">忘记密码？</button>
+                <span class="login-session-note">为保护账号安全，关闭页面后需重新登录</span>
+                <button class="text-link" type="button" @click="showPasswordResetHelp">忘记密码？</button>
               </div>
               <button class="login-submit" type="submit" :disabled="loading" aria-label="登录">
                 <span>{{ loading ? '登录中...' : '登录系统' }}</span>
@@ -9614,8 +9831,12 @@ onBeforeUnmount(() => {
               <div class="factory-task-card-head"><span>{{ task.order_no }}</span><b>{{ statusLabel(task.node_status) }}</b></div>
               <h3>{{ task.process_name }}</h3>
               <p>节点 {{ task.node_instance_id }} · 标准 {{ task.standard_duration ?? '未设置' }} 分钟</p>
+              <p v-if="requiresInCheck(task)" class="factory-task-prerequisite">需先完成入检并通过，才可以开始工作。</p>
               <div class="factory-task-card-actions">
-                <button type="button" class="factory-action-primary" :disabled="workerTaskActionLoading || task.node_status !== 'READY'" @click="operateWorkerTask(task, 'START')">开始工作</button>
+                <button type="button" class="factory-action-primary" :disabled="workerTaskActionLoading || task.node_status !== 'READY' || !canStartTask(task)" @click="operateWorkerTask(task, 'START')">
+                  {{ requiresInCheck(task) ? '需先入检' : '开始工作' }}
+                </button>
+                <button v-if="requiresInCheck(task)" type="button" class="factory-action-secondary" :disabled="workerTaskActionLoading" @click="openTaskInCheck(task)">去扫码入检</button>
                 <button type="button" class="factory-action-secondary" :disabled="workerTaskActionLoading || task.node_status !== 'IN_PROGRESS'" @click="operateWorkerTask(task, 'COMPLETE')">✓ 标记完成</button>
               </div>
             </article>
@@ -10489,7 +10710,7 @@ onBeforeUnmount(() => {
                 <span aria-hidden="true">⌕</span>
                 <input v-model="productionBoardKeyword" type="search" placeholder="搜索订单号、诊所或产品" @keyup.enter="loadProductionBoardOrders">
               </label>
-              <button type="button" aria-label="查看通知" @click="navigateToRoute('/notifications')">🔔</button>
+              <button type="button" aria-label="查看通知" @click="openNotificationCenter">🔔</button>
             </div>
           </header>
           <div class="factory-orders-content">
@@ -10610,6 +10831,7 @@ onBeforeUnmount(() => {
 
                 <div class="factory-drawer-section-title">生产流程</div>
                 <div v-if="productionBoardInstance" class="factory-drawer-timeline">
+                  <p class="factory-drawer-flow-hint">本单实际路径：{{ productionFlowPathLabel(productionBoardInstance) }}；仅展示已选取件/工艺分支，步骤序号按本单流程重新编号。</p>
                   <article
                     v-for="node in productionBoardInstance.nodes"
                     :key="node.node_instance_id"
@@ -10619,9 +10841,9 @@ onBeforeUnmount(() => {
                       skipped: node.node_status === 'SKIPPED'
                     }"
                   >
-                    <span class="factory-drawer-timeline-marker">{{ ['COMPLETED', 'SKIPPED'].includes(node.node_status) ? '✓' : node.step_order }}</span>
+                    <span class="factory-drawer-timeline-marker">{{ ['COMPLETED', 'SKIPPED'].includes(node.node_status) ? '✓' : productionFlowStepNumber(productionBoardInstance.nodes, node) }}</span>
                     <div>
-                      <strong>{{ node.process_name }} <em v-if="node.stage_name">· {{ node.stage_name }}</em></strong>
+                      <strong>{{ productionFlowStepLabel(productionBoardInstance.nodes, node) }} · {{ node.process_name }} <em v-if="node.stage_name">· {{ node.stage_name }}</em><em v-if="productionFlowBranchLabel(node)">· {{ productionFlowBranchLabel(node) }}</em></strong>
                       <small>{{ statusLabel(node.node_status) }} · 标准 {{ node.standard_duration ?? '未设置' }} 分钟</small>
                       <small>开始 {{ node.started_at ? compactDateTime(node.started_at) : '未设置' }} · 截止 {{ node.deadline_at ? compactDateTime(node.deadline_at) : '未设置' }}</small>
                       <p v-if="productionBoardSelectedCard?.node?.node_instance_id === node.node_instance_id && node.node_status === 'IN_PROGRESS'">⚡ 进行中</p>
@@ -10631,7 +10853,12 @@ onBeforeUnmount(() => {
                 <p v-else class="factory-file-empty">暂无工序记录</p>
 
                 <div class="factory-drawer-work-actions">
-                  <button v-if="productionBoardSelectedCard?.node?.node_status === 'READY'" type="button" class="factory-action-primary" @click="startProductionBoardNode">开始工作</button>
+                  <template v-if="productionBoardSelectedCard?.node?.node_status === 'READY'">
+                    <button type="button" class="factory-action-primary" :disabled="productionBoardSelectedCard?.node ? !canStartTask(productionBoardSelectedCard.node) : true" @click="startProductionBoardNode">
+                      {{ productionBoardSelectedCard?.node?.start_block_reason === 'IN_CHECK_REQUIRED' ? '需先入检' : '开始工作' }}
+                    </button>
+                    <button v-if="productionBoardSelectedCard?.node?.start_block_reason === 'IN_CHECK_REQUIRED'" type="button" class="factory-action-secondary" @click="openSelectedProductionBoardNodeInCheck">去扫码入检</button>
+                  </template>
                   <button v-else-if="productionBoardSelectedCard?.node?.node_status === 'IN_PROGRESS'" type="button" class="factory-action-primary" @click="completeProductionBoardNode">✓ 标记完成</button>
                   <button v-else type="button" class="factory-action-primary" disabled>当前无可执行工序</button>
                   <button type="button" class="factory-action-secondary" @click="openProductionBoardMessageCenter">联系客服</button>
@@ -10801,6 +11028,7 @@ onBeforeUnmount(() => {
 
                 <div class="factory-drawer-section-title">生产流程</div>
                 <div v-if="productionBoardInstance" class="factory-drawer-timeline">
+                  <p class="factory-drawer-flow-hint">本单实际路径：{{ productionFlowPathLabel(productionBoardInstance) }}；仅展示已选取件/工艺分支，步骤序号按本单流程重新编号。</p>
                   <article
                     v-for="node in productionBoardInstance.nodes"
                     :key="node.node_instance_id"
@@ -10810,9 +11038,9 @@ onBeforeUnmount(() => {
                       skipped: node.node_status === 'SKIPPED'
                     }"
                   >
-                    <span class="factory-drawer-timeline-marker">{{ ['COMPLETED', 'SKIPPED'].includes(node.node_status) ? '✓' : node.step_order }}</span>
+                    <span class="factory-drawer-timeline-marker">{{ ['COMPLETED', 'SKIPPED'].includes(node.node_status) ? '✓' : productionFlowStepNumber(productionBoardInstance.nodes, node) }}</span>
                     <div>
-                      <strong>{{ node.process_name }} <em v-if="node.stage_name">· {{ node.stage_name }}</em></strong>
+                      <strong>{{ productionFlowStepLabel(productionBoardInstance.nodes, node) }} · {{ node.process_name }} <em v-if="node.stage_name">· {{ node.stage_name }}</em><em v-if="productionFlowBranchLabel(node)">· {{ productionFlowBranchLabel(node) }}</em></strong>
                       <small>{{ statusLabel(node.node_status) }} · 员工 {{ node.assigned_user_id ?? '-' }} · 标准 {{ node.standard_duration ?? '-' }} 分钟</small>
                       <small>开始 {{ node.started_at ? compactDateTime(node.started_at) : '-' }} · 截止 {{ node.deadline_at ? compactDateTime(node.deadline_at) : '-' }}</small>
                       <p v-if="productionBoardSelectedCard?.node?.node_instance_id === node.node_instance_id && node.node_status === 'IN_PROGRESS'">⚡ 进行中</p>
@@ -10821,7 +11049,12 @@ onBeforeUnmount(() => {
                 </div>
 
                 <div class="factory-drawer-work-actions">
-                  <button v-if="productionBoardSelectedCard?.node?.node_status === 'READY'" type="button" class="factory-action-primary" @click="startProductionBoardNode">开始工作</button>
+                  <template v-if="productionBoardSelectedCard?.node?.node_status === 'READY'">
+                    <button type="button" class="factory-action-primary" :disabled="productionBoardSelectedCard?.node ? !canStartTask(productionBoardSelectedCard.node) : true" @click="startProductionBoardNode">
+                      {{ productionBoardSelectedCard?.node?.start_block_reason === 'IN_CHECK_REQUIRED' ? '需先入检' : '开始工作' }}
+                    </button>
+                    <button v-if="productionBoardSelectedCard?.node?.start_block_reason === 'IN_CHECK_REQUIRED'" type="button" class="factory-action-secondary" @click="openSelectedProductionBoardNodeInCheck">去扫码入检</button>
+                  </template>
                   <button v-else-if="productionBoardSelectedCard?.node?.node_status === 'IN_PROGRESS'" type="button" class="factory-action-primary" @click="completeProductionBoardNode">✓ 标记完成</button>
                   <button v-else type="button" class="factory-action-primary" disabled>工序已完成</button>
                   <button type="button" class="factory-action-secondary" @click="openProductionBoardMessageCenter">消息 CS</button>
@@ -14044,6 +14277,7 @@ onBeforeUnmount(() => {
                 <el-input v-model="productionCostCreateNo" size="small" placeholder="成本编号" />
                 <el-select
                   v-model="productionCostCreateType"
+                  data-testid="production-cost-create-type"
                   size="small"
                   placeholder="成本类型"
                   :disabled="activeNavId === 'production-cost-outsourcing'"

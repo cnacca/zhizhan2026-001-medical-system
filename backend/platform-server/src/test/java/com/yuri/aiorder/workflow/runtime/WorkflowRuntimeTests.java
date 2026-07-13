@@ -32,6 +32,7 @@ import org.springframework.transaction.annotation.Transactional;
 
 @SpringBootTest
 @AutoConfigureMockMvc
+@Transactional
 class WorkflowRuntimeTests {
 
     private static final long DOCTOR_USER_ID = 9501L;
@@ -114,7 +115,9 @@ class WorkflowRuntimeTests {
                         .header("X-Bootstrap-Role", "ADMIN"))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.data.instance_id").value(instanceId))
+                .andExpect(jsonPath("$.data.intake_branch_used").value("SCAN"))
                 .andExpect(jsonPath("$.data.nodes", hasSize(5)))
+                .andExpect(jsonPath("$.data.nodes[4].branch_key").value("X"))
                 .andExpect(content().string(not(org.hamcrest.Matchers.containsString("模板已改名"))));
 
         mockMvc.perform(get("/orders/{orderId}/process-instance", orderId)
@@ -197,6 +200,49 @@ class WorkflowRuntimeTests {
                 .andExpect(jsonPath("$.data[0].node_instance_id").value(routeX))
                 .andExpect(jsonPath("$.data[0].order_id").value(orderId))
                 .andExpect(jsonPath("$.data[0].node_status").value("READY"));
+    }
+
+    @Test
+    void finalOnlyTasksReturnOnlyTheAssignedFinalNode() throws Exception {
+        long instanceId = approveProductionAndGetInstanceId();
+        long start = nodeId(instanceId, "START");
+        long parallelB = nodeId(instanceId, "PARALLEL_B");
+        long optionalC = nodeId(instanceId, "OPTIONAL_C");
+        long joinD = nodeId(instanceId, "JOIN_D");
+        long routeX = nodeId(instanceId, "ROUTE_X");
+
+        assign(orderId, start, WORKER_USER_ID);
+        startNode(start, WORKER_USER_ID);
+        completeNode(start, WORKER_USER_ID);
+
+        assign(orderId, parallelB, WORKER_USER_ID);
+        startNode(parallelB, WORKER_USER_ID);
+        completeNode(parallelB, WORKER_USER_ID);
+
+        skipNode(optionalC, "optional fixture not needed");
+
+        assign(orderId, joinD, WORKER_USER_ID);
+        startNode(joinD, WORKER_USER_ID);
+        completeNode(joinD, WORKER_USER_ID);
+
+        assign(orderId, routeX, WORKER_USER_ID);
+        startNode(routeX, WORKER_USER_ID);
+        completeNode(routeX, WORKER_USER_ID);
+
+        MvcResult finalTasks = mockMvc.perform(get("/tasks/mine")
+                        .header("X-Bootstrap-Role", "WORKER")
+                        .header("X-Bootstrap-User-Id", WORKER_USER_ID)
+                        .param("status", "COMPLETED")
+                        .param("final_only", "true"))
+                .andExpect(status().isOk())
+                .andReturn();
+        java.util.List<Long> finalTaskIds = StreamSupport.stream(
+                        objectMapper.readTree(finalTasks.getResponse().getContentAsString()).path("data").spliterator(), false)
+                .map(task -> task.path("node_instance_id").asLong())
+                .toList();
+        assertThat(finalTaskIds)
+                .contains(routeX)
+                .doesNotContain(start, parallelB, joinD);
     }
 
     @Test

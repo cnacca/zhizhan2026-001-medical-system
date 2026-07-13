@@ -24,9 +24,11 @@ import org.springframework.http.MediaType;
 import org.springframework.jdbc.core.simple.JdbcClient;
 import org.springframework.test.web.servlet.MockMvc;
 import org.springframework.test.web.servlet.MvcResult;
+import org.springframework.transaction.annotation.Transactional;
 
 @SpringBootTest
 @AutoConfigureMockMvc
+@Transactional
 class CheckWorklogPerformanceTests {
 
     @Autowired
@@ -66,12 +68,41 @@ class CheckWorklogPerformanceTests {
 
     @Test
     void nodeRequiresInCheckBeforeStartAndOutCheckRequiresCompletion() throws Exception {
+        mockMvc.perform(get("/tasks/mine")
+                        .header("X-Bootstrap-Role", "WORKER")
+                        .header("X-Bootstrap-User-Id", workerUserId)
+                        .param("status", "READY"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data[0].node_instance_id").value(nodeInstanceId))
+                .andExpect(jsonPath("$.data[0].can_start").value(false))
+                .andExpect(jsonPath("$.data[0].start_block_reason").value("IN_CHECK_REQUIRED"));
+
+        mockMvc.perform(get("/orders/{orderId}/process-instance", orderId)
+                        .header("X-Bootstrap-Role", "ADMIN"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.nodes[0].can_start").value(false))
+                .andExpect(jsonPath("$.data.nodes[0].start_block_reason").value("IN_CHECK_REQUIRED"));
+
         mockMvc.perform(post("/process-instance/nodes/{nodeInstanceId}/start", nodeInstanceId)
                         .header("X-Bootstrap-Role", "WORKER")
                         .header("X-Bootstrap-User-Id", workerUserId))
                 .andExpect(status().isConflict());
 
         submitCheck(nodeInstanceId, 1, true, null);
+
+        mockMvc.perform(get("/tasks/mine")
+                        .header("X-Bootstrap-Role", "WORKER")
+                        .header("X-Bootstrap-User-Id", workerUserId)
+                        .param("status", "READY"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data[0].can_start").value(true))
+                .andExpect(jsonPath("$.data[0].start_block_reason").doesNotExist());
+
+        mockMvc.perform(get("/orders/{orderId}/process-instance", orderId)
+                        .header("X-Bootstrap-Role", "ADMIN"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.nodes[0].can_start").value(true))
+                .andExpect(jsonPath("$.data.nodes[0].start_block_reason").doesNotExist());
 
         mockMvc.perform(post("/process-instance/nodes/{nodeInstanceId}/start", nodeInstanceId)
                         .header("X-Bootstrap-Role", "WORKER")
@@ -763,6 +794,16 @@ class CheckWorklogPerformanceTests {
                 null,
                 Set.of("check:write", "check:read-internal", "final-inspection:manage"),
                 "SELF"));
+
+        mockMvc.perform(get("/final-inspection-reports/{orderId}", orderId)
+                        .header("Authorization", "Bearer " + finalInspectorToken))
+                .andExpect(status().isNotFound());
+
+        mockMvc.perform(get("/final-inspection-reports/{orderId}", orderId)
+                        .param("allow_absent", "true")
+                        .header("Authorization", "Bearer " + finalInspectorToken))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data").doesNotExist());
 
         mockMvc.perform(post("/final-inspection-reports")
                         .header("Authorization", "Bearer " + finalInspectorToken)

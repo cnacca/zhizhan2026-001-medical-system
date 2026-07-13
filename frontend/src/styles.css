@@ -351,19 +351,9 @@ body {
   min-height: 28px;
 }
 
-.remember-option {
-  display: inline-flex;
-  align-items: center;
-  gap: 4px;
-  color: #434654;
-  cursor: pointer;
+.login-session-note {
+  color: #737686;
   font-size: 12px;
-}
-
-.remember-option input {
-  width: 16px;
-  height: 16px;
-  accent-color: #003da6;
 }
 
 .text-link {
@@ -4307,6 +4297,13 @@ p {
   flex-direction: column;
 }
 
+.factory-drawer-flow-hint {
+  margin: 0 0 10px;
+  color: #64748b;
+  font-size: 10px;
+  line-height: 1.55;
+}
+
 .factory-drawer-timeline article {
   position: relative;
   display: flex;
@@ -5143,6 +5140,7 @@ p {
 .portal-production .factory-task-card-head b { margin-left: auto; color: #64748b; font-size: 10px; }
 .portal-production .factory-task-card h3 { margin: 16px 0 4px; color: #0f172a; font-size: 14px; }
 .portal-production .factory-task-card p { margin: 0; color: #94a3b8; font-size: 11px; }
+.portal-production .factory-task-card .factory-task-prerequisite { margin-top: 7px; color: #b45309; }
 .portal-production .factory-task-card-actions { margin-top: 16px; }
 .portal-production .factory-task-empty { padding: 44px; border: 1.5px dashed #cbd5e1; border-radius: 12px; color: #94a3b8; text-align: center; }
 

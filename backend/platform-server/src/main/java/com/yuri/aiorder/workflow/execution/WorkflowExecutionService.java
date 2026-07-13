@@ -1433,15 +1433,16 @@ public class WorkflowExecutionService {
         return loadFinalInspectionReportById(reportId);
     }
 
-    public FinalInspectionReportResponse getFinalInspectionReport(long orderId, BootstrapIdentity identity) {
+    public FinalInspectionReportResponse getFinalInspectionReport(
+            long orderId, BootstrapIdentity identity, boolean allowAbsent) {
         accessControlService.requireCheckRecordRead(identity);
-        FinalInspectionReportResponse report = findFinalInspectionReport(orderId);
-        if (report == null) {
-            throw new ResponseStatusException(HttpStatus.NOT_FOUND, "final inspection report not found");
-        }
         if (identity.role() == com.yuri.aiorder.common.UserRole.WORKER) {
             NodeRow finalNode = loadFinalNode(orderId);
             requireWorkerAssignment(finalNode, identity);
+        }
+        FinalInspectionReportResponse report = findFinalInspectionReport(orderId);
+        if (report == null && !allowAbsent) {
+            throw new ResponseStatusException(HttpStatus.NOT_FOUND, "final inspection report not found");
         }
         return report;
     }

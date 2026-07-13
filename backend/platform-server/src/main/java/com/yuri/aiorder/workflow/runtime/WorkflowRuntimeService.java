@@ -117,6 +117,7 @@ public class WorkflowRuntimeService {
                 instance.instanceId(),
                 instance.orderId(),
                 instance.instanceStatus(),
+                instance.intakeBranchUsed(),
                 loadNodes(instance.instanceId()),
                 loadEdges(instance.instanceId()));
     }
@@ -317,13 +318,25 @@ public class WorkflowRuntimeService {
         return new NodeActionResponse(nodeInstanceId, "SKIPPED");
     }
 
-    public List<MyTaskResponse> getMyTasks(BootstrapIdentity identity, String status) {
+    public List<MyTaskResponse> getMyTasks(BootstrapIdentity identity, String status, boolean finalOnly) {
         accessControlService.requireAnyRole(
                 identity, EnumSet.of(UserRole.WORKER, UserRole.ADMIN), "tasks/mine requires WORKER or ADMIN role");
         if (identity.userId() == null) {
             throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "worker user id is required");
         }
         String normalizedStatus = status == null || status.isBlank() ? null : normalize(status);
+        String finalNodeClause = finalOnly
+                ? """
+                          AND n.node_instance_id = (
+                              SELECT last_node.node_instance_id
+                              FROM order_process_node last_node
+                              JOIN order_process_instance last_instance ON last_instance.instance_id = last_node.instance_id
+                              WHERE last_instance.order_id = i.order_id
+                              ORDER BY last_node.step_order DESC, last_node.node_instance_id DESC
+                              LIMIT 1
+                          )
+                        """
+                : "";
         return jdbcClient.sql("""
                         SELECT
                             n.node_instance_id,
@@ -331,14 +344,40 @@ public class WorkflowRuntimeService {
                             o.order_no,
                             n.process_name,
                             n.node_status,
-                            n.standard_duration
+                            n.standard_duration,
+                            CASE
+                                WHEN n.node_status = 'READY'
+                                     AND (n.need_in_check = 0 OR EXISTS (
+                                         SELECT 1
+                                         FROM check_record in_check
+                                         WHERE in_check.node_instance_id = n.node_instance_id
+                                           AND in_check.check_type = 'IN'
+                                           AND in_check.result = 'PASS'
+                                     ))
+                                THEN TRUE
+                                ELSE FALSE
+                            END AS can_start,
+                            CASE
+                                WHEN n.node_status = 'READY'
+                                     AND n.need_in_check = 1
+                                     AND NOT EXISTS (
+                                         SELECT 1
+                                         FROM check_record in_check
+                                         WHERE in_check.node_instance_id = n.node_instance_id
+                                           AND in_check.check_type = 'IN'
+                                           AND in_check.result = 'PASS'
+                                     )
+                                THEN 'IN_CHECK_REQUIRED'
+                                ELSE NULL
+                            END AS start_block_reason
                         FROM order_process_node n
                         JOIN order_process_instance i ON i.instance_id = n.instance_id
                         JOIN orders o ON o.order_id = i.order_id
                         WHERE n.assigned_user_id = :userId
                           AND (:status IS NULL OR n.node_status = :status)
+                        %s
                         ORDER BY n.updated_at DESC, n.node_instance_id DESC
-                        """)
+                        """.formatted(finalNodeClause))
                 .param("userId", identity.userId())
                 .param("status", normalizedStatus)
                 .query((rs, rowNum) -> new MyTaskResponse(
@@ -347,7 +386,9 @@ public class WorkflowRuntimeService {
                         rs.getString("order_no"),
                         rs.getString("process_name"),
                         rs.getString("node_status"),
-                        rs.getObject("standard_duration", Integer.class)))
+                        rs.getObject("standard_duration", Integer.class),
+                        rs.getBoolean("can_start"),
+                        rs.getString("start_block_reason")))
                 .list();
     }
 
@@ -867,7 +908,7 @@ public class WorkflowRuntimeService {
     private InstanceRow loadInstanceByOrder(long orderId) {
         try {
             return jdbcClient.sql("""
-                            SELECT instance_id, order_id, instance_status
+                            SELECT instance_id, order_id, instance_status, intake_branch_used
                             FROM order_process_instance
                             WHERE order_id = :orderId
                             """)
@@ -875,7 +916,8 @@ public class WorkflowRuntimeService {
                     .query((rs, rowNum) -> new InstanceRow(
                             rs.getLong("instance_id"),
                             rs.getLong("order_id"),
-                            rs.getString("instance_status")))
+                            rs.getString("instance_status"),
+                            rs.getString("intake_branch_used")))
                     .single();
         } catch (EmptyResultDataAccessException ex) {
             throw new ResponseStatusException(HttpStatus.NOT_FOUND, "process instance not found", ex);
@@ -887,7 +929,7 @@ public class WorkflowRuntimeService {
         accessControlService.requireScopedIdentity(identity, dataScope);
         try {
             return jdbcClient.sql("""
-                            SELECT i.instance_id, i.order_id, i.instance_status
+                            SELECT i.instance_id, i.order_id, i.instance_status, i.intake_branch_used
                             FROM order_process_instance i
                             JOIN orders o ON o.order_id = i.order_id
                             WHERE i.order_id = :orderId
@@ -911,7 +953,8 @@ public class WorkflowRuntimeService {
                     .query((rs, rowNum) -> new InstanceRow(
                             rs.getLong("instance_id"),
                             rs.getLong("order_id"),
-                            rs.getString("instance_status")))
+                            rs.getString("instance_status"),
+                            rs.getString("intake_branch_used")))
                     .single();
         } catch (EmptyResultDataAccessException ex) {
             if (processInstanceExists(orderId)) {
@@ -979,12 +1022,38 @@ public class WorkflowRuntimeService {
                             step_order,
                             is_optional,
                             branch_group,
+                            branch_key,
                             assigned_user_id,
                             node_status,
                             standard_duration,
                             started_at,
                             deadline_at,
-                            completed_at
+                            completed_at,
+                            CASE
+                                WHEN node_status = 'READY'
+                                     AND (need_in_check = 0 OR EXISTS (
+                                         SELECT 1
+                                         FROM check_record in_check
+                                         WHERE in_check.node_instance_id = order_process_node.node_instance_id
+                                           AND in_check.check_type = 'IN'
+                                           AND in_check.result = 'PASS'
+                                     ))
+                                THEN TRUE
+                                ELSE FALSE
+                            END AS can_start,
+                            CASE
+                                WHEN node_status = 'READY'
+                                     AND need_in_check = 1
+                                     AND NOT EXISTS (
+                                         SELECT 1
+                                         FROM check_record in_check
+                                         WHERE in_check.node_instance_id = order_process_node.node_instance_id
+                                           AND in_check.check_type = 'IN'
+                                           AND in_check.result = 'PASS'
+                                     )
+                                THEN 'IN_CHECK_REQUIRED'
+                                ELSE NULL
+                            END AS start_block_reason
                         FROM order_process_node
                         WHERE instance_id = :instanceId
                         ORDER BY step_order, node_instance_id
@@ -998,12 +1067,15 @@ public class WorkflowRuntimeService {
                         rs.getInt("step_order"),
                         rs.getInt("is_optional"),
                         rs.getString("branch_group"),
+                        rs.getString("branch_key"),
                         rs.getObject("assigned_user_id", Long.class),
                         rs.getString("node_status"),
                         rs.getObject("standard_duration", Integer.class),
                         rs.getObject("started_at", java.time.LocalDateTime.class),
                         rs.getObject("deadline_at", java.time.LocalDateTime.class),
-                        rs.getObject("completed_at", java.time.LocalDateTime.class)))
+                        rs.getObject("completed_at", java.time.LocalDateTime.class),
+                        rs.getBoolean("can_start"),
+                        rs.getString("start_block_reason")))
                 .list();
     }
 
@@ -1034,7 +1106,7 @@ public class WorkflowRuntimeService {
     private record ChainRow(long chainId, int version) {
     }
 
-    private record InstanceRow(long instanceId, long orderId, String instanceStatus) {
+    private record InstanceRow(long instanceId, long orderId, String instanceStatus, String intakeBranchUsed) {
     }
 
     private record NodeRow(

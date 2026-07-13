@@ -2,8 +2,9 @@ import fs from 'node:fs/promises'
 import os from 'node:os'
 import path from 'node:path'
 import { expect, test } from '@playwright/test'
+import { assertIsolatedSmokeTarget } from './assert-isolated-smoke-target.mjs'
 
-const frontendUrl = process.env.TASK9D10_FRONTEND_URL ?? 'http://127.0.0.1:5173'
+const frontendUrl = process.env.TASK9D10_FRONTEND_URL
 const username = process.env.TASK9D10_DOCTOR_USERNAME ?? 'doctor'
 const password = process.env.TASK9D10_DOCTOR_PASSWORD ?? 'change-me-doctor'
 const uploadSizeBytes = Number(process.env.TASK9D10_UPLOAD_SIZE_BYTES ?? 105 * 1024 * 1024)
@@ -12,6 +13,16 @@ const browserChannel = process.env.TASK9D10_BROWSER_CHANNEL ?? 'chrome'
 
 if (!Number.isFinite(uploadSizeBytes) || uploadSizeBytes <= 0) {
   throw new Error('TASK9D10_UPLOAD_SIZE_BYTES must be a positive number')
+}
+
+function requireIsolatedTestEnvironment() {
+  assertIsolatedSmokeTarget({
+    isolatedEnv: process.env.TASK9D10_ISOLATED_ENV,
+    isolatedEnvVariable: 'TASK9D10_ISOLATED_ENV',
+    frontendUrl,
+    frontendUrlVariable: 'TASK9D10_FRONTEND_URL',
+    taskLabel: 'Task 9D.10 large-upload smoke'
+  })
 }
 
 const uploadSizeMb = uploadSizeBytes / 1024 / 1024
@@ -79,6 +90,7 @@ test.describe('Task 9D.10 large browser upload smoke', () => {
   test.setTimeout(timeoutMs + 60_000)
 
   test('uploads a 100MB+ doctor attachment through the browser multipart path', async ({ page }) => {
+    requireIsolatedTestEnvironment()
     if (uploadSizeBytes < 100 * 1024 * 1024) {
       console.warn(`warning: upload size is ${uploadSizeMb.toFixed(1)}MB; formal Task 9D.10 smoke should use 100MB+`)
     }

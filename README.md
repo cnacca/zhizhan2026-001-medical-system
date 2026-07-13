@@ -390,7 +390,7 @@ npm run build:frontend
 npm run compose:config
 ```
 
-说明：`npm run test:backend` 会加载 Spring Boot 上下文并执行 Flyway 校验，运行前需要本地 MySQL 可用。`npm run smoke:task9d62` 需要本地后端、前端、基础服务和系统 Chrome 可用，当前默认会追加本地测试订单、工序实例、检查记录和工时记录，并验证 12 步主链路入口可达，不会清理数据。三条 `smoke:task9d10-*` 命令需要本地后端、前端、MySQL、Redis、MinIO 和系统 Chrome 可用；它们会追加本地测试订单/文件，不会清理数据。
+说明：`npm run test:backend` 会加载 Spring Boot 上下文并执行 Flyway 校验。首次运行前执行 `scripts/ensure-test-database.sh`；测试固定使用仅获授权访问 `*_test` 库的 `ai_order_test` 账号、Redis DB 15 和测试 MinIO bucket，启动时还会拒绝非测试库、Redis DB 或 bucket。`npm run smoke:task9d62` 会创建完整订单链路，只允许在明确标记的独立环境运行：须设置 `TASK9D62_ISOLATED_ENV=true` 和 `TASK9D62_FRONTEND_URL`，否则会在写入前退出。三条 `smoke:task9d10-*` 会追加订单/文件，须设置 `TASK9D10_ISOLATED_ENV=true` 和 `TASK9D10_FRONTEND_URL`；`smoke:task9d77-file-upload-resilience` 须设置 `TASK9D77_ISOLATED_ENV=true` 和 `TASK9D77_FRONTEND_URL`。这些命令均不会清理数据，缺少独立环境标记、地址或仍指向共享本地端口时会在写入前退出。
 
 任务 9A/9B 权限专项回归：
 

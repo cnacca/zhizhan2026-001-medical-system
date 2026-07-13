@@ -7,6 +7,7 @@ public record ProcessInstanceResponse(
         @JsonProperty("instance_id") long instanceId,
         @JsonProperty("order_id") long orderId,
         @JsonProperty("instance_status") String instanceStatus,
+        @JsonProperty("intake_branch_used") String intakeBranchUsed,
         List<ProcessNodeResponse> nodes,
         List<ProcessEdgeResponse> edges) {
 }

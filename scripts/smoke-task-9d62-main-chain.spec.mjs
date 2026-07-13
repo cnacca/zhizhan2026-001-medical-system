@@ -1,9 +1,20 @@
 import { expect, test } from '@playwright/test'
+import { assertIsolatedSmokeTarget } from './assert-isolated-smoke-target.mjs'
 
-const frontendUrl = process.env.TASK9D62_FRONTEND_URL ?? 'http://127.0.0.1:5173'
+const frontendUrl = process.env.TASK9D62_FRONTEND_URL ?? ''
 const browserChannel = process.env.TASK9D62_BROWSER_CHANNEL ?? 'chrome'
 const timeoutMs = Number(process.env.TASK9D62_TIMEOUT_MS ?? 120_000)
 const dataMode = process.env.TASK9D62_DATA_MODE ?? 'fixed-demo-first-three'
+
+function requireIsolatedTestEnvironment() {
+  assertIsolatedSmokeTarget({
+    isolatedEnv: process.env.TASK9D62_ISOLATED_ENV,
+    isolatedEnvVariable: 'TASK9D62_ISOLATED_ENV',
+    frontendUrl,
+    frontendUrlVariable: 'TASK9D62_FRONTEND_URL',
+    taskLabel: 'Task 9D.62 main-chain smoke'
+  })
+}
 
 const credentials = {
   DOCTOR: {
@@ -874,6 +885,7 @@ test.describe('Task 9D.62 phase-one main-chain browser smoke', () => {
   test.setTimeout(timeoutMs)
 
   test('visits the 12 PRD/TRD main-chain browser entry points', async ({ browser }) => {
+    requireIsolatedTestEnvironment()
     await assertReachable()
     await prepareFixedDemoFirstThreeSteps()
 

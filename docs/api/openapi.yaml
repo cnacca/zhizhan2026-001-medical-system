@@ -2371,6 +2371,9 @@ components:
         branch_group:
           type: string
           nullable: true
+        branch_key:
+          type: string
+          nullable: true
         assigned_user_id:
           type: integer
           nullable: true
@@ -2385,6 +2388,15 @@ components:
         standard_duration:
           type: integer
           nullable: true
+        can_start:
+          type: boolean
+          description: 当前节点是否满足开工前置条件。
+        start_block_reason:
+          type: string
+          nullable: true
+          enum:
+          - IN_CHECK_REQUIRED
+          description: 开工受阻原因；IN_CHECK_REQUIRED 表示需先完成入检并通过。
     ProcessEdgeInstance:
       type: object
       properties:
@@ -2405,6 +2417,12 @@ components:
           type: integer
         instance_status:
           type: string
+        intake_branch_used:
+          type: string
+          nullable: true
+          enum:
+          - IMPRESSION
+          - SCAN
         nodes:
           type: array
           items:
@@ -5621,6 +5639,13 @@ paths:
           - READY
           - IN_PROGRESS
           - COMPLETED
+      - name: final_only
+        in: query
+        required: false
+        description: 传 true 时仅返回当前员工被分配的订单最后一道工序节点，供终检处理入口使用。
+        schema:
+          type: boolean
+          default: false
       responses:
         '200':
           description: 我的任务列表
@@ -5646,6 +5671,15 @@ paths:
                           type: string
                         standard_duration:
                           type: integer
+                        can_start:
+                          type: boolean
+                          description: 当前任务是否满足开工前置条件。
+                        start_block_reason:
+                          type: string
+                          nullable: true
+                          enum:
+                          - IN_CHECK_REQUIRED
+                          description: 开工受阻原因；IN_CHECK_REQUIRED 表示需先完成入检并通过。
         '400':
           "$ref": "#/components/responses/BadRequest"
         '401':
@@ -6901,6 +6935,13 @@ paths:
         required: true
         schema:
           type: integer
+      - name: allow_absent
+        in: query
+        required: false
+        description: 传 true 且报告尚未生成时返回 200 / data=null；未传时保持 404。
+        schema:
+          type: boolean
+          default: false
       responses:
         '200':
           description: 终检报告
@@ -6912,7 +6953,10 @@ paths:
                 - type: object
                   properties:
                     data:
-                      "$ref": "#/components/schemas/FinalInspectionReportResponse"
+                      type: object
+                      nullable: true
+                      allOf:
+                      - "$ref": "#/components/schemas/FinalInspectionReportResponse"
         '400':
           "$ref": "#/components/responses/BadRequest"
         '401':
