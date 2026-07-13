@@ -1307,10 +1307,16 @@ const notificationError = ref('')
 const notificationSocketStatus = ref<'未连接' | '连接中' | '已连接' | '已断开'>('未连接')
 const lastRealtimeNotification = ref<PushNotificationPayload | null>(null)
 const notificationSocket = ref<WebSocket | null>(null)
+const accountMenuVisible = ref(false)
 const doctorOrders = ref<DoctorOrderItem[]>([])
 const selectedDoctorOrder = ref<DoctorOrderItem | null>(null)
 const doctorOrderWorkspace = ref<DoctorOrderWorkspace | null>(null)
 const doctorOrderKeyword = ref('')
+const doctorGlobalSearch = ref('')
+const doctorOrderFilterVisible = ref(true)
+const doctorOrderStatusFilter = ref('')
+const doctorOrderProductFilter = ref('')
+const doctorOrderListDetailVisible = ref(false)
 const doctorPatients = ref<PatientRecord[]>([])
 const selectedDoctorPatient = ref<PatientRecord | null>(null)
 const doctorPatientOrders = ref<PatientOrderItem[]>([])
@@ -1319,6 +1325,8 @@ const doctorPatientsLoading = ref(false)
 const doctorPatientError = ref('')
 const doctorPatientCreateLoading = ref(false)
 const doctorPatientCreateResult = ref('')
+const doctorPatientCreateVisible = ref(false)
+const doctorPatientDetailVisible = ref(false)
 const doctorPatientName = ref('')
 const doctorPatientAge = ref<number | null>(null)
 const doctorPatientGender = ref('UNKNOWN')
@@ -2198,7 +2206,7 @@ const placeholderContentMap: Record<string, PlaceholderContentItem[]> = {
   ],
   'doctor-account-notifications': [
     { title: '通知偏好', detail: '设置设计稿确认、账单、物流和收货提醒。', tone: 'blue' },
-    { title: '消息渠道', detail: '后续接入短信、邮件或企业微信前先保留占位。', tone: 'sky' }
+    { title: '消息渠道', detail: '短信、邮件或企业微信将在对应服务开放后启用。', tone: 'sky' }
   ],
   'doctor-account-security': [
     { title: '密码安全', detail: '维护密码、登录记录和账号安全提醒。', tone: 'blue' },
@@ -2992,6 +3000,33 @@ const isDoctorPatientsRoute = computed(() => activeRoute.value === '/doctor/pati
 const isClinicManagementRoute = computed(() => activeRoute.value === '/customers' || activeRoute.value === '/admin/clinics')
 const isDoctorClinicRoute = computed(() => activeRoute.value === '/doctor/account/clinic')
 const isDoctorAccountSettingsRoute = computed(() => activeRoute.value === '/doctor/account/settings')
+const isDoctorPortalClone = computed(() => portalTone.value === 'doctor' && activeRoute.value !== '/dashboard')
+const isDoctorOrderCreateMode = computed(() => isDoctorPortalClone.value && activeRoute.value === '/doctor/orders' && activeDoctorOrderSection.value === 'create')
+const visibleDoctorOrders = computed(() => doctorOrders.value.filter((order) => {
+  const statusMatches = !doctorOrderStatusFilter.value || order.external_status === doctorOrderStatusFilter.value
+  const productMatches = !doctorOrderProductFilter.value || order.product_type === doctorOrderProductFilter.value
+  return statusMatches && productMatches
+}))
+const doctorOrderStatusOptions = computed(() => [...new Set(doctorOrders.value.map((order) => order.external_status))])
+const doctorOrderProductOptions = computed(() => [...new Set(doctorOrders.value.map((order) => order.product_type))])
+const doctorPortalTopbarTitle = computed(() => {
+  if (activeRoute.value === '/doctor/orders') {
+    return activeDoctorOrderSection.value === 'create' ? '新建订单'
+      : activeDoctorOrderSection.value === 'design' ? '设计稿确认'
+        : activeDoctorOrderSection.value === 'bill' ? '账单物流'
+          : activeDoctorOrderSection.value === 'messages' ? '沟通留言'
+            : activeDoctorOrderSection.value === 'ai' ? '订单助手' : '我的订单'
+  }
+  if (activeRoute.value === '/doctor/patients') return '患者管理'
+  if (activeRoute.value === '/doctor/account/settings') return '账户设置'
+  if (activeRoute.value === '/doctor/account/clinic') return '诊所信息'
+  if (activeRoute.value === '/doctor/account/members') return '医生 / 成员账号'
+  if (activeRoute.value === '/doctor/account/notifications') return '通知偏好'
+  if (activeRoute.value === '/doctor/account/security') return '密码安全'
+  if (activeRoute.value === '/collaboration') return '消息中心'
+  if (activeRoute.value === '/notifications') return '通知中心'
+  return routeChrome.value.title
+})
 const isInternalOrdersRoute = computed(() => activeRoute.value === '/orders/internal')
 const isCustomerCollaborationRoute = computed(() => activeRoute.value === '/collaboration')
 const canReviewCustomerCollaboration = computed(() => currentUser.value?.roles.some((role) => ['CS', 'ADMIN'].includes(role)) ?? false)
@@ -4406,6 +4441,11 @@ function navigateToRoute(routePath: string) {
     void loadDoctorAccountSettings()
   } else if (routePath === '/doctor/account/clinic') {
     void loadDoctorClinicPreference()
+  } else if (routePath === '/collaboration') {
+    void loadCustomerCollaborationPage()
+    if (portalTone.value === 'doctor') {
+      void loadDoctorCollaboration()
+    }
   } else if (routePath === '/orders/internal') {
     void loadInternalOrders()
   } else if (routePath === '/workflow/review') {
@@ -4475,6 +4515,7 @@ function runCsPortalGlobalSearch() {
 }
 
 function selectDisplayNavigationItem(item: DisplayNavigationItem | BusinessShortcut) {
+  accountMenuVisible.value = false
   activeNavId.value = item.id
   if (item.doctorSection) {
     activeDoctorOrderSection.value = item.doctorSection
@@ -4485,6 +4526,26 @@ function selectDisplayNavigationItem(item: DisplayNavigationItem | BusinessShort
   if (item.routePath) {
     navigateToRoute(item.routePath)
   }
+}
+
+function runDoctorGlobalSearch() {
+  const keyword = doctorGlobalSearch.value.trim()
+  if (activeRoute.value === '/doctor/patients') {
+    doctorPatientKeyword.value = keyword
+    void loadDoctorPatients()
+    return
+  }
+  doctorOrderKeyword.value = keyword
+  activeDoctorOrderSection.value = 'list'
+  activeDoctorDetailTab.value = 'info'
+  activeNavId.value = 'doctor-order-list'
+  navigateToRoute('/doctor/orders')
+}
+
+function openDoctorOrderCreate() {
+  activeDoctorOrderSection.value = 'create'
+  activeNavId.value = 'doctor-order-create'
+  navigateToRoute('/doctor/orders')
 }
 
 function selectSubMenuNavigationItem(item: DisplayNavigationItem, event: MouseEvent) {
@@ -4740,6 +4801,7 @@ async function selectDoctorPatient(patient: PatientRecord) {
   selectedDoctorPatient.value = patient
   selectedDoctorPatientId.value = patient.patient_id
   await loadDoctorPatientOrders(patient.patient_id)
+  doctorPatientDetailVisible.value = true
 }
 
 async function createDoctorPatient() {
@@ -4767,6 +4829,8 @@ async function createDoctorPatient() {
     selectedDoctorPatient.value = payload.data
     selectedDoctorPatientId.value = payload.data.patient_id
     await loadDoctorPatients()
+    doctorPatientCreateVisible.value = false
+    doctorPatientDetailVisible.value = true
   } catch (error) {
     doctorPatientError.value = error instanceof Error ? error.message : '患者档案创建失败'
   } finally {
@@ -5844,6 +5908,57 @@ async function loadDoctorOrderWorkspace(orderId: number) {
   }
 }
 
+async function openDoctorOrderListDetail(orderId: number) {
+  await loadDoctorOrderWorkspace(orderId)
+  if (doctorOrderWorkspace.value) {
+    doctorOrderListDetailVisible.value = true
+  }
+}
+
+function showDoctorOrderSection(section: string, detailTab: string) {
+  activeDoctorOrderSection.value = section
+  activeDoctorDetailTab.value = detailTab
+  activeNavId.value = {
+    create: 'doctor-order-create',
+    list: 'doctor-order-list',
+    design: 'doctor-order-design',
+    bill: 'doctor-order-bill',
+    messages: 'doctor-order-message',
+    ai: 'doctor-ai'
+  }[section] ?? 'doctor-orders'
+  doctorOrderListDetailVisible.value = false
+}
+
+function resetDoctorOrderFilters() {
+  doctorOrderStatusFilter.value = ''
+  doctorOrderProductFilter.value = ''
+  doctorOrderKeyword.value = ''
+  void loadDoctorOrders()
+}
+
+function doctorOrderPatientLabel(order: DoctorOrderItem) {
+  const value = order.form_data?.patient_name ?? order.form_data?.patient ?? order.form_data?.patientName
+  if (typeof value === 'string' && value.trim()) {
+    return value
+  }
+  return order.patient_id ? `患者 #${order.patient_id}` : '未绑定患者'
+}
+
+function doctorFieldLabel(key: string) {
+  const labels: Record<string, string> = {
+    patient_name: '患者姓名',
+    patientName: '患者姓名',
+    patient: '患者姓名',
+    tooth_position: '牙位',
+    toothPosition: '牙位',
+    material: '材料',
+    shade: '色号',
+    doctor_note: '医生备注',
+    acceptance_marker: '业务标记'
+  }
+  return labels[key] ?? key.replaceAll('_', ' ')
+}
+
 function designDraftFileIds(draft: DesignDraftItem) {
   if (draft.file_ids?.length) {
     return draft.file_ids
@@ -6320,6 +6435,20 @@ async function loadCustomerCollaborationPage() {
   }
   if (customerCollaborationOrderId.value.trim()) {
     await loadCustomerCollaborationOrderMessages()
+  }
+}
+
+async function openDoctorCollaborationOrder(order: DoctorOrderItem) {
+  selectedDoctorOrder.value = order
+  customerCollaborationOrderId.value = String(order.order_id)
+  await loadCustomerCollaborationOrderMessages()
+}
+
+async function loadDoctorCollaboration() {
+  await loadDoctorOrders()
+  const order = selectedDoctorOrder.value ?? doctorOrders.value[0]
+  if (order) {
+    await openDoctorCollaborationOrder(order)
   }
 }
 
@@ -8433,12 +8562,30 @@ onBeforeUnmount(() => {
       { 'factory-orders-mode': isProductionOrdersView },
       { 'cs-reference-mode': portalTone === 'cs' && activeRoute !== '/dashboard' },
       portalTone === 'cs' && activeDisplayItem ? `cs-page-${activeDisplayItem.id}` : '',
+      { 'doctor-portal-clone': isDoctorPortalClone },
+      { 'doctor-order-create-mode': isDoctorOrderCreateMode },
       isLoggedIn ? `portal-${portalTone}` : ''
     ]"
+    :data-doctor-route="isDoctorPortalClone ? activeRoute : undefined"
   >
     <section class="workspace" :class="{ 'login-workspace': !isLoggedIn }">
       <div v-if="isLoggedIn" class="status-bar">
-        <div v-if="isProductionReferenceView" class="factory-sync-banner">
+        <template v-if="isDoctorPortalClone">
+          <div class="doctor-clone-topbar-title">{{ doctorPortalTopbarTitle }}</div>
+          <form v-if="!isDoctorOrderCreateMode" class="doctor-clone-global-search" @submit.prevent="runDoctorGlobalSearch">
+            <span aria-hidden="true">⌕</span>
+            <input v-model="doctorGlobalSearch" type="search" placeholder="搜索订单、患者……" aria-label="全局搜索">
+          </form>
+          <div class="doctor-clone-topbar-actions">
+            <button v-if="!isDoctorOrderCreateMode" class="doctor-clone-icon-button" type="button" title="打开通知中心" @click="navigateToRoute('/notifications')">
+              <span aria-hidden="true">🔔</span><i v-if="hasUnreadNotifications" />
+            </button>
+            <button v-if="!isDoctorOrderCreateMode" class="doctor-clone-icon-button" type="button" title="联系实验室客服" @click="navigateToRoute('/collaboration')">?</button>
+            <button v-if="!isDoctorOrderCreateMode" class="doctor-clone-primary-button" type="button" @click="openDoctorOrderCreate">＋ 新建订单</button>
+            <button v-else class="doctor-clone-close-button" type="button" @click="showDoctorOrderSection('list', 'info')">关闭 ×</button>
+          </div>
+        </template>
+        <div v-else-if="isProductionReferenceView" class="factory-sync-banner">
           生产同步 · {{ productionBoardKanbanCards.length }} 个生产订单 · 医生待确认 {{ productionBoardKanbanCards.filter((card) => card.risk === 'confirm').length }} 个
         </div>
         <div v-else>
@@ -8460,6 +8607,7 @@ onBeforeUnmount(() => {
             </div>
           </div>
           <el-popover
+            v-model:visible="accountMenuVisible"
             placement="right-start"
             trigger="click"
             width="330"
@@ -11144,8 +11292,13 @@ onBeforeUnmount(() => {
 
         <section v-else-if="isDoctorPatientsRoute" class="panel route-panel doctor-order-panel">
           <div class="route-heading">
-            <h2>患者管理</h2>
-            <el-tag round>{{ doctorPatients.length }} 位</el-tag>
+            <div>
+              <h2>患者管理</h2>
+              <p>查看当前医生有权访问的患者档案与历史订单。</p>
+            </div>
+            <el-button type="primary" data-testid="doctor-patient-open-create" @click="doctorPatientCreateVisible = true">
+              ＋ 新建患者
+            </el-button>
           </div>
 
           <div class="doctor-order-toolbar">
@@ -11168,96 +11321,79 @@ onBeforeUnmount(() => {
             :closable="false"
           />
 
-          <div class="doctor-order-workspace">
-            <aside class="doctor-order-list">
-              <button
-                v-for="patient in doctorPatients"
-                :key="patient.patient_id"
-                class="doctor-order-row"
-                :class="{ active: selectedDoctorPatient?.patient_id === patient.patient_id }"
-                type="button"
-                @click="selectDoctorPatient(patient)"
-              >
-                <strong>{{ patient.patient_name }}</strong>
-                <span>{{ patient.patient_gender ?? 'UNKNOWN' }} / {{ patient.patient_age ?? '-' }} 岁</span>
-                <small>历史订单 {{ patient.order_count }} 单</small>
-              </button>
-              <div v-if="doctorPatients.length === 0" class="empty-state">
-                暂无患者档案
-              </div>
-            </aside>
+          <section class="doctor-reference-table-card" data-testid="doctor-patient-table-card">
+            <div class="doctor-reference-filter-row">
+              <button class="doctor-reference-filter active" type="button">全部患者</button>
+              <button class="doctor-reference-filter" type="button" disabled title="患者治疗状态能力开放后启用">治疗中</button>
+              <button class="doctor-reference-filter" type="button" disabled title="患者治疗状态能力开放后启用">治疗结束</button>
+              <span>共 {{ doctorPatients.length }} 位患者</span>
+            </div>
+            <div v-if="doctorPatients.length === 0" class="empty-state">暂无患者档案</div>
+            <div v-else class="doctor-reference-table-scroll">
+              <table class="doctor-reference-table">
+                <thead>
+                  <tr>
+                    <th>患者姓名</th><th>性别 / 年龄</th><th>口腔情况</th><th>历史订单</th><th>建档时间</th><th>最近订单</th><th></th>
+                  </tr>
+                </thead>
+                <tbody>
+                  <tr v-for="patient in doctorPatients" :key="patient.patient_id" @click="selectDoctorPatient(patient)">
+                    <td><strong>{{ patient.patient_name }}</strong><small>#{{ patient.patient_id }}</small></td>
+                    <td>{{ patient.patient_gender === 'MALE' ? '男' : patient.patient_gender === 'FEMALE' ? '女' : '未填写' }} / {{ patient.patient_age ?? '未填写' }}</td>
+                    <td>{{ patient.oral_description || '暂无口腔情况记录' }}</td>
+                    <td><span class="doctor-reference-badge blue">{{ patient.order_count }} 单</span></td>
+                    <td>{{ compactDateTime(patient.created_at) }}</td>
+                    <td>{{ patient.latest_order_at ? compactDateTime(patient.latest_order_at) : '暂无订单' }}</td>
+                    <td><el-button size="small" plain @click.stop="selectDoctorPatient(patient)">查看 →</el-button></td>
+                  </tr>
+                </tbody>
+              </table>
+            </div>
+          </section>
 
-            <section class="doctor-order-detail">
-              <div class="subheading-row">
-                <h3>新建患者档案</h3>
-                <el-tag v-if="doctorPatientCreateResult" type="success" round>{{ doctorPatientCreateResult }}</el-tag>
-              </div>
-              <div class="order-create-grid">
-                <el-form-item label="患者姓名">
-                  <el-input v-model="doctorPatientName" data-testid="doctor-patient-name-input" />
-                </el-form-item>
-                <el-form-item label="年龄">
-                  <el-input-number v-model="doctorPatientAge" :min="0" :max="130" />
-                </el-form-item>
-                <el-form-item label="性别">
-                  <el-select v-model="doctorPatientGender">
-                    <el-option label="未知" value="UNKNOWN" />
-                    <el-option label="男" value="MALE" />
-                    <el-option label="女" value="FEMALE" />
-                  </el-select>
-                </el-form-item>
-              </div>
-              <el-form-item label="口腔情况">
-                <el-input
-                  v-model="doctorPatientOralDescription"
-                  type="textarea"
-                  :rows="2"
-                  placeholder="记录一期基础患者口腔描述"
-                />
+          <el-dialog v-model="doctorPatientCreateVisible" title="新建患者档案" width="620px" class="doctor-reference-dialog">
+            <el-alert v-if="doctorPatientError" :title="doctorPatientError" type="error" show-icon :closable="false" />
+            <div class="order-create-grid">
+              <el-form-item label="患者姓名"><el-input v-model="doctorPatientName" data-testid="doctor-patient-name-input" /></el-form-item>
+              <el-form-item label="年龄"><el-input-number v-model="doctorPatientAge" :min="0" :max="130" /></el-form-item>
+              <el-form-item label="性别">
+                <el-select v-model="doctorPatientGender"><el-option label="未知" value="UNKNOWN" /><el-option label="男" value="MALE" /><el-option label="女" value="FEMALE" /></el-select>
               </el-form-item>
-              <div class="inline-actions">
-                <el-button
-                  type="primary"
-                  :loading="doctorPatientCreateLoading"
-                  :disabled="!doctorPatientName.trim()"
-                  data-testid="doctor-patient-create-button"
-                  @click="createDoctorPatient"
-                >
-                  创建患者
-                </el-button>
-              </div>
+              <el-form-item label="口腔情况">
+                <el-input v-model="doctorPatientOralDescription" type="textarea" :rows="3" placeholder="记录基础患者口腔描述" />
+              </el-form-item>
+            </div>
+            <template #footer>
+              <el-button @click="doctorPatientCreateVisible = false">取消</el-button>
+              <el-button type="primary" :loading="doctorPatientCreateLoading" :disabled="!doctorPatientName.trim()" data-testid="doctor-patient-create-button" @click="createDoctorPatient">创建患者</el-button>
+            </template>
+          </el-dialog>
 
-              <div v-if="selectedDoctorPatient" class="doctor-order-summary">
-                <div>
-                  <span>当前患者</span>
-                  <strong>{{ selectedDoctorPatient.patient_name }}</strong>
-                </div>
-                <div>
-                  <span>历史订单</span>
-                  <strong>{{ selectedDoctorPatient.order_count }} 单</strong>
-                </div>
-                <div>
-                  <span>最近订单</span>
-                  <strong>{{ selectedDoctorPatient.latest_order_at ?? '-' }}</strong>
-                </div>
+          <el-drawer v-model="doctorPatientDetailVisible" size="500px" class="doctor-reference-drawer">
+            <template #header><h3>{{ selectedDoctorPatient?.patient_name || '患者详情' }}</h3></template>
+            <div v-if="selectedDoctorPatient" class="doctor-patient-drawer-content">
+              <div class="doctor-order-summary">
+                <div><span>患者编号</span><strong>#{{ selectedDoctorPatient.patient_id }}</strong></div>
+                <div><span>性别 / 年龄</span><strong>{{ selectedDoctorPatient.patient_gender === 'MALE' ? '男' : selectedDoctorPatient.patient_gender === 'FEMALE' ? '女' : '未填写' }} / {{ selectedDoctorPatient.patient_age ?? '未填写' }}</strong></div>
+                <div><span>历史订单</span><strong>{{ selectedDoctorPatient.order_count }} 单</strong></div>
+                <div><span>最近订单</span><strong>{{ selectedDoctorPatient.latest_order_at ? compactDateTime(selectedDoctorPatient.latest_order_at) : '暂无订单' }}</strong></div>
               </div>
-
+              <p class="public-message">{{ selectedDoctorPatient.oral_description || '暂未记录口腔情况。' }}</p>
+              <div class="subheading-row"><h3>历史订单</h3><el-tag round>{{ doctorPatientOrders.length }} 单</el-tag></div>
               <div class="compact-list">
-                <article v-for="order in doctorPatientOrders" :key="order.order_id">
-                  <strong>{{ order.order_no }} / {{ statusLabel(order.external_status) }}</strong>
-                  <p>{{ productTypeLabel(order.product_type) }} / {{ order.created_at }}</p>
-                </article>
-                <div v-if="selectedDoctorPatient && doctorPatientOrders.length === 0" class="empty-state">
-                  该患者暂无历史订单
-                </div>
+                <article v-for="order in doctorPatientOrders" :key="order.order_id"><strong>{{ order.order_no }} / {{ statusLabel(order.external_status) }}</strong><p>{{ productTypeLabel(order.product_type) }} / {{ compactDateTime(order.created_at) }}</p></article>
+                <div v-if="doctorPatientOrders.length === 0" class="empty-state">该患者暂无历史订单</div>
               </div>
-            </section>
-          </div>
+            </div>
+          </el-drawer>
         </section>
 
         <section v-else-if="isDoctorOrderRoute" class="panel route-panel doctor-order-panel">
           <div class="route-heading">
-            <h2>医生订单工作台</h2>
+            <div>
+              <h2>{{ activeDoctorOrderSection === 'create' ? '新建订单' : activeDoctorOrderSection === 'design' ? '设计稿确认' : activeDoctorOrderSection === 'bill' ? '账单物流' : activeDoctorOrderSection === 'messages' ? '沟通留言' : activeDoctorOrderSection === 'ai' ? '订单助手' : '我的订单' }}</h2>
+              <p>{{ activeDoctorOrderSection === 'create' ? '按真实动态表单提交病例资料与附件。' : '查看医生权限范围内的订单、公开进度与外部协作信息。' }}</p>
+            </div>
             <el-tag round>{{ doctorOrders.length }} 单</el-tag>
           </div>
 
@@ -11318,11 +11454,11 @@ onBeforeUnmount(() => {
                   />
                 </el-select>
               </el-form-item>
-              <el-form-item label="附件 file_id">
+              <el-form-item label="已上传附件编号（可选）">
                 <el-input
                   v-model="doctorOrderFileIds"
                   data-testid="doctor-order-file-ids-input"
-                  placeholder="已完成 file_id，逗号分隔"
+                  placeholder="输入已完成上传的附件编号，多个编号用逗号分隔"
                 />
               </el-form-item>
               <el-form-item label="选择附件">
@@ -11362,7 +11498,7 @@ onBeforeUnmount(() => {
                 type="success"
                 round
               >
-                file_id {{ fileId }}
+                附件编号 {{ fileId }}
               </el-tag>
             </div>
             <div class="dynamic-form-grid">
@@ -11416,7 +11552,7 @@ onBeforeUnmount(() => {
             <el-alert
               v-if="doctorPreSubmitMissingComplete !== null"
               data-testid="doctor-order-missing-alert"
-              :title="doctorPreSubmitMissingComplete ? 'AI-4 资料缺失检查：当前必填资料完整' : 'AI-4 资料缺失检查：请先补齐必填资料后再提交'"
+              :title="doctorPreSubmitMissingComplete ? '智能资料检查：当前必填资料完整' : '智能资料检查：请先补齐必填资料后再提交'"
               :type="doctorPreSubmitMissingComplete ? 'success' : 'warning'"
               show-icon
               :closable="false"
@@ -11480,7 +11616,45 @@ onBeforeUnmount(() => {
             <el-button type="primary" :loading="doctorOrdersLoading" @click="loadDoctorOrders">
               查询
             </el-button>
+            <el-button v-if="activeDoctorOrderSection === 'list'" plain @click="doctorOrderFilterVisible = !doctorOrderFilterVisible">
+              ⚙ 筛选
+            </el-button>
           </div>
+
+          <section v-show="activeDoctorOrderSection === 'list' && doctorOrderFilterVisible" class="doctor-reference-filter-panel">
+            <div class="subheading-row"><h3>筛选订单</h3><el-button size="small" plain @click="resetDoctorOrderFilters">清空筛选</el-button></div>
+            <div class="doctor-reference-filter-grid">
+              <el-form-item label="外部状态">
+                <el-select v-model="doctorOrderStatusFilter" clearable placeholder="全部状态">
+                  <el-option v-for="status in doctorOrderStatusOptions" :key="status" :label="statusLabel(status)" :value="status" />
+                </el-select>
+              </el-form-item>
+              <el-form-item label="产品类型">
+                <el-select v-model="doctorOrderProductFilter" clearable placeholder="全部产品">
+                  <el-option v-for="product in doctorOrderProductOptions" :key="product" :label="productTypeLabel(product)" :value="product" />
+                </el-select>
+              </el-form-item>
+              <el-form-item label="医生">
+                <el-input model-value="当前登录医生" disabled title="医生端仅查询本人数据" />
+              </el-form-item>
+              <el-form-item label="订单标签">
+                <el-select disabled placeholder="订单标签能力开放后启用" />
+              </el-form-item>
+              <el-form-item label="创建日期">
+                <el-input model-value="日期筛选能力开放后启用" disabled />
+              </el-form-item>
+              <el-form-item label="交付日期">
+                <el-input model-value="日期筛选能力开放后启用" disabled />
+              </el-form-item>
+            </div>
+            <div class="doctor-reference-quick-filters" aria-label="快捷筛选">
+              <button type="button" disabled title="日期筛选能力开放后启用">今日到期</button>
+              <button type="button" disabled title="日期筛选能力开放后启用">明日到期</button>
+              <button type="button" disabled title="日期筛选能力开放后启用">本周到期</button>
+              <button type="button" @click="showDoctorOrderSection('design', 'design')">待确认设计</button>
+              <button type="button" @click="showDoctorOrderSection('messages', 'messages')">待回复</button>
+            </div>
+          </section>
 
           <el-alert
             v-if="doctorOrderError"
@@ -11490,7 +11664,45 @@ onBeforeUnmount(() => {
             :closable="false"
           />
 
-          <div v-show="activeDoctorOrderSection !== 'create'" class="doctor-order-workspace">
+          <section v-show="activeDoctorOrderSection === 'bill'" class="doctor-billing-reference-summary">
+            <article><span>本月账单</span><strong>—</strong><small>汇总接口开放后显示</small></article>
+            <article><span>待付款</span><strong>—</strong><small>按真实账单统计</small></article>
+            <article><span>逾期</span><strong>—</strong><small>按付款规则判断</small></article>
+            <article><span>已付款</span><strong>—</strong><small>按真实收款流水统计</small></article>
+            <article><span>账户余额</span><strong>—</strong><small>余额能力开放后显示</small></article>
+            <p>当前按订单展示真实账单、付款流水与物流信息；汇总账单能力将在对应业务接口开放后启用。</p>
+          </section>
+
+          <section v-show="activeDoctorOrderSection === 'list'" class="doctor-reference-table-card" data-testid="doctor-order-table-card">
+            <div v-if="visibleDoctorOrders.length === 0" class="empty-state">暂无符合条件的医生订单</div>
+            <div v-else class="doctor-reference-table-scroll">
+              <table class="doctor-reference-table">
+                <thead><tr><th>订单号</th><th>患者</th><th>产品</th><th>公开状态</th><th>账单</th><th>物流</th><th>运单号</th><th></th></tr></thead>
+                <tbody>
+                  <tr v-for="order in visibleDoctorOrders" :key="order.order_id" @click="openDoctorOrderListDetail(order.order_id)">
+                    <td><strong>{{ order.order_no }}</strong><small>#{{ order.order_id }}</small></td>
+                    <td>{{ doctorOrderPatientLabel(order) }}</td>
+                    <td>{{ productTypeLabel(order.product_type) }}</td>
+                    <td><span class="doctor-reference-badge blue">{{ statusLabel(order.external_status) }}</span></td>
+                    <td>{{ statusLabel(order.bill_status) }}</td>
+                    <td>{{ statusLabel(order.logistics_status) }}</td>
+                    <td>{{ order.tracking_no || '暂无运单' }}</td>
+                    <td><el-button size="small" plain @click.stop="openDoctorOrderListDetail(order.order_id)">查看 →</el-button></td>
+                  </tr>
+                </tbody>
+              </table>
+            </div>
+            <footer class="doctor-reference-table-footer">
+              <span>显示 {{ visibleDoctorOrders.length }} 笔真实订单</span>
+              <div>
+                <button type="button" disabled title="当前接口仅返回本页数据">上一页</button>
+                <button type="button" class="active" disabled>1</button>
+                <button type="button" disabled title="当前接口仅返回本页数据">下一页</button>
+              </div>
+            </footer>
+          </section>
+
+          <div v-show="activeDoctorOrderSection !== 'create' && activeDoctorOrderSection !== 'list'" class="doctor-order-workspace">
             <aside class="doctor-order-list">
               <button
                 v-for="order in doctorOrders"
@@ -11546,7 +11758,7 @@ onBeforeUnmount(() => {
                       :key="field.key"
                       class="field-cell"
                     >
-                      <span>{{ field.key }}</span>
+                      <span>{{ doctorFieldLabel(field.key) }}</span>
                       <strong>{{ field.value }}</strong>
                     </div>
                   </div>
@@ -11595,7 +11807,7 @@ onBeforeUnmount(() => {
                   <div class="compact-list">
                     <article v-for="draft in doctorOrderWorkspace.drafts" :key="draft.draft_id">
                       <strong>V{{ draft.version }} / {{ statusLabel(draft.status) }}</strong>
-                      <p>文件 ID：{{ draft.file_ids?.length ? draft.file_ids.join(', ') : (draft.file_id ?? '-') }}</p>
+                      <p>附件编号：{{ draft.file_ids?.length ? draft.file_ids.join(', ') : (draft.file_id ?? '暂无') }}</p>
                       <span>文件数：{{ draft.file_count ?? draft.file_ids?.length ?? (draft.file_id ? 1 : 0) }}</span>
                       <div class="inline-actions">
                         <el-button
@@ -11659,7 +11871,7 @@ onBeforeUnmount(() => {
                     </div>
                     <div>
                       <span>账单文件</span>
-                      <strong>{{ doctorOrderWorkspace.bill.file_id ?? '-' }}</strong>
+                      <strong>{{ doctorOrderWorkspace.bill.file_id ?? '暂无' }}</strong>
                     </div>
                     <div>
                       <span>承运商</span>
@@ -11724,6 +11936,29 @@ onBeforeUnmount(() => {
               </el-tabs>
             </section>
           </div>
+
+          <el-drawer v-model="doctorOrderListDetailVisible" size="500px" class="doctor-reference-drawer">
+            <template #header><h3>{{ doctorOrderWorkspace?.order.order_no || '订单详情' }}</h3></template>
+            <div v-if="doctorOrderWorkspace" class="doctor-order-list-drawer-content">
+              <div class="doctor-order-summary">
+                <div><span>患者</span><strong>{{ doctorOrderPatientLabel(doctorOrderWorkspace.order) }}</strong></div>
+                <div><span>产品</span><strong>{{ productTypeLabel(doctorOrderWorkspace.order.product_type) }}</strong></div>
+                <div><span>公开状态</span><strong>{{ statusLabel(doctorOrderWorkspace.order.external_status) }}</strong></div>
+                <div><span>物流状态</span><strong>{{ statusLabel(doctorOrderWorkspace.logistics.logistics_status) }}</strong></div>
+              </div>
+              <p class="public-message">{{ doctorOrderWorkspace.order.public_message || '暂无公开进度说明。' }}</p>
+              <div class="field-grid">
+                <div v-for="field in fieldEntries(doctorOrderWorkspace.order.form_data)" :key="field.key" class="field-cell"><span>{{ doctorFieldLabel(field.key) }}</span><strong>{{ field.value }}</strong></div>
+                <div v-if="fieldEntries(doctorOrderWorkspace.order.form_data).length === 0" class="empty-state">暂无补充订单资料</div>
+              </div>
+              <div class="inline-actions doctor-drawer-actions">
+                <el-button plain @click="startDoctorOrderEdit(doctorOrderWorkspace.order); doctorOrderListDetailVisible = false">继续编辑 / 补资料</el-button>
+                <el-button @click="showDoctorOrderSection('messages', 'messages')">沟通留言</el-button>
+                <el-button @click="showDoctorOrderSection('design', 'design')">设计稿</el-button>
+                <el-button type="primary" @click="showDoctorOrderSection('bill', 'bill')">账单物流</el-button>
+              </div>
+            </div>
+          </el-drawer>
         </section>
 
         <section v-else-if="isFormConfigsRoute" class="panel route-panel form-config-panel">
@@ -12154,14 +12389,12 @@ onBeforeUnmount(() => {
         <section v-else-if="isCustomerCollaborationRoute" class="panel route-panel customer-collaboration-panel" :class="{ 'factory-message-page': portalTone === 'production' }">
           <header class="route-heading" :class="{ 'factory-page-heading': portalTone === 'production' }">
             <div v-if="portalTone === 'production'"><h2>沟通中心</h2><p>与客服围绕真实订单进行协同；生产端发送的消息需客服审核后对外可见。</p></div>
-            <template v-else>
-            <h2>沟通中心</h2>
-            </template>
+            <template v-else><div><h2>{{ portalTone === 'doctor' ? '消息中心' : '沟通中心' }}</h2><p v-if="portalTone === 'doctor'">按订单查看与实验室客服的真实沟通记录。</p></div></template>
             <el-tag v-if="canReviewCustomerCollaboration" round>{{ customerCollaborationPendingMessages.length }} 条待审核消息</el-tag>
             <el-tag v-else type="info" round>订单协同沟通</el-tag>
           </header>
 
-          <div class="doctor-order-toolbar">
+          <div v-if="portalTone !== 'doctor'" class="doctor-order-toolbar">
             <el-input
               v-model="customerCollaborationOrderId"
               data-testid="customer-collaboration-order-id"
@@ -12192,7 +12425,41 @@ onBeforeUnmount(() => {
             :closable="false"
           />
 
-          <section class="customer-collaboration-card collaboration-composer" data-testid="collaboration-composer">
+          <div v-if="portalTone === 'doctor'" class="doctor-message-layout" data-testid="doctor-message-layout">
+            <aside class="doctor-message-sidebar">
+              <div class="doctor-message-sidebar-head">
+                <h3>会话</h3>
+                <el-input v-model="doctorOrderKeyword" clearable placeholder="搜索订单或患者" @keyup.enter="loadDoctorOrders" />
+                <div class="doctor-message-filter-row"><span class="active">全部</span><span>真实订单</span></div>
+              </div>
+              <button v-for="order in doctorOrders" :key="order.order_id" type="button" class="doctor-message-thread" :class="{ active: selectedDoctorOrder?.order_id === order.order_id }" @click="openDoctorCollaborationOrder(order)">
+                <span class="doctor-message-avatar">{{ order.order_no.slice(-2) }}</span>
+                <span><strong>{{ order.order_no }}</strong><small>{{ productTypeLabel(order.product_type) }} · {{ doctorOrderPatientLabel(order) }}</small><em>{{ order.public_message || '暂无公开进度说明' }}</em></span>
+              </button>
+              <div v-if="doctorOrders.length === 0" class="empty-state">暂无可沟通订单</div>
+            </aside>
+            <section class="doctor-chat-area">
+              <header class="doctor-chat-head">
+                <div><strong>{{ selectedDoctorOrder?.order_no || '请选择会话' }}</strong><span>{{ selectedDoctorOrder ? `${productTypeLabel(selectedDoctorOrder.product_type)} · ${doctorOrderPatientLabel(selectedDoctorOrder)}` : '从左侧选择订单后查看消息' }}</span></div>
+                <el-tag type="info" round>公开沟通</el-tag>
+              </header>
+              <div class="doctor-chat-messages">
+                <article v-for="message in customerCollaborationOrderMessages" :key="message.msg_id" :class="{ mine: message.sender_role === 'DOCTOR' }">
+                  <span>{{ roleLabel(message.sender_role) }}</span><p>{{ message.content }}</p><small>{{ statusLabel(message.review_status) }}</small>
+                </article>
+                <div v-if="!selectedDoctorOrder" class="empty-state">请选择订单会话</div>
+                <div v-else-if="customerCollaborationOrderMessages.length === 0" class="empty-state">该订单暂无公开消息</div>
+              </div>
+              <footer class="doctor-chat-composer">
+                <el-select v-model="customerCollaborationMentionUserIds" multiple clearable collapse-tags placeholder="@ 当前订单参与人" :disabled="customerCollaborationMentionableUsers.length === 0">
+                  <el-option v-for="user in customerCollaborationMentionableUsers" :key="user.user_id" :label="`${user.display_name}（${roleLabel(user.user_role)}）`" :value="user.user_id" />
+                </el-select>
+                <div><el-input v-model="customerCollaborationDraft" type="textarea" :rows="2" placeholder="输入沟通内容；消息仅按现有权限对外可见" /><el-button type="primary" :loading="customerCollaborationSending" :disabled="!selectedDoctorOrder || !customerCollaborationDraft.trim()" @click="sendCustomerCollaborationMessage">发送</el-button></div>
+              </footer>
+            </section>
+          </div>
+
+          <section v-if="portalTone !== 'doctor'" class="customer-collaboration-card collaboration-composer" data-testid="collaboration-composer">
             <div class="subheading-row">
               <h3>发送沟通</h3>
               <el-tag type="info" round>@ 仅可选择当前订单参与人</el-tag>
@@ -12225,7 +12492,7 @@ onBeforeUnmount(() => {
             <p v-if="portalTone === 'production'" class="factory-message-hint">发送后状态为“待客服审核”，生产端不提供审核操作。</p>
           </section>
 
-          <div class="customer-collaboration-grid factory-message-layout">
+          <div v-if="portalTone !== 'doctor'" class="customer-collaboration-grid factory-message-layout">
             <section v-if="canReviewCustomerCollaboration" class="customer-collaboration-card">
               <div class="subheading-row">
                 <h3>待审核消息</h3>

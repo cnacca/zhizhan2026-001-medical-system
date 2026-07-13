@@ -4,5 +4,6 @@ import { createApp } from 'vue'
 import App from './App.vue'
 import './styles.css'
 import './cs-portal.css'
+import './doctor-portal.css'
 
 createApp(App).use(ElementPlus).mount('#app')
