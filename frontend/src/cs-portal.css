@@ -1,0 +1,661 @@
+/* 客服端参考页专属视觉层：仅作用于非工作台客服页面。 */
+.cs-reference-mode {
+  --cs-white: #ffffff;
+  --cs-off: #f7f9fc;
+  --cs-off-2: #eef2f8;
+  --cs-text: #0f172a;
+  --cs-muted: #64748b;
+  --cs-faint: #94a3b8;
+  --cs-line: #e2e8f0;
+  --cs-violet: #7c3aed;
+  --cs-violet-soft: #f5f3ff;
+  --cs-violet-line: #ddd6fe;
+  --cs-navy: #1e1b4b;
+  background: var(--cs-off);
+  color: var(--cs-text);
+}
+
+.cs-reference-mode .status-bar {
+  display: none;
+}
+
+.cs-reference-mode .content-grid.with-nav {
+  min-height: 100vh;
+  grid-template-columns: 236px minmax(0, 1fr);
+}
+
+.cs-reference-mode .nav-panel {
+  width: 236px;
+  gap: 0;
+  padding: 0 8px 10px;
+  background:
+    repeating-linear-gradient(135deg, rgba(255, 255, 255, 0.018) 0, rgba(255, 255, 255, 0.018) 1px, transparent 1px, transparent 12px),
+    var(--cs-navy);
+  box-shadow: 4px 0 24px rgba(30, 27, 75, 0.22);
+}
+
+.cs-reference-mode .portal-brand {
+  min-height: 78px;
+  padding: 18px 10px 12px;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.08);
+}
+
+.cs-reference-mode .portal-brand strong {
+  font-size: 14px;
+}
+
+.cs-reference-mode .portal-brand small {
+  margin-top: 2px;
+  color: rgba(255, 255, 255, 0.38);
+  font-size: 9px;
+  letter-spacing: 1.1px;
+  text-transform: uppercase;
+}
+
+.cs-reference-mode .user-block {
+  margin: 0 -8px 8px;
+  padding: 12px 16px;
+  border: 0;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.08);
+  border-radius: 0;
+  background: transparent;
+}
+
+.cs-reference-mode .account-avatar {
+  width: 32px;
+  height: 32px;
+  background: linear-gradient(135deg, #8b5cf6, #ec4899);
+  font-size: 11px;
+}
+
+.cs-reference-mode .account-identity strong {
+  font-size: 12px;
+}
+
+.cs-reference-mode .account-identity span {
+  font-size: 9px;
+}
+
+.cs-reference-mode .account-caret {
+  border: 0;
+  color: rgba(255, 255, 255, 0.44);
+}
+
+.cs-reference-mode .route-menu {
+  padding: 4px 0;
+}
+
+.cs-reference-mode .nav-section-title {
+  padding: 7px 10px 3px;
+  color: rgba(255, 255, 255, 0.28);
+  font-size: 9px;
+  letter-spacing: 1.35px;
+  text-transform: uppercase;
+}
+
+.cs-reference-mode .route-menu .el-menu-item,
+.cs-reference-mode .route-menu .el-sub-menu__title {
+  height: 34px;
+  min-height: 34px;
+  margin: 1px 0;
+  padding: 0 10px !important;
+  border-radius: 7px;
+  color: rgba(255, 255, 255, 0.56);
+  font-size: 12px;
+  font-weight: 500;
+}
+
+.cs-reference-mode .route-menu .el-sub-menu .el-menu-item {
+  height: 30px;
+  min-height: 30px;
+  margin-left: 10px;
+  font-size: 11px;
+}
+
+.cs-reference-mode .route-menu .el-menu-item:hover,
+.cs-reference-mode .route-menu .el-menu-item.is-active,
+.cs-reference-mode .route-menu .el-sub-menu__title:hover,
+.cs-reference-mode .route-menu .el-sub-menu.is-opened > .el-sub-menu__title {
+  background: rgba(255, 255, 255, 0.1);
+  color: #ffffff;
+}
+
+.cs-reference-mode .route-menu .el-menu-item.is-active {
+  box-shadow: inset 3px 0 0 #a78bfa;
+}
+
+.cs-reference-mode .menu-icon {
+  flex-basis: 15px;
+  width: 15px;
+  height: 15px;
+  border-radius: 0;
+  background: transparent;
+  color: #c4b5fd;
+}
+
+.cs-reference-mode .menu-icon svg {
+  width: 14px;
+  height: 14px;
+}
+
+.cs-reference-mode .nav-footnote {
+  margin-top: auto;
+  padding: 10px 8px 0;
+  border-top: 1px solid rgba(255, 255, 255, 0.08);
+  color: rgba(255, 255, 255, 0.36);
+  font-size: 10px;
+}
+
+.cs-reference-mode .health-panel {
+  position: sticky;
+  top: 0;
+  z-index: 20;
+  display: flex;
+  grid-column: 2;
+  align-items: center;
+  justify-content: space-between;
+  gap: 18px;
+  min-height: 56px;
+  height: 56px;
+  margin: 0;
+  padding: 0 26px;
+  border: 0;
+  border-bottom: 1px solid var(--cs-line);
+  border-radius: 0;
+  background: rgba(255, 255, 255, 0.97);
+  box-shadow: 0 1px 3px rgba(30, 27, 75, 0.06);
+}
+
+.cs-reference-topbar-title {
+  flex: 1;
+  min-width: 130px;
+  font-family: Lora, "PingFang SC", serif;
+  font-size: 16px;
+  font-weight: 600;
+}
+
+.cs-reference-topbar-tools {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.cs-reference-global-search {
+  width: 240px;
+}
+
+.cs-reference-global-search .el-input__wrapper {
+  min-height: 32px;
+  border: 1px solid var(--cs-line);
+  border-radius: 8px;
+  background: var(--cs-off);
+  box-shadow: none;
+}
+
+.cs-reference-date {
+  color: var(--cs-faint);
+  font-size: 10px;
+  white-space: nowrap;
+}
+
+.cs-reference-mode .health-panel .el-button {
+  min-height: 32px;
+  border-radius: 8px;
+  font-size: 11px;
+}
+
+.cs-reference-mode .health-panel .el-button--primary {
+  --el-button-disabled-bg-color: #7c3aed;
+  --el-button-disabled-border-color: #7c3aed;
+  --el-button-disabled-text-color: #ffffff;
+  opacity: 0.64;
+}
+
+.cs-reference-mode .route-panel {
+  grid-column: 2;
+  min-width: 0;
+  margin: 0;
+  padding: 22px 26px 28px;
+  border: 0;
+  border-radius: 0;
+  background: var(--cs-off);
+  box-shadow: none;
+}
+
+.cs-reference-mode .route-heading {
+  min-height: 0;
+  margin-bottom: 14px;
+  padding: 0;
+  border: 0;
+}
+
+.cs-reference-mode .route-heading h2 {
+  font-family: Lora, "PingFang SC", serif;
+  font-size: 21px;
+  font-weight: 600;
+  line-height: 1.35;
+}
+
+.cs-reference-mode .route-heading .el-tag,
+.cs-reference-mode .heading-tags .el-tag,
+.cs-reference-mode .notification-heading-tags .el-tag {
+  --el-tag-bg-color: #f5f3ff;
+  --el-tag-border-color: #ddd6fe;
+  --el-tag-text-color: #7c3aed;
+  height: 24px;
+  font-size: 10px;
+}
+
+.cs-reference-mode .prototype-chip-row,
+.cs-reference-mode .notification-toolbar,
+.cs-reference-mode .production-board-toolbar,
+.cs-reference-mode .doctor-order-toolbar {
+  gap: 6px;
+  margin-bottom: 14px;
+}
+
+.cs-reference-mode .prototype-chip,
+.cs-reference-mode .el-radio-button__inner {
+  min-height: 28px;
+  padding: 5px 13px;
+  border: 1.5px solid var(--cs-line);
+  border-radius: 20px !important;
+  background: var(--cs-off);
+  color: #475569;
+  font-size: 11px;
+  font-weight: 700;
+  box-shadow: none !important;
+}
+
+.cs-reference-mode .prototype-chip.active,
+.cs-reference-mode .el-radio-button__original-radio:checked + .el-radio-button__inner {
+  border-color: var(--cs-violet);
+  background: var(--cs-violet-soft);
+  color: var(--cs-violet);
+}
+
+.cs-reference-mode .el-input__wrapper,
+.cs-reference-mode .el-select__wrapper,
+.cs-reference-mode .el-textarea__inner,
+.cs-reference-mode .el-input-number {
+  border-radius: 7px;
+  background: var(--cs-white);
+  box-shadow: 0 0 0 1px var(--cs-line) inset;
+}
+
+.cs-reference-mode .el-input__wrapper.is-focus,
+.cs-reference-mode .el-select__wrapper.is-focused,
+.cs-reference-mode .el-textarea__inner:focus {
+  box-shadow: 0 0 0 1px var(--cs-violet) inset, 0 0 0 3px rgba(124, 58, 237, 0.09);
+}
+
+.cs-reference-mode .el-button {
+  border-radius: 7px;
+  font-size: 11px;
+  font-weight: 600;
+}
+
+.cs-reference-mode .el-button--primary {
+  --el-button-bg-color: #7c3aed;
+  --el-button-border-color: #7c3aed;
+  --el-button-hover-bg-color: #6d28d9;
+  --el-button-hover-border-color: #6d28d9;
+}
+
+.cs-reference-mode .el-alert {
+  margin-bottom: 12px;
+  border-radius: 10px;
+}
+
+.cs-reference-mode .internal-order-workspace,
+.cs-reference-mode .doctor-order-workspace,
+.cs-reference-mode .production-board-workspace,
+.cs-reference-mode .form-config-layout,
+.cs-reference-mode .customer-collaboration-card,
+.cs-reference-mode .notification-list,
+.cs-reference-mode .compact-list {
+  border-color: var(--cs-line);
+}
+
+/* 订单详情 / 数据处理：将原卡片列表压成参考页表格行，详情仍使用真实数据和动作。 */
+.cs-reference-mode .internal-order-workspace {
+  display: block;
+  overflow: hidden;
+  border: 1.5px solid var(--cs-line);
+  border-radius: 14px;
+  background: var(--cs-white);
+  box-shadow: 0 1px 3px rgba(30, 27, 75, 0.06);
+}
+
+.cs-reference-mode .internal-order-workspace > .doctor-order-list {
+  display: grid;
+  max-height: 440px;
+  padding: 0;
+  overflow: auto;
+  border: 0;
+  border-radius: 0;
+}
+
+.cs-reference-mode .internal-order-workspace > .doctor-order-list::before {
+  content: "订单号                 诊所 / 产品                                  状态";
+  position: sticky;
+  top: 0;
+  z-index: 2;
+  display: block;
+  padding: 10px 13px;
+  border-bottom: 1.5px solid var(--cs-line);
+  background: var(--cs-off);
+  color: var(--cs-faint);
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: 0.55px;
+  white-space: pre;
+}
+
+.cs-reference-mode .internal-order-workspace > .doctor-order-list .doctor-order-row {
+  display: grid;
+  grid-template-columns: 170px minmax(260px, 1fr) 210px;
+  gap: 16px;
+  align-items: center;
+  min-height: 52px;
+  padding: 9px 13px;
+  border: 0;
+  border-bottom: 1px solid var(--cs-off-2);
+  border-radius: 0;
+  background: #ffffff;
+  text-align: left;
+}
+
+.cs-reference-mode .internal-order-workspace > .doctor-order-list .doctor-order-row:hover,
+.cs-reference-mode .internal-order-workspace > .doctor-order-list .doctor-order-row.active {
+  background: #faf5ff;
+  box-shadow: inset 3px 0 0 var(--cs-violet);
+}
+
+.cs-reference-mode .internal-order-workspace > .doctor-order-list .doctor-order-row strong {
+  color: var(--cs-violet);
+  font-family: "JetBrains Mono", monospace;
+  font-size: 11px;
+}
+
+.cs-reference-mode .internal-order-workspace > .doctor-order-list .doctor-order-row span,
+.cs-reference-mode .internal-order-workspace > .doctor-order-list .doctor-order-row small {
+  color: #475569;
+  font-size: 11px;
+}
+
+.cs-reference-mode .internal-order-workspace > .doctor-order-detail {
+  margin: 12px;
+  padding: 14px;
+  border: 1.5px solid var(--cs-violet-line);
+  border-radius: 12px;
+  background: #ffffff;
+}
+
+.cs-reference-mode .doctor-order-summary {
+  gap: 8px;
+}
+
+.cs-reference-mode .doctor-order-summary > div {
+  border: 1px solid var(--cs-line);
+  border-radius: 10px;
+  box-shadow: none;
+}
+
+.cs-reference-mode .doctor-tabs .el-tabs__item {
+  height: 38px;
+  font-size: 12px;
+}
+
+/* 沟通中心：参考页的会话栏 + 消息区。 */
+.cs-page-cs-communication .customer-collaboration-panel,
+.cs-page-cs-communication .customer-collaboration-panel,
+.cs-page-cs-order-messages .customer-collaboration-panel,
+.cs-page-cs-message-review .customer-collaboration-panel {
+  min-height: calc(100vh - 56px);
+}
+
+.cs-reference-mode .customer-collaboration-grid {
+  display: grid;
+  grid-template-columns: 290px minmax(0, 1fr);
+  gap: 0;
+  overflow: hidden;
+  border: 1.5px solid var(--cs-line);
+  border-radius: 14px;
+  background: var(--cs-white);
+}
+
+.cs-reference-mode .customer-collaboration-grid > .customer-collaboration-card {
+  min-height: 340px;
+  padding: 14px;
+  border: 0;
+  border-radius: 0;
+  box-shadow: none;
+}
+
+.cs-reference-mode .customer-collaboration-grid > .customer-collaboration-card:first-child {
+  border-right: 1.5px solid var(--cs-line);
+  background: var(--cs-white);
+}
+
+.cs-reference-mode .customer-collaboration-grid > .customer-collaboration-card:last-child {
+  background: var(--cs-off);
+}
+
+.cs-reference-mode .collaboration-composer {
+  margin: 0 0 10px;
+  padding: 10px 14px;
+  border: 1.5px solid var(--cs-line);
+  border-radius: 12px;
+  background: var(--cs-white);
+  box-shadow: 0 1px 3px rgba(30, 27, 75, 0.05);
+}
+
+.cs-reference-mode .customer-collaboration-message-review,
+.cs-reference-mode .compact-list article,
+.cs-reference-mode .notification-item {
+  border: 0;
+  border-bottom: 1px solid var(--cs-off-2);
+  border-radius: 0;
+  background: #ffffff;
+  box-shadow: none;
+}
+
+.cs-reference-mode .customer-collaboration-message-review:hover,
+.cs-reference-mode .customer-collaboration-message-review.selected,
+.cs-reference-mode .compact-list article:hover,
+.cs-reference-mode .compact-list article.selected {
+  background: #faf5ff;
+}
+
+.cs-reference-mode .customer-collaboration-review-box {
+  margin-top: 10px;
+  border: 1.5px solid var(--cs-line);
+  border-radius: 12px;
+  background: #ffffff;
+}
+
+.cs-page-cs-order-messages .customer-collaboration-panel,
+.cs-page-cs-message-review .customer-collaboration-panel {
+  display: grid;
+  grid-template-columns: 290px minmax(0, 1fr);
+  grid-template-rows: auto auto minmax(300px, 1fr) auto;
+  gap: 10px 0;
+}
+
+.cs-page-cs-communication .customer-collaboration-panel > .route-heading,
+.cs-page-cs-communication .customer-collaboration-panel > .doctor-order-toolbar,
+.cs-page-cs-communication .customer-collaboration-panel > .el-alert,
+.cs-page-cs-order-messages .customer-collaboration-panel > .route-heading,
+.cs-page-cs-message-review .customer-collaboration-panel > .route-heading,
+.cs-page-cs-order-messages .customer-collaboration-panel > .doctor-order-toolbar,
+.cs-page-cs-message-review .customer-collaboration-panel > .doctor-order-toolbar,
+.cs-page-cs-order-messages .customer-collaboration-panel > .el-alert,
+.cs-page-cs-message-review .customer-collaboration-panel > .el-alert {
+  grid-column: 1 / -1;
+}
+
+.cs-page-cs-communication .customer-collaboration-panel > .customer-collaboration-grid,
+.cs-page-cs-order-messages .customer-collaboration-panel > .customer-collaboration-grid,
+.cs-page-cs-message-review .customer-collaboration-panel > .customer-collaboration-grid {
+  display: contents;
+}
+
+.cs-page-cs-communication .customer-collaboration-grid > .customer-collaboration-card:first-child,
+.cs-page-cs-order-messages .customer-collaboration-grid > .customer-collaboration-card:first-child,
+.cs-page-cs-message-review .customer-collaboration-grid > .customer-collaboration-card:first-child {
+  grid-column: 1;
+  grid-row: 3 / span 2;
+  min-height: 410px;
+  overflow: auto;
+  border: 1.5px solid var(--cs-line);
+  border-right: 0;
+  border-radius: 14px 0 0 14px;
+}
+
+.cs-page-cs-communication .customer-collaboration-grid > .customer-collaboration-card:last-child,
+.cs-page-cs-order-messages .customer-collaboration-grid > .customer-collaboration-card:last-child,
+.cs-page-cs-message-review .customer-collaboration-grid > .customer-collaboration-card:last-child {
+  grid-column: 2;
+  grid-row: 3;
+  min-height: 320px;
+  overflow: auto;
+  border: 1.5px solid var(--cs-line);
+  border-bottom: 0;
+  border-radius: 0 14px 0 0;
+}
+
+.cs-page-cs-communication .customer-collaboration-panel > .collaboration-composer,
+.cs-page-cs-order-messages .customer-collaboration-panel > .collaboration-composer,
+.cs-page-cs-message-review .customer-collaboration-panel > .collaboration-composer {
+  grid-column: 2;
+  grid-row: 4;
+  margin: 0;
+  border-radius: 0 0 14px 0;
+}
+
+.cs-page-cs-communication .customer-collaboration-panel > .customer-collaboration-review-box,
+.cs-page-cs-order-messages .customer-collaboration-panel > .customer-collaboration-review-box,
+.cs-page-cs-message-review .customer-collaboration-panel > .customer-collaboration-review-box {
+  grid-column: 1 / -1;
+  grid-row: 5;
+}
+
+/* 客户、配送、产品和设置类页面统一采用参考页卡片/表格密度。 */
+.cs-page-cs-customers .doctor-order-workspace,
+.cs-page-cs-billing .production-board-workspace,
+.cs-page-cs-delivery .production-board-workspace {
+  display: block;
+}
+
+.cs-page-cs-customers .doctor-order-list,
+.cs-page-cs-billing .doctor-order-list,
+.cs-page-cs-delivery .doctor-order-list {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 8px;
+  padding: 0;
+  border: 0;
+  background: transparent;
+}
+
+.cs-page-cs-customers .doctor-order-row,
+.cs-page-cs-billing .doctor-order-row,
+.cs-page-cs-delivery .doctor-order-row {
+  padding: 12px 16px;
+  border: 1.5px solid var(--cs-line);
+  border-radius: 12px;
+  background: #ffffff;
+  box-shadow: 0 1px 3px rgba(30, 27, 75, 0.04);
+}
+
+.cs-page-cs-customers .doctor-order-row:hover,
+.cs-page-cs-customers .doctor-order-row.active,
+.cs-page-cs-billing .doctor-order-row:hover,
+.cs-page-cs-billing .doctor-order-row.active,
+.cs-page-cs-delivery .doctor-order-row:hover,
+.cs-page-cs-delivery .doctor-order-row.active {
+  border-color: var(--cs-violet-line);
+  background: var(--cs-violet-soft);
+}
+
+.cs-page-cs-customers .doctor-order-detail,
+.cs-page-cs-billing .doctor-order-detail,
+.cs-page-cs-delivery .doctor-order-detail {
+  margin-top: 12px;
+}
+
+.cs-reference-mode .doctor-order-detail,
+.cs-reference-mode .form-config-editor,
+.cs-reference-mode .ai-answer-card {
+  border: 1.5px solid var(--cs-line);
+  border-radius: 14px;
+  background: #ffffff;
+  box-shadow: 0 1px 3px rgba(30, 27, 75, 0.05);
+}
+
+.cs-page-cs-products .form-config-layout {
+  gap: 12px;
+}
+
+.cs-page-cs-products .form-config-editor {
+  padding: 16px 18px;
+}
+
+.cs-page-cs-products .compact-list,
+.cs-page-cs-notifications .notification-list {
+  overflow: hidden;
+  border: 1.5px solid var(--cs-line);
+  border-radius: 14px;
+  background: #ffffff;
+}
+
+.cs-page-cs-billing .production-board-panel,
+.cs-page-cs-delivery .production-board-panel {
+  background: var(--cs-off);
+}
+
+.cs-page-cs-ai-query .customer-collaboration-grid {
+  grid-template-columns: minmax(360px, 0.8fr) minmax(500px, 1.2fr);
+  gap: 12px;
+  overflow: visible;
+  border: 0;
+  background: transparent;
+}
+
+.cs-page-cs-ai-query .customer-collaboration-grid > .customer-collaboration-card {
+  min-height: 360px;
+  border: 1.5px solid var(--cs-line);
+  border-radius: 14px;
+  background: #ffffff;
+}
+
+.cs-page-cs-ai-query .customer-collaboration-grid > .customer-collaboration-card:first-child {
+  border-right: 1.5px solid var(--cs-line);
+}
+
+.cs-reference-mode .placeholder-panel {
+  min-height: calc(100vh - 56px);
+}
+
+.cs-reference-mode .placeholder-content-card,
+.cs-reference-mode .admin-menu-card {
+  border: 1.5px solid var(--cs-line);
+  border-radius: 12px;
+  background: #ffffff;
+  box-shadow: 0 1px 3px rgba(30, 27, 75, 0.05);
+}
+
+@media (max-width: 1100px) {
+  .cs-reference-date {
+    display: none;
+  }
+
+  .cs-reference-global-search {
+    width: 190px;
+  }
+
+  .cs-reference-mode .internal-order-workspace > .doctor-order-list .doctor-order-row {
+    grid-template-columns: 150px minmax(180px, 1fr) 180px;
+  }
+}
