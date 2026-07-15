@@ -1,6 +1,8 @@
 <script setup lang="ts">
 import Uppy from '@uppy/core'
-import { computed, onBeforeUnmount, ref, watch } from 'vue'
+import { computed, defineAsyncComponent, onBeforeUnmount, ref, watch } from 'vue'
+
+const StlViewerDialog = defineAsyncComponent(() => import('./components/StlViewerDialog.vue'))
 
 type AuthMenu = {
   menuCode: string
@@ -67,6 +69,7 @@ type DoctorOrderItem = {
   patient_id: number | null
   product_type: string
   external_status: string
+  editable: boolean
   form_data: Record<string, unknown>
   public_message: string | null
   bill_status: string | null
@@ -373,6 +376,7 @@ type DoctorOrderWorkspace = {
   order: DoctorOrderItem
   messages: MessageItem[]
   drafts: DesignDraftItem[]
+  files: OrderFileItem[]
   bill: BillInfo
   payments: PaymentRecordItem[]
   logistics: LogisticsInfo
@@ -1458,6 +1462,8 @@ const csDesignDraftUploadNote = ref('')
 const csDesignDraftResult = ref('')
 const csDesignDrafts = ref<DesignDraftItem[]>([])
 const csDesignDraftPreviewUrls = ref<Record<string, string>>({})
+const csOrderFiles = ref<OrderFileItem[]>([])
+const csOrderFilesLoading = ref(false)
 const csBillFileId = ref('')
 const csBillAmountYuan = ref('')
 const csPaymentStatus = ref('PENDING_PAYMENT')
@@ -1748,6 +1754,10 @@ const productionBoardFilesError = ref('')
 const productionBoardFileUploading = ref(false)
 const productionBoardFileInput = ref<HTMLInputElement | null>(null)
 const productionBoardFileUploadMode = ref<'GENERAL' | 'DESIGN_RETURN'>('GENERAL')
+const selectedProductionBoardStlFileId = ref<number | null>(null)
+const productionBoardStlViewerVisible = ref(false)
+const productionBoardStlViewerUrl = ref('')
+const productionBoardStlViewerFilename = ref('')
 const productionBoardQuestionDraft = ref('')
 const productionBoardQuestionLoading = ref(false)
 const deliveryOrders = ref<DeliveryOrderItem[]>([])
@@ -3552,8 +3562,22 @@ function productionBoardFormValue(order: InternalOrderItem, keys: string[]) {
 }
 
 function productionBoardToothLabel(order: InternalOrderItem) {
-  const value = productionBoardFormValue(order, ['tooth_numbers', 'tooth_number', 'tooth', 'teeth', 'toothNo'])
+  const value = productionBoardFormValue(order, ['tooth_position', 'tooth_numbers', 'tooth_number', 'tooth', 'teeth', 'toothNo'])
   return value ? `牙位 ${value}` : '牙位未设置'
+}
+
+function canDoctorEditOrder(order: DoctorOrderItem) {
+  return order.editable
+}
+
+function originalOrderAttachments(files: OrderFileItem[]) {
+  return files.filter((file) => file.source_type === 'ORDER_ATTACHMENT' && file.upload_status === 'COMPLETED')
+}
+
+function formatOrderFileSize(fileSize: number | null) {
+  if (!fileSize) return '大小未记录'
+  if (fileSize >= 1024 * 1024) return `${(fileSize / 1024 / 1024).toFixed(1)} MB`
+  return `${Math.ceil(fileSize / 1024)} KB`
 }
 
 function productionBoardCurrentNode(instance: ProcessInstanceDetail | null) {
@@ -4442,7 +4466,11 @@ async function loadActiveRouteData() {
   } else if (activeRoute.value === '/orders/internal') {
     await loadInternalOrders()
   } else if (activeRoute.value === '/collaboration') {
-    await loadCustomerCollaborationPage()
+    if (portalTone.value === 'doctor') {
+      await loadDoctorCollaboration()
+    } else {
+      await loadCustomerCollaborationPage()
+    }
   } else if (activeRoute.value === '/ai/cs') {
     csAiQueryError.value = ''
   } else if (activeRoute.value === '/workflow/review') {
@@ -4580,9 +4608,10 @@ function navigateToRoute(routePath: string) {
   } else if (routePath === '/doctor/account/clinic') {
     void loadDoctorClinicPreference()
   } else if (routePath === '/collaboration') {
-    void loadCustomerCollaborationPage()
     if (portalTone.value === 'doctor') {
       void loadDoctorCollaboration()
+    } else {
+      void loadCustomerCollaborationPage()
     }
   } else if (routePath === '/orders/internal') {
     void loadInternalOrders()
@@ -4665,6 +4694,9 @@ function openNotificationCenter() {
 function selectDisplayNavigationItem(item: DisplayNavigationItem | BusinessShortcut) {
   accountMenuVisible.value = false
   activeNavId.value = item.id
+  if (item.id === 'doctor-order-create' && doctorOrderEditingId.value) {
+    cancelDoctorOrderEdit()
+  }
   if (item.id === 'production-cost-outsourcing') {
     productionCostCreateType.value = 'OUTSOURCING'
   }
@@ -4694,6 +4726,9 @@ function runDoctorGlobalSearch() {
 }
 
 function openDoctorOrderCreate() {
+  if (doctorOrderEditingId.value) {
+    cancelDoctorOrderEdit()
+  }
   activeDoctorOrderSection.value = 'create'
   activeNavId.value = 'doctor-order-create'
   navigateToRoute('/doctor/orders')
@@ -5714,6 +5749,11 @@ function submitDoctorOrderSupplement() {
 }
 
 async function startDoctorOrderEdit(order: DoctorOrderItem) {
+  if (!canDoctorEditOrder(order)) {
+    doctorOrderEditingId.value = null
+    doctorOrderError.value = '当前订单已进入审核或后续流程，不能继续编辑或补资料'
+    return
+  }
   doctorOrderEditingId.value = order.order_id
   selectedDoctorPatientId.value = order.patient_id ?? selectedDoctorPatientId.value
   doctorOrderFormProductType.value = order.product_type
@@ -5728,14 +5768,21 @@ async function startDoctorOrderEdit(order: DoctorOrderItem) {
   doctorPreSubmitMissingItems.value = []
   doctorPreSubmitMissingComplete.value = null
   await loadDoctorOrderForm()
+  showDoctorOrderSection('create', 'info')
 }
 
 function cancelDoctorOrderEdit() {
   doctorOrderEditingId.value = null
+  selectedDoctorPatientId.value = null
+  doctorOrderFormData.value = {}
+  doctorOrderFileIds.value = ''
+  doctorUploadFiles.value = []
+  doctorUploadCompletedFileIds.value = []
   doctorOrderCreateResult.value = null
   doctorOrderCreateError.value = ''
   doctorPreSubmitMissingItems.value = []
   doctorPreSubmitMissingComplete.value = null
+  void loadDoctorOrderForm()
 }
 
 function validateDoctorUploadFiles(files: File[]) {
@@ -6047,10 +6094,11 @@ async function loadDoctorOrderWorkspace(orderId: number) {
   designDraftPreviewUrls.value = {}
   doctorBillPreviewUrl.value = ''
   try {
-    const [orderPayload, messagesPayload, draftsPayload, billPayload, paymentsPayload, logisticsPayload] = await Promise.all([
+    const [orderPayload, messagesPayload, draftsPayload, filesPayload, billPayload, paymentsPayload, logisticsPayload] = await Promise.all([
       apiFetch<DoctorOrderItem>(`/orders/${orderId}`),
       apiFetch<MessageItem[]>(`/orders/${orderId}/messages`),
       apiFetch<DesignDraftItem[]>(`/orders/${orderId}/design-drafts`),
+      apiFetch<OrderFileItem[]>(`/orders/${orderId}/files`),
       apiFetch<BillInfo>(`/orders/${orderId}/bill`),
       apiFetch<PaymentRecordItem[]>(`/orders/${orderId}/payments`),
       apiFetch<LogisticsInfo>(`/orders/${orderId}/logistics`)
@@ -6060,6 +6108,7 @@ async function loadDoctorOrderWorkspace(orderId: number) {
       order: orderPayload.data,
       messages: messagesPayload.data,
       drafts: draftsPayload.data,
+      files: filesPayload.data,
       bill: billPayload.data,
       payments: paymentsPayload.data,
       logistics: logisticsPayload.data
@@ -6306,6 +6355,7 @@ function selectInternalOrder(order: InternalOrderItem) {
   csDesignDraftResult.value = ''
   csDesignDrafts.value = []
   csDesignDraftPreviewUrls.value = {}
+  csOrderFiles.value = []
   csBillFileId.value = ''
   csBillAmountYuan.value = ''
   csBillResult.value = ''
@@ -6318,7 +6368,53 @@ function selectInternalOrder(order: InternalOrderItem) {
   csProductionNoteKnowledgeNotes.value = []
   csProductionNoteConfirmationNote.value = ''
   csAiResult.value = ''
-  void loadInternalDesignDrafts(order.order_id)
+  void Promise.all([
+    loadInternalDesignDrafts(order.order_id),
+    loadInternalOrderFiles(order.order_id)
+  ])
+}
+
+async function loadInternalOrderFiles(orderId: number) {
+  csOrderFilesLoading.value = true
+  try {
+    const payload = await apiFetch<OrderFileItem[]>(`/orders/${orderId}/files`)
+    if (selectedInternalOrder.value?.order_id === orderId) {
+      csOrderFiles.value = payload.data
+    }
+  } catch (error) {
+    if (selectedInternalOrder.value?.order_id === orderId) {
+      csOrderFiles.value = []
+      internalOrderError.value = error instanceof Error ? error.message : '客服订单附件加载失败'
+    }
+  } finally {
+    if (selectedInternalOrder.value?.order_id === orderId) {
+      csOrderFilesLoading.value = false
+    }
+  }
+}
+
+async function openOrderFile(file: OrderFileItem, mode: 'preview' | 'download', target: 'doctor' | 'cs') {
+  const popup = openPendingFileWindow()
+  try {
+    const payload = await apiFetch<FilePreviewUrlResponse>(`/files/${file.file_id}/${mode === 'download' ? 'download-url' : 'preview-url'}`)
+    const url = mode === 'download' ? (payload.data.download_url ?? payload.data.preview_url) : payload.data.preview_url
+    if (!popup) throw new Error('浏览器阻止了新窗口，请允许弹窗后重试')
+    popup.location.replace(url)
+  } catch (error) {
+    popup?.close()
+    const message = error instanceof Error ? error.message : '文件链接获取失败'
+    if (target === 'doctor') doctorOrderError.value = message
+    else internalOrderError.value = message
+  }
+}
+
+function openPendingFileWindow() {
+  const popup = window.open('about:blank', '_blank')
+  if (!popup) return null
+  popup.opener = null
+  popup.document.title = '正在准备文件…'
+  popup.document.body.textContent = '正在获取安全文件链接，请稍候…'
+  return popup
 }
 
 async function reviewInternalOrder(action: 'APPROVE' | 'REJECT') {
@@ -6815,14 +6911,17 @@ async function loadCustomerCollaborationOrderMessages() {
   customerCollaborationLoading.value = true
   customerCollaborationError.value = ''
   try {
-    const [messagePayload, mentionablePayload] = await Promise.all([
-      apiFetch<MessageItem[]>(`/orders/${orderId}/messages`),
-      apiFetch<MentionableUser[]>(`/orders/${orderId}/message-mentionable-users`)
-    ])
+    const messagePayload = await apiFetch<MessageItem[]>(`/orders/${orderId}/messages`)
     customerCollaborationOrderMessages.value = messagePayload.data
-    customerCollaborationMentionableUsers.value = mentionablePayload.data
-    customerCollaborationMentionUserIds.value = customerCollaborationMentionUserIds.value
-      .filter((userId) => mentionablePayload.data.some((user) => user.user_id === userId))
+    try {
+      const mentionablePayload = await apiFetch<MentionableUser[]>(`/orders/${orderId}/message-mentionable-users`)
+      customerCollaborationMentionableUsers.value = mentionablePayload.data
+      customerCollaborationMentionUserIds.value = customerCollaborationMentionUserIds.value
+        .filter((userId) => mentionablePayload.data.some((user) => user.user_id === userId))
+    } catch {
+      customerCollaborationMentionableUsers.value = []
+      customerCollaborationMentionUserIds.value = []
+    }
   } catch (error) {
     clearCustomerCollaborationOrderContext()
     customerCollaborationError.value = error instanceof Error ? error.message : '订单消息上下文加载失败'
@@ -8341,6 +8440,10 @@ async function selectProductionBoardOrder(order: InternalOrderItem, card?: Produ
   productionBoardLogisticsTrackingNo.value = ''
   productionBoardShippingResult.value = ''
   productionBoardQuestionDraft.value = ''
+  selectedProductionBoardStlFileId.value = null
+  productionBoardStlViewerVisible.value = false
+  productionBoardStlViewerUrl.value = ''
+  productionBoardStlViewerFilename.value = ''
   void loadProductionBoardFiles(order.order_id)
   await loadProductionBoardInstance(order.order_id)
   productionBoardSelectedCard.value = buildProductionKanbanCard(order)
@@ -8366,12 +8469,25 @@ async function loadProductionBoardFiles(orderId: number) {
   productionBoardFilesError.value = ''
   try {
     const payload = await apiFetch<OrderFileItem[]>(`/orders/${orderId}/files`)
+    if (selectedProductionBoardOrder.value?.order_id !== orderId) {
+      return
+    }
     productionBoardFiles.value = payload.data
+    const stlFiles = productionBoardStlFiles(payload.data)
+    if (!stlFiles.some((file) => file.file_id === selectedProductionBoardStlFileId.value)) {
+      selectedProductionBoardStlFileId.value = stlFiles[0]?.file_id ?? null
+    }
   } catch (error) {
+    if (selectedProductionBoardOrder.value?.order_id !== orderId) {
+      return
+    }
     productionBoardFiles.value = []
+    selectedProductionBoardStlFileId.value = null
     productionBoardFilesError.value = error instanceof Error ? error.message : '订单文件加载失败'
   } finally {
-    productionBoardFilesLoading.value = false
+    if (selectedProductionBoardOrder.value?.order_id === orderId) {
+      productionBoardFilesLoading.value = false
+    }
   }
 }
 
@@ -8431,42 +8547,54 @@ async function uploadProductionBoardFile(event: Event) {
 }
 
 async function downloadProductionBoardFile(file: OrderFileItem) {
+  const popup = openPendingFileWindow()
   try {
     const payload = await apiFetch<FilePreviewUrlResponse>(`/files/${file.file_id}/download-url`)
-    window.open(payload.data.download_url ?? payload.data.preview_url, '_blank', 'noopener')
+    if (!popup) throw new Error('浏览器阻止了新窗口，请允许弹窗后重试')
+    popup.location.replace(payload.data.download_url ?? payload.data.preview_url)
   } catch (error) {
+    popup?.close()
     productionBoardFilesError.value = error instanceof Error ? error.message : '文件下载链接获取失败'
   }
 }
 
-function productionBoardCadFiles() {
-  return productionBoardFiles.value.filter((file) => {
-    const extension = file.original_filename.split('.').pop()?.toUpperCase() ?? ''
-    return ['CAD_DATA', 'DESIGN_RETURN', 'DESIGN_DRAFT', 'ORDER_ATTACHMENT'].includes(file.source_type)
-      || ['STL', 'OBJ', 'EXO', 'PLY', 'DCM'].includes(extension)
-  })
+function productionBoardStlFiles(files = productionBoardFiles.value) {
+  return files
+    .filter((file) => file.upload_status === 'COMPLETED' && file.original_filename.toLowerCase().endsWith('.stl'))
+    .sort((left, right) => {
+      const leftPriority = left.source_type === 'ORDER_ATTACHMENT' ? 0 : 1
+      const rightPriority = right.source_type === 'ORDER_ATTACHMENT' ? 0 : 1
+      return leftPriority - rightPriority || left.file_id - right.file_id
+    })
+}
+
+function selectedProductionBoardStlFile() {
+  const files = productionBoardStlFiles()
+  return files.find((file) => file.file_id === selectedProductionBoardStlFileId.value) ?? files[0] ?? null
 }
 
 async function downloadProductionBoardCadData() {
-  const file = productionBoardCadFiles()[0]
+  const file = selectedProductionBoardStlFile()
   if (!file) {
-    productionBoardFilesError.value = '当前订单没有可下载的扫描或 CAD 数据'
+    productionBoardFilesError.value = '当前订单没有可下载的 STL 文件'
     return
   }
   await downloadProductionBoardFile(file)
 }
 
 async function previewProductionBoardCadData() {
-  const file = productionBoardCadFiles()[0]
+  const file = selectedProductionBoardStlFile()
   if (!file) {
-    productionBoardFilesError.value = '当前订单没有可预览的 CAD 数据'
+    productionBoardFilesError.value = '当前订单没有可预览的 STL 文件'
     return
   }
   try {
     const payload = await apiFetch<FilePreviewUrlResponse>(`/files/${file.file_id}/preview-url`)
-    window.open(payload.data.preview_url, '_blank', 'noopener')
+    productionBoardStlViewerUrl.value = payload.data.preview_url
+    productionBoardStlViewerFilename.value = file.original_filename
+    productionBoardStlViewerVisible.value = true
   } catch (error) {
-    productionBoardFilesError.value = error instanceof Error ? error.message : 'CAD 文件预览链接获取失败'
+    productionBoardFilesError.value = error instanceof Error ? error.message : 'STL 文件预览链接获取失败'
   }
 }
 
@@ -9250,6 +9378,20 @@ onBeforeUnmount(() => {
                     >
                       <span>{{ field.key }}</span>
                       <strong>{{ field.value }}</strong>
+                    </div>
+                  </div>
+                  <div class="order-attachment-section" data-testid="cs-original-attachments">
+                    <div class="subheading-row">
+                      <h3>医生原始附件</h3>
+                      <el-tag type="info" round>{{ originalOrderAttachments(csOrderFiles).length }} 个</el-tag>
+                    </div>
+                    <div v-if="csOrderFilesLoading" class="empty-state">原始附件加载中</div>
+                    <div v-else-if="originalOrderAttachments(csOrderFiles).length === 0" class="empty-state">当前订单暂无原始附件</div>
+                    <div v-else class="compact-list order-attachment-list">
+                      <article v-for="file in originalOrderAttachments(csOrderFiles)" :key="file.file_id">
+                        <div><strong>{{ file.original_filename }}</strong><p>{{ file.content_type || '未知类型' }} · {{ formatOrderFileSize(file.file_size) }}</p></div>
+                        <div class="inline-actions"><el-button size="small" plain @click="openOrderFile(file, 'preview', 'cs')">预览</el-button><el-button size="small" @click="openOrderFile(file, 'download', 'cs')">下载</el-button></div>
+                      </article>
                     </div>
                   </div>
                 </el-tab-pane>
@@ -10926,9 +11068,15 @@ onBeforeUnmount(() => {
 
                 <section class="factory-drawer-files">
                   <div class="factory-drawer-files-title">CAD数据与文件</div>
+                  <div v-if="productionBoardStlFiles().length > 0" class="factory-stl-selector">
+                    <span>当前 STL</span>
+                    <el-select v-model="selectedProductionBoardStlFileId" size="small" data-testid="production-stl-selector">
+                      <el-option v-for="file in productionBoardStlFiles()" :key="file.file_id" :label="file.original_filename" :value="file.file_id" />
+                    </el-select>
+                  </div>
                   <div class="factory-cad-actions">
-                    <button type="button" class="factory-action-primary" @click="downloadProductionBoardCadData">下载STL / 扫描数据</button>
-                    <button type="button" class="factory-action-secondary" @click="previewProductionBoardCadData">在浏览器中查看3D</button>
+                    <button type="button" class="factory-action-primary" :disabled="productionBoardStlFiles().length === 0" @click="downloadProductionBoardCadData">下载选中 STL</button>
+                    <button type="button" class="factory-action-secondary" data-testid="production-stl-preview-button" :disabled="productionBoardStlFiles().length === 0" @click="previewProductionBoardCadData">在浏览器中查看3D</button>
                     <button type="button" class="factory-action-secondary" :disabled="productionBoardFileUploading" @click="triggerProductionBoardFileUpload('DESIGN_RETURN')">
                       {{ productionBoardFileUploading ? '上传中' : '上传设计返回' }}
                     </button>
@@ -11122,9 +11270,15 @@ onBeforeUnmount(() => {
 
                 <section class="factory-drawer-files">
                   <div class="factory-drawer-files-title">CAD数据与文件</div>
+                  <div v-if="productionBoardStlFiles().length > 0" class="factory-stl-selector">
+                    <span>当前 STL</span>
+                    <el-select v-model="selectedProductionBoardStlFileId" size="small" data-testid="production-stl-selector">
+                      <el-option v-for="file in productionBoardStlFiles()" :key="file.file_id" :label="file.original_filename" :value="file.file_id" />
+                    </el-select>
+                  </div>
                   <div class="factory-cad-actions">
-                    <button type="button" class="factory-action-primary" @click="downloadProductionBoardCadData">下载STL / 扫描数据</button>
-                    <button type="button" class="factory-action-secondary" @click="previewProductionBoardCadData">在浏览器中查看3D</button>
+                    <button type="button" class="factory-action-primary" :disabled="productionBoardStlFiles().length === 0" @click="downloadProductionBoardCadData">下载选中 STL</button>
+                    <button type="button" class="factory-action-secondary" data-testid="production-stl-preview-button" :disabled="productionBoardStlFiles().length === 0" @click="previewProductionBoardCadData">在浏览器中查看3D</button>
                     <button type="button" class="factory-action-secondary" :disabled="productionBoardFileUploading" @click="triggerProductionBoardFileUpload('DESIGN_RETURN')">
                       {{ productionBoardFileUploading ? '上传中' : '上传设计返回' }}
                     </button>
@@ -12017,12 +12171,14 @@ onBeforeUnmount(() => {
             <section v-if="doctorOrderWorkspace" class="doctor-order-detail">
               <div class="inline-actions">
                 <el-button
+                  v-if="canDoctorEditOrder(doctorOrderWorkspace.order)"
                   plain
                   data-testid="doctor-order-edit-button"
                   @click="startDoctorOrderEdit(doctorOrderWorkspace.order)"
                 >
                   继续编辑/补资料
                 </el-button>
+                <el-tag v-else type="info" data-testid="doctor-order-edit-locked" round>订单已锁定，不可继续编辑</el-tag>
               </div>
               <div class="doctor-order-summary">
                 <div>
@@ -12058,6 +12214,19 @@ onBeforeUnmount(() => {
                   <p class="public-message">
                     {{ doctorOrderWorkspace.order.public_message ?? '暂无公开进度说明' }}
                   </p>
+                  <div class="order-attachment-section" data-testid="doctor-original-attachments">
+                    <div class="subheading-row">
+                      <h3>原始上传附件</h3>
+                      <el-tag type="info" round>{{ originalOrderAttachments(doctorOrderWorkspace.files).length }} 个</el-tag>
+                    </div>
+                    <div v-if="originalOrderAttachments(doctorOrderWorkspace.files).length === 0" class="empty-state">当前订单暂无原始附件</div>
+                    <div v-else class="compact-list order-attachment-list">
+                      <article v-for="file in originalOrderAttachments(doctorOrderWorkspace.files)" :key="file.file_id">
+                        <div><strong>{{ file.original_filename }}</strong><p>{{ file.content_type || '未知类型' }} · {{ formatOrderFileSize(file.file_size) }}</p></div>
+                        <div class="inline-actions"><el-button size="small" plain @click="openOrderFile(file, 'preview', 'doctor')">预览</el-button><el-button size="small" @click="openOrderFile(file, 'download', 'doctor')">下载</el-button></div>
+                      </article>
+                    </div>
+                  </div>
                   <el-button
                     type="primary"
                     plain
@@ -12248,8 +12417,15 @@ onBeforeUnmount(() => {
                 <div v-for="field in fieldEntries(doctorOrderWorkspace.order.form_data)" :key="field.key" class="field-cell"><span>{{ doctorFieldLabel(field.key) }}</span><strong>{{ field.value }}</strong></div>
                 <div v-if="fieldEntries(doctorOrderWorkspace.order.form_data).length === 0" class="empty-state">暂无补充订单资料</div>
               </div>
+              <div class="order-attachment-section" data-testid="doctor-drawer-original-attachments">
+                <div class="subheading-row"><h3>原始上传附件</h3><el-tag type="info" round>{{ originalOrderAttachments(doctorOrderWorkspace.files).length }} 个</el-tag></div>
+                <div v-if="originalOrderAttachments(doctorOrderWorkspace.files).length === 0" class="empty-state">当前订单暂无原始附件</div>
+                <div v-else class="compact-list order-attachment-list">
+                  <article v-for="file in originalOrderAttachments(doctorOrderWorkspace.files)" :key="file.file_id"><div><strong>{{ file.original_filename }}</strong><p>{{ file.content_type || '未知类型' }} · {{ formatOrderFileSize(file.file_size) }}</p></div><div class="inline-actions"><el-button size="small" plain @click="openOrderFile(file, 'preview', 'doctor')">预览</el-button><el-button size="small" @click="openOrderFile(file, 'download', 'doctor')">下载</el-button></div></article>
+                </div>
+              </div>
               <div class="inline-actions doctor-drawer-actions">
-                <el-button plain @click="startDoctorOrderEdit(doctorOrderWorkspace.order); doctorOrderListDetailVisible = false">继续编辑 / 补资料</el-button>
+                <el-button v-if="canDoctorEditOrder(doctorOrderWorkspace.order)" plain data-testid="doctor-drawer-edit-button" @click="startDoctorOrderEdit(doctorOrderWorkspace.order); doctorOrderListDetailVisible = false">继续编辑 / 补资料</el-button>
                 <el-button @click="showDoctorOrderSection('messages', 'messages')">沟通留言</el-button>
                 <el-button @click="showDoctorOrderSection('design', 'design')">设计稿</el-button>
                 <el-button type="primary" @click="showDoctorOrderSection('bill', 'bill')">账单物流</el-button>
@@ -14662,5 +14838,10 @@ onBeforeUnmount(() => {
         </section>
       </div>
     </section>
+    <StlViewerDialog
+      v-model:visible="productionBoardStlViewerVisible"
+      :source-url="productionBoardStlViewerUrl"
+      :filename="productionBoardStlViewerFilename"
+    />
   </main>
 </template>

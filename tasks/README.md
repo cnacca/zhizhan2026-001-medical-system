@@ -4,6 +4,8 @@
 
 任务 8：专项验收矩阵与上线准备。
 
+2026-07-14 已完成 1013 浏览器人工验收反馈的局部修复与真实浏览器回归，不新建 RepoFrame goal / task：修复生产端 STL 选择和 3D 查看、完成订单补资料入口、医生/客服原始附件展示、医生留言历史前后端可见性、生产端牙位映射，并在回归中补修高分屏 WebGL 画布裁切和异步签名地址弹窗拦截。用户补充的原三个 STL 已上传到隔离演示订单，三角色读取、签名 URL、文件哈希和 `STLLoader` 解析通过；真实浏览器逐个显示三个模型、完成旋转/缩放/下载点击，医生与客服准确显示三个原始附件及留言正文，三端控制台 0 错误。BUG-005 至 BUG-009 全部关闭。验证覆盖定向后端测试、OpenAPI、前端 build、缺陷静态门禁、production-board 检查、acceptance 和三端真实交互。Task 8 仍保持 `NOT_READY`。
+
 2026-07-13 客服 / 管理工作台经营金额同比已完成。本轮是用户确认的局部开发，不新建 RepoFrame goal / task：新增 `/dashboards/sales`、账单最终应收金额录入、客服 / 管理工作台本年累计与去年同期对比及四线月度趋势；保留十大客户排名原口径。CS / ADMIN 可见，WORKER / DOCTOR 拒绝经营金额接口。验证包括 `SalesDashboardTests`、账单金额兼容测试、OpenAPI、前端 build、acceptance 和真实浏览器路径。Task 8 仍保持 `NOT_READY`。
 
 任务 021：部署 / 运维本地补强已建立阶段级 RepoFrame 执行批次。Goal: `goals/GOAL-020-deployment-ops-local-hardening-20260707.md`；Task: `tasks/TASK-021-deployment-ops-local-hardening-20260707.md`。Scope：补本地 release / rollback dry-run、备份 / 恢复 dry-run 模板第一段、日志留存 / 监控告警配置模板第一段、compose / env / Nginx / healthcheck 静态检查、readiness 联动和阶段级机器检查。Non-goals：不启动真实生产环境，不填写真实服务器、HTTPS 证书、数据库密码、MinIO 密钥、DeepSeek key、webhook secret、监控接收人、客户名单或客户隐私数据，不声明真实服务器部署、HTTPS、备份恢复、日志留存、监控告警、发布回滚演练、正式客户培训签收、客户签字或真实环境验收完成。Acceptance：`check:deployment-ops-local-hardening` 和 `dry-run:phase-one-release-rollback` 通过，`docs/deployment/phase-one-local-ops-dry-run.md` 与 9D.81 / 回滚 / 培训 / readiness 文档互相索引，`deployment-infrastructure` 与 `operations-manuals` 仍为 `PARTIAL`。Verification：`npm run check:deployment-ops-local-hardening`、`npm run dry-run:phase-one-release-rollback`、`npm run check:deployment-env`、`npm run compose:phase-one:config`、`npm run check:task9d81`、`npm run check:operations-rollback-training-closure`、`npm run check:task8-readiness-gaps`、`npm run acceptance`、`git diff --check`。Task 8 仍保持 NOT_READY。

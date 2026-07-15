@@ -43,7 +43,7 @@ const required = [
   [files.app, 'App.vue', '截止时间'],
   [files.app, 'App.vue', 'factory-drawer-files'],
   [files.app, 'App.vue', 'factory-drawer-work-actions'],
-  [files.app, 'App.vue', '下载STL / 扫描数据'],
+  [files.app, 'App.vue', '下载选中 STL'],
   [files.app, 'App.vue', '在浏览器中查看3D'],
   [files.app, 'App.vue', '上传设计返回'],
   [files.app, 'App.vue', '上传评审'],

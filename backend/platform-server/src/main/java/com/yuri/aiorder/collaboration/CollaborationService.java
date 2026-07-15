@@ -60,7 +60,13 @@ public class CollaborationService {
         OrderRow order = loadOrder(orderId, identity, "identity cannot access this order");
         if (identity.isDoctor()) {
             identity.requireDoctorScope(order.doctorUserId(), order.clinicId());
-            return queryMessages(orderId, "AND visibility IN ('DOCTOR', 'DOCTOR_CS', 'ALL') AND review_status IN ('DIRECT', 'APPROVED')", identity);
+            return queryMessages(orderId, """
+                    AND (
+                        (visibility IN ('DOCTOR', 'DOCTOR_CS', 'ALL') AND review_status IN ('DIRECT', 'APPROVED'))
+                        OR (sender_user_id = :viewerUserId AND sender_role = 'DOCTOR'
+                            AND visibility = 'CS_ONLY' AND review_status = 'DIRECT')
+                    )
+                    """, identity, identity.userId());
         }
         if (identity.role() == UserRole.WORKER) {
             return queryMessages(orderId, "AND visibility IN ('CS_WORKER', 'ALL') AND review_status <> 'REJECTED'", identity);
@@ -749,6 +755,14 @@ public class CollaborationService {
     }
 
     private List<MessageResponse> queryMessages(Long orderId, String extraWhere, BootstrapIdentity identity) {
+        return queryMessages(orderId, extraWhere, identity, null);
+    }
+
+    private List<MessageResponse> queryMessages(
+            Long orderId,
+            String extraWhere,
+            BootstrapIdentity identity,
+            Long viewerUserId) {
         String orderFilter = orderId == null ? "" : "AND m.order_id = :orderId";
         JdbcClient.StatementSpec spec = jdbcClient.sql("""
                         SELECT m.message_id, m.order_id, o.order_no, o.product_type, o.external_status,
@@ -762,6 +776,9 @@ public class CollaborationService {
                         """.formatted(orderFilter, extraWhere));
         if (orderId != null) {
             spec = spec.param("orderId", orderId);
+        }
+        if (viewerUserId != null) {
+            spec = spec.param("viewerUserId", viewerUserId);
         }
         return spec.query((rs, rowNum) -> new MessageResponse(
                         rs.getLong("message_id"),

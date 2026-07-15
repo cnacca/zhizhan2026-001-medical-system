@@ -4568,6 +4568,22 @@ p {
   gap: 8px;
 }
 
+.factory-stl-selector {
+  display: grid;
+  grid-template-columns: 72px minmax(0, 1fr);
+  align-items: center;
+  gap: 8px;
+  margin-bottom: 9px;
+  color: #0f766e;
+  font-size: 10px;
+  font-weight: 700;
+}
+
+.factory-stl-selector .el-select {
+  min-width: 0;
+  width: 100%;
+}
+
 .factory-file-input {
   display: none;
 }
@@ -4600,6 +4616,33 @@ p {
 .factory-file-list strong,
 .factory-file-list small {
   display: block;
+}
+
+.order-attachment-section {
+  display: grid;
+  gap: 10px;
+  margin-top: 18px;
+  padding-top: 16px;
+  border-top: 1px solid #e2e8f0;
+}
+
+.order-attachment-list article {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.order-attachment-list article > div:first-child {
+  min-width: 0;
+}
+
+.order-attachment-list strong {
+  overflow-wrap: anywhere;
+}
+
+.order-attachment-list .inline-actions {
+  flex: 0 0 auto;
 }
 
 .factory-drawer-work-actions {

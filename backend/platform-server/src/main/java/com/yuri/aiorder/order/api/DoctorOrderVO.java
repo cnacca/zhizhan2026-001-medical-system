@@ -9,6 +9,7 @@ public record DoctorOrderVO(
         @JsonProperty("patient_id") Long patientId,
         @JsonProperty("product_type") String productType,
         @JsonProperty("external_status") String externalStatus,
+        boolean editable,
         @JsonProperty("form_data") JsonNode formData,
         @JsonProperty("public_message") String publicMessage,
         @JsonProperty("bill_status") String billStatus,

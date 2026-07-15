@@ -327,6 +327,9 @@ components:
           type: string
         external_status:
           "$ref": "#/components/schemas/OrderStatus"
+        editable:
+          type: boolean
+          description: 是否允许医生继续编辑或补资料；仅草稿、客服驳回、生产驳回状态为 true，不暴露内部状态。
         form_data:
           type: object
         public_message:

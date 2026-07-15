@@ -147,6 +147,38 @@ class MessageDesignBillNotificationTests {
     }
 
     @Test
+    void doctorSentCsOnlyMessageRemainsVisibleInOwnHistory() throws Exception {
+        mockMvc.perform(post("/orders/{orderId}/messages", orderId)
+                        .header("X-Bootstrap-Role", "DOCTOR")
+                        .header("X-Bootstrap-User-Id", DOCTOR_USER_ID)
+                        .header("X-Bootstrap-Clinic-Id", clinicId)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"content\":\"医生已发送的历史留言\"}"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.visible_to").value("CS_ONLY"))
+                .andExpect(jsonPath("$.data.review_status").value("DIRECT"));
+
+        mockMvc.perform(get("/orders/{orderId}/messages", orderId)
+                        .header("X-Bootstrap-Role", "DOCTOR")
+                        .header("X-Bootstrap-User-Id", DOCTOR_USER_ID)
+                        .header("X-Bootstrap-Clinic-Id", clinicId))
+                .andExpect(status().isOk())
+                .andExpect(content().string(containsString("医生已发送的历史留言")));
+
+        mockMvc.perform(get("/orders/{orderId}/messages", orderId)
+                        .header("X-Bootstrap-Role", "CS")
+                        .header("X-Bootstrap-User-Id", CS_USER_ID))
+                .andExpect(status().isOk())
+                .andExpect(content().string(containsString("医生已发送的历史留言")));
+
+        mockMvc.perform(get("/orders/{orderId}/messages", orderId)
+                        .header("X-Bootstrap-Role", "WORKER")
+                        .header("X-Bootstrap-User-Id", WORKER_USER_ID))
+                .andExpect(status().isOk())
+                .andExpect(content().string(not(containsString("医生已发送的历史留言"))));
+    }
+
+    @Test
     void csMentionDefaultsKeepEveryMentionedRecipientAbleToSeeTheMessage() throws Exception {
         mockMvc.perform(post("/orders/{orderId}/messages", orderId)
                         .header("X-Bootstrap-Role", "CS")

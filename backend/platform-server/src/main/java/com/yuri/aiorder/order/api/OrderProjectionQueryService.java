@@ -249,11 +249,18 @@ public class OrderProjectionQueryService {
                 row.patientId(),
                 row.productType(),
                 row.externalStatus(),
+                isDoctorEditable(row.internalStatus()),
                 readJson(row.formData()),
                 row.publicMessage(),
                 row.billStatus(),
                 row.logisticsStatus(),
                 row.trackingNo());
+    }
+
+    private boolean isDoctorEditable(String internalStatus) {
+        return "DRAFT".equals(internalStatus)
+                || "CS_REJECTED".equals(internalStatus)
+                || "PRODUCTION_REJECTED".equals(internalStatus);
     }
 
     private OrderInternalDTO toInternalOrder(OrderReadRow row) {

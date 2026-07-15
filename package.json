@@ -25,6 +25,7 @@
     "check:auth-datascope-prod-closure-b": "node scripts/check-auth-datascope-production-closure-b.mjs",
     "check:frontend-productization-closure": "node scripts/check-frontend-productization-closure.mjs",
     "check:admin-dashboard-workbench": "node scripts/check-admin-dashboard-workbench.mjs",
+    "check:feedback-20260713": "node scripts/check-feedback-20260713-browser-acceptance.mjs",
   "check:local-main-chain-acceptance-hardening": "node scripts/check-local-main-chain-acceptance-hardening.mjs",
   "check:ai-production-governance-local-hardening": "node scripts/check-ai-production-governance-local-hardening.mjs",
   "check:deployment-ops-local-hardening": "node scripts/check-deployment-ops-local-hardening.mjs",

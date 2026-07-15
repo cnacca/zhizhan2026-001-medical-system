@@ -121,6 +121,7 @@ class OrderStatusProjectionTests {
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.data.order_id").value(orderId))
                 .andExpect(jsonPath("$.data.external_status").value("PRODUCING"))
+                .andExpect(jsonPath("$.data.editable").value(false))
                 .andExpect(jsonPath("$.data.internal_status").doesNotExist())
                 .andExpect(jsonPath("$.data.production_note").doesNotExist())
                 .andExpect(jsonPath("$.data.cs_user_id").doesNotExist())
@@ -160,6 +161,7 @@ class OrderStatusProjectionTests {
                 .andExpect(jsonPath("$.data.items", hasSize(1)))
                 .andExpect(jsonPath("$.data.items[0].order_id").value(orderId))
                 .andExpect(jsonPath("$.data.items[0].external_status").value("PRODUCING"))
+                .andExpect(jsonPath("$.data.items[0].editable").value(false))
                 .andExpect(jsonPath("$.data.items[0].internal_status").doesNotExist())
                 .andExpect(jsonPath("$.data.items[0].production_note").doesNotExist())
                 .andExpect(jsonPath("$.data.items[0].cs_user_id").doesNotExist())
@@ -390,6 +392,14 @@ class OrderStatusProjectionTests {
                                 """))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.data.internal_status").value("CS_REJECTED"));
+
+        mockMvc.perform(get("/orders/{orderId}", orderId)
+                        .header("X-Bootstrap-Role", "DOCTOR")
+                        .header("X-Bootstrap-User-Id", DOCTOR_USER_ID)
+                        .header("X-Bootstrap-Clinic-Id", clinicId))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.editable").value(true))
+                .andExpect(jsonPath("$.data.internal_status").doesNotExist());
         long completedFileId = insertFileResource(
                 null,
                 DOCTOR_USER_ID,
