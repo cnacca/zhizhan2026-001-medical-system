@@ -2,6 +2,10 @@
 
 更新日期：2026-07-06
 
+## 2026-07-15 当前覆盖口径
+
+GOAL-021 / TASK-022 已将 `customer-pm-confirmations` 从九项统一 `BLOCKED` 校正为分类后的 `PARTIAL`：2项产品确认、1份客户模板、1包标准工时业务数据（提供方待指定），其余分别为已确认基准、一期范围外、培训证据或真实环境证据。PRD逐功能签字为0项。真实上线仍需代码缺口、2026-07-06 表外范围、跨项门禁、真实环境和总体验收证据；原 PRD 38行状态见 `docs/acceptance/prd-v2-38-item-acceptance-audit-20260715.md`。下文旧阶段文字保留历史记录，如冲突以本节为准。Task 8 仍保持 `NOT_READY`。
+
 ## 总结
 
 2026-07-07 部署 / 运维本地补强由 `GOAL-020` / `TASK-021` 承接，并新增 `npm run check:deployment-ops-local-hardening` 与 `npm run dry-run:phase-one-release-rollback`。本 checklist 继续作为上线 readiness 缺口来源；本阶段只补 `docs/deployment/phase-one-local-ops-dry-run.md`、本地 release / rollback dry-run、备份 / 恢复 dry-run 模板第一段、日志留存 / 监控告警配置模板第一段、compose / env / Nginx / healthcheck 静态检查和 readiness 联动。`deployment-infrastructure` 与 `operations-manuals` 仍为 `PARTIAL`，真实服务器、HTTPS、备份恢复、日志留存、监控告警、发布回滚演练、正式客户培训签收、客户 / PM 签字和真实环境验收仍未完成，Task 8 仍保持 `NOT_READY`。
@@ -117,9 +121,9 @@ GOAL-014 / TASK-015 WebSocket / 通知生产 readiness 收口已补 `docs/deploy
 | 客户 / PM 确认项 | BLOCKED | 9D.72 已补 `docs/acceptance/phase-one-customer-pm-confirmations.md` 第一段，逐项记录付款状态口径、动态表单最终字段、AI-5 模板、标准工时、Multipart 限制、真实电子签章、真实物流、客户培训签收和真实环境上线边界；仍需客户 / PM 书面确认后才能关闭。 |
 | PRD V2.0 本地功能差异 | PARTIAL | 9D.82 已补 `docs/acceptance/prd-v2-gap-matrix.md`，2026-07-06 基准已补 `docs/acceptance/phase-one-scope-baseline-20260706.md`，9D.83 已补患者管理基础版，9D.84 已补人工支付流水，9D.85 已补客户 / 诊所档案与偏好，9D.86 已补人员档案 / 工作量看板，9D.87 已补质量记录 CRUD / 外返登记第一增量，PRD V2 本地功能差异收口 B 已补 `quality_record` 独立事实表和状态工作流第一段，9D.88 已补客服订单 / 沟通完整可见性 smoke，9D.89 已补医生账户设置基础闭环，9D.90 已补产品参数 / 价格体系一期最小后台，9D.91 已补客服配送管理页 / 物流异常跟进，9D.92 已补 AI-2 客服查询入口，9D.93.1 已保留医生文件模块不独立开发和 AI 使用 LangChain + DeepSeek 的判断，9D.94 已补 LangChain + DeepSeek AI 底座对齐第一增量，9D.95.1-9D.95.5 作为 C 类基础台账 / 基础登记 / 状态更新证据保留，9D.96 已补医生提交前 AI-4 自动资料缺失检查，9D.97 已补 AI-2 引用数据说明，9D.98 已补 AI-5 生产备注客户模板 / 知识上下文补强第一增量，9D.99 已补 A/B 类一期范围对齐第一段；质量记录完整编辑/删除、客户最终质量口径、A/B 类真实数据闭环、真实 AI 环境联调和客户 / PM 确认仍需继续关闭。 |
 
-PRD V2 本地功能差异收口 C readiness 说明：GOAL-009 / TASK-010 已把 AI-2 `attachment_contexts` 附件预览上下文、客服端 `/ai/cs` 展示、OpenAPI `AiAttachmentContext` 和 `check:prd-v2-gap-closure-c` 纳入当前 evidence。`frontend-business-pages`、`ai-production-governance` 和 `prd-v2-local-feature-gaps` 继续保持 PARTIAL；`customer-pm-confirmations` 继续保持 BLOCKED。Task 8 仍保持 `NOT_READY`，真实 key、RAG / tool calling、真实 webhook、客户 AI-2 口径和真实环境验收不能由本地第一段替代。
+PRD V2 本地功能差异收口 C readiness 说明：GOAL-009 / TASK-010 已把 AI-2 `attachment_contexts` 附件预览上下文、客服端 `/ai/cs` 展示、OpenAPI `AiAttachmentContext` 和 `check:prd-v2-gap-closure-c` 纳入当前 evidence。`frontend-business-pages`、`ai-production-governance`、`prd-v2-local-feature-gaps` 和校正后的 `customer-pm-confirmations` 均保持 PARTIAL。Task 8 仍保持 `NOT_READY`；真实 key / webhook 和真实环境验收仍待执行，RAG / tool calling 不属于一期 P0。
 
-PRD V2 本地功能差异收口 D readiness 说明：GOAL-010 / TASK-011 已把 `/dashboards/phase-one-ab`、本地月度趋势 / 客户排名、客服 / 生产工作台消费、OpenAPI `PhaseOneAbDashboardResponse` 和 `check:prd-v2-gap-closure-d` 纳入当前 evidence。`frontend-business-pages` 和 `prd-v2-local-feature-gaps` 继续保持 PARTIAL，因为真实支付 / 物流、客户统计口径、客户签字和真实环境验收仍未关闭；`customer-pm-confirmations` 继续保持 BLOCKED。Task 8 仍保持 `NOT_READY`。
+PRD V2 本地功能差异收口 D readiness 说明：GOAL-010 / TASK-011 已把 `/dashboards/phase-one-ab`、本地月度趋势 / 客户排名、客服 / 生产工作台消费、OpenAPI `PhaseOneAbDashboardResponse` 和 `check:prd-v2-gap-closure-d` 纳入当前 evidence。`frontend-business-pages`、`prd-v2-local-feature-gaps` 和校正后的 `customer-pm-confirmations` 继续保持 PARTIAL；真实支付 / 物流 API 属二期，不阻塞一期。Task 8 仍保持 `NOT_READY`，因为本地 P0、安全和真实环境验收仍未关闭。
 
 ## 环境变量与密钥边界
 
@@ -222,7 +226,7 @@ git diff --check
 
 ## 上线前人工验收
 
-- 按 `docs/acceptance/task-8-acceptance-matrix.md` 逐项把 `PARTIAL`、`BLOCKED`、`NOT_STARTED` 清零或形成客户签字豁免。
+- 按 `docs/acceptance/prd-v2-38-item-acceptance-audit-20260715.md` 关闭本地 `PARTIAL` / `MISSING`，并在真实条件下完成 `EXTERNAL_ACCEPTANCE`；不再使用“客户逐项签字豁免”替代未完成代码。
 - 用 Bearer token / 正式账号体系而不是 `X-Bootstrap-*` 复测医生端脱敏、文件越权、AI-3 越权、检查记录、派工/转派、WORKER 绩效范围。
 - 复测后台动态表单创建、编辑、停用和医生端只读 `ACTIVE` 字段，客户最终字段清单确认前不要视为完整上线验收。
 - 用浏览器完成 PRD 12 步主链路，保留截图、订单号、日志和数据库核验记录。

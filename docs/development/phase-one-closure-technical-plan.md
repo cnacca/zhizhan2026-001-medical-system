@@ -4,6 +4,12 @@
 
 更新日期：2026-07-07。
 
+## 2026-07-15 当前覆盖口径
+
+GOAL-021 / TASK-022 已按原始 PRD V2 和 2026-07-06 已确认范围重新校准：旧 CP-001 到 CP-009 不再整体作为书面确认阻塞。当前严格口径为 **2 项待客户 / PM 产品确认、0 项 PRD 逐功能签字、1 份客户模板输入、1 包标准工时业务数据（提供方待指定）**。`customer-pm-confirmations` 改为 `PARTIAL`；Task 8 继续保持 `NOT_READY`，但下一步必须优先关闭 38 项验收中的本地 `PARTIAL` / `MISSING`，而不是等待九项签字。
+
+逐项状态以 `docs/acceptance/prd-v2-38-item-acceptance-audit-20260715.md` 为准；本文件后续保留的 GOAL-005 至 GOAL-020 阶段描述属于历史执行证据，如与本节冲突，以本节和 GOAL-021 为准。
+
 ## Summary
 
 本方案是一期收口的可执行稿，不是方向稿。目标是把当前一期收口工作拆成可验证、可回写、可交接的执行阶段：先校准状态基线，再优先处理客户 / PM 确认项与真实环境 AI 验收材料，随后关闭 PRD V2 本地可完成差异，最后统一验收和文档回写。
@@ -40,10 +46,10 @@ RepoFrame 记录：
 
 | gap id | 当前状态 | 执行含义 |
 | --- | --- | --- |
-| `customer-pm-confirmations` | `BLOCKED` | 客户 / PM 确认项仍未书面关闭，开发侧只能维护确认表、阻塞状态和检查脚本。 |
+| `customer-pm-confirmations` | `PARTIAL` | 仅动态表单最终字段和文件限制待产品确认；AI-5 模板与标准工时属于输入资料，培训、部署和总体验收属于后置证据。 |
 | `ai-production-governance` | `PARTIAL` | 已有本地治理、LangChain + DeepSeek 底座、AI-5 默认模板和验收模板，但真实 key / webhook 未联调。 |
-| `prd-v2-local-feature-gaps` | `PARTIAL` | 本地第一增量较完整，但质量模型、生产支撑模块完整闭环、AI 真实环境和客户确认仍未完成。 |
-| `frontend-business-pages` | `PARTIAL` | 页面具备演示和多段真实接口第一增量，但仍缺真实外部服务、完整客户验收和若干管理闭环。 |
+| `prd-v2-local-feature-gaps` | `PARTIAL` | 38 项中有 4 项 MISSING、8 项 PARTIAL，优先关闭医生端隔离、自动匹配、人员账号和两个生产门禁；真实支付 / 物流平台、电子签章不计一期 P0。 |
+| `frontend-business-pages` | `PARTIAL` | 页面具备演示和多段真实接口第一增量，但仍缺完整真实点击、人员创建、设计稿多轮分支、质量统计筛选等本地闭环。 |
 
 状态基线特别要求：
 
@@ -51,7 +57,7 @@ RepoFrame 记录：
 - 9D.91 客服配送管理页 / 物流异常跟进：已完成第一增量，不能再写成下一步。
 - 9D.92 AI-2 客服查询助手完整入口：已完成第一增量，不能再写成下一步。
 - 9D.97 AI-2 客服查询引用数据说明 / 知识上下文补强：已完成第一增量。
-- 9D.98 AI-5 生产备注客户模板 / 知识上下文补强：已完成第一增量，但客户正式模板、真实 key、webhook 和签字仍是阻塞项。
+- 9D.98 AI-5 生产备注客户模板 / 知识上下文补强：已完成第一增量；客户正式模板属于待提供资料，真实 key / webhook 属于环境证据，不存在逐功能签字阻塞。
 
 ## Execution Phases
 
@@ -74,9 +80,9 @@ RepoFrame 记录：
 - `npm run acceptance`
 - `git diff --check`
 
-### 第一段：客户 / PM 确认项与真实环境 AI 验收收口
+### 第一段：客户 / PM 确认、外部输入与真实环境验收分类收口
 
-目标：把当前下一步指针提前到客户 / PM 确认项与真实环境 AI 验收收口。只做确认表、验收记录模板、阻塞状态和检查脚本，不伪装真实外部验收。
+目标：区分产品确认、业务输入、一期外变更和最终验收证据。只做分类表、验收记录模板、状态和检查脚本，不伪装真实外部验收，也不把外部输入当成其余功能的统一停工理由。
 
 对应 gap id：
 
@@ -85,10 +91,10 @@ RepoFrame 记录：
 
 执行内容：
 
-- 复核 `docs/acceptance/phase-one-customer-pm-confirmations.md`，确保 CP-001 到 CP-009 都有负责人、确认状态、阻塞原因和后续动作。
-- 复核 `docs/acceptance/task-9d80-ai-production-integration-acceptance.md`，保持真实 DeepSeek key、真实 webhook、signing secret、receiver secret、客户 / PM 签字为 `待填写` / `待确认`。
+- 复核 `docs/acceptance/phase-one-customer-pm-confirmations.md`，只把 CP-002、CP-005列为产品确认；把其余项目分别归入已确认基准、资料/数据输入、一期范围外、交付证据或真实环境证据。
+- 复核 `docs/acceptance/task-9d80-ai-production-integration-acceptance.md`，保持真实 DeepSeek key、真实 webhook、signing secret、receiver secret 和真实环境结果为 `待填写` / `待确认`；结果并入一期总体验收记录。
 - 复核 `docs/deployment/task-9d81-production-deployment-acceptance.md`，保持真实服务器、HTTPS、备份恢复、日志留存、监控告警、发布回滚为 `待填写` / `待确认`。
-- 复核 AI-5 生产备注模板状态，保持 `requires_customer_template_confirmation` 和“客户模板未确认”语义，不把 `PHASE_ONE_DEFAULT_V1` 写成客户正式模板。
+- 复核 AI-5 生产备注模板状态，保持 `requires_customer_template_confirmation` 兼容字段和“客户正式模板待提供”语义，不把 `PHASE_ONE_DEFAULT_V1` 写成客户正式模板。
 
 验收命令：
 
@@ -104,7 +110,7 @@ npm run check:task8-readiness-gaps
 - 不接入真实 DeepSeek key。
 - 不填写真实 webhook URL 或 signing secret。
 - 不把客户生产备注模板写成已确认。
-- 不把客户 / PM 签字写成已完成。
+- 不伪造客户模板、真实环境结果或一期总体验收结论。
 
 ### 第二段：PRD V2 本地功能差异收口
 
@@ -180,7 +186,7 @@ npm run check:task8-readiness-gaps
 统一验收前必须确认：
 
 - 文档不再把 9D.90、9D.91、9D.92、9D.97、9D.98 写成下一步。
-- `customer-pm-confirmations` 仍为 `BLOCKED`。
+- `customer-pm-confirmations` 为校正后的 `PARTIAL`，不得退回“CP-001 到 CP-009 全部阻塞”的旧口径。
 - `ai-production-governance`、`prd-v2-local-feature-gaps`、`frontend-business-pages` 仍为 `PARTIAL`。
 - Task 8 仍为 `NOT_READY`。
 
@@ -217,9 +223,10 @@ git diff --check
 
 ## Remaining Blockers
 
-- 客户 / PM 尚未书面确认 CP-001 到 CP-009。
+- 客户 / PM 尚需确认 CP-002 动态表单最终字段和 CP-005 文件限制；现有默认值不阻塞基础开发。
+- 客户尚需提供 CP-003 AI-5 正式生产备注模板；项目方尚需指定 CP-004 数据负责人并协调业务方提供各工序标准工时。
 - 真实 DeepSeek key 尚未在真实环境联调。
 - 真实 webhook、signing secret、接收端验签 / 防重放尚未生产联调。
 - 真实测试 / 正式对象存储 bucket、弱网、跨设备验收尚未完成。
 - 真实服务器、HTTPS、备份恢复、监控告警、发布回滚尚未验收。
-- 设备、物料、安环、成本、奖惩是否必须补到一期 READY，仍依赖客户 / PM 最终范围确认。
+- 设备、物料、安环、成本、奖惩按 2026-07-06 基准只保留 C 类基础能力，不再作为一期完整闭环范围确认项。

@@ -18,6 +18,7 @@
     "check:phase-one-workflow": "node scripts/check-phase-one-workflow.mjs",
     "check:stage-goal-window": "node scripts/check-stage-goal-window-guide.mjs",
     "check:real-acceptance-confirmation": "node scripts/check-real-acceptance-confirmation.mjs",
+    "check:prd-v2-acceptance-recalibration": "node scripts/check-prd-v2-acceptance-recalibration.mjs",
     "check:auth-datascope-prod-closure": "node scripts/check-auth-datascope-production-closure.mjs",
     "check:frontend-customer-smoke-closure": "node scripts/check-frontend-customer-smoke-closure.mjs",
     "check:websocket-notification-readiness-closure": "node scripts/check-websocket-notification-readiness-closure.mjs",

@@ -103,7 +103,7 @@ for (const [file, fragments] of [
 for (const [gapId, expectedStatus] of [
   ['deployment-infrastructure', 'PARTIAL'],
   ['operations-manuals', 'PARTIAL'],
-  ['customer-pm-confirmations', 'BLOCKED'],
+  ['customer-pm-confirmations', 'PARTIAL'],
   ['ai-production-governance', 'PARTIAL'],
   ['websocket-notification-prod', 'PARTIAL']
 ]) {

@@ -37,7 +37,7 @@ requireText(planPath, [
   '## Current Baseline',
   '## Execution Phases',
   '### 第零段：状态基线校准',
-  '### 第一段：客户 / PM 确认项与真实环境 AI 验收收口',
+  '### 第一段：客户 / PM 确认、外部输入与真实环境验收分类收口',
   '### 第二段：PRD V2 本地功能差异收口',
   '### 第三段：生产支持模块 PARTIAL 收口',
   '### 第四段：统一验收与文档回写',
@@ -85,8 +85,8 @@ const acceptanceText = requireText('acceptance.json', [
   '"id": "ai-production-governance"',
   '"id": "prd-v2-local-feature-gaps"',
   '"id": "customer-pm-confirmations"',
-  '9D.98 已补 AI-5 生产备注客户模板 / 知识上下文补强第一增量',
-  '真实客户 / PM 确认项与真实环境 AI 验收收口',
+  'GOAL-021 / TASK-022',
+  'docs/acceptance/prd-v2-38-item-acceptance-audit-20260715.md',
 ])
 
 if (acceptanceText) {
@@ -95,7 +95,7 @@ if (acceptanceText) {
     ['frontend-business-pages', 'PARTIAL'],
     ['ai-production-governance', 'PARTIAL'],
     ['prd-v2-local-feature-gaps', 'PARTIAL'],
-    ['customer-pm-confirmations', 'BLOCKED'],
+    ['customer-pm-confirmations', 'PARTIAL'],
   ])
   for (const [id, status] of requiredGapStatuses.entries()) {
     const gap = acceptance.task8_readiness_gaps?.find((item) => item.id === id)
@@ -117,8 +117,6 @@ forbidText('acceptance.json', [
 
 forbidText('README.md', [
   '任务 9D.1 到 9D.90 的多条一期硬缺口第一增量',
-  '下一轮唯一推荐目标是 WebSocket / 通知生产验收第一段',
-  '下一轮唯一推荐目标：客服配送管理页 / 物流异常跟进第一增量',
 ])
 
 for (const file of [
@@ -152,11 +150,12 @@ requireText('docs/acceptance/phase-one-customer-pm-confirmations.md', [
   'CP-007',
   'CP-008',
   'CP-009',
-  '负责人',
-  '当前状态',
-  '未决风险',
-  'BLOCKED',
-  'PROPOSED_DEFAULT',
+  '当前分类',
+  'PENDING_CONFIRMATION',
+  'CONFIRMED_BASELINE',
+  'CUSTOMER_INPUT_REQUIRED',
+  'BUSINESS_DATA_REQUIRED',
+  'OUT_OF_PHASE_ONE',
   'Task 8 仍保持 NOT_READY',
 ])
 

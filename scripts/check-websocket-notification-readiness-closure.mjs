@@ -161,7 +161,7 @@ if (!websocketGap) {
 
 for (const [gapId, expectedStatus] of [
   ['websocket-notification-prod', 'PARTIAL'],
-  ['customer-pm-confirmations', 'BLOCKED'],
+  ['customer-pm-confirmations', 'PARTIAL'],
   ['ai-production-governance', 'PARTIAL'],
   ['deployment-infrastructure', 'PARTIAL'],
   ['frontend-business-pages', 'PARTIAL'],

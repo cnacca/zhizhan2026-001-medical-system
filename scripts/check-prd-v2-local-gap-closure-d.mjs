@@ -146,8 +146,8 @@ for (const gapId of ['prd-v2-local-feature-gaps', 'frontend-business-pages']) {
   }
 }
 const customerPm = acceptance.task8_readiness_gaps?.find((item) => item.id === 'customer-pm-confirmations')
-if (!customerPm || customerPm.status !== 'BLOCKED') {
-  failures.push('acceptance.json expected customer-pm-confirmations to remain BLOCKED')
+if (!customerPm || customerPm.status !== 'PARTIAL') {
+  failures.push('acceptance.json expected customer-pm-confirmations to use the corrected PARTIAL classification')
 }
 
 for (const file of [

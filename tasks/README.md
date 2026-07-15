@@ -4,6 +4,8 @@
 
 任务 8：专项验收矩阵与上线准备。
 
+2026-07-15 GOAL-021 / TASK-022 已完成 PRD V2 确认口径校正与38项验收重算。本轮按原始 V2 和 2026-07-06 基准，把旧 CP-001 到 CP-009 重分类为：2项产品确认、1份客户模板、1包标准工时业务数据（提供方待指定）、2项已确认基准、1项一期外范围、1项培训证据、1项真实环境证据；PRD 逐功能签字为0项。新增 `docs/acceptance/prd-v2-38-item-acceptance-audit-20260715.md`，原 PRD 38项结果为18 PASS、8 PARTIAL、4 MISSING、8 EXTERNAL_ACCEPTANCE；表外 A/B/C 范围和跨项门禁仍独立跟踪。本阶段只改文档、验收与机器检查，不改业务代码；Task 8 仍保持 `NOT_READY`。
+
 2026-07-14 已完成 1013 浏览器人工验收反馈的局部修复与真实浏览器回归，不新建 RepoFrame goal / task：修复生产端 STL 选择和 3D 查看、完成订单补资料入口、医生/客服原始附件展示、医生留言历史前后端可见性、生产端牙位映射，并在回归中补修高分屏 WebGL 画布裁切和异步签名地址弹窗拦截。用户补充的原三个 STL 已上传到隔离演示订单，三角色读取、签名 URL、文件哈希和 `STLLoader` 解析通过；真实浏览器逐个显示三个模型、完成旋转/缩放/下载点击，医生与客服准确显示三个原始附件及留言正文，三端控制台 0 错误。BUG-005 至 BUG-009 全部关闭。验证覆盖定向后端测试、OpenAPI、前端 build、缺陷静态门禁、production-board 检查、acceptance 和三端真实交互。Task 8 仍保持 `NOT_READY`。
 
 2026-07-13 客服 / 管理工作台经营金额同比已完成。本轮是用户确认的局部开发，不新建 RepoFrame goal / task：新增 `/dashboards/sales`、账单最终应收金额录入、客服 / 管理工作台本年累计与去年同期对比及四线月度趋势；保留十大客户排名原口径。CS / ADMIN 可见，WORKER / DOCTOR 拒绝经营金额接口。验证包括 `SalesDashboardTests`、账单金额兼容测试、OpenAPI、前端 build、acceptance 和真实浏览器路径。Task 8 仍保持 `NOT_READY`。

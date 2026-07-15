@@ -175,7 +175,7 @@ if (!operationsGap) {
 for (const [gapId, expectedStatus] of [
   ['operations-manuals', 'PARTIAL'],
   ['deployment-infrastructure', 'PARTIAL'],
-  ['customer-pm-confirmations', 'BLOCKED'],
+  ['customer-pm-confirmations', 'PARTIAL'],
   ['ai-production-governance', 'PARTIAL'],
   ['websocket-notification-prod', 'PARTIAL'],
 ]) {

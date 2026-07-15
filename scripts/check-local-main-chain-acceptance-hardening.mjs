@@ -125,7 +125,7 @@ for (const [file, fragments] of [
 for (const [gapId, expectedStatus] of [
   ['frontend-business-pages', 'PARTIAL'],
   ['prd-v2-local-feature-gaps', 'PARTIAL'],
-  ['customer-pm-confirmations', 'BLOCKED'],
+  ['customer-pm-confirmations', 'PARTIAL'],
   ['ai-production-governance', 'PARTIAL'],
   ['deployment-infrastructure', 'PARTIAL'],
   ['operations-manuals', 'PARTIAL']

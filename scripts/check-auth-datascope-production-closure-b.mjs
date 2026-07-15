@@ -114,7 +114,7 @@ for (const file of [
 
 for (const [gapId, expectedStatus] of [
   ['auth-datascope-prod', 'PARTIAL'],
-  ['customer-pm-confirmations', 'BLOCKED'],
+  ['customer-pm-confirmations', 'PARTIAL'],
   ['ai-production-governance', 'PARTIAL'],
   ['deployment-infrastructure', 'PARTIAL'],
   ['prd-v2-local-feature-gaps', 'PARTIAL']

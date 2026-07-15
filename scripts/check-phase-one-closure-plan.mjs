@@ -47,7 +47,7 @@ requireText('docs/development/phase-one-closure-technical-plan.md', [
   '## Current Baseline',
   '## Execution Phases',
   '### 第零段：状态基线校准',
-  '### 第一段：客户 / PM 确认项与真实环境 AI 验收收口',
+  '### 第一段：客户 / PM 确认、外部输入与真实环境验收分类收口',
   '### 第二段：PRD V2 本地功能差异收口',
   '### 第三段：生产支持模块 PARTIAL 收口',
   '### 第四段：统一验收与文档回写',

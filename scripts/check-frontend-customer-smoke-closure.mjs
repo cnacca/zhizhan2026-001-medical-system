@@ -180,7 +180,7 @@ requireText('acceptance.json', [
 
 for (const [gapId, expectedStatus] of [
   ['frontend-business-pages', 'PARTIAL'],
-  ['customer-pm-confirmations', 'BLOCKED'],
+  ['customer-pm-confirmations', 'PARTIAL'],
   ['ai-production-governance', 'PARTIAL'],
   ['deployment-infrastructure', 'PARTIAL'],
   ['auth-datascope-prod', 'PARTIAL'],

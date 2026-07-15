@@ -4,6 +4,10 @@
 
 ## 当前仓库状态
 
+2026-07-15 最新完成阶段为 `goals/GOAL-021-prd-v2-acceptance-recalibration-20260715.md` / `tasks/TASK-022-prd-v2-acceptance-recalibration-20260715.md`。本阶段已按 PRD V2 和 2026-07-06 基准校正旧九项确认清单：待客户 / PM 产品确认2项、PRD逐功能签字0项、客户模板1份、标准工时业务数据1包（提供方待项目方指定）。原 PRD 验收表38项入口为 `docs/acceptance/prd-v2-38-item-acceptance-audit-20260715.md`，当前重算为18 PASS、8 PARTIAL、4 MISSING、8 EXTERNAL_ACCEPTANCE；表外 A/B/C 范围、跨项流程门禁和上线 readiness 仍独立跟踪，不能只凭38项宣称整个一期完成。Task 8 继续保持 `NOT_READY`；真实支付、物流 API、电子签章、STL 在线查看器、RAG 和 tool calling 不作为一期 P0 阻塞。
+
+下方 2026-07-07 各段出现的 handoff 工作区路径和“当前 active goal”都是阶段历史记录，不再代表当前工作区或执行指针；当前工作区为 `/Users/yuri/Documents/AI智能下单平台`，如有冲突以 GOAL-021 / TASK-022、D-162 和 38 项审计矩阵为准。
+
 当前工作区为 `/Users/yuri/Documents/AI智能下单平台-handoff-20260706`，属于已有项目的 RepoFrame `repo-hydrate` 后续执行，不是重新初始化。当前 active goal 是 `goals/GOAL-020-deployment-ops-local-hardening-20260707.md`，active task 是 `tasks/TASK-021-deployment-ops-local-hardening-20260707.md`，正在执行部署 / 运维本地补强：新增 `npm run check:deployment-ops-local-hardening` 和 `npm run dry-run:phase-one-release-rollback`，并补 `docs/deployment/phase-one-local-ops-dry-run.md`、本地 release / rollback dry-run、备份 / 恢复 dry-run 模板第一段、日志留存 / 监控告警配置模板第一段、compose / env / Nginx / healthcheck 静态检查和 readiness 联动。Task 8 继续保持 `NOT_READY`；本阶段不声明真实服务器 / HTTPS / 备份恢复 / 日志留存 / 监控告警 / 发布回滚演练 / 客户培训签收 / 客户签字 / 真实环境验收完成。
 
 当前工作区为 `/Users/yuri/Documents/AI智能下单平台-handoff-20260706`，属于已有项目的 RepoFrame `repo-hydrate` 后续执行，不是重新初始化。当前 active goal 是 `goals/GOAL-019-ai-production-governance-local-hardening-20260707.md`，active task 是 `tasks/TASK-020-ai-production-governance-local-hardening-20260707.md`，正在执行 AI 生产治理本地补强：新增 `npm run check:ai-production-governance-local-hardening`，并补 `GET /ai/governance/local-hardening`、管理端 `/admin/ai-governance` 只读页面、AI-3 安全矩阵回归、OpenAPI 和验收 / readiness 文档回写。Task 8 继续保持 `NOT_READY`；本阶段不声明真实 key / webhook / 客户正式模板 / 客户签字 / 真实环境验收完成。

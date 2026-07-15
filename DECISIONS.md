@@ -1,5 +1,25 @@
 # DECISIONS
 
+## D-162 客户 / PM 确认项按 PRD V2 重新分类并重算原验收表38项
+
+状态：用户已确认，GOAL-021 / TASK-022 已执行完成。
+
+决策：
+
+- 2026-07-05 的 CP-001 到 CP-009 清单保留历史编号，但不再整体作为九项书面确认阻塞；本决策覆盖 D-123 及后续沿用该旧口径的活动状态。
+- 严格按 PRD V2，待客户 / PM 产品确认只有 CP-002 动态表单最终字段和 CP-005 文件限制2项，PRD 明确逐功能签字为0项。
+- CP-003 是客户提供 AI-5 正式模板；CP-004 是标准工时业务数据，PRD 未指定提供方，由项目方协调业务负责人提供；CP-001 / CP-007 已由 2026-07-06 人工付款 / 人工物流方式确认；CP-006 不属于一期 P0；CP-008 / CP-009 是最终交付和真实环境证据。
+- 原 PRD V2 38行验收表改为按 `docs/acceptance/prd-v2-38-item-acceptance-audit-20260715.md` 逐项计量，当前为18 PASS、8 PARTIAL、4 MISSING、8 EXTERNAL_ACCEPTANCE；整个一期仍须合并 2026-07-06 A/B/C 表外范围、跨项门禁和上线 readiness 判断。
+- CP-001 已确认的是“人工维护付款状态且不接真实支付网关”；V2 对外口径为未付、部分付、已付。当前代码的 `NOT_REQUIRED` 属于内部实现扩展，不解释为客户已确认的第四个对外状态。
+- `customer-pm-confirmations` 从 `BLOCKED` 改为 `PARTIAL`；Task 8 仍保持 `NOT_READY`，但必须优先关闭真实本地缺口，不能继续以“等待九项签字”为停工理由。
+- 真实支付、物流 API、电子签章、STL 在线查看器、RAG、tool calling 不作为一期 P0 readiness 阻塞；新增要求必须走范围变更。
+
+影响：
+
+- 当前 active goal / task 为 GOAL-021 / TASK-022。
+- 确认清单、acceptance、技术方案、gap matrix、Task 8 matrix、readiness 和机器检查统一采用新分类。
+- 原验收表38项、2026-07-06 A/B/C 表外范围、跨项门禁、上线 readiness 与真实交付证据全部关闭后，只形成一份总体验收记录，不要求逐项签字。
+
 ## D-161 客服 / 管理经营金额按账单事实做同口径同比
 
 状态：已确认并执行。

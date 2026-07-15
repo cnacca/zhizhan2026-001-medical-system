@@ -76,9 +76,15 @@ requireText('docs/acceptance/phase-one-customer-pm-confirmations.md', [
   'CP-007',
   'CP-008',
   'CP-009',
-  '待 PM 排期',
-  'BLOCKED',
-  'PROPOSED_DEFAULT',
+  'PENDING_CONFIRMATION',
+  'CONFIRMED_BASELINE',
+  'CUSTOMER_INPUT_REQUIRED',
+  'BUSINESS_DATA_REQUIRED',
+  'OUT_OF_PHASE_ONE',
+  'DELIVERY_EVIDENCE_PENDING',
+  'EXTERNAL_ENV_EVIDENCE_PENDING',
+  '待客户 / PM 产品确认',
+  'PRD 明确要求逐功能签字',
   'Task 8 仍保持 NOT_READY'
 ])
 
@@ -145,7 +151,7 @@ requireText('acceptance.json', [
 ])
 
 for (const [gapId, expectedStatus] of [
-  ['customer-pm-confirmations', 'BLOCKED'],
+  ['customer-pm-confirmations', 'PARTIAL'],
   ['ai-production-governance', 'PARTIAL'],
   ['deployment-infrastructure', 'PARTIAL'],
   ['frontend-business-pages', 'PARTIAL'],
@@ -158,7 +164,7 @@ for (const [gapId, expectedStatus] of [
 }
 
 forbidText('docs/acceptance/phase-one-customer-pm-confirmations.md', [
-  '当前状态 | CONFIRMED',
+  'PRD 明确要求逐功能签字 | 1',
   '客户/PM 签字状态：已确认',
   '客户/PM 签字状态：已签字'
 ])

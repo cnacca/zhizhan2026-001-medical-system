@@ -4,6 +4,10 @@
 
 更新日期：2026-07-07。
 
+## 2026-07-15 当前覆盖口径
+
+GOAL-021 / TASK-022 已重新核对原始 PRD V2：旧 CP-001 到 CP-009 不再整体作为书面确认阻塞，`customer-pm-confirmations` 当前为 `PARTIAL`。待产品确认仅2项，PRD逐功能签字0项；原 PRD V2 的38行验收表当前为18 PASS、8 PARTIAL、4 MISSING、8 EXTERNAL_ACCEPTANCE。整个一期仍须合并本矩阵的 2026-07-06 A/B/C 表外范围、两条跨项门禁和上线 readiness 判断。下文 GOAL-007 至 GOAL-020 的旧 `BLOCKED` 表述保留为历史执行事实，如与本节冲突，以本节和 D-162 为准。Task 8 仍保持 `NOT_READY`。
+
 RepoFrame 当前入口：`goals/GOAL-020-deployment-ops-local-hardening-20260707.md` / `tasks/TASK-021-deployment-ops-local-hardening-20260707.md` 已完成部署 / 运维本地补强，并新增 `npm run check:deployment-ops-local-hardening` 与 `npm run dry-run:phase-one-release-rollback`。本阶段只补本地 release / rollback dry-run、备份 / 恢复 dry-run 模板第一段、日志留存 / 监控告警配置模板第一段、compose / env / Nginx / healthcheck 静态检查和 readiness 联动；`deployment-infrastructure` 与 `operations-manuals` 仍为 `PARTIAL`，不代表真实服务器、HTTPS、备份恢复、日志留存、监控告警、发布回滚演练、正式客户培训签收、客户签字或真实环境验收完成，Task 8 仍保持 `NOT_READY`。
 
 RepoFrame 当前入口：`goals/GOAL-019-ai-production-governance-local-hardening-20260707.md` / `tasks/TASK-020-ai-production-governance-local-hardening-20260707.md` 已完成 AI 生产治理本地补强，并新增 `npm run check:ai-production-governance-local-hardening`。本阶段只补 `local-hardening` 本地只读治理总览、提示词版本、输出安全边界、预算 / 熔断、AI-3 安全矩阵、AI-5 默认模板边界和真实外部集成待验状态；`ai-production-governance` 仍为 `PARTIAL`，不代表真实 DeepSeek key、生产 webhook、客户 AI-5 正式模板、客户签字或真实环境验收完成，Task 8 仍保持 `NOT_READY`。
@@ -53,7 +57,7 @@ RepoFrame 当前入口：`goals/GOAL-012-auth-datascope-production-closure-20260
 | 医生在线下单 | 产品类型、动态表单、文件上传、草稿、AI 缺失检查。 | PARTIAL | 动态表单 CRUD、医生提交订单、草稿 / 补资料、Multipart、文件限制已落地。 | 动态表单最终字段、客户偏好自动填充、提交前 AI 缺失检查体验仍需收敛；字段清单仍需客户确认。 |
 | 医生患者管理 | 一期基础患者档案、绑定历史病例、患者列表检索。 | PARTIAL | 9D.83 已新增 `patient_record`、`orders.patient_id`、`patient:manage-doctor`、`/patients`、`/patients/{patientId}/orders` 和医生端 `/doctor/patients`，覆盖患者档案、订单绑定、本人数据隔离和列表检索第一增量。 | 仍缺真实客户数据导入、患者高级标签、批量检索、AI 历史方案推荐和客户 / PM 对患者字段口径确认；下一步转向人工支付流水 / 收支记录第一增量。 |
 | 医生文件模块 | 最新 PRD 明确“医生文件”模块不属于项目需求范围，不开发；订单相关文件只归入医生订单 / 病例附件链路。 | ALIGNED | 9D.93 已移除医生端独立 `/doctor/files` / `doctor-files` 入口，并把 9D.36 smoke 改为点击患者管理、订单助手、通知中心。 | 医生文件模块不属于项目需求范围，不开发；后续不得恢复独立文件中心或网盘式入口，除非客户 / PM 书面变更范围。 |
-| 医生支付管理 | 一期基础账单查看、支付流水；真实支付网关、电子发票、月结自动归集为二期。 | PARTIAL | 账单文件、账单预览、人工付款状态已有第一段；9D.84 已补 `order_payment_record` 和医生端只读人工收款流水。 | 仍缺真实客户支付口径确认；真实微信 / 支付宝 / Stripe、电子发票和月结自动归集保持二期。 |
+| 医生支付管理 | 一期基础账单查看、支付流水；真实支付网关、电子发票、月结自动归集为二期。 | PARTIAL | 账单文件、账单预览、人工付款状态已有第一段；9D.84 已补 `order_payment_record` 和医生端只读人工收款流水。 | 人工付款方案已由 2026-07-06 基准确认；补完整页面验收即可。真实微信 / 支付宝 / Stripe、电子发票和月结自动归集保持二期。 |
 | 医生账户设置 | 修改密码、绑定邮箱电话、收货地址、消息推送开关。 | PARTIAL | 9D.89 已新增 `/doctor/account/settings`、`/doctor/account/password`、V33 账户设置字段和医生端账户设置页，覆盖联系方式、收货地址、消息推送开关和当前密码修改登录密码第一增量。 | 仍缺短信 / 邮箱真实验证、多地址簿、二次认证、登录记录审计和客户 / PM 最终字段确认。 |
 | 医生线上沟通 | 医生 -> 客服直达；生产端消息须客服审核后医生可见；消息绑定订单 / 病例。 | PARTIAL | 消息审核、客服协同台、通知中心、医生公开消息已有第一段；9D.88 已补待审核队列订单上下文、驳回后医生不可见和生产端驳回通知目标测试。 | 仍缺消息附件 URL 聚合、病例上下文最终字段、完整浏览器 smoke 和客户 / PM 沟通口径确认。 |
 | 医生通知中心 | 系统节点通知、未读红点、历史通知归档。 | PARTIAL | 通知 REST、未读 / 已读、WebSocket、Redis 广播代码路径已有第一段。 | 仍缺真实双实例 Redis、心跳 / 重连、Nginx HTTPS 网关和完整业务页面联动验收。 |
@@ -64,20 +68,20 @@ RepoFrame 当前入口：`goals/GOAL-012-auth-datascope-production-closure-20260
 | 客服产品管理 | 产品参数、材料规格、价格体系维护。 | PARTIAL | 9D.90 已新增 `product_catalog`、`/products`、`/products/{productId}` 和产品管理页基础价维护入口，CS / ADMIN 可维护产品类型、材料规格和人工基础价。 | 仍缺客户分层价格、定价权限、价格审批、自动报价、价格历史生效规则和客户 / PM 价格字段最终确认。 |
 | 客服配送管理 | 人工录入承运商和运单号；真实物流 API 二期。 | PARTIAL | 物流录入和终检发货门禁已有第一段；9D.91 客服配送管理页 / 物流异常跟进第一增量已新增客服端 `/delivery` 配送管理页、`/logistics/orders` 配送列表和 `/orders/{orderId}/logistics/exception` 人工异常跟进，内部跟进说明不返回医生端。 | 仍缺真实物流 API、电子面单、自动轨迹同步、签收回调、物流平台 webhook、物流字段客户 / PM 最终确认和真实浏览器完整验收；不接真实 DHL / FedEx / 顺丰 API。 |
 | 客服账单管理 | 账单上传、收支流水记录；月度账单自动归集二期。 | PARTIAL | 账单上传、付款状态已有第一段；9D.84 已补 CS / ADMIN 录入人工收款流水。 | 月结自动归集、退款、对账、发票保持二期或外部系统项。 |
-| 客服外协管理 | 一期选做，资源不足可二期。 | BLOCKED | 文档未把外协作为当前完成项。 | 需要 PM 明确一期是否必须做；未确认前不作为 READY 硬阻塞。 |
+| 客服外协管理 | 一期基础登记和状态；完整外协成本另行评估。 | PARTIAL | 2026-07-06 基准已确认基础外协纳入一期。 | 直接补基础入口和状态验收；完整成本核算只有范围变更时另行评估。 |
 | 工序链 | 9 条预定义工序链固定入库，管理端只查看和绑定员工，不后台动态编辑。 | ALIGNED | 工序链定义、实例快照、DAG 并联汇合、分支参数已落地。 | 保持“不做后台工序链编辑器”；人工分支由生产审核决定。 |
 | 生产资料审核 | 生产审核通过实例化工序链，不通过退回补资料。 | PARTIAL | 生产审核、工序实例化、状态门禁已有第一增量。 | 需补生产端完整审核页验收和资料不可开工升级处理。 |
 | 工序执行 / 工时 | 任务池、入检、开工、暂停、继续、完成、出检。 | PARTIAL | 入检 / 出检 / 工时 / 任务池已有自动化和前端第一增量。 | 需补更细幂等测试、工时历史和通知联动。 |
 | 质检 / 发货 | 终检、包装发货、物流信息同步到医生端。 | PARTIAL | 终检报告、终检 PDF file_id、签名 PENDING 占位、发货门禁、物流发货已有第一段。 | 真实电子签章、复杂 PDF 模板、真实物流平台均不能伪装完成；签名占位必须继续标 PENDING。 |
 | 人员管理 | 员工档案、岗位权限、工作量监控。 | PARTIAL | 9D.86 人员档案 / 工作量看板第一增量已复用 `system_user`、`system_dept`、`system_post`、`system_user_post`、`system_user_role`、`work_log` 和 `rework_record`，新增 `/staff/workload`、生产端 `/production/staff`、管理端 `/admin/staff`，覆盖员工档案、部门岗位、角色摘要和工作量统计。 | 仍缺完整 HR、人员 CRUD、岗位能力矩阵编辑、排班、薪酬、绩效申诉和客户 / PM 对人员字段口径确认；下一步转客服订单 / 沟通完整可见性 smoke。 |
 | 专项质量管理 | 内返、外返、质量统计看板，内返率 / 外返率分开。 | PARTIAL | 返工、内返率 / 外返率只读汇总第一增量已有；9D.87 已复用 `check_record` + `rework_record`，新增 `/quality-records`、`/quality-records/external-returns` 和生产端 `/production/quality` 外返登记 / 列表入口；PRD V2 本地功能差异收口 B 已新增 `quality_record` 独立事实表、`/quality-records/{qualityRecordId}/status` 状态更新接口和生产端状态更新入口。 | 独立模型 / 状态工作流第一段已完成，但仍缺客户确认的最终质量记录模型、编辑/删除、质量复盘、投诉/退货系统、完整浏览器验收和客户 / PM 质量口径确认。 |
-| 绩效统计 | 完成数量、有效工时、返工次数、准时率、通过率、工时效率。 | PARTIAL | 绩效周期、公式版本、标准工时覆盖率、默认绩效分已有第一段。 | 标准工时与公式仍需客户 / PM 确认；申诉、导出、工资结算不纳入一期必做。 |
+| 绩效统计 | 完成数量、有效工时、返工次数、准时率、通过率、工时效率。 | PARTIAL | 绩效周期、公式版本、标准工时覆盖率、默认绩效分已有第一段。 | 项目方需指定标准工时数据负责人并按 PRD 六项公式复核；加权总分、申诉、导出、工资结算不作为一期硬验收。 |
 | 设备 / 物料 / 安环 / 成本 / 奖惩 | 2026-07-06 基准判定为 C 类：一期保留入口、基础台账、基础登记、状态更新或架构预留，不继续扩成完整管理闭环。 | PARTIAL / C_BASELINE | 当前已有 9D.50-9D.54 只读汇总第一增量；9D.95.1 已补设备台账 / 设备事件录入第一增量；9D.95.2 已补物料异常登记 / 处理状态第一增量；9D.95.3 已补安环巡检 / 隐患整改第一增量；9D.95.4 已补成本记录维护 / 趋势口径第一增量；9D.95.5 已补奖惩记录 / 审批状态第一增量。 | 保留现有基础能力，不再把设备编辑、完整事件历史、安环完整审批、成本审批 / 真实趋势、奖惩复杂审批和完整管理闭环列为一期本地必做缺口；真实财务、工资、IoT、供应商协同仍后置或 BLOCKED。 |
 | AI-1 翻译助手 | 客服触发，生成中文生产指令草稿，确认后写入。 | PARTIAL | 翻译接口、客服初审页草稿确认已有第一段；9D.94 已补显式 LangChain + DeepSeek provider。 | 仍缺真实 DeepSeek key 环境、牙科术语词库优化和客户 / PM 验收。 |
-| AI-2 客服查询助手 | 客服读内部数据，自然语言查询，不自动对外发送。 | PARTIAL | AI-2 后端能力和权限边界已有第一增量；9D.92 AI-2 客服查询助手完整入口第一增量已补客服端 `/ai/cs` 完整入口，调用 `/ai/cs-query` 并展示人工复核提示；9D.94 已补显式 LangChain + DeepSeek provider；9D.97 已补 AI-2 客服查询引用数据说明 / 知识上下文补强第一增量，`/ai/cs-query` 返回 `reference_data_notes`；PRD V2 本地功能差异收口 C 已补 `attachment_contexts` 附件预览上下文，客服端展示“附件预览上下文”。 | AI-2 附件预览上下文第一段已补；仍需真实 key 验收、RAG / tool calling 如需、客户 / PM AI-2 口径确认和更完整生产级输出策略。 |
+| AI-2 客服查询助手 | 客服读内部数据，自然语言查询，不自动对外发送。 | PARTIAL | AI-2 后端能力和权限边界已有第一增量；9D.92 AI-2 客服查询助手完整入口第一增量已补客服端 `/ai/cs` 完整入口，调用 `/ai/cs-query` 并展示人工复核提示；9D.94 已补显式 LangChain + DeepSeek provider；9D.97 已补 AI-2 客服查询引用数据说明 / 知识上下文补强第一增量，`/ai/cs-query` 返回 `reference_data_notes`；PRD V2 本地功能差异收口 C 已补 `attachment_contexts` 附件预览上下文，客服端展示“附件预览上下文”。 | 仍需真实 key 环境验收和回答正确性复测；RAG / tool calling 不是一期 P0，只有新增范围时实施。 |
 | AI-3 客户订单助手 | 医生只读外部状态 / 物流，不暴露内部信息。 | PARTIAL | 安全读模型、拒答测试和 9D.94 LangChain + DeepSeek provider 下内部问题不外呼测试已覆盖。 | 需继续复测所有医生端 API / WebSocket / AI payload 脱敏和真实 key 环境。 |
 | AI-4 资料缺失助手 | 医生提交前自动触发，客服审核时可手动触发。 | PARTIAL | 后端缺失检查和客服页手动触发已有；9D.96 已补医生提交前自动触发体验第一增量。 | 仍需补更完整的资料缺失解释、附件类型细分、客户 / PM 确认和真实 key 环境验收；9D.96 不做 AI 自动驳回。 |
-| AI-5 生产备注助手 | 客服 / 生产端整理生产备注；模板由客户另行提供。 | PARTIAL / BLOCKED | 已有通用生产备注草稿第一段；9D.94 已补显式 LangChain + DeepSeek provider；9D.98 已补 AI-5 生产备注客户模板 / 知识上下文补强第一增量，`/ai/production-note` 返回 `PHASE_ONE_DEFAULT_V1` 默认模板版本、知识上下文说明和客户模板未确认标记，`/ai/production-note/confirm` 支持人工确认后写入生产备注。 | 客户模板仍待客户 / PM 最终确认；真实 DeepSeek key、生产联调和客户签字未完成前不能标最终 READY。 |
+| AI-5 生产备注助手 | 客服 / 生产端整理生产备注；模板由客户另行提供。 | PARTIAL / INPUT_REQUIRED | 已有通用生产备注草稿第一段；9D.94 已补显式 LangChain + DeepSeek provider；9D.98 已补 AI-5 生产备注客户模板 / 知识上下文补强第一增量，`/ai/production-note` 返回 `PHASE_ONE_DEFAULT_V1` 默认模板版本、知识上下文说明和客户模板未提供标记，`/ai/production-note/confirm` 支持人工确认后写入生产备注。 | 客户需提供正式模板资料，随后在真实 DeepSeek 环境复测；这是资料输入，不是逐项签字。 |
 | API 合同 | PRD 提供 `/v1` API、JWT Bearer、用户 / 诊所 / 员工 / 质量 / 账单物流等接口。 | PARTIAL | 当前 `docs/api/openapi.yaml` 覆盖已实现基线。 | 需做 PRD API vs 当前 OpenAPI 合同差异专项；特别是 patient、clinic preference、staff、quality records、payment ledger。 |
 | 部署 / 安全 | JWT + Refresh Token、RuoYi RBAC、MinIO 私有桶、签名 URL、审计、Docker / Nginx。 | PARTIAL | 部署骨架、env 检查、权限门禁、文件审计、通知网关 readiness 已有第一段；GOAL-016 / TASK-017 已补 refresh token 轮换和 `check:auth-datascope-prod-closure-b`。 | 仍缺完整 Spring Security/JWT、完整 RuoYi 管理 UI、通用 SQL DataScope、access token 黑名单、多设备会话策略、真实服务器、HTTPS、备份恢复、监控告警、真实密钥外部注入验收。 |
 
@@ -225,11 +229,11 @@ RepoFrame 记录：`goals/GOAL-010-prd-v2-local-gap-closure-d-20260707.md` / `ta
 
 - 客户 / PM 确认动态表单最终字段。
 - 客户提供 AI-5 生产备注标准模板。
-- 客户 / PM 确认标准工时和绩效公式。
+- 项目方指定提供方并收集各工序标准工时业务数据；PRD 六项绩效公式已确定。
 - 客户 / PM 确认文件大小、类型、数量限制。
 - 真实 DeepSeek key 和真实生产 webhook 联调。
 - 真实服务器、HTTPS、备份恢复、监控告警和生产部署验收。
-- 真实支付、真实物流 API、真实电子签章均为二期或外部环境项，不可由本地开发伪装完成。
+- 真实支付、真实物流 API、真实电子签章均为二期或范围变更项，不属于一期 P0 阻塞。
 
 ## 当前结论
 
