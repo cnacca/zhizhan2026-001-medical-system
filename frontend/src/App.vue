@@ -208,6 +208,22 @@ type StaffAccountOptionsResponse = {
   posts: StaffAccountOption[]
 }
 
+type AdminPersonnelLevel = '管理员' | '经理' | '主管' | '普通员工'
+
+type AdminPersonnelRow = {
+  userId: number | null
+  username: string
+  displayName: string
+  level: AdminPersonnelLevel
+  department: string
+  posts: string[]
+  status: string
+  activeTasks: number
+  completedTasks: number
+  updatedAt: string | null
+  source: StaffWorkloadResponse | null
+}
+
 type InternalOrderItem = {
   order_id: number
   order_no: string
@@ -617,6 +633,14 @@ type WorkflowChainSummary = {
   chain_name: string
   intake_branch: 'IMPRESSION' | 'SCAN' | 'BOTH'
   status: number
+}
+
+type WorkflowChainNodeSummary = {
+  node_id: number
+  process_name: string
+  step_order: number
+  is_optional: number
+  branch_group: string | null
 }
 
 type ProductionReviewResponse = {
@@ -1160,6 +1184,11 @@ type NavigationGroup = {
   items: DisplayNavigationItem[]
 }
 
+type AdminPageTab = {
+  label: string
+  routePath: string
+}
+
 type BusinessCard = {
   title: string
   value: string
@@ -1373,6 +1402,8 @@ const selectedDoctorOrder = ref<DoctorOrderItem | null>(null)
 const doctorOrderWorkspace = ref<DoctorOrderWorkspace | null>(null)
 const doctorOrderKeyword = ref('')
 const doctorGlobalSearch = ref('')
+const adminGlobalSearch = ref('')
+const adminHelpDrawerVisible = ref(false)
 const doctorOrderFilterVisible = ref(true)
 const doctorOrderStatusFilter = ref('')
 const doctorOrderProductFilter = ref('')
@@ -1510,6 +1541,7 @@ const csAiQueryLoading = ref(false)
 const aiGovernanceLocalHardening = ref<AiGovernanceLocalHardeningResponse | null>(null)
 const aiGovernanceLocalHardeningLoading = ref(false)
 const aiGovernanceLocalHardeningError = ref('')
+const adminQualityActionVisible = ref(false)
 const customerCollaborationPendingMessages = ref<MessageItem[]>([])
 const customerCollaborationOrderMessages = ref<MessageItem[]>([])
 const customerCollaborationOrderId = ref('')
@@ -1535,6 +1567,11 @@ const productionReviewLoading = ref(false)
 const productionReviewError = ref('')
 const productionReviewActionLoading = ref(false)
 const workflowChains = ref<WorkflowChainSummary[]>([])
+const workflowChainDrawerVisible = ref(false)
+const selectedWorkflowChainId = ref<number | null>(null)
+const selectedWorkflowChainNodes = ref<WorkflowChainNodeSummary[]>([])
+const workflowChainNodesLoading = ref(false)
+const workflowChainNodesError = ref('')
 const productionReviewChainId = ref<number | null>(null)
 const productionReviewIntakeBranch = ref<'IMPRESSION' | 'SCAN'>('SCAN')
 const productionReviewBranchParams = ref('{}')
@@ -1627,8 +1664,15 @@ const staffWorkloadTotal = ref(0)
 const staffWorkloadLoading = ref(false)
 const staffWorkloadError = ref('')
 const staffAccountOptions = ref<StaffAccountOptionsResponse>({ departments: [], posts: [] })
+const adminPersonnelStatusFilter = ref('ALL')
+const adminPersonnelDepartmentFilter = ref('ALL')
+const adminPersonnelLevelFilter = ref<'ALL' | AdminPersonnelLevel>('ALL')
+const adminPersonnelPage = ref(1)
+const adminPersonnelDrawerVisible = ref(false)
+const selectedAdminRoleLevel = ref<AdminPersonnelLevel>('管理员')
 const staffAccountSaving = ref(false)
 const staffAccountResult = ref('')
+const adminPersonnelToast = ref('')
 const staffAccountEditUserId = ref<number | null>(null)
 const staffAccountUsername = ref('')
 const staffAccountPassword = ref('')
@@ -1712,6 +1756,7 @@ const productionSafetyEnvironmentStatusDescription = ref('')
 const productionCostSummary = ref<ProductionCostSummaryResponse | null>(null)
 const productionCostSummaryLoading = ref(false)
 const productionCostSummaryError = ref('')
+const adminOutsourcingRecentRecords = ref<ProductionCostRecordResponse[]>([])
 const productionCostSaving = ref(false)
 const productionCostResult = ref('')
 const productionCostCreateNo = ref('')
@@ -1817,7 +1862,7 @@ const productCatalogResult = ref('')
 const productCatalogCreateType = ref('REGULAR_CROWN')
 const productCatalogCreateName = ref('')
 const productCatalogCreateMaterial = ref('')
-const productCatalogCreatePrice = ref(1)
+const productCatalogCreatePrice = ref(100)
 const productCatalogCreateCurrency = ref('CNY')
 const productCatalogCreateNote = ref('')
 const productCatalogEditName = ref('')
@@ -2088,59 +2133,35 @@ const displayNavigationConfig: Record<PortalTone, NavigationGroup[]> = {
   ],
   admin: [
     {
-      title: '管理端',
+      title: '业务协同',
       items: [
         { id: 'admin-dashboard', title: '工作台', description: '查看平台管理总览和关键待办。', icon: 'dashboard', routePath: '/dashboard' },
-        {
-          id: 'admin-account',
-          title: '账号权限',
-          description: '管理用户、角色、权限范围和菜单可见性。',
-          icon: 'system',
-          routePath: '/system/rbac',
-          children: [
-            { id: 'admin-users', title: '用户管理', description: '查看当前账号、角色、菜单和数据范围清单。', icon: 'customer', routePath: '/system/rbac/users' },
-            { id: 'admin-roles', title: '角色权限', description: '查看当前角色、权限范围和菜单可见性清单。', icon: 'system', routePath: '/system/rbac/roles' }
-          ]
-        },
         { id: 'admin-orders', title: '订单管理', description: '查看内部订单、审核状态和订单流转进度。', icon: 'order', routePath: '/orders/internal' },
-        { id: 'admin-communication-center', title: '沟通中心', description: '集中查看订单消息、待审核消息和跨端沟通记录。', icon: 'chat', routePath: '/collaboration' },
-        { id: 'admin-communication-management', title: '沟通管理', description: '管理沟通记录、消息审计和客服响应统计。', icon: 'audit', routePath: '/admin/communication-management', placeholder: true },
+        { id: 'admin-communication', title: '沟通中心', description: '集中处理订单消息、待确认消息和跨端沟通记录。', icon: 'chat', routePath: '/collaboration' },
         { id: 'admin-customers', title: '客户管理', description: '管理诊所档案、客户偏好和联系人。', icon: 'customer', routePath: '/admin/clinics' },
-        { id: 'admin-files', title: '文件资料', description: '查看订单资料、设计稿、账单附件和生产文件索引。', icon: 'cloud', routePath: '/admin/files', placeholder: true },
-        {
-          id: 'admin-products',
-          title: '产品配置',
-          description: '维护产品类型、动态表单、返工字典和产品资料。',
-          icon: 'product',
-          routePath: '/system/form-configs',
-          children: [
-            { id: 'admin-form-configs', title: '动态表单', description: '维护医生下单表单字段。', icon: 'dynamic_form', routePath: '/system/form-configs' },
-            { id: 'admin-rework-dictionaries', title: '返工字典', description: '维护返工原因与责任类型。', icon: 'dictionary', routePath: '/system/rework-dictionaries' }
-          ]
-        },
-        {
-          id: 'admin-workflow',
-          title: '工艺生产',
-          description: '查看工序链、工序进度并执行员工派工。',
-          icon: 'process',
-          routePath: '/workflow/process-instance',
-          children: [
-            { id: 'admin-workflow-chain', title: '工序链查看', description: '查看九条预定义工序链和节点顺序。', icon: 'process', routePath: '/workflow/process-instance' },
-            { id: 'admin-process-progress', title: '工序进度', description: '查看订单实例化后的节点状态。', icon: 'account_tree', routePath: '/workflow/process-instance' },
-            { id: 'admin-workflow-assign', title: '员工派工', description: '为工序节点绑定员工或调整执行人。', icon: 'staff', routePath: '/workflow/assign' }
-          ]
-        },
+        { id: 'admin-billing-delivery', title: '账单配送', description: '查询账单、物流和发货协同状态。', icon: 'delivery', routePath: '/delivery' },
+        { id: 'admin-outsourcing', title: '外协管理', description: '登记外协记录并跟进供应商、费用和处理状态。', icon: 'partner', routePath: '/admin/outsourcing' }
+      ]
+    },
+    {
+      title: '生产运营',
+      items: [
+        { id: 'admin-workflow', title: '工艺生产', description: '查看订单工序进度、固定工艺链并执行员工派工。', icon: 'process', routePath: '/workflow/process-instance' },
         { id: 'admin-quality', title: '质量管理', description: '查看质量汇总、外返记录、返工责任和终检状态。', icon: 'quality', routePath: '/production/quality' },
-        { id: 'admin-safety', title: '安环管理', description: '查看安全巡检、隐患整改、环境记录和安环事件统计。', icon: 'safety', routePath: '/production/safety-environment' },
-        { id: 'admin-cost-control', title: '成本管控', description: '查看工序、材料、人工、返工、外协成本和异常预警。', icon: 'cost', routePath: '/production/cost-management' },
-        { id: 'admin-staff', title: '人员管理', description: '管理生产人员、岗位能力和任务负载。', icon: 'staff', routePath: '/admin/staff' },
+        { id: 'admin-staff', title: '人员管理', description: '管理人员账号、职责关系、组织岗位和任务负载。', icon: 'staff', routePath: '/admin/staff' },
+        { id: 'admin-performance', title: '绩效统计', description: '查看全员工时、绩效指标和返工归因。', icon: 'performance', routePath: '/performance' },
         { id: 'admin-device', title: '设备管理', description: '查询设备台账、运行状态和维护记录。', icon: 'device', routePath: '/production/devices' },
         { id: 'admin-material', title: '物料管理', description: '查询物料异常、登记处理并更新状态。', icon: 'material', routePath: '/production/material-exceptions' },
-        { id: 'admin-outsourcing', title: '外协管理', description: '登记并查询外协成本台账和异常预警。', icon: 'partner', routePath: '/production/cost-management' },
-        { id: 'admin-billing-delivery', title: '账单配送', description: '查询账单、物流和发货协同状态。', icon: 'delivery', routePath: '/delivery' },
-        { id: 'admin-performance', title: '绩效统计', description: '查看全员工时、绩效指标和返工归因。', icon: 'performance', routePath: '/performance' },
+        { id: 'admin-safety', title: '安环管理', description: '查看安全巡检、隐患整改、环境记录和安环事件统计。', icon: 'safety', routePath: '/production/safety-environment' },
+        { id: 'admin-cost-control', title: '成本管控', description: '查看工序、材料、人工、返工、外协成本和异常预警。', icon: 'cost', routePath: '/production/cost-management' }
+      ]
+    },
+    {
+      title: '系统治理',
+      items: [
+        { id: 'admin-products', title: '产品配置', description: '维护下单表单字段、返工原因和责任类型。', icon: 'product', routePath: '/system/form-configs' },
         { id: 'admin-audit', title: '审计通知', description: '查看关键操作、通知和系统安全事件。', icon: 'audit', routePath: '/notifications' },
-        { id: 'admin-ai', title: 'AI 治理', description: '查看模型调用、预算、失败和治理摘要。', icon: 'ai', routePath: '/admin/ai-governance' }
+        { id: 'admin-ai', title: 'AI 治理', description: '查看智能功能、安全保护、预算提醒和人工确认要求。', icon: 'ai', routePath: '/admin/ai-governance' }
       ]
     }
   ]
@@ -2183,12 +2204,10 @@ const accountNavigationConfig: Record<PortalTone, NavigationGroup[]> = {
   ],
   admin: [
     {
-      title: '账号管理',
+      title: '账号与提醒',
       items: [
-        { id: 'admin-account-users', title: '用户管理', description: '管理医生、客服、生产和管理账号。', icon: 'customer', routePath: '/system/rbac/users', placeholder: true },
-        { id: 'admin-account-roles', title: '角色权限', description: '维护角色、权限范围、菜单和数据范围。', icon: 'system', routePath: '/system/rbac/roles', placeholder: true },
-        { id: 'admin-account-departments', title: '部门岗位', description: '维护组织、部门、岗位和员工归属。', icon: 'staff', routePath: '/system/rbac/departments', placeholder: true },
-        { id: 'admin-account-status', title: '账号状态', description: '查看账号启停、锁定、异常登录和安全状态。', icon: 'audit', routePath: '/system/rbac/status', placeholder: true }
+        { id: 'admin-account-personnel', title: '人员管理', description: '查看人员账号、职责和组织岗位。', icon: 'staff', routePath: '/admin/staff' },
+        { id: 'admin-account-notifications', title: '审计通知', description: '查看待处理提醒和关键操作通知。', icon: 'audit', routePath: '/notifications' }
       ]
     }
   ]
@@ -2345,6 +2364,49 @@ const placeholderContentMap: Record<string, PlaceholderContentItem[]> = {
 }
 const navigationGroups = computed<NavigationGroup[]>(() => displayNavigationConfig[portalTone.value])
 const accountNavigationGroups = computed<NavigationGroup[]>(() => accountNavigationConfig[portalTone.value])
+const adminParentNavIdByRoute: Record<string, string> = {
+  '/orders/internal': 'admin-orders',
+  '/admin/files': 'admin-orders',
+  '/collaboration': 'admin-communication',
+  '/admin/communication-management': 'admin-communication',
+  '/workflow/process-instance': 'admin-workflow',
+  '/workflow/assign': 'admin-workflow',
+  '/admin/staff': 'admin-staff',
+  '/admin/staff/roles': 'admin-staff',
+  '/admin/staff/organization': 'admin-staff',
+  '/system/form-configs': 'admin-products',
+  '/system/rework-dictionaries': 'admin-products',
+  '/notifications': 'admin-audit'
+}
+const adminPageTabsByParent: Record<string, AdminPageTab[]> = {
+  'admin-orders': [
+    { label: '订单列表', routePath: '/orders/internal' },
+    { label: '文件资料', routePath: '/admin/files' }
+  ],
+  'admin-communication': [
+    { label: '消息处理', routePath: '/collaboration' },
+    { label: '沟通管理', routePath: '/admin/communication-management' }
+  ],
+  'admin-workflow': [
+    { label: '工序进度', routePath: '/workflow/process-instance' },
+    { label: '员工派工', routePath: '/workflow/assign' }
+  ],
+  'admin-staff': [
+    { label: '用户管理', routePath: '/admin/staff' },
+    { label: '角色权限', routePath: '/admin/staff/roles' },
+    { label: '组织岗位', routePath: '/admin/staff/organization' }
+  ],
+  'admin-products': [
+    { label: '动态表单', routePath: '/system/form-configs' },
+    { label: '返工字典', routePath: '/system/rework-dictionaries' }
+  ]
+}
+const activeAdminParentNavId = computed(() => adminParentNavIdByRoute[activeRoute.value] ?? activeNavId.value)
+const adminPageTabs = computed(() => portalTone.value === 'admin'
+  ? (adminPageTabsByParent[activeAdminParentNavId.value] ?? [])
+  : [])
+const activeAdminNavigationGroup = computed(() => navigationGroups.value.find((group) =>
+  group.items.some((item) => item.id === activeAdminParentNavId.value))?.title ?? '管理中心')
 const visiblePermissions = computed(() => currentUser.value?.permissions.slice().sort() ?? [])
 const hasUnreadNotifications = computed(() => unreadCount.value > 0)
 function phaseOnePercent(value: number | null | undefined) {
@@ -3020,16 +3082,27 @@ function findDisplayItemById(id: string) {
   return allDisplayItems().find((item) => item.id === id) ?? allAccountItems().find((item) => item.id === id) ?? null
 }
 function findDisplayItemByRoute(routePath: string) {
-  return allDisplayItems().find((item) => item.routePath === routePath) ?? allAccountItems().find((item) => item.routePath === routePath) ?? null
+  const directMatch = allDisplayItems().find((item) => item.routePath === routePath)
+    ?? allAccountItems().find((item) => item.routePath === routePath)
+  if (directMatch) {
+    return directMatch
+  }
+  if (portalTone.value === 'admin') {
+    const parentId = adminParentNavIdByRoute[routePath]
+    return parentId ? findDisplayItemById(parentId) : null
+  }
+  return null
 }
 const activeDisplayItem = computed(() => findDisplayItemById(activeNavId.value) ?? findDisplayItemByRoute(activeRoute.value))
-const displayActiveIndex = computed(() => activeDisplayItem.value?.id ?? activeNavId.value)
+const displayActiveIndex = computed(() => portalTone.value === 'admin'
+  ? activeAdminParentNavId.value
+  : (activeDisplayItem.value?.id ?? activeNavId.value))
 const isPlaceholderRoute = computed(() => Boolean(activeDisplayItem.value?.placeholder))
 const activePlaceholderContentItems = computed(() => activeDisplayItem.value ? (placeholderContentMap[activeDisplayItem.value.id] ?? []) : [])
 const accountProfile = computed<AccountProfile>(() => {
   const usernameText = currentUser.value?.username ?? '未登录账号'
   const roleText = roleLabels(currentUser.value?.roles)
-  const scopeText = dataScopeLabel(currentUser.value?.dataScope)
+  const scopeText = portalTone.value === 'admin' ? '管理职责已启用' : dataScopeLabel(currentUser.value?.dataScope)
   const profileByPortal: Record<PortalTone, Pick<AccountProfile, 'organization' | 'summary'>> = {
     doctor: {
       organization: currentUser.value?.clinicId ? `诊所 #${currentUser.value.clinicId}` : '所属诊所待接入',
@@ -3044,8 +3117,8 @@ const accountProfile = computed<AccountProfile>(() => {
       summary: '展示员工资料、所属部门、岗位工序、绩效入口和账号安全。'
     },
     admin: {
-      organization: '平台管理部 / 部门岗位待接入',
-      summary: '展示用户管理、角色权限、部门岗位和账号状态。'
+      organization: '平台管理部',
+      summary: '可进入人员管理、组织岗位和审计通知。'
     }
   }
   return {
@@ -3089,7 +3162,10 @@ const doctorPortalTopbarTitle = computed(() => {
   return routeChrome.value.title
 })
 const isInternalOrdersRoute = computed(() => activeRoute.value === '/orders/internal')
+const isAdminFilesRoute = computed(() => portalTone.value === 'admin' && activeRoute.value === '/admin/files')
 const isCustomerCollaborationRoute = computed(() => activeRoute.value === '/collaboration')
+const isAdminCommunicationManagementRoute = computed(() => portalTone.value === 'admin' && activeRoute.value === '/admin/communication-management')
+const isAdminOutsourcingRoute = computed(() => portalTone.value === 'admin' && activeRoute.value === '/admin/outsourcing')
 const canReviewCustomerCollaboration = computed(() => currentUser.value?.roles.some((role) => ['CS', 'ADMIN'].includes(role)) ?? false)
 const visibleCustomerAttentionItems = computed(() => customerAttentionExpanded.value
   ? customerAttentionItems.value
@@ -3103,7 +3179,12 @@ const isCheckRecordsRoute = computed(() => activeRoute.value === '/checks')
 const isReworkFinalRoute = computed(() => activeRoute.value === '/rework-final')
 const isWorklogsRoute = computed(() => activeRoute.value === '/worklogs/self')
 const isPerformanceRoute = computed(() => activeRoute.value === '/performance')
-const isStaffWorkloadRoute = computed(() => activeRoute.value === '/production/staff' || activeRoute.value === '/admin/staff')
+const isAdminPersonnelRoute = computed(() => portalTone.value === 'admin' && [
+  '/admin/staff',
+  '/admin/staff/roles',
+  '/admin/staff/organization'
+].includes(activeRoute.value))
+const isStaffWorkloadRoute = computed(() => activeRoute.value === '/production/staff' || isAdminPersonnelRoute.value)
 const isProductionBoardRoute = computed(() => activeRoute.value === '/production/board')
 const isProductionOrdersView = computed(() => isProductionBoardRoute.value && activeNavId.value === 'production-orders')
 const isProductionKanbanView = computed(() => isProductionBoardRoute.value && activeNavId.value === 'production-board')
@@ -3116,10 +3197,11 @@ const isProductionCompactRoute = computed(() => portalTone.value === 'production
 ].includes(activeNavId.value))
 const isProductionQualitySummaryRoute = computed(() => [
   'production-quality',
-  'production-quality-overview'
+  'production-quality-overview',
+  'admin-quality'
 ].includes(activeDisplayItem.value?.id ?? ''))
 const isProductionQualityOverviewView = computed(() => [
-  'production-quality', 'production-quality-overview'
+  'production-quality', 'production-quality-overview', 'admin-quality'
 ].includes(activeNavId.value))
 const isInternalReworkView = computed(() => activeNavId.value === 'production-internal-rework-management')
 const isExternalReworkView = computed(() => activeNavId.value === 'production-external-rework-management')
@@ -3133,12 +3215,15 @@ const isProductionMaterialExceptionSummaryRoute = computed(() => [
   'production-material',
   'admin-material'
 ].includes(activeDisplayItem.value?.id ?? ''))
-const isProductionSafetyEnvironmentSummaryRoute = computed(() => activeDisplayItem.value?.id === 'production-safety')
+const isProductionSafetyEnvironmentSummaryRoute = computed(() => [
+  'production-safety',
+  'admin-safety'
+].includes(activeDisplayItem.value?.id ?? ''))
 const isProductionCostSummaryRoute = computed(() => [
   'production-cost',
   'production-cost-outsourcing',
   'cs-outsourcing',
-  'admin-outsourcing'
+  'admin-cost-control'
 ].includes(activeDisplayItem.value?.id ?? ''))
 const isProductionRewardPenaltySummaryRoute = computed(() => activeDisplayItem.value?.id === 'production-reward-penalty')
 const isProductizedProductionSupportRoute = computed(() =>
@@ -3175,11 +3260,180 @@ const canManageProductionBoard = computed(() => currentUser.value?.roles.some((r
 const selectedOrderId = computed(() => selectedDoctorOrder.value?.order_id ?? doctorOrderWorkspace.value?.order.order_id ?? null)
 const selectedProductCatalogItem = computed(() =>
   productCatalogItems.value.find((item) => item.product_id === selectedProductCatalogId.value) ?? null)
+const productCatalogCreatePriceYuan = computed({
+  get: () => Number((productCatalogCreatePrice.value / 100).toFixed(2)),
+  set: (value: number | undefined) => {
+    productCatalogCreatePrice.value = Math.max(1, Math.round(Number(value ?? 0) * 100))
+  }
+})
+const productCatalogEditPriceYuan = computed({
+  get: () => Number((productCatalogEditPrice.value / 100).toFixed(2)),
+  set: (value: number | undefined) => {
+    productCatalogEditPrice.value = Math.max(1, Math.round(Number(value ?? 0) * 100))
+  }
+})
+const csDesignSelectedFileIds = computed<number[]>({
+  get: () => parseFileIds(csDesignDraftFileIds.value),
+  set: (value) => {
+    csDesignDraftFileIds.value = value.join(',')
+  }
+})
+const csBillSelectedFileId = computed<number | null>({
+  get: () => {
+    const fileId = Number(csBillFileId.value.trim())
+    return Number.isInteger(fileId) && fileId > 0 ? fileId : null
+  },
+  set: (value) => {
+    csBillFileId.value = value ? String(value) : ''
+  }
+})
 const selectedFormConfigField = computed(() => formConfigFields.value.find((field) => field.field_id === selectedFormConfigFieldId.value) ?? null)
 const selectedReworkDictionaryItem = computed(() =>
   reworkDictionaryManageItems.value.find((item) => item.item_id === selectedReworkDictionaryItemId.value) ?? null)
 const selectedProductionReviewChain = computed(() => workflowChains.value.find((chain) => chain.chain_id === productionReviewChainId.value) ?? null)
 const selectedProcessNode = computed(() => selectedProcessInstance.value?.nodes.find((node) => node.node_instance_id === selectedProcessNodeId.value) ?? null)
+const fixedWorkflowChainNames = [
+  '常规冠修复',
+  '种植类修复',
+  '精密附件',
+  '套筒冠',
+  '贴面修复',
+  '活动件-钢托',
+  '活动件-胶托',
+  '活动件-隐形',
+  '正畸'
+]
+const fixedWorkflowChains = computed(() => fixedWorkflowChainNames
+  .map((name) => workflowChains.value.find((chain) => chain.chain_name === name))
+  .filter((chain): chain is WorkflowChainSummary => Boolean(chain)))
+const selectedWorkflowChain = computed(() => fixedWorkflowChains.value.find((chain) => chain.chain_id === selectedWorkflowChainId.value) ?? null)
+const adminRoleRules: Array<{
+  level: AdminPersonnelLevel
+  summary: string
+  canManage: string
+  responsibilities: string[]
+}> = [
+  {
+    level: '管理员',
+    summary: '负责整个平台的人员与业务设置',
+    canManage: '可设置经理、主管和普通员工',
+    responsibilities: ['设置管理层级', '查看全部业务入口', '统筹跨部门工作']
+  },
+  {
+    level: '经理',
+    summary: '负责所辖部门与团队的日常管理',
+    canManage: '可设置负责范围内的主管和普通员工',
+    responsibilities: ['安排部门负责人', '查看所辖团队工作', '协调跨班组任务']
+  },
+  {
+    level: '主管',
+    summary: '负责本部门或班组的现场协同',
+    canManage: '可设置本部门或班组的普通员工',
+    responsibilities: ['安排普通员工', '跟进当日任务', '处理班组异常']
+  },
+  {
+    level: '普通员工',
+    summary: '处理本人被安排的工作',
+    canManage: '不负责分配其他人员',
+    responsibilities: ['查看本人任务', '完成工序操作', '提交工作结果']
+  }
+]
+const selectedAdminRoleRule = computed(() => adminRoleRules.find((item) => item.level === selectedAdminRoleLevel.value) ?? adminRoleRules[0])
+const adminPersonnelAllRows = computed<AdminPersonnelRow[]>(() => {
+  const rows: AdminPersonnelRow[] = staffWorkloadItems.value.map((staff) => ({
+    userId: staff.user_id,
+    username: staff.username,
+    displayName: staff.display_name,
+    level: inferAdminPersonnelLevel(staff),
+    department: staff.dept_name || '部门未设置',
+    posts: staff.post_names,
+    status: staff.status,
+    activeTasks: staff.active_node_count,
+    completedTasks: staff.completed_work_log_count,
+    updatedAt: staff.updated_at,
+    source: staff
+  }))
+  const hasCurrentAdministrator = rows.some((row) => row.userId === currentUser.value?.userId || row.username === currentUser.value?.username)
+  if (currentUser.value?.roles.includes('ADMIN') && !hasCurrentAdministrator) {
+    rows.unshift({
+      userId: currentUser.value.userId,
+      username: currentUser.value.username,
+      displayName: currentUser.value.username,
+      level: '管理员',
+      department: '平台管理部',
+      posts: ['平台管理'],
+      status: 'ACTIVE',
+      activeTasks: 0,
+      completedTasks: 0,
+      updatedAt: null,
+      source: null
+    })
+  }
+  return rows
+})
+const adminPersonnelRows = computed<AdminPersonnelRow[]>(() => {
+  const keyword = staffWorkloadKeyword.value.trim().toLowerCase()
+  return adminPersonnelAllRows.value.filter((row) => {
+    const keywordMatches = !keyword || [
+      row.username,
+      row.displayName,
+      row.department,
+      row.level,
+      ...row.posts
+    ].some((value) => value.toLowerCase().includes(keyword))
+    const statusMatches = adminPersonnelStatusFilter.value === 'ALL' || row.status === adminPersonnelStatusFilter.value
+    const departmentMatches = adminPersonnelDepartmentFilter.value === 'ALL' || row.department === adminPersonnelDepartmentFilter.value
+    const levelMatches = adminPersonnelLevelFilter.value === 'ALL' || row.level === adminPersonnelLevelFilter.value
+    return keywordMatches && statusMatches && departmentMatches && levelMatches
+  })
+})
+const adminPersonnelTotal = computed(() => Math.max(
+  adminPersonnelAllRows.value.length,
+  staffWorkloadTotal.value
+))
+const adminPersonnelLevelCounts = computed(() => adminRoleRules.map((rule) => ({
+  level: rule.level,
+  count: adminPersonnelAllRows.value.filter((row) => row.level === rule.level).length
+})))
+const adminPersonnelActiveCount = computed(() => adminPersonnelAllRows.value.filter((row) => row.status === 'ACTIVE').length)
+const adminPersonnelAttentionCount = computed(() => adminPersonnelAllRows.value.filter((row) => row.status !== 'ACTIVE').length)
+const adminPersonnelPageSize = 6
+const adminPersonnelPageCount = computed(() => Math.max(1, Math.ceil(adminPersonnelRows.value.length / adminPersonnelPageSize)))
+const adminPersonnelCurrentPage = computed(() => Math.min(adminPersonnelPage.value, adminPersonnelPageCount.value))
+const adminPersonnelPagedRows = computed(() => {
+  const start = (adminPersonnelCurrentPage.value - 1) * adminPersonnelPageSize
+  return adminPersonnelRows.value.slice(start, start + adminPersonnelPageSize)
+})
+const adminPersonnelPageNumbers = computed<Array<number | '…'>>(() => {
+  const count = adminPersonnelPageCount.value
+  if (count <= 5) return Array.from({ length: count }, (_, index) => index + 1)
+  if (adminPersonnelCurrentPage.value <= 3) return [1, 2, 3, '…', count]
+  if (adminPersonnelCurrentPage.value >= count - 2) return [1, '…', count - 2, count - 1, count]
+  return [1, '…', adminPersonnelCurrentPage.value, '…', count]
+})
+const adminPersonnelRangeStart = computed(() => adminPersonnelRows.value.length
+  ? (adminPersonnelCurrentPage.value - 1) * adminPersonnelPageSize + 1
+  : 0)
+const adminPersonnelRangeEnd = computed(() => Math.min(
+  adminPersonnelCurrentPage.value * adminPersonnelPageSize,
+  adminPersonnelRows.value.length
+))
+const adminPersonnelUpdatedLabel = computed(() => {
+  const latest = adminPersonnelAllRows.value
+    .map((row) => row.updatedAt)
+    .filter((value): value is string => Boolean(value))
+    .sort((a, b) => new Date(b).getTime() - new Date(a).getTime())[0]
+  return latest ? `数据更新于 ${compactDateTime(latest)}` : '人员数据已同步'
+})
+const adminOrganizationRows = computed(() => staffAccountOptions.value.departments.map((department) => ({
+  ...department,
+  staffCount: staffWorkloadItems.value.filter((staff) => staff.dept_id === department.id).length,
+  posts: staffAccountOptions.value.posts.filter((post) => staffWorkloadItems.value.some((staff) =>
+    staff.dept_id === department.id && staff.post_names.includes(post.name)))
+})))
+const adminPersonnelAssignedDepartmentCount = computed(() => adminOrganizationRows.value.filter((department) => department.staffCount > 0).length)
+const adminCommunicationOrderCount = computed(() => new Set(customerCollaborationPendingMessages.value.map((item) => item.order_id)).size)
+const adminOrderOptions = computed(() => internalOrders.value.length ? internalOrders.value : phaseOneAbDashboardOrders.value)
 const selectedPortalOption = computed(() => portalOptions.find((option) => option.value === selectedPortal.value) ?? null)
 const portalTone = computed<PortalTone>(() => {
   if (activePortalTone.value) {
@@ -3211,6 +3465,43 @@ const portalTitle = computed(() => {
 })
 const routeChrome = computed<RouteChrome>(() => {
   const route = activeRoute.value
+  if (portalTone.value === 'admin') {
+    const parentItem = findDisplayItemById(activeAdminParentNavId.value) ?? activeDisplayItem.value
+    const routeDetails: Record<string, Pick<RouteChrome, 'title' | 'description' | 'icon'>> = {
+      '/dashboard': { title: '工作台', description: '查看平台经营、生产和协同工作的总体情况。', icon: 'dashboard' },
+      '/orders/internal': { title: '订单管理', description: '查看订单资料、当前状态和内部处理进度。', icon: 'order' },
+      '/admin/files': { title: '文件资料', description: '按订单查看原始资料、设计稿和授权文件。', icon: 'cloud' },
+      '/collaboration': { title: '沟通中心', description: '处理订单沟通、待确认消息和跨部门协同。', icon: 'chat' },
+      '/admin/communication-management': { title: '沟通管理', description: '查看待处理消息、涉及订单和当前沟通情况。', icon: 'audit' },
+      '/admin/clinics': { title: '客户管理', description: '维护诊所档案、联系人和客户偏好。', icon: 'customer' },
+      '/delivery': { title: '账单配送', description: '查看账单、付款和配送跟进情况。', icon: 'delivery' },
+      '/admin/outsourcing': { title: '外协管理', description: '登记外协记录并跟进供应商、费用和处理状态。', icon: 'partner' },
+      '/workflow/process-instance': { title: '工艺生产', description: '查看订单工序进度，并按需查看固定工艺链。', icon: 'process' },
+      '/workflow/assign': { title: '工艺生产', description: '为生产节点安排人员或调整执行人。', icon: 'process' },
+      '/production/quality': { title: '质量管理', description: '查看质量趋势、外返记录和处理进度。', icon: 'quality' },
+      '/admin/staff': { title: '人员管理', description: '管理人员账号、职责关系和当前工作量。', icon: 'staff' },
+      '/admin/staff/roles': { title: '人员管理', description: '查看管理员、经理、主管和普通员工的职责关系。', icon: 'staff' },
+      '/admin/staff/organization': { title: '人员管理', description: '查看部门、岗位和人员归属。', icon: 'staff' },
+      '/performance': { title: '绩效统计', description: '按员工与时间查看工时、质量和完成情况。', icon: 'performance' },
+      '/production/devices': { title: '设备管理', description: '查看设备台账、运行状态和维护记录。', icon: 'device' },
+      '/production/material-exceptions': { title: '物料管理', description: '查看物料异常、处理情况和相关记录。', icon: 'material' },
+      '/production/safety-environment': { title: '安环管理', description: '查看安全巡检、整改事项和环境记录。', icon: 'safety' },
+      '/production/cost-management': { title: '成本管控', description: '查看工序、材料、人工、返工和外协费用概览。', icon: 'cost' },
+      '/system/form-configs': { title: '产品配置', description: '维护下单字段和产品相关设置。', icon: 'product' },
+      '/system/rework-dictionaries': { title: '产品配置', description: '维护返工原因和责任类型。', icon: 'product' },
+      '/notifications': { title: '审计通知', description: '查看待处理提醒、关键操作和系统通知。', icon: 'audit' },
+      '/admin/ai-governance': { title: 'AI 治理', description: '查看智能功能、安全保护、预算提醒和人工确认要求。', icon: 'ai' }
+    }
+    const detail = routeDetails[route] ?? {
+      title: parentItem?.title ?? '管理中心',
+      description: parentItem?.description ?? '查看当前可处理的管理事项。',
+      icon: parentItem?.icon ?? 'dashboard'
+    }
+    return {
+      eyebrow: `${activeAdminNavigationGroup.value} / ${parentItem?.title ?? detail.title}`,
+      ...detail
+    }
+  }
   if (route === '/doctor/orders') {
     return { eyebrow: '医生端 / 订单与病例', title: '医生订单工作台', description: '下单、补资料、查看公开进度、确认设计稿、查看账单物流和订单助手。', icon: 'clinical_notes' }
   }
@@ -3324,6 +3615,7 @@ const businessIconSvgMap: Record<string, string> = {
   lock: '<svg viewBox="0 0 24 24"><rect x="5" y="10" width="14" height="10" rx="2"/><path d="M8 10V7a4 4 0 0 1 8 0v3"/></svg>',
   arrow_forward: '<svg viewBox="0 0 24 24"><path d="M5 12h14"/><path d="M13 6l6 6-6 6"/></svg>',
   gpp_maybe: '<svg viewBox="0 0 24 24"><path d="M12 3l7 3v5c0 5-3 8-7 10-4-2-7-5-7-10V6z"/><path d="M12 8v5M12 16h.01"/></svg>',
+  search: '<svg viewBox="0 0 24 24"><circle cx="11" cy="11" r="6"/><path d="M16 16l4 4"/></svg>',
   fact_check: menuIconSvgMap['/workflow/review'],
   account_tree: menuIconSvgMap['/workflow/process-instance'],
   assignment_ind: menuIconSvgMap['/workflow/assign'],
@@ -3369,6 +3661,21 @@ function menuIconSvg(menu: AuthMenu) {
 }
 function businessIconSvg(icon: string) {
   return businessIconSvgMap[icon] ?? fallbackMenuIconSvg
+}
+const adminPersonnelIconSvgMap: Record<string, string> = {
+  users: '<svg viewBox="0 0 24 24"><circle cx="9" cy="8" r="3"/><path d="M3.5 19c.5-4 2.5-6 5.5-6s5 2 5.5 6"/><circle cx="17" cy="9" r="2.2"/><path d="M15.5 14c3.3-.3 5 1.5 5.4 4.5"/></svg>',
+  check: '<svg viewBox="0 0 24 24"><path d="m5 12 4 4L19 6"/></svg>',
+  lock: '<svg viewBox="0 0 24 24"><rect x="5" y="10" width="14" height="11" rx="2"/><path d="M8 10V7a4 4 0 0 1 8 0v3"/></svg>',
+  shield: '<svg viewBox="0 0 24 24"><path d="M12 3 20 6v6c0 5-3 8-8 10-5-2-8-5-8-10V6z"/><path d="m9 12 2 2 4-5"/></svg>',
+  download: '<svg viewBox="0 0 24 24"><path d="M12 3v12M7 10l5 5 5-5M4 21h16"/></svg>',
+  plus: '<svg viewBox="0 0 24 24"><path d="M12 5v14M5 12h14"/></svg>',
+  search: '<svg viewBox="0 0 24 24"><circle cx="11" cy="11" r="7"/><path d="m20 20-4-4"/></svg>',
+  more: '<svg viewBox="0 0 24 24"><circle cx="5" cy="12" r="1"/><circle cx="12" cy="12" r="1"/><circle cx="19" cy="12" r="1"/></svg>',
+  help: '<svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="9"/><path d="M9.7 9a2.5 2.5 0 1 1 3.4 2.3c-.7.3-1.1.8-1.1 1.7M12 17h.01"/></svg>',
+  close: '<svg viewBox="0 0 24 24"><path d="m6 6 12 12M18 6 6 18"/></svg>'
+}
+function adminPersonnelIconSvg(icon: string) {
+  return adminPersonnelIconSvgMap[icon] ?? fallbackMenuIconSvg
 }
 const roleLabelMap: Record<string, string> = {
   ADMIN: '管理员',
@@ -3431,6 +3738,7 @@ const productTypeLabelMap: Record<string, string> = {
   NIGHT_GUARD: '夜磨牙垫',
   RUNTIME_TEST: '测试订单'
 }
+const productTypeOptions = Object.entries(productTypeLabelMap).map(([value, label]) => ({ value, label }))
 const notificationEventLabelMap: Record<string, string> = {
   AI_BUDGET_EXCEEDED: 'AI 预算超限',
   DESIGN_DRAFT_UPLOADED: '设计稿已上传',
@@ -3474,6 +3782,71 @@ function roleLabel(role: string) {
 }
 function roleLabels(roles: string[] | undefined) {
   return roles?.map(roleLabel).join('、') || '未识别角色'
+}
+function inferAdminPersonnelLevel(staff: StaffWorkloadResponse): AdminPersonnelLevel {
+  if (staff.role_codes.includes('ADMIN')) {
+    return '管理员'
+  }
+  return '普通员工'
+}
+function adminPersonnelLevelClass(level: AdminPersonnelLevel) {
+  if (level === '经理') return 'is-manager'
+  if (level === '主管') return 'is-supervisor'
+  if (level === '普通员工') return 'is-staff'
+  return 'is-admin'
+}
+function workflowIntakeLabel(branch: WorkflowChainSummary['intake_branch']) {
+  if (branch === 'IMPRESSION') return '印模路线'
+  if (branch === 'SCAN') return '口扫路线'
+  return '口扫或印模'
+}
+function reworkReasonLabel(code: string | null | undefined) {
+  return reworkReasonCategories.value.find((item) => item.code === code)?.label ?? (code ? '其他原因' : '原因待补充')
+}
+function reworkResponsibilityLabel(code: string | null | undefined) {
+  return reworkResponsibilityTypes.value.find((item) => item.code === code)?.label ?? (code ? '其他责任' : '责任待确认')
+}
+function aiAgentLabel(code: string) {
+  const labels: Record<string, string> = {
+    AI_TRANSLATE: '翻译助手',
+    AI_CS_QUERY: '客服查询助手',
+    AI_DOCTOR_ORDER_QUERY: '订单助手',
+    AI_CHECK_MISSING: '资料检查助手',
+    AI_PRODUCTION_NOTE: '生产备注助手'
+  }
+  return labels[code] ?? '智能助手'
+}
+function aiContextLabel(context: string) {
+  const labels: Record<string, string> = {
+    ORDER_TRANSLATION_DRAFT: '订单描述整理',
+    INTERNAL_ORDER_SUMMARY: '内部订单查询',
+    DOCTOR_ORDER_ASSISTANT_READ_MODEL: '医生可见订单信息',
+    ORDER_FORM_REQUIRED_FIELDS: '下单资料检查',
+    PRODUCTION_NOTE_DRAFT: '生产备注整理'
+  }
+  return labels[context] ?? '业务信息'
+}
+function roleScopeLabel(scope: string) {
+  return scope.split('/').map((role) => roleLabel(role)).join('、')
+}
+function aiGovernanceStatusLabel(status: string) {
+  const labels: Record<string, string> = {
+    AI_OUTPUT_GUARDED: '内容保护已启用',
+    GUARDED_STREAMING_NOT_ENABLED: '逐段输出暂未开放',
+    CUSTOMER_TEMPLATE_UNCONFIRMED: '客户版本待提供',
+    REAL_EXTERNAL_INTEGRATION_PENDING: '外部服务待接入',
+    SAFE_REFUSAL: '敏感内容已保护',
+    SUCCESS_OR_SAFE_REFUSAL: '按信息范围回答',
+    NOT_READY: '准备中'
+  }
+  return labels[status] ?? statusLabel(status)
+}
+function formatAiBudget(microUsd: number) {
+  if (!microUsd) return '未设置上限'
+  return `$${(microUsd / 1_000_000).toFixed(2)} / 日`
+}
+function aiTemplateLabel(version: string) {
+  return version ? '当前通用版本' : '尚未配置'
 }
 function dataScopeLabel(scope: string | null | undefined) {
   return scope ? (dataScopeLabelMap[scope] ?? scope) : '无数据范围'
@@ -4494,9 +4867,9 @@ async function loadActiveRouteData() {
   } else if (activeRoute.value === '/doctor/orders') {
     await loadDoctorOrderForm()
     await loadDoctorOrders()
-  } else if (activeRoute.value === '/orders/internal') {
+  } else if (activeRoute.value === '/orders/internal' || activeRoute.value === '/admin/files') {
     await loadInternalOrders()
-  } else if (activeRoute.value === '/collaboration') {
+  } else if (activeRoute.value === '/collaboration' || activeRoute.value === '/admin/communication-management') {
     if (portalTone.value === 'doctor') {
       await loadDoctorCollaboration()
     } else {
@@ -4517,7 +4890,11 @@ async function loadActiveRouteData() {
   } else if (activeRoute.value === '/worklogs/self') {
     await loadWorklogTasks()
   } else if (activeRoute.value === '/performance') {
-    await loadPerformanceStats()
+    if (portalTone.value === 'admin') {
+      await Promise.all([loadPerformanceStats(), loadStaffWorkload()])
+    } else {
+      await loadPerformanceStats()
+    }
   } else if (isStaffWorkloadRoute.value) {
     await loadStaffWorkload()
   } else if (activeRoute.value === '/production/board') {
@@ -4534,6 +4911,9 @@ async function loadActiveRouteData() {
     await loadProductionMaterialExceptionSummary()
   } else if (isProductionSafetyEnvironmentSummaryRoute.value) {
     await loadProductionSafetyEnvironmentSummary()
+  } else if (activeRoute.value === '/admin/outsourcing') {
+    productionCostCreateType.value = 'OUTSOURCING'
+    await loadProductionCostSummary()
   } else if (isProductionCostSummaryRoute.value) {
     await loadProductionCostSummary()
   } else if (isProductionRewardPenaltySummaryRoute.value) {
@@ -4638,13 +5018,13 @@ function navigateToRoute(routePath: string) {
     void loadDoctorAccountSettings()
   } else if (routePath === '/doctor/account/clinic') {
     void loadDoctorClinicPreference()
-  } else if (routePath === '/collaboration') {
+  } else if (routePath === '/collaboration' || routePath === '/admin/communication-management') {
     if (portalTone.value === 'doctor') {
       void loadDoctorCollaboration()
     } else {
       void loadCustomerCollaborationPage()
     }
-  } else if (routePath === '/orders/internal') {
+  } else if (routePath === '/orders/internal' || routePath === '/admin/files') {
     void loadInternalOrders()
   } else if (routePath === '/workflow/review') {
     void loadProductionReviewPage()
@@ -4659,8 +5039,16 @@ function navigateToRoute(routePath: string) {
   } else if (routePath === '/worklogs/self') {
     void loadWorklogTasks()
   } else if (routePath === '/performance') {
-    void loadPerformanceStats()
-  } else if (routePath === '/production/staff' || routePath === '/admin/staff') {
+    if (portalTone.value === 'admin') {
+      void Promise.all([loadPerformanceStats(), loadStaffWorkload()])
+    } else {
+      void loadPerformanceStats()
+    }
+  } else if (routePath === '/production/staff' || [
+    '/admin/staff',
+    '/admin/staff/roles',
+    '/admin/staff/organization'
+  ].includes(routePath)) {
     void loadStaffWorkload()
   } else if (routePath === '/production/board') {
     void loadProductionBoardOrders()
@@ -4677,6 +5065,9 @@ function navigateToRoute(routePath: string) {
     void loadProductionMaterialExceptionSummary()
   } else if (routePath === '/production/safety-environment') {
     void loadProductionSafetyEnvironmentSummary()
+  } else if (routePath === '/admin/outsourcing') {
+    productionCostCreateType.value = 'OUTSOURCING'
+    void loadProductionCostSummary()
   } else if (routePath === '/production/cost-management') {
     void loadProductionCostSummary()
   } else if (routePath === '/production/reward-penalty') {
@@ -4740,6 +5131,152 @@ function selectDisplayNavigationItem(item: DisplayNavigationItem | BusinessShort
   if (item.routePath) {
     navigateToRoute(item.routePath)
   }
+}
+
+function selectAdminPageTab(tab: AdminPageTab) {
+  const parentId = adminParentNavIdByRoute[tab.routePath]
+  navigateToRoute(tab.routePath)
+  if (parentId) {
+    activeNavId.value = parentId
+  }
+}
+
+function runAdminGlobalSearch() {
+  const keyword = adminGlobalSearch.value.trim()
+  if (!keyword) {
+    return
+  }
+  const menuMatch = allDisplayItems().find((item) => item.title.includes(keyword))
+  if (menuMatch) {
+    selectDisplayNavigationItem(menuMatch)
+    adminGlobalSearch.value = ''
+    return
+  }
+  const personnelMatch = adminPersonnelAllRows.value.some((row) => [
+    row.username,
+    row.displayName,
+    row.department,
+    ...row.posts
+  ].some((value) => value.toLowerCase().includes(keyword.toLowerCase())))
+  if (personnelMatch) {
+    staffWorkloadKeyword.value = keyword
+    activeNavId.value = 'admin-staff'
+    navigateToRoute('/admin/staff')
+    return
+  }
+  internalOrderKeyword.value = keyword
+  activeNavId.value = 'admin-orders'
+  navigateToRoute('/orders/internal')
+}
+
+function resetAdminPersonnelFilters() {
+  staffWorkloadKeyword.value = ''
+  adminPersonnelDepartmentFilter.value = 'ALL'
+  adminPersonnelLevelFilter.value = 'ALL'
+  adminPersonnelStatusFilter.value = 'ALL'
+  adminPersonnelPage.value = 1
+}
+
+function showAdminPersonnelDepartment(department: string) {
+  adminPersonnelDepartmentFilter.value = department
+  staffWorkloadKeyword.value = ''
+  adminPersonnelLevelFilter.value = 'ALL'
+  adminPersonnelStatusFilter.value = 'ALL'
+  selectAdminPageTab({ label: '用户管理', routePath: '/admin/staff' })
+}
+
+function adminDepartmentStaffNames(departmentId: number) {
+  const names = staffWorkloadItems.value
+    .filter((staff) => staff.dept_id === departmentId)
+    .map((staff) => staff.display_name)
+  return names.length ? names.join('、') : '未分配人员'
+}
+
+function adminPersonnelScopeTitle(row: AdminPersonnelRow) {
+  if (row.level === '管理员') return '全公司'
+  if (row.level === '经理' || row.level === '主管') return row.department
+  return row.posts[0] || '个人工作'
+}
+
+function adminPersonnelScopeDescription(row: AdminPersonnelRow) {
+  if (row.level === '管理员') return '管理全部人员和业务'
+  if (row.level === '经理') return '管理主管和普通员工'
+  if (row.level === '主管') return '管理本部门普通员工'
+  return row.activeTasks ? `${row.activeTasks} 项工作进行中` : '只处理自己的工作'
+}
+
+function adminPersonnelUpdatedAtLabel(row: AdminPersonnelRow) {
+  return row.updatedAt ? compactDateTime(row.updatedAt) : '当前使用中'
+}
+
+function adminPersonnelAccountStatusLabel(status: string) {
+  return status === 'ACTIVE' ? '正常' : '已停用'
+}
+
+function selectAdminPersonnelPage(page: number | '…') {
+  if (page === '…') return
+  adminPersonnelPage.value = Math.min(Math.max(page, 1), adminPersonnelPageCount.value)
+}
+
+function exportAdminPersonnel() {
+  const rows = adminPersonnelRows.value
+  const quote = (value: string | number) => `"${String(value).replace(/"/g, '""')}"`
+  const header = ['姓名', '账号', '部门', '岗位', '人员级别', '账号状态', '当前工作', '累计完成']
+  const lines = rows.map((row) => [
+    row.displayName,
+    row.username,
+    row.department,
+    row.posts.join('、') || '岗位未设置',
+    row.level,
+    adminPersonnelAccountStatusLabel(row.status),
+    row.activeTasks,
+    row.completedTasks
+  ].map(quote).join(','))
+  const blob = new Blob([`\uFEFF${header.map(quote).join(',')}\n${lines.join('\n')}`], { type: 'text/csv;charset=utf-8' })
+  const url = URL.createObjectURL(blob)
+  const anchor = document.createElement('a')
+  anchor.href = url
+  anchor.download = `人员名单-${new Date().toISOString().slice(0, 10)}.csv`
+  document.body.appendChild(anchor)
+  anchor.click()
+  anchor.remove()
+  window.setTimeout(() => URL.revokeObjectURL(url), 0)
+}
+
+function openAdminPersonnelDrawer(row?: AdminPersonnelRow) {
+  if (row?.source) {
+    editStaffAccount(row.source)
+  } else {
+    resetStaffAccountForm()
+  }
+  adminPersonnelDrawerVisible.value = true
+}
+
+function selectAdminFileOrder(orderId: number) {
+  const order = internalOrders.value.find((item) => item.order_id === orderId)
+  if (order) {
+    selectInternalOrder(order)
+  }
+}
+
+function showAdminRole(level: AdminPersonnelLevel) {
+  selectedAdminRoleLevel.value = level
+}
+
+function openAdminRoleLevel(level: AdminPersonnelLevel) {
+  selectedAdminRoleLevel.value = level
+  selectAdminPageTab({ label: '角色权限', routePath: '/admin/staff/roles' })
+}
+
+function openAdminRoleFromPersonnel(row: AdminPersonnelRow) {
+  selectedAdminRoleLevel.value = row.level
+  selectAdminPageTab({ label: '角色权限', routePath: '/admin/staff/roles' })
+}
+
+async function openAdminCommunicationMessage(message: MessageItem) {
+  await selectCustomerCollaborationMessage(message)
+  activeNavId.value = 'admin-communication'
+  navigateToRoute('/collaboration')
 }
 
 function runDoctorGlobalSearch() {
@@ -5382,10 +5919,10 @@ function selectProductCatalogItem(item: ProductCatalogItem) {
 }
 
 function resetProductCatalogCreateForm() {
-  productCatalogCreateType.value = ''
+  productCatalogCreateType.value = 'REGULAR_CROWN'
   productCatalogCreateName.value = ''
   productCatalogCreateMaterial.value = ''
-  productCatalogCreatePrice.value = 1
+  productCatalogCreatePrice.value = 100
   productCatalogCreateCurrency.value = 'CNY'
   productCatalogCreateNote.value = ''
 }
@@ -5410,7 +5947,7 @@ async function createProductCatalogItem() {
         price_note: productCatalogCreateNote.value.trim()
       })
     })
-    productCatalogResult.value = `已创建产品 ${response.data.product_type}`
+    productCatalogResult.value = `已创建产品“${response.data.product_name}”`
     resetProductCatalogCreateForm()
     await loadProductCatalog()
     selectProductCatalogItem(response.data)
@@ -5441,7 +5978,7 @@ async function updateProductCatalogItem(statusOverride?: string) {
         price_note: productCatalogEditNote.value.trim()
       })
     })
-    productCatalogResult.value = `已更新产品 ${response.data.product_type}`
+    productCatalogResult.value = `已更新产品“${response.data.product_name}”`
     await loadProductCatalog()
     selectProductCatalogItem(response.data)
   } catch (error) {
@@ -5508,7 +6045,7 @@ async function createFormConfigField() {
   try {
     const payload: FormFieldPayload = {
       product_type: formConfigCreateProductType.value.trim(),
-      field_key: formConfigCreateKey.value.trim(),
+      field_key: formConfigCreateKey.value.trim() || `custom_${Date.now()}`,
       field_label: formConfigCreateLabel.value.trim(),
       field_type: formConfigCreateType.value,
       is_required: formConfigCreateRequired.value,
@@ -5520,7 +6057,7 @@ async function createFormConfigField() {
       body: JSON.stringify(payload)
     })
     formConfigProductType.value = response.data.product_type
-    formConfigResult.value = `已创建字段 ${response.data.field_key}`
+    formConfigResult.value = `已创建字段“${response.data.field_label}”`
     resetFormConfigCreateForm()
     await loadFormConfigFields()
     selectFormConfigField(response.data)
@@ -5550,7 +6087,7 @@ async function updateFormConfigField(statusOverride?: string) {
       method: 'PUT',
       body: JSON.stringify(payload)
     })
-    formConfigResult.value = `已更新字段 ${response.data.field_key}`
+    formConfigResult.value = `已更新字段“${response.data.field_label}”`
     await loadFormConfigFields()
     if (response.data.status === 'ACTIVE') {
       selectFormConfigField(response.data)
@@ -5612,7 +6149,7 @@ async function createReworkDictionaryItem() {
   try {
     const payload: ReworkDictionaryItemPayload = {
       dictionary_type: reworkDictionaryManageType.value,
-      code: reworkDictionaryCreateCode.value.trim(),
+      code: reworkDictionaryCreateCode.value.trim() || `CUSTOM_${Date.now()}`,
       label: reworkDictionaryCreateLabel.value.trim(),
       sort_order: reworkDictionaryCreateSortOrder.value
     }
@@ -5621,7 +6158,7 @@ async function createReworkDictionaryItem() {
       body: JSON.stringify(payload)
     })
     reworkDictionaryManageType.value = response.data.dictionary_type
-    reworkDictionaryManageResult.value = `已新增字典 ${response.data.code}`
+    reworkDictionaryManageResult.value = `已新增“${response.data.label}”`
     resetReworkDictionaryCreateForm()
     await loadReworkDictionaryManageItems()
     selectReworkDictionaryItem(response.data)
@@ -5652,7 +6189,7 @@ async function updateReworkDictionaryItem(statusOverride?: string) {
         body: JSON.stringify(payload)
       }
     )
-    reworkDictionaryManageResult.value = `已更新字典 ${response.data.code}`
+    reworkDictionaryManageResult.value = `已更新“${response.data.label}”`
     await loadReworkDictionaryManageItems()
     selectReworkDictionaryItem(response.data)
   } catch (error) {
@@ -6535,9 +7072,9 @@ function applyCsTranslationDraftToProductionNote() {
     return
   }
   const currentNote = csProductionNote.value.trim()
-  const draftBlock = `AI 翻译草稿（客服已确认）：\n${csTranslationDraft.value.trim()}`
+  const draftBlock = `翻译草稿（客服已确认）：\n${csTranslationDraft.value.trim()}`
   csProductionNote.value = currentNote ? `${currentNote}\n\n${draftBlock}` : draftBlock
-  csAiResult.value = 'AI 翻译草稿已写入生产备注，点击通过初审后保存'
+  csAiResult.value = '翻译草稿已写入生产备注，点击通过初审后保存'
 }
 
 async function generateCsProductionNoteDraft() {
@@ -6560,10 +7097,10 @@ async function generateCsProductionNoteDraft() {
     csProductionNoteTemplateVersion.value = payload.data.template_version
     csProductionNoteKnowledgeNotes.value = payload.data.knowledge_context_notes ?? []
     csAiResult.value = payload.data.requires_customer_template_confirmation
-      ? 'AI-5 生产备注草稿已生成：默认模板需客户/PM 最终确认，写入前必须人工确认'
-      : 'AI-5 生产备注草稿已生成，写入前必须人工确认'
+      ? '生产备注建议已生成，正式写入前请确认内容'
+      : '生产备注建议已生成，确认后即可写入'
   } catch (error) {
-    internalOrderError.value = error instanceof Error ? error.message : 'AI-5 生产备注草稿生成失败'
+    internalOrderError.value = error instanceof Error ? error.message : '生产备注建议生成失败'
   } finally {
     csAiActionLoading.value = false
   }
@@ -6587,10 +7124,10 @@ async function confirmCsProductionNoteDraft() {
     csProductionNote.value = payload.data.production_note
     selectedInternalOrder.value.production_note = payload.data.production_note
     csAiResult.value = payload.data.requires_customer_template_confirmation
-      ? 'AI-5 草稿已人工确认并写入生产备注；客户模板仍待最终确认'
-      : 'AI-5 草稿已人工确认并写入生产备注'
+      ? '已确认并写入生产备注，请继续核对客户要求'
+      : '已确认并写入生产备注'
   } catch (error) {
-    internalOrderError.value = error instanceof Error ? error.message : 'AI-5 生产备注确认写入失败'
+    internalOrderError.value = error instanceof Error ? error.message : '生产备注写入失败'
   } finally {
     csAiActionLoading.value = false
   }
@@ -6636,7 +7173,7 @@ async function loadAiGovernanceLocalHardening() {
     const payload = await apiFetch<AiGovernanceLocalHardeningResponse>('/ai/governance/local-hardening')
     aiGovernanceLocalHardening.value = payload.data
   } catch (error) {
-    aiGovernanceLocalHardeningError.value = error instanceof Error ? error.message : 'AI 治理本地补强加载失败'
+    aiGovernanceLocalHardeningError.value = error instanceof Error ? error.message : '智能功能状态加载失败'
   } finally {
     aiGovernanceLocalHardeningLoading.value = false
   }
@@ -6648,7 +7185,7 @@ async function uploadInternalDesignDraft() {
   }
   const fileIds = parseFileIds(csDesignDraftFileIds.value)
   if (fileIds.length === 0) {
-    internalOrderError.value = '请填写设计稿 file_id'
+    internalOrderError.value = '请选择至少一个设计文件'
     return
   }
   csReviewActionLoading.value = true
@@ -6835,7 +7372,7 @@ async function uploadInternalBill() {
   }
   const fileId = Number(csBillFileId.value.trim())
   if (!Number.isInteger(fileId) || fileId <= 0) {
-    internalOrderError.value = '请填写账单 file_id'
+    internalOrderError.value = '请选择账单文件'
     return
   }
   const amountText = csBillAmountYuan.value.trim()
@@ -6859,7 +7396,7 @@ async function uploadInternalBill() {
         })
       }
     )
-    csBillResult.value = `账单已上传：${formatSalesAmount(payload.data.amount_cents)} / 文件 ${payload.data.file_id ?? '-'} / ${statusLabel(payload.data.bill_status)}`
+    csBillResult.value = `账单已保存：${formatSalesAmount(payload.data.amount_cents)} / ${statusLabel(payload.data.bill_status)}`
     csBillFileId.value = ''
     csBillAmountYuan.value = ''
     await loadNotifications()
@@ -6961,7 +7498,7 @@ async function loadCustomerCollaborationOrderMessages() {
   const orderId = Number(orderIdText)
   if (!orderIdText || Number.isNaN(orderId) || orderId <= 0) {
     clearCustomerCollaborationOrderContext()
-    customerCollaborationError.value = '请填写有效订单 ID'
+    customerCollaborationError.value = '请选择有效订单'
     return
   }
   clearCustomerCollaborationOrderContext()
@@ -6990,7 +7527,7 @@ async function loadCustomerCollaborationOrderMessages() {
 async function sendCustomerCollaborationMessage() {
   const orderId = Number(customerCollaborationOrderId.value.trim())
   if (!Number.isInteger(orderId) || orderId <= 0) {
-    customerCollaborationError.value = '请先填写有效订单 ID'
+    customerCollaborationError.value = '请先选择订单'
     return
   }
   if (!customerCollaborationDraft.value.trim()) {
@@ -7163,7 +7700,42 @@ async function reviewProductionOrder(action: 'APPROVE' | 'REJECT') {
 }
 
 async function loadProcessInstancePage() {
-  await loadProcessInstanceOrders()
+  await Promise.all([
+    loadWorkflowChains(),
+    loadProcessInstanceOrders(),
+    ...(portalTone.value === 'admin' ? [loadStaffWorkload()] : [])
+  ])
+}
+
+async function openWorkflowChainDrawer() {
+  workflowChainDrawerVisible.value = true
+  workflowChainNodesError.value = ''
+  if (workflowChains.value.length === 0) {
+    await loadWorkflowChains()
+  }
+  const initialChain = selectedWorkflowChain.value ?? fixedWorkflowChains.value[0]
+  if (!initialChain) {
+    workflowChainNodesError.value = '固定工艺链暂时无法加载，请稍后刷新。'
+    return
+  }
+  await selectWorkflowChain(initialChain)
+}
+
+async function selectWorkflowChain(chain: WorkflowChainSummary) {
+  selectedWorkflowChainId.value = chain.chain_id
+  selectedWorkflowChainNodes.value = []
+  workflowChainNodesLoading.value = true
+  workflowChainNodesError.value = ''
+  try {
+    const payload = await apiFetch<WorkflowChainNodeSummary[]>(`/workflow-chains/${chain.chain_id}/nodes`)
+    if (selectedWorkflowChainId.value === chain.chain_id) {
+      selectedWorkflowChainNodes.value = payload.data.slice().sort((left, right) => left.step_order - right.step_order)
+    }
+  } catch (error) {
+    workflowChainNodesError.value = error instanceof Error ? error.message : '工艺链节点加载失败'
+  } finally {
+    workflowChainNodesLoading.value = false
+  }
 }
 
 async function loadProcessInstanceOrders() {
@@ -7233,7 +7805,12 @@ function selectProcessNode(node: ProcessNodeItem) {
 }
 
 async function assignSelectedProcessNode(mode: 'ASSIGN' | 'REASSIGN') {
-  if (!selectedProcessInstanceOrder.value || !selectedProcessNode.value || !processAssignmentUserId.value.trim()) {
+  if (!selectedProcessInstanceOrder.value || !selectedProcessNode.value) {
+    processInstanceError.value = '请先选择需要派工的订单和工序'
+    return
+  }
+  if (!processAssignmentUserId.value.trim()) {
+    processInstanceError.value = '请选择要安排的员工'
     return
   }
   processAssignmentLoading.value = true
@@ -7242,20 +7819,21 @@ async function assignSelectedProcessNode(mode: 'ASSIGN' | 'REASSIGN') {
   try {
     const targetUserId = Number(processAssignmentUserId.value.trim())
     if (!Number.isInteger(targetUserId) || targetUserId <= 0) {
-      throw new Error('员工编号必须是正整数')
+      throw new Error('请选择有效员工')
     }
     const path = mode === 'REASSIGN'
       ? `/orders/${selectedProcessInstanceOrder.value.order_id}/process-instance/nodes/${selectedProcessNode.value.node_instance_id}/reassign`
       : `/orders/${selectedProcessInstanceOrder.value.order_id}/process-instance/assign`
     const body = mode === 'REASSIGN'
-      ? { new_user_id: targetUserId, reason: '前端员工派工第一增量' }
+      ? { new_user_id: targetUserId, reason: '管理端调整执行人' }
       : { assignments: [{ node_instance_id: selectedProcessNode.value.node_instance_id, user_id: targetUserId }] }
     const payload = await apiFetch<ProcessInstanceDetail>(path, {
       method: 'POST',
       body: JSON.stringify(body)
     })
     selectedProcessInstance.value = payload.data
-    processAssignmentResult.value = `${selectedProcessNode.value.process_name} 已${mode === 'REASSIGN' ? '转派' : '绑定'}给 ${targetUserId}`
+    const targetStaff = staffWorkloadItems.value.find((staff) => staff.user_id === targetUserId)
+    processAssignmentResult.value = `${selectedProcessNode.value.process_name} 已${mode === 'REASSIGN' ? '调整' : '安排'}给 ${targetStaff?.display_name ?? `员工 ${targetUserId}`}`
     await loadWorkerTasks()
   } catch (error) {
     processInstanceError.value = error instanceof Error ? error.message : '派工失败'
@@ -7805,13 +8383,13 @@ async function loadPerformanceStats() {
     if (requestedUserId) {
       const userId = Number(requestedUserId)
       if (!Number.isInteger(userId) || userId <= 0) {
-        throw new Error('员工编号必须是正整数')
+        throw new Error('请选择有效人员')
       }
       params.set('user_id', String(userId))
     } else if (currentUser.value?.roles.includes('ADMIN')) {
       performanceStats.value = null
       performanceDetails.value = []
-      performanceNotice.value = '请输入员工编号后查询绩效统计'
+      performanceNotice.value = '请选择人员后查询绩效统计'
       return
     }
     if (performanceStartDate.value.trim()) {
@@ -7843,7 +8421,7 @@ async function loadStaffWorkload() {
   staffWorkloadError.value = ''
   try {
     const params = new URLSearchParams({ page: '1', size: '50' })
-    if (staffWorkloadKeyword.value.trim()) {
+    if (portalTone.value !== 'admin' && staffWorkloadKeyword.value.trim()) {
       params.set('keyword', staffWorkloadKeyword.value.trim())
     }
     const payload = await apiFetch<StaffWorkloadListResponse>(`/staff/workload?${params.toString()}`)
@@ -7855,10 +8433,10 @@ async function loadStaffWorkload() {
       staffAccountDeptId.value ??= options.data.departments.find((item) => item.name === '生产中心')?.id ?? null
       staffAccountPostId.value ??= options.data.posts.find((item) => item.name === '生产员工')?.id ?? null
     }
-  } catch (error) {
+  } catch {
     staffWorkloadItems.value = []
     staffWorkloadTotal.value = 0
-    staffWorkloadError.value = error instanceof Error ? error.message : '人员工作量加载失败'
+    staffWorkloadError.value = '人员信息加载失败，请稍后重试。'
   } finally {
     staffWorkloadLoading.value = false
   }
@@ -7871,7 +8449,7 @@ function editStaffAccount(staff: StaffWorkloadResponse) {
   staffAccountDisplayName.value = staff.display_name
   staffAccountDeptId.value = staff.dept_id
   staffAccountPostId.value = staffAccountOptions.value.posts.find((item) => staff.post_names.includes(item.name))?.id ?? null
-  staffAccountResult.value = `正在编辑 ${staff.display_name}；可修改姓名、部门和岗位。`
+  staffAccountResult.value = '请核对人员资料；新密码留空时，当前密码保持不变。'
 }
 
 function resetStaffAccountForm() {
@@ -7917,11 +8495,16 @@ async function saveStaffAccount() {
           post_id: staffAccountPostId.value
         })
       })
-    staffAccountResult.value = editing ? '员工账号已更新。' : `员工账号已创建：${(payload as { data: { username: string } }).data.username}`
-    resetStaffAccountForm()
+    const successMessage = editing ? '人员资料已保存' : `人员账号已创建：${(payload as { data: { username: string } }).data.username}`
     await loadStaffWorkload()
-  } catch (error) {
-    staffAccountResult.value = error instanceof Error ? error.message : '员工账号保存失败'
+    adminPersonnelDrawerVisible.value = false
+    resetStaffAccountForm()
+    adminPersonnelToast.value = successMessage
+    window.setTimeout(() => {
+      if (adminPersonnelToast.value === successMessage) adminPersonnelToast.value = ''
+    }, 1800)
+  } catch {
+    staffAccountResult.value = '保存失败，请检查填写内容后重试。'
   } finally {
     staffAccountSaving.value = false
   }
@@ -7978,11 +8561,15 @@ async function loadQualityRecords() {
 }
 
 async function loadProductionQualityPage() {
-  await Promise.all([
+  const tasks: Promise<unknown>[] = [
     loadProductionQualitySummary(),
     loadQualityRecords(),
     loadReworkDictionaries()
-  ])
+  ]
+  if (portalTone.value === 'admin') {
+    tasks.push(loadInternalOrders())
+  }
+  await Promise.all(tasks)
   if (!qualityRecordReasonCategory.value && reworkReasonCategories.value.length > 0) {
     qualityRecordReasonCategory.value = reworkReasonCategories.value[0].code
   }
@@ -7994,7 +8581,7 @@ async function loadProductionQualityPage() {
 async function createExternalReturnQualityRecord() {
   const orderId = Number(qualityRecordOrderId.value.trim())
   if (!Number.isInteger(orderId) || orderId <= 0) {
-    qualityRecordError.value = '订单 ID 必须是正整数'
+    qualityRecordError.value = '请选择关联订单'
     return
   }
   if (!qualityRecordReasonDetail.value.trim()) {
@@ -8014,7 +8601,7 @@ async function createExternalReturnQualityRecord() {
         reason_detail: qualityRecordReasonDetail.value.trim()
       })
     })
-    qualityRecordResult.value = `已登记外返质量记录 ${payload.data.quality_record_id} / 返工 ${payload.data.rework_id ?? '-'}`
+    qualityRecordResult.value = '已登记外返质量问题，可继续更新处理进度'
     qualityRecordStatusId.value = String(payload.data.quality_record_id)
     qualityRecordReasonDetail.value = ''
     await Promise.all([
@@ -8031,7 +8618,7 @@ async function createExternalReturnQualityRecord() {
 async function updateQualityRecordStatus() {
   const qualityRecordId = Number(qualityRecordStatusId.value.trim())
   if (!Number.isInteger(qualityRecordId) || qualityRecordId <= 0) {
-    qualityRecordError.value = '质量记录 ID 必须是正整数'
+    qualityRecordError.value = '请选择要更新的外返记录'
     return
   }
   qualityRecordStatusSaving.value = true
@@ -8045,7 +8632,7 @@ async function updateQualityRecordStatus() {
         status_note: qualityRecordStatusNote.value.trim()
       })
     })
-    qualityRecordResult.value = `已更新质量记录 ${payload.data.quality_record_id} 状态为 ${statusLabel(payload.data.status)}`
+    qualityRecordResult.value = `处理进度已更新为${statusLabel(payload.data.status)}`
     qualityRecordStatusNote.value = ''
     await loadQualityRecords()
   } catch (error) {
@@ -8344,6 +8931,10 @@ async function createProductionCostRecord() {
       })
     })
     productionCostResult.value = `已登记成本记录 ${response.data.cost_no}`
+    if (isAdminOutsourcingRoute.value && response.data.cost_type === 'OUTSOURCING') {
+      adminOutsourcingRecentRecords.value = [response.data, ...adminOutsourcingRecentRecords.value].slice(0, 8)
+      productionCostResult.value = `外协记录 ${response.data.cost_no} 已登记`
+    }
     productionCostCreateNo.value = ''
     productionCostCreateAmount.value = 0
     productionCostCreateDepartment.value = ''
@@ -8358,7 +8949,7 @@ async function createProductionCostRecord() {
 }
 
 async function createCurrentProductionCostRecord() {
-  if (activeNavId.value === 'production-cost-outsourcing') {
+  if (activeNavId.value === 'production-cost-outsourcing' || isAdminOutsourcingRoute.value) {
     productionCostCreateType.value = 'OUTSOURCING'
   }
   await createProductionCostRecord()
@@ -9075,6 +9666,15 @@ watch(productionBoardKanbanDate, () => {
   }
 })
 
+watch([
+  staffWorkloadKeyword,
+  adminPersonnelStatusFilter,
+  adminPersonnelDepartmentFilter,
+  adminPersonnelLevelFilter
+], () => {
+  adminPersonnelPage.value = 1
+})
+
 onBeforeUnmount(() => {
   closeNotificationSocket()
 })
@@ -9090,6 +9690,9 @@ onBeforeUnmount(() => {
       { 'cs-reference-mode': portalTone === 'cs' && activeRoute !== '/dashboard' },
       { 'cs-reference-dashboard-menu': portalTone === 'cs' && activeRoute === '/dashboard' },
       portalTone === 'cs' && activeDisplayItem ? `cs-page-${activeDisplayItem.id}` : '',
+      { 'admin-reference-mode': portalTone === 'admin' && activeRoute !== '/dashboard' },
+      { 'admin-reference-dashboard-menu': portalTone === 'admin' && activeRoute === '/dashboard' },
+      { 'admin-personnel-mode': isAdminPersonnelRoute },
       { 'doctor-portal-clone': isDoctorPortalClone },
       { 'doctor-reference-dashboard-menu': portalTone === 'doctor' && activeRoute === '/dashboard' },
       { 'doctor-order-create-mode': isDoctorOrderCreateMode },
@@ -9114,13 +9717,46 @@ onBeforeUnmount(() => {
             <button v-else class="doctor-clone-close-button" type="button" @click="showDoctorOrderSection('list', 'info')">关闭 ×</button>
           </div>
         </template>
+        <template v-else-if="portalTone === 'admin'">
+          <div class="admin-topbar-breadcrumb">
+            <span>{{ activeAdminNavigationGroup }}</span>
+            <i>/</i>
+            <strong>{{ routeChrome.title }}</strong>
+          </div>
+          <div class="admin-topbar-tools">
+            <span v-if="isAdminPersonnelRoute" class="admin-topbar-sync">{{ adminPersonnelUpdatedLabel }}</span>
+            <form class="admin-global-search" @submit.prevent="runAdminGlobalSearch">
+              <button class="admin-global-search-submit" type="submit" aria-label="执行搜索">
+                <span class="svg-symbol" aria-hidden="true" v-html="businessIconSvg('search')" />
+              </button>
+              <input
+                v-model="adminGlobalSearch"
+                type="search"
+                :placeholder="isAdminPersonnelRoute ? '搜索订单、客户、员工' : '搜索订单、客户、人员或菜单'"
+                aria-label="管理端全局搜索"
+                @keyup.enter="runAdminGlobalSearch"
+              >
+              <span v-if="isAdminPersonnelRoute" class="admin-search-keycap" aria-hidden="true">⌘ K</span>
+            </form>
+            <el-tooltip content="可在当前页面查看说明和操作提示" placement="bottom">
+              <button class="admin-topbar-icon" type="button" aria-label="帮助" @click="adminHelpDrawerVisible = true">
+                <span v-if="isAdminPersonnelRoute" class="apm-inline-icon" aria-hidden="true" v-html="adminPersonnelIconSvg('help')" />
+                <template v-else>?</template>
+              </button>
+            </el-tooltip>
+            <button class="admin-topbar-icon" type="button" aria-label="打开审计通知" @click="openNotificationCenter">
+              <span class="svg-symbol" aria-hidden="true" v-html="businessIconSvg('notification')" />
+              <i v-if="hasUnreadNotifications" />
+            </button>
+          </div>
+        </template>
         <div v-else-if="isProductionReferenceView" class="factory-sync-banner">
           生产同步 · {{ productionBoardKanbanCards.length }} 个生产订单 · 医生待确认 {{ productionBoardKanbanCards.filter((card) => card.risk === 'confirm').length }} 个
         </div>
         <div v-else>
           <strong>{{ portalTitle }}</strong>
         </div>
-        <div v-if="!isProductionReferenceView" class="status-actions">
+        <div v-if="!isProductionReferenceView && portalTone !== 'admin'" class="status-actions">
           <el-tag type="success" round>{{ roleLabels(currentUser?.roles) }}已登录</el-tag>
           <el-tag effect="plain" round>{{ roleLabels(currentUser?.roles) }}</el-tag>
         </div>
@@ -9129,10 +9765,10 @@ onBeforeUnmount(() => {
       <div class="content-grid" :class="{ 'with-nav': isLoggedIn, 'login-only': !isLoggedIn }">
         <aside v-if="isLoggedIn" class="panel nav-panel">
           <div class="portal-brand">
-            <span class="portal-brand-mark" aria-hidden="true">单</span>
+            <span class="portal-brand-mark" aria-hidden="true">{{ portalTone === 'admin' ? 'AI' : '单' }}</span>
             <div>
               <strong>AI智能下单平台</strong>
-              <small>下单 · 审核 · 生产</small>
+              <small>{{ portalTone === 'admin' ? '管理中心' : '下单 · 审核 · 生产' }}</small>
             </div>
           </div>
           <el-popover
@@ -9140,7 +9776,7 @@ onBeforeUnmount(() => {
             placement="right-start"
             trigger="click"
             width="330"
-            popper-class="account-popover"
+            :popper-class="portalTone === 'admin' ? 'account-popover admin-account-popover' : 'account-popover'"
           >
             <template #reference>
               <button class="user-block account-trigger" type="button" data-testid="account-menu-trigger">
@@ -9186,7 +9822,7 @@ onBeforeUnmount(() => {
                   data-testid="auth-refresh-button"
                   @click="refreshSession"
                 >
-                  刷新令牌
+                  保持登录
                 </el-button>
                 <el-button
                   size="small"
@@ -9196,7 +9832,7 @@ onBeforeUnmount(() => {
                   data-testid="auth-logout-button"
                   @click="logout"
                 >
-                  <span data-testid="account-switch-button">账号切换</span>
+                  <span data-testid="account-switch-button">切换账号</span>
                 </el-button>
               </div>
             </div>
@@ -9207,7 +9843,11 @@ onBeforeUnmount(() => {
               <template v-for="item in group.items" :key="item.id">
                 <el-sub-menu v-if="item.children?.length" :index="item.id" @click="selectSubMenuNavigationItem(item, $event)">
                   <template #title>
-                    <span class="menu-icon" aria-hidden="true" v-html="businessIconSvg(item.icon)" />
+                    <span
+                      class="menu-icon"
+                      aria-hidden="true"
+                      v-html="portalTone === 'admin' && item.id === 'admin-staff' ? adminPersonnelIconSvg('users') : businessIconSvg(item.icon)"
+                    />
                     <span>{{ item.title }}</span>
                   </template>
                   <el-menu-item
@@ -9225,7 +9865,11 @@ onBeforeUnmount(() => {
                   :index="item.id"
                   @click="selectDisplayNavigationItem(item)"
                 >
-                  <span class="menu-icon" aria-hidden="true" v-html="businessIconSvg(item.icon)" />
+                  <span
+                    class="menu-icon"
+                    aria-hidden="true"
+                    v-html="portalTone === 'admin' && item.id === 'admin-staff' ? adminPersonnelIconSvg('users') : businessIconSvg(item.icon)"
+                  />
                   <el-badge
                     v-if="item.routePath === '/notifications' && hasUnreadNotifications"
                     :value="unreadCount"
@@ -9245,8 +9889,47 @@ onBeforeUnmount(() => {
           </div>
         </aside>
 
-        <section v-if="isLoggedIn && !isProductionCompactRoute" class="panel health-panel">
-          <template v-if="portalTone === 'cs' && activeRoute !== '/dashboard'">
+        <section v-if="isLoggedIn && !isProductionCompactRoute && !isAdminPersonnelRoute" class="panel health-panel">
+          <template v-if="portalTone === 'admin'">
+            <div class="admin-page-head">
+              <div class="admin-page-head-copy">
+                <span>{{ routeChrome.eyebrow }}</span>
+                <h1>{{ routeChrome.title }}</h1>
+                <p>{{ routeChrome.description }}</p>
+              </div>
+              <div class="admin-page-actions">
+                <el-button
+                  v-if="activeAdminParentNavId === 'admin-workflow'"
+                  plain
+                  data-testid="admin-workflow-chain-open"
+                  @click="openWorkflowChainDrawer"
+                >
+                  查看固定工艺链
+                </el-button>
+                <el-button
+                  v-if="activeAdminParentNavId === 'admin-staff'"
+                  type="primary"
+                  data-testid="admin-personnel-create"
+                  @click="openAdminPersonnelDrawer()"
+                >
+                  新增人员
+                </el-button>
+              </div>
+            </div>
+            <nav v-if="adminPageTabs.length" class="admin-page-tabs" aria-label="页面内容切换">
+              <button
+                v-for="tab in adminPageTabs"
+                :key="tab.routePath"
+                class="admin-page-tab"
+                :class="{ active: activeRoute === tab.routePath }"
+                type="button"
+                @click="selectAdminPageTab(tab)"
+              >
+                {{ tab.label }}
+              </button>
+            </nav>
+          </template>
+          <template v-else-if="portalTone === 'cs' && activeRoute !== '/dashboard'">
             <div class="cs-reference-topbar-title">{{ activeDisplayItem ? activeDisplayItem.title : routeChrome.title }}</div>
             <div class="cs-reference-topbar-tools">
               <el-input
@@ -9400,9 +10083,104 @@ onBeforeUnmount(() => {
           </div>
         </section>
 
+        <section v-else-if="isAdminFilesRoute" class="panel route-panel admin-file-page" data-testid="admin-files-page">
+          <div class="admin-metric-grid">
+            <article class="admin-metric-card">
+              <span class="admin-metric-icon" aria-hidden="true" v-html="businessIconSvg('order')" />
+              <div><small>当前订单</small><strong>{{ selectedInternalOrder?.order_no ?? '请选择' }}</strong></div>
+            </article>
+            <article class="admin-metric-card">
+              <span class="admin-metric-icon" aria-hidden="true" v-html="businessIconSvg('cloud')" />
+              <div><small>订单资料</small><strong>{{ csOrderFiles.length }}</strong></div>
+            </article>
+            <article class="admin-metric-card">
+              <span class="admin-metric-icon" aria-hidden="true" v-html="businessIconSvg('design')" />
+              <div><small>设计稿版本</small><strong>{{ csDesignDrafts.length }}</strong></div>
+            </article>
+            <article class="admin-metric-card">
+              <span class="admin-metric-icon" aria-hidden="true" v-html="businessIconSvg('customer')" />
+              <div><small>所属客户</small><strong>{{ selectedInternalOrder?.clinic_name ?? '请选择订单' }}</strong></div>
+            </article>
+          </div>
+
+          <div class="admin-data-card">
+            <div class="admin-filter-bar">
+              <el-input
+                v-model="internalOrderKeyword"
+                clearable
+                placeholder="搜索订单号或诊所"
+                @keyup.enter="loadInternalOrders"
+              />
+              <el-select
+                :model-value="selectedInternalOrder?.order_id"
+                filterable
+                placeholder="选择订单查看资料"
+                @change="selectAdminFileOrder"
+              >
+                <el-option
+                  v-for="order in internalOrders"
+                  :key="order.order_id"
+                  :label="`${order.order_no} · ${order.clinic_name || '诊所未设置'}`"
+                  :value="order.order_id"
+                />
+              </el-select>
+              <el-button type="primary" :loading="internalOrdersLoading" @click="loadInternalOrders">查询订单</el-button>
+              <span class="admin-filter-meta">预览和下载链接仅在当前登录有效期内使用</span>
+            </div>
+
+            <el-alert v-if="internalOrderError" :title="internalOrderError" type="error" show-icon :closable="false" />
+            <div v-if="csOrderFilesLoading" class="admin-loading-state">正在加载订单资料…</div>
+            <div v-else-if="!selectedInternalOrder" class="admin-empty-state">请选择订单查看文件资料</div>
+            <div v-else-if="csOrderFiles.length === 0 && csDesignDrafts.length === 0" class="admin-empty-state">当前订单暂无可查看的资料</div>
+            <div v-else class="admin-file-grid">
+              <article v-for="file in csOrderFiles" :key="`file-${file.file_id}`" class="admin-file-card">
+                <span class="admin-file-icon" aria-hidden="true" v-html="businessIconSvg('cloud')" />
+                <div class="admin-file-copy">
+                  <strong>{{ file.original_filename }}</strong>
+                  <small>{{ file.content_type || '文件类型未标注' }} · {{ formatOrderFileSize(file.file_size) }}</small>
+                  <div class="admin-file-meta">{{ compactDateTime(file.created_at) }} · {{ statusLabel(file.upload_status) }}</div>
+                </div>
+                <div class="admin-file-actions">
+                  <el-button size="small" plain @click="openOrderFile(file, 'preview', 'cs')">预览</el-button>
+                  <el-button size="small" @click="openOrderFile(file, 'download', 'cs')">下载</el-button>
+                </div>
+              </article>
+              <article v-for="draft in csDesignDrafts" :key="`draft-${draft.draft_id}`" class="admin-file-card">
+                <span class="admin-file-icon" aria-hidden="true" v-html="businessIconSvg('design')" />
+                <div class="admin-file-copy">
+                  <strong>设计稿 V{{ draft.version }}</strong>
+                  <small>{{ statusLabel(draft.status) }} · {{ designDraftFileIds(draft).length }} 个文件</small>
+                  <div class="admin-file-meta">设计稿版本记录</div>
+                </div>
+                <div class="admin-file-actions">
+                  <el-button
+                    size="small"
+                    plain
+                    :disabled="designDraftFileIds(draft).length === 0"
+                    :loading="csReviewActionLoading"
+                    @click="loadCsDesignDraftPreviewUrls(draft)"
+                  >
+                    获取预览
+                  </el-button>
+                  <a
+                    v-for="fileId in designDraftFileIds(draft)"
+                    v-show="csDesignDraftPreviewUrls[designDraftPreviewKey(draft, fileId)]"
+                    :key="fileId"
+                    :href="csDesignDraftPreviewUrls[designDraftPreviewKey(draft, fileId)]"
+                    target="_blank"
+                    rel="noreferrer"
+                  >
+                    预览设计文件
+                  </a>
+                </div>
+              </article>
+            </div>
+          </div>
+        </section>
+
         <section v-else-if="isInternalOrdersRoute" class="panel route-panel internal-order-panel">
           <div class="route-heading">
-            <h2>{{ isProductizedCsDesignRoute ? '设计稿管理' : isProductizedCsProductionNoteRoute ? '生产备注助手' : '客服初审' }}</h2>
+            <h2>{{ portalTone === 'admin' ? '订单列表' : isProductizedCsDesignRoute ? '设计稿管理' : isProductizedCsProductionNoteRoute ? '生产备注助手' : '客服初审' }}</h2>
             <div class="notification-heading-tags">
               <el-tag round>{{ internalOrders.length }} 单</el-tag>
               <el-tag v-if="isProductizedCsDesignRoute" type="success" round>真实数据</el-tag>
@@ -9505,7 +10283,7 @@ onBeforeUnmount(() => {
                       :key="field.key"
                       class="field-cell"
                     >
-                      <span>{{ field.key }}</span>
+                      <span>{{ doctorFieldLabel(field.key) }}</span>
                       <strong>{{ field.value }}</strong>
                     </div>
                   </div>
@@ -9554,14 +10332,14 @@ onBeforeUnmount(() => {
                         <article v-for="item in csMissingInfoItems" :key="item.field_key">
                           <strong>{{ item.field_label }}</strong>
                           <p>{{ item.tip }}</p>
-                          <span>{{ item.field_key }}</span>
+                          <span>需要补充</span>
                         </article>
                       </div>
                     </section>
 
                     <section class="doctor-order-create">
                       <div class="subheading-row">
-                        <h3>AI 翻译草稿</h3>
+                        <h3>翻译草稿</h3>
                         <el-tag type="info" round>人工确认后写入</el-tag>
                       </div>
                       <el-form-item label="待翻译内容">
@@ -9599,11 +10377,11 @@ onBeforeUnmount(() => {
 
                     <section class="doctor-order-create">
                       <div class="subheading-row">
-                        <h3>AI-5 生产备注</h3>
-                        <el-tag type="warning" round>默认模板 / 人工确认</el-tag>
+                        <h3>生产备注建议</h3>
+                        <el-tag type="warning" round>写入前确认</el-tag>
                       </div>
                       <p class="form-hint">
-                        客户正式模板未确认，本草稿只按一期默认模板和订单上下文整理，确认后才写入生产备注。
+                        系统会根据订单资料整理生产备注建议，确认内容后才会写入订单。
                       </p>
                       <div class="inline-actions">
                         <el-button
@@ -9629,7 +10407,7 @@ onBeforeUnmount(() => {
                         class="ai-answer"
                         data-testid="cs-production-note-draft"
                       >
-                        <strong>模板版本：{{ csProductionNoteTemplateVersion }}</strong>
+                        <strong>已生成建议</strong>
                         <p>{{ csProductionNoteDraft }}</p>
                       </div>
                       <div
@@ -9697,12 +10475,21 @@ onBeforeUnmount(() => {
 
                 <el-tab-pane label="设计稿">
                   <div class="review-form">
-                    <el-form-item label="设计稿 file_id">
-                      <el-input
-                        v-model="csDesignDraftFileIds"
+                    <el-form-item label="选择设计文件">
+                      <el-select
+                        v-model="csDesignSelectedFileIds"
                         data-testid="internal-design-draft-file-ids"
-                        placeholder="多个 file_id 用英文逗号分隔"
-                      />
+                        multiple
+                        filterable
+                        placeholder="选择已上传的设计文件"
+                      >
+                        <el-option
+                          v-for="file in csOrderFiles"
+                          :key="file.file_id"
+                          :label="file.original_filename"
+                          :value="file.file_id"
+                        />
+                      </el-select>
                     </el-form-item>
                     <el-form-item label="上传说明">
                       <el-input
@@ -9732,7 +10519,6 @@ onBeforeUnmount(() => {
                     <div v-if="csDesignDrafts.length > 0" class="compact-list">
                       <article v-for="draft in csDesignDrafts" :key="draft.draft_id">
                         <strong>V{{ draft.version }} / {{ statusLabel(draft.status) }}</strong>
-                        <p>文件 ID：{{ designDraftFileIds(draft).join(', ') || '-' }}</p>
                         <span>文件数：{{ draft.file_count ?? designDraftFileIds(draft).length }}</span>
                         <p v-if="draft.cs_reject_reason">客服驳回原因：{{ draft.cs_reject_reason }}</p>
                         <p v-if="draft.doctor_reject_reason">医生驳回原因：{{ draft.doctor_reject_reason }}</p>
@@ -9768,7 +10554,7 @@ onBeforeUnmount(() => {
                             target="_blank"
                             rel="noreferrer"
                           >
-                            文件 {{ fileId }}
+                            预览设计文件
                           </a>
                         </div>
                       </article>
@@ -9781,12 +10567,21 @@ onBeforeUnmount(() => {
 
                 <el-tab-pane label="账单物流">
                   <div class="review-form">
-                    <el-form-item label="账单 file_id">
-                      <el-input
-                        v-model="csBillFileId"
+                    <el-form-item label="选择账单文件">
+                      <el-select
+                        v-model="csBillSelectedFileId"
                         data-testid="internal-bill-file-id"
-                        placeholder="填写已完成上传的账单文件 file_id"
-                      />
+                        filterable
+                        clearable
+                        placeholder="选择已上传的账单文件"
+                      >
+                        <el-option
+                          v-for="file in csOrderFiles"
+                          :key="file.file_id"
+                          :label="file.original_filename"
+                          :value="file.file_id"
+                        />
+                      </el-select>
                     </el-form-item>
                     <el-form-item label="最终应收金额（元）">
                       <el-input
@@ -9964,7 +10759,7 @@ onBeforeUnmount(() => {
                       :key="field.key"
                       class="field-cell"
                     >
-                      <span>{{ field.key }}</span>
+                      <span>{{ doctorFieldLabel(field.key) }}</span>
                       <strong>{{ field.value }}</strong>
                     </div>
                   </div>
@@ -10033,17 +10828,22 @@ onBeforeUnmount(() => {
 
         <section
           v-else-if="isProcessInstanceRoute || isWorkflowAssignRoute"
-          class="panel route-panel process-instance-panel"
+          class="panel route-panel process-instance-panel admin-process-page"
         >
           <div class="route-heading">
-            <h2>{{ isWorkflowAssignRoute ? '员工派工' : '工序进度' }}</h2>
-            <el-tag round>{{ processInstanceOrders.length }} 单</el-tag>
+            <div>
+              <h2>{{ isWorkflowAssignRoute ? '员工派工' : '工序进度' }}</h2>
+              <p>{{ isWorkflowAssignRoute ? '选择订单和工序后安排执行人员。' : '按订单查看每一道工序的当前进度。' }}</p>
+            </div>
+            <div class="inline-actions">
+              <el-tag round>{{ processInstanceOrders.length }} 单</el-tag>
+            </div>
           </div>
 
           <div class="doctor-order-toolbar">
             <el-input
               v-model="processInstanceKeyword"
-              placeholder="搜索订单号或患者"
+              placeholder="搜索订单号或客户"
               clearable
               @keyup.enter="loadProcessInstanceOrders"
             />
@@ -10083,7 +10883,7 @@ onBeforeUnmount(() => {
                 <small>{{ statusLabel(order.internal_status) }} / {{ statusLabel(order.external_status) }}</small>
               </button>
               <div v-if="processInstanceOrders.length === 0" class="empty-state">
-                暂无已实例化订单
+                暂无已生成工序的订单
               </div>
             </aside>
 
@@ -10094,38 +10894,46 @@ onBeforeUnmount(() => {
                   <strong>{{ selectedProcessInstanceOrder?.order_no ?? selectedProcessInstance.order_id }}</strong>
                 </div>
                 <div>
-                  <span>实例</span>
+                  <span>生产批次</span>
                   <strong>{{ selectedProcessInstance.instance_id }}</strong>
                 </div>
                 <div>
-                  <span>实例状态</span>
+                  <span>当前状态</span>
                   <strong>{{ statusLabel(selectedProcessInstance.instance_status) }}</strong>
                 </div>
                 <div>
-                  <span>节点 / 边</span>
-                  <strong>{{ selectedProcessInstance.nodes.length }} / {{ selectedProcessInstance.edges.length }}</strong>
+                  <span>工序数量</span>
+                  <strong>{{ selectedProcessInstance.nodes.length }}</strong>
                 </div>
               </div>
 
               <div v-if="isWorkflowAssignRoute" class="assignment-toolbar">
-                <el-form-item label="员工编号">
-                  <el-input v-model="processAssignmentUserId" />
+                <el-alert v-if="staffWorkloadError" :title="staffWorkloadError" type="error" show-icon :closable="false" />
+                <el-form-item label="选择员工">
+                  <el-select v-model="processAssignmentUserId" filterable placeholder="按姓名选择员工">
+                    <el-option
+                      v-for="staff in staffWorkloadItems"
+                      :key="staff.user_id"
+                      :label="`${staff.display_name} · ${staff.dept_name || '部门未设置'}`"
+                      :value="String(staff.user_id)"
+                    />
+                  </el-select>
                 </el-form-item>
                 <div class="inline-actions">
                   <el-button
                     type="primary"
                     :loading="processAssignmentLoading"
-                    :disabled="!selectedProcessNode"
+                    :disabled="!selectedProcessNode || !processAssignmentUserId"
                     @click="assignSelectedProcessNode('ASSIGN')"
                   >
-                    绑定员工
+                    安排员工
                   </el-button>
                   <el-button
                     :loading="processAssignmentLoading"
-                    :disabled="!selectedProcessNode || !selectedProcessNode.assigned_user_id"
+                    :disabled="!selectedProcessNode || !selectedProcessNode.assigned_user_id || !processAssignmentUserId"
                     @click="assignSelectedProcessNode('REASSIGN')"
                   >
-                    转派员工
+                    调整员工
                   </el-button>
                 </div>
               </div>
@@ -10141,9 +10949,9 @@ onBeforeUnmount(() => {
                 >
                   <span class="node-order">{{ node.step_order }}</span>
                   <strong>{{ node.process_name }}</strong>
-                  <span>{{ node.node_code }}</span>
+                  <span>{{ node.stage_name || '生产工序' }}</span>
                   <span>{{ statusLabel(node.node_status) }}</span>
-                  <span>员工 {{ node.assigned_user_id ?? '-' }}</span>
+                  <span>{{ node.assigned_user_id ? (staffWorkloadItems.find((staff) => staff.user_id === node.assigned_user_id)?.display_name ?? `员工 ${node.assigned_user_id}`) : '尚未安排' }}</span>
                   <span>{{ node.standard_duration ?? '-' }} 分钟</span>
                 </button>
               </div>
@@ -10795,11 +11603,11 @@ onBeforeUnmount(() => {
           </div>
         </section>
 
-        <section v-else-if="isPerformanceRoute" class="factory-performance-page">
-          <header class="factory-page-heading">
-            <div><h2>绩效管理</h2><p>基于已完成工时、标准工时与返工记录生成的实时参考。</p></div>
+        <section v-else-if="isPerformanceRoute" class="panel route-panel factory-performance-page">
+          <header class="factory-page-heading route-heading">
+            <div><h2>绩效统计</h2><p>按人员和时间查看已完成工时、质量与返工情况。</p></div>
             <div class="heading-tags">
-              <el-tag round>{{ performanceStats ? `员工 ${performanceStats.user_id ?? '-'}` : '未加载' }}</el-tag>
+              <el-tag round>{{ staffWorkloadItems.find((staff) => String(staff.user_id) === performanceUserId)?.display_name ?? (performanceStats ? '已加载' : '请选择人员') }}</el-tag>
               <el-tag
                 v-if="performanceStats"
                 data-testid="performance-formula-version"
@@ -10812,54 +11620,41 @@ onBeforeUnmount(() => {
           </header>
 
           <div class="performance-toolbar">
-            <el-input
+            <el-select
+              v-if="portalTone === 'admin'"
               v-model="performanceUserId"
-              placeholder="管理员可输入员工编号；生产人员留空查看本人"
+              filterable
               clearable
-              @keyup.enter="loadPerformanceStats"
-            />
-            <el-input
+              placeholder="选择人员"
+            >
+              <el-option
+                v-for="staff in staffWorkloadItems"
+                :key="staff.user_id"
+                :label="`${staff.display_name} · ${staff.dept_name || '部门未设置'}`"
+                :value="String(staff.user_id)"
+              />
+            </el-select>
+            <el-input v-else v-model="performanceUserId" placeholder="留空查看本人" clearable />
+            <el-date-picker
               v-model="performanceStartDate"
               data-testid="performance-start-date"
-              placeholder="开始日期 YYYY-MM-DD"
+              type="date"
+              value-format="YYYY-MM-DD"
+              placeholder="开始日期"
               clearable
-              @keyup.enter="loadPerformanceStats"
             />
-            <el-input
+            <el-date-picker
               v-model="performanceEndDate"
               data-testid="performance-end-date"
-              placeholder="结束日期 YYYY-MM-DD"
+              type="date"
+              value-format="YYYY-MM-DD"
+              placeholder="结束日期"
               clearable
-              @keyup.enter="loadPerformanceStats"
             />
             <el-button type="primary" :loading="performanceLoading" @click="loadPerformanceStats">
               查询员工绩效
             </el-button>
           </div>
-
-          <el-card v-if="canManageStaffAccounts" class="staff-account-editor" shadow="never">
-            <template #header>
-              <div class="card-heading-row">
-                <strong>{{ staffAccountEditUserId ? '编辑技工账号' : '创建技工账号' }}</strong>
-                <el-button link type="primary" @click="resetStaffAccountForm">新建账号</el-button>
-              </div>
-            </template>
-            <div class="staff-account-form">
-              <el-input v-model="staffAccountUsername" :disabled="Boolean(staffAccountEditUserId)" placeholder="登录账号" />
-              <el-input v-model="staffAccountDisplayName" placeholder="员工姓名" />
-              <el-input v-model="staffAccountPassword" type="password" show-password :placeholder="staffAccountEditUserId ? '留空则不修改密码' : '初始密码（至少 8 位）'" />
-              <el-select v-model="staffAccountDeptId" placeholder="选择部门">
-                <el-option v-for="department in staffAccountOptions.departments" :key="department.id" :label="department.name" :value="department.id" />
-              </el-select>
-              <el-select v-model="staffAccountPostId" placeholder="选择岗位">
-                <el-option v-for="post in staffAccountOptions.posts" :key="post.id" :label="post.name" :value="post.id" />
-              </el-select>
-              <el-button type="primary" :loading="staffAccountSaving" @click="saveStaffAccount">
-                {{ staffAccountEditUserId ? '保存修改' : '创建账号' }}
-              </el-button>
-            </div>
-            <p v-if="staffAccountResult" class="muted-text">{{ staffAccountResult }}</p>
-          </el-card>
 
           <el-alert
             v-if="performanceNotice"
@@ -10963,6 +11758,228 @@ onBeforeUnmount(() => {
           </div>
           <div v-else class="empty-state">
             暂无绩效统计
+          </div>
+        </section>
+
+        <section v-else-if="isAdminPersonnelRoute" class="panel route-panel admin-personnel-page" data-testid="admin-personnel-page">
+          <header class="apm-page-head">
+            <div>
+              <p class="apm-eyebrow">人员与职责</p>
+              <h1>人员管理</h1>
+              <p>维护员工资料、岗位和职责，让每位负责人只管理自己团队中的人员。</p>
+            </div>
+            <div class="apm-page-actions">
+              <button class="apm-button" type="button" @click="exportAdminPersonnel">
+                <span class="apm-inline-icon" aria-hidden="true" v-html="adminPersonnelIconSvg('download')" />
+                导出人员
+              </button>
+              <button
+                v-if="canManageStaffAccounts"
+                class="apm-button is-primary"
+                type="button"
+                data-testid="admin-personnel-create"
+                @click="openAdminPersonnelDrawer()"
+              >
+                <span class="apm-inline-icon" aria-hidden="true" v-html="adminPersonnelIconSvg('plus')" />
+                新增人员
+              </button>
+            </div>
+          </header>
+
+          <section class="apm-metrics" aria-label="人员统计">
+            <article class="apm-metric">
+              <span class="apm-metric-icon" aria-hidden="true" v-html="adminPersonnelIconSvg('users')" />
+              <div class="apm-metric-copy"><small>在职人员</small><strong>{{ adminPersonnelTotal }}</strong><em>含管理员及全部员工</em></div>
+            </article>
+            <article class="apm-metric">
+              <span class="apm-metric-icon" aria-hidden="true" v-html="adminPersonnelIconSvg('check')" />
+              <div class="apm-metric-copy"><small>正常账号</small><strong>{{ adminPersonnelActiveCount }}</strong><em>可正常登录并处理工作</em></div>
+            </article>
+            <article class="apm-metric">
+              <span class="apm-metric-icon" aria-hidden="true" v-html="adminPersonnelIconSvg('lock')" />
+              <div class="apm-metric-copy"><small>待处理账号</small><strong>{{ adminPersonnelAttentionCount }}</strong><em>{{ adminPersonnelAttentionCount ? '需要管理员查看' : '目前没有需处理账号' }}</em></div>
+            </article>
+            <article class="apm-metric">
+              <span class="apm-metric-icon" aria-hidden="true" v-html="adminPersonnelIconSvg('shield')" />
+              <div class="apm-metric-copy"><small>已设部门</small><strong>{{ adminPersonnelAssignedDepartmentCount }}</strong><em>用于人员归属和岗位安排</em></div>
+            </article>
+          </section>
+
+          <section class="apm-workspace">
+            <nav class="apm-tabs-row" aria-label="人员管理内容">
+              <div class="apm-tabs" role="tablist">
+                <button
+                  v-for="tab in adminPageTabs"
+                  :key="tab.routePath"
+                  class="apm-tab"
+                  :class="{ active: activeRoute === tab.routePath }"
+                  type="button"
+                  role="tab"
+                  :aria-selected="activeRoute === tab.routePath"
+                  @click="selectAdminPageTab(tab)"
+                >
+                  {{ tab.label }}
+                </button>
+              </div>
+            </nav>
+
+            <template v-if="activeRoute === '/admin/staff'">
+              <div class="apm-permission-band">
+                <div class="apm-band-copy"><strong>人员管理关系</strong><small>各级负责人管理自己的团队</small></div>
+                <div class="apm-role-chain" aria-label="人员管理关系">
+                  <template v-for="(rule, index) in adminRoleRules" :key="rule.level">
+                    <button
+                      class="apm-role-node"
+                      :class="{ 'is-admin': rule.level === '管理员' }"
+                      type="button"
+                      @click="openAdminRoleLevel(rule.level)"
+                    ><i aria-hidden="true" />{{ rule.level }}</button>
+                    <span v-if="index < adminRoleRules.length - 1" class="apm-chain-arrow" aria-hidden="true">→</span>
+                  </template>
+                </div>
+              </div>
+
+              <div class="apm-filters">
+                <label class="apm-filter-search">
+                  <span class="apm-inline-icon" aria-hidden="true" v-html="adminPersonnelIconSvg('search')" />
+                  <input v-model="staffWorkloadKeyword" type="search" placeholder="搜索姓名、账号、部门或角色">
+                </label>
+                <select v-model="adminPersonnelDepartmentFilter" aria-label="部门">
+                  <option value="ALL">全部部门</option>
+                  <option v-for="department in adminOrganizationRows" :key="department.id" :value="department.name">{{ department.name }}</option>
+                </select>
+                <select v-model="adminPersonnelLevelFilter" aria-label="人员级别">
+                  <option value="ALL">全部级别</option>
+                  <option v-for="rule in adminRoleRules" :key="rule.level" :value="rule.level">{{ rule.level }}</option>
+                </select>
+                <select v-model="adminPersonnelStatusFilter" aria-label="账号状态">
+                  <option value="ALL">全部状态</option>
+                  <option value="ACTIVE">正常</option>
+                  <option value="INACTIVE">已停用</option>
+                </select>
+                <button class="apm-text-button" type="button" @click="resetAdminPersonnelFilters">重置</button>
+                <span class="apm-filter-meta">共 {{ adminPersonnelRows.length }} 名人员 · {{ adminPersonnelAttentionCount }} 位需要处理</span>
+              </div>
+
+              <div v-if="staffWorkloadError" class="apm-feedback is-error" role="alert">{{ staffWorkloadError }}</div>
+              <div class="apm-table" role="table" aria-label="人员列表">
+                <div class="apm-table-head" role="row">
+                  <span>员工</span><span>部门 / 岗位</span><span>人员级别</span><span>负责部门 / 工作</span><span>状态</span><span>资料更新</span><span>操作</span>
+                </div>
+                <div v-if="staffWorkloadLoading" class="apm-empty">正在加载人员信息…</div>
+                <div v-else-if="adminPersonnelRows.length === 0" class="apm-empty">没有匹配的人员记录</div>
+                <div v-else class="apm-table-body">
+                  <div v-for="row in adminPersonnelPagedRows" :key="`${row.userId}-${row.username}`" class="apm-table-row" role="row">
+                    <div class="apm-person">
+                      <span class="apm-person-avatar">{{ row.displayName.slice(0, 2) }}</span>
+                      <div class="apm-person-copy"><strong>{{ row.displayName }}</strong><small>账号：{{ row.username }}</small></div>
+                    </div>
+                    <div><span class="apm-cell-main">{{ row.department }}</span><span class="apm-cell-sub">{{ row.posts.join('、') || '岗位未设置' }}</span></div>
+                    <div><span class="apm-level-tag" :class="adminPersonnelLevelClass(row.level)">{{ row.level }}</span></div>
+                    <div><span class="apm-cell-main">{{ adminPersonnelScopeTitle(row) }}</span><span class="apm-cell-sub">{{ adminPersonnelScopeDescription(row) }}</span></div>
+                    <div><span class="apm-status" :class="{ 'is-warning': row.status !== 'ACTIVE' }">{{ adminPersonnelAccountStatusLabel(row.status) }}</span></div>
+                    <div><span class="apm-cell-main">{{ adminPersonnelUpdatedAtLabel(row) }}</span><span class="apm-cell-sub">累计完成 {{ row.completedTasks }} 项工作</span></div>
+                    <div class="apm-row-actions">
+                      <button class="apm-text-button" type="button" @click="openAdminRoleFromPersonnel(row)">查看职责</button>
+                      <button
+                        v-if="row.source && row.level === '普通员工' && canManageStaffAccounts"
+                        class="apm-text-button is-primary"
+                        type="button"
+                        @click="openAdminPersonnelDrawer(row)"
+                      >编辑资料</button>
+                    </div>
+                  </div>
+                </div>
+              </div>
+
+              <div v-if="!staffWorkloadLoading && adminPersonnelRows.length" class="apm-pagination">
+                <span>显示第 {{ adminPersonnelRangeStart }}–{{ adminPersonnelRangeEnd }} 条，共 {{ adminPersonnelRows.length }} 条</span>
+                <div class="apm-pages">
+                  <button class="apm-page-button" type="button" :disabled="adminPersonnelCurrentPage === 1" aria-label="上一页" @click="selectAdminPersonnelPage(adminPersonnelCurrentPage - 1)">‹</button>
+                  <button
+                    v-for="(page, index) in adminPersonnelPageNumbers"
+                    :key="`${page}-${index}`"
+                    class="apm-page-button"
+                    :class="{ active: page === adminPersonnelCurrentPage }"
+                    type="button"
+                    :disabled="page === '…'"
+                    @click="selectAdminPersonnelPage(page)"
+                  >{{ page }}</button>
+                  <button class="apm-page-button" type="button" :disabled="adminPersonnelCurrentPage === adminPersonnelPageCount" aria-label="下一页" @click="selectAdminPersonnelPage(adminPersonnelCurrentPage + 1)">›</button>
+                </div>
+              </div>
+            </template>
+
+            <template v-else-if="activeRoute === '/admin/staff/roles'">
+              <div class="apm-permission-band">
+                <div class="apm-band-copy"><strong>人员管理关系</strong><small>上一级只管理自己负责范围内的下一级</small></div>
+                <div class="apm-role-chain" aria-label="人员级别">
+                  <template v-for="(rule, index) in adminRoleRules" :key="rule.level">
+                    <button class="apm-role-node" :class="{ active: selectedAdminRoleLevel === rule.level }" type="button" @click="showAdminRole(rule.level)"><i aria-hidden="true" />{{ rule.level }}</button>
+                    <span v-if="index < adminRoleRules.length - 1" class="apm-chain-arrow" aria-hidden="true">→</span>
+                  </template>
+                </div>
+              </div>
+              <div class="apm-role-layout">
+                <aside class="apm-role-list" aria-label="选择人员级别">
+                  <button
+                    v-for="rule in adminRoleRules"
+                    :key="rule.level"
+                    class="apm-role-choice"
+                    :class="{ active: selectedAdminRoleLevel === rule.level }"
+                    type="button"
+                    @click="showAdminRole(rule.level)"
+                  >
+                    <span class="apm-role-choice-icon" aria-hidden="true" v-html="adminPersonnelIconSvg(rule.level === '普通员工' ? 'users' : 'shield')" />
+                    <span><strong>{{ rule.level }}</strong><small>{{ adminPersonnelLevelCounts.find((item) => item.level === rule.level)?.count || 0 }} 人</small></span>
+                    <i aria-hidden="true">›</i>
+                  </button>
+                </aside>
+                <section class="apm-role-detail">
+                  <span class="apm-level-tag" :class="adminPersonnelLevelClass(selectedAdminRoleRule.level)">{{ selectedAdminRoleRule.level }}</span>
+                  <h2>{{ selectedAdminRoleRule.summary }}</h2>
+                  <p class="apm-role-manage">{{ selectedAdminRoleRule.canManage }}</p>
+                  <h3>可处理的工作</h3>
+                  <div class="apm-responsibility-grid">
+                    <article v-for="responsibility in selectedAdminRoleRule.responsibilities" :key="responsibility">
+                      <span aria-hidden="true" v-html="adminPersonnelIconSvg('check')" />
+                      <strong>{{ responsibility }}</strong>
+                    </article>
+                  </div>
+                  <div class="apm-availability-note">
+                    <span aria-hidden="true" v-html="adminPersonnelIconSvg('shield')" />
+                    <p>目前可以新增普通员工并设置部门和岗位；经理和主管职责可先查看，暂不支持调整。</p>
+                  </div>
+                </section>
+              </div>
+            </template>
+
+            <template v-else>
+              <div class="apm-org-heading">
+                <div><strong>部门与岗位</strong><small>查看人员归属和当前在用岗位</small></div>
+                <span>{{ adminOrganizationRows.length }} 个部门 · {{ staffAccountOptions.posts.length }} 个岗位</span>
+              </div>
+              <div v-if="adminOrganizationRows.length" class="apm-org-grid">
+                <article v-for="department in adminOrganizationRows" :key="department.id" class="apm-org-card">
+                  <div class="apm-org-card-head">
+                    <span class="apm-org-icon" aria-hidden="true" v-html="adminPersonnelIconSvg('users')" />
+                    <div><strong>{{ department.name }}</strong><small>{{ department.staffCount }} 名人员 · {{ department.posts.length }} 个在用岗位</small></div>
+                    <button type="button" @click="showAdminPersonnelDepartment(department.name)">查看人员</button>
+                  </div>
+                  <div class="apm-org-posts">
+                    <span v-for="post in department.posts" :key="post.id">{{ post.name }}</span>
+                    <span v-if="department.posts.length === 0" class="is-empty">暂无在用岗位</span>
+                  </div>
+                  <p><b>当前人员</b>{{ adminDepartmentStaffNames(department.id) }}</p>
+                </article>
+              </div>
+              <div v-else class="apm-empty apm-org-empty">暂无组织岗位信息</div>
+            </template>
+          </section>
+
+          <div class="apm-toast" :class="{ show: Boolean(adminPersonnelToast) }" role="status" aria-live="polite">
+            <span aria-hidden="true" v-html="adminPersonnelIconSvg('check')" />
+            <span>{{ adminPersonnelToast }}</span>
           </div>
         </section>
 
@@ -11481,17 +12498,17 @@ onBeforeUnmount(() => {
 
         <section v-else-if="isDeliveryManagementRoute" class="panel route-panel production-board-panel" data-testid="cs-delivery-management-panel">
           <div class="route-heading">
-            <h2>{{ isProductizedCsBillingRoute ? '账单管理' : '配送管理' }}</h2>
+            <h2>{{ portalTone === 'admin' ? '账单配送' : isProductizedCsBillingRoute ? '账单管理' : '配送管理' }}</h2>
             <div class="heading-tags">
               <el-tag round>{{ deliveryOrders.length }} 单</el-tag>
               <el-tag type="info" round>人工跟进</el-tag>
-              <el-tag v-if="isProductizedCsBillingRoute" type="success" round>真实数据</el-tag>
+              <el-tag v-if="isProductizedCsBillingRoute" type="success" round>已更新</el-tag>
             </div>
           </div>
 
           <el-alert
             v-if="isProductizedCsBillingRoute"
-            title="账单管理使用现有账单文件、人工付款状态、发货和异常跟进能力；在线支付、电子发票和物流自动同步将在业务接口开放后启用。"
+            title="当前可查看账单文件、更新付款状态、登记发货并跟进物流异常。在线支付、电子发票和自动物流查询暂未启用。"
             type="info"
             show-icon
             :closable="false"
@@ -11813,7 +12830,7 @@ onBeforeUnmount(() => {
               </div>
 
               <div class="subheading-row">
-                <h3>一期客户偏好</h3>
+                <h3>客户制作偏好</h3>
                 <el-tag v-if="clinicPreference" round>{{ clinicPreference.clinic_name }}</el-tag>
               </div>
               <div class="order-create-grid">
@@ -11851,7 +12868,7 @@ onBeforeUnmount(() => {
               <template v-if="canCreateClinic">
                 <div class="subheading-row">
                 <h3>新建诊所</h3>
-                <el-tag round>ADMIN</el-tag>
+                <el-tag round>管理员可操作</el-tag>
                 </div>
                 <div class="order-create-grid">
                   <el-form-item label="诊所名称">
@@ -12640,7 +13657,9 @@ onBeforeUnmount(() => {
               <div class="form-grid">
                 <label>
                   产品类型
-                  <el-input v-model="productCatalogCreateType" data-testid="product-catalog-create-type" />
+                  <el-select v-model="productCatalogCreateType" filterable allow-create data-testid="product-catalog-create-type">
+                    <el-option v-for="option in productTypeOptions" :key="option.value" :label="option.label" :value="option.value" />
+                  </el-select>
                 </label>
                 <label>
                   产品名称
@@ -12651,12 +13670,14 @@ onBeforeUnmount(() => {
                   <el-input v-model="productCatalogCreateMaterial" data-testid="product-catalog-create-material" />
                 </label>
                 <label>
-                  基础价（分）
-                  <el-input-number v-model="productCatalogCreatePrice" :min="1" :step="100" data-testid="product-catalog-create-price" />
+                  基础价（元）
+                  <el-input-number v-model="productCatalogCreatePriceYuan" :min="0.01" :step="10" :precision="2" data-testid="product-catalog-create-price" />
                 </label>
                 <label>
                   币种
-                  <el-input v-model="productCatalogCreateCurrency" data-testid="product-catalog-create-currency" />
+                  <el-select v-model="productCatalogCreateCurrency" data-testid="product-catalog-create-currency">
+                    <el-option label="人民币" value="CNY" />
+                  </el-select>
                 </label>
                 <label>
                   价格备注
@@ -12687,8 +13708,8 @@ onBeforeUnmount(() => {
                   <el-input v-model="productCatalogEditMaterial" data-testid="product-catalog-edit-material" />
                 </label>
                 <label>
-                  基础价（分）
-                  <el-input-number v-model="productCatalogEditPrice" :min="1" :step="100" data-testid="product-catalog-edit-price" />
+                  基础价（元）
+                  <el-input-number v-model="productCatalogEditPriceYuan" :min="0.01" :step="10" :precision="2" data-testid="product-catalog-edit-price" />
                 </label>
                 <label>
                   状态
@@ -12699,7 +13720,9 @@ onBeforeUnmount(() => {
                 </label>
                 <label>
                   币种
-                  <el-input v-model="productCatalogEditCurrency" data-testid="product-catalog-edit-currency" />
+                  <el-select v-model="productCatalogEditCurrency" data-testid="product-catalog-edit-currency">
+                    <el-option label="人民币" value="CNY" />
+                  </el-select>
                 </label>
                 <label>
                   价格备注
@@ -12743,22 +13766,25 @@ onBeforeUnmount(() => {
             >
               <strong>{{ item.product_name }} / {{ productTypeLabel(item.product_type) }}</strong>
               <p>{{ item.material_spec || '未填材料规格' }} / {{ statusLabel(item.status) }}</p>
-              <span>{{ item.currency }} {{ (item.base_price_cents / 100).toFixed(2) }} / {{ item.price_note || '人工维护基础价' }}</span>
+              <span>{{ item.currency === 'CNY' ? '¥' : item.currency }}{{ (item.base_price_cents / 100).toFixed(2) }} / {{ item.price_note?.includes('种子') ? '价格待确认' : (item.price_note || '基础价') }}</span>
             </article>
           </div>
 
           <div class="route-heading secondary-heading">
             <h2>动态表单</h2>
-            <el-tag round>{{ formConfigProductType || 'ALL' }}</el-tag>
+            <el-tag round>{{ formConfigProductType ? productTypeLabel(formConfigProductType) : '全部产品' }}</el-tag>
           </div>
 
           <div class="notification-toolbar">
-            <el-input
+            <el-select
               v-model="formConfigProductType"
               data-testid="form-config-product-filter"
-              placeholder="产品类型"
+              placeholder="选择产品类型"
+              clearable
               style="max-width: 220px"
-            />
+            >
+              <el-option v-for="option in productTypeOptions" :key="option.value" :label="option.label" :value="option.value" />
+            </el-select>
             <el-button :loading="formConfigLoading" @click="loadFormConfigFields">刷新</el-button>
           </div>
 
@@ -12783,11 +13809,9 @@ onBeforeUnmount(() => {
               <div class="form-grid">
                 <label>
                   产品类型
-                  <el-input v-model="formConfigCreateProductType" data-testid="form-config-create-product" />
-                </label>
-                <label>
-                  字段 key
-                  <el-input v-model="formConfigCreateKey" data-testid="form-config-create-key" />
+                  <el-select v-model="formConfigCreateProductType" data-testid="form-config-create-product">
+                    <el-option v-for="option in productTypeOptions" :key="option.value" :label="option.label" :value="option.value" />
+                  </el-select>
                 </label>
                 <label>
                   字段名
@@ -12796,7 +13820,7 @@ onBeforeUnmount(() => {
                 <label>
                   类型
                   <el-select v-model="formConfigCreateType" data-testid="form-config-create-type">
-                    <el-option v-for="type in formFieldTypeOptions" :key="type" :label="type" :value="type" />
+                    <el-option v-for="type in formFieldTypeOptions" :key="type" :label="fieldTypeLabel(type)" :value="type" />
                   </el-select>
                 </label>
                 <label>
@@ -12813,6 +13837,7 @@ onBeforeUnmount(() => {
                 <el-button
                   type="primary"
                   :loading="formConfigSaving"
+                  :disabled="!formConfigCreateLabel.trim()"
                   data-testid="form-config-create-button"
                   @click="createFormConfigField"
                 >
@@ -12880,7 +13905,7 @@ onBeforeUnmount(() => {
               :class="{ selected: field.field_id === selectedFormConfigFieldId }"
               @click="selectFormConfigField(field)"
             >
-              <strong>{{ field.field_label }} / {{ field.field_key }}</strong>
+              <strong>{{ field.field_label }}</strong>
               <p>{{ productTypeLabel(field.product_type) }} / {{ fieldTypeLabel(field.field_type) }} / {{ statusLabel(field.status) }}</p>
               <span>排序 {{ field.sort_order }} / {{ field.is_required ? '必填' : '选填' }}</span>
             </article>
@@ -12941,10 +13966,6 @@ onBeforeUnmount(() => {
                   </el-select>
                 </label>
                 <label>
-                  编码
-                  <el-input v-model="reworkDictionaryCreateCode" data-testid="rework-dictionary-create-code" />
-                </label>
-                <label>
                   名称
                   <el-input v-model="reworkDictionaryCreateLabel" data-testid="rework-dictionary-create-label" />
                 </label>
@@ -12957,6 +13978,7 @@ onBeforeUnmount(() => {
                 <el-button
                   type="primary"
                   :loading="reworkDictionaryManageSaving"
+                  :disabled="!reworkDictionaryCreateLabel.trim()"
                   data-testid="rework-dictionary-create-button"
                   @click="createReworkDictionaryItem"
                 >
@@ -13019,10 +14041,89 @@ onBeforeUnmount(() => {
               :class="{ selected: item.item_id === selectedReworkDictionaryItemId }"
               @click="selectReworkDictionaryItem(item)"
             >
-              <strong>{{ item.label }} / {{ item.code }}</strong>
+              <strong>{{ item.label }}</strong>
               <p>{{ item.dictionary_type === 'REASON_CATEGORY' ? '返工原因' : '责任类型' }} / {{ statusLabel(item.status) }}</p>
               <span>排序 {{ item.sort_order }}</span>
             </article>
+          </div>
+        </section>
+
+        <section
+          v-else-if="isAdminCommunicationManagementRoute"
+          class="panel route-panel admin-communication-page"
+          data-testid="admin-communication-management-page"
+        >
+          <div class="admin-metric-grid">
+            <article class="admin-metric-card">
+              <span class="admin-metric-icon" aria-hidden="true" v-html="businessIconSvg('chat')" />
+              <div><small>待处理消息</small><strong>{{ customerCollaborationPendingMessages.length }}</strong></div>
+            </article>
+            <article class="admin-metric-card">
+              <span class="admin-metric-icon" aria-hidden="true" v-html="businessIconSvg('order')" />
+              <div><small>涉及订单</small><strong>{{ adminCommunicationOrderCount }}</strong></div>
+            </article>
+            <article class="admin-metric-card">
+              <span class="admin-metric-icon" aria-hidden="true" v-html="businessIconSvg('customer')" />
+              <div><small>当前订单消息</small><strong>{{ customerCollaborationOrderMessages.length }}</strong></div>
+            </article>
+            <article class="admin-metric-card">
+              <span class="admin-metric-icon" aria-hidden="true" v-html="businessIconSvg('audit')" />
+              <div><small>处理原则</small><strong>人工确认</strong></div>
+            </article>
+          </div>
+
+          <el-alert v-if="customerCollaborationError" :title="customerCollaborationError" type="error" show-icon :closable="false" />
+
+          <div class="admin-communication-layout">
+            <section class="admin-communication-list">
+              <div class="admin-filter-bar">
+                <strong>需要处理的消息</strong>
+                <span class="admin-filter-meta">点击消息进入处理页面</span>
+              </div>
+              <button
+                v-for="message in customerCollaborationPendingMessages"
+                :key="message.msg_id"
+                class="admin-communication-row"
+                type="button"
+                @click="openAdminCommunicationMessage(message)"
+              >
+                <span class="admin-communication-avatar">{{ roleLabel(message.sender_role).slice(0, 1) }}</span>
+                <span class="admin-communication-copy">
+                  <strong>{{ message.order_no || `订单 ${message.order_id}` }} · {{ roleLabel(message.sender_role) }}</strong>
+                  <p>{{ message.content }}</p>
+                </span>
+                <span class="admin-communication-time">{{ statusLabel(message.review_status) }}</span>
+              </button>
+              <div v-if="customerCollaborationPendingMessages.length === 0" class="admin-empty-state">当前没有待处理消息</div>
+            </section>
+
+            <aside class="admin-data-card">
+              <div class="admin-filter-bar"><strong>查看订单沟通</strong></div>
+              <div class="admin-drawer-section">
+                <p>输入订单编号后，可以查看医生、客服和生产人员围绕该订单的沟通记录。</p>
+              </div>
+              <div class="admin-drawer-section">
+                <el-select v-model="customerCollaborationOrderId" filterable placeholder="选择订单">
+                  <el-option
+                    v-for="order in adminOrderOptions"
+                    :key="order.order_id"
+                    :label="`${order.order_no} · ${order.clinic_name}`"
+                    :value="String(order.order_id)"
+                  />
+                </el-select>
+                <el-button
+                  type="primary"
+                  :loading="customerCollaborationLoading"
+                  @click="loadCustomerCollaborationOrderMessages"
+                >
+                  查看沟通记录
+                </el-button>
+              </div>
+              <div class="admin-drawer-section">
+                <h3>处理提示</h3>
+                <p>先核对消息内容和订单背景，再决定通过或退回；退回时请写清需要修改的内容。</p>
+              </div>
+            </aside>
           </div>
         </section>
 
@@ -13035,10 +14136,26 @@ onBeforeUnmount(() => {
           </header>
 
           <div v-if="portalTone !== 'doctor'" class="doctor-order-toolbar">
+            <el-select
+              v-if="portalTone === 'admin'"
+              v-model="customerCollaborationOrderId"
+              filterable
+              clearable
+              placeholder="选择订单查看沟通记录"
+              data-testid="customer-collaboration-order-id"
+            >
+              <el-option
+                v-for="order in adminOrderOptions"
+                :key="order.order_id"
+                :label="`${order.order_no} · ${order.clinic_name}`"
+                :value="String(order.order_id)"
+              />
+            </el-select>
             <el-input
+              v-else
               v-model="customerCollaborationOrderId"
               data-testid="customer-collaboration-order-id"
-              placeholder="输入订单 ID 查看订单消息上下文"
+              placeholder="输入订单编号查看沟通记录"
             />
             <div class="inline-actions compact-actions">
               <el-button :loading="customerCollaborationLoading" @click="loadCustomerCollaborationOrderMessages">
@@ -13181,7 +14298,7 @@ onBeforeUnmount(() => {
                 <el-tag type="info" round>{{ customerCollaborationOrderMessages.length }}</el-tag>
               </div>
               <div v-if="customerCollaborationOrderMessages.length === 0" class="empty-state">
-                输入订单 ID 后查看医生、客服、生产消息上下文
+                选择订单后查看医生、客服和生产人员的沟通记录
               </div>
               <div v-else class="compact-list">
                 <article
@@ -13343,9 +14460,12 @@ onBeforeUnmount(() => {
 
         <section v-else-if="activeRoute === '/notifications'" class="panel route-panel notification-panel">
           <div class="route-heading">
-            <h2>通知中心</h2>
+            <div>
+              <h2>{{ portalTone === 'admin' ? '审计通知' : '通知中心' }}</h2>
+              <p v-if="portalTone === 'admin'">集中查看待处理提醒、关键操作和业务通知。</p>
+            </div>
             <div class="notification-heading-tags">
-              <el-tag :type="notificationSocketStatus === '已连接' ? 'success' : 'info'" round>
+              <el-tag v-if="portalTone !== 'admin'" :type="notificationSocketStatus === '已连接' ? 'success' : 'info'" round>
                 {{ notificationSocketStatus }}
               </el-tag>
               <el-tag :type="hasUnreadNotifications ? 'warning' : 'success'" round>
@@ -13949,8 +15069,8 @@ onBeforeUnmount(() => {
           </template>
         </section>
 
-        <section v-else-if="isProductionQualityOverviewView" class="factory-quality-page">
-          <header class="factory-page-heading">
+        <section v-else-if="isProductionQualityOverviewView" class="panel route-panel factory-quality-page">
+          <header class="factory-page-heading route-heading">
             <div><h2>质量总览</h2><p>基于现有出检、返工与质量记录实时汇总。</p></div>
             <button class="factory-btn-g" type="button" :disabled="productionQualitySummaryLoading || qualityRecordLoading" @click="loadProductionQualityPage">↻ 刷新质量数据</button>
           </header>
@@ -13958,9 +15078,9 @@ onBeforeUnmount(() => {
           <div class="prototype-queue-card">
             <div class="prototype-table-head">
               <div>
-                <h3>真实质量汇总</h3>
+                <h3>质量概览</h3>
                 <small>
-                  {{ productionQualitySummary?.generated_at ? `更新 ${compactDateTime(productionQualitySummary.generated_at)}` : '来自后端出检与返工记录' }}
+                  {{ productionQualitySummary?.generated_at ? `更新 ${compactDateTime(productionQualitySummary.generated_at)}` : '根据出检与返工记录汇总' }}
                 </small>
               </div>
               <el-button
@@ -14015,13 +15135,20 @@ onBeforeUnmount(() => {
                 <small>基于检查记录与返工记录生成</small>
               </div>
               <div class="inline-actions">
-                <el-input
+                <el-select
                   v-model="qualityRecordOrderId"
-                  placeholder="订单 ID"
+                  placeholder="选择订单"
                   clearable
+                  filterable
                   data-testid="quality-record-order-id"
-                  @keyup.enter="loadQualityRecords"
-                />
+                >
+                  <el-option
+                    v-for="order in internalOrders"
+                    :key="order.order_id"
+                    :label="`${order.order_no} · ${order.clinic_name}`"
+                    :value="String(order.order_id)"
+                  />
+                </el-select>
                 <el-select v-model="qualityRecordResponsibilityType" data-testid="quality-record-responsibility">
                   <el-option
                     v-for="option in reworkResponsibilityTypes"
@@ -14031,7 +15158,9 @@ onBeforeUnmount(() => {
                   />
                 </el-select>
                 <el-button :loading="qualityRecordLoading" @click="loadQualityRecords">筛选</el-button>
-                <el-button type="primary" plain @click="activeNavId = 'production-external-rework-management'; navigateToRoute('/rework-final')">外返登记与处理</el-button>
+                <el-button type="primary" plain @click="adminQualityActionVisible = !adminQualityActionVisible">
+                  {{ adminQualityActionVisible ? '收起登记' : '外返登记与处理' }}
+                </el-button>
               </div>
             </div>
             <el-alert
@@ -14058,8 +15187,8 @@ onBeforeUnmount(() => {
               <el-table-column prop="quality_record_id" label="记录" width="90" />
               <el-table-column prop="order_no" label="订单号" min-width="140" />
               <el-table-column prop="clinic_name" label="诊所" min-width="150" />
-              <el-table-column prop="responsibility_type" label="责任" width="90" />
-              <el-table-column prop="reason_category" label="原因" width="120" />
+              <el-table-column label="责任" width="110"><template #default="{ row }">{{ reworkResponsibilityLabel(row.responsibility_type) }}</template></el-table-column>
+              <el-table-column label="原因" width="130"><template #default="{ row }">{{ reworkReasonLabel(row.reason_category) }}</template></el-table-column>
               <el-table-column prop="status" label="状态" width="100">
                 <template #default="{ row }">
                   <el-tag round>{{ statusLabel(row.status) }}</el-tag>
@@ -14071,6 +15200,135 @@ onBeforeUnmount(() => {
               </el-table-column>
               <el-table-column prop="reason_detail" label="详情" min-width="180" show-overflow-tooltip />
             </el-table>
+
+            <el-collapse-transition>
+              <div v-if="adminQualityActionVisible" class="admin-quality-actions">
+                <section class="admin-data-card">
+                  <div class="admin-filter-bar"><strong>登记外返问题</strong></div>
+                  <el-form label-position="top">
+                    <el-form-item label="关联订单">
+                      <el-select v-model="qualityRecordOrderId" filterable placeholder="选择订单">
+                        <el-option
+                          v-for="order in internalOrders"
+                          :key="order.order_id"
+                          :label="`${order.order_no} · ${order.clinic_name}`"
+                          :value="String(order.order_id)"
+                        />
+                      </el-select>
+                    </el-form-item>
+                    <el-form-item label="问题原因">
+                      <el-select v-model="qualityRecordReasonCategory">
+                        <el-option v-for="option in reworkReasonCategories" :key="option.code" :label="option.label" :value="option.code" />
+                      </el-select>
+                    </el-form-item>
+                    <el-form-item label="责任归属">
+                      <el-select v-model="qualityRecordResponsibilityType">
+                        <el-option v-for="option in reworkResponsibilityTypes" :key="option.code" :label="option.label" :value="option.code" />
+                      </el-select>
+                    </el-form-item>
+                    <el-form-item label="问题说明">
+                      <el-input v-model="qualityRecordReasonDetail" type="textarea" :rows="3" placeholder="填写客户反馈或需要跟进的质量问题" />
+                    </el-form-item>
+                    <el-button type="primary" :loading="qualityRecordSaving" @click="createExternalReturnQualityRecord">登记外返问题</el-button>
+                  </el-form>
+                </section>
+                <section class="admin-data-card">
+                  <div class="admin-filter-bar"><strong>更新处理进度</strong></div>
+                  <el-form label-position="top">
+                    <el-form-item label="外返记录">
+                      <el-select v-model="qualityRecordStatusId" filterable placeholder="选择要更新的记录">
+                        <el-option
+                          v-for="record in qualityRecords"
+                          :key="record.quality_record_id"
+                          :label="`${record.order_no || '订单未设置'} · ${reworkReasonLabel(record.reason_category)}`"
+                          :value="String(record.quality_record_id)"
+                        />
+                      </el-select>
+                    </el-form-item>
+                    <el-form-item label="处理状态">
+                      <el-select v-model="qualityRecordStatus">
+                        <el-option label="待处理" value="PENDING" />
+                        <el-option label="处理中" value="IN_PROGRESS" />
+                        <el-option label="已解决" value="RESOLVED" />
+                        <el-option label="已关闭" value="CLOSED" />
+                      </el-select>
+                    </el-form-item>
+                    <el-form-item label="处理说明">
+                      <el-input v-model="qualityRecordStatusNote" type="textarea" :rows="3" placeholder="填写本次处理结果或下一步安排" />
+                    </el-form-item>
+                    <el-button :loading="qualityRecordStatusSaving" @click="updateQualityRecordStatus">保存处理进度</el-button>
+                  </el-form>
+                </section>
+              </div>
+            </el-collapse-transition>
+          </div>
+        </section>
+
+        <section
+          v-else-if="isAdminOutsourcingRoute"
+          class="panel route-panel admin-outsourcing-page"
+          data-testid="admin-outsourcing-page"
+        >
+          <div class="admin-metric-grid">
+            <article class="admin-metric-card">
+              <span class="admin-metric-icon" aria-hidden="true" v-html="businessIconSvg('partner')" />
+              <div><small>外协费用</small><strong>{{ formatMoney(productionCostSummary?.outsourcing_cost_amount ?? 0) }}</strong></div>
+            </article>
+            <article class="admin-metric-card">
+              <span class="admin-metric-icon" aria-hidden="true" v-html="businessIconSvg('bill')" />
+              <div><small>全部费用记录</small><strong>{{ productionCostSummary?.record_count ?? 0 }}</strong></div>
+            </article>
+            <article class="admin-metric-card">
+              <span class="admin-metric-icon" aria-hidden="true" v-html="businessIconSvg('audit')" />
+              <div><small>需要关注</small><strong>{{ productionCostSummary?.abnormal_warning_count ?? 0 }}</strong></div>
+            </article>
+            <article class="admin-metric-card">
+              <span class="admin-metric-icon" aria-hidden="true" v-html="businessIconSvg('notification')" />
+              <div><small>本次登记</small><strong>{{ adminOutsourcingRecentRecords.length }}</strong></div>
+            </article>
+          </div>
+
+          <el-alert v-if="productionCostSummaryError" :title="productionCostSummaryError" type="error" show-icon :closable="false" />
+          <el-alert v-if="productionCostResult" :title="productionCostResult" type="success" show-icon :closable="false" />
+
+          <div class="admin-outsourcing-layout">
+            <section class="admin-data-card">
+              <div class="admin-filter-bar">
+                <strong>本次登记记录</strong>
+                <el-button :loading="productionCostSummaryLoading" @click="loadProductionCostSummary">刷新汇总</el-button>
+                <span class="admin-filter-meta">本页仅显示本次登录期间新增的外协记录</span>
+              </div>
+              <div v-if="adminOutsourcingRecentRecords.length" class="admin-data-table">
+                <el-table :data="adminOutsourcingRecentRecords" size="small">
+                  <el-table-column prop="cost_no" label="外协编号" min-width="130" />
+                  <el-table-column label="供应商" min-width="150">
+                    <template #default="{ row }">
+                      <div class="admin-supplier-cell"><span class="admin-supplier-mark">协</span><strong>{{ row.supplier_name || '未填写' }}</strong></div>
+                    </template>
+                  </el-table-column>
+                  <el-table-column label="金额" width="110"><template #default="{ row }">{{ formatMoney(row.amount) }}</template></el-table-column>
+                  <el-table-column label="状态" width="100"><template #default="{ row }"><span class="admin-outsourcing-status" :class="{ 'is-warning': row.status === 'WARNING' }">{{ statusLabel(row.status) }}</span></template></el-table-column>
+                  <el-table-column prop="description" label="说明" min-width="180" show-overflow-tooltip />
+                  <el-table-column label="登记时间" width="145"><template #default="{ row }">{{ compactDateTime(row.created_at) }}</template></el-table-column>
+                </el-table>
+              </div>
+              <div v-else class="admin-empty-state">本次登录还没有新增外协记录</div>
+            </section>
+
+            <aside class="admin-data-card admin-outsourcing-side">
+              <div class="admin-filter-bar"><strong>登记外协记录</strong></div>
+              <el-input v-model="productionCostCreateNo" placeholder="外协编号" />
+              <el-input v-model="productionCostCreateSupplier" placeholder="供应商名称" />
+              <el-input-number v-model="productionCostCreateAmount" :min="0" :precision="2" controls-position="right" />
+              <el-select v-model="productionCostCreateStatus" placeholder="处理状态">
+                <el-option label="正常" value="NORMAL" />
+                <el-option label="需要关注" value="WARNING" />
+                <el-option label="已确认" value="CONFIRMED" />
+              </el-select>
+              <el-input v-model="productionCostCreateDepartment" placeholder="负责部门" />
+              <el-input v-model="productionCostCreateDescription" type="textarea" :rows="3" placeholder="填写外协内容、交期或补充说明" />
+              <el-button type="primary" :loading="productionCostSaving" @click="createCurrentProductionCostRecord">登记外协记录</el-button>
+            </aside>
           </div>
         </section>
 
@@ -14080,16 +15338,16 @@ onBeforeUnmount(() => {
           data-testid="ai-governance-local-hardening"
         >
           <div class="route-heading">
-            <h2>AI 生产治理本地补强</h2>
+            <div><h2>智能功能管理</h2><p>查看各项智能助手的使用场景、安全保护和人工确认要求。</p></div>
             <div class="heading-tags">
-              <el-tag type="warning" round>PARTIAL</el-tag>
-              <el-tag type="info" round>{{ aiGovernanceLocalHardening?.stage_goal ?? 'GOAL-019' }}</el-tag>
+              <el-tag type="success" round>安全保护已启用</el-tag>
+              <el-tag type="info" round>只读查看</el-tag>
             </div>
           </div>
 
           <el-alert
-            title="真实 key / webhook 仍待验收；本页只展示本地治理边界、提示词版本、输出安全和 AI-3 安全矩阵。"
-            type="warning"
+            title="智能助手只提供查询和草稿建议；涉及订单、生产备注或对外消息时，仍需由工作人员确认。"
+            type="info"
             show-icon
             :closable="false"
           />
@@ -14104,44 +15362,43 @@ onBeforeUnmount(() => {
           <div v-if="aiGovernanceLocalHardening" v-loading="aiGovernanceLocalHardeningLoading">
             <div class="performance-grid">
               <article class="performance-card">
-                <span>输出安全边界</span>
-                <strong>{{ aiGovernanceLocalHardening.output_safety_boundary.guarded_status }}</strong>
-                <small>{{ aiGovernanceLocalHardening.output_safety_boundary.streaming_status }}</small>
+                <span>内容保护</span>
+                <strong>{{ aiGovernanceStatusLabel(aiGovernanceLocalHardening.output_safety_boundary.guarded_status) }}</strong>
+                <small>{{ aiGovernanceLocalHardening.output_safety_boundary.manual_review_required ? '重要内容需要人工确认' : '按规则自动处理' }}</small>
               </article>
               <article class="performance-card">
-                <span>预算 / 熔断</span>
-                <strong>{{ aiGovernanceLocalHardening.budget_circuit_breaker_policy.daily_budget_microusd }}</strong>
-                <small>通知 {{ aiGovernanceLocalHardening.budget_circuit_breaker_policy.budget_notification_enabled ? '开启' : '关闭' }} / 熔断 {{ aiGovernanceLocalHardening.budget_circuit_breaker_policy.budget_circuit_breaker_enabled ? '开启' : '关闭' }}</small>
+                <span>每日使用上限</span>
+                <strong>{{ formatAiBudget(aiGovernanceLocalHardening.budget_circuit_breaker_policy.daily_budget_microusd) }}</strong>
+                <small>超出提醒{{ aiGovernanceLocalHardening.budget_circuit_breaker_policy.budget_notification_enabled ? '已开启' : '未开启' }} · 自动保护{{ aiGovernanceLocalHardening.budget_circuit_breaker_policy.budget_circuit_breaker_enabled ? '已开启' : '未开启' }}</small>
               </article>
               <article class="performance-card">
-                <span>AI-5 模板状态</span>
-                <strong>{{ aiGovernanceLocalHardening.ai5_template_boundary.template_version }}</strong>
-                <small>{{ aiGovernanceLocalHardening.ai5_template_boundary.customer_template_status }}</small>
+                <span>生产备注模板</span>
+                <strong>{{ aiTemplateLabel(aiGovernanceLocalHardening.ai5_template_boundary.template_version) }}</strong>
+                <small>{{ aiGovernanceStatusLabel(aiGovernanceLocalHardening.ai5_template_boundary.customer_template_status) }}</small>
               </article>
               <article class="performance-card">
-                <span>真实外部联调</span>
-                <strong>{{ aiGovernanceLocalHardening.real_external_integration_status.integration_status }}</strong>
-                <small>Task 8 {{ aiGovernanceLocalHardening.real_external_integration_status.task8_status }}</small>
+                <span>外部智能服务</span>
+                <strong>{{ aiGovernanceStatusLabel(aiGovernanceLocalHardening.real_external_integration_status.integration_status) }}</strong>
+                <small>接入完成前使用平台内置的稳定响应</small>
               </article>
             </div>
 
             <div class="prototype-queue-card">
               <div class="prototype-table-head">
                 <div>
-                  <h3>提示词版本</h3>
-                  <small>本地代码版本管理，不暴露 prompt 原文，不提供在线编辑。</small>
+                  <h3>智能助手配置</h3>
+                  <small>查看每个助手服务的业务场景和使用人员。</small>
                 </div>
                 <el-tag type="success" round>只读</el-tag>
               </div>
               <el-table :data="aiGovernanceLocalHardening.prompt_templates" size="small" border>
-                <el-table-column prop="agent_code" label="智能体" min-width="150" />
-                <el-table-column prop="prompt_version" label="版本" min-width="180" />
-                <el-table-column prop="context_type" label="上下文" min-width="220" />
-                <el-table-column prop="owner_role" label="角色" width="120" />
-                <el-table-column label="人工确认" width="110">
+                <el-table-column label="智能助手" min-width="160"><template #default="{ row }">{{ aiAgentLabel(row.agent_code) }}</template></el-table-column>
+                <el-table-column label="使用场景" min-width="220"><template #default="{ row }">{{ aiContextLabel(row.context_type) }}</template></el-table-column>
+                <el-table-column label="使用人员" min-width="150"><template #default="{ row }">{{ roleScopeLabel(row.owner_role) }}</template></el-table-column>
+                <el-table-column label="发送前确认" width="130">
                   <template #default="{ row }">
                     <el-tag :type="row.human_confirmation_required ? 'warning' : 'info'" size="small" round>
-                      {{ row.human_confirmation_required ? '需要' : '按规则' }}
+                      {{ row.human_confirmation_required ? '需要人工确认' : '按使用规则' }}
                     </el-tag>
                   </template>
                 </el-table-column>
@@ -14151,10 +15408,10 @@ onBeforeUnmount(() => {
             <div class="prototype-queue-card">
               <div class="prototype-table-head">
                 <div>
-                  <h3>AI-3 安全矩阵</h3>
-                  <small>医生端只读安全模型回归，不暴露内部工序、员工、返工、工时或绩效。</small>
+                  <h3>医生端信息保护</h3>
+                  <small>医生只能查询本人可见的订单、账单、物流和公开消息。</small>
                 </div>
-                <el-tag type="warning" round>SAFE_REFUSAL</el-tag>
+                <el-tag type="success" round>保护已启用</el-tag>
               </div>
               <div class="compact-list">
                 <article
@@ -14162,8 +15419,8 @@ onBeforeUnmount(() => {
                   :key="item.case_id"
                 >
                   <strong>{{ item.question_family }}</strong>
-                  <p>{{ item.safe_read_model }} / {{ item.expected_status }}</p>
-                  <span>禁止字段：{{ item.forbidden_fields.join('、') }}</span>
+                  <p>{{ aiGovernanceStatusLabel(item.expected_status) }}</p>
+                  <span>系统会自动隐藏医生不应看到的内部生产信息。</span>
                 </article>
               </div>
             </div>
@@ -14171,23 +15428,23 @@ onBeforeUnmount(() => {
             <div class="prototype-queue-card">
               <div class="prototype-table-head">
                 <div>
-                  <h3>AI-5 模板状态</h3>
-                  <small>当前采用默认绩效模板，以实际工时记录为准。</small>
+                  <h3>生产备注使用规则</h3>
+                  <small>当前使用通用整理模板，生成后由工作人员确认再写入订单。</small>
                 </div>
-                <el-tag type="danger" round>客户模板未确认</el-tag>
+                <el-tag type="warning" round>客户版本待提供</el-tag>
               </div>
               <div class="doctor-order-summary">
                 <div>
-                  <span>模板版本</span>
-                  <strong>{{ aiGovernanceLocalHardening.ai5_template_boundary.template_version }}</strong>
+                  <span>当前模板</span>
+                  <strong>{{ aiTemplateLabel(aiGovernanceLocalHardening.ai5_template_boundary.template_version) }}</strong>
                 </div>
                 <div>
-                  <span>客户确认</span>
-                  <strong>{{ aiGovernanceLocalHardening.ai5_template_boundary.customer_template_status }}</strong>
+                  <span>客户版本</span>
+                  <strong>{{ aiGovernanceStatusLabel(aiGovernanceLocalHardening.ai5_template_boundary.customer_template_status) }}</strong>
                 </div>
                 <div>
                   <span>自动写入</span>
-                  <strong>{{ aiGovernanceLocalHardening.ai5_template_boundary.auto_write_allowed ? '允许' : '禁止' }}</strong>
+                  <strong>{{ aiGovernanceLocalHardening.ai5_template_boundary.auto_write_allowed ? '可以' : '不可以' }}</strong>
                 </div>
                 <div>
                   <span>人工确认</span>
@@ -14196,8 +15453,11 @@ onBeforeUnmount(() => {
               </div>
             </div>
           </div>
-          <div v-else class="empty-state">
-            AI 治理本地补强数据加载中
+          <div v-else-if="aiGovernanceLocalHardeningLoading" class="empty-state">
+            正在加载智能功能状态
+          </div>
+          <div v-else-if="!aiGovernanceLocalHardeningError" class="empty-state">
+            暂无可查看的智能功能状态
           </div>
         </section>
 
@@ -14212,9 +15472,9 @@ onBeforeUnmount(() => {
           }"
         >
           <header class="route-heading factory-page-heading">
-            <div><h2>{{ activeDisplayItem.title }}</h2><p v-if="isProductizedProductionSupportRoute">当前页面展示已接入的真实汇总与可用业务操作。</p></div>
+            <div><h2>{{ activeDisplayItem.title }}</h2><p v-if="isProductizedProductionSupportRoute">查看当前汇总，并处理需要跟进的事项。</p></div>
             <div class="heading-tags">
-              <el-tag v-if="isProductizedProductionSupportRoute" type="success" round>真实数据</el-tag>
+              <el-tag v-if="isProductizedProductionSupportRoute" type="success" round>已更新</el-tag>
               <el-tag v-else-if="isAdminPermissionInventoryRoute" type="warning" round>权限清单入口</el-tag>
               <el-tag v-else round>暂未开放</el-tag>
             </div>
@@ -14280,9 +15540,9 @@ onBeforeUnmount(() => {
           <div v-if="isProductionQualitySummaryRoute" class="prototype-queue-card">
             <div class="prototype-table-head">
               <div>
-                <h3>真实质量汇总</h3>
+                <h3>质量概览</h3>
                 <small>
-                  {{ productionQualitySummary?.generated_at ? `更新 ${compactDateTime(productionQualitySummary.generated_at)}` : '来自后端出检与返工记录' }}
+                  {{ productionQualitySummary?.generated_at ? `更新 ${compactDateTime(productionQualitySummary.generated_at)}` : '根据出检与返工记录汇总' }}
                 </small>
               </div>
               <el-button
@@ -14320,9 +15580,9 @@ onBeforeUnmount(() => {
           <div v-if="isProductionEquipmentSummaryRoute" class="prototype-queue-card">
             <div class="prototype-table-head">
               <div>
-                <h3>真实设备汇总</h3>
+                <h3>设备概览</h3>
                 <small>
-                  {{ productionEquipmentSummary?.generated_at ? `更新 ${compactDateTime(productionEquipmentSummary.generated_at)}` : '来自后端设备台账和设备事件' }}
+                  {{ productionEquipmentSummary?.generated_at ? `更新 ${compactDateTime(productionEquipmentSummary.generated_at)}` : '根据设备台账和事件记录汇总' }}
                 </small>
               </div>
               <el-button
@@ -14438,9 +15698,9 @@ onBeforeUnmount(() => {
           <div v-if="isProductionMaterialExceptionSummaryRoute" class="prototype-queue-card">
             <div class="prototype-table-head">
               <div>
-                <h3>真实物料异常汇总</h3>
+                <h3>物料异常概览</h3>
                 <small>
-                  {{ productionMaterialExceptionSummary?.generated_at ? `更新 ${compactDateTime(productionMaterialExceptionSummary.generated_at)}` : '来自后端物料异常事实表' }}
+                  {{ productionMaterialExceptionSummary?.generated_at ? `更新 ${compactDateTime(productionMaterialExceptionSummary.generated_at)}` : '根据物料异常记录汇总' }}
                 </small>
               </div>
               <el-button
@@ -14561,9 +15821,9 @@ onBeforeUnmount(() => {
           <div v-if="isProductionSafetyEnvironmentSummaryRoute" class="prototype-queue-card">
             <div class="prototype-table-head">
               <div>
-                <h3>真实安环汇总</h3>
+                <h3>安环概览</h3>
                 <small>
-                  {{ productionSafetyEnvironmentSummary?.generated_at ? `更新 ${compactDateTime(productionSafetyEnvironmentSummary.generated_at)}` : '来自后端安环事件事实表' }}
+                  {{ productionSafetyEnvironmentSummary?.generated_at ? `更新 ${compactDateTime(productionSafetyEnvironmentSummary.generated_at)}` : '根据巡检与整改记录汇总' }}
                 </small>
               </div>
               <el-button
@@ -14689,9 +15949,9 @@ onBeforeUnmount(() => {
           <div v-if="isProductionCostSummaryRoute" class="prototype-queue-card">
             <div class="prototype-table-head">
               <div>
-                <h3>真实成本汇总</h3>
+                <h3>成本概览</h3>
                 <small>
-                  {{ productionCostSummary?.generated_at ? `更新 ${compactDateTime(productionCostSummary.generated_at)}` : '来自后端成本事实表' }}
+                  {{ productionCostSummary?.generated_at ? `更新 ${compactDateTime(productionCostSummary.generated_at)}` : '根据已登记费用记录汇总' }}
                 </small>
               </div>
               <el-button
@@ -15016,6 +16276,161 @@ onBeforeUnmount(() => {
           </div>
         </section>
       </div>
+
+      <el-drawer
+        v-model="adminHelpDrawerVisible"
+        title="页面帮助"
+        size="420px"
+        class="admin-drawer"
+        modal-class="admin-drawer-overlay"
+        data-testid="admin-help-drawer"
+      >
+        <div class="admin-drawer-section">
+          <h3>{{ routeChrome.title }}</h3>
+          <p>{{ routeChrome.description }}</p>
+        </div>
+        <div class="admin-drawer-section">
+          <h3>使用提示</h3>
+          <p>先从左侧选择业务入口；页面上方的标签用于切换同一业务内的内容。带“查看”或“设置”的按钮会在当前页面打开详情，不会改变已保存的数据。</p>
+        </div>
+        <div class="admin-drawer-section">
+          <h3>需要关注的事项</h3>
+          <p>待处理提醒和关键操作记录统一放在“审计通知”。涉及新增、修改或状态变更时，请核对页面提示后再提交。</p>
+        </div>
+        <template #footer>
+          <el-button @click="adminHelpDrawerVisible = false">关闭</el-button>
+          <el-button type="primary" @click="adminHelpDrawerVisible = false; openNotificationCenter()">查看审计通知</el-button>
+        </template>
+      </el-drawer>
+
+      <el-drawer
+        v-model="adminPersonnelDrawerVisible"
+        :with-header="false"
+        size="418px"
+        class="admin-personnel-drawer"
+        modal-class="admin-personnel-drawer-overlay"
+        data-testid="admin-personnel-drawer"
+      >
+        <div class="apm-drawer-shell">
+          <header class="apm-drawer-head">
+            <div>
+              <strong id="admin-personnel-drawer-title">{{ staffAccountEditUserId ? '编辑人员' : '新增人员' }}</strong>
+              <small>{{ staffAccountEditUserId ? `${staffAccountDisplayName || '当前人员'} · 普通员工` : '新成员 · 普通员工' }}</small>
+            </div>
+            <button class="apm-drawer-close" type="button" aria-label="关闭" @click="adminPersonnelDrawerVisible = false">
+              <span aria-hidden="true" v-html="adminPersonnelIconSvg('close')" />
+            </button>
+          </header>
+
+          <section class="apm-drawer-section">
+            <h3>登录信息</h3>
+            <label class="apm-field">
+              <span>登录账号</span>
+              <input v-model="staffAccountUsername" :disabled="Boolean(staffAccountEditUserId)" autocomplete="off" placeholder="请输入登录账号">
+            </label>
+            <label class="apm-field">
+              <span>{{ staffAccountEditUserId ? '新密码' : '初始密码' }}</span>
+              <input
+                v-model="staffAccountPassword"
+                type="password"
+                autocomplete="new-password"
+                :placeholder="staffAccountEditUserId ? '留空则保持当前密码' : '至少 8 位'"
+              >
+            </label>
+          </section>
+
+          <section class="apm-drawer-section">
+            <h3>人员资料</h3>
+            <label class="apm-field">
+              <span>人员姓名</span>
+              <input v-model="staffAccountDisplayName" placeholder="请输入人员姓名">
+            </label>
+            <div class="apm-field-grid">
+              <label class="apm-field">
+                <span>所属部门</span>
+                <select v-model="staffAccountDeptId">
+                  <option :value="null" disabled>请选择部门</option>
+                  <option v-for="department in staffAccountOptions.departments" :key="department.id" :value="department.id">{{ department.name }}</option>
+                </select>
+              </label>
+              <label class="apm-field">
+                <span>岗位</span>
+                <select v-model="staffAccountPostId">
+                  <option :value="null" disabled>请选择岗位</option>
+                  <option v-for="post in staffAccountOptions.posts" :key="post.id" :value="post.id">{{ post.name }}</option>
+                </select>
+              </label>
+            </div>
+          </section>
+
+          <section class="apm-drawer-section">
+            <h3>职责说明</h3>
+            <p>{{ staffAccountEditUserId ? '保存后，人员将继续以普通员工身份在所选部门和岗位工作。' : '新建人员将以普通员工身份加入所选部门和岗位，只处理自己被安排的工作。' }}</p>
+            <div class="apm-drawer-note">
+              <span aria-hidden="true" v-html="adminPersonnelIconSvg('shield')" />
+              <span>经理和主管的职责关系请在“角色权限”中查看，当前不在此调整。</span>
+            </div>
+          </section>
+
+          <div v-if="staffAccountResult" class="apm-drawer-feedback" role="status">{{ staffAccountResult }}</div>
+
+          <footer class="apm-drawer-actions">
+            <button class="apm-button" type="button" @click="adminPersonnelDrawerVisible = false">取消</button>
+            <button class="apm-button is-primary" type="button" :disabled="staffAccountSaving" @click="saveStaffAccount">
+              <span v-if="!staffAccountSaving" class="apm-inline-icon" aria-hidden="true" v-html="adminPersonnelIconSvg('check')" />
+              {{ staffAccountSaving ? '保存中…' : (staffAccountEditUserId ? '保存资料' : '创建人员') }}
+            </button>
+          </footer>
+        </div>
+      </el-drawer>
+
+      <el-drawer
+        v-model="workflowChainDrawerVisible"
+        title="固定工艺链"
+        size="720px"
+        class="admin-process-drawer"
+        modal-class="admin-drawer-overlay"
+        data-testid="admin-workflow-chain-drawer"
+      >
+        <div class="admin-drawer-section">
+          <h3>9 条工艺链已经固定</h3>
+          <p>选择工艺链查看工序顺序。本页只提供查看，不提供新增、修改、删除或拖拽。</p>
+        </div>
+        <el-alert v-if="workflowChainNodesError" :title="workflowChainNodesError" type="error" show-icon :closable="false" />
+        <div class="admin-process-chain-grid">
+          <button
+            v-for="chain in fixedWorkflowChains"
+            :key="chain.chain_id"
+            class="admin-process-chain-card"
+            :class="{ active: selectedWorkflowChainId === chain.chain_id }"
+            type="button"
+            @click="selectWorkflowChain(chain)"
+          >
+            <strong>{{ chain.chain_name }}</strong>
+            <p>{{ workflowIntakeLabel(chain.intake_branch) }}</p>
+            <small>查看工序顺序</small>
+          </button>
+        </div>
+        <div v-if="fixedWorkflowChains.length === 0 && !workflowChainNodesLoading" class="admin-empty-state">固定工艺链暂时无法加载</div>
+        <div class="admin-drawer-section">
+          <h3>{{ selectedWorkflowChain?.chain_name ?? '选择一条工艺链' }}</h3>
+          <p v-if="selectedWorkflowChain">{{ workflowIntakeLabel(selectedWorkflowChain.intake_branch) }} · 共 {{ selectedWorkflowChainNodes.length }} 道工序</p>
+        </div>
+        <div v-if="workflowChainNodesLoading" class="admin-loading-state">正在加载工序顺序…</div>
+        <div v-else-if="selectedWorkflowChainNodes.length" class="admin-process-timeline">
+          <article v-for="node in selectedWorkflowChainNodes" :key="node.node_id" class="admin-process-timeline-item">
+            <span class="node-order">{{ node.step_order }}</span>
+            <div>
+              <strong>{{ node.process_name }}</strong>
+              <p>{{ node.is_optional ? '按订单需要选用' : '常规工序' }}{{ node.branch_group ? ` · 与同组工序并行` : '' }}</p>
+            </div>
+          </article>
+        </div>
+        <div v-else-if="selectedWorkflowChain" class="admin-empty-state">当前工艺链暂无工序数据</div>
+        <template #footer>
+          <el-button type="primary" @click="workflowChainDrawerVisible = false">查看完成</el-button>
+        </template>
+      </el-drawer>
     </section>
     <StlViewerDialog
       v-model:visible="productionBoardStlViewerVisible"
