@@ -201,6 +201,13 @@ type StaffWorkloadListResponse = {
   size: number
 }
 
+type StaffAccountOption = { id: number; name: string }
+
+type StaffAccountOptionsResponse = {
+  departments: StaffAccountOption[]
+  posts: StaffAccountOption[]
+}
+
 type InternalOrderItem = {
   order_id: number
   order_no: string
@@ -262,6 +269,8 @@ type DesignDraftItem = {
   file_ids: number[]
   file_count: number
   status: string
+  cs_reject_reason: string | null
+  doctor_reject_reason: string | null
 }
 
 type BillInfo = {
@@ -816,6 +825,15 @@ type ProductionQualitySummaryResponse = {
   final_pass_rate: number
   complaint_rate: number
   return_rate: number
+  start_date: string | null
+  end_date: string | null
+  trends: Array<{
+    date: string
+    inspected_order_count: number
+    rework_count: number
+    first_pass_rate: number
+    final_pass_rate: number
+  }>
   generated_at: string
 }
 
@@ -1460,6 +1478,7 @@ const csReviewActionLoading = ref(false)
 const csDesignDraftFileIds = ref('')
 const csDesignDraftUploadNote = ref('')
 const csDesignDraftResult = ref('')
+const csDesignDraftRejectReasons = ref<Record<number, string>>({})
 const csDesignDrafts = ref<DesignDraftItem[]>([])
 const csDesignDraftPreviewUrls = ref<Record<string, string>>({})
 const csOrderFiles = ref<OrderFileItem[]>([])
@@ -1607,9 +1626,20 @@ const staffWorkloadKeyword = ref('')
 const staffWorkloadTotal = ref(0)
 const staffWorkloadLoading = ref(false)
 const staffWorkloadError = ref('')
+const staffAccountOptions = ref<StaffAccountOptionsResponse>({ departments: [], posts: [] })
+const staffAccountSaving = ref(false)
+const staffAccountResult = ref('')
+const staffAccountEditUserId = ref<number | null>(null)
+const staffAccountUsername = ref('')
+const staffAccountPassword = ref('')
+const staffAccountDisplayName = ref('')
+const staffAccountDeptId = ref<number | null>(null)
+const staffAccountPostId = ref<number | null>(null)
 const productionQualitySummary = ref<ProductionQualitySummaryResponse | null>(null)
 const productionQualitySummaryLoading = ref(false)
 const productionQualitySummaryError = ref('')
+const productionQualityStartDate = ref('')
+const productionQualityEndDate = ref('')
 const productionWorkbenchDepartmentSummary = ref<ProductionWorkbenchDepartmentSummaryResponse | null>(null)
 const selectedProductionWorkbenchDepartmentKey = ref('')
 const showAllProductionWorkbenchDepartments = ref(false)
@@ -3140,6 +3170,7 @@ const isDeliveryManagementRoute = computed(() => activeRoute.value === '/deliver
 const isFormConfigsRoute = computed(() => activeRoute.value === '/system/form-configs')
 const isReworkDictionariesRoute = computed(() => activeRoute.value === '/system/rework-dictionaries')
 const canCreateClinic = computed(() => currentUser.value?.roles.includes('ADMIN') ?? false)
+const canManageStaffAccounts = computed(() => currentUser.value?.roles.includes('ADMIN') ?? false)
 const canManageProductionBoard = computed(() => currentUser.value?.roles.some((role) => ['ADMIN', 'CS'].includes(role)) ?? false)
 const selectedOrderId = computed(() => selectedDoctorOrder.value?.order_id ?? doctorOrderWorkspace.value?.order.order_id ?? null)
 const selectedProductCatalogItem = computed(() =>
@@ -6682,6 +6713,32 @@ async function loadCsDesignDraftPreviewUrls(draft: DesignDraftItem) {
   }
 }
 
+async function reviewInternalDesignDraft(draft: DesignDraftItem, action: 'APPROVE' | 'REJECT') {
+  if (!selectedInternalOrder.value) return
+  const rejectReason = csDesignDraftRejectReasons.value[draft.draft_id]?.trim() ?? ''
+  if (action === 'REJECT' && !rejectReason) {
+    internalOrderError.value = '请填写客服驳回原因'
+    return
+  }
+  csReviewActionLoading.value = true
+  internalOrderError.value = ''
+  try {
+    const payload = await apiFetch<DesignDraftItem>(
+      `/orders/${selectedInternalOrder.value.order_id}/design-drafts/${draft.draft_id}/cs-review`,
+      { method: 'POST', body: JSON.stringify({ action, cs_reject_reason: action === 'REJECT' ? rejectReason : null }) }
+    )
+    csDesignDraftResult.value = action === 'APPROVE'
+      ? `设计稿 V${payload.data.version} 已提交给医生确认`
+      : `设计稿 V${payload.data.version} 已驳回并通知上传人`
+    await loadInternalDesignDrafts(selectedInternalOrder.value.order_id)
+    await loadNotifications()
+  } catch (error) {
+    internalOrderError.value = error instanceof Error ? error.message : '设计稿审核失败'
+  } finally {
+    csReviewActionLoading.value = false
+  }
+}
+
 async function loadCustomerCollaborationPage() {
   if (!token.value) {
     return
@@ -7792,12 +7849,81 @@ async function loadStaffWorkload() {
     const payload = await apiFetch<StaffWorkloadListResponse>(`/staff/workload?${params.toString()}`)
     staffWorkloadItems.value = payload.data.items
     staffWorkloadTotal.value = payload.data.total
+    if (canManageStaffAccounts.value && staffAccountOptions.value.departments.length === 0) {
+      const options = await apiFetch<StaffAccountOptionsResponse>('/staff/account-options')
+      staffAccountOptions.value = options.data
+      staffAccountDeptId.value ??= options.data.departments.find((item) => item.name === '生产中心')?.id ?? null
+      staffAccountPostId.value ??= options.data.posts.find((item) => item.name === '生产员工')?.id ?? null
+    }
   } catch (error) {
     staffWorkloadItems.value = []
     staffWorkloadTotal.value = 0
     staffWorkloadError.value = error instanceof Error ? error.message : '人员工作量加载失败'
   } finally {
     staffWorkloadLoading.value = false
+  }
+}
+
+function editStaffAccount(staff: StaffWorkloadResponse) {
+  staffAccountEditUserId.value = staff.user_id
+  staffAccountUsername.value = staff.username
+  staffAccountPassword.value = ''
+  staffAccountDisplayName.value = staff.display_name
+  staffAccountDeptId.value = staff.dept_id
+  staffAccountPostId.value = staffAccountOptions.value.posts.find((item) => staff.post_names.includes(item.name))?.id ?? null
+  staffAccountResult.value = `正在编辑 ${staff.display_name}；可修改姓名、部门和岗位。`
+}
+
+function resetStaffAccountForm() {
+  staffAccountEditUserId.value = null
+  staffAccountUsername.value = ''
+  staffAccountPassword.value = ''
+  staffAccountDisplayName.value = ''
+  staffAccountDeptId.value = staffAccountOptions.value.departments.find((item) => item.name === '生产中心')?.id ?? null
+  staffAccountPostId.value = staffAccountOptions.value.posts.find((item) => item.name === '生产员工')?.id ?? null
+  staffAccountResult.value = ''
+}
+
+async function saveStaffAccount() {
+  if (!staffAccountDisplayName.value.trim() || !staffAccountDeptId.value || !staffAccountPostId.value) {
+    staffAccountResult.value = '请填写姓名并选择部门和岗位。'
+    return
+  }
+  if (!staffAccountEditUserId.value && (!staffAccountUsername.value.trim() || staffAccountPassword.value.length < 8)) {
+    staffAccountResult.value = '新账号需填写账号名和至少 8 位初始密码。'
+    return
+  }
+  staffAccountSaving.value = true
+  staffAccountResult.value = ''
+  try {
+    const editing = staffAccountEditUserId.value
+    const payload = editing
+      ? await apiFetch(`/staff/accounts/${editing}`, {
+        method: 'PUT',
+        body: JSON.stringify({
+          display_name: staffAccountDisplayName.value.trim(),
+          dept_id: staffAccountDeptId.value,
+          post_id: staffAccountPostId.value,
+          ...(staffAccountPassword.value ? { new_password: staffAccountPassword.value } : {})
+        })
+      })
+      : await apiFetch('/staff/accounts', {
+        method: 'POST',
+        body: JSON.stringify({
+          username: staffAccountUsername.value.trim(),
+          initial_password: staffAccountPassword.value,
+          display_name: staffAccountDisplayName.value.trim(),
+          dept_id: staffAccountDeptId.value,
+          post_id: staffAccountPostId.value
+        })
+      })
+    staffAccountResult.value = editing ? '员工账号已更新。' : `员工账号已创建：${(payload as { data: { username: string } }).data.username}`
+    resetStaffAccountForm()
+    await loadStaffWorkload()
+  } catch (error) {
+    staffAccountResult.value = error instanceof Error ? error.message : '员工账号保存失败'
+  } finally {
+    staffAccountSaving.value = false
   }
 }
 
@@ -7808,7 +7934,10 @@ async function loadProductionQualitySummary() {
   productionQualitySummaryLoading.value = true
   productionQualitySummaryError.value = ''
   try {
-    const payload = await apiFetch<ProductionQualitySummaryResponse>('/production/quality/summary')
+    const params = new URLSearchParams()
+    if (productionQualityStartDate.value) params.set('start_date', productionQualityStartDate.value)
+    if (productionQualityEndDate.value) params.set('end_date', productionQualityEndDate.value)
+    const payload = await apiFetch<ProductionQualitySummaryResponse>(`/production/quality/summary${params.size ? `?${params.toString()}` : ''}`)
     productionQualitySummary.value = payload.data
   } catch (error) {
     productionQualitySummary.value = null
@@ -9605,6 +9734,15 @@ onBeforeUnmount(() => {
                         <strong>V{{ draft.version }} / {{ statusLabel(draft.status) }}</strong>
                         <p>文件 ID：{{ designDraftFileIds(draft).join(', ') || '-' }}</p>
                         <span>文件数：{{ draft.file_count ?? designDraftFileIds(draft).length }}</span>
+                        <p v-if="draft.cs_reject_reason">客服驳回原因：{{ draft.cs_reject_reason }}</p>
+                        <p v-if="draft.doctor_reject_reason">医生驳回原因：{{ draft.doctor_reject_reason }}</p>
+                        <template v-if="draft.status === 'PENDING_CS_REVIEW'">
+                          <el-input v-model="csDesignDraftRejectReasons[draft.draft_id]" type="textarea" :rows="2" placeholder="客服驳回时请填写原因" />
+                          <div class="inline-actions">
+                            <el-button type="primary" :loading="csReviewActionLoading" @click="reviewInternalDesignDraft(draft, 'APPROVE')">通过并提交医生确认</el-button>
+                            <el-button type="danger" plain :loading="csReviewActionLoading" @click="reviewInternalDesignDraft(draft, 'REJECT')">驳回设计稿</el-button>
+                          </div>
+                        </template>
                         <div class="inline-actions">
                           <el-button
                             plain
@@ -10699,6 +10837,30 @@ onBeforeUnmount(() => {
             </el-button>
           </div>
 
+          <el-card v-if="canManageStaffAccounts" class="staff-account-editor" shadow="never">
+            <template #header>
+              <div class="card-heading-row">
+                <strong>{{ staffAccountEditUserId ? '编辑技工账号' : '创建技工账号' }}</strong>
+                <el-button link type="primary" @click="resetStaffAccountForm">新建账号</el-button>
+              </div>
+            </template>
+            <div class="staff-account-form">
+              <el-input v-model="staffAccountUsername" :disabled="Boolean(staffAccountEditUserId)" placeholder="登录账号" />
+              <el-input v-model="staffAccountDisplayName" placeholder="员工姓名" />
+              <el-input v-model="staffAccountPassword" type="password" show-password :placeholder="staffAccountEditUserId ? '留空则不修改密码' : '初始密码（至少 8 位）'" />
+              <el-select v-model="staffAccountDeptId" placeholder="选择部门">
+                <el-option v-for="department in staffAccountOptions.departments" :key="department.id" :label="department.name" :value="department.id" />
+              </el-select>
+              <el-select v-model="staffAccountPostId" placeholder="选择岗位">
+                <el-option v-for="post in staffAccountOptions.posts" :key="post.id" :label="post.name" :value="post.id" />
+              </el-select>
+              <el-button type="primary" :loading="staffAccountSaving" @click="saveStaffAccount">
+                {{ staffAccountEditUserId ? '保存修改' : '创建账号' }}
+              </el-button>
+            </div>
+            <p v-if="staffAccountResult" class="muted-text">{{ staffAccountResult }}</p>
+          </el-card>
+
           <el-alert
             v-if="performanceNotice"
             :title="performanceNotice"
@@ -10899,6 +11061,11 @@ onBeforeUnmount(() => {
                 <el-tag :type="row.status === 'ACTIVE' ? 'success' : 'info'" size="small">
                   {{ statusLabel(row.status) }}
                 </el-tag>
+              </template>
+            </el-table-column>
+            <el-table-column v-if="canManageStaffAccounts" label="操作" width="90" fixed="right">
+              <template #default="{ row }">
+                <el-button link type="primary" @click="editStaffAccount(row)">编辑</el-button>
               </template>
             </el-table-column>
           </el-table>
@@ -13811,6 +13978,11 @@ onBeforeUnmount(() => {
               show-icon
               :closable="false"
             />
+            <div class="performance-toolbar">
+              <el-date-picker v-model="productionQualityStartDate" type="date" value-format="YYYY-MM-DD" placeholder="开始日期" />
+              <el-date-picker v-model="productionQualityEndDate" type="date" value-format="YYYY-MM-DD" placeholder="结束日期" />
+              <el-button :loading="productionQualitySummaryLoading" @click="loadProductionQualitySummary">按时间段统计</el-button>
+            </div>
             <div v-if="productionQualitySummaryCards.length" class="placeholder-content-grid">
               <article
                 v-for="card in productionQualitySummaryCards"
@@ -13827,6 +13999,13 @@ onBeforeUnmount(() => {
             <div v-else-if="!productionQualitySummaryLoading && !productionQualitySummaryError" class="empty-state">
               暂无质量汇总数据
             </div>
+            <el-table v-if="productionQualitySummary?.trends?.length" :data="productionQualitySummary.trends" border>
+              <el-table-column prop="date" label="日期" min-width="120" />
+              <el-table-column prop="inspected_order_count" label="出检订单" min-width="100" />
+              <el-table-column prop="rework_count" label="返工次数" min-width="100" />
+              <el-table-column label="一次通过率" min-width="120"><template #default="{ row }">{{ formatRate(row.first_pass_rate) }}</template></el-table-column>
+              <el-table-column label="终检通过率" min-width="120"><template #default="{ row }">{{ formatRate(row.final_pass_rate) }}</template></el-table-column>
+            </el-table>
           </div>
 
           <div class="prototype-queue-card">

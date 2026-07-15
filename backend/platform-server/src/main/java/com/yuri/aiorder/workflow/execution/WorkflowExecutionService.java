@@ -5,6 +5,7 @@ import com.fasterxml.jackson.core.type.TypeReference;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.yuri.aiorder.common.BootstrapIdentity;
 import com.yuri.aiorder.common.auth.AccessControlService;
+import com.yuri.aiorder.workflow.runtime.WorkflowRuntimeService;
 import com.yuri.aiorder.notification.NotificationPushService;
 import java.math.BigDecimal;
 import java.math.RoundingMode;
@@ -82,16 +83,19 @@ public class WorkflowExecutionService {
     private final AccessControlService accessControlService;
     private final ObjectMapper objectMapper;
     private final NotificationPushService notificationPushService;
+    private final WorkflowRuntimeService workflowRuntimeService;
 
     public WorkflowExecutionService(
             JdbcClient jdbcClient,
             AccessControlService accessControlService,
             ObjectMapper objectMapper,
-            NotificationPushService notificationPushService) {
+            NotificationPushService notificationPushService,
+            WorkflowRuntimeService workflowRuntimeService) {
         this.jdbcClient = jdbcClient;
         this.accessControlService = accessControlService;
         this.objectMapper = objectMapper;
         this.notificationPushService = notificationPushService;
+        this.workflowRuntimeService = workflowRuntimeService;
     }
 
     @Transactional
@@ -126,6 +130,9 @@ public class WorkflowExecutionService {
         Long reworkId = null;
         if ("OUT".equals(checkType) && "FAIL".equals(result)) {
             reworkId = createRework(node, checkId, request);
+        }
+        if ("OUT".equals(checkType) && "PASS".equals(result)) {
+            workflowRuntimeService.activateAfterPassedOutCheck(node.nodeInstanceId());
         }
         return new CheckRecordResponse(checkId, node.nodeInstanceId(), request.checkType(), result, reworkId);
     }
@@ -311,10 +318,17 @@ public class WorkflowExecutionService {
     }
 
     public ProductionQualitySummaryResponse getProductionQualitySummary(
-            String productType, BootstrapIdentity identity) {
+            String productType, LocalDate startDate, LocalDate endDate, BootstrapIdentity identity) {
         accessControlService.requireCheckRecordRead(identity);
         String normalizedProductType = blankToNull(productType);
+        if (startDate != null && endDate != null && endDate.isBefore(startDate)) {
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "end_date must not be before start_date");
+        }
         String productTypeClause = normalizedProductType == null ? "" : " AND o.product_type = :productType";
+        String checkDateClause = startDate == null ? "" : " AND c.created_at >= :startAt";
+        checkDateClause += endDate == null ? "" : " AND c.created_at < :endExclusive";
+        String reworkDateClause = startDate == null ? "" : " AND r.created_at >= :startAt";
+        reworkDateClause += endDate == null ? "" : " AND r.created_at < :endExclusive";
 
         JdbcClient.StatementSpec checkSpec = jdbcClient.sql("""
                         WITH ranked_out_checks AS (
@@ -332,7 +346,7 @@ public class WorkflowExecutionService {
                             FROM check_record c
                             JOIN orders o ON o.order_id = c.order_id
                             WHERE c.check_type = 'OUT'
-                        """ + productTypeClause + """
+                        """ + productTypeClause + checkDateClause + """
                         )
                         SELECT
                             COUNT(DISTINCT order_id) AS inspected_order_count,
@@ -345,6 +359,7 @@ public class WorkflowExecutionService {
         if (normalizedProductType != null) {
             checkSpec = checkSpec.param("productType", normalizedProductType);
         }
+        checkSpec = bindQualityDateRange(checkSpec, startDate, endDate);
         QualityCheckSummaryRow checkSummary = checkSpec.query((rs, rowNum) -> new QualityCheckSummaryRow(
                         rs.getLong("inspected_order_count"),
                         rs.getLong("first_pass_count"),
@@ -365,10 +380,11 @@ public class WorkflowExecutionService {
                         FROM rework_record r
                         JOIN orders o ON o.order_id = r.order_id
                         WHERE 1 = 1
-                        """ + productTypeClause);
+                        """ + productTypeClause + reworkDateClause);
         if (normalizedProductType != null) {
             reworkSpec = reworkSpec.param("productType", normalizedProductType);
         }
+        reworkSpec = bindQualityDateRange(reworkSpec, startDate, endDate);
         QualityReworkSummaryRow reworkSummary = reworkSpec.query((rs, rowNum) -> new QualityReworkSummaryRow(
                         rs.getLong("total_rework_count"),
                         rs.getLong("internal_rework_count"),
@@ -377,6 +393,8 @@ public class WorkflowExecutionService {
                 .single();
 
         long inspectedOrderCount = checkSummary.inspectedOrderCount();
+        List<ProductionQualitySummaryResponse.TrendPoint> trends = loadProductionQualityTrends(
+                normalizedProductType, startDate, endDate);
         return new ProductionQualitySummaryResponse(
                 normalizedProductType,
                 inspectedOrderCount,
@@ -391,7 +409,81 @@ public class WorkflowExecutionService {
                 percentage(checkSummary.finalPassCount(), inspectedOrderCount),
                 0.0,
                 0.0,
+                startDate,
+                endDate,
+                trends,
                 LocalDateTime.now());
+    }
+
+    private JdbcClient.StatementSpec bindQualityDateRange(
+            JdbcClient.StatementSpec spec, LocalDate startDate, LocalDate endDate) {
+        if (startDate != null) {
+            spec = spec.param("startAt", startDate.atStartOfDay());
+        }
+        if (endDate != null) {
+            spec = spec.param("endExclusive", endDate.plusDays(1).atStartOfDay());
+        }
+        return spec;
+    }
+
+    private List<ProductionQualitySummaryResponse.TrendPoint> loadProductionQualityTrends(
+            String productType, LocalDate startDate, LocalDate endDate) {
+        String productTypeClause = productType == null ? "" : " AND o.product_type = :productType";
+        String dateClause = startDate == null ? "" : " AND c.created_at >= :startAt";
+        dateClause += endDate == null ? "" : " AND c.created_at < :endExclusive";
+        JdbcClient.StatementSpec spec = jdbcClient.sql("""
+                        WITH daily_checks AS (
+                            SELECT DATE(c.created_at) AS trend_date,
+                                   c.order_id,
+                                   c.result,
+                                   ROW_NUMBER() OVER (
+                                       PARTITION BY DATE(c.created_at), c.order_id
+                                       ORDER BY c.created_at ASC, c.check_id ASC
+                                   ) AS first_rank,
+                                   ROW_NUMBER() OVER (
+                                       PARTITION BY DATE(c.created_at), c.order_id
+                                       ORDER BY c.created_at DESC, c.check_id DESC
+                                   ) AS latest_rank
+                            FROM check_record c
+                            JOIN orders o ON o.order_id = c.order_id
+                            WHERE c.check_type = 'OUT'
+                        """ + productTypeClause + dateClause + """
+                        ), daily_reworks AS (
+                            SELECT DATE(r.created_at) AS trend_date, COUNT(*) AS rework_count
+                            FROM rework_record r
+                            JOIN orders o ON o.order_id = r.order_id
+                            WHERE 1 = 1
+                        """ + productTypeClause.replace("c.", "r.")
+                + (startDate == null ? "" : " AND r.created_at >= :startAt")
+                + (endDate == null ? "" : " AND r.created_at < :endExclusive") + """
+                            GROUP BY DATE(r.created_at)
+                        )
+                        SELECT dc.trend_date,
+                               COUNT(DISTINCT dc.order_id) AS inspected_order_count,
+                               COALESCE(MAX(dr.rework_count), 0) AS rework_count,
+                               COALESCE(SUM(CASE WHEN dc.first_rank = 1 AND dc.result = 'PASS' THEN 1 ELSE 0 END), 0)
+                                   AS first_pass_count,
+                               COALESCE(SUM(CASE WHEN dc.latest_rank = 1 AND dc.result = 'PASS' THEN 1 ELSE 0 END), 0)
+                                   AS final_pass_count
+                        FROM daily_checks dc
+                        LEFT JOIN daily_reworks dr ON dr.trend_date = dc.trend_date
+                        GROUP BY dc.trend_date
+                        ORDER BY dc.trend_date
+                        """);
+        if (productType != null) {
+            spec = spec.param("productType", productType);
+        }
+        spec = bindQualityDateRange(spec, startDate, endDate);
+        return spec.query((rs, rowNum) -> {
+                    long inspected = rs.getLong("inspected_order_count");
+                    return new ProductionQualitySummaryResponse.TrendPoint(
+                            rs.getObject("trend_date", LocalDate.class),
+                            inspected,
+                            rs.getLong("rework_count"),
+                            percentage(rs.getLong("first_pass_count"), inspected),
+                            percentage(rs.getLong("final_pass_count"), inspected));
+                })
+                .list();
     }
 
     public ProductionWorkbenchDepartmentSummaryResponse getProductionWorkbenchDepartmentSummary(

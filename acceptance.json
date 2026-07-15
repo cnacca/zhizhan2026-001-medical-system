@@ -1,8 +1,8 @@
 {
   "version": 1,
   "managed_by": "RepoFrame",
-  "active_goal": "GOAL-021",
-  "active_goal_file": "goals/GOAL-021-prd-v2-acceptance-recalibration-20260715.md",
+  "active_goal": "GOAL-023",
+  "active_goal_file": "goals/GOAL-023-prd-v2-local-remainder-closure-20260715.md",
   "linter": "repo-init/scripts/lint_acceptance.py",
   "task8_readiness_gaps": [
     {
@@ -2834,7 +2834,7 @@
       ]
     }
   ],
-  "active_task_file": "tasks/TASK-022-prd-v2-acceptance-recalibration-20260715.md",
+  "active_task_file": "tasks/TASK-024-prd-v2-local-remainder-closure-20260715.md",
   "legacy_check_ids": [
     "task-deployment-env-readiness-required-text",
     "npm run check:task9d951",

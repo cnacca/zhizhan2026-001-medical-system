@@ -4,6 +4,7 @@ import com.yuri.aiorder.common.BootstrapIdentity;
 import com.yuri.aiorder.common.DataResponse;
 import com.yuri.aiorder.common.UserRole;
 import com.yuri.aiorder.common.auth.RequirePermission;
+import java.time.LocalDate;
 import jakarta.validation.Valid;
 import java.time.LocalDate;
 import java.util.List;
@@ -85,8 +86,11 @@ public class WorkflowExecutionController {
     @RequirePermission(value = "check:read-internal", roles = {UserRole.ADMIN, UserRole.CS, UserRole.WORKER})
     public DataResponse<ProductionQualitySummaryResponse> getProductionQualitySummary(
             BootstrapIdentity identity,
-            @RequestParam(name = "product_type", required = false) String productType) {
-        return new DataResponse<>(workflowExecutionService.getProductionQualitySummary(productType, identity));
+            @RequestParam(name = "product_type", required = false) String productType,
+            @RequestParam(name = "start_date", required = false) LocalDate startDate,
+            @RequestParam(name = "end_date", required = false) LocalDate endDate) {
+        return new DataResponse<>(workflowExecutionService.getProductionQualitySummary(
+                productType, startDate, endDate, identity));
     }
 
     @GetMapping("/production/workbench/department-summary")

@@ -15,7 +15,7 @@ public class WorkflowChainQueryService {
 
     public List<WorkflowChainSummary> listChains() {
         return jdbcClient.sql("""
-                        SELECT chain_id, chain_name, intake_branch, status
+                        SELECT chain_id, chain_name, product_type, intake_branch, status
                         FROM workflow_chain
                         WHERE status = 1
                         ORDER BY chain_id
@@ -23,6 +23,7 @@ public class WorkflowChainQueryService {
                 .query((rs, rowNum) -> new WorkflowChainSummary(
                         rs.getLong("chain_id"),
                         rs.getString("chain_name"),
+                        rs.getString("product_type"),
                         rs.getString("intake_branch"),
                         rs.getInt("status")))
                 .list();

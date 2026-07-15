@@ -1,5 +1,17 @@
 # DECISIONS
 
+## D-164 本地默认拒绝 bootstrap 身份并以隔离种植 smoke 作为主链证据
+
+默认运行配置关闭 bootstrap header / 角色兜底，测试 profile 显式保留兼容开关。HTTP CORS 与 WebSocket origin 白名单均逐项支持 localhost/127.0.0.1 开发入口。种植产品补齐最小动态表单基线，`smoke:task9d62` 可选择 `IMPLANT_RESTORATION` 并上传实际 STL；该 smoke 只在独立 demo 数据库和 bucket 执行。标准工时、真实模型/对象存储/网络与上线证据仍为外部边界，Task 8 不变。
+
+## D-163 P0 本地主链与人员账号闭口
+
+状态：GOAL-022 / TASK-023 已完成。
+
+决策：生产审核以订单产品类型匹配预定义工序链；最新设计稿存在时必须医生确认才可首次启动生产；需 OUT 检查的节点只能在 PASS 后解锁后继。workflow 定义同实例均属于内部数据。管理员使用既有 RBAC/部门/岗位/密码登录基础创建和编辑技工账号，不增加新身份系统。
+
+影响：原 PRD 38项重算为21 PASS、8 PARTIAL、1 MISSING、8 EXTERNAL_ACCEPTANCE。剩余本地 P0 是无 token 订单读取边界与页面分支验收；Task 8 仍为 `NOT_READY`。
+
 ## D-162 客户 / PM 确认项按 PRD V2 重新分类并重算原验收表38项
 
 状态：用户已确认，GOAL-021 / TASK-022 已执行完成。

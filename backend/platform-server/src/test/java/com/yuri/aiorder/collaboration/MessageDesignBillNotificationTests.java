@@ -735,6 +735,73 @@ class MessageDesignBillNotificationTests {
                 .single();
     }
 
+    @Test
+    void designDraftRejectReasonsArePersistedNotifiedAndVersionedWithoutDoctorCsRejectVisibility() throws Exception {
+        long firstFileId = createDesignDraftFile("cs-reject.stl", "application/sla", 1024);
+        MvcResult firstUpload = mockMvc.perform(post("/orders/{orderId}/design-drafts", orderId)
+                        .header("X-Bootstrap-Role", "WORKER")
+                        .header("X-Bootstrap-User-Id", WORKER_USER_ID)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"file_ids\":[" + firstFileId + "]}"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.version").value(1))
+                .andReturn();
+        long firstDraftId = extractId(firstUpload, "draft_id");
+
+        mockMvc.perform(post("/orders/{orderId}/design-drafts/{draftId}/cs-review", orderId, firstDraftId)
+                        .header("X-Bootstrap-Role", "CS")
+                        .header("X-Bootstrap-User-Id", CS_USER_ID)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"action\":\"REJECT\",\"cs_reject_reason\":\"边缘不清晰，请重新设计\"}"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.status").value("CS_REJECTED"))
+                .andExpect(jsonPath("$.data.cs_reject_reason").value("边缘不清晰，请重新设计"));
+        assertThat(notificationCount("DESIGN_DRAFT_CS_REJECTED", "WORKER")).isEqualTo(1L);
+
+        mockMvc.perform(get("/orders/{orderId}/design-drafts", orderId)
+                        .header("X-Bootstrap-Role", "DOCTOR")
+                        .header("X-Bootstrap-User-Id", DOCTOR_USER_ID)
+                        .header("X-Bootstrap-Clinic-Id", clinicId))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.length()").value(0));
+
+        long secondFileId = createDesignDraftFile("doctor-reject.stl", "application/sla", 2048);
+        MvcResult secondUpload = mockMvc.perform(post("/orders/{orderId}/design-drafts", orderId)
+                        .header("X-Bootstrap-Role", "WORKER")
+                        .header("X-Bootstrap-User-Id", WORKER_USER_ID)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"file_ids\":[" + secondFileId + "]}"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.version").value(2))
+                .andReturn();
+        long secondDraftId = extractId(secondUpload, "draft_id");
+        mockMvc.perform(post("/orders/{orderId}/design-drafts/{draftId}/cs-review", orderId, secondDraftId)
+                        .header("X-Bootstrap-Role", "CS")
+                        .header("X-Bootstrap-User-Id", CS_USER_ID)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"action\":\"APPROVE\"}"))
+                .andExpect(status().isOk());
+        mockMvc.perform(post("/orders/{orderId}/design-drafts/{draftId}/doctor-confirm", orderId, secondDraftId)
+                        .header("X-Bootstrap-Role", "DOCTOR")
+                        .header("X-Bootstrap-User-Id", DOCTOR_USER_ID)
+                        .header("X-Bootstrap-Clinic-Id", clinicId)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"action\":\"REJECT\",\"doctor_reject_reason\":\"咬合面需要调整\"}"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.status").value("DOCTOR_REJECTED"))
+                .andExpect(jsonPath("$.data.doctor_reject_reason").value("咬合面需要调整"));
+        assertThat(notificationCount("DESIGN_DRAFT_REJECTED", "CS")).isEqualTo(1L);
+
+        long thirdFileId = createDesignDraftFile("version-three.stl", "application/sla", 3072);
+        mockMvc.perform(post("/orders/{orderId}/design-drafts", orderId)
+                        .header("X-Bootstrap-Role", "WORKER")
+                        .header("X-Bootstrap-User-Id", WORKER_USER_ID)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"file_ids\":[" + thirdFileId + "]}"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.version").value(3));
+    }
+
     private long createDesignDraftFile(String filename, String contentType, long fileSize) {
         jdbcClient.sql("""
                         INSERT INTO file_resource

@@ -4,7 +4,7 @@
 
 ## 当前仓库状态
 
-2026-07-15 最新完成阶段为 `goals/GOAL-021-prd-v2-acceptance-recalibration-20260715.md` / `tasks/TASK-022-prd-v2-acceptance-recalibration-20260715.md`。本阶段已按 PRD V2 和 2026-07-06 基准校正旧九项确认清单：待客户 / PM 产品确认2项、PRD逐功能签字0项、客户模板1份、标准工时业务数据1包（提供方待项目方指定）。原 PRD 验收表38项入口为 `docs/acceptance/prd-v2-38-item-acceptance-audit-20260715.md`，当前重算为18 PASS、8 PARTIAL、4 MISSING、8 EXTERNAL_ACCEPTANCE；表外 A/B/C 范围、跨项流程门禁和上线 readiness 仍独立跟踪，不能只凭38项宣称整个一期完成。Task 8 继续保持 `NOT_READY`；真实支付、物流 API、电子签章、STL 在线查看器、RAG 和 tool calling 不作为一期 P0 阻塞。
+2026-07-15 最新完成阶段为 `goals/GOAL-022-prd-v2-p0-local-closure-20260715.md` / `tasks/TASK-023-prd-v2-p0-local-closure-20260715.md`。本阶段关闭 workflow 定义/实例内部访问边界、loopback 登录 CORS、按产品类型自动选链、设计确认/OUT-PASS 生产门禁，以及管理员创建/编辑技工账号并登录的本地闭环。原 PRD 验收表38项入口为 `docs/acceptance/prd-v2-38-item-acceptance-audit-20260715.md`，当前重算为21 PASS、8 PARTIAL、1 MISSING、8 EXTERNAL_ACCEPTANCE；表外 A/B/C 范围、剩余页面分支、无 token 读取边界和上线 readiness 仍独立跟踪，不能只凭38项宣称整个一期完成。Task 8 继续保持 `NOT_READY`；真实支付、物流 API、电子签章、STL 在线查看器、RAG 和 tool calling 不作为一期 P0 阻塞。
 
 下方 2026-07-07 各段出现的 handoff 工作区路径和“当前 active goal”都是阶段历史记录，不再代表当前工作区或执行指针；当前工作区为 `/Users/yuri/Documents/AI智能下单平台`，如有冲突以 GOAL-021 / TASK-022、D-162 和 38 项审计矩阵为准。
 
@@ -12,7 +12,7 @@
 
 当前工作区为 `/Users/yuri/Documents/AI智能下单平台-handoff-20260706`，属于已有项目的 RepoFrame `repo-hydrate` 后续执行，不是重新初始化。当前 active goal 是 `goals/GOAL-019-ai-production-governance-local-hardening-20260707.md`，active task 是 `tasks/TASK-020-ai-production-governance-local-hardening-20260707.md`，正在执行 AI 生产治理本地补强：新增 `npm run check:ai-production-governance-local-hardening`，并补 `GET /ai/governance/local-hardening`、管理端 `/admin/ai-governance` 只读页面、AI-3 安全矩阵回归、OpenAPI 和验收 / readiness 文档回写。Task 8 继续保持 `NOT_READY`；本阶段不声明真实 key / webhook / 客户正式模板 / 客户签字 / 真实环境验收完成。
 
-当前工作区为 `/Users/yuri/Documents/AI智能下单平台-handoff-20260706`，属于已有项目的 RepoFrame `repo-hydrate` 后续执行，不是重新初始化。当前 active goal 是 `goals/GOAL-018-local-main-chain-acceptance-hardening-20260707.md`，active task 是 `tasks/TASK-019-local-main-chain-acceptance-hardening-20260707.md`，正在执行本地 12 步主链路验收增强：新增 `npm run check:local-main-chain-acceptance-hardening`，并增强 `smoke:task9d62` 的医生端脱敏、客服端可见性、生产端任务范围和管理端派工 / 转派角色边界断言。Task 8 继续保持 `NOT_READY`；本阶段不声明真实支付 / 物流 / 签章 / key / webhook / 客户签字 / 真实环境验收完成。
+当前工作区为 `/Users/yuri/Documents/AI智能下单平台`，属于已有项目的后续执行，不是重新初始化。当前 active goal 是 `goals/GOAL-023-prd-v2-local-remainder-closure-20260715.md`，active task 是 `tasks/TASK-024-prd-v2-local-remainder-closure-20260715.md`：本地 PRD V2 原38项已收敛为 **30 PASS / 1 PARTIAL / 0 MISSING / 7 EXTERNAL_ACCEPTANCE**，并已在隔离 demo 跑通种植订单 + 真实 STL 的12步主链。Task 8 继续保持 `NOT_READY`；本阶段不声明真实支付 / 物流 / 签章 / key / webhook / 客户签字 / 真实环境验收完成。
 
 当前工作区为 `/Users/yuri/Documents/AI智能下单平台-handoff-20260706`，属于已有项目的 RepoFrame `repo-hydrate` 后续执行，不是重新初始化。GOAL-017 / TASK-018 已完成四端前端产品化体验收口：新增 `npm run check:frontend-productization-closure`，把客服设计稿 / 账单入口、生产 C 类本地第一增量入口、管理端账号 / 角色 / 权限入口和统一加载态 / 空态 / 错误态 / 权限拒绝态收拢为本阶段入口。`frontend-business-pages` 继续保持 `PARTIAL`，Task 8 继续保持 `NOT_READY`；本阶段不恢复医生文件独立模块，不扩大 C 类为完整闭环，不声明真实支付 / 物流 / 签章 / key / webhook / 客户签字 / 真实环境验收完成。
 

@@ -11,5 +11,7 @@ public record DesignDraftResponse(
         @JsonProperty("file_id") Long fileId,
         @JsonProperty("file_ids") List<Long> fileIds,
         @JsonProperty("file_count") int fileCount,
-        String status) {
+        String status,
+        @JsonProperty("cs_reject_reason") String csRejectReason,
+        @JsonProperty("doctor_reject_reason") String doctorRejectReason) {
 }

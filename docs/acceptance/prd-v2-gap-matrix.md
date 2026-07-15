@@ -6,6 +6,10 @@
 
 ## 2026-07-15 当前覆盖口径
 
+GOAL-023 / TASK-024 已完成本地剩余项收口：默认 Bearer 边界、质量日期趋势、设计稿驳回/V1-V3 和种植产品最小动态表单基线已完成；隔离 demo 已用 `IMPLANT_RESTORATION` + 真实 STL 跑通12步主链。原 PRD V2 38项现为30 PASS、1 PARTIAL、0 MISSING、7 EXTERNAL_ACCEPTANCE；仅标准工时业务数据和真实环境证据继续保持外部阻塞，Task 8 仍为 `NOT_READY`。
+
+GOAL-022 / TASK-023 已完成 P0 本地代码收口：workflow definition/节点读取、工序实例读取及操作均要求内部权限；生产审核按订单产品类型自动选中 active 预定义链；最新设计稿待确认会阻断首次生产启动；需出检节点只有 OUT/PASS 后才激活后继；管理员可创建/编辑技工账号、部门岗位并完成生产端登录。原 PRD V2 38项现为21 PASS、8 PARTIAL、1 MISSING、8 EXTERNAL_ACCEPTANCE。无 token 订单读取边界、质量/设计稿/下单页面专项验收和真实环境工作继续保持未完成，Task 8 仍为 `NOT_READY`。
+
 GOAL-021 / TASK-022 已重新核对原始 PRD V2：旧 CP-001 到 CP-009 不再整体作为书面确认阻塞，`customer-pm-confirmations` 当前为 `PARTIAL`。待产品确认仅2项，PRD逐功能签字0项；原 PRD V2 的38行验收表当前为18 PASS、8 PARTIAL、4 MISSING、8 EXTERNAL_ACCEPTANCE。整个一期仍须合并本矩阵的 2026-07-06 A/B/C 表外范围、两条跨项门禁和上线 readiness 判断。下文 GOAL-007 至 GOAL-020 的旧 `BLOCKED` 表述保留为历史执行事实，如与本节冲突，以本节和 D-162 为准。Task 8 仍保持 `NOT_READY`。
 
 RepoFrame 当前入口：`goals/GOAL-020-deployment-ops-local-hardening-20260707.md` / `tasks/TASK-021-deployment-ops-local-hardening-20260707.md` 已完成部署 / 运维本地补强，并新增 `npm run check:deployment-ops-local-hardening` 与 `npm run dry-run:phase-one-release-rollback`。本阶段只补本地 release / rollback dry-run、备份 / 恢复 dry-run 模板第一段、日志留存 / 监控告警配置模板第一段、compose / env / Nginx / healthcheck 静态检查和 readiness 联动；`deployment-infrastructure` 与 `operations-manuals` 仍为 `PARTIAL`，不代表真实服务器、HTTPS、备份恢复、日志留存、监控告警、发布回滚演练、正式客户培训签收、客户签字或真实环境验收完成，Task 8 仍保持 `NOT_READY`。

@@ -157,6 +157,58 @@ class WorkflowRuntimeTests {
     }
 
     @Test
+    void productionReviewAutomaticallyMatchesSeededChainByOrderProductType() throws Exception {
+        jdbcClient.sql("UPDATE orders SET product_type = 'REGULAR_CROWN' WHERE order_id = :orderId")
+                .param("orderId", orderId)
+                .update();
+        long expectedChainId = jdbcClient.sql("""
+                        SELECT chain_id FROM workflow_chain
+                        WHERE product_type = 'REGULAR_CROWN' AND status = 1
+                        ORDER BY version DESC, chain_id DESC LIMIT 1
+                        """)
+                .query(Long.class)
+                .single();
+
+        mockMvc.perform(post("/orders/{orderId}/production-review", orderId)
+                        .header("X-Bootstrap-Role", "ADMIN")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"action\":\"APPROVE\",\"intake_branch\":\"SCAN\"}"))
+                .andExpect(status().isOk());
+
+        long actualChainId = jdbcClient.sql("SELECT chain_id FROM order_process_instance WHERE order_id = :orderId")
+                .param("orderId", orderId)
+                .query(Long.class)
+                .single();
+        assertThat(actualChainId).isEqualTo(expectedChainId);
+    }
+
+    @Test
+    void outPassCheckUnlocksSuccessorButCompletionAloneDoesNot() throws Exception {
+        jdbcClient.sql("""
+                        UPDATE workflow_node
+                        SET need_out_check = 1
+                        WHERE chain_id = :chainId AND node_code = 'START'
+                        """)
+                .param("chainId", chainId)
+                .update();
+        long instanceId = approveProductionAndGetInstanceId();
+        long start = nodeId(instanceId, "START");
+        assign(orderId, start, WORKER_USER_ID);
+        startNode(start, WORKER_USER_ID);
+        completeNode(start, WORKER_USER_ID);
+        assertThat(nodeStatus(instanceId, "PARALLEL_B")).isEqualTo("PENDING");
+
+        mockMvc.perform(post("/check-records")
+                        .header("X-Bootstrap-Role", "WORKER")
+                        .header("X-Bootstrap-User-Id", WORKER_USER_ID)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"node_instance_id\":" + start + ",\"check_type\":2,\"is_pass\":true}"))
+                .andExpect(status().isOk());
+
+        assertThat(nodeStatus(instanceId, "PARALLEL_B")).isEqualTo("READY");
+    }
+
+    @Test
     void dagActivationWaitsForParallelPredecessorsAndOptionalSkipCanUnlockJoin() throws Exception {
         long instanceId = approveProductionAndGetInstanceId();
         long start = nodeId(instanceId, "START");

@@ -12,6 +12,7 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import com.yuri.aiorder.common.BootstrapIdentity;
 import com.yuri.aiorder.common.UserRole;
 import com.yuri.aiorder.common.auth.BearerTokenService;
+import java.time.LocalDate;
 import java.util.List;
 import java.util.Set;
 import java.util.UUID;
@@ -646,6 +647,28 @@ class CheckWorklogPerformanceTests {
                         .header("X-Bootstrap-Role", "DOCTOR")
                         .header("X-Bootstrap-User-Id", doctorUserId))
                 .andExpect(status().isForbidden());
+    }
+
+    @Test
+    void productionQualitySummarySupportsInclusiveDateRangeAndRejectsInvertedRange() throws Exception {
+        LocalDate tomorrow = LocalDate.now().plusDays(1);
+        mockMvc.perform(get("/production/quality/summary")
+                        .header("X-Bootstrap-Role", "WORKER")
+                        .header("X-Bootstrap-User-Id", workerUserId)
+                        .param("start_date", tomorrow.toString())
+                        .param("end_date", tomorrow.toString()))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.start_date").value(tomorrow.toString()))
+                .andExpect(jsonPath("$.data.end_date").value(tomorrow.toString()))
+                .andExpect(jsonPath("$.data.inspected_order_count").value(0))
+                .andExpect(jsonPath("$.data.trends.length()").value(0));
+
+        mockMvc.perform(get("/production/quality/summary")
+                        .header("X-Bootstrap-Role", "WORKER")
+                        .header("X-Bootstrap-User-Id", workerUserId)
+                        .param("start_date", tomorrow.toString())
+                        .param("end_date", LocalDate.now().toString()))
+                .andExpect(status().isBadRequest());
     }
 
     @Test

@@ -247,7 +247,8 @@ public class CollaborationService {
             doctorFilter = "AND draft_status IN ('PENDING_DOCTOR_CONFIRM', 'DOCTOR_CONFIRMED', 'DOCTOR_REJECTED')";
         }
         return jdbcClient.sql("""
-                        SELECT design_draft_id, order_id, version_no, uploaded_by_user_id, file_id, draft_status
+                        SELECT design_draft_id, order_id, version_no, uploaded_by_user_id, file_id, draft_status,
+                               cs_reject_reason, doctor_reject_reason
                         FROM design_draft
                         WHERE order_id = :orderId
                         %s
@@ -260,7 +261,9 @@ public class CollaborationService {
                         rs.getInt("version_no"),
                         rs.getObject("uploaded_by_user_id", Long.class),
                         rs.getObject("file_id", Long.class),
-                        rs.getString("draft_status")))
+                        rs.getString("draft_status"),
+                        rs.getString("cs_reject_reason"),
+                        rs.getString("doctor_reject_reason")))
                 .list();
     }
 
@@ -307,6 +310,9 @@ public class CollaborationService {
             long orderId, long draftId, DesignDraftReviewRequest request, BootstrapIdentity identity) {
         requireCsOrAdmin(identity);
         DesignDraftRow draft = loadDesignDraftRow(orderId, draftId);
+        if (!"PENDING_CS_REVIEW".equals(draft.draftStatus())) {
+            throw new ResponseStatusException(HttpStatus.CONFLICT, "design draft is not waiting for CS review");
+        }
         OrderRow order = loadOrder(orderId, identity, "identity cannot access this order");
         String action = normalizeOrDefault(request.action(), "");
         String targetStatus;
@@ -317,18 +323,24 @@ public class CollaborationService {
         } else {
             throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "unsupported design draft review action");
         }
+        String rejectReason = "REJECT".equals(action) ? normalizeNullable(request.csRejectReason()) : null;
+        if ("REJECT".equals(action) && rejectReason == null) {
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "cs_reject_reason is required when rejecting a design draft");
+        }
         jdbcClient.sql("""
                         UPDATE design_draft
-                        SET draft_status = :targetStatus
+                        SET draft_status = :targetStatus,
+                            cs_reject_reason = :rejectReason
                         WHERE design_draft_id = :draftId
                         """)
                 .param("targetStatus", targetStatus)
+                .param("rejectReason", rejectReason)
                 .param("draftId", draftId)
                 .update();
         if ("PENDING_DOCTOR_CONFIRM".equals(targetStatus)) {
             emit(order, "DESIGN_DRAFT_CS_APPROVED", "DOCTOR", order.doctorUserId(), "设计稿待医生确认");
         } else {
-            emit(order, "DESIGN_DRAFT_CS_REJECTED", "WORKER", draft.uploadedByUserId(), "设计稿客服审核未通过");
+            emit(order, "DESIGN_DRAFT_CS_REJECTED", "WORKER", draft.uploadedByUserId(), "设计稿客服审核未通过：" + rejectReason);
         }
         return loadDesignDraft(draftId);
     }
@@ -357,16 +369,22 @@ public class CollaborationService {
         } else {
             throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "unsupported doctor confirmation action");
         }
+        String rejectReason = "REJECT".equals(action) ? normalizeNullable(request.doctorRejectReason()) : null;
+        if ("REJECT".equals(action) && rejectReason == null) {
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "doctor_reject_reason is required when rejecting a design draft");
+        }
         jdbcClient.sql("""
                         UPDATE design_draft
                         SET draft_status = :targetStatus,
-                            doctor_confirmed_at = CASE WHEN :targetStatus = 'DOCTOR_CONFIRMED' THEN CURRENT_TIMESTAMP(3) ELSE doctor_confirmed_at END
+                            doctor_confirmed_at = CASE WHEN :targetStatus = 'DOCTOR_CONFIRMED' THEN CURRENT_TIMESTAMP(3) ELSE doctor_confirmed_at END,
+                            doctor_reject_reason = :rejectReason
                         WHERE design_draft_id = :draftId
                         """)
                 .param("targetStatus", targetStatus)
+                .param("rejectReason", rejectReason)
                 .param("draftId", draftId)
                 .update();
-        emit(order, eventType, "CS", order.csUserId(), "医生已处理设计稿");
+        emit(order, eventType, "CS", order.csUserId(), "医生已处理设计稿" + (rejectReason == null ? "" : "：" + rejectReason));
         return loadDesignDraft(draftId);
     }
 
@@ -993,7 +1011,8 @@ public class CollaborationService {
 
     private DesignDraftResponse loadDesignDraft(long draftId) {
         return jdbcClient.sql("""
-                        SELECT design_draft_id, order_id, version_no, uploaded_by_user_id, file_id, draft_status
+                        SELECT design_draft_id, order_id, version_no, uploaded_by_user_id, file_id, draft_status,
+                               cs_reject_reason, doctor_reject_reason
                         FROM design_draft
                         WHERE design_draft_id = :draftId
                         """)
@@ -1004,7 +1023,9 @@ public class CollaborationService {
                         rs.getInt("version_no"),
                         rs.getObject("uploaded_by_user_id", Long.class),
                         rs.getObject("file_id", Long.class),
-                        rs.getString("draft_status")))
+                        rs.getString("draft_status"),
+                        rs.getString("cs_reject_reason"),
+                        rs.getString("doctor_reject_reason")))
                 .single();
     }
 
@@ -1014,7 +1035,9 @@ public class CollaborationService {
             int version,
             Long uploaderUserId,
             Long primaryFileId,
-            String status) {
+            String status,
+            String csRejectReason,
+            String doctorRejectReason) {
         List<Long> fileIds = loadDesignDraftFileIds(draftId);
         if (fileIds.isEmpty() && primaryFileId != null) {
             fileIds = List.of(primaryFileId);
@@ -1027,7 +1050,9 @@ public class CollaborationService {
                 primaryFileId,
                 fileIds,
                 fileIds.size(),
-                status);
+                status,
+                csRejectReason,
+                doctorRejectReason);
     }
 
     private List<Long> loadDesignDraftFileIds(long draftId) {

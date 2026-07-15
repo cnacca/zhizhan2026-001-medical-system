@@ -7,6 +7,7 @@ const timeoutMs = Number(process.env.TASK9D62_TIMEOUT_MS ?? 120_000)
 const dataMode = process.env.TASK9D62_DATA_MODE ?? 'fixed-demo-first-three'
 const dataOnly = process.env.TASK9D62_DATA_ONLY === 'true'
 const demoScenario = process.env.TASK9D62_DEMO_SCENARIO?.trim() ?? ''
+const productType = process.env.TASK9D62_PRODUCT_TYPE?.trim() || 'REGULAR_CROWN'
 const stopAfter = process.env.TASK9D62_STOP_AFTER?.trim() || 'completed'
 const supportedStopStages = new Set([
   'pending-cs',
@@ -218,7 +219,7 @@ async function createFixedDemoOrder(doctorToken) {
   const payload = await apiFetch('/orders', doctorToken, {
     method: 'POST',
     body: JSON.stringify({
-      product_type: 'REGULAR_CROWN',
+      product_type: productType,
       form_data: {
         patient_name: patientName,
         tooth_position: '16',
@@ -245,9 +246,9 @@ async function approveCsReview(orderId, csToken) {
   return payload.data
 }
 
-async function loadFirstActiveWorkflowChain(token) {
+async function loadActiveWorkflowChainForProduct(token) {
   const payload = await apiFetch('/workflow-chains', token)
-  const chain = payload.data.find((item) => item.status === 1) ?? payload.data[0]
+  const chain = payload.data.find((item) => item.status === 1 && item.product_type === productType)
   if (!chain) {
     throw new Error('no workflow chain available for task 9D.62.1 fixed demo data')
   }
@@ -255,7 +256,7 @@ async function loadFirstActiveWorkflowChain(token) {
 }
 
 async function approveProductionReview(orderId, csToken) {
-  const chain = await loadFirstActiveWorkflowChain(csToken)
+  const chain = await loadActiveWorkflowChainForProduct(csToken)
   const payload = await apiFetch(`/orders/${orderId}/production-review`, csToken, {
     method: 'POST',
     body: JSON.stringify({
@@ -463,15 +464,15 @@ async function createReworkExceptionPath(
 }
 
 async function uploadDesignDraftFile(orderId, workerToken) {
-  const content = new TextEncoder().encode(`Task 9D.62.3 design draft smoke ${Date.now()}`)
+  const content = new TextEncoder().encode(`solid task9d62\nfacet normal 0 0 1\n outer loop\n  vertex 0 0 0\n  vertex 1 0 0\n  vertex 0 1 0\n endloop\nendfacet\nendsolid task9d62\n`)
   const tokenPayload = await apiFetch('/files/upload-token', workerToken, {
     method: 'POST',
     body: JSON.stringify({
       order_id: orderId,
       source_type: 'DESIGN_DRAFT',
       visibility: 'DOCTOR_CS',
-      original_filename: `task-9d62-design-${Date.now()}.txt`,
-      content_type: 'text/plain',
+      original_filename: `task-9d62-design-${Date.now()}.stl`,
+      content_type: 'model/stl',
       file_size: content.byteLength
     })
   })
@@ -479,7 +480,7 @@ async function uploadDesignDraftFile(orderId, workerToken) {
   const uploadResponse = await fetch(tokenPayload.data.upload_url, {
     method: 'PUT',
     headers: {
-      'Content-Type': 'text/plain',
+      'Content-Type': 'model/stl',
       'Content-Length': String(content.byteLength)
     },
     body: content
@@ -863,8 +864,8 @@ async function prepareFixedDemoFirstThreeSteps() {
   console.log(
     `task 9D.63 rework exception first increment ok: order_id=${createdOrder.order_id}, rework_id=${rework.rework_id}, target_node_instance_id=${rework.target_node_instance_id}, status=${rework.status}`
   )
-  const designDraftFileId = await uploadDesignDraftFile(createdOrder.order_id, workerSession.accessToken)
-  const designDraft = await uploadDesignDraft(createdOrder.order_id, workerSession.accessToken, designDraftFileId)
+  const designDraftFileId = await uploadDesignDraftFile(createdOrder.order_id, csSession.accessToken)
+  const designDraft = await uploadDesignDraft(createdOrder.order_id, csSession.accessToken, designDraftFileId)
   const csApprovedDesignDraft = await approveDesignDraftByCs(
     createdOrder.order_id,
     designDraft.draft_id,

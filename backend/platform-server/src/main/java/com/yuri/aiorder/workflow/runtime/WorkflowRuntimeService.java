@@ -75,9 +75,6 @@ public class WorkflowRuntimeService {
         if (!"APPROVE".equals(action)) {
             throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "unsupported production review action");
         }
-        if (request.chainId() == null) {
-            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "chain_id is required when approving production review");
-        }
         long instanceId = instantiateIfAbsent(orderId, request);
         ExternalOrderStatus external = orderStatusService.updateOrderState(
                 orderId,
@@ -256,6 +253,7 @@ public class WorkflowRuntimeService {
         if (node.needInCheck() == 1 && !hasPassedCheck(nodeInstanceId, "IN")) {
             throw new ResponseStatusException(HttpStatus.CONFLICT, "node must pass in-check before start");
         }
+        requireDoctorConfirmedDesignBeforeProductionStart(node);
         jdbcClient.sql("""
                         UPDATE order_process_node
                         SET node_status = 'IN_PROGRESS',
@@ -288,9 +286,21 @@ public class WorkflowRuntimeService {
                         """)
                 .param("nodeInstanceId", nodeInstanceId)
                 .update();
-        activateReadyNodes(node.instanceId());
+        if (node.needOutCheck() == 0) {
+            activateReadyNodes(node.instanceId());
+        }
         completeInstanceIfDone(node.instanceId());
         return new NodeActionResponse(nodeInstanceId, "COMPLETED");
+    }
+
+    @Transactional
+    public void activateAfterPassedOutCheck(long nodeInstanceId) {
+        NodeRow node = lockNode(nodeInstanceId);
+        if (node.needOutCheck() != 1 || !hasPassedCheck(nodeInstanceId, "OUT")) {
+            return;
+        }
+        activateReadyNodes(node.instanceId());
+        completeInstanceIfDone(node.instanceId());
     }
 
     @Transactional
@@ -405,7 +415,7 @@ public class WorkflowRuntimeService {
         if (existing != null) {
             return existing;
         }
-        ChainRow chain = loadChain(request.chainId());
+        ChainRow chain = resolveChainForOrder(orderId, request.chainId());
         String branchParams = branchParamsJson(request);
         jdbcClient.sql("""
                         INSERT INTO order_process_instance
@@ -538,7 +548,19 @@ public class WorkflowRuntimeService {
                                         ON predecessor.node_instance_id = incoming.from_node_instance_id
                                       WHERE incoming.instance_id = candidate.instance_id
                                         AND incoming.to_node_instance_id = candidate.node_instance_id
-                                        AND predecessor.node_status NOT IN ('COMPLETED', 'SKIPPED')
+                                        AND (
+                                            predecessor.node_status NOT IN ('COMPLETED', 'SKIPPED')
+                                            OR (
+                                                predecessor.need_out_check = 1
+                                                AND NOT EXISTS (
+                                                    SELECT 1
+                                                    FROM check_record out_check
+                                                    WHERE out_check.node_instance_id = predecessor.node_instance_id
+                                                      AND out_check.check_type = 'OUT'
+                                                      AND out_check.result = 'PASS'
+                                                )
+                                            )
+                                        )
                                   )
                             ) ready_nodes
                         ) selected ON selected.node_instance_id = target.node_instance_id
@@ -553,7 +575,19 @@ public class WorkflowRuntimeService {
                         SELECT COUNT(*)
                         FROM order_process_node
                         WHERE instance_id = :instanceId
-                          AND node_status NOT IN ('COMPLETED', 'SKIPPED')
+                          AND (
+                              node_status NOT IN ('COMPLETED', 'SKIPPED')
+                              OR (
+                                  need_out_check = 1
+                                  AND NOT EXISTS (
+                                      SELECT 1
+                                      FROM check_record out_check
+                                      WHERE out_check.node_instance_id = order_process_node.node_instance_id
+                                        AND out_check.check_type = 'OUT'
+                                        AND out_check.result = 'PASS'
+                                  )
+                              )
+                          )
                         """)
                 .param("instanceId", instanceId)
                 .query(Long.class)
@@ -889,6 +923,66 @@ public class WorkflowRuntimeService {
                 .single() > 0;
     }
 
+    private ChainRow resolveChainForOrder(long orderId, Long requestedChainId) {
+        String productType = jdbcClient.sql("SELECT product_type FROM orders WHERE order_id = :orderId")
+                .param("orderId", orderId)
+                .query(String.class)
+                .optional()
+                .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "order not found"));
+        ChainRow matched = jdbcClient.sql("""
+                        SELECT chain_id, version
+                        FROM workflow_chain
+                        WHERE product_type = :productType
+                          AND status = 1
+                        ORDER BY version DESC, chain_id DESC
+                        LIMIT 1
+                        """)
+                .param("productType", productType)
+                .query((rs, rowNum) -> new ChainRow(rs.getLong("chain_id"), rs.getInt("version")))
+                .optional()
+                .orElse(null);
+        if (matched != null) {
+            if (requestedChainId != null && requestedChainId.longValue() != matched.chainId()) {
+                throw new ResponseStatusException(HttpStatus.CONFLICT, "requested chain does not match order product type");
+            }
+            return matched;
+        }
+        if (requestedChainId != null) {
+            return loadChain(requestedChainId);
+        }
+        throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "no active workflow chain matches order product type");
+    }
+
+    private void requireDoctorConfirmedDesignBeforeProductionStart(NodeRow node) {
+        long startedNodeCount = jdbcClient.sql("""
+                        SELECT COUNT(*)
+                        FROM order_process_node
+                        WHERE instance_id = :instanceId
+                          AND started_at IS NOT NULL
+                        """)
+                .param("instanceId", node.instanceId())
+                .query(Long.class)
+                .single();
+        if (startedNodeCount > 0) {
+            return;
+        }
+        String latestDraftStatus = jdbcClient.sql("""
+                        SELECT draft_status
+                        FROM design_draft
+                        WHERE order_id = :orderId
+                        ORDER BY version_no DESC, design_draft_id DESC
+                        LIMIT 1
+                        """)
+                .param("orderId", node.orderId())
+                .query(String.class)
+                .optional()
+                .orElse(null);
+        if (latestDraftStatus != null && !"DOCTOR_CONFIRMED".equals(latestDraftStatus)) {
+            throw new ResponseStatusException(
+                    HttpStatus.CONFLICT, "latest design draft must be confirmed by doctor before production starts");
+        }
+    }
+
     private ChainRow loadChain(long chainId) {
         try {
             return jdbcClient.sql("""
@@ -989,6 +1083,7 @@ public class WorkflowRuntimeService {
                                 n.process_name,
                                 n.is_optional,
                                 n.need_in_check,
+                                n.need_out_check,
                                 n.assigned_user_id,
                                 n.node_status
                             FROM order_process_node n
@@ -1004,6 +1099,7 @@ public class WorkflowRuntimeService {
                             rs.getString("process_name"),
                             rs.getInt("is_optional"),
                             rs.getInt("need_in_check"),
+                            rs.getInt("need_out_check"),
                             rs.getObject("assigned_user_id", Long.class),
                             rs.getString("node_status")))
                     .single();
@@ -1116,6 +1212,7 @@ public class WorkflowRuntimeService {
             String processName,
             int isOptional,
             int needInCheck,
+            int needOutCheck,
             Long assignedUserId,
             String nodeStatus) {
     }

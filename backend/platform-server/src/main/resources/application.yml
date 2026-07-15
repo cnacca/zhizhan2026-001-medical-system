@@ -31,8 +31,10 @@ app:
     token-secret: ${APP_AUTH_TOKEN_SECRET:local-dev-change-me-auth-secret}
     token-ttl-seconds: ${APP_AUTH_TOKEN_TTL_SECONDS:7200}
     refresh-token-ttl-seconds: ${APP_AUTH_REFRESH_TOKEN_TTL_SECONDS:2592000}
-    allow-bootstrap-headers: ${APP_AUTH_ALLOW_BOOTSTRAP_HEADERS:true}
-    allow-role-fallback: ${APP_AUTH_ALLOW_ROLE_FALLBACK:true}
+    # Header-based identities are test-only compatibility scaffolding. Local and production
+    # runtimes must use the login-issued bearer token unless explicitly opted in for a test.
+    allow-bootstrap-headers: ${APP_AUTH_ALLOW_BOOTSTRAP_HEADERS:false}
+    allow-role-fallback: ${APP_AUTH_ALLOW_ROLE_FALLBACK:false}
   file:
     endpoint: ${MINIO_ENDPOINT:http://127.0.0.1:9000}
     access-key: ${MINIO_ROOT_USER:minioadmin}
