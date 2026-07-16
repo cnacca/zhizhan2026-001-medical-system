@@ -3182,3 +3182,1735 @@
     animation: none !important;
   }
 }
+
+/* 人员管理 V2：左侧组织筛选 + 右侧人员名单，不保留旧指标卡与三页签结构。 */
+.portal-admin.admin-personnel-mode .admin-personnel-page {
+  height: calc(100vh - 82px);
+  min-height: 718px;
+  margin: 18px 24px 8px;
+}
+
+.portal-admin.admin-personnel-mode .apm-page-head {
+  height: auto;
+  min-height: 72px;
+  padding-bottom: 14px;
+}
+
+.portal-admin.admin-personnel-mode .apm-workspace {
+  display: grid;
+  grid-template-columns: 218px minmax(0, 1fr);
+  height: calc(100vh - 169px);
+  min-height: 631px;
+  margin-top: 0;
+}
+
+.portal-admin.admin-personnel-mode .apm-scope-panel {
+  min-width: 0;
+  padding: 16px 12px;
+  overflow-y: auto;
+  border-right: 1px solid var(--admin-line);
+  background: #fbfcfe;
+}
+
+.portal-admin.admin-personnel-mode .apm-scope-title {
+  display: flex;
+  align-items: center;
+  padding: 0 8px 10px;
+}
+
+.portal-admin.admin-personnel-mode .apm-scope-title strong {
+  color: #1e293b;
+  font-size: 11px;
+  font-weight: 780;
+}
+
+.portal-admin.admin-personnel-mode .apm-scope-title span {
+  margin-left: auto;
+  color: var(--admin-faint);
+  font-size: 8px;
+}
+
+.portal-admin.admin-personnel-mode .apm-scope-list {
+  display: grid;
+  gap: 3px;
+}
+
+.portal-admin.admin-personnel-mode .apm-scope-list button {
+  display: flex;
+  width: 100%;
+  height: 35px;
+  align-items: center;
+  gap: 8px;
+  padding: 0 9px;
+  border: 0;
+  border-radius: 8px;
+  background: transparent;
+  color: #475569;
+  cursor: pointer;
+  font-size: 9px;
+  text-align: left;
+}
+
+.portal-admin.admin-personnel-mode .apm-scope-list button:hover {
+  background: #f1f5f9;
+}
+
+.portal-admin.admin-personnel-mode .apm-scope-list button.active {
+  background: #eaf2ff;
+  color: var(--admin-blue-dark);
+  font-weight: 750;
+}
+
+.portal-admin.admin-personnel-mode .apm-scope-list button .apm-inline-icon {
+  color: #94a3b8;
+}
+
+.portal-admin.admin-personnel-mode .apm-scope-list button.active .apm-inline-icon {
+  color: var(--admin-blue);
+}
+
+.portal-admin.admin-personnel-mode .apm-scope-list button em {
+  margin-left: auto;
+  color: #94a3b8;
+  font-size: 8px;
+  font-style: normal;
+}
+
+.portal-admin.admin-personnel-mode .apm-scope-divider {
+  height: 1px;
+  margin: 10px 8px;
+  background: var(--admin-line);
+}
+
+.portal-admin.admin-personnel-mode .apm-scope-caption {
+  margin: 0;
+  padding: 0 9px 7px;
+  color: #94a3b8;
+  font-size: 8px;
+  font-weight: 750;
+  letter-spacing: 0.8px;
+}
+
+.portal-admin.admin-personnel-mode .apm-scope-note {
+  margin: 14px 4px 0;
+  padding: 10px;
+  border: 1px solid #dbeafe;
+  border-radius: 9px;
+  background: #f3f8ff;
+  color: #52647d;
+  font-size: 8px;
+  line-height: 1.65;
+}
+
+.portal-admin.admin-personnel-mode .apm-scope-note strong {
+  display: block;
+  margin-bottom: 3px;
+  color: #1e40af;
+  font-size: 9px;
+}
+
+.portal-admin.admin-personnel-mode .apm-people-panel {
+  display: flex;
+  min-width: 0;
+  min-height: 0;
+  flex-direction: column;
+  overflow: hidden;
+}
+
+.portal-admin.admin-personnel-mode .apm-filters {
+  min-height: 60px;
+  flex: 0 0 60px;
+  padding: 12px 16px;
+}
+
+.portal-admin.admin-personnel-mode .apm-filter-search {
+  width: 260px;
+  flex-basis: 260px;
+}
+
+.portal-admin.admin-personnel-mode .apm-filter-meta strong {
+  color: #475569;
+  font-size: 9px;
+}
+
+.portal-admin.admin-personnel-mode .apm-table {
+  min-height: 0;
+  flex: 1;
+  overflow: auto;
+}
+
+.portal-admin.admin-personnel-mode .apm-table-head,
+.portal-admin.admin-personnel-mode .apm-table-row {
+  grid-template-columns: 1.45fr 1.15fr 0.76fr 1.15fr 0.72fr 0.65fr 76px;
+  column-gap: 10px;
+}
+
+.portal-admin.admin-personnel-mode .apm-table-head {
+  position: sticky;
+  top: 0;
+  z-index: 1;
+  height: 38px;
+}
+
+.portal-admin.admin-personnel-mode .apm-table-row {
+  min-height: 62px;
+  height: 62px;
+  cursor: pointer;
+}
+
+.portal-admin.admin-personnel-mode .apm-table-row:focus-visible {
+  position: relative;
+  z-index: 1;
+}
+
+.portal-admin.admin-personnel-mode .apm-task-count {
+  display: block;
+  color: #334155;
+  font-size: 10px;
+  font-weight: 760;
+}
+
+.portal-admin.admin-personnel-mode .apm-task-count small {
+  margin-left: 3px;
+  color: #94a3b8;
+  font-size: 7px;
+  font-weight: 500;
+}
+
+.portal-admin.admin-personnel-mode .apm-row-action {
+  height: 27px;
+  padding: 0 8px;
+  border: 1px solid #dbe3ec;
+  border-radius: 7px;
+  background: #ffffff;
+  color: #475569;
+  cursor: pointer;
+  font-size: 8px;
+  font-weight: 700;
+  white-space: nowrap;
+}
+
+.portal-admin.admin-personnel-mode .apm-row-action:hover {
+  border-color: #bfdbfe;
+  background: var(--admin-blue-soft);
+  color: var(--admin-blue);
+}
+
+.portal-admin.admin-personnel-mode .apm-pagination {
+  flex: 0 0 46px;
+  height: 46px;
+  border-top: 1px solid var(--admin-line-soft);
+}
+
+.admin-personnel-drawer .apm-drawer-section select:disabled,
+.admin-personnel-drawer .apm-field input:disabled {
+  border-color: #e2e8f0;
+  background: #f8fafc;
+  color: #64748b;
+  cursor: not-allowed;
+}
+
+.admin-organization-dialog.el-dialog {
+  height: 470px;
+  overflow: hidden;
+  border-radius: 14px;
+  box-shadow: 0 24px 70px rgba(15, 23, 42, 0.24);
+}
+
+.admin-organization-dialog .el-dialog__header {
+  height: 61px;
+  margin: 0;
+  padding: 0 18px;
+  border-bottom: 1px solid #e2e8f0;
+}
+
+.admin-organization-dialog .el-dialog__body {
+  height: 345px;
+  padding: 15px 18px;
+}
+
+.admin-organization-dialog .el-dialog__footer {
+  height: 64px;
+  padding: 15px 18px;
+  border-top: 1px solid #e2e8f0;
+}
+
+.apm-org-dialog-head {
+  display: flex;
+  height: 60px;
+  align-items: center;
+}
+
+.apm-org-dialog-head strong,
+.apm-org-dialog-head small {
+  display: block;
+}
+
+.apm-org-dialog-head strong {
+  color: #0f172a;
+  font-size: 13px;
+}
+
+.apm-org-dialog-head small {
+  margin-top: 4px;
+  color: #64748b;
+  font-size: 8px;
+}
+
+.apm-org-dialog-head .apm-drawer-close {
+  display: grid;
+  width: 31px;
+  height: 31px;
+  margin-left: auto;
+  padding: 7px;
+  place-items: center;
+  border: 0;
+  border-radius: 8px;
+  background: transparent;
+  color: #64748b;
+  cursor: pointer;
+}
+
+.apm-org-dialog-head .apm-drawer-close:hover {
+  background: #eff6ff;
+  color: #2563eb;
+}
+
+.apm-org-dialog-head .apm-drawer-close svg {
+  width: 100%;
+  height: 100%;
+  fill: none;
+  stroke: currentColor;
+  stroke-width: 1.8;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
+
+.apm-org-dialog-body {
+  display: grid;
+  height: 315px;
+  grid-template-columns: 190px minmax(0, 1fr);
+  gap: 14px;
+}
+
+.apm-org-departments {
+  padding: 8px;
+  overflow-y: auto;
+  border: 1px solid #e2e8f0;
+  border-radius: 10px;
+  background: #fbfcfe;
+}
+
+.apm-org-departments button {
+  display: flex;
+  width: 100%;
+  height: 35px;
+  align-items: center;
+  padding: 0 9px;
+  border: 0;
+  border-radius: 8px;
+  background: transparent;
+  color: #475569;
+  cursor: pointer;
+  font-size: 9px;
+  text-align: left;
+}
+
+.apm-org-departments button span {
+  margin-left: auto;
+  color: #94a3b8;
+  font-size: 8px;
+}
+
+.apm-org-departments button.active {
+  background: #eff6ff;
+  color: #2563eb;
+  font-weight: 750;
+}
+
+.apm-org-post-panel {
+  padding: 14px;
+  overflow-y: auto;
+  border: 1px solid #e2e8f0;
+  border-radius: 10px;
+}
+
+.apm-org-post-panel h3 {
+  margin: 0 0 4px;
+  color: #0f172a;
+  font-size: 11px;
+}
+
+.apm-org-post-panel > p {
+  margin: 0 0 14px;
+  color: #64748b;
+  font-size: 8px;
+}
+
+.apm-org-post-chip {
+  display: flex;
+  height: 36px;
+  align-items: center;
+  margin-bottom: 8px;
+  padding: 0 10px;
+  border: 1px solid #edf2f7;
+  border-radius: 8px;
+  color: #475569;
+  font-size: 9px;
+}
+
+.apm-org-post-chip span {
+  margin-left: auto;
+  color: #94a3b8;
+  font-size: 8px;
+}
+
+.apm-org-post-empty,
+.apm-org-readonly-note {
+  padding: 10px;
+  border-radius: 8px;
+  color: #64748b;
+  background: #f8fafc;
+  font-size: 8px;
+  line-height: 1.6;
+}
+
+.apm-org-readonly-note {
+  margin-top: 12px;
+  border: 1px solid #dbeafe;
+  background: #f3f8ff;
+  color: #1e40af;
+}
+
+.admin-organization-dialog .apm-button {
+  display: inline-flex;
+  height: 34px;
+  align-items: center;
+  justify-content: center;
+  padding: 0 13px;
+  border: 1px solid #d8e0eb;
+  border-radius: 8px;
+  background: #ffffff;
+  color: #334155;
+  cursor: pointer;
+  font-size: 9px;
+  font-weight: 720;
+}
+
+@media (max-width: 1320px) {
+  .portal-admin.admin-personnel-mode .apm-filter-search {
+    width: 220px;
+    flex-basis: 220px;
+  }
+
+  .portal-admin.admin-personnel-mode .apm-table-head,
+  .portal-admin.admin-personnel-mode .apm-table-row {
+    grid-template-columns: 1.35fr 1.05fr 0.72fr 1.05fr 0.68fr 0.58fr 72px;
+    column-gap: 8px;
+  }
+}
+
+@media (max-width: 980px) {
+  .portal-admin.admin-personnel-mode .admin-personnel-page {
+    height: auto;
+    min-height: 0;
+    overflow: visible;
+  }
+
+  .portal-admin.admin-personnel-mode .apm-page-head {
+    min-height: 0;
+  }
+
+  .portal-admin.admin-personnel-mode .apm-workspace {
+    grid-template-columns: minmax(0, 1fr);
+    height: auto;
+    min-height: 620px;
+  }
+
+  .portal-admin.admin-personnel-mode .apm-scope-panel {
+    display: grid;
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+    gap: 8px;
+    border-right: 0;
+    border-bottom: 1px solid var(--admin-line);
+  }
+
+  .portal-admin.admin-personnel-mode .apm-scope-title,
+  .portal-admin.admin-personnel-mode .apm-scope-divider,
+  .portal-admin.admin-personnel-mode .apm-scope-caption,
+  .portal-admin.admin-personnel-mode .apm-scope-note,
+  .portal-admin.admin-personnel-mode .apm-scope-list:nth-of-type(2) {
+    display: none;
+  }
+
+  .portal-admin.admin-personnel-mode .apm-scope-list {
+    display: contents;
+  }
+}
+
+@media (max-width: 700px) {
+  .admin-organization-dialog.el-dialog {
+    width: calc(100vw - 24px) !important;
+  }
+
+  .apm-org-dialog-body {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  .apm-org-departments {
+    display: flex;
+    overflow-x: auto;
+  }
+
+  .apm-org-departments button {
+    min-width: 120px;
+  }
+}
+
+/* 订单管理 V2：医生端筛选 / 状态体系 + 生产端内部工作单字段。 */
+.portal-admin.admin-reference-mode .aom-filter-head {
+  display: flex;
+  min-height: 48px;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 9px 14px;
+  border-bottom: 1px solid var(--admin-line-soft);
+  background: #ffffff;
+}
+
+.portal-admin.admin-reference-mode .aom-filter-head > div,
+.portal-admin.admin-reference-mode .aom-filter-head > div:last-child {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.portal-admin.admin-reference-mode .aom-filter-head strong {
+  color: var(--admin-text);
+  font-size: 11px;
+}
+
+.portal-admin.admin-reference-mode .aom-filter-head span {
+  color: var(--admin-faint);
+  font-size: 8px;
+}
+
+.portal-admin.admin-reference-mode .aom-filter-head .aom-refresh-button {
+  margin-left: 0;
+}
+
+.portal-admin.admin-reference-mode .aom-filter-body {
+  padding: 11px 14px 12px;
+  border-bottom: 1px solid var(--admin-line-soft);
+  background: #f8fafc;
+}
+
+.portal-admin.admin-reference-mode .aom-filter-grid {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 9px;
+}
+
+.portal-admin.admin-reference-mode .aom-filter-grid label,
+.portal-admin.admin-reference-mode .aom-filter-search {
+  display: grid;
+  min-width: 0;
+  gap: 5px;
+}
+
+.portal-admin.admin-reference-mode .aom-filter-grid label > span,
+.portal-admin.admin-reference-mode .aom-filter-search > span:first-child,
+.portal-admin.admin-reference-mode .aom-quick-filter > span {
+  color: #64748b;
+  font-size: 8px;
+  font-weight: 760;
+  letter-spacing: 0.03em;
+}
+
+.portal-admin.admin-reference-mode .aom-filter-grid select {
+  width: 100%;
+  height: 34px;
+  padding: 0 28px 0 10px;
+  border: 1px solid var(--admin-line);
+  border-radius: 7px;
+  outline: 0;
+  background: #ffffff;
+  color: #475569;
+  font-size: 9px;
+}
+
+.portal-admin.admin-reference-mode .aom-filter-grid select:focus,
+.portal-admin.admin-reference-mode .aom-search-box:focus-within {
+  border-color: #93c5fd;
+  box-shadow: 0 0 0 3px rgba(37, 99, 235, 0.08);
+}
+
+.portal-admin.admin-reference-mode .aom-filter-search {
+  width: 100%;
+  height: auto;
+  margin-top: 9px;
+  padding: 0;
+  border: 0;
+  border-radius: 0;
+  background: transparent;
+}
+
+.portal-admin.admin-reference-mode .aom-search-box {
+  display: flex;
+  height: 34px;
+  align-items: center;
+  gap: 7px;
+  padding: 0 10px;
+  border: 1px solid var(--admin-line);
+  border-radius: 7px;
+  background: #ffffff;
+}
+
+.portal-admin.admin-reference-mode .aom-quick-filter {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 10px;
+  margin-top: 10px;
+}
+
+.portal-admin.admin-reference-mode .aom-quick-filter > div {
+  display: flex;
+  min-width: 0;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+
+.portal-admin.admin-reference-mode .aom-quick-filter button {
+  display: inline-flex;
+  height: 27px;
+  align-items: center;
+  gap: 5px;
+  padding: 0 9px;
+  border: 1px solid #dbe3ec;
+  border-radius: 999px;
+  background: #ffffff;
+  color: #64748b;
+  cursor: pointer;
+  font-size: 8px;
+  font-weight: 680;
+}
+
+.portal-admin.admin-reference-mode .aom-quick-filter button i {
+  width: 5px;
+  height: 5px;
+  border-radius: 50%;
+  background: #94a3b8;
+}
+
+.portal-admin.admin-reference-mode .aom-quick-filter button em {
+  color: #94a3b8;
+  font-size: 8px;
+  font-style: normal;
+}
+
+.portal-admin.admin-reference-mode .aom-quick-filter button.active {
+  border-color: #93c5fd;
+  background: #eff6ff;
+  color: var(--admin-blue);
+}
+
+.portal-admin.admin-reference-mode .aom-quick-filter button.active i {
+  background: var(--admin-blue);
+}
+
+.portal-admin.admin-reference-mode .aom-quick-filter button.has-warning i {
+  background: var(--admin-red);
+}
+
+.portal-admin.admin-reference-mode .aom-quick-filter > small {
+  color: var(--admin-faint);
+  font-size: 8px;
+  white-space: nowrap;
+}
+
+.portal-admin.admin-reference-mode .aom-table-head,
+.portal-admin.admin-reference-mode .aom-table-row {
+  min-width: 1110px;
+  grid-template-columns: 1.22fr 0.78fr 0.72fr 1.02fr 0.62fr 1.12fr 0.82fr 0.76fr 0.78fr 0.86fr 52px;
+  column-gap: 8px;
+}
+
+.portal-admin.admin-reference-mode .aom-table-row {
+  min-height: 64px;
+}
+
+@media (max-width: 1320px) {
+  .portal-admin.admin-reference-mode .aom-table-head,
+  .portal-admin.admin-reference-mode .aom-table-row {
+    min-width: 0;
+    grid-template-columns: 1.18fr 0.72fr 0.7fr 0.9fr 0.58fr 0.92fr 0.72fr 0.7fr 0.68fr 0.76fr 42px;
+    column-gap: 6px;
+  }
+}
+
+.portal-admin.admin-reference-mode .aom-date-filter-grid {
+  margin-top: 9px;
+}
+
+.portal-admin.admin-reference-mode .aom-date-filter-grid input {
+  width: 100%;
+  height: 34px;
+  padding: 0 10px;
+  border: 1px dashed #cbd5e1;
+  border-radius: 7px;
+  background: #f1f5f9;
+  color: #94a3b8;
+  font-size: 9px;
+}
+
+.portal-admin.admin-reference-mode .aom-production-table-head,
+.portal-admin.admin-reference-mode .aom-production-table-row {
+  min-width: 1110px;
+  grid-template-columns: 1.22fr 0.78fr 0.72fr 1.02fr 0.62fr 1.12fr 0.82fr 0.76fr 0.78fr 0.86fr 52px;
+  column-gap: 8px;
+}
+
+@media (max-width: 1320px) {
+  .portal-admin.admin-reference-mode .aom-production-table-head,
+  .portal-admin.admin-reference-mode .aom-production-table-row {
+    min-width: 0;
+    grid-template-columns: 1.18fr 0.72fr 0.7fr 0.9fr 0.58fr 0.92fr 0.72fr 0.7fr 0.68fr 0.76fr 42px;
+    column-gap: 6px;
+  }
+}
+
+@media (max-width: 1320px) {
+  .portal-admin.admin-reference-mode .aom-table-head,
+  .portal-admin.admin-reference-mode .aom-table-row {
+    min-width: 0;
+    grid-template-columns: 1.18fr 0.72fr 0.7fr 0.9fr 0.58fr 0.92fr 0.72fr 0.7fr 0.68fr 0.76fr 42px;
+    column-gap: 6px;
+  }
+}
+
+.portal-admin.admin-reference-mode .aom-code-chip {
+  display: inline-block;
+  width: auto;
+  padding: 2px 6px;
+  border: 1px solid #bfdbfe;
+  border-radius: 5px;
+  background: #eff6ff;
+  color: var(--admin-blue);
+}
+
+.portal-admin.admin-reference-mode .aom-stage-cell > strong {
+  display: flex;
+  align-items: center;
+}
+
+.portal-admin.admin-reference-mode .aom-stage-dots {
+  display: flex;
+  gap: 2px;
+  margin-top: 6px;
+}
+
+.portal-admin.admin-reference-mode .aom-stage-dots i {
+  width: 5px;
+  height: 5px;
+  border-radius: 50%;
+  background: #dbe3ec;
+}
+
+.portal-admin.admin-reference-mode .aom-stage-dots i.done,
+.portal-admin.admin-reference-mode .aom-stage-dots i.active {
+  background: #60a5fa;
+}
+
+.portal-admin.admin-reference-mode .aom-stage-dots i.active {
+  box-shadow: 0 0 0 2px #dbeafe;
+}
+
+.portal-admin.admin-reference-mode .aom-review-flags {
+  display: flex;
+  gap: 3px;
+}
+
+.portal-admin.admin-reference-mode .aom-review-flags em {
+  display: grid;
+  width: 19px;
+  height: 19px;
+  place-items: center;
+  border: 1px solid #c4b5fd;
+  border-radius: 999px;
+  background: #f5f3ff;
+  color: #7c3aed;
+  font-size: 8px;
+  font-style: normal;
+  font-weight: 800;
+}
+
+.portal-admin.admin-reference-mode .aom-status-chip {
+  display: inline-flex;
+  max-width: 100%;
+  align-items: center;
+  gap: 4px;
+  padding: 3px 7px;
+  border: 1px solid #fde68a;
+  border-radius: 999px;
+  background: #fffbeb;
+  color: #b45309;
+  font-size: 8px;
+  font-style: normal;
+  font-weight: 720;
+  white-space: nowrap;
+}
+
+.portal-admin.admin-reference-mode .aom-status-chip::before {
+  width: 5px;
+  height: 5px;
+  border-radius: 50%;
+  background: currentColor;
+  content: '';
+}
+
+.portal-admin.admin-reference-mode .aom-status-chip.is-success { border-color: #bbf7d0; background: #f0fdf4; color: #15803d; }
+.portal-admin.admin-reference-mode .aom-status-chip.is-danger { border-color: #fecaca; background: #fef2f2; color: #b91c1c; }
+.portal-admin.admin-reference-mode .aom-status-chip.is-progress { border-color: #bfdbfe; background: #eff6ff; color: #2563eb; }
+.portal-admin.admin-reference-mode .aom-inline-warning { color: var(--admin-red); }
+.portal-admin.admin-reference-mode .aom-due-missing { color: var(--admin-faint); font-weight: 600; }
+
+.admin-order-drawer .aom-work-order-card {
+  overflow: hidden;
+  margin-bottom: 12px;
+  border: 1px solid #dbe3ec;
+  border-radius: 11px;
+  background: #ffffff;
+}
+
+.admin-order-drawer .aom-work-order-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  padding: 10px 12px;
+  border-bottom: 1px solid #e5eaf1;
+  background: #f8fafc;
+}
+
+.admin-order-drawer .aom-work-order-head > div {
+  display: flex;
+  min-width: 0;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+
+.admin-order-drawer .aom-work-order-head > div > strong {
+  color: var(--admin-blue-dark);
+  font-size: 11px;
+}
+
+.admin-order-drawer .aom-work-order-head > span {
+  color: #94a3b8;
+  font-size: 8px;
+  white-space: nowrap;
+}
+
+.admin-order-drawer .aom-work-order-body {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 14px;
+  padding: 13px;
+}
+
+.admin-order-drawer .aom-work-order-body h3 {
+  margin: 0 0 9px;
+  color: #64748b;
+  font-size: 9px;
+  letter-spacing: 0.05em;
+}
+
+.admin-order-drawer .aom-spec-grid,
+.admin-order-drawer .aom-flow-meta {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 7px;
+}
+
+.admin-order-drawer .aom-spec-grid > div,
+.admin-order-drawer .aom-flow-meta > div {
+  min-width: 0;
+  padding: 7px 8px;
+  border: 1px solid #edf2f7;
+  border-radius: 7px;
+  background: #f8fafc;
+}
+
+.admin-order-drawer .aom-spec-grid span,
+.admin-order-drawer .aom-spec-grid strong,
+.admin-order-drawer .aom-spec-grid small,
+.admin-order-drawer .aom-flow-meta span,
+.admin-order-drawer .aom-flow-meta strong {
+  display: block;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.admin-order-drawer .aom-spec-grid span,
+.admin-order-drawer .aom-flow-meta span {
+  color: #94a3b8;
+  font-size: 7px;
+  font-weight: 700;
+}
+
+.admin-order-drawer .aom-spec-grid strong,
+.admin-order-drawer .aom-flow-meta strong {
+  margin-top: 2px;
+  color: #334155;
+  font-size: 9px;
+}
+
+.admin-order-drawer .aom-spec-grid small {
+  margin-top: 2px;
+  color: #94a3b8;
+  font-size: 7px;
+}
+
+.admin-order-drawer .aom-lifecycle-list {
+  display: grid;
+  gap: 4px;
+  margin-top: 9px;
+}
+
+.admin-order-drawer .aom-lifecycle-list article {
+  display: grid;
+  grid-template-columns: 19px minmax(0, 1fr);
+  gap: 6px;
+  align-items: center;
+  color: #94a3b8;
+  font-size: 8px;
+}
+
+.admin-order-drawer .aom-lifecycle-list article > i {
+  display: grid;
+  width: 18px;
+  height: 18px;
+  place-items: center;
+  border: 1px solid #dbe3ec;
+  border-radius: 50%;
+  background: #ffffff;
+  font-size: 7px;
+  font-style: normal;
+}
+
+.admin-order-drawer .aom-lifecycle-list article.done > i { border-color: #bfdbfe; background: #eff6ff; color: #2563eb; }
+.admin-order-drawer .aom-lifecycle-list article.active { color: #334155; font-weight: 700; }
+.admin-order-drawer .aom-lifecycle-list article.active > i { border-color: #2563eb; background: #2563eb; color: #ffffff; box-shadow: 0 0 0 3px #dbeafe; }
+.admin-order-drawer .aom-lifecycle-list small { margin-left: 5px; color: #2563eb; font-size: 7px; }
+
+@media (max-width: 1100px) {
+  .portal-admin.admin-reference-mode .aom-filter-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}
+
+@media (max-width: 700px) {
+  .portal-admin.admin-reference-mode .aom-filter-grid,
+  .admin-order-drawer .aom-work-order-body {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  .portal-admin.admin-reference-mode .aom-quick-filter {
+    grid-template-columns: minmax(0, 1fr);
+  }
+}
+
+/* 订单管理：参考三端 HTML 的数据卡、筛选表格与右侧详情抽屉。 */
+.portal-admin.admin-reference-mode .admin-order-page,
+.portal-admin.admin-reference-mode .admin-order-file-page {
+  padding: 0;
+  overflow: hidden;
+}
+
+.portal-admin.admin-reference-mode .aom-summary-grid {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 10px;
+  padding: 14px;
+  background: #f8fafc;
+  border-bottom: 1px solid var(--admin-line-soft);
+}
+
+.portal-admin.admin-reference-mode .aom-summary-grid article {
+  min-width: 0;
+  padding: 12px 14px;
+  border: 1px solid var(--admin-line);
+  border-radius: 11px;
+  background: #ffffff;
+  box-shadow: 0 1px 2px rgba(15, 23, 42, 0.035);
+}
+
+.portal-admin.admin-reference-mode .aom-summary-grid article.has-warning {
+  border-color: #fed7aa;
+  background: #fffaf5;
+}
+
+.portal-admin.admin-reference-mode .aom-summary-grid span,
+.portal-admin.admin-reference-mode .aom-summary-grid small,
+.portal-admin.admin-reference-mode .aom-summary-grid strong {
+  display: block;
+}
+
+.portal-admin.admin-reference-mode .aom-summary-grid span {
+  color: var(--admin-muted);
+  font-size: 10px;
+  font-weight: 680;
+}
+
+.portal-admin.admin-reference-mode .aom-summary-grid strong {
+  margin-top: 3px;
+  color: var(--admin-text);
+  font-size: 22px;
+  line-height: 1.1;
+}
+
+.portal-admin.admin-reference-mode .aom-summary-grid article.has-warning strong {
+  color: var(--admin-amber);
+}
+
+.portal-admin.admin-reference-mode .aom-summary-grid small {
+  margin-top: 4px;
+  overflow: hidden;
+  color: var(--admin-faint);
+  font-size: 8px;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.portal-admin.admin-reference-mode .aom-workspace {
+  min-width: 0;
+}
+
+.portal-admin.admin-reference-mode .aom-toolbar {
+  display: flex;
+  min-height: 60px;
+  align-items: center;
+  gap: 8px;
+  padding: 11px 14px;
+  border-bottom: 1px solid var(--admin-line-soft);
+  background: #ffffff;
+}
+
+.portal-admin.admin-reference-mode .aom-search {
+  display: flex;
+  width: 280px;
+  height: 36px;
+  min-width: 180px;
+  align-items: center;
+  gap: 8px;
+  padding: 0 10px;
+  border: 1px solid var(--admin-line);
+  border-radius: 8px;
+  background: #ffffff;
+  color: var(--admin-faint);
+}
+
+.portal-admin.admin-reference-mode .aom-search:focus-within {
+  border-color: #93c5fd;
+  box-shadow: 0 0 0 3px rgba(37, 99, 235, 0.08);
+}
+
+.portal-admin.admin-reference-mode .aom-search .admin-menu-icon {
+  width: 15px;
+  height: 15px;
+  flex: 0 0 15px;
+}
+
+.portal-admin.admin-reference-mode .aom-search input {
+  width: 100%;
+  min-width: 0;
+  border: 0;
+  outline: 0;
+  background: transparent;
+  color: var(--admin-text);
+  font-size: 10px;
+}
+
+.portal-admin.admin-reference-mode .aom-search input::placeholder {
+  color: #9aa8ba;
+}
+
+.portal-admin.admin-reference-mode .aom-toolbar select {
+  width: 142px;
+  height: 36px;
+  min-width: 110px;
+  padding: 0 28px 0 10px;
+  border: 1px solid var(--admin-line);
+  border-radius: 8px;
+  outline: 0;
+  background: #ffffff;
+  color: #475569;
+  font-size: 10px;
+}
+
+.portal-admin.admin-reference-mode .aom-toolbar select:focus {
+  border-color: #93c5fd;
+  box-shadow: 0 0 0 3px rgba(37, 99, 235, 0.08);
+}
+
+.portal-admin.admin-reference-mode .aom-text-button,
+.portal-admin.admin-reference-mode .aom-refresh-button,
+.portal-admin.admin-reference-mode .aom-row-action,
+.portal-admin.admin-reference-mode .aom-pagination button {
+  border: 0;
+  border-radius: 7px;
+  background: transparent;
+  color: var(--admin-blue);
+  cursor: pointer;
+  font-size: 9px;
+  font-weight: 720;
+}
+
+.portal-admin.admin-reference-mode .aom-text-button {
+  height: 34px;
+  padding: 0 7px;
+}
+
+.portal-admin.admin-reference-mode .aom-refresh-button {
+  height: 34px;
+  margin-left: auto;
+  padding: 0 12px;
+  background: var(--admin-blue);
+  color: #ffffff;
+}
+
+.portal-admin.admin-reference-mode .aom-refresh-button:disabled,
+.portal-admin.admin-reference-mode .aom-pagination button:disabled {
+  cursor: not-allowed;
+  opacity: 0.45;
+}
+
+.portal-admin.admin-reference-mode .aom-state {
+  display: grid;
+  min-height: 130px;
+  place-content: center;
+  gap: 5px;
+  padding: 20px;
+  color: var(--admin-muted);
+  font-size: 10px;
+  text-align: center;
+}
+
+.portal-admin.admin-reference-mode .aom-state strong {
+  color: var(--admin-text);
+  font-size: 12px;
+}
+
+.portal-admin.admin-reference-mode .aom-state.is-error {
+  min-height: 64px;
+  color: var(--admin-red);
+  background: var(--admin-red-soft);
+}
+
+.portal-admin.admin-reference-mode .aom-table {
+  min-width: 0;
+  overflow-x: auto;
+  background: #ffffff;
+}
+
+.portal-admin.admin-reference-mode .aom-table-head,
+.portal-admin.admin-reference-mode .aom-table-row {
+  display: grid;
+  min-width: 1040px;
+  grid-template-columns: 1.15fr 1.05fr 1fr 1.1fr 1fr 0.9fr 0.9fr 82px;
+  column-gap: 10px;
+  align-items: center;
+  padding: 0 14px;
+}
+
+.portal-admin.admin-reference-mode .aom-table-head {
+  height: 40px;
+  background: #f8fafc;
+  color: var(--admin-muted);
+  font-size: 9px;
+  font-weight: 760;
+}
+
+.portal-admin.admin-reference-mode .aom-table-row {
+  min-height: 60px;
+  border-top: 1px solid var(--admin-line-soft);
+  color: #334155;
+  cursor: pointer;
+  outline: 0;
+  transition: background 0.15s ease;
+}
+
+.portal-admin.admin-reference-mode .aom-table-row:hover,
+.portal-admin.admin-reference-mode .aom-table-row:focus-visible {
+  background: #f8fbff;
+}
+
+.portal-admin.admin-reference-mode .aom-table-row:focus-visible {
+  box-shadow: inset 3px 0 0 var(--admin-blue);
+}
+
+.portal-admin.admin-reference-mode .aom-table-row > span {
+  display: block;
+  min-width: 0;
+  overflow: hidden;
+}
+
+.portal-admin.admin-reference-mode .aom-table-row strong,
+.portal-admin.admin-reference-mode .aom-table-row small {
+  display: block;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.portal-admin.admin-reference-mode .aom-table-row strong {
+  color: #334155;
+  font-size: 10px;
+  font-weight: 720;
+}
+
+.portal-admin.admin-reference-mode .aom-table-row small {
+  margin-top: 4px;
+  color: var(--admin-faint);
+  font-size: 8px;
+}
+
+.portal-admin.admin-reference-mode .aom-order-cell strong {
+  color: var(--admin-blue-dark);
+}
+
+.portal-admin.admin-reference-mode .aom-status-dot {
+  display: inline-block;
+  width: 6px;
+  height: 6px;
+  margin-right: 5px;
+  border-radius: 50%;
+  background: var(--admin-amber);
+  vertical-align: 1px;
+}
+
+.portal-admin.admin-reference-mode .aom-status-dot.is-success { background: var(--admin-green); }
+.portal-admin.admin-reference-mode .aom-status-dot.is-danger { background: var(--admin-red); }
+.portal-admin.admin-reference-mode .aom-status-dot.is-progress { background: var(--admin-blue); }
+
+.portal-admin.admin-reference-mode .aom-exception {
+  display: inline-block;
+  max-width: 100%;
+  overflow: hidden;
+  padding: 4px 7px;
+  border-radius: 999px;
+  font-size: 8px;
+  font-style: normal;
+  font-weight: 700;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.portal-admin.admin-reference-mode .aom-exception.is-clear {
+  background: var(--admin-green-soft);
+  color: var(--admin-green);
+}
+
+.portal-admin.admin-reference-mode .aom-exception.is-warning {
+  background: var(--admin-amber-soft);
+  color: var(--admin-amber);
+}
+
+.portal-admin.admin-reference-mode .aom-row-action {
+  height: 28px;
+  padding: 0 9px;
+  border: 1px solid #dbe3ec;
+  background: #ffffff;
+  color: #475569;
+  white-space: nowrap;
+}
+
+.portal-admin.admin-reference-mode .aom-row-action:hover {
+  border-color: var(--admin-blue-line);
+  background: var(--admin-blue-soft);
+  color: var(--admin-blue);
+}
+
+.portal-admin.admin-reference-mode .aom-pagination {
+  display: flex;
+  min-height: 48px;
+  align-items: center;
+  justify-content: space-between;
+  padding: 8px 14px;
+  border-top: 1px solid var(--admin-line-soft);
+  color: var(--admin-faint);
+  font-size: 9px;
+}
+
+.portal-admin.admin-reference-mode .aom-pagination > div {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.portal-admin.admin-reference-mode .aom-pagination button {
+  height: 29px;
+  padding: 0 9px;
+  border: 1px solid var(--admin-line);
+  color: #475569;
+}
+
+.portal-admin.admin-reference-mode .aom-pagination strong {
+  color: #475569;
+}
+
+.portal-admin.admin-reference-mode .aom-file-layout {
+  display: grid;
+  min-height: 630px;
+  grid-template-columns: 250px minmax(0, 1fr);
+}
+
+.portal-admin.admin-reference-mode .aom-file-orders {
+  min-width: 0;
+  padding: 14px 12px;
+  overflow: hidden;
+  border-right: 1px solid var(--admin-line);
+  background: #fbfcfe;
+}
+
+.portal-admin.admin-reference-mode .aom-file-orders > header,
+.portal-admin.admin-reference-mode .aom-file-content-head,
+.portal-admin.admin-reference-mode .aom-file-group-title,
+.admin-order-drawer .aom-drawer-section-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.portal-admin.admin-reference-mode .aom-file-orders > header {
+  padding: 0 3px 12px;
+}
+
+.portal-admin.admin-reference-mode .aom-file-orders > header strong,
+.portal-admin.admin-reference-mode .aom-file-orders > header small {
+  display: block;
+}
+
+.portal-admin.admin-reference-mode .aom-file-orders > header strong {
+  color: var(--admin-text);
+  font-size: 11px;
+}
+
+.portal-admin.admin-reference-mode .aom-file-orders > header small,
+.portal-admin.admin-reference-mode .aom-file-orders > header span {
+  margin-top: 3px;
+  color: var(--admin-faint);
+  font-size: 8px;
+}
+
+.portal-admin.admin-reference-mode .aom-file-orders .aom-search {
+  width: 100%;
+  min-width: 0;
+  margin-bottom: 10px;
+}
+
+.portal-admin.admin-reference-mode .aom-file-order-list {
+  display: grid;
+  max-height: 550px;
+  gap: 4px;
+  overflow-y: auto;
+}
+
+.portal-admin.admin-reference-mode .aom-file-order-list > button {
+  display: block;
+  width: 100%;
+  min-height: 61px;
+  padding: 9px 10px;
+  border: 1px solid transparent;
+  border-radius: 9px;
+  background: transparent;
+  color: #475569;
+  cursor: pointer;
+  text-align: left;
+}
+
+.portal-admin.admin-reference-mode .aom-file-order-list > button:hover {
+  background: #f1f5f9;
+}
+
+.portal-admin.admin-reference-mode .aom-file-order-list > button.active {
+  border-color: #dbeafe;
+  background: #eff6ff;
+}
+
+.portal-admin.admin-reference-mode .aom-file-order-list strong,
+.portal-admin.admin-reference-mode .aom-file-order-list span,
+.portal-admin.admin-reference-mode .aom-file-order-list small {
+  display: block;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.portal-admin.admin-reference-mode .aom-file-order-list strong {
+  color: var(--admin-text);
+  font-size: 10px;
+}
+
+.portal-admin.admin-reference-mode .aom-file-order-list span,
+.portal-admin.admin-reference-mode .aom-file-order-list small {
+  margin-top: 3px;
+  color: var(--admin-muted);
+  font-size: 8px;
+}
+
+.portal-admin.admin-reference-mode .aom-file-content {
+  min-width: 0;
+  padding: 16px;
+  overflow: hidden;
+}
+
+.portal-admin.admin-reference-mode .aom-file-content-head {
+  min-height: 44px;
+  padding-bottom: 12px;
+  border-bottom: 1px solid var(--admin-line-soft);
+}
+
+.portal-admin.admin-reference-mode .aom-file-content-head strong,
+.portal-admin.admin-reference-mode .aom-file-content-head span {
+  display: block;
+}
+
+.portal-admin.admin-reference-mode .aom-file-content-head strong {
+  color: var(--admin-text);
+  font-size: 14px;
+}
+
+.portal-admin.admin-reference-mode .aom-file-content-head span {
+  margin-top: 4px;
+  color: var(--admin-muted);
+  font-size: 9px;
+}
+
+.portal-admin.admin-reference-mode .aom-file-content-head > div:last-child {
+  display: flex;
+  gap: 6px;
+}
+
+.portal-admin.admin-reference-mode .aom-file-content-head > div:last-child span {
+  margin: 0;
+  padding: 5px 8px;
+  border-radius: 999px;
+  background: var(--admin-blue-soft);
+  color: var(--admin-blue);
+  font-weight: 700;
+}
+
+.portal-admin.admin-reference-mode .aom-file-security-note {
+  margin: 12px 0;
+  padding: 8px 10px;
+  border: 1px solid #dbeafe;
+  border-radius: 8px;
+  background: #f3f8ff;
+  color: #52647d;
+  font-size: 8px;
+}
+
+.portal-admin.admin-reference-mode .aom-file-groups {
+  display: grid;
+  max-height: 520px;
+  gap: 18px;
+  overflow-y: auto;
+  padding-right: 3px;
+}
+
+.portal-admin.admin-reference-mode .aom-file-group-title {
+  margin-bottom: 9px;
+}
+
+.portal-admin.admin-reference-mode .aom-file-group-title strong {
+  color: var(--admin-text);
+  font-size: 11px;
+}
+
+.portal-admin.admin-reference-mode .aom-file-group-title span {
+  color: var(--admin-faint);
+  font-size: 8px;
+}
+
+.admin-order-drawer .el-drawer__body {
+  padding: 14px 18px 24px;
+}
+
+.admin-order-drawer .aom-drawer-summary,
+.admin-order-drawer .aom-drawer-fields {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 8px;
+}
+
+.admin-order-drawer .aom-drawer-summary {
+  margin-bottom: 14px;
+}
+
+.admin-order-drawer .aom-drawer-summary > div,
+.admin-order-drawer .aom-drawer-fields > div {
+  min-width: 0;
+  padding: 10px;
+  border: 1px solid #edf2f7;
+  border-radius: 9px;
+  background: #f8fafc;
+}
+
+.admin-order-drawer .aom-drawer-summary span,
+.admin-order-drawer .aom-drawer-fields span,
+.admin-order-drawer .aom-drawer-summary strong,
+.admin-order-drawer .aom-drawer-fields strong {
+  display: block;
+}
+
+.admin-order-drawer .aom-drawer-summary span,
+.admin-order-drawer .aom-drawer-fields span {
+  color: #94a3b8;
+  font-size: 9px;
+}
+
+.admin-order-drawer .aom-drawer-summary strong,
+.admin-order-drawer .aom-drawer-fields strong {
+  margin-top: 4px;
+  overflow-wrap: anywhere;
+  color: #334155;
+  font-size: 10px;
+}
+
+.admin-order-drawer .aom-drawer-section-head h3,
+.admin-order-drawer .aom-drawer-section-head p {
+  margin: 0;
+}
+
+.admin-order-drawer .aom-drawer-section-head > strong {
+  color: #2563eb;
+  font-size: 16px;
+}
+
+.admin-order-drawer .aom-process-progress {
+  height: 6px;
+  margin: 10px 0 12px;
+  overflow: hidden;
+  border-radius: 999px;
+  background: #e2e8f0;
+}
+
+.admin-order-drawer .aom-process-progress i {
+  display: block;
+  height: 100%;
+  border-radius: inherit;
+  background: #2563eb;
+}
+
+.admin-order-drawer .aom-process-list,
+.admin-order-drawer .aom-drawer-file-list,
+.admin-order-drawer .aom-message-list {
+  display: grid;
+  gap: 7px;
+}
+
+.admin-order-drawer .aom-process-list {
+  max-height: 230px;
+  overflow-y: auto;
+}
+
+.admin-order-drawer .aom-process-list article {
+  display: grid;
+  grid-template-columns: 25px minmax(0, 1fr);
+  gap: 9px;
+  align-items: center;
+}
+
+.admin-order-drawer .aom-process-list article > span {
+  display: grid;
+  width: 25px;
+  height: 25px;
+  place-items: center;
+  border-radius: 50%;
+  background: #eff6ff;
+  color: #2563eb;
+  font-size: 9px;
+  font-weight: 800;
+}
+
+.admin-order-drawer .aom-process-list strong,
+.admin-order-drawer .aom-process-list small {
+  display: block;
+}
+
+.admin-order-drawer .aom-process-list strong {
+  color: #334155;
+  font-size: 10px;
+}
+
+.admin-order-drawer .aom-process-list small {
+  margin-top: 3px;
+  color: #94a3b8;
+  font-size: 8px;
+}
+
+.admin-order-drawer .aom-drawer-file-list article {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  padding: 8px 0;
+  border-bottom: 1px solid #edf2f7;
+}
+
+.admin-order-drawer .aom-drawer-file-list strong,
+.admin-order-drawer .aom-drawer-file-list small {
+  display: block;
+}
+
+.admin-order-drawer .aom-drawer-file-list strong {
+  color: #334155;
+  font-size: 9px;
+}
+
+.admin-order-drawer .aom-drawer-file-list small,
+.admin-order-drawer .aom-drawer-footnote {
+  margin-top: 3px;
+  color: #94a3b8;
+  font-size: 8px;
+}
+
+.admin-order-drawer .aom-message-list article {
+  padding: 9px 10px;
+  border-radius: 8px;
+  background: #f8fafc;
+}
+
+.admin-order-drawer .aom-message-list span,
+.admin-order-drawer .aom-message-list small {
+  color: #64748b;
+  font-size: 8px;
+}
+
+.admin-order-drawer .aom-message-list p {
+  margin: 4px 0;
+  color: #334155;
+  font-size: 9px;
+  line-height: 1.55;
+}
+
+@media (max-width: 1320px) {
+  .portal-admin.admin-reference-mode .aom-toolbar .aom-search {
+    width: 220px;
+  }
+
+  .portal-admin.admin-reference-mode .aom-toolbar select {
+    width: 124px;
+  }
+
+  .portal-admin.admin-reference-mode .aom-file-content .admin-file-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}
+
+@media (max-width: 980px) {
+  .portal-admin.admin-reference-mode .aom-summary-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .portal-admin.admin-reference-mode .aom-toolbar {
+    flex-wrap: wrap;
+  }
+
+  .portal-admin.admin-reference-mode .aom-toolbar .aom-search {
+    width: 100%;
+    flex-basis: 100%;
+  }
+
+  .portal-admin.admin-reference-mode .aom-file-layout {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  .portal-admin.admin-reference-mode .aom-file-orders {
+    border-right: 0;
+    border-bottom: 1px solid var(--admin-line);
+  }
+
+  .portal-admin.admin-reference-mode .aom-file-order-list {
+    max-height: 210px;
+  }
+}
+
+@media (max-width: 700px) {
+  .portal-admin.admin-reference-mode .aom-summary-grid,
+  .admin-order-drawer .aom-drawer-summary,
+  .admin-order-drawer .aom-drawer-fields {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  .portal-admin.admin-reference-mode .aom-toolbar select {
+    width: calc(50% - 4px);
+    flex: 1 1 calc(50% - 4px);
+  }
+
+  .portal-admin.admin-reference-mode .aom-file-content .admin-file-grid {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  .admin-order-drawer {
+    width: 100vw !important;
+  }
+}
+
+/* 保证 V2 生产工作单 11 列覆盖旧版 8 列定义。 */
+.portal-admin.admin-reference-mode .aom-table-head,
+.portal-admin.admin-reference-mode .aom-table-row {
+  min-width: 1110px;
+  grid-template-columns: 1.22fr 0.78fr 0.72fr 1.02fr 0.62fr 1.12fr 0.82fr 0.76fr 0.78fr 0.86fr 52px;
+  column-gap: 8px;
+}
+
+.portal-admin.admin-reference-mode .aom-table-row {
+  min-height: 64px;
+}
+
+@media (max-width: 1320px) {
+  .portal-admin.admin-reference-mode .aom-table-head,
+  .portal-admin.admin-reference-mode .aom-table-row {
+    min-width: 0;
+    grid-template-columns: 1.18fr 0.72fr 0.7fr 0.9fr 0.58fr 0.92fr 0.72fr 0.7fr 0.68fr 0.76fr 42px;
+    column-gap: 6px;
+  }
+}
+
+/* 订单页专属边界：日期占位与 11 列工作单不再依赖旧订单布局。 */
+.portal-admin.admin-reference-mode .aom-date-filter-grid {
+  margin-top: 9px;
+}
+
+.portal-admin.admin-reference-mode .aom-date-filter-grid input {
+  width: 100%;
+  height: 34px;
+  padding: 0 10px;
+  border: 1px dashed #cbd5e1;
+  border-radius: 7px;
+  background: #f1f5f9;
+  color: #94a3b8;
+  font-size: 9px;
+}
+
+.portal-admin.admin-reference-mode .aom-production-table-head,
+.portal-admin.admin-reference-mode .aom-production-table-row {
+  min-width: 1110px;
+  grid-template-columns: 1.22fr 0.78fr 0.72fr 1.02fr 0.62fr 1.12fr 0.82fr 0.76fr 0.78fr 0.86fr 52px;
+  column-gap: 8px;
+}
+
+@media (max-width: 1320px) {
+  .portal-admin.admin-reference-mode .aom-production-table-head,
+  .portal-admin.admin-reference-mode .aom-production-table-row {
+    min-width: 0;
+    grid-template-columns: 1.18fr 0.72fr 0.7fr 0.9fr 0.58fr 0.92fr 0.72fr 0.7fr 0.68fr 0.76fr 42px;
+    column-gap: 6px;
+  }
+}

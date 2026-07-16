@@ -230,6 +230,7 @@ type InternalOrderItem = {
   clinic_id: number
   clinic_name: string
   doctor_user_id: number | null
+  patient_id?: number | null
   cs_user_id: number | null
   product_type: string
   internal_status: string
@@ -1498,11 +1499,27 @@ const doctorOrderCreateResult = ref<CreateOrderResponse | null>(null)
 const activeDoctorOrderSection = ref('list')
 const activeDoctorDetailTab = ref('info')
 const internalOrders = ref<InternalOrderItem[]>([])
+const internalOrdersTotal = ref(0)
 const selectedInternalOrder = ref<InternalOrderItem | null>(null)
 const internalOrderKeyword = ref('')
 const internalOrderStatus = ref('PENDING_CS_REVIEW')
 const internalOrdersLoading = ref(false)
 const internalOrderError = ref('')
+const adminOrderKeyword = ref('')
+const adminOrderStatusFilter = ref('ALL')
+const adminOrderProductFilter = ref('ALL')
+const adminOrderClinicFilter = ref('ALL')
+const adminOrderDoctorFilter = ref('ALL')
+const adminOrderQuickFilter = ref('ALL')
+const adminOrderPage = ref(1)
+const adminOrderDrawerVisible = ref(false)
+const adminOrderDetailLoading = ref(false)
+const adminOrderDetailError = ref('')
+const adminOrderMessages = ref<MessageItem[]>([])
+const adminOrderBill = ref<BillInfo | null>(null)
+const adminOrderLogistics = ref<LogisticsInfo | null>(null)
+const adminOrderProcessInstance = ref<ProcessInstanceDetail | null>(null)
+const adminOrderProcessMap = ref<Record<number, ProcessInstanceDetail | null>>({})
 const csProductionNote = ref('')
 const csRejectReason = ref('')
 const csReviewActionLoading = ref(false)
@@ -1665,11 +1682,13 @@ const staffWorkloadLoading = ref(false)
 const staffWorkloadError = ref('')
 const staffAccountOptions = ref<StaffAccountOptionsResponse>({ departments: [], posts: [] })
 const adminPersonnelStatusFilter = ref('ALL')
-const adminPersonnelDepartmentFilter = ref('ALL')
+const adminPersonnelScopeFilter = ref('ALL')
 const adminPersonnelLevelFilter = ref<'ALL' | AdminPersonnelLevel>('ALL')
 const adminPersonnelPage = ref(1)
 const adminPersonnelDrawerVisible = ref(false)
-const selectedAdminRoleLevel = ref<AdminPersonnelLevel>('管理员')
+const adminPersonnelSelectedRow = ref<AdminPersonnelRow | null>(null)
+const adminOrganizationDialogVisible = ref(false)
+const adminOrganizationSelectedDepartmentId = ref<number | null>(null)
 const staffAccountSaving = ref(false)
 const staffAccountResult = ref('')
 const adminPersonnelToast = ref('')
@@ -2390,11 +2409,6 @@ const adminPageTabsByParent: Record<string, AdminPageTab[]> = {
   'admin-workflow': [
     { label: '工序进度', routePath: '/workflow/process-instance' },
     { label: '员工派工', routePath: '/workflow/assign' }
-  ],
-  'admin-staff': [
-    { label: '用户管理', routePath: '/admin/staff' },
-    { label: '角色权限', routePath: '/admin/staff/roles' },
-    { label: '组织岗位', routePath: '/admin/staff/organization' }
   ],
   'admin-products': [
     { label: '动态表单', routePath: '/system/form-configs' },
@@ -3163,6 +3177,7 @@ const doctorPortalTopbarTitle = computed(() => {
 })
 const isInternalOrdersRoute = computed(() => activeRoute.value === '/orders/internal')
 const isAdminFilesRoute = computed(() => portalTone.value === 'admin' && activeRoute.value === '/admin/files')
+const isAdminOrderSection = computed(() => portalTone.value === 'admin' && (isInternalOrdersRoute.value || isAdminFilesRoute.value))
 const isCustomerCollaborationRoute = computed(() => activeRoute.value === '/collaboration')
 const isAdminCommunicationManagementRoute = computed(() => portalTone.value === 'admin' && activeRoute.value === '/admin/communication-management')
 const isAdminOutsourcingRoute = computed(() => portalTone.value === 'admin' && activeRoute.value === '/admin/outsourcing')
@@ -3179,11 +3194,7 @@ const isCheckRecordsRoute = computed(() => activeRoute.value === '/checks')
 const isReworkFinalRoute = computed(() => activeRoute.value === '/rework-final')
 const isWorklogsRoute = computed(() => activeRoute.value === '/worklogs/self')
 const isPerformanceRoute = computed(() => activeRoute.value === '/performance')
-const isAdminPersonnelRoute = computed(() => portalTone.value === 'admin' && [
-  '/admin/staff',
-  '/admin/staff/roles',
-  '/admin/staff/organization'
-].includes(activeRoute.value))
+const isAdminPersonnelRoute = computed(() => portalTone.value === 'admin' && activeRoute.value === '/admin/staff')
 const isStaffWorkloadRoute = computed(() => activeRoute.value === '/production/staff' || isAdminPersonnelRoute.value)
 const isProductionBoardRoute = computed(() => activeRoute.value === '/production/board')
 const isProductionOrdersView = computed(() => isProductionBoardRoute.value && activeNavId.value === 'production-orders')
@@ -3338,7 +3349,6 @@ const adminRoleRules: Array<{
     responsibilities: ['查看本人任务', '完成工序操作', '提交工作结果']
   }
 ]
-const selectedAdminRoleRule = computed(() => adminRoleRules.find((item) => item.level === selectedAdminRoleLevel.value) ?? adminRoleRules[0])
 const adminPersonnelAllRows = computed<AdminPersonnelRow[]>(() => {
   const rows: AdminPersonnelRow[] = staffWorkloadItems.value.map((staff) => ({
     userId: staff.user_id,
@@ -3382,22 +3392,21 @@ const adminPersonnelRows = computed<AdminPersonnelRow[]>(() => {
       ...row.posts
     ].some((value) => value.toLowerCase().includes(keyword))
     const statusMatches = adminPersonnelStatusFilter.value === 'ALL' || row.status === adminPersonnelStatusFilter.value
-    const departmentMatches = adminPersonnelDepartmentFilter.value === 'ALL' || row.department === adminPersonnelDepartmentFilter.value
+    const scopeMatches = adminPersonnelScopeFilter.value === 'ALL'
+      || (adminPersonnelScopeFilter.value === 'MANAGEMENT' && row.level !== '普通员工')
+      || (adminPersonnelScopeFilter.value === 'STAFF' && row.level === '普通员工')
+      || (adminPersonnelScopeFilter.value.startsWith('DEPARTMENT:') && row.department === adminPersonnelScopeFilter.value.slice('DEPARTMENT:'.length))
     const levelMatches = adminPersonnelLevelFilter.value === 'ALL' || row.level === adminPersonnelLevelFilter.value
-    return keywordMatches && statusMatches && departmentMatches && levelMatches
+    return keywordMatches && statusMatches && scopeMatches && levelMatches
   })
 })
 const adminPersonnelTotal = computed(() => Math.max(
   adminPersonnelAllRows.value.length,
   staffWorkloadTotal.value
 ))
-const adminPersonnelLevelCounts = computed(() => adminRoleRules.map((rule) => ({
-  level: rule.level,
-  count: adminPersonnelAllRows.value.filter((row) => row.level === rule.level).length
-})))
-const adminPersonnelActiveCount = computed(() => adminPersonnelAllRows.value.filter((row) => row.status === 'ACTIVE').length)
-const adminPersonnelAttentionCount = computed(() => adminPersonnelAllRows.value.filter((row) => row.status !== 'ACTIVE').length)
-const adminPersonnelPageSize = 6
+const adminPersonnelManagementCount = computed(() => adminPersonnelAllRows.value.filter((row) => row.level !== '普通员工').length)
+const adminPersonnelStaffCount = computed(() => adminPersonnelAllRows.value.filter((row) => row.level === '普通员工').length)
+const adminPersonnelPageSize = 7
 const adminPersonnelPageCount = computed(() => Math.max(1, Math.ceil(adminPersonnelRows.value.length / adminPersonnelPageSize)))
 const adminPersonnelCurrentPage = computed(() => Math.min(adminPersonnelPage.value, adminPersonnelPageCount.value))
 const adminPersonnelPagedRows = computed(() => {
@@ -3423,7 +3432,7 @@ const adminPersonnelUpdatedLabel = computed(() => {
     .map((row) => row.updatedAt)
     .filter((value): value is string => Boolean(value))
     .sort((a, b) => new Date(b).getTime() - new Date(a).getTime())[0]
-  return latest ? `数据更新于 ${compactDateTime(latest)}` : '人员数据已同步'
+  return latest ? `数据更新于 ${compactDateTime(latest)}` : '人员更新时间暂无'
 })
 const adminOrganizationRows = computed(() => staffAccountOptions.value.departments.map((department) => ({
   ...department,
@@ -3431,9 +3440,70 @@ const adminOrganizationRows = computed(() => staffAccountOptions.value.departmen
   posts: staffAccountOptions.value.posts.filter((post) => staffWorkloadItems.value.some((staff) =>
     staff.dept_id === department.id && staff.post_names.includes(post.name)))
 })))
-const adminPersonnelAssignedDepartmentCount = computed(() => adminOrganizationRows.value.filter((department) => department.staffCount > 0).length)
+const selectedAdminOrganization = computed(() => adminOrganizationRows.value.find((department) =>
+  department.id === adminOrganizationSelectedDepartmentId.value) ?? adminOrganizationRows.value[0] ?? null)
+const adminPersonnelSelectedLevel = computed<AdminPersonnelLevel>(() => adminPersonnelSelectedRow.value?.level ?? '普通员工')
+const adminPersonnelCanSave = computed(() => canManageStaffAccounts.value
+  && (!adminPersonnelSelectedRow.value || Boolean(adminPersonnelSelectedRow.value.source))
+  && adminPersonnelSelectedLevel.value === '普通员工')
 const adminCommunicationOrderCount = computed(() => new Set(customerCollaborationPendingMessages.value.map((item) => item.order_id)).size)
 const adminOrderOptions = computed(() => internalOrders.value.length ? internalOrders.value : phaseOneAbDashboardOrders.value)
+const adminOrderStatusOptions = computed(() => [...new Set(internalOrders.value.map((order) => order.internal_status))])
+const adminOrderProductOptions = computed(() => [...new Set(internalOrders.value.map((order) => order.product_type))])
+const adminOrderClinicOptions = computed(() => {
+  const clinicsById = new Map<number, string>()
+  internalOrders.value.forEach((order) => clinicsById.set(order.clinic_id, order.clinic_name || `诊所 ${order.clinic_id}`))
+  return [...clinicsById.entries()].map(([id, name]) => ({ id, name }))
+})
+const adminOrderDoctorOptions = computed(() => [...new Set(internalOrders.value
+  .map((order) => order.doctor_user_id)
+  .filter((doctorId): doctorId is number => doctorId !== null))])
+const adminOrderQuickOptions = computed(() => [
+  { key: 'ALL', label: '全部', count: internalOrders.value.length },
+  { key: 'NEW_REVIEW', label: '新单 / 审核', count: internalOrders.value.filter((order) => adminOrderMatchesQuickFilter(order, 'NEW_REVIEW')).length },
+  { key: 'DESIGN_PRODUCTION', label: '设计 / 生产', count: internalOrders.value.filter((order) => adminOrderMatchesQuickFilter(order, 'DESIGN_PRODUCTION')).length },
+  { key: 'DOCTOR_REVIEW', label: '等待医生', count: internalOrders.value.filter((order) => adminOrderMatchesQuickFilter(order, 'DOCTOR_REVIEW')).length },
+  { key: 'QC_DISPATCH', label: '质检 / 发货', count: internalOrders.value.filter((order) => adminOrderMatchesQuickFilter(order, 'QC_DISPATCH')).length },
+  { key: 'EXCEPTION', label: '异常', count: internalOrders.value.filter((order) => adminOrderMatchesQuickFilter(order, 'EXCEPTION')).length }
+])
+const adminOrderRows = computed(() => {
+  const keyword = adminOrderKeyword.value.trim().toLowerCase()
+  return internalOrders.value.filter((order) => {
+    const keywordMatches = !keyword || [
+      order.order_no,
+      order.clinic_name,
+      productTypeLabel(order.product_type),
+      statusLabel(order.internal_status),
+      statusLabel(order.external_status)
+    ].some((value) => value.toLowerCase().includes(keyword))
+    const statusMatches = adminOrderStatusFilter.value === 'ALL' || order.internal_status === adminOrderStatusFilter.value
+    const productMatches = adminOrderProductFilter.value === 'ALL' || order.product_type === adminOrderProductFilter.value
+    const clinicMatches = adminOrderClinicFilter.value === 'ALL' || String(order.clinic_id) === adminOrderClinicFilter.value
+    const doctorMatches = adminOrderDoctorFilter.value === 'ALL' || String(order.doctor_user_id) === adminOrderDoctorFilter.value
+    const quickMatches = adminOrderMatchesQuickFilter(order, adminOrderQuickFilter.value)
+    return keywordMatches && statusMatches && productMatches && clinicMatches && doctorMatches && quickMatches
+  })
+})
+const adminFileOrderRows = computed(() => {
+  const keyword = adminOrderKeyword.value.trim().toLowerCase()
+  if (!keyword) return internalOrders.value
+  return internalOrders.value.filter((order) => [
+    order.order_no,
+    order.clinic_name,
+    productTypeLabel(order.product_type)
+  ].some((value) => value.toLowerCase().includes(keyword)))
+})
+const adminOrderPageSize = 8
+const adminOrderPageCount = computed(() => Math.max(1, Math.ceil(adminOrderRows.value.length / adminOrderPageSize)))
+const adminOrderCurrentPage = computed(() => Math.min(adminOrderPage.value, adminOrderPageCount.value))
+const adminOrderPagedRows = computed(() => {
+  const start = (adminOrderCurrentPage.value - 1) * adminOrderPageSize
+  return adminOrderRows.value.slice(start, start + adminOrderPageSize)
+})
+const adminOrderRangeStart = computed(() => adminOrderRows.value.length
+  ? (adminOrderCurrentPage.value - 1) * adminOrderPageSize + 1
+  : 0)
+const adminOrderRangeEnd = computed(() => Math.min(adminOrderCurrentPage.value * adminOrderPageSize, adminOrderRows.value.length))
 const selectedPortalOption = computed(() => portalOptions.find((option) => option.value === selectedPortal.value) ?? null)
 const portalTone = computed<PortalTone>(() => {
   if (activePortalTone.value) {
@@ -3469,7 +3539,7 @@ const routeChrome = computed<RouteChrome>(() => {
     const parentItem = findDisplayItemById(activeAdminParentNavId.value) ?? activeDisplayItem.value
     const routeDetails: Record<string, Pick<RouteChrome, 'title' | 'description' | 'icon'>> = {
       '/dashboard': { title: '工作台', description: '查看平台经营、生产和协同工作的总体情况。', icon: 'dashboard' },
-      '/orders/internal': { title: '订单管理', description: '查看订单资料、当前状态和内部处理进度。', icon: 'order' },
+      '/orders/internal': { title: '订单管理', description: '查看订单资料、医生状态与内部生产进度。', icon: 'order' },
       '/admin/files': { title: '文件资料', description: '按订单查看原始资料、设计稿和授权文件。', icon: 'cloud' },
       '/collaboration': { title: '沟通中心', description: '处理订单沟通、待确认消息和跨部门协同。', icon: 'chat' },
       '/admin/communication-management': { title: '沟通管理', description: '查看待处理消息、涉及订单和当前沟通情况。', icon: 'audit' },
@@ -3669,6 +3739,7 @@ const adminPersonnelIconSvgMap: Record<string, string> = {
   shield: '<svg viewBox="0 0 24 24"><path d="M12 3 20 6v6c0 5-3 8-8 10-5-2-8-5-8-10V6z"/><path d="m9 12 2 2 4-5"/></svg>',
   download: '<svg viewBox="0 0 24 24"><path d="M12 3v12M7 10l5 5 5-5M4 21h16"/></svg>',
   plus: '<svg viewBox="0 0 24 24"><path d="M12 5v14M5 12h14"/></svg>',
+  organization: '<svg viewBox="0 0 24 24"><rect x="9" y="3" width="6" height="5" rx="1"/><rect x="3" y="16" width="6" height="5" rx="1"/><rect x="15" y="16" width="6" height="5" rx="1"/><path d="M12 8v4M6 16v-4h12v4"/></svg>',
   search: '<svg viewBox="0 0 24 24"><circle cx="11" cy="11" r="7"/><path d="m20 20-4-4"/></svg>',
   more: '<svg viewBox="0 0 24 24"><circle cx="5" cy="12" r="1"/><circle cx="12" cy="12" r="1"/><circle cx="19" cy="12" r="1"/></svg>',
   help: '<svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="9"/><path d="M9.7 9a2.5 2.5 0 1 1 3.4 2.3c-.7.3-1.1.8-1.1 1.7M12 17h.01"/></svg>',
@@ -3690,6 +3761,7 @@ const dataScopeLabelMap: Record<string, string> = {
   NONE: '无数据范围'
 }
 const statusLabelMap: Record<string, string> = {
+  DRAFT: '草稿',
   PENDING: '待处理',
   READY: '待开工',
   IN_PROGRESS: '进行中',
@@ -4999,8 +5071,12 @@ function clearLoginSession() {
 }
 
 function navigateToRoute(routePath: string) {
-  activeRoute.value = routePath
+  const normalizedRoutePath = ['/admin/staff/roles', '/admin/staff/organization'].includes(routePath)
+    ? '/admin/staff'
+    : routePath
+  activeRoute.value = normalizedRoutePath
   activePrototypeChip.value = ''
+  routePath = normalizedRoutePath
   if (routePath === '/dashboard') {
     void loadPhaseOneAbDashboardData()
     void loadCustomerAttentionItems()
@@ -5164,32 +5240,28 @@ function runAdminGlobalSearch() {
     navigateToRoute('/admin/staff')
     return
   }
-  internalOrderKeyword.value = keyword
+  adminOrderKeyword.value = keyword
+  internalOrderKeyword.value = ''
   activeNavId.value = 'admin-orders'
   navigateToRoute('/orders/internal')
 }
 
 function resetAdminPersonnelFilters() {
   staffWorkloadKeyword.value = ''
-  adminPersonnelDepartmentFilter.value = 'ALL'
+  adminPersonnelScopeFilter.value = 'ALL'
   adminPersonnelLevelFilter.value = 'ALL'
   adminPersonnelStatusFilter.value = 'ALL'
   adminPersonnelPage.value = 1
 }
 
-function showAdminPersonnelDepartment(department: string) {
-  adminPersonnelDepartmentFilter.value = department
-  staffWorkloadKeyword.value = ''
-  adminPersonnelLevelFilter.value = 'ALL'
-  adminPersonnelStatusFilter.value = 'ALL'
-  selectAdminPageTab({ label: '用户管理', routePath: '/admin/staff' })
+function selectAdminPersonnelScope(scope: string) {
+  adminPersonnelScopeFilter.value = scope
+  adminPersonnelPage.value = 1
 }
 
-function adminDepartmentStaffNames(departmentId: number) {
-  const names = staffWorkloadItems.value
-    .filter((staff) => staff.dept_id === departmentId)
-    .map((staff) => staff.display_name)
-  return names.length ? names.join('、') : '未分配人员'
+function openAdminOrganizationDialog() {
+  adminOrganizationSelectedDepartmentId.value ??= adminOrganizationRows.value[0]?.id ?? null
+  adminOrganizationDialogVisible.value = true
 }
 
 function adminPersonnelScopeTitle(row: AdminPersonnelRow) {
@@ -5205,10 +5277,6 @@ function adminPersonnelScopeDescription(row: AdminPersonnelRow) {
   return row.activeTasks ? `${row.activeTasks} 项工作进行中` : '只处理自己的工作'
 }
 
-function adminPersonnelUpdatedAtLabel(row: AdminPersonnelRow) {
-  return row.updatedAt ? compactDateTime(row.updatedAt) : '当前使用中'
-}
-
 function adminPersonnelAccountStatusLabel(status: string) {
   return status === 'ACTIVE' ? '正常' : '已停用'
 }
@@ -5218,34 +5286,18 @@ function selectAdminPersonnelPage(page: number | '…') {
   adminPersonnelPage.value = Math.min(Math.max(page, 1), adminPersonnelPageCount.value)
 }
 
-function exportAdminPersonnel() {
-  const rows = adminPersonnelRows.value
-  const quote = (value: string | number) => `"${String(value).replace(/"/g, '""')}"`
-  const header = ['姓名', '账号', '部门', '岗位', '人员级别', '账号状态', '当前工作', '累计完成']
-  const lines = rows.map((row) => [
-    row.displayName,
-    row.username,
-    row.department,
-    row.posts.join('、') || '岗位未设置',
-    row.level,
-    adminPersonnelAccountStatusLabel(row.status),
-    row.activeTasks,
-    row.completedTasks
-  ].map(quote).join(','))
-  const blob = new Blob([`\uFEFF${header.map(quote).join(',')}\n${lines.join('\n')}`], { type: 'text/csv;charset=utf-8' })
-  const url = URL.createObjectURL(blob)
-  const anchor = document.createElement('a')
-  anchor.href = url
-  anchor.download = `人员名单-${new Date().toISOString().slice(0, 10)}.csv`
-  document.body.appendChild(anchor)
-  anchor.click()
-  anchor.remove()
-  window.setTimeout(() => URL.revokeObjectURL(url), 0)
-}
-
 function openAdminPersonnelDrawer(row?: AdminPersonnelRow) {
+  adminPersonnelSelectedRow.value = row ?? null
   if (row?.source) {
     editStaffAccount(row.source)
+  } else if (row) {
+    staffAccountEditUserId.value = null
+    staffAccountUsername.value = row.username
+    staffAccountPassword.value = ''
+    staffAccountDisplayName.value = row.displayName
+    staffAccountDeptId.value = null
+    staffAccountPostId.value = null
+    staffAccountResult.value = ''
   } else {
     resetStaffAccountForm()
   }
@@ -5259,18 +5311,172 @@ function selectAdminFileOrder(orderId: number) {
   }
 }
 
-function showAdminRole(level: AdminPersonnelLevel) {
-  selectedAdminRoleLevel.value = level
+function resetAdminOrderFilters() {
+  adminOrderKeyword.value = ''
+  adminOrderStatusFilter.value = 'ALL'
+  adminOrderProductFilter.value = 'ALL'
+  adminOrderClinicFilter.value = 'ALL'
+  adminOrderDoctorFilter.value = 'ALL'
+  adminOrderQuickFilter.value = 'ALL'
+  adminOrderPage.value = 1
 }
 
-function openAdminRoleLevel(level: AdminPersonnelLevel) {
-  selectedAdminRoleLevel.value = level
-  selectAdminPageTab({ label: '角色权限', routePath: '/admin/staff/roles' })
+function selectAdminOrderPage(page: number) {
+  adminOrderPage.value = Math.min(Math.max(page, 1), adminOrderPageCount.value)
 }
 
-function openAdminRoleFromPersonnel(row: AdminPersonnelRow) {
-  selectedAdminRoleLevel.value = row.level
-  selectAdminPageTab({ label: '角色权限', routePath: '/admin/staff/roles' })
+function adminOrderExceptionLabel(order: InternalOrderItem) {
+  if (order.reject_reason?.trim()) return order.reject_reason.trim()
+  if (['CS_REJECTED', 'PRODUCTION_REJECTED', 'REWORKING'].includes(order.internal_status)) {
+    return statusLabel(order.internal_status)
+  }
+  return '无异常'
+}
+
+function adminOrderExceptionClass(order: InternalOrderItem) {
+  return adminOrderExceptionLabel(order) === '无异常' ? 'is-clear' : 'is-warning'
+}
+
+function adminOrderStatusClass(status: string) {
+  if (['COMPLETED', 'SHIPPED', 'RECEIVED'].includes(status)) return 'is-success'
+  if (['CS_REJECTED', 'PRODUCTION_REJECTED', 'REWORKING'].includes(status)) return 'is-danger'
+  if (['PRODUCING', 'IN_PRODUCTION', 'PROCESS_INSTANCE_CREATED'].includes(status)) return 'is-progress'
+  return 'is-pending'
+}
+
+function adminOrderMatchesQuickFilter(order: InternalOrderItem, filter: string) {
+  if (filter === 'ALL') return true
+  if (filter === 'NEW_REVIEW') return ['DRAFT', 'PENDING_CS_REVIEW', 'PENDING_PRODUCTION_REVIEW'].includes(order.internal_status)
+  if (filter === 'DESIGN_PRODUCTION') return ['PROCESS_INSTANCE_CREATED', 'PRODUCING', 'IN_PRODUCTION'].includes(order.internal_status)
+  if (filter === 'DOCTOR_REVIEW') return [order.internal_status, order.external_status].some((status) =>
+    ['PENDING_DOCTOR_CONFIRM', 'DESIGN_REVIEW', 'PENDING_CONFIRMATION'].includes(status))
+  if (filter === 'QC_DISPATCH') return ['COMPLETED', 'SHIPPED', 'DELIVERED'].includes(order.internal_status)
+  if (filter === 'EXCEPTION') return adminOrderExceptionLabel(order) !== '无异常'
+  return true
+}
+
+function adminOrderFormValue(order: InternalOrderItem, keys: string[]) {
+  for (const key of keys) {
+    const value = order.form_data?.[key]
+    if (Array.isArray(value) && value.length) return value.map(String).join('、')
+    if (value !== null && value !== undefined && String(value).trim()) return String(value).trim()
+  }
+  return ''
+}
+
+function adminOrderReviewFlags(order: InternalOrderItem) {
+  const truthy = (keys: string[]) => keys.some((key) => {
+    const value = order.form_data?.[key]
+    return value === true || value === 1 || ['true', '1', 'yes', 'required', '需要', '是'].includes(String(value).toLowerCase())
+  })
+  return [
+    truthy(['design_check', 'design_review', 'need_design_check']) ? 'D' : '',
+    truthy(['milling_check', 'need_milling_check']) ? 'M' : '',
+    truthy(['glaze_check', 'need_glaze_check', 'photo_check']) ? 'G' : ''
+  ].filter(Boolean)
+}
+
+function adminOrderLifecycle(order: InternalOrderItem) {
+  const status = order.internal_status
+  if (['SHIPPED', 'DELIVERED'].includes(status)) return { step: 6, label: statusLabel(status) }
+  if (status === 'COMPLETED') return { step: 5, label: '质检完成' }
+  if (['PRODUCING', 'IN_PRODUCTION'].includes(status)) return { step: 4, label: '工序生产' }
+  if (status === 'PROCESS_INSTANCE_CREATED') return { step: 4, label: '已生成工序' }
+  if (['PENDING_PRODUCTION_REVIEW', 'PRODUCTION_REJECTED'].includes(status)) return { step: 3, label: statusLabel(status) }
+  if (['PENDING_CS_REVIEW', 'CS_REJECTED'].includes(status)) return { step: 2, label: statusLabel(status) }
+  return { step: 1, label: statusLabel(status) }
+}
+
+function adminOrderProcess(order: InternalOrderItem) {
+  return adminOrderProcessMap.value[order.order_id] ?? null
+}
+
+function adminOrderCurrentNode(order: InternalOrderItem) {
+  const nodes = adminOrderProcess(order)?.nodes ?? []
+  return nodes.find((node) => node.node_status === 'IN_PROGRESS')
+    ?? nodes.find((node) => node.node_status === 'PENDING')
+    ?? [...nodes].reverse().find((node) => ['COMPLETED', 'SKIPPED'].includes(node.node_status))
+    ?? null
+}
+
+function adminOrderProductionStage(order: InternalOrderItem) {
+  const node = adminOrderCurrentNode(order)
+  return node?.stage_name || node?.process_name || adminOrderLifecycle(order).label
+}
+
+function adminOrderTechnician(order: InternalOrderItem) {
+  const node = adminOrderCurrentNode(order)
+  return node?.assigned_user_id ? `人员 ${node.assigned_user_id}` : '暂未分配'
+}
+
+function adminOrderDueDate(order: InternalOrderItem) {
+  const nodes = adminOrderProcess(order)?.nodes ?? []
+  const activeDeadline = adminOrderCurrentNode(order)?.deadline_at
+  const deadline = activeDeadline || nodes.find((node) => node.deadline_at && !['COMPLETED', 'SKIPPED'].includes(node.node_status))?.deadline_at
+  return deadline ? compactDateTime(deadline).split(' ')[0] : '暂未提供'
+}
+
+async function loadAdminOrderProcessSummaries(orders: InternalOrderItem[]) {
+  const missingOrders = orders.filter((order) => !(order.order_id in adminOrderProcessMap.value))
+  if (!missingOrders.length) return
+  const results = await Promise.allSettled(missingOrders.map((order) =>
+    apiFetch<ProcessInstanceDetail>(`/orders/${order.order_id}/process-instance`)))
+  const next = { ...adminOrderProcessMap.value }
+  results.forEach((result, index) => {
+    next[missingOrders[index].order_id] = result.status === 'fulfilled' ? result.value.data : null
+  })
+  adminOrderProcessMap.value = next
+}
+
+function adminOrderProcessProgress(instance: ProcessInstanceDetail | null) {
+  if (!instance?.nodes.length) return 0
+  const completed = instance.nodes.filter((node) => ['COMPLETED', 'SKIPPED'].includes(node.node_status)).length
+  return Math.round((completed / instance.nodes.length) * 100)
+}
+
+async function openAdminOrderDrawer(order: InternalOrderItem) {
+  selectedInternalOrder.value = order
+  adminOrderDrawerVisible.value = true
+  adminOrderDetailLoading.value = true
+  adminOrderDetailError.value = ''
+  adminOrderMessages.value = []
+  adminOrderBill.value = null
+  adminOrderLogistics.value = null
+  adminOrderProcessInstance.value = null
+  csOrderFiles.value = []
+  csDesignDrafts.value = []
+  csDesignDraftPreviewUrls.value = {}
+  try {
+    const [filesResult, draftsResult, messagesResult, billResult, logisticsResult, processResult] = await Promise.allSettled([
+      apiFetch<OrderFileItem[]>(`/orders/${order.order_id}/files`),
+      apiFetch<DesignDraftItem[]>(`/orders/${order.order_id}/design-drafts`),
+      apiFetch<MessageItem[]>(`/orders/${order.order_id}/messages`),
+      apiFetch<BillInfo>(`/orders/${order.order_id}/bill`),
+      apiFetch<LogisticsInfo>(`/orders/${order.order_id}/logistics`),
+      apiFetch<ProcessInstanceDetail>(`/orders/${order.order_id}/process-instance`)
+    ] as const)
+    if (filesResult.status === 'fulfilled') csOrderFiles.value = filesResult.value.data
+    if (draftsResult.status === 'fulfilled') csDesignDrafts.value = draftsResult.value.data
+    if (messagesResult.status === 'fulfilled') adminOrderMessages.value = messagesResult.value.data
+    if (billResult.status === 'fulfilled') adminOrderBill.value = billResult.value.data
+    if (logisticsResult.status === 'fulfilled') adminOrderLogistics.value = logisticsResult.value.data
+    if (processResult.status === 'fulfilled') {
+      adminOrderProcessInstance.value = processResult.value.data
+      adminOrderProcessMap.value = { ...adminOrderProcessMap.value, [order.order_id]: processResult.value.data }
+    }
+    const requiredResults = [filesResult, draftsResult, messagesResult, billResult, logisticsResult]
+    if (requiredResults.some((result) => result.status === 'rejected')) {
+      adminOrderDetailError.value = '部分关联信息暂时无法读取，其余真实数据已正常展示。'
+    }
+  } finally {
+    adminOrderDetailLoading.value = false
+  }
+}
+
+function openSelectedAdminOrderFiles() {
+  adminOrderDrawerVisible.value = false
+  activeNavId.value = 'admin-orders'
+  navigateToRoute('/admin/files')
 }
 
 async function openAdminCommunicationMessage(message: MessageItem) {
@@ -6885,18 +7091,20 @@ async function loadInternalOrders() {
   internalOrdersLoading.value = true
   internalOrderError.value = ''
   try {
+    const isAdminRequest = portalTone.value === 'admin'
     const params = new URLSearchParams({
       page: '1',
-      size: '20'
+      size: isAdminRequest ? '100' : '20'
     })
-    if (internalOrderStatus.value !== 'ALL') {
+    if (!isAdminRequest && internalOrderStatus.value !== 'ALL') {
       params.set('internal_status', internalOrderStatus.value)
     }
-    if (internalOrderKeyword.value.trim()) {
+    if (!isAdminRequest && internalOrderKeyword.value.trim()) {
       params.set('keyword', internalOrderKeyword.value.trim())
     }
     const payload = await apiFetch<InternalOrderListResponse>(`/orders?${params.toString()}`)
     internalOrders.value = payload.data.items
+    internalOrdersTotal.value = payload.data.total
     const selectedStillVisible = selectedInternalOrder.value
       ? payload.data.items.some((item) => item.order_id === selectedInternalOrder.value?.order_id)
       : false
@@ -6908,6 +7116,7 @@ async function loadInternalOrders() {
       selectInternalOrder(payload.data.items[0])
     }
   } catch (error) {
+    internalOrdersTotal.value = 0
     internalOrderError.value = error instanceof Error ? error.message : '内部订单加载失败'
   } finally {
     internalOrdersLoading.value = false
@@ -8432,6 +8641,7 @@ async function loadStaffWorkload() {
       staffAccountOptions.value = options.data
       staffAccountDeptId.value ??= options.data.departments.find((item) => item.name === '生产中心')?.id ?? null
       staffAccountPostId.value ??= options.data.posts.find((item) => item.name === '生产员工')?.id ?? null
+      adminOrganizationSelectedDepartmentId.value ??= options.data.departments[0]?.id ?? null
     }
   } catch {
     staffWorkloadItems.value = []
@@ -8463,6 +8673,10 @@ function resetStaffAccountForm() {
 }
 
 async function saveStaffAccount() {
+  if (!adminPersonnelCanSave.value) {
+    staffAccountResult.value = '当前人员级别或账号不具备可用的保存接口。'
+    return
+  }
   if (!staffAccountDisplayName.value.trim() || !staffAccountDeptId.value || !staffAccountPostId.value) {
     staffAccountResult.value = '请填写姓名并选择部门和岗位。'
     return
@@ -8498,6 +8712,7 @@ async function saveStaffAccount() {
     const successMessage = editing ? '人员资料已保存' : `人员账号已创建：${(payload as { data: { username: string } }).data.username}`
     await loadStaffWorkload()
     adminPersonnelDrawerVisible.value = false
+    adminPersonnelSelectedRow.value = null
     resetStaffAccountForm()
     adminPersonnelToast.value = successMessage
     window.setTimeout(() => {
@@ -9669,11 +9884,28 @@ watch(productionBoardKanbanDate, () => {
 watch([
   staffWorkloadKeyword,
   adminPersonnelStatusFilter,
-  adminPersonnelDepartmentFilter,
+  adminPersonnelScopeFilter,
   adminPersonnelLevelFilter
 ], () => {
   adminPersonnelPage.value = 1
 })
+
+watch([
+  adminOrderKeyword,
+  adminOrderStatusFilter,
+  adminOrderProductFilter,
+  adminOrderClinicFilter,
+  adminOrderDoctorFilter,
+  adminOrderQuickFilter
+], () => {
+  adminOrderPage.value = 1
+})
+
+watch(() => adminOrderPagedRows.value.map((order) => order.order_id).join(','), () => {
+  if (portalTone.value === 'admin' && isInternalOrdersRoute.value) {
+    void loadAdminOrderProcessSummaries(adminOrderPagedRows.value)
+  }
+}, { immediate: true })
 
 onBeforeUnmount(() => {
   closeNotificationSocket()
@@ -9693,6 +9925,7 @@ onBeforeUnmount(() => {
       { 'admin-reference-mode': portalTone === 'admin' && activeRoute !== '/dashboard' },
       { 'admin-reference-dashboard-menu': portalTone === 'admin' && activeRoute === '/dashboard' },
       { 'admin-personnel-mode': isAdminPersonnelRoute },
+      { 'admin-order-top-mode': isAdminOrderSection },
       { 'doctor-portal-clone': isDoctorPortalClone },
       { 'doctor-reference-dashboard-menu': portalTone === 'doctor' && activeRoute === '/dashboard' },
       { 'doctor-order-create-mode': isDoctorOrderCreateMode },
@@ -9732,15 +9965,15 @@ onBeforeUnmount(() => {
               <input
                 v-model="adminGlobalSearch"
                 type="search"
-                :placeholder="isAdminPersonnelRoute ? '搜索订单、客户、员工' : '搜索订单、客户、人员或菜单'"
+                :placeholder="isAdminPersonnelRoute || isAdminOrderSection ? '搜索订单、客户、员工' : '搜索订单、客户、人员或菜单'"
                 aria-label="管理端全局搜索"
                 @keyup.enter="runAdminGlobalSearch"
               >
-              <span v-if="isAdminPersonnelRoute" class="admin-search-keycap" aria-hidden="true">⌘ K</span>
+              <span v-if="isAdminPersonnelRoute || isAdminOrderSection" class="admin-search-keycap" aria-hidden="true">⌘ K</span>
             </form>
             <el-tooltip content="可在当前页面查看说明和操作提示" placement="bottom">
               <button class="admin-topbar-icon" type="button" aria-label="帮助" @click="adminHelpDrawerVisible = true">
-                <span v-if="isAdminPersonnelRoute" class="apm-inline-icon" aria-hidden="true" v-html="adminPersonnelIconSvg('help')" />
+                <span v-if="isAdminPersonnelRoute || isAdminOrderSection" class="apm-inline-icon" aria-hidden="true" v-html="adminPersonnelIconSvg('help')" />
                 <template v-else>?</template>
               </button>
             </el-tooltip>
@@ -9893,7 +10126,7 @@ onBeforeUnmount(() => {
           <template v-if="portalTone === 'admin'">
             <div class="admin-page-head">
               <div class="admin-page-head-copy">
-                <span>{{ routeChrome.eyebrow }}</span>
+                <span>{{ isAdminOrderSection ? '订单协同' : routeChrome.eyebrow }}</span>
                 <h1>{{ routeChrome.title }}</h1>
                 <p>{{ routeChrome.description }}</p>
               </div>
@@ -9913,6 +10146,15 @@ onBeforeUnmount(() => {
                   @click="openAdminPersonnelDrawer()"
                 >
                   新增人员
+                </el-button>
+                <el-button
+                  v-if="isAdminOrderSection"
+                  plain
+                  :loading="internalOrdersLoading"
+                  data-testid="admin-orders-refresh"
+                  @click="loadInternalOrders"
+                >
+                  {{ internalOrdersLoading ? '刷新中…' : '刷新数据' }}
                 </el-button>
               </div>
             </div>
@@ -10083,98 +10325,137 @@ onBeforeUnmount(() => {
           </div>
         </section>
 
-        <section v-else-if="isAdminFilesRoute" class="panel route-panel admin-file-page" data-testid="admin-files-page">
-          <div class="admin-metric-grid">
-            <article class="admin-metric-card">
-              <span class="admin-metric-icon" aria-hidden="true" v-html="businessIconSvg('order')" />
-              <div><small>当前订单</small><strong>{{ selectedInternalOrder?.order_no ?? '请选择' }}</strong></div>
-            </article>
-            <article class="admin-metric-card">
-              <span class="admin-metric-icon" aria-hidden="true" v-html="businessIconSvg('cloud')" />
-              <div><small>订单资料</small><strong>{{ csOrderFiles.length }}</strong></div>
-            </article>
-            <article class="admin-metric-card">
-              <span class="admin-metric-icon" aria-hidden="true" v-html="businessIconSvg('design')" />
-              <div><small>设计稿版本</small><strong>{{ csDesignDrafts.length }}</strong></div>
-            </article>
-            <article class="admin-metric-card">
-              <span class="admin-metric-icon" aria-hidden="true" v-html="businessIconSvg('customer')" />
-              <div><small>所属客户</small><strong>{{ selectedInternalOrder?.clinic_name ?? '请选择订单' }}</strong></div>
-            </article>
-          </div>
+        <section
+          v-else-if="isInternalOrdersRoute && portalTone === 'admin'"
+          class="panel route-panel admin-order-page"
+          data-testid="admin-order-page"
+        >
+          <section class="aor-workspace">
+            <section class="aor-filter-panel aor-compact-filter" aria-label="筛选订单">
+              <div class="aor-filter-main">
+                <label class="aor-filter-search">
+                  <i class="admin-menu-icon" aria-hidden="true" v-html="businessIconSvg('search')" />
+                  <input v-model="adminOrderKeyword" type="search" placeholder="搜索订单号、客户、患者或产品">
+                </label>
+                <select v-model="adminOrderStatusFilter" aria-label="订单状态"><option value="ALL">订单状态</option><option v-for="status in adminOrderStatusOptions" :key="status" :value="status">{{ statusLabel(status) }}</option></select>
+                <select v-model="adminOrderDoctorFilter" aria-label="医生"><option value="ALL">医生</option><option v-for="doctorId in adminOrderDoctorOptions" :key="doctorId" :value="String(doctorId)">医生 {{ doctorId }}</option></select>
+                <select v-model="adminOrderClinicFilter" aria-label="客户"><option value="ALL">客户</option><option v-for="clinic in adminOrderClinicOptions" :key="clinic.id" :value="String(clinic.id)">{{ clinic.name }}</option></select>
+                <select v-model="adminOrderProductFilter" aria-label="产品"><option value="ALL">产品类型</option><option v-for="product in adminOrderProductOptions" :key="product" :value="product">{{ productTypeLabel(product) }}</option></select>
+                <button class="aor-reset-button" type="button" @click="resetAdminOrderFilters">重置</button>
+                <span class="aor-filter-meta">显示 <strong>{{ adminOrderRows.length }}</strong> 单</span>
+              </div>
+              <div class="aor-filter-secondary">
+                <span class="aor-quick-label">订单范围</span>
+                <div class="aor-quick-row">
+                  <button v-for="option in adminOrderQuickOptions" :key="option.key" class="aor-quick" type="button" :class="{ active: adminOrderQuickFilter === option.key, 'is-exception': option.key === 'EXCEPTION' && option.count > 0 }" @click="adminOrderQuickFilter = option.key">
+                    <i />{{ option.label }} <b>{{ option.count }}</b>
+                  </button>
+                </div>
+                <span class="aor-date-note">创建日期、交期筛选：接口暂未提供</span>
+              </div>
+            </section>
 
-          <div class="admin-data-card">
-            <div class="admin-filter-bar">
-              <el-input
-                v-model="internalOrderKeyword"
-                clearable
-                placeholder="搜索订单号或诊所"
-                @keyup.enter="loadInternalOrders"
-              />
-              <el-select
-                :model-value="selectedInternalOrder?.order_id"
-                filterable
-                placeholder="选择订单查看资料"
-                @change="selectAdminFileOrder"
-              >
-                <el-option
-                  v-for="order in internalOrders"
+            <div v-if="internalOrderError" class="aor-state is-error" role="alert">{{ internalOrderError }}</div>
+            <div v-else-if="internalOrdersLoading" class="aor-state">正在加载真实订单数据…</div>
+            <div v-else-if="adminOrderRows.length === 0" class="aor-state">
+              <strong>没有符合条件的订单</strong><span>调整筛选条件或刷新后重试。</span>
+            </div>
+            <template v-else>
+              <div class="aor-table-wrap">
+                <div class="aor-table-scroll">
+                  <table aria-label="订单列表">
+                    <colgroup><col class="aor-col-check"><col class="aor-col-order"><col class="aor-col-customer"><col class="aor-col-product"><col class="aor-col-doctor"><col class="aor-col-stage"><col class="aor-col-due"><col class="aor-col-review"><col class="aor-col-updated"><col class="aor-col-action"></colgroup>
+                    <thead><tr><th><input type="checkbox" disabled aria-label="批量操作暂未开放" title="批量操作暂未开放"></th><th>订单编号 ↓</th><th>客户 / 患者</th><th>产品 / 牙位</th><th>医生状态</th><th>生产阶段</th><th>交期</th><th>审核标记</th><th>更新时间</th><th>操作</th></tr></thead>
+                    <tbody>
+                      <tr v-for="order in adminOrderPagedRows" :key="order.order_id" tabindex="0" @click="openAdminOrderDrawer(order)" @keydown.enter="openAdminOrderDrawer(order)" @keydown.space.prevent="openAdminOrderDrawer(order)">
+                        <td><input type="checkbox" disabled aria-label="批量操作暂未开放" title="批量操作暂未开放" @click.stop></td>
+                        <td><span class="aor-cell-main aor-order-no">{{ order.order_no }}</span><span class="aor-cell-sub">编号 {{ order.order_id }}</span></td>
+                        <td><span class="aor-code-chip">{{ order.clinic_id }}</span><span class="aor-cell-sub">{{ order.patient_id || '患者未关联' }}</span></td>
+                        <td><span class="aor-cell-main">{{ productTypeLabel(order.product_type) }}</span><span class="aor-cell-sub">{{ adminOrderFormValue(order, ['tooth_position', 'tooth', 'tooth_no', 'teeth']) || '牙位暂未提供' }}</span></td>
+                        <td><em class="aor-badge" :class="adminOrderStatusClass(order.external_status)">{{ statusLabel(order.external_status) }}</em><span v-if="adminOrderExceptionLabel(order) !== '无异常'" class="aor-cell-sub is-warning">{{ adminOrderExceptionLabel(order) }}</span></td>
+                        <td><span class="aor-cell-main">{{ adminOrderProductionStage(order) }}</span><span class="aor-stages" :aria-label="`订单流转第 ${adminOrderLifecycle(order).step} 阶段`"><i v-for="step in 6" :key="step" :class="{ done: step <= adminOrderLifecycle(order).step, active: step === Math.max(1, adminOrderLifecycle(order).step) }" /></span></td>
+                        <td :class="{ 'aor-muted': adminOrderDueDate(order) === '暂未提供' }">{{ adminOrderDueDate(order) }}</td>
+                        <td><span v-if="adminOrderReviewFlags(order).length" class="aor-flags"><i v-for="flag in adminOrderReviewFlags(order)" :key="flag">{{ flag }}</i></span><span v-else class="aor-muted">无</span></td>
+                        <td class="aor-muted">暂未提供</td>
+                        <td><button class="aor-view-button" type="button" @click.stop="openAdminOrderDrawer(order)">查看</button></td>
+                      </tr>
+                    </tbody>
+                  </table>
+                </div>
+                <footer class="aor-table-footer">
+                  <span>显示 {{ adminOrderRangeStart }}–{{ adminOrderRangeEnd }}，共 {{ adminOrderRows.length }} 单</span>
+                  <div><button type="button" :disabled="adminOrderCurrentPage <= 1" @click="selectAdminOrderPage(adminOrderCurrentPage - 1)">上一页</button><strong>{{ adminOrderCurrentPage }}</strong><button type="button" :disabled="adminOrderCurrentPage >= adminOrderPageCount" @click="selectAdminOrderPage(adminOrderCurrentPage + 1)">下一页</button></div>
+                </footer>
+              </div>
+            </template>
+          </section>
+        </section>
+
+        <section v-else-if="isAdminFilesRoute" class="panel route-panel admin-order-file-page" data-testid="admin-files-page">
+          <div class="aom-file-layout">
+            <aside class="aom-file-orders">
+              <header><div><strong>订单资料</strong><small>按真实订单聚合文件</small></div><span>{{ adminFileOrderRows.length }} 单</span></header>
+              <label class="aom-search">
+                <span class="admin-menu-icon" aria-hidden="true" v-html="businessIconSvg('search')" />
+                <input v-model="adminOrderKeyword" type="search" placeholder="搜索订单号、客户或产品">
+              </label>
+              <div class="aom-file-order-list">
+                <button
+                  v-for="order in adminFileOrderRows"
                   :key="order.order_id"
-                  :label="`${order.order_no} · ${order.clinic_name || '诊所未设置'}`"
-                  :value="order.order_id"
-                />
-              </el-select>
-              <el-button type="primary" :loading="internalOrdersLoading" @click="loadInternalOrders">查询订单</el-button>
-              <span class="admin-filter-meta">预览和下载链接仅在当前登录有效期内使用</span>
-            </div>
+                  type="button"
+                  :class="{ active: selectedInternalOrder?.order_id === order.order_id }"
+                  @click="selectAdminFileOrder(order.order_id)"
+                >
+                  <strong>{{ order.order_no }}</strong>
+                  <span>{{ order.clinic_name || '诊所未设置' }}</span>
+                  <small>{{ productTypeLabel(order.product_type) }} · {{ statusLabel(order.internal_status) }}</small>
+                </button>
+                <div v-if="adminFileOrderRows.length === 0" class="aom-state">没有符合条件的订单</div>
+              </div>
+            </aside>
 
-            <el-alert v-if="internalOrderError" :title="internalOrderError" type="error" show-icon :closable="false" />
-            <div v-if="csOrderFilesLoading" class="admin-loading-state">正在加载订单资料…</div>
-            <div v-else-if="!selectedInternalOrder" class="admin-empty-state">请选择订单查看文件资料</div>
-            <div v-else-if="csOrderFiles.length === 0 && csDesignDrafts.length === 0" class="admin-empty-state">当前订单暂无可查看的资料</div>
-            <div v-else class="admin-file-grid">
-              <article v-for="file in csOrderFiles" :key="`file-${file.file_id}`" class="admin-file-card">
-                <span class="admin-file-icon" aria-hidden="true" v-html="businessIconSvg('cloud')" />
-                <div class="admin-file-copy">
-                  <strong>{{ file.original_filename }}</strong>
-                  <small>{{ file.content_type || '文件类型未标注' }} · {{ formatOrderFileSize(file.file_size) }}</small>
-                  <div class="admin-file-meta">{{ compactDateTime(file.created_at) }} · {{ statusLabel(file.upload_status) }}</div>
+            <section class="aom-file-content">
+              <header class="aom-file-content-head">
+                <div>
+                  <strong>{{ selectedInternalOrder?.order_no || '请选择订单' }}</strong>
+                  <span v-if="selectedInternalOrder">{{ selectedInternalOrder.clinic_name }} · {{ productTypeLabel(selectedInternalOrder.product_type) }}</span>
+                  <span v-else>从左侧选择订单后查看真实资料</span>
                 </div>
-                <div class="admin-file-actions">
-                  <el-button size="small" plain @click="openOrderFile(file, 'preview', 'cs')">预览</el-button>
-                  <el-button size="small" @click="openOrderFile(file, 'download', 'cs')">下载</el-button>
-                </div>
-              </article>
-              <article v-for="draft in csDesignDrafts" :key="`draft-${draft.draft_id}`" class="admin-file-card">
-                <span class="admin-file-icon" aria-hidden="true" v-html="businessIconSvg('design')" />
-                <div class="admin-file-copy">
-                  <strong>设计稿 V{{ draft.version }}</strong>
-                  <small>{{ statusLabel(draft.status) }} · {{ designDraftFileIds(draft).length }} 个文件</small>
-                  <div class="admin-file-meta">设计稿版本记录</div>
-                </div>
-                <div class="admin-file-actions">
-                  <el-button
-                    size="small"
-                    plain
-                    :disabled="designDraftFileIds(draft).length === 0"
-                    :loading="csReviewActionLoading"
-                    @click="loadCsDesignDraftPreviewUrls(draft)"
-                  >
-                    获取预览
-                  </el-button>
-                  <a
-                    v-for="fileId in designDraftFileIds(draft)"
-                    v-show="csDesignDraftPreviewUrls[designDraftPreviewKey(draft, fileId)]"
-                    :key="fileId"
-                    :href="csDesignDraftPreviewUrls[designDraftPreviewKey(draft, fileId)]"
-                    target="_blank"
-                    rel="noreferrer"
-                  >
-                    预览设计文件
-                  </a>
-                </div>
-              </article>
-            </div>
+                <div><span>订单资料 {{ csOrderFiles.length }}</span><span>设计稿 {{ csDesignDrafts.length }}</span></div>
+              </header>
+              <p class="aom-file-security-note">预览和下载继续使用登录权限校验与短时效授权地址。</p>
+              <div v-if="internalOrderError" class="aom-state is-error" role="alert">{{ internalOrderError }}</div>
+              <div v-else-if="csOrderFilesLoading" class="aom-state">正在加载订单资料…</div>
+              <div v-else-if="!selectedInternalOrder" class="aom-state">请选择订单查看文件资料</div>
+              <div v-else-if="csOrderFiles.length === 0 && csDesignDrafts.length === 0" class="aom-state">当前订单暂无可查看的资料</div>
+              <div v-else class="aom-file-groups">
+                <section>
+                  <div class="aom-file-group-title"><strong>订单附件</strong><span>{{ csOrderFiles.length }} 个</span></div>
+                  <div class="admin-file-grid">
+                    <article v-for="file in csOrderFiles" :key="`file-${file.file_id}`" class="admin-file-card">
+                      <span class="admin-file-icon" aria-hidden="true" v-html="businessIconSvg('cloud')" />
+                      <div class="admin-file-copy"><strong>{{ file.original_filename }}</strong><small>{{ file.content_type || '文件类型未标注' }} · {{ formatOrderFileSize(file.file_size) }}</small><div class="admin-file-meta">{{ compactDateTime(file.created_at) }} · {{ statusLabel(file.upload_status) }}</div></div>
+                      <div class="admin-file-actions"><el-button size="small" plain @click="openOrderFile(file, 'preview', 'cs')">预览</el-button><el-button size="small" @click="openOrderFile(file, 'download', 'cs')">下载</el-button></div>
+                    </article>
+                  </div>
+                </section>
+                <section>
+                  <div class="aom-file-group-title"><strong>设计稿版本</strong><span>{{ csDesignDrafts.length }} 个</span></div>
+                  <div v-if="csDesignDrafts.length" class="admin-file-grid">
+                    <article v-for="draft in csDesignDrafts" :key="`draft-${draft.draft_id}`" class="admin-file-card">
+                      <span class="admin-file-icon" aria-hidden="true" v-html="businessIconSvg('design')" />
+                      <div class="admin-file-copy"><strong>设计稿 V{{ draft.version }}</strong><small>{{ statusLabel(draft.status) }} · {{ designDraftFileIds(draft).length }} 个文件</small><div class="admin-file-meta">真实设计稿版本记录</div></div>
+                      <div class="admin-file-actions">
+                        <el-button size="small" plain :disabled="designDraftFileIds(draft).length === 0" :loading="csReviewActionLoading" @click="loadCsDesignDraftPreviewUrls(draft)">获取预览</el-button>
+                        <a v-for="fileId in designDraftFileIds(draft)" v-show="csDesignDraftPreviewUrls[designDraftPreviewKey(draft, fileId)]" :key="fileId" :href="csDesignDraftPreviewUrls[designDraftPreviewKey(draft, fileId)]" target="_blank" rel="noreferrer">预览设计文件</a>
+                      </div>
+                    </article>
+                  </div>
+                  <div v-else class="aom-state">当前订单暂无设计稿版本</div>
+                </section>
+              </div>
+            </section>
           </div>
         </section>
 
@@ -11766,12 +12047,12 @@ onBeforeUnmount(() => {
             <div>
               <p class="apm-eyebrow">人员与职责</p>
               <h1>人员管理</h1>
-              <p>维护员工资料、岗位和职责，让每位负责人只管理自己团队中的人员。</p>
+              <p>查找公司人员，维护账号、部门岗位和可管理范围。</p>
             </div>
             <div class="apm-page-actions">
-              <button class="apm-button" type="button" @click="exportAdminPersonnel">
-                <span class="apm-inline-icon" aria-hidden="true" v-html="adminPersonnelIconSvg('download')" />
-                导出人员
+              <button class="apm-button" type="button" data-testid="admin-organization-open" @click="openAdminOrganizationDialog">
+                <span class="apm-inline-icon" aria-hidden="true" v-html="adminPersonnelIconSvg('organization')" />
+                部门与岗位
               </button>
               <button
                 v-if="canManageStaffAccounts"
@@ -11786,90 +12067,76 @@ onBeforeUnmount(() => {
             </div>
           </header>
 
-          <section class="apm-metrics" aria-label="人员统计">
-            <article class="apm-metric">
-              <span class="apm-metric-icon" aria-hidden="true" v-html="adminPersonnelIconSvg('users')" />
-              <div class="apm-metric-copy"><small>在职人员</small><strong>{{ adminPersonnelTotal }}</strong><em>含管理员及全部员工</em></div>
-            </article>
-            <article class="apm-metric">
-              <span class="apm-metric-icon" aria-hidden="true" v-html="adminPersonnelIconSvg('check')" />
-              <div class="apm-metric-copy"><small>正常账号</small><strong>{{ adminPersonnelActiveCount }}</strong><em>可正常登录并处理工作</em></div>
-            </article>
-            <article class="apm-metric">
-              <span class="apm-metric-icon" aria-hidden="true" v-html="adminPersonnelIconSvg('lock')" />
-              <div class="apm-metric-copy"><small>待处理账号</small><strong>{{ adminPersonnelAttentionCount }}</strong><em>{{ adminPersonnelAttentionCount ? '需要管理员查看' : '目前没有需处理账号' }}</em></div>
-            </article>
-            <article class="apm-metric">
-              <span class="apm-metric-icon" aria-hidden="true" v-html="adminPersonnelIconSvg('shield')" />
-              <div class="apm-metric-copy"><small>已设部门</small><strong>{{ adminPersonnelAssignedDepartmentCount }}</strong><em>用于人员归属和岗位安排</em></div>
-            </article>
-          </section>
-
           <section class="apm-workspace">
-            <nav class="apm-tabs-row" aria-label="人员管理内容">
-              <div class="apm-tabs" role="tablist">
-                <button
-                  v-for="tab in adminPageTabs"
-                  :key="tab.routePath"
-                  class="apm-tab"
-                  :class="{ active: activeRoute === tab.routePath }"
-                  type="button"
-                  role="tab"
-                  :aria-selected="activeRoute === tab.routePath"
-                  @click="selectAdminPageTab(tab)"
-                >
-                  {{ tab.label }}
+            <aside class="apm-scope-panel" aria-label="人员范围">
+              <div class="apm-scope-title"><strong>人员范围</strong><span>共 {{ adminPersonnelTotal }} 人</span></div>
+              <div class="apm-scope-list">
+                <button type="button" :class="{ active: adminPersonnelScopeFilter === 'ALL' }" @click="selectAdminPersonnelScope('ALL')">
+                  <span class="apm-inline-icon" aria-hidden="true" v-html="adminPersonnelIconSvg('users')" />
+                  全部人员<em>{{ adminPersonnelTotal }}</em>
+                </button>
+                <button type="button" :class="{ active: adminPersonnelScopeFilter === 'MANAGEMENT' }" @click="selectAdminPersonnelScope('MANAGEMENT')">
+                  <span class="apm-inline-icon" aria-hidden="true" v-html="adminPersonnelIconSvg('shield')" />
+                  管理人员<em>{{ adminPersonnelManagementCount }}</em>
+                </button>
+                <button type="button" :class="{ active: adminPersonnelScopeFilter === 'STAFF' }" @click="selectAdminPersonnelScope('STAFF')">
+                  <span class="apm-inline-icon" aria-hidden="true" v-html="adminPersonnelIconSvg('users')" />
+                  普通员工<em>{{ adminPersonnelStaffCount }}</em>
                 </button>
               </div>
-            </nav>
-
-            <template v-if="activeRoute === '/admin/staff'">
-              <div class="apm-permission-band">
-                <div class="apm-band-copy"><strong>人员管理关系</strong><small>各级负责人管理自己的团队</small></div>
-                <div class="apm-role-chain" aria-label="人员管理关系">
-                  <template v-for="(rule, index) in adminRoleRules" :key="rule.level">
-                    <button
-                      class="apm-role-node"
-                      :class="{ 'is-admin': rule.level === '管理员' }"
-                      type="button"
-                      @click="openAdminRoleLevel(rule.level)"
-                    ><i aria-hidden="true" />{{ rule.level }}</button>
-                    <span v-if="index < adminRoleRules.length - 1" class="apm-chain-arrow" aria-hidden="true">→</span>
-                  </template>
-                </div>
+              <div class="apm-scope-divider" />
+              <p class="apm-scope-caption">按部门查看</p>
+              <div class="apm-scope-list">
+                <button
+                  v-for="department in adminOrganizationRows"
+                  :key="department.id"
+                  type="button"
+                  :class="{ active: adminPersonnelScopeFilter === `DEPARTMENT:${department.name}` }"
+                  @click="selectAdminPersonnelScope(`DEPARTMENT:${department.name}`)"
+                >
+                  <span class="apm-inline-icon" aria-hidden="true" v-html="adminPersonnelIconSvg('organization')" />
+                  {{ department.name }}<em>{{ department.staffCount }}</em>
+                </button>
               </div>
+              <div class="apm-scope-note"><strong>当前管理范围</strong>可查看全部内部人员；可保存的资料和岗位以服务端权限为准。</div>
+            </aside>
 
+            <div class="apm-people-panel">
               <div class="apm-filters">
                 <label class="apm-filter-search">
                   <span class="apm-inline-icon" aria-hidden="true" v-html="adminPersonnelIconSvg('search')" />
-                  <input v-model="staffWorkloadKeyword" type="search" placeholder="搜索姓名、账号、部门或角色">
+                  <input v-model="staffWorkloadKeyword" type="search" placeholder="搜索姓名、账号、部门或岗位">
                 </label>
-                <select v-model="adminPersonnelDepartmentFilter" aria-label="部门">
-                  <option value="ALL">全部部门</option>
-                  <option v-for="department in adminOrganizationRows" :key="department.id" :value="department.name">{{ department.name }}</option>
-                </select>
                 <select v-model="adminPersonnelLevelFilter" aria-label="人员级别">
-                  <option value="ALL">全部级别</option>
+                  <option value="ALL">人员级别</option>
                   <option v-for="rule in adminRoleRules" :key="rule.level" :value="rule.level">{{ rule.level }}</option>
                 </select>
                 <select v-model="adminPersonnelStatusFilter" aria-label="账号状态">
-                  <option value="ALL">全部状态</option>
+                  <option value="ALL">账号状态</option>
                   <option value="ACTIVE">正常</option>
                   <option value="INACTIVE">已停用</option>
                 </select>
                 <button class="apm-text-button" type="button" @click="resetAdminPersonnelFilters">重置</button>
-                <span class="apm-filter-meta">共 {{ adminPersonnelRows.length }} 名人员 · {{ adminPersonnelAttentionCount }} 位需要处理</span>
+                <span class="apm-filter-meta">显示 <strong>{{ adminPersonnelRows.length }}</strong> 名人员</span>
               </div>
 
               <div v-if="staffWorkloadError" class="apm-feedback is-error" role="alert">{{ staffWorkloadError }}</div>
               <div class="apm-table" role="table" aria-label="人员列表">
                 <div class="apm-table-head" role="row">
-                  <span>员工</span><span>部门 / 岗位</span><span>人员级别</span><span>负责部门 / 工作</span><span>状态</span><span>资料更新</span><span>操作</span>
+                  <span>人员</span><span>部门 / 岗位</span><span>人员级别</span><span>管理范围</span><span>账号状态</span><span>当前任务</span><span>操作</span>
                 </div>
                 <div v-if="staffWorkloadLoading" class="apm-empty">正在加载人员信息…</div>
                 <div v-else-if="adminPersonnelRows.length === 0" class="apm-empty">没有匹配的人员记录</div>
                 <div v-else class="apm-table-body">
-                  <div v-for="row in adminPersonnelPagedRows" :key="`${row.userId}-${row.username}`" class="apm-table-row" role="row">
+                  <div
+                    v-for="row in adminPersonnelPagedRows"
+                    :key="`${row.userId}-${row.username}`"
+                    class="apm-table-row"
+                    role="row"
+                    tabindex="0"
+                    @click="openAdminPersonnelDrawer(row)"
+                    @keydown.enter="openAdminPersonnelDrawer(row)"
+                  >
                     <div class="apm-person">
                       <span class="apm-person-avatar">{{ row.displayName.slice(0, 2) }}</span>
                       <div class="apm-person-copy"><strong>{{ row.displayName }}</strong><small>账号：{{ row.username }}</small></div>
@@ -11878,16 +12145,8 @@ onBeforeUnmount(() => {
                     <div><span class="apm-level-tag" :class="adminPersonnelLevelClass(row.level)">{{ row.level }}</span></div>
                     <div><span class="apm-cell-main">{{ adminPersonnelScopeTitle(row) }}</span><span class="apm-cell-sub">{{ adminPersonnelScopeDescription(row) }}</span></div>
                     <div><span class="apm-status" :class="{ 'is-warning': row.status !== 'ACTIVE' }">{{ adminPersonnelAccountStatusLabel(row.status) }}</span></div>
-                    <div><span class="apm-cell-main">{{ adminPersonnelUpdatedAtLabel(row) }}</span><span class="apm-cell-sub">累计完成 {{ row.completedTasks }} 项工作</span></div>
-                    <div class="apm-row-actions">
-                      <button class="apm-text-button" type="button" @click="openAdminRoleFromPersonnel(row)">查看职责</button>
-                      <button
-                        v-if="row.source && row.level === '普通员工' && canManageStaffAccounts"
-                        class="apm-text-button is-primary"
-                        type="button"
-                        @click="openAdminPersonnelDrawer(row)"
-                      >编辑资料</button>
-                    </div>
+                    <div><span class="apm-task-count">{{ row.activeTasks }}<small>项</small></span><span class="apm-cell-sub">累计完成 {{ row.completedTasks }} 项</span></div>
+                    <button class="apm-row-action" type="button" @click.stop="openAdminPersonnelDrawer(row)">查看 / 编辑</button>
                   </div>
                 </div>
               </div>
@@ -11908,73 +12167,7 @@ onBeforeUnmount(() => {
                   <button class="apm-page-button" type="button" :disabled="adminPersonnelCurrentPage === adminPersonnelPageCount" aria-label="下一页" @click="selectAdminPersonnelPage(adminPersonnelCurrentPage + 1)">›</button>
                 </div>
               </div>
-            </template>
-
-            <template v-else-if="activeRoute === '/admin/staff/roles'">
-              <div class="apm-permission-band">
-                <div class="apm-band-copy"><strong>人员管理关系</strong><small>上一级只管理自己负责范围内的下一级</small></div>
-                <div class="apm-role-chain" aria-label="人员级别">
-                  <template v-for="(rule, index) in adminRoleRules" :key="rule.level">
-                    <button class="apm-role-node" :class="{ active: selectedAdminRoleLevel === rule.level }" type="button" @click="showAdminRole(rule.level)"><i aria-hidden="true" />{{ rule.level }}</button>
-                    <span v-if="index < adminRoleRules.length - 1" class="apm-chain-arrow" aria-hidden="true">→</span>
-                  </template>
-                </div>
-              </div>
-              <div class="apm-role-layout">
-                <aside class="apm-role-list" aria-label="选择人员级别">
-                  <button
-                    v-for="rule in adminRoleRules"
-                    :key="rule.level"
-                    class="apm-role-choice"
-                    :class="{ active: selectedAdminRoleLevel === rule.level }"
-                    type="button"
-                    @click="showAdminRole(rule.level)"
-                  >
-                    <span class="apm-role-choice-icon" aria-hidden="true" v-html="adminPersonnelIconSvg(rule.level === '普通员工' ? 'users' : 'shield')" />
-                    <span><strong>{{ rule.level }}</strong><small>{{ adminPersonnelLevelCounts.find((item) => item.level === rule.level)?.count || 0 }} 人</small></span>
-                    <i aria-hidden="true">›</i>
-                  </button>
-                </aside>
-                <section class="apm-role-detail">
-                  <span class="apm-level-tag" :class="adminPersonnelLevelClass(selectedAdminRoleRule.level)">{{ selectedAdminRoleRule.level }}</span>
-                  <h2>{{ selectedAdminRoleRule.summary }}</h2>
-                  <p class="apm-role-manage">{{ selectedAdminRoleRule.canManage }}</p>
-                  <h3>可处理的工作</h3>
-                  <div class="apm-responsibility-grid">
-                    <article v-for="responsibility in selectedAdminRoleRule.responsibilities" :key="responsibility">
-                      <span aria-hidden="true" v-html="adminPersonnelIconSvg('check')" />
-                      <strong>{{ responsibility }}</strong>
-                    </article>
-                  </div>
-                  <div class="apm-availability-note">
-                    <span aria-hidden="true" v-html="adminPersonnelIconSvg('shield')" />
-                    <p>目前可以新增普通员工并设置部门和岗位；经理和主管职责可先查看，暂不支持调整。</p>
-                  </div>
-                </section>
-              </div>
-            </template>
-
-            <template v-else>
-              <div class="apm-org-heading">
-                <div><strong>部门与岗位</strong><small>查看人员归属和当前在用岗位</small></div>
-                <span>{{ adminOrganizationRows.length }} 个部门 · {{ staffAccountOptions.posts.length }} 个岗位</span>
-              </div>
-              <div v-if="adminOrganizationRows.length" class="apm-org-grid">
-                <article v-for="department in adminOrganizationRows" :key="department.id" class="apm-org-card">
-                  <div class="apm-org-card-head">
-                    <span class="apm-org-icon" aria-hidden="true" v-html="adminPersonnelIconSvg('users')" />
-                    <div><strong>{{ department.name }}</strong><small>{{ department.staffCount }} 名人员 · {{ department.posts.length }} 个在用岗位</small></div>
-                    <button type="button" @click="showAdminPersonnelDepartment(department.name)">查看人员</button>
-                  </div>
-                  <div class="apm-org-posts">
-                    <span v-for="post in department.posts" :key="post.id">{{ post.name }}</span>
-                    <span v-if="department.posts.length === 0" class="is-empty">暂无在用岗位</span>
-                  </div>
-                  <p><b>当前人员</b>{{ adminDepartmentStaffNames(department.id) }}</p>
-                </article>
-              </div>
-              <div v-else class="apm-empty apm-org-empty">暂无组织岗位信息</div>
-            </template>
+            </div>
           </section>
 
           <div class="apm-toast" :class="{ show: Boolean(adminPersonnelToast) }" role="status" aria-live="polite">
@@ -16278,6 +16471,92 @@ onBeforeUnmount(() => {
       </div>
 
       <el-drawer
+        v-model="adminOrderDrawerVisible"
+        size="820px"
+        :show-close="false"
+        class="admin-order-drawer aor-drawer"
+        modal-class="admin-drawer-overlay"
+        data-testid="admin-order-drawer"
+      >
+        <template #header="{ close, titleId, titleClass }">
+          <div class="aor-drawer-title"><strong :id="titleId" :class="titleClass">订单详情</strong><small>按生产端“工作单”结构查看 · 只读信息</small></div>
+          <button class="aor-drawer-close" type="button" aria-label="关闭订单详情" @click="close">×</button>
+        </template>
+        <div v-if="adminOrderDetailLoading" class="aor-state">正在汇总订单、文件、沟通和交付信息…</div>
+        <template v-else-if="selectedInternalOrder">
+          <el-alert v-if="adminOrderDetailError" :title="adminOrderDetailError" type="warning" show-icon :closable="false" />
+          <article class="aor-work-card">
+            <header class="aor-work-head">
+              <div class="aor-work-tags">
+                <span class="aor-code-chip">{{ selectedInternalOrder.order_no }}</span>
+                <em class="aor-badge" :class="adminOrderStatusClass(selectedInternalOrder.internal_status)">{{ adminOrderProductionStage(selectedInternalOrder) }}</em>
+                <em v-if="adminOrderExceptionLabel(selectedInternalOrder) !== '无异常'" class="aor-badge is-danger">{{ adminOrderExceptionLabel(selectedInternalOrder) }}</em>
+                <em v-for="flag in adminOrderReviewFlags(selectedInternalOrder)" :key="flag" class="aor-badge is-violet">需要{{ flag }}审核</em>
+              </div>
+              <button class="aor-button" type="button" @click="openSelectedAdminOrderFiles">查看文件</button>
+            </header>
+            <div class="aor-work-body">
+              <div class="aor-work-grid">
+                <section>
+                  <h3 class="aor-section-title">订单信息</h3>
+                  <div class="aor-spec-grid">
+                    <div><label>客户编号</label><strong class="is-highlight">{{ selectedInternalOrder.clinic_id }}</strong><small>{{ selectedInternalOrder.clinic_name || '诊所未设置' }}</small></div>
+                    <div><label>患者编号</label><strong>{{ selectedInternalOrder.patient_id || '暂未提供' }}</strong></div>
+                    <div><label>产品</label><span>{{ productTypeLabel(selectedInternalOrder.product_type) }}</span></div>
+                    <div><label>子类型</label><span>{{ adminOrderFormValue(selectedInternalOrder, ['sub_type', 'subtype', 'product_subtype']) || '暂未提供' }}</span></div>
+                    <div><label>牙位</label><strong class="is-highlight">{{ adminOrderFormValue(selectedInternalOrder, ['tooth_position', 'tooth', 'tooth_no', 'teeth']) || '暂未提供' }}</strong></div>
+                    <div><label>色号</label><strong>{{ adminOrderFormValue(selectedInternalOrder, ['shade', 'shade_code', 'color']) || '暂未提供' }}</strong></div>
+                    <div><label>材料</label><span>{{ adminOrderFormValue(selectedInternalOrder, ['material', 'material_type']) || '暂未提供' }}</span></div>
+                    <div><label>执行技师</label><span>{{ adminOrderTechnician(selectedInternalOrder) }}</span></div>
+                    <div><label>医生编号</label><span>{{ selectedInternalOrder.doctor_user_id || '暂未提供' }}</span></div>
+                    <div><label>医生状态</label><span>{{ statusLabel(selectedInternalOrder.external_status) }}</span></div>
+                  </div>
+                </section>
+                <section>
+                  <h3 class="aor-section-title">生产流程</h3>
+                  <div class="aor-date-grid">
+                    <div class="aor-date-box is-due"><label>交期</label><strong>{{ adminOrderDueDate(selectedInternalOrder) }}</strong></div>
+                    <div class="aor-date-box"><label>创建日期</label><strong class="aor-muted">暂未提供</strong></div>
+                  </div>
+                  <div v-if="adminOrderProcessInstance?.nodes.length" class="aor-flow">
+                    <div v-for="(node, index) in adminOrderProcessInstance.nodes" :key="node.node_instance_id" class="aor-flow-step" :class="{ done: ['COMPLETED', 'SKIPPED'].includes(node.node_status), current: node.node_status === 'IN_PROGRESS' }">
+                      <i>{{ ['COMPLETED', 'SKIPPED'].includes(node.node_status) ? '✓' : index + 1 }}</i><span>{{ node.stage_name || node.process_name }}<small>{{ node.assigned_user_id ? ` · 执行人 ${node.assigned_user_id}` : ' · 人员暂未安排' }}{{ node.deadline_at ? ` · ${compactDateTime(node.deadline_at)}` : '' }}</small></span>
+                    </div>
+                  </div>
+                  <div v-else class="aor-flow">
+                    <div v-for="(label, index) in ['草稿 / 接单', '客服审核', '生产审核', '工序生产', '质检完成', '发货交付']" :key="label" class="aor-flow-step" :class="{ done: index + 1 < adminOrderLifecycle(selectedInternalOrder).step, current: index + 1 === Math.max(1, adminOrderLifecycle(selectedInternalOrder).step) }"><i>{{ index + 1 < adminOrderLifecycle(selectedInternalOrder).step ? '✓' : index + 1 }}</i><span>{{ label }}<small v-if="index + 1 === Math.max(1, adminOrderLifecycle(selectedInternalOrder).step)"> · 当前</small></span></div>
+                  </div>
+                </section>
+              </div>
+
+              <div class="aor-notes">
+                <section><label>客户要求</label><p>{{ adminOrderFormValue(selectedInternalOrder, ['clinical_note', 'customer_requirement', 'requirement', 'notes']) || '暂未提供' }}</p></section>
+                <section class="is-production"><label>生产备注</label><p>{{ selectedInternalOrder.production_note || '暂未提供' }}</p></section>
+              </div>
+
+              <section class="aor-files-summary">
+                <i class="admin-menu-icon" aria-hidden="true" v-html="businessIconSvg('cloud')" />
+                <div><strong>客户文件与图片</strong><small>{{ csOrderFiles.length ? `${csOrderFiles.length} 个订单附件` : '暂无订单附件' }} · {{ csDesignDrafts.length ? `${csDesignDrafts.length} 个设计稿版本` : '暂无设计稿版本' }}</small></div>
+                <button class="aor-button" type="button" @click="openSelectedAdminOrderFiles">{{ csOrderFiles.length + csDesignDrafts.length }} 个资料</button>
+              </section>
+            </div>
+          </article>
+
+          <section class="aor-supplement-card">
+            <header><div><strong>关联信息</strong><small>真实沟通、账单与配送状态</small></div><span>{{ adminOrderMessages.length }} 条沟通</span></header>
+            <div class="aor-supplement-grid">
+              <div><label>账单状态</label><strong>{{ adminOrderBill ? statusLabel(adminOrderBill.bill_status) : '暂未提供' }}</strong></div>
+              <div><label>付款状态</label><strong>{{ adminOrderBill ? statusLabel(adminOrderBill.payment_status) : '暂未提供' }}</strong></div>
+              <div><label>配送状态</label><strong>{{ adminOrderLogistics ? statusLabel(adminOrderLogistics.logistics_status) : '暂未提供' }}</strong></div>
+              <div><label>物流单号</label><strong>{{ adminOrderLogistics?.tracking_no || '暂未提供' }}</strong></div>
+            </div>
+            <div v-if="adminOrderMessages.length" class="aor-message-list"><article v-for="message in adminOrderMessages.slice(0, 4)" :key="message.msg_id"><span>{{ roleLabel(message.sender_role) }}</span><p>{{ message.content }}</p><small>{{ statusLabel(message.review_status) }}</small></article></div>
+            <p v-else class="aor-empty-copy">当前订单暂无沟通记录</p>
+          </section>
+        </template>
+      </el-drawer>
+
+      <el-drawer
         v-model="adminHelpDrawerVisible"
         title="页面帮助"
         size="420px"
@@ -16306,16 +16585,17 @@ onBeforeUnmount(() => {
       <el-drawer
         v-model="adminPersonnelDrawerVisible"
         :with-header="false"
-        size="418px"
+        size="430px"
         class="admin-personnel-drawer"
         modal-class="admin-personnel-drawer-overlay"
         data-testid="admin-personnel-drawer"
+        @closed="adminPersonnelSelectedRow = null"
       >
         <div class="apm-drawer-shell">
           <header class="apm-drawer-head">
             <div>
-              <strong id="admin-personnel-drawer-title">{{ staffAccountEditUserId ? '编辑人员' : '新增人员' }}</strong>
-              <small>{{ staffAccountEditUserId ? `${staffAccountDisplayName || '当前人员'} · 普通员工` : '新成员 · 普通员工' }}</small>
+              <strong id="admin-personnel-drawer-title">{{ adminPersonnelSelectedRow ? '查看 / 编辑人员' : '新增人员' }}</strong>
+              <small>{{ adminPersonnelSelectedRow ? `${staffAccountDisplayName || '当前人员'} · ${adminPersonnelSelectedLevel}` : '新成员 · 默认普通员工' }}</small>
             </div>
             <button class="apm-drawer-close" type="button" aria-label="关闭" @click="adminPersonnelDrawerVisible = false">
               <span aria-hidden="true" v-html="adminPersonnelIconSvg('close')" />
@@ -16323,66 +16603,133 @@ onBeforeUnmount(() => {
           </header>
 
           <section class="apm-drawer-section">
-            <h3>登录信息</h3>
+            <h3>账号资料</h3>
             <label class="apm-field">
               <span>登录账号</span>
-              <input v-model="staffAccountUsername" :disabled="Boolean(staffAccountEditUserId)" autocomplete="off" placeholder="请输入登录账号">
+              <input v-model="staffAccountUsername" :disabled="Boolean(adminPersonnelSelectedRow) || !adminPersonnelCanSave" autocomplete="off" placeholder="请输入登录账号">
             </label>
             <label class="apm-field">
-              <span>{{ staffAccountEditUserId ? '新密码' : '初始密码' }}</span>
+              <span>{{ adminPersonnelSelectedRow ? '新密码' : '初始密码' }}</span>
               <input
                 v-model="staffAccountPassword"
                 type="password"
                 autocomplete="new-password"
-                :placeholder="staffAccountEditUserId ? '留空则保持当前密码' : '至少 8 位'"
+                :disabled="!adminPersonnelCanSave"
+                :placeholder="adminPersonnelSelectedRow ? '留空则保持当前密码' : '至少 8 位'"
               >
             </label>
           </section>
 
           <section class="apm-drawer-section">
-            <h3>人员资料</h3>
+            <h3>组织归属</h3>
             <label class="apm-field">
               <span>人员姓名</span>
-              <input v-model="staffAccountDisplayName" placeholder="请输入人员姓名">
+              <input v-model="staffAccountDisplayName" :disabled="!adminPersonnelCanSave" placeholder="请输入人员姓名">
             </label>
             <div class="apm-field-grid">
               <label class="apm-field">
                 <span>所属部门</span>
-                <select v-model="staffAccountDeptId">
+                <select v-if="adminPersonnelCanSave" v-model="staffAccountDeptId">
                   <option :value="null" disabled>请选择部门</option>
                   <option v-for="department in staffAccountOptions.departments" :key="department.id" :value="department.id">{{ department.name }}</option>
                 </select>
+                <input v-else :value="adminPersonnelSelectedRow?.department || '部门未设置'" disabled>
               </label>
               <label class="apm-field">
                 <span>岗位</span>
-                <select v-model="staffAccountPostId">
+                <select v-if="adminPersonnelCanSave" v-model="staffAccountPostId">
                   <option :value="null" disabled>请选择岗位</option>
                   <option v-for="post in staffAccountOptions.posts" :key="post.id" :value="post.id">{{ post.name }}</option>
                 </select>
+                <input v-else :value="adminPersonnelSelectedRow?.posts.join('、') || '岗位未设置'" disabled>
               </label>
             </div>
           </section>
 
           <section class="apm-drawer-section">
-            <h3>职责说明</h3>
-            <p>{{ staffAccountEditUserId ? '保存后，人员将继续以普通员工身份在所选部门和岗位工作。' : '新建人员将以普通员工身份加入所选部门和岗位，只处理自己被安排的工作。' }}</p>
+            <h3>职责权限</h3>
+            <div class="apm-field-grid">
+              <label class="apm-field">
+                <span>人员级别</span>
+                <select :value="adminPersonnelSelectedLevel" disabled>
+                  <option>{{ adminPersonnelSelectedLevel }}</option>
+                </select>
+              </label>
+              <label class="apm-field">
+                <span>管理范围</span>
+                <input :value="adminPersonnelSelectedRow ? adminPersonnelScopeTitle(adminPersonnelSelectedRow) : '无管理职责'" disabled>
+              </label>
+            </div>
             <div class="apm-drawer-note">
               <span aria-hidden="true" v-html="adminPersonnelIconSvg('shield')" />
-              <span>经理和主管的职责关系请在“角色权限”中查看，当前不在此调整。</span>
+              <span>经理和主管的保存接口尚未具备，目前只能查看，不会伪造权限调整结果。</span>
             </div>
+          </section>
+
+          <section class="apm-drawer-section">
+            <h3>账号状态</h3>
+            <label class="apm-field">
+              <span>当前状态</span>
+              <select :value="adminPersonnelSelectedRow?.status || 'ACTIVE'" disabled>
+                <option value="ACTIVE">正常</option>
+                <option value="INACTIVE">已停用</option>
+              </select>
+            </label>
+            <p>当前后端未提供人员账号状态变更接口，本页只显示真实状态。</p>
           </section>
 
           <div v-if="staffAccountResult" class="apm-drawer-feedback" role="status">{{ staffAccountResult }}</div>
 
           <footer class="apm-drawer-actions">
             <button class="apm-button" type="button" @click="adminPersonnelDrawerVisible = false">取消</button>
-            <button class="apm-button is-primary" type="button" :disabled="staffAccountSaving" @click="saveStaffAccount">
+            <button v-if="adminPersonnelCanSave" class="apm-button is-primary" type="button" :disabled="staffAccountSaving" @click="saveStaffAccount">
               <span v-if="!staffAccountSaving" class="apm-inline-icon" aria-hidden="true" v-html="adminPersonnelIconSvg('check')" />
-              {{ staffAccountSaving ? '保存中…' : (staffAccountEditUserId ? '保存资料' : '创建人员') }}
+              {{ staffAccountSaving ? '保存中…' : (adminPersonnelSelectedRow ? '保存人员资料' : '创建人员') }}
             </button>
           </footer>
         </div>
       </el-drawer>
+
+      <el-dialog
+        v-model="adminOrganizationDialogVisible"
+        width="640px"
+        class="admin-organization-dialog"
+        modal-class="admin-personnel-drawer-overlay"
+        :show-close="false"
+        data-testid="admin-organization-dialog"
+      >
+        <template #header>
+          <div class="apm-org-dialog-head">
+            <div><strong>部门与岗位</strong><small>查看当前公司组织与在用岗位</small></div>
+            <button class="apm-drawer-close" type="button" aria-label="关闭" @click="adminOrganizationDialogVisible = false">
+              <span aria-hidden="true" v-html="adminPersonnelIconSvg('close')" />
+            </button>
+          </div>
+        </template>
+        <div class="apm-org-dialog-body">
+          <div class="apm-org-departments">
+            <button
+              v-for="department in adminOrganizationRows"
+              :key="department.id"
+              type="button"
+              :class="{ active: selectedAdminOrganization?.id === department.id }"
+              @click="adminOrganizationSelectedDepartmentId = department.id"
+            >{{ department.name }}<span>{{ department.staffCount }} 人</span></button>
+          </div>
+          <section class="apm-org-post-panel">
+            <h3>{{ selectedAdminOrganization?.name || '暂无部门' }}</h3>
+            <p v-if="selectedAdminOrganization">当前 {{ selectedAdminOrganization.staffCount }} 人，{{ selectedAdminOrganization.posts.length }} 个在用岗位</p>
+            <div v-for="post in selectedAdminOrganization?.posts || []" :key="post.id" class="apm-org-post-chip">
+              {{ post.name }}<span>{{ staffWorkloadItems.filter((staff) => staff.dept_id === selectedAdminOrganization?.id && staff.post_names.includes(post.name)).length }} 人</span>
+            </div>
+            <div v-if="selectedAdminOrganization && selectedAdminOrganization.posts.length === 0" class="apm-org-post-empty">当前部门暂无在用岗位</div>
+            <div class="apm-org-readonly-note">现有接口只支持人员归属保存；部门、岗位结构在本弹窗中仅供查看。</div>
+          </section>
+        </div>
+        <template #footer>
+          <button class="apm-button" type="button" @click="adminOrganizationDialogVisible = false">关闭</button>
+        </template>
+      </el-dialog>
 
       <el-drawer
         v-model="workflowChainDrawerVisible"

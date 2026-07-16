@@ -6,5 +6,6 @@ import './styles.css'
 import './cs-portal.css'
 import './doctor-portal.css'
 import './admin-portal.css'
+import './admin-order-page.css'
 
 createApp(App).use(ElementPlus).mount('#app')

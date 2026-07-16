@@ -1,9 +1,21 @@
 # 三端参考页面像素级复刻研究基线
 
-> 状态：已完成首轮真实 Chrome 研究与静态结构核对
-> 研究日期：2026-07-15
+> 状态：已完成首轮研究；2026-07-16 再次核对源文件哈希、登录、角色选择、导航和代表性详情抽屉
+> 研究日期：2026-07-15；最近复核：2026-07-16
 > 适用对象：医生端、客服端、生产端后续视觉复刻与交互复刻
 > 权威来源：`frontend/public/reference/` 下的三个 HTML 文件及本页记录的 SHA-256
+
+三个原始 HTML 已永久保存在项目内。只要下表哈希未变化，后续前端修改无需用户重新发送文件；直接从本目录进入对应端口规范，再回到原始 HTML 核对细节。
+
+## 快速入口
+
+| 内容 | 文档 |
+| --- | --- |
+| 源文件、哈希、依赖和版本规则 | [SOURCE_MANIFEST.md](SOURCE_MANIFEST.md) |
+| 医生端页面、角色、视觉和交互 | [doctor-portal.md](doctor-portal.md) |
+| 客服端页面、角色、视觉和交互 | [cs-portal.md](cs-portal.md) |
+| 生产端页面、角色、视觉和交互 | [factory-portal.md](factory-portal.md) |
+| 后续实施与像素级验收流程 | [IMPLEMENTATION_GUIDE.md](IMPLEMENTATION_GUIDE.md) |
 
 ## 1. 文档用途
 
