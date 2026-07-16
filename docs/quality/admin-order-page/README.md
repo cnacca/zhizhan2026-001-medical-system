@@ -1,7 +1,7 @@
 # 管理端订单管理页设计与验收记录
 
 - 日期：2026-07-16
-- 状态：高保真原型已获用户确认，正式 Vue 实现与真实 Chrome 验收已完成
+- 状态：高保真原型已获用户确认；正式 Vue 实现和订单页终验已完成
 - 范围：管理端“订单列表”与“文件资料”，不含工作台业务内容
 
 ## 当前设计门禁
@@ -96,3 +96,16 @@
 - `screenshots/final-order-files-1440x900.png`
 - `screenshots/final-order-list-1280x800.png`
 - `screenshots/final-order-detail-1280x800.png`
+
+## 2026-07-16 订单页终验补充证据
+
+- 真实 Chrome 管理员登录后，在目标 DOM 视口 `1280×800` 验证订单列表：页面 `scrollWidth=1280`，订单表容器 `clientWidth=1011`、`scrollWidth=1080` 且 `overflow-x=auto`；仅宽表在内容卡内部滚动，页面没有横向溢出。
+- 真实 Chrome 在同一目标视口切换“文件资料”页签：页签选中态正确，显示真实订单聚合结果（`订单资料 0`、`设计稿 0`）和“当前订单暂无可查看的资料”空状态；页面 `scrollWidth=1280`，没有页面级横向溢出。
+- 点击真实“刷新数据”动作后，`GET /orders?page=1&size=100` 返回 `200 OK`；未记录失败请求。
+- 控制台未发现应用业务错误。仅记录 Vite 开发热更新 WebSocket 的连接失败日志；它不影响订单 REST 请求或页面交互，生产构建不包含该开发连接。
+- `npm run build:frontend`、`git diff --check` 均通过。构建仍有既有的 Rollup `#__PURE__` 注释与大 chunk 提示，未造成构建失败。
+
+本窗口新增真实 Chrome 截图（文件像素为 `1280×708`，对应浏览器目标 DOM 视口 `1280×800`）：
+
+- `screenshots/final-order-list-1280x800-20260716.png`
+- `screenshots/final-order-files-1280x800-20260716.png`

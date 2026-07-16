@@ -261,6 +261,16 @@ type MessageItem = {
   mention_user_ids: number[]
 }
 
+type AdminCommunicationThread = {
+  orderId: number
+  orderNo: string
+  productType: string
+  senderRole: string
+  preview: string
+  pendingCount: number
+  latestMessage: MessageItem
+}
+
 type MentionableUser = {
   user_id: number
   display_name: string
@@ -1435,6 +1445,20 @@ const clinicSaveResult = ref('')
 const clinicCreateName = ref('')
 const clinicCreateContactName = ref('')
 const clinicCreateContactPhone = ref('')
+const adminClientSummary = ref<PhaseOneAbDashboardResponse | null>(null)
+const adminClientSummaryLoading = ref(false)
+const adminClientSummaryError = ref('')
+const adminClients = ref<ClinicItem[]>([])
+const adminClientTotal = ref(0)
+const adminClientMatchedTotal = ref(0)
+const adminClientKeyword = ref('')
+const adminClientListLoading = ref(false)
+const adminClientListError = ref('')
+const adminClientDetailVisible = ref(false)
+const adminClientDetailLoading = ref(false)
+const adminClientDetailError = ref('')
+const selectedAdminClient = ref<ClinicItem | null>(null)
+const selectedAdminClientPreference = ref<ClinicPreference | null>(null)
 const doctorAccountSettings = ref<DoctorAccountSettings | null>(null)
 const doctorAccountSettingsForm = ref({
   display_name: '',
@@ -1576,6 +1600,9 @@ const customerCollaborationMentionableUsers = ref<MentionableUser[]>([])
 const customerCollaborationMentionUserIds = ref<number[]>([])
 const customerCollaborationDraft = ref('')
 const customerCollaborationSending = ref(false)
+const adminCommunicationKeyword = ref('')
+const adminCommunicationSenderRole = ref('ALL')
+const adminCommunicationContextDrawerVisible = ref(false)
 const productionReviewOrders = ref<InternalOrderItem[]>([])
 const selectedProductionReviewOrder = ref<InternalOrderItem | null>(null)
 const productionReviewKeyword = ref('')
@@ -2157,7 +2184,7 @@ const displayNavigationConfig: Record<PortalTone, NavigationGroup[]> = {
         { id: 'admin-dashboard', title: '工作台', description: '查看平台管理总览和关键待办。', icon: 'dashboard', routePath: '/dashboard' },
         { id: 'admin-orders', title: '订单管理', description: '查看内部订单、审核状态和订单流转进度。', icon: 'order', routePath: '/orders/internal' },
         { id: 'admin-communication', title: '沟通中心', description: '集中处理订单消息、待确认消息和跨端沟通记录。', icon: 'chat', routePath: '/collaboration' },
-        { id: 'admin-customers', title: '客户管理', description: '管理诊所档案、客户偏好和联系人。', icon: 'customer', routePath: '/admin/clinics' },
+        { id: 'admin-customers', title: '客户管理', description: '查看客户结构、月度贡献与只读客户档案。', icon: 'customer', routePath: '/admin/clinics' },
         { id: 'admin-billing-delivery', title: '账单配送', description: '查询账单、物流和发货协同状态。', icon: 'delivery', routePath: '/delivery' },
         { id: 'admin-outsourcing', title: '外协管理', description: '登记外协记录并跟进供应商、费用和处理状态。', icon: 'partner', routePath: '/admin/outsourcing' }
       ]
@@ -3145,7 +3172,8 @@ const accountProfile = computed<AccountProfile>(() => {
 })
 const isDoctorOrderRoute = computed(() => activeRoute.value === '/doctor/orders')
 const isDoctorPatientsRoute = computed(() => activeRoute.value === '/doctor/patients')
-const isClinicManagementRoute = computed(() => activeRoute.value === '/customers' || activeRoute.value === '/admin/clinics')
+const isClinicManagementRoute = computed(() => activeRoute.value === '/customers')
+const isAdminClinicManagementRoute = computed(() => portalTone.value === 'admin' && activeRoute.value === '/admin/clinics')
 const isDoctorClinicRoute = computed(() => activeRoute.value === '/doctor/account/clinic')
 const isDoctorAccountSettingsRoute = computed(() => activeRoute.value === '/doctor/account/settings')
 const isDoctorPortalClone = computed(() => portalTone.value === 'doctor' && activeRoute.value !== '/dashboard')
@@ -3447,6 +3475,75 @@ const adminPersonnelCanSave = computed(() => canManageStaffAccounts.value
   && (!adminPersonnelSelectedRow.value || Boolean(adminPersonnelSelectedRow.value.source))
   && adminPersonnelSelectedLevel.value === '普通员工')
 const adminCommunicationOrderCount = computed(() => new Set(customerCollaborationPendingMessages.value.map((item) => item.order_id)).size)
+const adminCommunicationThreads = computed<AdminCommunicationThread[]>(() => {
+  const threads = new Map<number, AdminCommunicationThread>()
+  customerCollaborationPendingMessages.value.forEach((message) => {
+    const current = threads.get(message.order_id)
+    if (current) {
+      current.pendingCount += 1
+      return
+    }
+    threads.set(message.order_id, {
+      orderId: message.order_id,
+      orderNo: message.order_no || `订单 ${message.order_id}`,
+      productType: message.product_type,
+      senderRole: message.sender_role,
+      preview: message.content,
+      pendingCount: 1,
+      latestMessage: message
+    })
+  })
+  return [...threads.values()]
+})
+const adminCommunicationRoleCounts = computed(() => ({
+  ALL: adminCommunicationThreads.value.length,
+  DOCTOR: adminCommunicationThreads.value.filter((thread) => thread.senderRole === 'DOCTOR').length,
+  WORKER: adminCommunicationThreads.value.filter((thread) => thread.senderRole === 'WORKER').length
+}))
+const filteredAdminCommunicationThreads = computed(() => {
+  const keyword = adminCommunicationKeyword.value.trim().toLowerCase()
+  return adminCommunicationThreads.value.filter((thread) => {
+    const matchesRole = adminCommunicationSenderRole.value === 'ALL'
+      || thread.senderRole === adminCommunicationSenderRole.value
+    const searchable = [thread.orderNo, thread.productType, thread.senderRole, thread.preview].join(' ').toLowerCase()
+    return matchesRole && (!keyword || searchable.includes(keyword))
+  })
+})
+const adminCommunicationCurrentOrder = computed(() => adminOrderOptions.value.find((order) =>
+  String(order.order_id) === customerCollaborationOrderId.value
+) ?? null)
+const adminClientSummaryMetrics = computed(() => {
+  const summary = adminClientSummary.value
+  const leadingCustomer = summary?.top_customers[0] ?? null
+  return [
+    { label: '客户总数', value: String(adminClientTotal.value), note: '诊所客户档案', tone: 'blue' },
+    { label: '本月订单', value: summary ? `${summary.current_month.order_count} 单` : '—', note: summary?.current_month.month ?? '统计暂不可用', tone: 'blue' },
+    { label: '本月件数', value: summary ? `${summary.current_month.item_count} 件` : '—', note: summary?.current_month.month ?? '统计暂不可用', tone: 'teal' },
+    { label: '本月领先客户', value: leadingCustomer?.clinic_name ?? '暂无', note: leadingCustomer ? `${leadingCustomer.order_count} 单 · ${leadingCustomer.item_count} 件` : '当前无排名数据', tone: 'violet' }
+  ]
+})
+const adminClientRankingRows = computed(() => {
+  const customers = adminClientSummary.value?.top_customers ?? []
+  const maxItems = Math.max(...customers.map((customer) => customer.item_count), 1)
+  return customers.map((customer, index) => ({
+    ...customer,
+    rank: index + 1,
+    percent: Math.max(4, Math.round((customer.item_count / maxItems) * 100))
+  }))
+})
+const adminClientRankingMap = computed(() => new Map(adminClientRankingRows.value.map((customer) => [customer.clinic_id, customer])))
+const adminClientDirectoryRows = computed(() => adminClients.value.map((clinic) => ({
+  ...clinic,
+  ranking: adminClientRankingMap.value.get(clinic.clinic_id) ?? null
+})))
+const selectedAdminClientRanking = computed(() => selectedAdminClient.value
+  ? adminClientRankingMap.value.get(selectedAdminClient.value.clinic_id) ?? null
+  : null)
+const selectedAdminClientPreferenceRows = computed(() => Object.entries(selectedAdminClientPreference.value?.preferences ?? {}).map(([key, value]) => ({
+  key,
+  label: clinicPreferenceLabel(key),
+  value: value || '暂未配置'
+})))
 const adminOrderOptions = computed(() => internalOrders.value.length ? internalOrders.value : phaseOneAbDashboardOrders.value)
 const adminOrderStatusOptions = computed(() => [...new Set(internalOrders.value.map((order) => order.internal_status))])
 const adminOrderProductOptions = computed(() => [...new Set(internalOrders.value.map((order) => order.product_type))])
@@ -3542,8 +3639,8 @@ const routeChrome = computed<RouteChrome>(() => {
       '/orders/internal': { title: '订单管理', description: '查看订单资料、医生状态与内部生产进度。', icon: 'order' },
       '/admin/files': { title: '文件资料', description: '按订单查看原始资料、设计稿和授权文件。', icon: 'cloud' },
       '/collaboration': { title: '沟通中心', description: '处理订单沟通、待确认消息和跨部门协同。', icon: 'chat' },
-      '/admin/communication-management': { title: '沟通管理', description: '查看待处理消息、涉及订单和当前沟通情况。', icon: 'audit' },
-      '/admin/clinics': { title: '客户管理', description: '维护诊所档案、联系人和客户偏好。', icon: 'customer' },
+      '/admin/communication-management': { title: '沟通中心', description: '查看待处理消息、涉及订单和当前沟通情况。', icon: 'audit' },
+      '/admin/clinics': { title: '客户管理', description: '查看客户结构、月度贡献与只读客户档案。', icon: 'customer' },
       '/delivery': { title: '账单配送', description: '查看账单、付款和配送跟进情况。', icon: 'delivery' },
       '/admin/outsourcing': { title: '外协管理', description: '登记外协记录并跟进供应商、费用和处理状态。', icon: 'partner' },
       '/workflow/process-instance': { title: '工艺生产', description: '查看订单工序进度，并按需查看固定工艺链。', icon: 'process' },
@@ -4947,6 +5044,10 @@ async function loadActiveRouteData() {
     } else {
       await loadCustomerCollaborationPage()
     }
+  } else if (activeRoute.value === '/customers') {
+    await loadClinics()
+  } else if (activeRoute.value === '/admin/clinics') {
+    await loadAdminClientsPage()
   } else if (activeRoute.value === '/ai/cs') {
     csAiQueryError.value = ''
   } else if (activeRoute.value === '/workflow/review') {
@@ -5088,8 +5189,10 @@ function navigateToRoute(routePath: string) {
     void loadDoctorPatients()
   } else if (routePath === '/doctor/patients') {
     void loadDoctorPatients()
-  } else if (routePath === '/customers' || routePath === '/admin/clinics') {
+  } else if (routePath === '/customers') {
     void loadClinics()
+  } else if (routePath === '/admin/clinics') {
+    void loadAdminClientsPage()
   } else if (routePath === '/doctor/account/settings') {
     void loadDoctorAccountSettings()
   } else if (routePath === '/doctor/account/clinic') {
@@ -5479,10 +5582,33 @@ function openSelectedAdminOrderFiles() {
   navigateToRoute('/admin/files')
 }
 
-async function openAdminCommunicationMessage(message: MessageItem) {
+async function openAdminCommunicationContext(message: MessageItem) {
   await selectCustomerCollaborationMessage(message)
-  activeNavId.value = 'admin-communication'
-  navigateToRoute('/collaboration')
+  adminCommunicationContextDrawerVisible.value = true
+}
+
+async function openAdminCommunicationOrderContext() {
+  selectedCustomerCollaborationMessage.value = null
+  await loadCustomerCollaborationOrderMessages()
+  if (customerCollaborationOrderId.value.trim()) {
+    adminCommunicationContextDrawerVisible.value = true
+  }
+}
+
+function openAdminCommunicationOrderFromContext() {
+  if (!adminCommunicationCurrentOrder.value) {
+    return
+  }
+  adminCommunicationContextDrawerVisible.value = false
+  openAdminOrderDrawer(adminCommunicationCurrentOrder.value)
+}
+
+async function selectAdminCommunicationThread(thread: AdminCommunicationThread) {
+  await selectCustomerCollaborationMessage(thread.latestMessage)
+}
+
+function applyAdminCommunicationQuickReply(content: string) {
+  customerCollaborationDraft.value = content
 }
 
 function runDoctorGlobalSearch() {
@@ -5816,6 +5942,74 @@ function syncClinicPreferenceForm(preference: ClinicPreference | null) {
   }
 }
 
+async function loadAdminClientSummary() {
+  if (!token.value) {
+    return
+  }
+  adminClientSummaryLoading.value = true
+  adminClientSummaryError.value = ''
+  try {
+    const payload = await apiFetch<PhaseOneAbDashboardResponse>('/dashboards/phase-one-ab')
+    adminClientSummary.value = payload.data
+  } catch (error) {
+    adminClientSummary.value = null
+    adminClientSummaryError.value = error instanceof Error ? error.message : '客户汇总加载失败'
+  } finally {
+    adminClientSummaryLoading.value = false
+  }
+}
+
+async function loadAdminClientList() {
+  if (!token.value) {
+    return
+  }
+  adminClientListLoading.value = true
+  adminClientListError.value = ''
+  try {
+    const params = new URLSearchParams({ page: '1', size: '100' })
+    const keyword = adminClientKeyword.value.trim()
+    if (keyword) {
+      params.set('keyword', keyword)
+    }
+    const payload = await apiFetch<ClinicListResponse>(`/clinics?${params.toString()}`)
+    adminClients.value = payload.data.items
+    adminClientMatchedTotal.value = payload.data.total
+    if (!keyword) {
+      adminClientTotal.value = payload.data.total
+    }
+  } catch (error) {
+    adminClients.value = []
+    adminClientMatchedTotal.value = 0
+    adminClientListError.value = error instanceof Error ? error.message : '客户档案加载失败'
+  } finally {
+    adminClientListLoading.value = false
+  }
+}
+
+async function loadAdminClientsPage() {
+  await Promise.all([loadAdminClientSummary(), loadAdminClientList()])
+}
+
+async function openAdminClientDetail(clinic: ClinicItem) {
+  selectedAdminClient.value = clinic
+  selectedAdminClientPreference.value = null
+  adminClientDetailError.value = ''
+  adminClientDetailVisible.value = true
+  adminClientDetailLoading.value = true
+  try {
+    const [clinicPayload, preferencePayload] = await Promise.all([
+      apiFetch<ClinicItem>(`/clinics/${clinic.clinic_id}`),
+      apiFetch<ClinicPreference>(`/clinics/${clinic.clinic_id}/preference`)
+    ])
+    selectedAdminClient.value = clinicPayload.data
+    selectedAdminClientPreference.value = preferencePayload.data
+  } catch (error) {
+    adminClientDetailError.value = error instanceof Error ? error.message : '客户详情加载失败'
+  } finally {
+    adminClientDetailLoading.value = false
+  }
+}
+
 async function loadClinics() {
   if (!token.value) {
     return
@@ -5983,8 +6177,8 @@ async function createClinic() {
     clinicCreateName.value = ''
     clinicCreateContactName.value = ''
     clinicCreateContactPhone.value = ''
-    clinicSaveResult.value = `已创建诊所 ${payload.data.clinic_name}`
     await loadClinics()
+    clinicSaveResult.value = `已创建诊所 ${payload.data.clinic_name}`
   } catch (error) {
     clinicError.value = error instanceof Error ? error.message : '诊所创建失败'
   } finally {
@@ -7773,6 +7967,10 @@ async function selectCustomerCollaborationMessage(message: MessageItem) {
 
 async function reviewCustomerCollaborationMessage(message: MessageItem | null = selectedCustomerCollaborationMessage.value) {
   if (!message) {
+    return
+  }
+  if (customerCollaborationReviewAction.value === 'REJECT' && !customerCollaborationReviewNote.value.trim()) {
+    customerCollaborationError.value = '退回修改时请填写需要调整的内容'
     return
   }
   customerCollaborationActionLoading.value = true
@@ -10126,7 +10324,7 @@ onBeforeUnmount(() => {
           <template v-if="portalTone === 'admin'">
             <div class="admin-page-head">
               <div class="admin-page-head-copy">
-                <span>{{ isAdminOrderSection ? '订单协同' : routeChrome.eyebrow }}</span>
+                <span>{{ isAdminOrderSection ? '订单协同' : activeAdminParentNavId === 'admin-communication' ? '沟通协同' : activeAdminParentNavId === 'admin-customers' ? '客户协同' : routeChrome.eyebrow }}</span>
                 <h1>{{ routeChrome.title }}</h1>
                 <p>{{ routeChrome.description }}</p>
               </div>
@@ -10155,6 +10353,14 @@ onBeforeUnmount(() => {
                   @click="loadInternalOrders"
                 >
                   {{ internalOrdersLoading ? '刷新中…' : '刷新数据' }}
+                </el-button>
+                <el-button
+                  v-if="activeAdminParentNavId === 'admin-communication'"
+                  plain
+                  :loading="customerCollaborationLoading"
+                  @click="loadCustomerCollaborationPage"
+                >
+                  {{ customerCollaborationLoading ? '刷新中…' : '刷新数据' }}
                 </el-button>
               </div>
             </div>
@@ -12950,6 +13156,148 @@ onBeforeUnmount(() => {
         </section>
 
         <section
+          v-else-if="isAdminClinicManagementRoute"
+          class="panel route-panel admin-clients-page"
+          data-testid="admin-client-management-page"
+        >
+          <el-alert v-if="adminClientSummaryError" :title="adminClientSummaryError" type="error" show-icon :closable="false" />
+          <el-alert v-if="adminClientListError" :title="adminClientListError" type="error" show-icon :closable="false" />
+          <section class="admin-client-summary-metrics" aria-label="客户总体概况">
+            <article v-for="metric in adminClientSummaryMetrics" :key="metric.label" :class="`is-${metric.tone}`">
+              <i aria-hidden="true" />
+              <span>{{ metric.label }}</span>
+              <strong>{{ metric.value }}</strong>
+              <small>{{ metric.note }}</small>
+            </article>
+          </section>
+
+          <section class="admin-client-summary-layout">
+            <article class="admin-client-summary-card admin-client-month-comparison">
+              <header><div><span>📊 月度表现</span><h3>本月与上月</h3></div><small>订单 / 件数</small></header>
+              <template v-if="adminClientSummary">
+                <div class="admin-client-comparison-head"><span>统计周期</span><span>订单</span><span>件数</span></div>
+                <div class="admin-client-comparison-row is-current">
+                  <div><strong>本月</strong><small>{{ adminClientSummary.current_month.month }}</small></div>
+                  <strong>{{ adminClientSummary.current_month.order_count }} 单</strong>
+                  <strong>{{ adminClientSummary.current_month.item_count }} 件</strong>
+                </div>
+                <div class="admin-client-comparison-row">
+                  <div><strong>上月</strong><small>{{ adminClientSummary.previous_month.month }}</small></div>
+                  <strong>{{ adminClientSummary.previous_month.order_count }} 单</strong>
+                  <strong>{{ adminClientSummary.previous_month.item_count }} 件</strong>
+                </div>
+                <div class="admin-client-delta-line">
+                  <span>订单变化 <strong>{{ adminClientSummary.monthly_order_delta > 0 ? '+' : '' }}{{ adminClientSummary.monthly_order_delta }}</strong></span>
+                  <span>件数变化 <strong>{{ adminClientSummary.monthly_item_delta > 0 ? '+' : '' }}{{ adminClientSummary.monthly_item_delta }}</strong></span>
+                </div>
+              </template>
+              <div v-else class="admin-client-summary-empty">月度统计暂不可用</div>
+            </article>
+
+            <article class="admin-client-summary-card admin-client-ranking-card" data-testid="admin-client-ranking">
+              <header><div><span>🏆 客户贡献</span><h3>本月客户排名</h3></div><small>按真实件数排序</small></header>
+              <div v-if="adminClientSummaryLoading" class="admin-client-summary-empty">正在加载客户排名…</div>
+              <div v-else-if="adminClientRankingRows.length" class="admin-client-ranking-list">
+                <div class="admin-client-ranking-head"><span>排名 / 客户</span><span>件数贡献</span><span>订单</span><span>件数</span></div>
+                <div v-for="customer in adminClientRankingRows" :key="customer.clinic_id" class="admin-client-ranking-row">
+                  <div><i>{{ customer.rank }}</i><strong>{{ customer.clinic_name }}</strong></div>
+                  <span><i :style="{ width: `${customer.percent}%` }" /></span>
+                  <strong>{{ customer.order_count }} 单</strong>
+                  <strong>{{ customer.item_count }} 件</strong>
+                </div>
+              </div>
+              <div v-else class="admin-client-summary-empty">当前月份暂无客户排名数据</div>
+            </article>
+          </section>
+
+          <section class="admin-client-directory-card" data-testid="admin-client-directory">
+            <header>
+              <div><span>🏥 客户档案</span><h3>诊所客户清单</h3><small>查看合作状态、联系人、制作偏好与本月贡献</small></div>
+              <form class="admin-client-search" @submit.prevent="loadAdminClientList">
+                <span aria-hidden="true">⌕</span>
+                <input v-model="adminClientKeyword" type="search" placeholder="搜索诊所或联系人" aria-label="搜索诊所或联系人">
+                <button type="submit" :disabled="adminClientListLoading">查询</button>
+              </form>
+            </header>
+
+            <div v-if="adminClientListLoading" class="admin-client-summary-empty">正在加载客户档案…</div>
+            <div v-else-if="adminClientDirectoryRows.length" class="admin-client-directory-scroll">
+              <table class="admin-client-directory-table">
+                <thead><tr><th>客户</th><th>联系人</th><th>合作状态</th><th>制作偏好</th><th>本月贡献</th><th>最近维护</th><th></th></tr></thead>
+                <tbody>
+                  <tr v-for="clinic in adminClientDirectoryRows" :key="clinic.clinic_id" @click="openAdminClientDetail(clinic)">
+                    <td><div class="admin-client-name-cell"><i>🏥</i><div><strong>{{ clinic.clinic_name }}</strong><small>客户编号 #{{ clinic.clinic_id }}</small></div></div></td>
+                    <td><strong>{{ clinic.contact_name ?? '未维护' }}</strong><small>{{ clinic.contact_phone ?? '联系电话未维护' }}</small></td>
+                    <td><span class="admin-client-status" :class="`is-${clinic.status.toLowerCase()}`">{{ statusLabel(clinic.status) }}</span></td>
+                    <td><strong>{{ clinic.preference_count }} 项</strong><small>客服端维护</small></td>
+                    <td v-if="clinic.ranking"><strong class="admin-client-rank-value">第 {{ clinic.ranking.rank }} 名</strong><small>{{ clinic.ranking.order_count }} 单 · {{ clinic.ranking.item_count }} 件</small></td>
+                    <td v-else><strong>—</strong><small>未进入本月排名</small></td>
+                    <td><strong>{{ compactDateTime(clinic.updated_at) }}</strong><small>档案或偏好更新时间</small></td>
+                    <td><button type="button" @click.stop="openAdminClientDetail(clinic)">查看 →</button></td>
+                  </tr>
+                </tbody>
+              </table>
+            </div>
+            <div v-else class="admin-client-summary-empty">
+              <strong>{{ adminClientKeyword.trim() ? '没有匹配的客户' : '暂无客户档案' }}</strong>
+              <small v-if="adminClientKeyword.trim()">请调整诊所或联系人关键词</small>
+            </div>
+            <footer><span>当前结果 {{ adminClientMatchedTotal }} 家</span><span>客户资料由客服端维护，管理端仅查看</span></footer>
+          </section>
+
+          <footer v-if="adminClientSummary" class="admin-client-summary-source">
+            <span>{{ adminClientSummary.source_note }}</span>
+            <span>统计生成时间 {{ compactDateTime(adminClientSummary.generated_at) }}</span>
+          </footer>
+
+          <el-drawer v-model="adminClientDetailVisible" size="560px" class="admin-client-drawer" :with-header="false">
+            <div class="admin-client-drawer-head">
+              <div><span>客户只读详情</span><h3>{{ selectedAdminClient?.clinic_name ?? '客户详情' }}</h3></div>
+              <button type="button" aria-label="关闭客户详情" @click="adminClientDetailVisible = false">×</button>
+            </div>
+            <el-alert v-if="adminClientDetailError" :title="adminClientDetailError" type="error" show-icon :closable="false" />
+            <div v-if="adminClientDetailLoading" class="admin-client-summary-empty is-page">正在加载客户详情…</div>
+            <div v-else-if="selectedAdminClient" class="admin-client-drawer-body">
+              <section class="admin-client-profile-banner">
+                <i>🏥</i>
+                <div><strong>{{ selectedAdminClient.clinic_name }}</strong><span>客户编号 #{{ selectedAdminClient.clinic_id }}</span></div>
+                <span class="admin-client-status" :class="`is-${selectedAdminClient.status.toLowerCase()}`">{{ statusLabel(selectedAdminClient.status) }}</span>
+              </section>
+
+              <section class="admin-client-detail-section">
+                <header><span>📊</span><div><h4>本月贡献</h4><small>统计接口仅返回本月 Top 客户排名</small></div></header>
+                <div v-if="selectedAdminClientRanking" class="admin-client-detail-metrics">
+                  <div><span>排名</span><strong>第 {{ selectedAdminClientRanking.rank }} 名</strong></div>
+                  <div><span>订单</span><strong>{{ selectedAdminClientRanking.order_count }} 单</strong></div>
+                  <div><span>件数</span><strong>{{ selectedAdminClientRanking.item_count }} 件</strong></div>
+                </div>
+                <p v-else class="admin-client-detail-note">当前客户未进入本月排名，现有聚合不提供排名外客户的单独订单与件数。</p>
+              </section>
+
+              <section class="admin-client-detail-section">
+                <header><span>🏥</span><div><h4>客户档案</h4><small>基础资料只读展示</small></div></header>
+                <dl class="admin-client-detail-grid">
+                  <div><dt>联系人</dt><dd>{{ selectedAdminClient.contact_name ?? '暂未维护' }}</dd></div>
+                  <div><dt>联系电话</dt><dd>{{ selectedAdminClient.contact_phone ?? '暂未维护' }}</dd></div>
+                  <div><dt>建档时间</dt><dd>{{ compactDateTime(selectedAdminClient.created_at) }}</dd></div>
+                  <div><dt>最近维护</dt><dd>{{ compactDateTime(selectedAdminClient.updated_at) }}</dd></div>
+                </dl>
+              </section>
+
+              <section class="admin-client-detail-section">
+                <header><span>🦷</span><div><h4>制作偏好</h4><small>{{ selectedAdminClient.preference_count }} 项已维护</small></div></header>
+                <div v-if="selectedAdminClientPreferenceRows.length" class="admin-client-preference-list">
+                  <div v-for="item in selectedAdminClientPreferenceRows" :key="item.key"><span>{{ item.label }}</span><strong>{{ item.value }}</strong></div>
+                </div>
+                <p v-else class="admin-client-detail-note">该客户暂未维护制作偏好。</p>
+              </section>
+
+              <p class="admin-client-readonly-note">客户资料和制作偏好由客服端维护；管理端仅用于经营查看。</p>
+            </div>
+          </el-drawer>
+        </section>
+
+        <section
           v-else-if="isClinicManagementRoute || isDoctorClinicRoute"
           class="panel route-panel doctor-order-panel"
           data-testid="clinic-preference-panel"
@@ -14246,57 +14594,31 @@ onBeforeUnmount(() => {
           class="panel route-panel admin-communication-page"
           data-testid="admin-communication-management-page"
         >
-          <div class="admin-metric-grid">
-            <article class="admin-metric-card">
-              <span class="admin-metric-icon" aria-hidden="true" v-html="businessIconSvg('chat')" />
-              <div><small>待处理消息</small><strong>{{ customerCollaborationPendingMessages.length }}</strong></div>
-            </article>
-            <article class="admin-metric-card">
-              <span class="admin-metric-icon" aria-hidden="true" v-html="businessIconSvg('order')" />
-              <div><small>涉及订单</small><strong>{{ adminCommunicationOrderCount }}</strong></div>
-            </article>
-            <article class="admin-metric-card">
-              <span class="admin-metric-icon" aria-hidden="true" v-html="businessIconSvg('customer')" />
-              <div><small>当前订单消息</small><strong>{{ customerCollaborationOrderMessages.length }}</strong></div>
-            </article>
-            <article class="admin-metric-card">
-              <span class="admin-metric-icon" aria-hidden="true" v-html="businessIconSvg('audit')" />
-              <div><small>处理原则</small><strong>人工确认</strong></div>
-            </article>
-          </div>
-
           <el-alert v-if="customerCollaborationError" :title="customerCollaborationError" type="error" show-icon :closable="false" />
 
-          <div class="admin-communication-layout">
-            <section class="admin-communication-list">
-              <div class="admin-filter-bar">
-                <strong>需要处理的消息</strong>
-                <span class="admin-filter-meta">点击消息进入处理页面</span>
-              </div>
-              <button
-                v-for="message in customerCollaborationPendingMessages"
-                :key="message.msg_id"
-                class="admin-communication-row"
-                type="button"
-                @click="openAdminCommunicationMessage(message)"
-              >
-                <span class="admin-communication-avatar">{{ roleLabel(message.sender_role).slice(0, 1) }}</span>
-                <span class="admin-communication-copy">
-                  <strong>{{ message.order_no || `订单 ${message.order_id}` }} · {{ roleLabel(message.sender_role) }}</strong>
-                  <p>{{ message.content }}</p>
-                </span>
-                <span class="admin-communication-time">{{ statusLabel(message.review_status) }}</span>
-              </button>
-              <div v-if="customerCollaborationPendingMessages.length === 0" class="admin-empty-state">当前没有待处理消息</div>
-            </section>
+          <section class="admin-comms-review-banner" aria-label="客服审核规则">
+            <span class="admin-comms-review-banner-icon" aria-hidden="true">
+              <svg viewBox="0 0 24 24" fill="none"><path d="M12 3 2.8 20h18.4L12 3Z"/><path d="M12 9v5M12 17.5h.01"/></svg>
+            </span>
+            <div>
+              <strong>{{ customerCollaborationPendingMessages.length ? '对外消息正在等待客服审核' : '当前没有等待客服审核的对外消息' }}</strong>
+              <p>生产端面向医生的消息必须先核对订单上下文；退回时必须填写修改说明。</p>
+            </div>
+            <em>{{ customerCollaborationPendingMessages.length }} 条待审核</em>
+          </section>
 
-            <aside class="admin-data-card">
-              <div class="admin-filter-bar"><strong>查看订单沟通</strong></div>
-              <div class="admin-drawer-section">
-                <p>输入订单编号后，可以查看医生、客服和生产人员围绕该订单的沟通记录。</p>
+          <div class="admin-comms-management-layout">
+            <section class="admin-communication-list admin-comms-management-list">
+              <div class="admin-filter-bar">
+                <strong>待审核处理队列</strong>
+                <span class="admin-filter-meta">订单、发起方、等待时间、责任人与状态均来自真实接口能力</span>
               </div>
-              <div class="admin-drawer-section">
-                <el-select v-model="customerCollaborationOrderId" filterable placeholder="选择订单">
+              <div class="admin-comms-management-toolbar">
+                <div>
+                  <strong>主动查看订单上下文</strong>
+                  <span>没有待审核消息时，也可以按真实订单打开 560px 沟通抽屉。</span>
+                </div>
+                <el-select v-model="customerCollaborationOrderId" filterable clearable placeholder="选择订单">
                   <el-option
                     v-for="order in adminOrderOptions"
                     :key="order.order_id"
@@ -14307,16 +14629,160 @@ onBeforeUnmount(() => {
                 <el-button
                   type="primary"
                   :loading="customerCollaborationLoading"
-                  @click="loadCustomerCollaborationOrderMessages"
+                  :disabled="!customerCollaborationOrderId"
+                  @click="openAdminCommunicationOrderContext"
                 >
                   查看沟通记录
                 </el-button>
               </div>
-              <div class="admin-drawer-section">
-                <h3>处理提示</h3>
-                <p>先核对消息内容和订单背景，再决定通过或退回；退回时请写清需要修改的内容。</p>
+              <div class="admin-comms-management-columns" aria-hidden="true">
+                <span>待处理事项</span><span>发起方</span><span>等待时间</span><span>当前责任人</span><span>状态</span><span>操作</span>
+              </div>
+              <button
+                v-for="message in customerCollaborationPendingMessages"
+                :key="message.msg_id"
+                class="admin-communication-row"
+                type="button"
+                @click="openAdminCommunicationContext(message)"
+              >
+                <span class="admin-communication-avatar-wrap">
+                  <span class="admin-communication-avatar">{{ roleLabel(message.sender_role).slice(0, 1) }}</span>
+                  <i aria-label="待处理" />
+                </span>
+                <span class="admin-communication-copy">
+                  <strong>{{ message.order_no || `订单 ${message.order_id}` }} · {{ productTypeLabel(message.product_type) }}</strong>
+                  <p>{{ message.content }}</p>
+                </span>
+                <span class="admin-communication-cell"><small>发起方</small><strong>{{ roleLabel(message.sender_role) }}</strong></span>
+                <span class="admin-communication-cell"><small>等待时间</small><strong>时间暂未提供</strong></span>
+                <span class="admin-communication-cell"><small>当前责任人</small><strong>暂未提供</strong></span>
+                <span class="admin-communication-cell"><small>状态</small><strong>{{ statusLabel(message.review_status) }}</strong></span>
+                <span class="admin-communication-action">查看上下文 <b aria-hidden="true">→</b></span>
+              </button>
+              <div v-if="customerCollaborationPendingMessages.length === 0" class="admin-empty-state">当前没有待处理消息</div>
+            </section>
+          </div>
+        </section>
+
+        <section
+          v-else-if="isCustomerCollaborationRoute && portalTone === 'admin'"
+          class="panel route-panel admin-comms-page"
+          data-testid="admin-communication-processing-page"
+        >
+          <el-alert v-if="customerCollaborationError" :title="customerCollaborationError" type="error" show-icon :closable="false" />
+          <el-alert v-if="customerCollaborationResult" :title="customerCollaborationResult" type="success" show-icon :closable="false" />
+
+          <div class="admin-comms-layout">
+            <aside class="admin-comms-sidebar">
+              <div class="admin-comms-sidebar-head">
+                <div class="admin-comms-section-title">
+                  <div><span>会话列表</span><strong>待处理订单</strong></div>
+                  <el-tag type="warning" round>{{ adminCommunicationOrderCount }}</el-tag>
+                </div>
+                <el-input v-model="adminCommunicationKeyword" clearable placeholder="搜索订单、产品或发送方">
+                  <template #prefix>
+                    <svg class="admin-comms-search-icon" viewBox="0 0 24 24" fill="none" aria-hidden="true"><circle cx="11" cy="11" r="6.5"/><path d="m16 16 4 4"/></svg>
+                  </template>
+                </el-input>
+                <div class="admin-comms-thread-filters" aria-label="会话筛选">
+                  <button type="button" :class="{ active: adminCommunicationSenderRole === 'ALL' }" @click="adminCommunicationSenderRole = 'ALL'">全部待审 <span>{{ adminCommunicationRoleCounts.ALL }}</span></button>
+                  <button type="button" :class="{ active: adminCommunicationSenderRole === 'DOCTOR' }" @click="adminCommunicationSenderRole = 'DOCTOR'">医生回复 <span>{{ adminCommunicationRoleCounts.DOCTOR }}</span></button>
+                  <button type="button" :class="{ active: adminCommunicationSenderRole === 'WORKER' }" @click="adminCommunicationSenderRole = 'WORKER'">生产待审 <span>{{ adminCommunicationRoleCounts.WORKER }}</span></button>
+                </div>
+              </div>
+
+              <div class="admin-comms-thread-list">
+                <button
+                  v-for="thread in filteredAdminCommunicationThreads"
+                  :key="thread.orderId"
+                  class="admin-comms-thread"
+                  :class="{ active: customerCollaborationOrderId === String(thread.orderId) }"
+                  type="button"
+                  @click="selectAdminCommunicationThread(thread)"
+                >
+                  <span class="admin-comms-thread-top">
+                    <span class="admin-comms-thread-id"><i aria-label="待处理" /><strong>{{ thread.orderNo }}</strong></span>
+                    <em>{{ thread.pendingCount }} 条待处理</em>
+                  </span>
+                  <span class="admin-comms-thread-product">{{ productTypeLabel(thread.productType) }} · {{ roleLabel(thread.senderRole) }}</span>
+                  <span class="admin-comms-thread-preview">{{ thread.preview }}</span>
+                  <span class="admin-comms-thread-time">时间暂未提供</span>
+                </button>
+                <div v-if="filteredAdminCommunicationThreads.length === 0" class="admin-comms-empty">
+                  {{ adminCommunicationThreads.length ? '没有符合当前筛选条件的待处理会话' : '当前没有待处理消息' }}
+                </div>
               </div>
             </aside>
+
+            <section class="admin-comms-workspace">
+              <header class="admin-comms-chat-head">
+                <div>
+                  <span>{{ adminCommunicationCurrentOrder?.order_no || '请选择待处理会话' }}</span>
+                  <h3>{{ adminCommunicationCurrentOrder ? productTypeLabel(adminCommunicationCurrentOrder.product_type) : '订单沟通上下文' }}</h3>
+                  <p v-if="adminCommunicationCurrentOrder">{{ adminCommunicationCurrentOrder.clinic_name || '诊所暂未提供' }} · 当前订单消息 {{ customerCollaborationOrderMessages.length }} 条</p>
+                  <p v-else>从左侧选择会话，或按订单主动查看历史沟通。</p>
+                </div>
+                <div class="admin-comms-chat-actions">
+                  <span class="admin-comms-ai-state is-unavailable" title="当前消息接口未提供智能辅助运行状态"><i />智能辅助状态暂未提供</span>
+                  <el-tag v-if="adminCommunicationCurrentOrder" type="info" round>{{ customerCollaborationMentionableUsers.length }} 位参与人</el-tag>
+                  <el-tag v-if="selectedCustomerCollaborationMessage" type="warning" round>{{ statusLabel(selectedCustomerCollaborationMessage.review_status) }}</el-tag>
+                  <el-button v-if="adminCommunicationCurrentOrder" @click="openAdminOrderDrawer(adminCommunicationCurrentOrder)">查看订单</el-button>
+                </div>
+              </header>
+
+              <div class="admin-comms-message-list">
+                <article
+                  v-for="message in customerCollaborationOrderMessages"
+                  :key="message.msg_id"
+                  class="admin-comms-message"
+                  :class="{ selected: selectedCustomerCollaborationMessage?.msg_id === message.msg_id }"
+                  @click="customerCollaborationPendingMessages.some((item) => item.msg_id === message.msg_id) && selectCustomerCollaborationMessage(message)"
+                >
+                  <span class="admin-comms-message-avatar">{{ roleLabel(message.sender_role).slice(0, 1) }}</span>
+                  <div>
+                    <header><strong>{{ roleLabel(message.sender_role) }}</strong><span>{{ statusLabel(message.review_status) }} · {{ messageVisibilityLabel(message.visible_to) }}</span></header>
+                    <p>{{ message.content }}</p>
+                    <small>消息 #{{ message.msg_id }} · 时间暂未提供</small>
+                  </div>
+                </article>
+                <div v-if="customerCollaborationOrderId && customerCollaborationOrderMessages.length === 0 && !customerCollaborationLoading" class="admin-comms-empty">该订单暂无沟通记录</div>
+                <div v-if="!customerCollaborationOrderId" class="admin-comms-empty">从左侧选择待处理会话，或在沟通管理中按订单查看记录。</div>
+              </div>
+
+              <footer class="admin-comms-composer">
+                <div class="admin-comms-quick-replies">
+                  <span>快捷回复</span>
+                  <button type="button" :disabled="!customerCollaborationOrderId" @click="applyAdminCommunicationQuickReply('已收到，我们正在核对订单信息。')">已收到</button>
+                  <button type="button" :disabled="!customerCollaborationOrderId" @click="applyAdminCommunicationQuickReply('请补充相关资料后，我们将继续处理。')">补充资料</button>
+                  <button type="button" :disabled="!customerCollaborationOrderId" @click="applyAdminCommunicationQuickReply('订单进度已更新，请留意后续通知。')">进度通知</button>
+                </div>
+                <el-input v-model="customerCollaborationDraft" type="textarea" :rows="3" placeholder="输入沟通内容；消息仅按现有权限对外可见" :disabled="!customerCollaborationOrderId" />
+                <div class="admin-comms-composer-actions">
+                  <button class="admin-comms-attachment" type="button" disabled title="当前消息接口暂未提供附件上传能力">
+                    <svg viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="m8.5 12.5 6.2-6.2a3 3 0 1 1 4.2 4.2l-8.4 8.4a5 5 0 0 1-7.1-7.1l8.1-8.1"/></svg>
+                    附件暂未提供
+                  </button>
+                  <el-select v-model="customerCollaborationMentionUserIds" multiple clearable collapse-tags placeholder="@ 当前订单参与人" :disabled="!customerCollaborationOrderId || customerCollaborationMentionableUsers.length === 0">
+                    <el-option v-for="user in customerCollaborationMentionableUsers" :key="user.user_id" :label="`${user.display_name}（${roleLabel(user.user_role)}）`" :value="user.user_id" />
+                  </el-select>
+                  <el-button type="primary" :loading="customerCollaborationSending" :disabled="!customerCollaborationOrderId || !customerCollaborationDraft.trim()" @click="sendCustomerCollaborationMessage">
+                    <span class="admin-comms-send-label">发送消息 <svg viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="m4 4 17 8-17 8 3-8-3-8Z"/><path d="M7 12h14"/></svg></span>
+                  </el-button>
+                </div>
+              </footer>
+
+              <section v-if="selectedCustomerCollaborationMessage" class="admin-comms-review">
+                <div>
+                  <span>当前待处理消息</span>
+                  <strong>#{{ selectedCustomerCollaborationMessage.msg_id }} · {{ roleLabel(selectedCustomerCollaborationMessage.sender_role) }}</strong>
+                </div>
+                <el-input v-model="customerCollaborationReviewNote" placeholder="需要退回时填写内部说明" />
+                <div class="admin-comms-review-actions">
+                  <el-button :loading="customerCollaborationActionLoading" @click="customerCollaborationReviewAction = 'REJECT'; reviewCustomerCollaborationMessage(selectedCustomerCollaborationMessage)">退回修改</el-button>
+                  <el-button type="primary" :loading="customerCollaborationActionLoading" @click="customerCollaborationReviewAction = 'APPROVE'; reviewCustomerCollaborationMessage(selectedCustomerCollaborationMessage)">审核通过</el-button>
+                </div>
+              </section>
+            </section>
           </div>
         </section>
 
@@ -16469,6 +16935,63 @@ onBeforeUnmount(() => {
           </div>
         </section>
       </div>
+
+      <el-drawer
+        v-model="adminCommunicationContextDrawerVisible"
+        size="560px"
+        class="admin-communication-drawer admin-drawer"
+        modal-class="admin-drawer-overlay"
+        data-testid="admin-communication-context-drawer"
+      >
+        <template #header>
+          <div class="admin-comms-drawer-title">
+            <strong>订单沟通上下文</strong>
+            <small>{{ adminCommunicationCurrentOrder?.order_no || selectedCustomerCollaborationMessage?.order_no || '请选择订单' }} · 真实消息与审核状态</small>
+          </div>
+        </template>
+
+        <div v-if="customerCollaborationLoading" class="admin-loading-state">正在加载订单沟通记录…</div>
+        <template v-else>
+          <section class="admin-comms-drawer-summary">
+            <div><span>关联订单</span><strong>{{ adminCommunicationCurrentOrder?.order_no || selectedCustomerCollaborationMessage?.order_no || '暂未提供' }}</strong></div>
+            <div><span>产品</span><strong>{{ adminCommunicationCurrentOrder ? productTypeLabel(adminCommunicationCurrentOrder.product_type) : selectedCustomerCollaborationMessage ? productTypeLabel(selectedCustomerCollaborationMessage.product_type) : '暂未提供' }}</strong></div>
+            <div><span>发起方</span><strong>{{ selectedCustomerCollaborationMessage ? roleLabel(selectedCustomerCollaborationMessage.sender_role) : '按订单主动查看' }}</strong></div>
+            <div><span>等待时间</span><strong>时间暂未提供</strong></div>
+            <div><span>当前责任人</span><strong>暂未提供</strong></div>
+            <div><span>审核状态</span><strong>{{ selectedCustomerCollaborationMessage ? statusLabel(selectedCustomerCollaborationMessage.review_status) : '无待审核消息' }}</strong></div>
+          </section>
+
+          <section v-if="selectedCustomerCollaborationMessage" class="admin-comms-drawer-section is-pending">
+            <header><div><span>当前待处理消息</span><strong>#{{ selectedCustomerCollaborationMessage.msg_id }} · {{ roleLabel(selectedCustomerCollaborationMessage.sender_role) }}</strong></div><em>时间暂未提供</em></header>
+            <p>{{ selectedCustomerCollaborationMessage.content }}</p>
+          </section>
+
+          <section class="admin-comms-drawer-section">
+            <header><div><span>完整会话</span><strong>{{ customerCollaborationOrderMessages.length }} 条真实记录</strong></div><em>{{ customerCollaborationMentionableUsers.length }} 位可提及参与人</em></header>
+            <div class="admin-comms-drawer-messages">
+              <article v-for="message in customerCollaborationOrderMessages" :key="message.msg_id">
+                <span class="admin-comms-message-avatar">{{ roleLabel(message.sender_role).slice(0, 1) }}</span>
+                <div><strong>{{ roleLabel(message.sender_role) }} <small>{{ statusLabel(message.review_status) }} · {{ messageVisibilityLabel(message.visible_to) }}</small></strong><p>{{ message.content }}</p><em>消息 #{{ message.msg_id }} · 时间暂未提供</em></div>
+              </article>
+              <div v-if="customerCollaborationOrderMessages.length === 0" class="admin-empty-state">该订单暂无沟通记录</div>
+            </div>
+          </section>
+
+          <section v-if="selectedCustomerCollaborationMessage && canReviewCustomerCollaboration" class="admin-comms-drawer-section is-review">
+            <header><div><span>审核处理</span><strong>核对订单上下文后再执行</strong></div></header>
+            <el-input v-model="customerCollaborationReviewNote" placeholder="退回修改时必须填写需要调整的内容" />
+            <div class="admin-comms-drawer-review-actions">
+              <el-button :loading="customerCollaborationActionLoading" @click="customerCollaborationReviewAction = 'REJECT'; reviewCustomerCollaborationMessage(selectedCustomerCollaborationMessage)">退回修改</el-button>
+              <el-button type="primary" :loading="customerCollaborationActionLoading" @click="customerCollaborationReviewAction = 'APPROVE'; reviewCustomerCollaborationMessage(selectedCustomerCollaborationMessage)">审核通过</el-button>
+            </div>
+          </section>
+        </template>
+
+        <template #footer>
+          <el-button @click="adminCommunicationContextDrawerVisible = false">关闭</el-button>
+          <el-button v-if="adminCommunicationCurrentOrder" type="primary" @click="openAdminCommunicationOrderFromContext">查看订单</el-button>
+        </template>
+      </el-drawer>
 
       <el-drawer
         v-model="adminOrderDrawerVisible"
