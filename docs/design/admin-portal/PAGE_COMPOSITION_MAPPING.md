@@ -2,7 +2,7 @@
 
 > 方案版本：`ADMIN-PAGE-COMPOSITION-V1.0`
 > 日期：2026-07-16
-> 状态：`PROPOSED_FOR_USER_CONFIRMATION`
+> 状态：`LOCAL_IMPLEMENTATION_BROWSER_ACCEPTED`
 > 上位规格：`ADMIN-UI-BASELINE-V1.18`
 > 参考源：`frontend/public/reference/doctor-portal.html`、`cs-portal.html`、`factory-portal.html`
 
@@ -10,7 +10,7 @@
 
 三个参考 HTML 分别是医生、客服和生产工作台，不是三套可直接套用到全部管理页面的后台模板。管理端页面必须先找到与业务任务最接近的参考页面，再决定是直接复刻、组合复刻还是在共同视觉语言内重新编排。
 
-本方案只确定页面设计、参考映射与执行边界，不修改前端代码。用户确认后，它作为剩余管理页面逐页重构的直接执行基线；未确认前不覆盖已经冻结的 `IMPLEMENTATION_BASELINE.md`。
+本方案确定页面设计、参考映射与执行边界，并已获得用户确认，作为剩余管理页面批量重构的直接执行基线。若与已经冻结的 `IMPLEMENTATION_BASELINE.md` 发生冲突，按用户最新确认及基线变更记录执行。
 
 本轮已重新核对三个权威文件，哈希与研究基线一致：
 
@@ -147,7 +147,7 @@
 | 工作台 | `F` | 当前管理端工作台 | 三端 `page-dashboard` 只用于外壳回归 | 业务内容、卡片、图表和指标冻结，只统一管理端外壳 |
 | 订单管理 | `A` | `cs-portal.html#page-orders` | `doctor-portal.html#page-cases`、`factory-portal.html#page-orders`、客服 `#page-datacenter` | 订单列表复刻客服高密度队列；文件资料复刻资料处理队列；现有两行筛选和 820px 抽屉冻结 |
 | 沟通中心 | `A/B` | `cs-portal.html#page-comms` | 医生/生产 `#page-messages`、客服 `#page-datacenter` | 消息处理直接复刻客服线程工作区；沟通管理组合生产待审核提示与资料处理队列 |
-| 客户管理 | `A` | `cs-portal.html#page-dashboard` 的 Monthly KPIs 与 `#top-clients-chart` | 管理端工作台聚合卡片语法 | 四项月度汇总 + 本月/上月对比 + Top 客户排名；只读，不加载或编辑诊所档案 |
+| 客户管理 | `A/B` | `doctor-portal.html#page-patients`、`#page-settings #tab-clinic` / `#tab-prefs` | `cs-portal.html#page-dashboard` 的 Monthly KPIs 与 `#top-clients-chart` | 客户目录以患者表格密度和设置分组为主；客户贡献使用客服 Dashboard 的销售背景与 Top 客户排名；只读，不录入或编辑诊所档案 |
 | 账单配送 | `A` | `cs-portal.html#page-billing` | `doctor-portal.html#page-billing` | 逾期提示 + 账单队列 + 发货追踪上下堆叠；账单和物流共用一条订单上下文 |
 | 外协管理 | `A` | `factory-portal.html#page-datacenter` | 生产 `#page-orders`、`#page-workorders` | 同步状态条 + 合作方卡 + 外协跟踪表 + 待接收事项；这是外协页最直接的像素级参考 |
 | 工艺生产 | `B` | `factory-portal.html#page-orders`、`#page-workorders` | `#page-kanban`、`#page-workstation` 的 `lead_assign` | 单页以订单工序进度为主线；派工嵌入具体工序节点，不形成第二套列表；固定链不设独立入口 |
@@ -782,28 +782,27 @@
 6. 参考图、实现图和差异说明齐全；
 7. 构建、类型检查和相关测试通过；
 8. 控制台无新增应用错误和未解释失败请求；
-9. 用户确认后才进入下一页。
+9. 批量实施期间完成本页局部回归后继续下一页，全部页面完成后统一提交用户验收。
 
 ## 8. 建议执行顺序
 
-1. 用户确认本映射方案；
-2. 完成并确认当前沟通中心；
-3. 客户管理；
-4. 账单配送；
-5. 外协管理；
-6. 工艺生产；
-7. 质量管理；
-8. 绩效统计；
-9. 设备管理；
-10. 物料管理；
-11. 安环管理；
-12. 成本管控；
-13. 产品总览；
-14. 通知中心；
-15. 智能服务；
-16. 全菜单、权限、1280/1440、工作台和人员管理回归。
+1. 沟通中心已确认，订单管理已完成终验；
+2. 客户管理；
+3. 账单配送；
+4. 外协管理；
+5. 工艺生产；
+6. 质量管理；
+7. 绩效统计；
+8. 设备管理；
+9. 物料管理；
+10. 安环管理；
+11. 成本管控；
+12. 产品总览；
+13. 通知中心；
+14. 智能服务；
+15. 全菜单、权限、1280/1440、工作台、人员管理、订单管理和沟通中心回归。
 
-订单管理已经进入终验状态，人员管理主体已经确认，二者不在剩余主体重构序列中。任何页面不得跨过用户验收门禁批量推进。
+订单管理已经完成终验，沟通中心与人员管理主体已经确认，三者不在剩余主体重构序列中。本轮按用户确认连续完成剩余页面，不再逐页等待确认；各页仍必须保留局部检查与最终统一验收证据。
 
 ## 9. 可直接用于编码定位的 DOM 锚点
 

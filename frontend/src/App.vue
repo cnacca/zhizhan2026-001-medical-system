@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import Uppy from '@uppy/core'
 import { computed, defineAsyncComponent, onBeforeUnmount, ref, watch } from 'vue'
+import AdminRemainingPages from './components/AdminRemainingPages.vue'
 
 const StlViewerDialog = defineAsyncComponent(() => import('./components/StlViewerDialog.vue'))
 
@@ -1404,6 +1405,10 @@ const notifications = ref<NotificationItem[]>([])
 const unreadCount = ref(0)
 const notificationsLoading = ref(false)
 const notificationError = ref('')
+const adminRemainingRef = ref<{
+  refresh: () => Promise<void> | void
+  openQualitySettings: () => Promise<void> | void
+} | null>(null)
 const notificationSocketStatus = ref<'未连接' | '连接中' | '已连接' | '已断开'>('未连接')
 const lastRealtimeNotification = ref<PushNotificationPayload | null>(null)
 const notificationSocket = ref<WebSocket | null>(null)
@@ -2186,18 +2191,18 @@ const displayNavigationConfig: Record<PortalTone, NavigationGroup[]> = {
         { id: 'admin-communication', title: '沟通中心', description: '集中处理订单消息、待确认消息和跨端沟通记录。', icon: 'chat', routePath: '/collaboration' },
         { id: 'admin-customers', title: '客户管理', description: '查看客户结构、月度贡献与只读客户档案。', icon: 'customer', routePath: '/admin/clinics' },
         { id: 'admin-billing-delivery', title: '账单配送', description: '查询账单、物流和发货协同状态。', icon: 'delivery', routePath: '/delivery' },
-        { id: 'admin-outsourcing', title: '外协管理', description: '登记外协记录并跟进供应商、费用和处理状态。', icon: 'partner', routePath: '/admin/outsourcing' }
+        { id: 'admin-outsourcing', title: '外协管理', description: '查看订单内外协件或外协批次的履约进度与异常。', icon: 'partner', routePath: '/admin/outsourcing' }
       ]
     },
     {
       title: '生产运营',
       items: [
-        { id: 'admin-workflow', title: '工艺生产', description: '查看订单工序进度、固定工艺链并执行员工派工。', icon: 'process', routePath: '/workflow/process-instance' },
+        { id: 'admin-workflow', title: '工艺生产', description: '按订单监督生产进度与各工序节点的执行信息。', icon: 'process', routePath: '/workflow/process-instance' },
         { id: 'admin-quality', title: '质量管理', description: '查看质量汇总、外返记录、返工责任和终检状态。', icon: 'quality', routePath: '/production/quality' },
         { id: 'admin-staff', title: '人员管理', description: '管理人员账号、职责关系、组织岗位和任务负载。', icon: 'staff', routePath: '/admin/staff' },
         { id: 'admin-performance', title: '绩效统计', description: '查看全员工时、绩效指标和返工归因。', icon: 'performance', routePath: '/performance' },
         { id: 'admin-device', title: '设备管理', description: '查询设备台账、运行状态和维护记录。', icon: 'device', routePath: '/production/devices' },
-        { id: 'admin-material', title: '物料管理', description: '查询物料异常、登记处理并更新状态。', icon: 'material', routePath: '/production/material-exceptions' },
+        { id: 'admin-material', title: '物料异常', description: '查看物料异常总体情况与现有处理记录。', icon: 'material', routePath: '/production/material-exceptions' },
         { id: 'admin-safety', title: '安环管理', description: '查看安全巡检、隐患整改、环境记录和安环事件统计。', icon: 'safety', routePath: '/production/safety-environment' },
         { id: 'admin-cost-control', title: '成本管控', description: '查看工序、材料、人工、返工、外协成本和异常预警。', icon: 'cost', routePath: '/production/cost-management' }
       ]
@@ -2205,9 +2210,9 @@ const displayNavigationConfig: Record<PortalTone, NavigationGroup[]> = {
     {
       title: '系统治理',
       items: [
-        { id: 'admin-products', title: '产品配置', description: '维护下单表单字段、返工原因和责任类型。', icon: 'product', routePath: '/system/form-configs' },
-        { id: 'admin-audit', title: '审计通知', description: '查看关键操作、通知和系统安全事件。', icon: 'audit', routePath: '/notifications' },
-        { id: 'admin-ai', title: 'AI 治理', description: '查看智能功能、安全保护、预算提醒和人工确认要求。', icon: 'ai', routePath: '/admin/ai-governance' }
+        { id: 'admin-products', title: '产品总览', description: '只读查看可用产品及其基本业务信息。', icon: 'product', routePath: '/system/form-configs' },
+        { id: 'admin-audit', title: '通知中心', description: '查看当前账号的业务通知和未读提醒。', icon: 'notification', routePath: '/notifications' },
+        { id: 'admin-ai', title: '智能服务', description: '查看全平台智能服务运行、用量与预算情况。', icon: 'ai', routePath: '/admin/ai-governance' }
       ]
     }
   ]
@@ -2253,7 +2258,7 @@ const accountNavigationConfig: Record<PortalTone, NavigationGroup[]> = {
       title: '账号与提醒',
       items: [
         { id: 'admin-account-personnel', title: '人员管理', description: '查看人员账号、职责和组织岗位。', icon: 'staff', routePath: '/admin/staff' },
-        { id: 'admin-account-notifications', title: '审计通知', description: '查看待处理提醒和关键操作通知。', icon: 'audit', routePath: '/notifications' }
+        { id: 'admin-account-notifications', title: '通知中心', description: '查看当前账号的业务通知和未读提醒。', icon: 'notification', routePath: '/notifications' }
       ]
     }
   ]
@@ -2410,18 +2415,23 @@ const placeholderContentMap: Record<string, PlaceholderContentItem[]> = {
 }
 const navigationGroups = computed<NavigationGroup[]>(() => displayNavigationConfig[portalTone.value])
 const accountNavigationGroups = computed<NavigationGroup[]>(() => accountNavigationConfig[portalTone.value])
+const adminRemainingRoutePaths = new Set([
+  '/admin/clinics', '/delivery', '/admin/outsourcing', '/workflow/process-instance',
+  '/production/quality', '/performance', '/production/devices',
+  '/production/material-exceptions', '/production/safety-environment',
+  '/production/cost-management', '/system/form-configs', '/notifications',
+  '/admin/ai-governance'
+])
 const adminParentNavIdByRoute: Record<string, string> = {
   '/orders/internal': 'admin-orders',
   '/admin/files': 'admin-orders',
   '/collaboration': 'admin-communication',
   '/admin/communication-management': 'admin-communication',
   '/workflow/process-instance': 'admin-workflow',
-  '/workflow/assign': 'admin-workflow',
   '/admin/staff': 'admin-staff',
   '/admin/staff/roles': 'admin-staff',
   '/admin/staff/organization': 'admin-staff',
   '/system/form-configs': 'admin-products',
-  '/system/rework-dictionaries': 'admin-products',
   '/notifications': 'admin-audit'
 }
 const adminPageTabsByParent: Record<string, AdminPageTab[]> = {
@@ -2432,14 +2442,6 @@ const adminPageTabsByParent: Record<string, AdminPageTab[]> = {
   'admin-communication': [
     { label: '消息处理', routePath: '/collaboration' },
     { label: '沟通管理', routePath: '/admin/communication-management' }
-  ],
-  'admin-workflow': [
-    { label: '工序进度', routePath: '/workflow/process-instance' },
-    { label: '员工派工', routePath: '/workflow/assign' }
-  ],
-  'admin-products': [
-    { label: '动态表单', routePath: '/system/form-configs' },
-    { label: '返工字典', routePath: '/system/rework-dictionaries' }
   ]
 }
 const activeAdminParentNavId = computed(() => adminParentNavIdByRoute[activeRoute.value] ?? activeNavId.value)
@@ -3159,7 +3161,7 @@ const accountProfile = computed<AccountProfile>(() => {
     },
     admin: {
       organization: '平台管理部',
-      summary: '可进入人员管理、组织岗位和审计通知。'
+      summary: '可进入人员管理、组织岗位和业务通知。'
     }
   }
   return {
@@ -3642,22 +3644,20 @@ const routeChrome = computed<RouteChrome>(() => {
       '/admin/communication-management': { title: '沟通中心', description: '查看待处理消息、涉及订单和当前沟通情况。', icon: 'audit' },
       '/admin/clinics': { title: '客户管理', description: '查看客户结构、月度贡献与只读客户档案。', icon: 'customer' },
       '/delivery': { title: '账单配送', description: '查看账单、付款和配送跟进情况。', icon: 'delivery' },
-      '/admin/outsourcing': { title: '外协管理', description: '登记外协记录并跟进供应商、费用和处理状态。', icon: 'partner' },
-      '/workflow/process-instance': { title: '工艺生产', description: '查看订单工序进度，并按需查看固定工艺链。', icon: 'process' },
-      '/workflow/assign': { title: '工艺生产', description: '为生产节点安排人员或调整执行人。', icon: 'process' },
-      '/production/quality': { title: '质量管理', description: '查看质量趋势、外返记录和处理进度。', icon: 'quality' },
+      '/admin/outsourcing': { title: '外协管理', description: '查看订单内外协件或外协批次的履约进度与异常。', icon: 'partner' },
+      '/workflow/process-instance': { title: '工艺生产', description: '按订单监督生产进度与各工序节点的执行信息。', icon: 'process' },
+      '/production/quality': { title: '质量管理', description: '监督质量问题、责任依据、处理状态与最终关闭。', icon: 'quality' },
       '/admin/staff': { title: '人员管理', description: '管理人员账号、职责关系和当前工作量。', icon: 'staff' },
       '/admin/staff/roles': { title: '人员管理', description: '查看管理员、经理、主管和普通员工的职责关系。', icon: 'staff' },
       '/admin/staff/organization': { title: '人员管理', description: '查看部门、岗位和人员归属。', icon: 'staff' },
       '/performance': { title: '绩效统计', description: '按员工与时间查看工时、质量和完成情况。', icon: 'performance' },
       '/production/devices': { title: '设备管理', description: '查看设备台账、运行状态和维护记录。', icon: 'device' },
-      '/production/material-exceptions': { title: '物料管理', description: '查看物料异常、处理情况和相关记录。', icon: 'material' },
+      '/production/material-exceptions': { title: '物料异常', description: '查看物料异常总体情况与现有处理记录。', icon: 'material' },
       '/production/safety-environment': { title: '安环管理', description: '查看安全巡检、整改事项和环境记录。', icon: 'safety' },
       '/production/cost-management': { title: '成本管控', description: '查看工序、材料、人工、返工和外协费用概览。', icon: 'cost' },
-      '/system/form-configs': { title: '产品配置', description: '维护下单字段和产品相关设置。', icon: 'product' },
-      '/system/rework-dictionaries': { title: '产品配置', description: '维护返工原因和责任类型。', icon: 'product' },
-      '/notifications': { title: '审计通知', description: '查看待处理提醒、关键操作和系统通知。', icon: 'audit' },
-      '/admin/ai-governance': { title: 'AI 治理', description: '查看智能功能、安全保护、预算提醒和人工确认要求。', icon: 'ai' }
+      '/system/form-configs': { title: '产品总览', description: '只读查看可用产品及其基本业务信息。', icon: 'product' },
+      '/notifications': { title: '通知中心', description: '查看当前账号的真实业务通知和未读提醒。', icon: 'notification' },
+      '/admin/ai-governance': { title: '智能服务', description: '查看全平台智能服务运行、用量与预算情况。', icon: 'ai' }
     }
     const detail = routeDetails[route] ?? {
       title: parentItem?.title ?? '管理中心',
@@ -3715,7 +3715,7 @@ const routeChrome = computed<RouteChrome>(() => {
     return { eyebrow: '生产端 / 看板', title: '生产看板', description: '跨状态查看生产订单、节点进度和终检发货门禁。', icon: 'view_kanban' }
   }
   if (route === '/admin/ai-governance') {
-    return { eyebrow: '管理端 / AI 治理', title: 'AI 治理', description: '查看提示词版本、输出安全边界、预算熔断、AI-3 安全矩阵和真实联调阻塞。', icon: 'ai' }
+    return { eyebrow: '管理端 / 智能服务', title: '智能服务', description: '查看全平台智能服务运行、用量与预算情况。', icon: 'ai' }
   }
   if (route === '/production/quality') {
     return { eyebrow: '生产端 / 质量记录', title: '质量与返工', description: '查看质量汇总，登记外返质量记录，并追踪返工责任分类。', icon: 'quality' }
@@ -5031,6 +5031,12 @@ function defaultDisplayNavIdForRoute(routePath: string) {
 }
 
 async function loadActiveRouteData() {
+  if (portalTone.value === 'admin' && adminRemainingRoutePaths.has(activeRoute.value)) {
+    if (activeRoute.value === '/notifications') {
+      await loadNotifications()
+    }
+    return
+  }
   if (activeRoute.value === '/dashboard') {
     await loadPhaseOneAbDashboardData()
   } else if (activeRoute.value === '/doctor/orders') {
@@ -5178,6 +5184,12 @@ function navigateToRoute(routePath: string) {
   activeRoute.value = normalizedRoutePath
   activePrototypeChip.value = ''
   routePath = normalizedRoutePath
+  if (portalTone.value === 'admin' && adminRemainingRoutePaths.has(routePath)) {
+    if (routePath === '/notifications') {
+      void loadNotifications()
+    }
+    return
+  }
   if (routePath === '/dashboard') {
     void loadPhaseOneAbDashboardData()
     void loadCustomerAttentionItems()
@@ -5290,6 +5302,17 @@ function openNotificationCenter() {
   }
   activeNavId.value = defaultDisplayNavIdForRoute('/notifications')
   navigateToRoute('/notifications')
+}
+
+async function openAdminRemainingOrder(orderId: number) {
+  activeNavId.value = 'admin-orders'
+  activeRoute.value = '/orders/internal'
+  activePrototypeChip.value = ''
+  await loadInternalOrders()
+  const order = internalOrders.value.find((item) => item.order_id === orderId)
+  if (order) {
+    await openAdminOrderDrawer(order)
+  }
 }
 
 function selectDisplayNavigationItem(item: DisplayNavigationItem | BusinessShortcut) {
@@ -10175,7 +10198,7 @@ onBeforeUnmount(() => {
                 <template v-else>?</template>
               </button>
             </el-tooltip>
-            <button class="admin-topbar-icon" type="button" aria-label="打开审计通知" @click="openNotificationCenter">
+            <button class="admin-topbar-icon" type="button" aria-label="打开通知中心" @click="openNotificationCenter">
               <span class="svg-symbol" aria-hidden="true" v-html="businessIconSvg('notification')" />
               <i v-if="hasUnreadNotifications" />
             </button>
@@ -10330,12 +10353,20 @@ onBeforeUnmount(() => {
               </div>
               <div class="admin-page-actions">
                 <el-button
-                  v-if="activeAdminParentNavId === 'admin-workflow'"
+                  v-if="activeRoute === '/production/quality'"
                   plain
-                  data-testid="admin-workflow-chain-open"
-                  @click="openWorkflowChainDrawer"
+                  data-testid="admin-quality-settings-open"
+                  @click="adminRemainingRef?.openQualitySettings()"
                 >
-                  查看固定工艺链
+                  返工原因与责任分类
+                </el-button>
+                <el-button
+                  v-if="adminRemainingRoutePaths.has(activeRoute) && activeRoute !== '/notifications'"
+                  plain
+                  data-testid="admin-remaining-refresh"
+                  @click="adminRemainingRef?.refresh()"
+                >
+                  刷新数据
                 </el-button>
                 <el-button
                   v-if="activeAdminParentNavId === 'admin-staff'"
@@ -10509,6 +10540,25 @@ onBeforeUnmount(() => {
           </div>
         </section>
 
+        <section
+          v-else-if="portalTone === 'admin' && adminRemainingRoutePaths.has(activeRoute)"
+          class="panel route-panel admin-remaining-shell"
+        >
+          <AdminRemainingPages
+            ref="adminRemainingRef"
+            :active-route="activeRoute"
+            :token="token"
+            :notifications="notifications"
+            :notifications-loading="notificationsLoading"
+            :notification-error="notificationError"
+            :unread-count="unreadCount"
+            @refresh-notifications="loadNotifications"
+            @mark-notification-read="markNotificationRead"
+            @mark-all-notifications-read="markAllNotificationsRead"
+            @open-order="openAdminRemainingOrder"
+          />
+        </section>
+
         <section v-else-if="isProductionCloudDataView" class="factory-cloud-page">
           <header class="factory-page-heading">
             <div><h2>云端数据中心</h2><p>集中查看生产权限内订单的设计稿与附件信息。</p></div>
@@ -10557,7 +10607,7 @@ onBeforeUnmount(() => {
                     <i />{{ option.label }} <b>{{ option.count }}</b>
                   </button>
                 </div>
-                <span class="aor-date-note">创建日期、交期筛选：接口暂未提供</span>
+                <span class="aor-date-note">创建日期与交期信息完善后开放更多筛选</span>
               </div>
             </section>
 
@@ -14723,7 +14773,7 @@ onBeforeUnmount(() => {
                   <p v-else>从左侧选择会话，或按订单主动查看历史沟通。</p>
                 </div>
                 <div class="admin-comms-chat-actions">
-                  <span class="admin-comms-ai-state is-unavailable" title="当前消息接口未提供智能辅助运行状态"><i />智能辅助状态暂未提供</span>
+                  <span class="admin-comms-ai-state is-unavailable" title="当前没有可核对的智能辅助运行状态"><i />智能辅助状态暂未提供</span>
                   <el-tag v-if="adminCommunicationCurrentOrder" type="info" round>{{ customerCollaborationMentionableUsers.length }} 位参与人</el-tag>
                   <el-tag v-if="selectedCustomerCollaborationMessage" type="warning" round>{{ statusLabel(selectedCustomerCollaborationMessage.review_status) }}</el-tag>
                   <el-button v-if="adminCommunicationCurrentOrder" @click="openAdminOrderDrawer(adminCommunicationCurrentOrder)">查看订单</el-button>
@@ -14758,7 +14808,7 @@ onBeforeUnmount(() => {
                 </div>
                 <el-input v-model="customerCollaborationDraft" type="textarea" :rows="3" placeholder="输入沟通内容；消息仅按现有权限对外可见" :disabled="!customerCollaborationOrderId" />
                 <div class="admin-comms-composer-actions">
-                  <button class="admin-comms-attachment" type="button" disabled title="当前消息接口暂未提供附件上传能力">
+                  <button class="admin-comms-attachment" type="button" disabled title="当前沟通仅支持文字消息">
                     <svg viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="m8.5 12.5 6.2-6.2a3 3 0 1 1 4.2 4.2l-8.4 8.4a5 5 0 0 1-7.1-7.1l8.1-8.1"/></svg>
                     附件暂未提供
                   </button>
@@ -15120,7 +15170,7 @@ onBeforeUnmount(() => {
         <section v-else-if="activeRoute === '/notifications'" class="panel route-panel notification-panel">
           <div class="route-heading">
             <div>
-              <h2>{{ portalTone === 'admin' ? '审计通知' : '通知中心' }}</h2>
+              <h2>通知中心</h2>
               <p v-if="portalTone === 'admin'">集中查看待处理提醒、关键操作和业务通知。</p>
             </div>
             <div class="notification-heading-tags">
@@ -17097,11 +17147,11 @@ onBeforeUnmount(() => {
         </div>
         <div class="admin-drawer-section">
           <h3>需要关注的事项</h3>
-          <p>待处理提醒和关键操作记录统一放在“审计通知”。涉及新增、修改或状态变更时，请核对页面提示后再提交。</p>
+          <p>当前账号的业务提醒统一放在“通知中心”。涉及新增、修改或状态变更时，请核对页面提示后再提交。</p>
         </div>
         <template #footer>
           <el-button @click="adminHelpDrawerVisible = false">关闭</el-button>
-          <el-button type="primary" @click="adminHelpDrawerVisible = false; openNotificationCenter()">查看审计通知</el-button>
+          <el-button type="primary" @click="adminHelpDrawerVisible = false; openNotificationCenter()">查看通知中心</el-button>
         </template>
       </el-drawer>
 
@@ -17198,7 +17248,7 @@ onBeforeUnmount(() => {
                 <option value="INACTIVE">已停用</option>
               </select>
             </label>
-            <p>当前后端未提供人员账号状态变更接口，本页只显示真实状态。</p>
+            <p>当前仅展示人员账号真实状态，状态调整能力尚未开放。</p>
           </section>
 
           <div v-if="staffAccountResult" class="apm-drawer-feedback" role="status">{{ staffAccountResult }}</div>

@@ -554,6 +554,17 @@
   box-shadow: var(--admin-shadow-sm);
 }
 
+.portal-admin.admin-reference-mode .route-panel.admin-remaining-shell {
+  min-width: 0;
+  margin: 0 24px 24px;
+  padding: 0;
+  border: 0;
+  border-radius: 0;
+  background: transparent;
+  box-shadow: none;
+  overflow: visible;
+}
+
 .portal-admin.admin-reference-mode .route-heading {
   min-height: 42px;
   margin-bottom: 14px;
@@ -4343,6 +4354,16 @@
   .portal-admin.admin-reference-mode .admin-file-grid {
     grid-template-columns: repeat(2, minmax(0, 1fr));
   }
+
+  .portal-admin.admin-reference-mode .health-panel {
+    padding-right: 18px;
+    padding-left: 18px;
+  }
+
+  .portal-admin.admin-reference-mode .route-panel.admin-remaining-shell {
+    margin-right: 18px;
+    margin-left: 18px;
+  }
 }
 
 /* 小屏使用顶部紧凑菜单，不让内容被固定侧栏挡住。 */
@@ -4421,6 +4442,11 @@
   .portal-admin.admin-reference-mode .route-panel {
     margin-right: 16px;
     margin-left: 16px;
+  }
+
+  .portal-admin.admin-reference-mode .route-panel.admin-remaining-shell {
+    margin-right: 18px;
+    margin-left: 18px;
   }
 
   .portal-admin.admin-personnel-mode .admin-personnel-page {
@@ -4590,6 +4616,11 @@
   .portal-admin.admin-reference-mode .route-panel {
     margin: 8px 10px 16px;
     padding: 14px;
+  }
+
+  .portal-admin.admin-reference-mode .route-panel.admin-remaining-shell {
+    margin: 0 10px 16px;
+    padding: 0;
   }
 
   .portal-admin.admin-personnel-mode .admin-personnel-page {
