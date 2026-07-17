@@ -7,6 +7,7 @@ import java.math.BigDecimal;
 import java.math.RoundingMode;
 import java.time.LocalDate;
 import java.time.LocalDateTime;
+import java.time.YearMonth;
 import java.util.ArrayList;
 import java.util.EnumSet;
 import java.util.List;
@@ -57,6 +58,7 @@ public class SalesDashboardService {
                 currentYearStart, currentEnd, previousYearStart, previousEnd, identity, dataScope);
         List<SalesDashboardResponse.MonthlySalesTrend> trend = monthlyTrend(
                 currentYearStart, nextYearStart, previousYearStart, identity, dataScope);
+        SalesDashboardResponse.MonthComparison monthComparison = monthComparison(today, identity, dataScope);
 
         return new SalesDashboardResponse(
                 today.getYear(),
@@ -65,8 +67,128 @@ public class SalesDashboardService {
                 inbound,
                 outbound,
                 trend,
+                monthComparison,
                 SOURCE_NOTE,
                 LocalDateTime.now());
+    }
+
+    private SalesDashboardResponse.MonthComparison monthComparison(
+            LocalDate today, BootstrapIdentity identity, String dataScope) {
+        YearMonth currentMonth = YearMonth.from(today);
+        YearMonth previousMonth = currentMonth.minusMonths(1);
+        int comparisonDayCount = Math.min(today.getDayOfMonth(), previousMonth.lengthOfMonth());
+        LocalDate currentStart = currentMonth.atDay(1);
+        LocalDate currentEnd = currentStart.plusDays(comparisonDayCount);
+        LocalDate previousStart = previousMonth.atDay(1);
+        LocalDate previousEnd = previousStart.plusDays(comparisonDayCount);
+
+        SalesDashboardResponse.SalesComparison inbound = comparison(
+                INBOUND_AT, APPROVAL_JOIN, currentStart, currentEnd, previousStart, previousEnd, identity, dataScope);
+        SalesDashboardResponse.SalesComparison outbound = comparison(
+                OUTBOUND_AT, "LEFT JOIN order_logistics l ON l.order_id = o.order_id",
+                currentStart, currentEnd, previousStart, previousEnd, identity, dataScope);
+
+        return new SalesDashboardResponse.MonthComparison(
+                currentMonth,
+                previousMonth,
+                currentEnd.minusDays(1),
+                comparisonDayCount,
+                monthAmountComparison(inbound),
+                monthAmountComparison(outbound),
+                dailyMonthTrend(
+                        comparisonDayCount,
+                        currentStart,
+                        currentEnd,
+                        previousStart,
+                        previousEnd,
+                        identity,
+                        dataScope));
+    }
+
+    private SalesDashboardResponse.MonthAmountComparison monthAmountComparison(
+            SalesDashboardResponse.SalesComparison comparison) {
+        return new SalesDashboardResponse.MonthAmountComparison(
+                comparison.currentAmountCents(),
+                comparison.previousYearAmountCents(),
+                comparison.yearOverYearPercent(),
+                comparison.currentOrderCount(),
+                comparison.previousYearOrderCount(),
+                comparison.currentAmountOrderCount(),
+                comparison.previousYearAmountOrderCount());
+    }
+
+    private List<SalesDashboardResponse.DailyMonthSalesTrend> dailyMonthTrend(
+            int dayCount,
+            LocalDate currentStart,
+            LocalDate currentEnd,
+            LocalDate previousStart,
+            LocalDate previousEnd,
+            BootstrapIdentity identity,
+            String dataScope) {
+        long[] currentInbound = dailyCumulative(
+                dayCount, INBOUND_AT, APPROVAL_JOIN, currentStart, currentEnd, identity, dataScope);
+        long[] previousInbound = dailyCumulative(
+                dayCount, INBOUND_AT, APPROVAL_JOIN, previousStart, previousEnd, identity, dataScope);
+        long[] currentOutbound = dailyCumulative(
+                dayCount, OUTBOUND_AT, "LEFT JOIN order_logistics l ON l.order_id = o.order_id",
+                currentStart, currentEnd, identity, dataScope);
+        long[] previousOutbound = dailyCumulative(
+                dayCount, OUTBOUND_AT, "LEFT JOIN order_logistics l ON l.order_id = o.order_id",
+                previousStart, previousEnd, identity, dataScope);
+
+        List<SalesDashboardResponse.DailyMonthSalesTrend> result = new ArrayList<>(dayCount);
+        for (int day = 1; day <= dayCount; day++) {
+            int index = day - 1;
+            result.add(new SalesDashboardResponse.DailyMonthSalesTrend(
+                    day,
+                    currentInbound[index],
+                    previousInbound[index],
+                    currentOutbound[index],
+                    previousOutbound[index]));
+        }
+        return result;
+    }
+
+    private long[] dailyCumulative(
+            int dayCount,
+            String eventAt,
+            String eventJoin,
+            LocalDate start,
+            LocalDate end,
+            BootstrapIdentity identity,
+            String dataScope) {
+        long[] result = new long[dayCount];
+        List<DailyRow> rows = bindScope(jdbcClient.sql("""
+                        SELECT DAYOFMONTH(%1$s) AS event_day,
+                               COALESCE(SUM(CASE
+                                   WHEN b.amount_cent IS NOT NULL AND b.currency = :currency
+                                   THEN b.amount_cent ELSE 0 END), 0) AS amount_cents
+                        FROM orders o
+                        LEFT JOIN order_bill b ON b.order_id = o.order_id
+                        %2$s
+                        WHERE %3$s
+                          AND %1$s >= :startAt
+                          AND %1$s < :endAt
+                        GROUP BY DAYOFMONTH(%1$s)
+                        ORDER BY event_day
+                        """.formatted(eventAt, eventJoin, scopedWhereClause())), identity, dataScope)
+                .param("currency", CURRENCY)
+                .param("startAt", start.atStartOfDay())
+                .param("endAt", end.atStartOfDay())
+                .query((rs, rowNum) -> new DailyRow(rs.getInt("event_day"), rs.getLong("amount_cents")))
+                .list();
+        for (DailyRow row : rows) {
+            int index = row.day() - 1;
+            if (index >= 0 && index < result.length) {
+                result[index] = row.amountCents();
+            }
+        }
+        long cumulative = 0;
+        for (int index = 0; index < result.length; index++) {
+            cumulative += result[index];
+            result[index] = cumulative;
+        }
+        return result;
     }
 
     private SalesDashboardResponse.SalesComparison comparison(
@@ -259,5 +381,8 @@ public class SalesDashboardService {
     }
 
     private record TrendRow(int year, int month, long amountCents) {
+    }
+
+    private record DailyRow(int day, long amountCents) {
     }
 }

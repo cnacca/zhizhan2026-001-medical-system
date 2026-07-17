@@ -398,6 +398,34 @@ type SalesDashboardTrendPoint = {
   previous_year_outbound_amount_cents: number
 }
 
+type SalesDashboardMonthAmountComparison = {
+  current_amount_cents: number
+  previous_month_amount_cents: number
+  month_over_month_percent: number | null
+  current_order_count: number
+  previous_month_order_count: number
+  current_amount_order_count: number
+  previous_month_amount_order_count: number
+}
+
+type SalesDashboardDailyMonthTrend = {
+  day: number
+  current_inbound_amount_cents: number
+  previous_month_inbound_amount_cents: number
+  current_outbound_amount_cents: number
+  previous_month_outbound_amount_cents: number
+}
+
+type SalesDashboardMonthComparison = {
+  current_month: string
+  previous_month: string
+  through_date: string
+  comparison_day_count: number
+  inbound: SalesDashboardMonthAmountComparison
+  outbound: SalesDashboardMonthAmountComparison
+  daily_trend: SalesDashboardDailyMonthTrend[]
+}
+
 type SalesDashboardResponse = {
   current_year: number
   through_date: string
@@ -405,6 +433,7 @@ type SalesDashboardResponse = {
   inbound: SalesDashboardComparison
   outbound: SalesDashboardComparison
   monthly_trend: SalesDashboardTrendPoint[]
+  month_comparison: SalesDashboardMonthComparison
   source_note: string
   generated_at: string
 }
@@ -1301,7 +1330,14 @@ type AdminEfficiencyMetric = {
   tone: PrototypeTone
 }
 
-type AdminSalesTrendPoint = CsAnnualTrendPoint
+type AdminSalesTrendPoint = {
+  day: number
+  label: string
+  currentInbound: number
+  previousInbound: number
+  currentOutbound: number
+  previousOutbound: number
+}
 
 type AdminCustomerRankRow = CsCustomerRankRow
 
@@ -2688,7 +2724,7 @@ const adminBusinessMetrics = computed<AdminBusinessMetric[]>(() => {
   const shippedCount = countDeliveryByStatus(deliveryOrders, ['SHIPPED', 'IN_TRANSIT', 'DELIVERED'])
   const inboundCount = summary?.current_month.order_count ?? orders.length
   const outboundCount = shippedCount
-  const shippedItems = summary?.current_month.item_count ?? Math.max(shippedCount, csStats.itemCount)
+  const pendingShipmentCount = countOrdersByStatus(orders, ['QC_PASSED', 'PENDING_SHIP'])
   const csExceptionCount = csStats.pendingReviewCount
     + csStats.pendingMessageReviewCount
     + csStats.billManualFollowUpCount
@@ -2698,7 +2734,7 @@ const adminBusinessMetrics = computed<AdminBusinessMetric[]>(() => {
   return [
     { title: '总入货', value: `${inboundCount}`, note: '本月接收订单', icon: 'order', tone: 'blue' },
     { title: '总发货', value: `${outboundCount}`, note: '物流状态已同步', icon: 'delivery', tone: 'teal' },
-    { title: '出货份数', value: `${shippedItems}`, note: '本地件数口径', icon: 'dashboard', tone: 'green' },
+    { title: '待发货订单', value: `${pendingShipmentCount}`, note: '已完成质检待配送', icon: 'dashboard', tone: 'green' },
     { title: '返工份数', value: `${productionStats.totalReworkCount}`, note: `返工率 ${formatRate(productionStats.totalReworkRate)}`, icon: 'quality', tone: 'rose' },
     { title: '内返份数', value: `${productionStats.internalReworkCount}`, note: `内返率 ${formatRate(productionStats.internalReworkRate)}`, icon: 'quality', tone: 'amber' },
     { title: '生产异常', value: `${productionStats.productionExceptionCount}`, note: '工序与生产待办', icon: 'process', tone: 'orange' },
@@ -2710,22 +2746,53 @@ const adminBusinessMetrics = computed<AdminBusinessMetric[]>(() => {
 })
 const adminEfficiencyMetrics = computed<AdminEfficiencyMetric[]>(() => {
   const stats = phaseOneAbProductionDashboardStats.value
-  const totalExceptions = stats.productionExceptionCount
-    + stats.materialPendingCount
-    + stats.costWarningCount
-    + phaseOneAbCsDashboardStats.value.pendingMessageReviewCount
-  const baseCount = Math.max(phaseOneAbDashboardOrders.value.length, phaseOneAbDashboardSummary.value?.current_month.order_count ?? 0, 1)
-  const exceptionRate = Math.round((totalExceptions / baseCount) * 100)
 
   return [
-    { label: '当日出货率', value: formatRate(stats.shippingRate), percent: phaseOneProgress(stats.shippingRate), note: '已发货 / 待发货', tone: 'teal' },
+    { label: '订单完成率', value: formatRate(stats.completionRate), percent: phaseOneProgress(stats.completionRate), note: '本月已完成 / 本月订单', tone: 'green' },
+    { label: '出货率', value: formatRate(stats.shippingRate), percent: phaseOneProgress(stats.shippingRate), note: '本月已发货 / 本月订单', tone: 'teal' },
     { label: '返工率', value: formatRate(stats.totalReworkRate), percent: phaseOneProgress(stats.totalReworkRate), note: '返工份数 / 总件数', tone: 'rose' },
-    { label: '内返率', value: formatRate(stats.internalReworkRate), percent: phaseOneProgress(stats.internalReworkRate), note: '内部质检返修', tone: 'amber' },
-    { label: '异常率', value: formatRate(exceptionRate), percent: phaseOneProgress(exceptionRate), note: '生产/客服/物料/成本', tone: 'orange' }
+    { label: '内返率', value: formatRate(stats.internalReworkRate), percent: phaseOneProgress(stats.internalReworkRate), note: '内部质检返修', tone: 'amber' }
   ]
 })
-const adminSalesTrendPoints = computed<AdminSalesTrendPoint[]>(() => csAnnualTrendPoints.value)
-const adminSalesTrendMax = computed(() => csAnnualTrendMax.value)
+const adminMonthComparison = computed(() => salesDashboardSummary.value?.month_comparison ?? null)
+const adminSalesTrendPoints = computed<AdminSalesTrendPoint[]>(() =>
+  (adminMonthComparison.value?.daily_trend ?? []).map((point) => ({
+    day: point.day,
+    label: `${point.day}日`,
+    currentInbound: point.current_inbound_amount_cents,
+    previousInbound: point.previous_month_inbound_amount_cents,
+    currentOutbound: point.current_outbound_amount_cents,
+    previousOutbound: point.previous_month_outbound_amount_cents
+  }))
+)
+const adminInboundTrendMax = computed(() => Math.max(...adminSalesTrendPoints.value.flatMap((point) => [
+  point.currentInbound,
+  point.previousInbound
+]), 1))
+const adminOutboundTrendMax = computed(() => Math.max(...adminSalesTrendPoints.value.flatMap((point) => [
+  point.currentOutbound,
+  point.previousOutbound
+]), 1))
+function adminMonthTrendX(index: number) {
+  return 30 + (index / Math.max(adminSalesTrendPoints.value.length - 1, 1)) * 304
+}
+function adminMonthTrendPolyline(
+  key: 'currentInbound' | 'previousInbound' | 'currentOutbound' | 'previousOutbound',
+  maxValue: number
+) {
+  return adminSalesTrendPoints.value.map((point, index) => {
+    const x = adminMonthTrendX(index)
+    const y = 130 - (point[key] / Math.max(maxValue, 1)) * 92
+    return `${x.toFixed(1)},${y.toFixed(1)}`
+  }).join(' ')
+}
+const adminCurrentInboundTrendPolyline = computed(() => adminMonthTrendPolyline('currentInbound', adminInboundTrendMax.value))
+const adminPreviousInboundTrendPolyline = computed(() => adminMonthTrendPolyline('previousInbound', adminInboundTrendMax.value))
+const adminCurrentOutboundTrendPolyline = computed(() => adminMonthTrendPolyline('currentOutbound', adminOutboundTrendMax.value))
+const adminPreviousOutboundTrendPolyline = computed(() => adminMonthTrendPolyline('previousOutbound', adminOutboundTrendMax.value))
+function adminMonthTrendLabelVisible(point: AdminSalesTrendPoint, index: number) {
+  return index === 0 || index === adminSalesTrendPoints.value.length - 1 || point.day % 5 === 0
+}
 const adminCustomerRankRows = computed<AdminCustomerRankRow[]>(() => csCustomerRankRows.value)
 const phaseOneAbProductionDashboardStats = computed(() => {
   const orders = phaseOneAbDashboardOrders.value
@@ -2993,7 +3060,7 @@ const prototypeDashboards = computed<Record<PortalTone, PrototypeDashboard>>(() 
     },
     admin: {
       greeting: '管理经营驾驶舱',
-      subtitle: '总入货、出货、返工、异常、销售同比和十大客户排名集中查看。',
+      subtitle: '集中查看本月订单、生产质量、销售环比和客户贡献。',
       primaryAction: {
         title: '查看订单经营',
         detail: '进入订单管理核对入货、出货和异常明细',
@@ -3006,10 +3073,10 @@ const prototypeDashboards = computed<Record<PortalTone, PrototypeDashboard>>(() 
       metrics: adminBusinessMetrics.value,
       panels: [],
       trends: [
-        { label: '当日出货率', value: adminEfficiencyMetrics.value[0]?.value ?? '0%', percent: adminEfficiencyMetrics.value[0]?.percent ?? 0, tone: 'teal' },
-        { label: '返工率', value: adminEfficiencyMetrics.value[1]?.value ?? '0%', percent: adminEfficiencyMetrics.value[1]?.percent ?? 0, tone: 'rose' },
-        { label: '内返率', value: adminEfficiencyMetrics.value[2]?.value ?? '0%', percent: adminEfficiencyMetrics.value[2]?.percent ?? 0, tone: 'amber' },
-        { label: '异常率', value: adminEfficiencyMetrics.value[3]?.value ?? '0%', percent: adminEfficiencyMetrics.value[3]?.percent ?? 0, tone: 'orange' }
+        { label: '订单完成率', value: adminEfficiencyMetrics.value[0]?.value ?? '0%', percent: adminEfficiencyMetrics.value[0]?.percent ?? 0, tone: 'green' },
+        { label: '出货率', value: adminEfficiencyMetrics.value[1]?.value ?? '0%', percent: adminEfficiencyMetrics.value[1]?.percent ?? 0, tone: 'teal' },
+        { label: '返工率', value: adminEfficiencyMetrics.value[2]?.value ?? '0%', percent: adminEfficiencyMetrics.value[2]?.percent ?? 0, tone: 'rose' },
+        { label: '内返率', value: adminEfficiencyMetrics.value[3]?.value ?? '0%', percent: adminEfficiencyMetrics.value[3]?.percent ?? 0, tone: 'amber' }
       ]
     }
   }
@@ -4111,6 +4178,12 @@ function formatYearOverYear(percent: number | null | undefined) {
     return '暂无可比数据'
   }
   return `${percent >= 0 ? '↑' : '↓'} ${Math.abs(percent).toFixed(1)}%`
+}
+function formatYearMonth(value: string | null | undefined) {
+  if (!value) return '当前月'
+  const [year, month] = value.split('-')
+  const monthNumber = Number(month)
+  return Number.isFinite(monthNumber) ? `${year}年${monthNumber}月` : value
 }
 function salesComparisonNote(comparison: SalesDashboardComparison | null | undefined) {
   if (!comparison) {
@@ -15240,7 +15313,7 @@ onBeforeUnmount(() => {
             <span>{{ activePrototypeDashboard.syncBanner }}</span>
           </div>
 
-          <div class="prototype-page-heading">
+          <div v-if="portalTone !== 'admin'" class="prototype-page-heading">
             <div>
               <h2>{{ activePrototypeDashboard.greeting }}</h2>
               <p>{{ activePrototypeDashboard.subtitle }}</p>
@@ -15475,7 +15548,7 @@ onBeforeUnmount(() => {
           <section v-if="portalTone === 'admin'" class="admin-business-board">
             <section class="prototype-panel-card admin-efficiency-card">
               <div class="prototype-panel-head">
-                <h3>当日效率统计</h3>
+                <h3>本月运营效率</h3>
                 <span class="prototype-badge tone-teal">经营效率</span>
               </div>
               <div class="admin-efficiency-grid">
@@ -15499,78 +15572,58 @@ onBeforeUnmount(() => {
               <section class="prototype-panel-card admin-sales-card">
                 <div class="prototype-panel-head">
                   <h3>接单与出货金额分析</h3>
-                  <span class="prototype-badge tone-teal">本年累计 / 去年同期</span>
+                  <span class="prototype-badge tone-teal">本月截至今日 / 上月同期</span>
                 </div>
                 <div class="admin-sales-summary">
                   <article class="tone-inbound">
-                    <small>接单金额总计</small>
-                    <strong>{{ formatSalesAmount(salesDashboardSummary?.inbound.current_amount_cents) }}</strong>
+                    <small>本月接单金额</small>
+                    <strong>{{ formatSalesAmount(adminMonthComparison?.inbound.current_amount_cents) }}</strong>
                     <div class="sales-comparison-detail">
-                      <span>去年同期 <b>{{ formatSalesAmount(salesDashboardSummary?.inbound.previous_year_amount_cents) }}</b></span>
-                      <span class="sales-yoy" :class="{ negative: (salesDashboardSummary?.inbound.year_over_year_percent ?? 0) < 0 }">
-                        同比 {{ formatYearOverYear(salesDashboardSummary?.inbound.year_over_year_percent) }}
+                      <span>上月同期 <b>{{ formatSalesAmount(adminMonthComparison?.inbound.previous_month_amount_cents) }}</b></span>
+                      <span class="sales-yoy" :class="{ negative: (adminMonthComparison?.inbound.month_over_month_percent ?? 0) < 0 }">
+                        环比 {{ formatYearOverYear(adminMonthComparison?.inbound.month_over_month_percent) }}
                       </span>
                     </div>
-                    <em>已录账单 {{ salesDashboardSummary?.inbound.current_amount_order_count ?? 0 }}/{{ salesDashboardSummary?.inbound.current_order_count ?? 0 }} 单</em>
+                    <em>本月已录账单 {{ adminMonthComparison?.inbound.current_amount_order_count ?? 0 }}/{{ adminMonthComparison?.inbound.current_order_count ?? 0 }} 单</em>
                   </article>
                   <article class="tone-outbound">
-                    <small>出货金额总计</small>
-                    <strong>{{ formatSalesAmount(salesDashboardSummary?.outbound.current_amount_cents) }}</strong>
+                    <small>本月出货金额</small>
+                    <strong>{{ formatSalesAmount(adminMonthComparison?.outbound.current_amount_cents) }}</strong>
                     <div class="sales-comparison-detail">
-                      <span>去年同期 <b>{{ formatSalesAmount(salesDashboardSummary?.outbound.previous_year_amount_cents) }}</b></span>
-                      <span class="sales-yoy" :class="{ negative: (salesDashboardSummary?.outbound.year_over_year_percent ?? 0) < 0 }">
-                        同比 {{ formatYearOverYear(salesDashboardSummary?.outbound.year_over_year_percent) }}
+                      <span>上月同期 <b>{{ formatSalesAmount(adminMonthComparison?.outbound.previous_month_amount_cents) }}</b></span>
+                      <span class="sales-yoy" :class="{ negative: (adminMonthComparison?.outbound.month_over_month_percent ?? 0) < 0 }">
+                        环比 {{ formatYearOverYear(adminMonthComparison?.outbound.month_over_month_percent) }}
                       </span>
                     </div>
-                    <em>已录账单 {{ salesDashboardSummary?.outbound.current_amount_order_count ?? 0 }}/{{ salesDashboardSummary?.outbound.current_order_count ?? 0 }} 单</em>
+                    <em>本月已录账单 {{ adminMonthComparison?.outbound.current_amount_order_count ?? 0 }}/{{ adminMonthComparison?.outbound.current_order_count ?? 0 }} 单</em>
                   </article>
                 </div>
-                <div class="sales-trend-legend" aria-label="金额趋势图例">
-                  <span><i class="legend-inbound" />今年接单</span>
-                  <span><i class="legend-outbound" />今年出货</span>
-                  <span><i class="legend-inbound previous" />去年接单</span>
-                  <span><i class="legend-outbound previous" />去年出货</span>
+                <div class="admin-month-trend-grid">
+                  <article class="admin-month-trend-card tone-inbound">
+                    <header><strong>接单金额累计趋势</strong><span>{{ formatYearMonth(adminMonthComparison?.current_month) }} / {{ formatYearMonth(adminMonthComparison?.previous_month) }}</span></header>
+                    <div class="sales-trend-legend" aria-label="接单金额趋势图例"><span><i class="legend-inbound" />本月</span><span><i class="legend-inbound previous" />上月同期</span></div>
+                    <svg class="admin-sales-chart" viewBox="0 0 360 170" role="img" aria-label="本月与上月同期接单金额累计趋势">
+                      <line x1="30" y1="38" x2="334" y2="38" class="chart-grid" /><line x1="30" y1="84" x2="334" y2="84" class="chart-grid" /><line x1="30" y1="130" x2="334" y2="130" />
+                      <polyline class="sales-trend-line trend-inbound previous" :points="adminPreviousInboundTrendPolyline" />
+                      <polyline class="sales-trend-line trend-inbound" :points="adminCurrentInboundTrendPolyline" />
+                      <g class="admin-sales-points trend-inbound"><circle v-for="(point, index) in adminSalesTrendPoints" :key="`admin-month-inbound-${point.day}`" :cx="adminMonthTrendX(index)" :cy="130 - (point.currentInbound / adminInboundTrendMax) * 92" r="2.6" /></g>
+                      <g class="chart-labels"><template v-for="(point, index) in adminSalesTrendPoints" :key="`admin-month-inbound-label-${point.day}`"><text v-if="adminMonthTrendLabelVisible(point, index)" :x="adminMonthTrendX(index)" y="158">{{ point.day }}</text></template></g>
+                    </svg>
+                  </article>
+                  <article class="admin-month-trend-card tone-outbound">
+                    <header><strong>出货金额累计趋势</strong><span>{{ formatYearMonth(adminMonthComparison?.current_month) }} / {{ formatYearMonth(adminMonthComparison?.previous_month) }}</span></header>
+                    <div class="sales-trend-legend" aria-label="出货金额趋势图例"><span><i class="legend-outbound" />本月</span><span><i class="legend-outbound previous" />上月同期</span></div>
+                    <svg class="admin-sales-chart" viewBox="0 0 360 170" role="img" aria-label="本月与上月同期出货金额累计趋势">
+                      <line x1="30" y1="38" x2="334" y2="38" class="chart-grid" /><line x1="30" y1="84" x2="334" y2="84" class="chart-grid" /><line x1="30" y1="130" x2="334" y2="130" />
+                      <polyline class="sales-trend-line trend-outbound previous" :points="adminPreviousOutboundTrendPolyline" />
+                      <polyline class="sales-trend-line trend-outbound" :points="adminCurrentOutboundTrendPolyline" />
+                      <g class="admin-sales-points trend-outbound"><circle v-for="(point, index) in adminSalesTrendPoints" :key="`admin-month-outbound-${point.day}`" :cx="adminMonthTrendX(index)" :cy="130 - (point.currentOutbound / adminOutboundTrendMax) * 92" r="2.6" /></g>
+                      <g class="chart-labels"><template v-for="(point, index) in adminSalesTrendPoints" :key="`admin-month-outbound-label-${point.day}`"><text v-if="adminMonthTrendLabelVisible(point, index)" :x="adminMonthTrendX(index)" y="158">{{ point.day }}</text></template></g>
+                    </svg>
+                  </article>
                 </div>
-                <svg class="admin-sales-chart" viewBox="0 0 720 220" role="img" aria-label="接单与出货金额同比趋势">
-                  <line x1="42" y1="42" x2="42" y2="164" />
-                  <line x1="42" y1="164" x2="680" y2="164" />
-                  <line x1="42" y1="82" x2="680" y2="82" class="chart-grid" />
-                  <line x1="42" y1="124" x2="680" y2="124" class="chart-grid" />
-                  <polyline class="sales-trend-line trend-inbound previous" :points="csPreviousInboundTrendPolyline" />
-                  <polyline class="sales-trend-line trend-outbound previous" :points="csPreviousOutboundTrendPolyline" />
-                  <polyline class="sales-trend-line trend-inbound" :points="csInboundTrendPolyline" />
-                  <polyline class="sales-trend-line trend-outbound" :points="csOutboundTrendPolyline" />
-                  <g class="admin-sales-points trend-inbound">
-                    <circle
-                      v-for="(point, index) in adminSalesTrendPoints"
-                      :key="`admin-inbound-point-${point.label}`"
-                      :cx="42 + index * 58"
-                      :cy="164 - (point.inbound / adminSalesTrendMax) * 112"
-                      r="3.5"
-                    />
-                  </g>
-                  <g class="admin-sales-points trend-outbound">
-                    <circle
-                      v-for="(point, index) in adminSalesTrendPoints"
-                      :key="`admin-outbound-point-${point.label}`"
-                      :cx="42 + index * 58"
-                      :cy="164 - (point.outbound / adminSalesTrendMax) * 112"
-                      r="3.5"
-                    />
-                  </g>
-                  <g class="chart-labels">
-                    <text
-                      v-for="(point, index) in adminSalesTrendPoints"
-                      :key="`admin-sales-label-${point.label}`"
-                      :x="42 + index * 58"
-                      y="196"
-                    >
-                      {{ point.label }}
-                    </text>
-                  </g>
-                </svg>
                 <p class="admin-business-note">
-                  {{ salesDashboardSummary?.source_note ?? '销售金额数据同步中' }}；统计截至 {{ salesDashboardSummary?.through_date ?? '-' }}。
+                  本月与上月均按 1 日至 {{ adminMonthComparison?.comparison_day_count ?? '-' }} 日比较；{{ salesDashboardSummary?.source_note ?? '销售金额数据同步中' }}；统计截至 {{ adminMonthComparison?.through_date ?? '-' }}。
                 </p>
               </section>
 

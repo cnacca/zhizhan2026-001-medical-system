@@ -39,6 +39,10 @@ class SalesDashboardTests {
     private long baselineMonthInboundPrevious;
     private long baselineMonthOutboundCurrent;
     private long baselineMonthOutboundPrevious;
+    private long baselineComparisonInboundCurrent;
+    private long baselineComparisonInboundPrevious;
+    private long baselineComparisonOutboundCurrent;
+    private long baselineComparisonOutboundPrevious;
 
     @BeforeEach
     void setUp() throws Exception {
@@ -56,6 +60,13 @@ class SalesDashboardTests {
         insertApprovalHistory(currentShipped, false);
         insertApprovalHistory(previousInboundOnly, true);
         insertApprovalHistory(previousShipped, true);
+
+        long previousMonthInboundOnly = insertPreviousMonthOrder(
+                "SALES-MONTH-IN-" + suffix.substring(0, 8), 70_000, false);
+        long previousMonthShipped = insertPreviousMonthOrder(
+                "SALES-MONTH-OUT-" + suffix.substring(8, 16), 40_000, true);
+        insertPreviousMonthApprovalHistory(previousMonthInboundOnly);
+        insertPreviousMonthApprovalHistory(previousMonthShipped);
     }
 
     @AfterEach
@@ -92,9 +103,9 @@ class SalesDashboardTests {
     @Test
     void csCanReadInboundAndOutboundSalesWithPreviousYearComparison() throws Exception {
         int currentMonthIndex = LocalDate.now().getMonthValue() - 1;
-        long expectedInboundCurrent = baselineInboundCurrent + 200_000;
+        long expectedInboundCurrent = baselineInboundCurrent + 200_000 + 110_000;
         long expectedInboundPrevious = baselineInboundPrevious + 150_000;
-        long expectedOutboundCurrent = baselineOutboundCurrent + 80_000;
+        long expectedOutboundCurrent = baselineOutboundCurrent + 80_000 + 40_000;
         long expectedOutboundPrevious = baselineOutboundPrevious + 50_000;
 
         mockMvc.perform(get("/dashboards/sales")
@@ -118,7 +129,17 @@ class SalesDashboardTests {
                 .andExpect(jsonPath("$.data.monthly_trend[" + currentMonthIndex + "].previous_year_inbound_amount_cents")
                         .value(baselineMonthInboundPrevious + 150_000))
                 .andExpect(jsonPath("$.data.monthly_trend[" + currentMonthIndex + "].previous_year_outbound_amount_cents")
-                        .value(baselineMonthOutboundPrevious + 50_000));
+                        .value(baselineMonthOutboundPrevious + 50_000))
+                .andExpect(jsonPath("$.data.month_comparison.inbound.current_amount_cents")
+                        .value(baselineComparisonInboundCurrent + 200_000))
+                .andExpect(jsonPath("$.data.month_comparison.inbound.previous_month_amount_cents")
+                        .value(baselineComparisonInboundPrevious + 110_000))
+                .andExpect(jsonPath("$.data.month_comparison.outbound.current_amount_cents")
+                        .value(baselineComparisonOutboundCurrent + 80_000))
+                .andExpect(jsonPath("$.data.month_comparison.outbound.previous_month_amount_cents")
+                        .value(baselineComparisonOutboundPrevious + 40_000))
+                .andExpect(jsonPath("$.data.month_comparison.daily_trend",
+                        hasSize(Math.min(LocalDate.now().getDayOfMonth(), LocalDate.now().minusMonths(1).lengthOfMonth()))));
     }
 
     @Test
@@ -159,6 +180,10 @@ class SalesDashboardTests {
         baselineMonthInboundPrevious = jsonLong(body, monthPath + ".previous_year_inbound_amount_cents");
         baselineMonthOutboundCurrent = jsonLong(body, monthPath + ".outbound_amount_cents");
         baselineMonthOutboundPrevious = jsonLong(body, monthPath + ".previous_year_outbound_amount_cents");
+        baselineComparisonInboundCurrent = jsonLong(body, "$.data.month_comparison.inbound.current_amount_cents");
+        baselineComparisonInboundPrevious = jsonLong(body, "$.data.month_comparison.inbound.previous_month_amount_cents");
+        baselineComparisonOutboundCurrent = jsonLong(body, "$.data.month_comparison.outbound.current_amount_cents");
+        baselineComparisonOutboundPrevious = jsonLong(body, "$.data.month_comparison.outbound.previous_month_amount_cents");
     }
 
     private long jsonLong(String body, String path) {
@@ -221,6 +246,55 @@ class SalesDashboardTests {
                         """)
                 .param("orderId", orderId)
                 .param("previousYear", previousYear)
+                .update();
+    }
+
+    private long insertPreviousMonthOrder(String orderNo, long amountCents, boolean shipped) {
+        jdbcClient.sql("""
+                        INSERT INTO orders
+                            (order_no, clinic_id, doctor_user_id, cs_user_id, product_type, form_data,
+                             internal_status, external_status, created_at)
+                        VALUES
+                            (:orderNo, :clinicId, 9701, :dashboardUserId, 'REGULAR_CROWN',
+                             JSON_OBJECT('item_count', 1), :internalStatus, :externalStatus,
+                             DATE_SUB(CURRENT_TIMESTAMP(3), INTERVAL 1 MONTH))
+                        """)
+                .param("orderNo", orderNo)
+                .param("clinicId", clinicId)
+                .param("dashboardUserId", dashboardUserId)
+                .param("internalStatus", shipped ? "SHIPPED" : "PENDING_PRODUCTION_REVIEW")
+                .param("externalStatus", shipped ? "SHIPPED" : "PENDING_REVIEW")
+                .update();
+        long orderId = jdbcClient.sql("SELECT LAST_INSERT_ID()").query(Long.class).single();
+        jdbcClient.sql("""
+                        INSERT INTO order_bill (order_id, amount_cent, currency, bill_status)
+                        VALUES (:orderId, :amountCents, 'CNY', 'UPLOADED')
+                        """)
+                .param("orderId", orderId)
+                .param("amountCents", amountCents)
+                .update();
+        if (shipped) {
+            jdbcClient.sql("""
+                            INSERT INTO order_logistics (order_id, logistics_status, shipped_at)
+                            VALUES (:orderId, 'SHIPPED', DATE_SUB(CURRENT_TIMESTAMP(3), INTERVAL 1 MONTH))
+                            """)
+                    .param("orderId", orderId)
+                    .update();
+        }
+        return orderId;
+    }
+
+    private void insertPreviousMonthApprovalHistory(long orderId) {
+        jdbcClient.sql("""
+                        INSERT INTO order_status_history
+                            (order_id, from_internal_status, to_internal_status,
+                             from_external_status, to_external_status, event_type, created_at)
+                        VALUES
+                            (:orderId, 'PENDING_CS_REVIEW', 'PENDING_PRODUCTION_REVIEW',
+                             'PENDING_REVIEW', 'PENDING_REVIEW', 'CS_APPROVED',
+                             DATE_SUB(CURRENT_TIMESTAMP(3), INTERVAL 1 MONTH))
+                        """)
+                .param("orderId", orderId)
                 .update();
     }
 }

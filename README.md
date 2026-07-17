@@ -147,7 +147,7 @@ npm run local:stop    # 仅停止本工具启动的前端和后端
 客户演示使用独立数据库 `ai_order_platform_demo`、独立 MinIO bucket `ai-order-demo-private` 和独立端口 `15173/18080`，不会向主展示库或自动化测试库造数。
 
 ```bash
-npm run demo:prepare  # 启动、生成 7 个阶段场景并校验
+npm run demo:prepare  # 启动、生成 7 个订单场景与管理端演示数据并校验
 npm run demo:status
 npm run demo:check
 npm run demo:stop

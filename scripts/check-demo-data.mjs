@@ -115,12 +115,96 @@ async function main() {
     })
   }
 
+  const adminToken = sessions.ADMIN.accessToken
+  const [
+    clinics,
+    staff,
+    logistics,
+    outsourcing,
+    equipment,
+    equipmentApprovals,
+    materialExceptions,
+    safetyEvents,
+    safetyRules,
+    costRecords,
+    products,
+    salesDashboard,
+    aiSummary,
+    aiTrend,
+    notifications
+  ] = await Promise.all([
+    apiFetch('/clinics?page=1&size=100', adminToken),
+    apiFetch('/staff/workload?page=1&size=100', adminToken),
+    apiFetch('/logistics/orders?limit=100', adminToken),
+    apiFetch('/production/outsourcing', adminToken),
+    apiFetch('/production/equipment', adminToken),
+    apiFetch('/production/equipment/approvals', adminToken),
+    apiFetch('/production/material-exceptions', adminToken),
+    apiFetch('/production/safety-environment/events', adminToken),
+    apiFetch('/production/safety-environment/rules', adminToken),
+    apiFetch('/production/cost-management/records', adminToken),
+    apiFetch('/products?page=1&size=100', adminToken),
+    apiFetch('/dashboards/sales', adminToken),
+    apiFetch('/ai/governance/summary', adminToken),
+    apiFetch('/ai/governance/cost-trend?days=7', adminToken),
+    apiFetch('/notifications?limit=50', adminToken)
+  ])
+
+  assert(clinics.data.items.length >= 5, 'admin portal demo needs at least five clinics')
+  assert(staff.data.items.filter((item) => item.user_type === 'WORKER').length >= 4,
+    'admin portal demo needs multiple workers')
+  assert(staff.data.items.filter((item) => item.user_type === 'WORKER')
+    .some((item) => item.completed_work_log_count > 0), 'worker performance evidence is missing')
+  assert(logistics.data.length >= 3, 'billing and logistics evidence is missing')
+  assert(outsourcing.data.length >= 3, 'outsourcing batch evidence is missing')
+  assert(outsourcing.data.some((item) => item.is_overdue), 'outsourcing overdue evidence is missing')
+  assert(equipment.data.length >= 4, 'equipment detail evidence is missing')
+  assert(equipmentApprovals.data.filter((item) => item.status === 'PENDING').length >= 2,
+    'equipment approval evidence is missing')
+  assert(materialExceptions.data.length >= 4, 'material exception detail evidence is missing')
+  assert(safetyEvents.data.length >= 4, 'safety event evidence is missing')
+  assert(safetyRules.data.length >= 3, 'safety fixed-cycle rule evidence is missing')
+  const costTypes = new Set(costRecords.data.map((item) => item.cost_type))
+  for (const costType of ['LABOR', 'MATERIAL', 'PROCESS', 'REWORK', 'OUTSOURCING']) {
+    assert(costTypes.has(costType), `cost evidence is missing type ${costType}`)
+  }
+  assert(products.data.items.length >= 4, 'product overview evidence is missing')
+  assert(salesDashboard.data.month_comparison?.daily_trend?.length > 0,
+    'workbench month comparison trend evidence is missing')
+  assert(salesDashboard.data.month_comparison.inbound.previous_month_amount_cents > 0,
+    'workbench previous-month inbound evidence is missing')
+  assert(salesDashboard.data.month_comparison.outbound.previous_month_amount_cents > 0,
+    'workbench previous-month outbound evidence is missing')
+  assert(aiSummary.data.success_count > 0, 'AI success summary evidence is missing')
+  assert(aiSummary.data.safe_refusal_count > 0, 'AI safe refusal evidence is missing')
+  assert(aiSummary.data.model_failed_count > 0, 'AI failure evidence is missing')
+  assert(aiTrend.data.points.length >= 7, 'AI seven-day trend evidence is missing')
+  assert(notifications.data.length >= 3, 'admin notification evidence is missing')
+
   assert(fs.existsSync(manifestPath), 'demo data manifest is missing')
   const manifest = JSON.parse(fs.readFileSync(manifestPath, 'utf8'))
   assert(manifest.scenarios.length === expected.length,
     `manifest expected ${expected.length} scenarios, got ${manifest.scenarios.length}`)
 
-  console.log(JSON.stringify({ environment: frontendUrl, checked }, null, 2))
+  console.log(JSON.stringify({
+    environment: frontendUrl,
+    checked,
+    admin_portal: {
+      clinics: clinics.data.items.length,
+      staff: staff.data.items.length,
+      logistics: logistics.data.length,
+      outsourcing: outsourcing.data.length,
+      equipment: equipment.data.length,
+      material_exceptions: materialExceptions.data.length,
+      safety_events: safetyEvents.data.length,
+      safety_rules: safetyRules.data.length,
+      cost_records: costRecords.data.length,
+      products: products.data.items.length,
+      sales_comparison_days: salesDashboard.data.month_comparison.daily_trend.length,
+      notifications: notifications.data.length,
+      ai_trend_days: aiTrend.data.points.length
+    }
+  }, null, 2))
   console.log('demo data verification passed')
 }
 

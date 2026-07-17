@@ -175,7 +175,7 @@
     "demo:serve": "bash scripts/demo-runtime.sh serve",
     "demo:status": "bash scripts/demo-runtime.sh status",
     "demo:stop": "bash scripts/demo-runtime.sh stop",
-    "demo:seed": "DEMO_ISOLATED_ENV=true DEMO_FRONTEND_URL=http://127.0.0.1:15173 node scripts/seed-demo-data.mjs",
+    "demo:seed": "DEMO_ISOLATED_ENV=true DEMO_FRONTEND_URL=http://127.0.0.1:15173 node scripts/seed-demo-data.mjs && DEMO_ISOLATED_ENV=true bash scripts/seed-admin-portal-demo-data.sh",
     "demo:check": "DEMO_ISOLATED_ENV=true DEMO_FRONTEND_URL=http://127.0.0.1:15173 node scripts/check-demo-data.mjs",
     "demo:prepare": "npm run demo:start && npm run demo:seed && npm run demo:check",
     "demo:reset": "bash scripts/reset-demo-environment.sh",

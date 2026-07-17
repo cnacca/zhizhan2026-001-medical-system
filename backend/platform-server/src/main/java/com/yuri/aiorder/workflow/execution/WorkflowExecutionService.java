@@ -60,9 +60,13 @@ public class WorkflowExecutionService {
             REWORK_REASON_CATEGORY_TYPE,
             REWORK_RESPONSIBILITY_TYPE);
     private static final Set<String> REWORK_DICTIONARY_STATUS = Set.of("ACTIVE", "INACTIVE");
-    private static final Set<String> EQUIPMENT_STATUSES = Set.of("RUNNING", "IDLE", "MAINTENANCE", "FAULT");
-    private static final Set<String> EQUIPMENT_EVENT_TYPES = Set.of("MAINTENANCE_PLAN", "FAULT_REPAIR", "DOWNTIME");
-    private static final Set<String> EQUIPMENT_EVENT_STATUSES = Set.of("PENDING", "IN_PROGRESS", "DONE");
+    private static final Set<String> EQUIPMENT_STATUSES = Set.of(
+            "RUNNING", "IDLE", "MAINTENANCE", "FAULT", "SCRAPPED");
+    private static final Set<String> EQUIPMENT_EVENT_TYPES = Set.of(
+            "MAINTENANCE_PLAN", "CALIBRATION", "FAULT_REPAIR", "DOWNTIME", "REPAIR_REQUEST", "SCRAP_REQUEST");
+    private static final Set<String> EQUIPMENT_EVENT_STATUSES = Set.of(
+            "PENDING", "IN_PROGRESS", "DONE", "APPROVED", "REJECTED");
+    private static final Set<String> EQUIPMENT_APPROVAL_TYPES = Set.of("REPAIR_REQUEST", "SCRAP_REQUEST");
     private static final Set<String> MATERIAL_EXCEPTION_TYPES = Set.of(
             "SHORTAGE", "WRONG_MATERIAL", "BATCH_ABNORMAL", "MATERIAL_LOSS");
     private static final Set<String> MATERIAL_EXCEPTION_STATUSES = Set.of("PENDING", "IN_PROGRESS", "CLOSED");
@@ -930,6 +934,123 @@ public class WorkflowExecutionService {
                 LocalDateTime.now());
     }
 
+    public List<ProductionEquipmentResponse> listProductionEquipment(
+            String keyword, String status, BootstrapIdentity identity) {
+        accessControlService.requireCheckRecordRead(identity);
+        String normalizedKeyword = blankToNull(keyword);
+        String normalizedStatus = blankToNull(status);
+        if (normalizedStatus != null) {
+            normalizedStatus = normalizeEquipmentStatus(normalizedStatus);
+        }
+        JdbcClient.StatementSpec spec = jdbcClient.sql("""
+                        SELECT equipment_id, equipment_code, equipment_name, equipment_type, department_name,
+                               status, owner_user_id, utilization_rate, last_maintenance_at,
+                               next_maintenance_at, created_at, updated_at
+                        FROM production_equipment
+                        WHERE (:keyword IS NULL
+                               OR equipment_code LIKE :keywordPattern
+                               OR equipment_name LIKE :keywordPattern
+                               OR equipment_type LIKE :keywordPattern
+                               OR department_name LIKE :keywordPattern)
+                          AND (:status IS NULL OR status = :status)
+                        ORDER BY updated_at DESC, equipment_id DESC
+                        LIMIT 200
+                        """)
+                .param("keyword", normalizedKeyword)
+                .param("keywordPattern", normalizedKeyword == null ? null : "%" + normalizedKeyword + "%")
+                .param("status", normalizedStatus);
+        return spec.query(this::mapProductionEquipment).list();
+    }
+
+    public ProductionEquipmentDetailResponse getProductionEquipment(
+            String equipmentCode, BootstrapIdentity identity) {
+        accessControlService.requireCheckRecordRead(identity);
+        ProductionEquipmentResponse equipment = loadProductionEquipment(normalizeEquipmentCode(equipmentCode));
+        List<ProductionEquipmentEventResponse> events = jdbcClient.sql("""
+                        SELECT ev.event_id, ev.equipment_id, e.equipment_code, ev.event_type, ev.status,
+                               ev.downtime_minutes, ev.description, ev.requested_by_user_id,
+                               ev.approved_by_user_id, ev.decision_note, ev.decided_at,
+                               ev.created_at, ev.resolved_at
+                        FROM production_equipment_event ev
+                        JOIN production_equipment e ON e.equipment_id = ev.equipment_id
+                        WHERE ev.equipment_id = :equipmentId
+                        ORDER BY ev.created_at DESC, ev.event_id DESC
+                        """)
+                .param("equipmentId", equipment.equipmentId())
+                .query(this::mapProductionEquipmentEvent)
+                .list();
+        return new ProductionEquipmentDetailResponse(equipment, events);
+    }
+
+    public List<ProductionEquipmentEventResponse> listProductionEquipmentApprovals(
+            String status, BootstrapIdentity identity) {
+        accessControlService.requireCheckRecordRead(identity);
+        String normalizedStatus = blankToNull(status);
+        if (normalizedStatus != null) {
+            normalizedStatus = normalizeEquipmentEventStatus(normalizedStatus);
+        }
+        return jdbcClient.sql("""
+                        SELECT ev.event_id, ev.equipment_id, e.equipment_code, ev.event_type, ev.status,
+                               ev.downtime_minutes, ev.description, ev.requested_by_user_id,
+                               ev.approved_by_user_id, ev.decision_note, ev.decided_at,
+                               ev.created_at, ev.resolved_at
+                        FROM production_equipment_event ev
+                        JOIN production_equipment e ON e.equipment_id = ev.equipment_id
+                        WHERE ev.event_type IN ('REPAIR_REQUEST', 'SCRAP_REQUEST')
+                          AND (:status IS NULL OR ev.status = :status)
+                        ORDER BY CASE WHEN ev.status = 'PENDING' THEN 0 ELSE 1 END,
+                                 ev.created_at DESC, ev.event_id DESC
+                        LIMIT 200
+                        """)
+                .param("status", normalizedStatus)
+                .query(this::mapProductionEquipmentEvent)
+                .list();
+    }
+
+    @Transactional
+    public ProductionEquipmentEventResponse decideProductionEquipmentApproval(
+            long eventId, ProductionEquipmentApprovalRequest request, BootstrapIdentity identity) {
+        requireAdmin(identity, "equipment approval requires ADMIN role");
+        String decision = normalizeRequired(request.decision(), "decision").toUpperCase(Locale.ROOT);
+        if (!Set.of("APPROVED", "REJECTED").contains(decision)) {
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "unsupported equipment approval decision");
+        }
+        String decisionNote = normalizeOptionalDescription(request.decisionNote());
+        int updated = jdbcClient.sql("""
+                        UPDATE production_equipment_event
+                        SET status = :decision,
+                            approved_by_user_id = :approvedByUserId,
+                            decision_note = :decisionNote,
+                            decided_at = CURRENT_TIMESTAMP(3),
+                            resolved_at = CURRENT_TIMESTAMP(3)
+                        WHERE event_id = :eventId
+                          AND event_type IN ('REPAIR_REQUEST', 'SCRAP_REQUEST')
+                          AND status = 'PENDING'
+                        """)
+                .param("eventId", eventId)
+                .param("decision", decision)
+                .param("approvedByUserId", identity.userId())
+                .param("decisionNote", decisionNote)
+                .update();
+        if (updated == 0) {
+            throw new ResponseStatusException(HttpStatus.CONFLICT, "equipment approval is not pending");
+        }
+        if ("APPROVED".equals(decision)) {
+            jdbcClient.sql("""
+                            UPDATE production_equipment e
+                            JOIN production_equipment_event ev ON ev.equipment_id = e.equipment_id
+                            SET e.status = CASE
+                                    WHEN ev.event_type = 'SCRAP_REQUEST' THEN 'SCRAPPED'
+                                    ELSE 'MAINTENANCE'
+                                END
+                            WHERE ev.event_id = :eventId
+                            """)
+                    .param("eventId", eventId)
+                    .update();
+        }
+        return loadProductionEquipmentEvent(eventId);
+    }
+
     @Transactional
     public ProductionEquipmentResponse createProductionEquipment(
             ProductionEquipmentRequest request, BootstrapIdentity identity) {
@@ -967,15 +1088,18 @@ public class WorkflowExecutionService {
         long equipmentId = findEquipmentIdByCode(normalizedEquipmentCode);
         jdbcClient.sql("""
                         INSERT INTO production_equipment_event
-                            (equipment_id, event_type, status, downtime_minutes, description, resolved_at)
+                            (equipment_id, event_type, status, downtime_minutes, description,
+                             requested_by_user_id, resolved_at)
                         VALUES
-                            (:equipmentId, :eventType, :status, :downtimeMinutes, :description, :resolvedAt)
+                            (:equipmentId, :eventType, :status, :downtimeMinutes, :description,
+                             :requestedByUserId, :resolvedAt)
                         """)
                 .param("equipmentId", equipmentId)
                 .param("eventType", input.eventType())
                 .param("status", input.status())
                 .param("downtimeMinutes", input.downtimeMinutes())
                 .param("description", input.description())
+                .param("requestedByUserId", identity.userId())
                 .param("resolvedAt", "DONE".equals(input.status()) ? LocalDateTime.now() : null)
                 .update();
         return loadProductionEquipmentEvent(lastInsertId());
@@ -1037,6 +1161,41 @@ public class WorkflowExecutionService {
                 summary.responsibilityAssignedCount(),
                 summary.totalLossQuantity(),
                 LocalDateTime.now());
+    }
+
+    public List<ProductionMaterialExceptionResponse> listProductionMaterialExceptions(
+            String keyword, String status, BootstrapIdentity identity) {
+        accessControlService.requireCheckRecordRead(identity);
+        String normalizedKeyword = blankToNull(keyword);
+        String normalizedStatus = blankToNull(status);
+        if (normalizedStatus != null) {
+            normalizedStatus = normalizeMaterialExceptionStatus(normalizedStatus);
+        }
+        return jdbcClient.sql("""
+                        SELECT exception_id, exception_no, material_code, material_name, order_id, node_instance_id,
+                               exception_type, status, responsibility_owner, loss_quantity, description,
+                               created_at, updated_at, closed_at
+                        FROM production_material_exception
+                        WHERE (:keyword IS NULL
+                               OR exception_no LIKE :keywordPattern
+                               OR material_code LIKE :keywordPattern
+                               OR material_name LIKE :keywordPattern
+                               OR responsibility_owner LIKE :keywordPattern)
+                          AND (:status IS NULL OR status = :status)
+                        ORDER BY updated_at DESC, exception_id DESC
+                        LIMIT 200
+                        """)
+                .param("keyword", normalizedKeyword)
+                .param("keywordPattern", normalizedKeyword == null ? null : "%" + normalizedKeyword + "%")
+                .param("status", normalizedStatus)
+                .query(this::mapProductionMaterialException)
+                .list();
+    }
+
+    public ProductionMaterialExceptionResponse getProductionMaterialException(
+            String exceptionNo, BootstrapIdentity identity) {
+        accessControlService.requireCheckRecordRead(identity);
+        return loadProductionMaterialException(normalizeExceptionNo(exceptionNo));
     }
 
     @Transactional
@@ -1160,6 +1319,67 @@ public class WorkflowExecutionService {
                 LocalDateTime.now());
     }
 
+    public List<ProductionSafetyEnvironmentEventResponse> listProductionSafetyEnvironmentEvents(
+            String keyword, String status, BootstrapIdentity identity) {
+        accessControlService.requireCheckRecordRead(identity);
+        String normalizedKeyword = blankToNull(keyword);
+        String normalizedStatus = blankToNull(status);
+        if (normalizedStatus != null) {
+            normalizedStatus = normalizeSafetyEnvironmentEventStatus(normalizedStatus);
+        }
+        return jdbcClient.sql("""
+                        SELECT event_id, event_no, event_type, status, department_name, responsible_owner,
+                               equipment_code, risk_level, due_at, description, created_at, updated_at, closed_at
+                        FROM production_safety_event
+                        WHERE (:keyword IS NULL
+                               OR event_no LIKE :keywordPattern
+                               OR department_name LIKE :keywordPattern
+                               OR responsible_owner LIKE :keywordPattern
+                               OR description LIKE :keywordPattern)
+                          AND (:status IS NULL OR status = :status)
+                        ORDER BY CASE WHEN status = 'CLOSED' THEN 1 ELSE 0 END,
+                                 due_at ASC, updated_at DESC, event_id DESC
+                        LIMIT 200
+                        """)
+                .param("keyword", normalizedKeyword)
+                .param("keywordPattern", normalizedKeyword == null ? null : "%" + normalizedKeyword + "%")
+                .param("status", normalizedStatus)
+                .query(this::mapProductionSafetyEnvironmentEvent)
+                .list();
+    }
+
+    public ProductionSafetyEnvironmentEventResponse getProductionSafetyEnvironmentEvent(
+            String eventNo, BootstrapIdentity identity) {
+        accessControlService.requireCheckRecordRead(identity);
+        return loadProductionSafetyEnvironmentEvent(normalizeSafetyEnvironmentEventNo(eventNo));
+    }
+
+    public List<ProductionSafetyRuleResponse> listProductionSafetyRules(BootstrapIdentity identity) {
+        accessControlService.requireCheckRecordRead(identity);
+        return jdbcClient.sql("""
+                        SELECT rule_id, rule_code, rule_name, check_type, department_name, cycle_type,
+                               cycle_interval, responsible_owner, next_due_at, status, created_at, updated_at
+                        FROM production_safety_rule
+                        ORDER BY CASE WHEN status = 'ACTIVE' THEN 0 ELSE 1 END,
+                                 next_due_at ASC, rule_id ASC
+                        LIMIT 200
+                        """)
+                .query((rs, rowNum) -> new ProductionSafetyRuleResponse(
+                        rs.getLong("rule_id"),
+                        rs.getString("rule_code"),
+                        rs.getString("rule_name"),
+                        rs.getString("check_type"),
+                        rs.getString("department_name"),
+                        rs.getString("cycle_type"),
+                        rs.getInt("cycle_interval"),
+                        rs.getString("responsible_owner"),
+                        rs.getObject("next_due_at", LocalDateTime.class),
+                        rs.getString("status"),
+                        rs.getObject("created_at", LocalDateTime.class),
+                        rs.getObject("updated_at", LocalDateTime.class)))
+                .list();
+    }
+
     @Transactional
     public ProductionSafetyEnvironmentEventResponse createProductionSafetyEnvironmentEvent(
             ProductionSafetyEnvironmentEventRequest request, BootstrapIdentity identity) {
@@ -1266,6 +1486,104 @@ public class WorkflowExecutionService {
                 summary.outsourcingCostAmount(),
                 summary.abnormalWarningCount(),
                 LocalDateTime.now());
+    }
+
+    public List<ProductionCostRecordResponse> listProductionCostRecords(
+            String keyword, String status, BootstrapIdentity identity) {
+        accessControlService.requireCheckRecordRead(identity);
+        String normalizedKeyword = blankToNull(keyword);
+        String normalizedStatus = blankToNull(status);
+        if (normalizedStatus != null) {
+            normalizedStatus = normalizeProductionCostStatus(normalizedStatus);
+        }
+        return jdbcClient.sql("""
+                        SELECT cost_id, cost_no, order_id, node_instance_id, cost_type, amount, status,
+                               department_name, supplier_name, description, created_at, updated_at, confirmed_at
+                        FROM production_cost_record
+                        WHERE (:keyword IS NULL
+                               OR cost_no LIKE :keywordPattern
+                               OR CAST(order_id AS CHAR) LIKE :keywordPattern
+                               OR department_name LIKE :keywordPattern
+                               OR supplier_name LIKE :keywordPattern
+                               OR description LIKE :keywordPattern)
+                          AND (:status IS NULL OR status = :status)
+                        ORDER BY CASE WHEN status = 'WARNING' THEN 0 ELSE 1 END,
+                                 updated_at DESC, cost_id DESC
+                        LIMIT 300
+                        """)
+                .param("keyword", normalizedKeyword)
+                .param("keywordPattern", normalizedKeyword == null ? null : "%" + normalizedKeyword + "%")
+                .param("status", normalizedStatus)
+                .query(this::mapProductionCostRecord)
+                .list();
+    }
+
+    public ProductionCostRecordResponse getProductionCostRecord(String costNo, BootstrapIdentity identity) {
+        accessControlService.requireCheckRecordRead(identity);
+        return loadProductionCostRecord(normalizeCostNo(costNo));
+    }
+
+    @Transactional
+    public ProductionCostRecordResponse updateProductionCostRecordStatus(
+            String costNo, ProductionCostStatusRequest request, BootstrapIdentity identity) {
+        requireAdmin(identity, "cost confirmation requires ADMIN role");
+        String normalizedCostNo = normalizeCostNo(costNo);
+        String normalizedStatus = normalizeProductionCostStatus(request.status());
+        int updated = jdbcClient.sql("""
+                        UPDATE production_cost_record
+                        SET status = :status,
+                            confirmed_at = CASE WHEN :status = 'CONFIRMED' THEN CURRENT_TIMESTAMP(3) ELSE NULL END
+                        WHERE cost_no = :costNo
+                        """)
+                .param("costNo", normalizedCostNo)
+                .param("status", normalizedStatus)
+                .update();
+        if (updated == 0) {
+            throw new ResponseStatusException(HttpStatus.NOT_FOUND, "cost record not found");
+        }
+        return loadProductionCostRecord(normalizedCostNo);
+    }
+
+    public List<ProductionOutsourcingBatchResponse> listProductionOutsourcing(
+            String keyword, String status, BootstrapIdentity identity) {
+        accessControlService.requireCheckRecordRead(identity);
+        String normalizedKeyword = blankToNull(keyword);
+        String normalizedStatus = blankToNull(status);
+        return outsourcingQuery("""
+                        WHERE (:keyword IS NULL
+                               OR b.batch_no LIKE :keywordPattern
+                               OR o.order_no LIKE :keywordPattern
+                               OR b.item_name LIKE :keywordPattern
+                               OR b.supplier_name LIKE :keywordPattern)
+                          AND (:status IS NULL OR b.status = :status)
+                        ORDER BY CASE
+                                   WHEN b.status <> 'RETURNED'
+                                        AND b.expected_return_at IS NOT NULL
+                                        AND b.expected_return_at < CURRENT_TIMESTAMP(3) THEN 0
+                                   ELSE 1
+                                 END,
+                                 b.updated_at DESC, b.outsourcing_id DESC
+                        LIMIT 200
+                        """)
+                .param("keyword", normalizedKeyword)
+                .param("keywordPattern", normalizedKeyword == null ? null : "%" + normalizedKeyword + "%")
+                .param("status", normalizedStatus)
+                .query(this::mapProductionOutsourcingBatch)
+                .list();
+    }
+
+    public ProductionOutsourcingBatchResponse getProductionOutsourcing(
+            String batchNo, BootstrapIdentity identity) {
+        accessControlService.requireCheckRecordRead(identity);
+        String normalizedBatchNo = normalizeCodeValue(batchNo, "batch_no");
+        try {
+            return outsourcingQuery(" WHERE b.batch_no = :batchNo")
+                    .param("batchNo", normalizedBatchNo)
+                    .query(this::mapProductionOutsourcingBatch)
+                    .single();
+        } catch (EmptyResultDataAccessException ex) {
+            throw new ResponseStatusException(HttpStatus.NOT_FOUND, "outsourcing batch not found", ex);
+        }
     }
 
     @Transactional
@@ -2396,6 +2714,11 @@ public class WorkflowExecutionService {
                 "production equipment write requires ADMIN or WORKER role");
     }
 
+    private void requireAdmin(BootstrapIdentity identity, String message) {
+        accessControlService.requireAnyRole(
+                identity, Set.of(com.yuri.aiorder.common.UserRole.ADMIN), message);
+    }
+
     private void requireProductionMaterialExceptionWrite(BootstrapIdentity identity) {
         accessControlService.requireAnyRole(
                 identity, Set.of(com.yuri.aiorder.common.UserRole.ADMIN, com.yuri.aiorder.common.UserRole.WORKER),
@@ -2516,6 +2839,23 @@ public class WorkflowExecutionService {
         }
     }
 
+    private ProductionEquipmentResponse loadProductionEquipment(String equipmentCode) {
+        try {
+            return jdbcClient.sql("""
+                            SELECT equipment_id, equipment_code, equipment_name, equipment_type, department_name,
+                                   status, owner_user_id, utilization_rate, last_maintenance_at,
+                                   next_maintenance_at, created_at, updated_at
+                            FROM production_equipment
+                            WHERE equipment_code = :equipmentCode
+                            """)
+                    .param("equipmentCode", equipmentCode)
+                    .query(this::mapProductionEquipment)
+                    .single();
+        } catch (EmptyResultDataAccessException ex) {
+            throw new ResponseStatusException(HttpStatus.NOT_FOUND, "equipment not found", ex);
+        }
+    }
+
     private long findEquipmentIdByCode(String equipmentCode) {
         return jdbcClient.sql("""
                         SELECT equipment_id
@@ -2532,7 +2872,9 @@ public class WorkflowExecutionService {
         try {
             return jdbcClient.sql("""
                             SELECT ev.event_id, ev.equipment_id, e.equipment_code, ev.event_type, ev.status,
-                                   ev.downtime_minutes, ev.description, ev.created_at, ev.resolved_at
+                                   ev.downtime_minutes, ev.description, ev.requested_by_user_id,
+                                   ev.approved_by_user_id, ev.decision_note, ev.decided_at,
+                                   ev.created_at, ev.resolved_at
                             FROM production_equipment_event ev
                             JOIN production_equipment e ON e.equipment_id = ev.equipment_id
                             WHERE ev.event_id = :eventId
@@ -2572,6 +2914,10 @@ public class WorkflowExecutionService {
                 rs.getString("status"),
                 rs.getInt("downtime_minutes"),
                 rs.getString("description"),
+                rs.getObject("requested_by_user_id", Long.class),
+                rs.getObject("approved_by_user_id", Long.class),
+                rs.getString("decision_note"),
+                rs.getObject("decided_at", LocalDateTime.class),
                 rs.getObject("created_at", LocalDateTime.class),
                 rs.getObject("resolved_at", LocalDateTime.class));
     }
@@ -2842,6 +3188,22 @@ public class WorkflowExecutionService {
         }
     }
 
+    private ProductionCostRecordResponse loadProductionCostRecord(String costNo) {
+        try {
+            return jdbcClient.sql("""
+                            SELECT cost_id, cost_no, order_id, node_instance_id, cost_type, amount, status,
+                                   department_name, supplier_name, description, created_at, updated_at, confirmed_at
+                            FROM production_cost_record
+                            WHERE cost_no = :costNo
+                            """)
+                    .param("costNo", costNo)
+                    .query(this::mapProductionCostRecord)
+                    .single();
+        } catch (EmptyResultDataAccessException ex) {
+            throw new ResponseStatusException(HttpStatus.NOT_FOUND, "cost record not found", ex);
+        }
+    }
+
     private ProductionCostRecordResponse mapProductionCostRecord(
             java.sql.ResultSet rs, int rowNum) throws java.sql.SQLException {
         return new ProductionCostRecordResponse(
@@ -2858,6 +3220,44 @@ public class WorkflowExecutionService {
                 rs.getObject("created_at", LocalDateTime.class),
                 rs.getObject("updated_at", LocalDateTime.class),
                 rs.getObject("confirmed_at", LocalDateTime.class));
+    }
+
+    private JdbcClient.StatementSpec outsourcingQuery(String suffix) {
+        return jdbcClient.sql("""
+                        SELECT b.outsourcing_id, b.batch_no, b.order_id, o.order_no, o.product_type,
+                               b.item_name, b.supplier_name, b.quantity, b.status, b.sent_at,
+                               b.expected_return_at, b.actual_return_at, b.abnormal_note,
+                               b.created_at, b.updated_at,
+                               CASE
+                                 WHEN b.status <> 'RETURNED'
+                                      AND b.expected_return_at IS NOT NULL
+                                      AND b.expected_return_at < CURRENT_TIMESTAMP(3) THEN 1
+                                 ELSE 0
+                               END AS is_overdue
+                        FROM production_outsourcing_batch b
+                        JOIN orders o ON o.order_id = b.order_id
+                        """ + suffix);
+    }
+
+    private ProductionOutsourcingBatchResponse mapProductionOutsourcingBatch(
+            java.sql.ResultSet rs, int rowNum) throws java.sql.SQLException {
+        return new ProductionOutsourcingBatchResponse(
+                rs.getLong("outsourcing_id"),
+                rs.getString("batch_no"),
+                rs.getLong("order_id"),
+                rs.getString("order_no"),
+                rs.getString("product_type"),
+                rs.getString("item_name"),
+                rs.getString("supplier_name"),
+                rs.getInt("quantity"),
+                rs.getString("status"),
+                rs.getObject("sent_at", LocalDateTime.class),
+                rs.getObject("expected_return_at", LocalDateTime.class),
+                rs.getObject("actual_return_at", LocalDateTime.class),
+                rs.getBoolean("is_overdue"),
+                rs.getString("abnormal_note"),
+                rs.getObject("created_at", LocalDateTime.class),
+                rs.getObject("updated_at", LocalDateTime.class));
     }
 
     private RewardPenaltyRecordInput normalizeProductionRewardPenaltyRecord(

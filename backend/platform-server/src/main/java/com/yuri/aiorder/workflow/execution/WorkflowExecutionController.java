@@ -6,7 +6,6 @@ import com.yuri.aiorder.common.UserRole;
 import com.yuri.aiorder.common.auth.RequirePermission;
 import java.time.LocalDate;
 import jakarta.validation.Valid;
-import java.time.LocalDate;
 import java.util.List;
 import org.springframework.format.annotation.DateTimeFormat;
 import org.springframework.web.bind.annotation.CrossOrigin;
@@ -110,6 +109,40 @@ public class WorkflowExecutionController {
         return new DataResponse<>(workflowExecutionService.getProductionEquipmentSummary(equipmentCodePrefix, identity));
     }
 
+    @GetMapping("/production/equipment")
+    @RequirePermission(value = "check:read-internal", roles = {UserRole.ADMIN, UserRole.CS, UserRole.WORKER})
+    public DataResponse<List<ProductionEquipmentResponse>> listProductionEquipment(
+            BootstrapIdentity identity,
+            @RequestParam(name = "keyword", required = false) String keyword,
+            @RequestParam(name = "status", required = false) String status) {
+        return new DataResponse<>(workflowExecutionService.listProductionEquipment(keyword, status, identity));
+    }
+
+    @GetMapping("/production/equipment/approvals")
+    @RequirePermission(value = "check:read-internal", roles = {UserRole.ADMIN, UserRole.CS, UserRole.WORKER})
+    public DataResponse<List<ProductionEquipmentEventResponse>> listProductionEquipmentApprovals(
+            BootstrapIdentity identity,
+            @RequestParam(name = "status", required = false) String status) {
+        return new DataResponse<>(workflowExecutionService.listProductionEquipmentApprovals(status, identity));
+    }
+
+    @PutMapping("/production/equipment/approvals/{eventId}")
+    @RequirePermission(value = "check:write", roles = UserRole.ADMIN)
+    public DataResponse<ProductionEquipmentEventResponse> decideProductionEquipmentApproval(
+            BootstrapIdentity identity,
+            @PathVariable long eventId,
+            @Valid @RequestBody ProductionEquipmentApprovalRequest request) {
+        return new DataResponse<>(workflowExecutionService.decideProductionEquipmentApproval(eventId, request, identity));
+    }
+
+    @GetMapping("/production/equipment/{equipmentCode}")
+    @RequirePermission(value = "check:read-internal", roles = {UserRole.ADMIN, UserRole.CS, UserRole.WORKER})
+    public DataResponse<ProductionEquipmentDetailResponse> getProductionEquipment(
+            BootstrapIdentity identity,
+            @PathVariable String equipmentCode) {
+        return new DataResponse<>(workflowExecutionService.getProductionEquipment(equipmentCode, identity));
+    }
+
     @PostMapping("/production/equipment")
     @RequirePermission(value = "check:write", roles = {UserRole.ADMIN, UserRole.WORKER})
     public DataResponse<ProductionEquipmentResponse> createProductionEquipment(
@@ -135,6 +168,23 @@ public class WorkflowExecutionController {
             @RequestParam(name = "exception_no_prefix", required = false) String exceptionNoPrefix) {
         return new DataResponse<>(
                 workflowExecutionService.getProductionMaterialExceptionSummary(exceptionNoPrefix, identity));
+    }
+
+    @GetMapping("/production/material-exceptions")
+    @RequirePermission(value = "check:read-internal", roles = {UserRole.ADMIN, UserRole.CS, UserRole.WORKER})
+    public DataResponse<List<ProductionMaterialExceptionResponse>> listProductionMaterialExceptions(
+            BootstrapIdentity identity,
+            @RequestParam(name = "keyword", required = false) String keyword,
+            @RequestParam(name = "status", required = false) String status) {
+        return new DataResponse<>(workflowExecutionService.listProductionMaterialExceptions(keyword, status, identity));
+    }
+
+    @GetMapping("/production/material-exceptions/{exceptionNo}")
+    @RequirePermission(value = "check:read-internal", roles = {UserRole.ADMIN, UserRole.CS, UserRole.WORKER})
+    public DataResponse<ProductionMaterialExceptionResponse> getProductionMaterialException(
+            BootstrapIdentity identity,
+            @PathVariable String exceptionNo) {
+        return new DataResponse<>(workflowExecutionService.getProductionMaterialException(exceptionNo, identity));
     }
 
     @PostMapping("/production/material-exceptions")
@@ -164,6 +214,29 @@ public class WorkflowExecutionController {
                 workflowExecutionService.getProductionSafetyEnvironmentSummary(eventNoPrefix, identity));
     }
 
+    @GetMapping("/production/safety-environment/events")
+    @RequirePermission(value = "check:read-internal", roles = {UserRole.ADMIN, UserRole.CS, UserRole.WORKER})
+    public DataResponse<List<ProductionSafetyEnvironmentEventResponse>> listProductionSafetyEnvironmentEvents(
+            BootstrapIdentity identity,
+            @RequestParam(name = "keyword", required = false) String keyword,
+            @RequestParam(name = "status", required = false) String status) {
+        return new DataResponse<>(workflowExecutionService.listProductionSafetyEnvironmentEvents(keyword, status, identity));
+    }
+
+    @GetMapping("/production/safety-environment/events/{eventNo}")
+    @RequirePermission(value = "check:read-internal", roles = {UserRole.ADMIN, UserRole.CS, UserRole.WORKER})
+    public DataResponse<ProductionSafetyEnvironmentEventResponse> getProductionSafetyEnvironmentEvent(
+            BootstrapIdentity identity,
+            @PathVariable String eventNo) {
+        return new DataResponse<>(workflowExecutionService.getProductionSafetyEnvironmentEvent(eventNo, identity));
+    }
+
+    @GetMapping("/production/safety-environment/rules")
+    @RequirePermission(value = "check:read-internal", roles = {UserRole.ADMIN, UserRole.CS, UserRole.WORKER})
+    public DataResponse<List<ProductionSafetyRuleResponse>> listProductionSafetyRules(BootstrapIdentity identity) {
+        return new DataResponse<>(workflowExecutionService.listProductionSafetyRules(identity));
+    }
+
     @PostMapping("/production/safety-environment/events")
     @RequirePermission(value = "check:write", roles = {UserRole.ADMIN, UserRole.WORKER})
     public DataResponse<ProductionSafetyEnvironmentEventResponse> createProductionSafetyEnvironmentEvent(
@@ -189,6 +262,49 @@ public class WorkflowExecutionController {
             BootstrapIdentity identity,
             @RequestParam(name = "cost_no_prefix", required = false) String costNoPrefix) {
         return new DataResponse<>(workflowExecutionService.getProductionCostSummary(costNoPrefix, identity));
+    }
+
+    @GetMapping("/production/cost-management/records")
+    @RequirePermission(value = "check:read-internal", roles = {UserRole.ADMIN, UserRole.CS, UserRole.WORKER})
+    public DataResponse<List<ProductionCostRecordResponse>> listProductionCostRecords(
+            BootstrapIdentity identity,
+            @RequestParam(name = "keyword", required = false) String keyword,
+            @RequestParam(name = "status", required = false) String status) {
+        return new DataResponse<>(workflowExecutionService.listProductionCostRecords(keyword, status, identity));
+    }
+
+    @GetMapping("/production/cost-management/records/{costNo}")
+    @RequirePermission(value = "check:read-internal", roles = {UserRole.ADMIN, UserRole.CS, UserRole.WORKER})
+    public DataResponse<ProductionCostRecordResponse> getProductionCostRecord(
+            BootstrapIdentity identity,
+            @PathVariable String costNo) {
+        return new DataResponse<>(workflowExecutionService.getProductionCostRecord(costNo, identity));
+    }
+
+    @PutMapping("/production/cost-management/records/{costNo}/status")
+    @RequirePermission(value = "check:write", roles = UserRole.ADMIN)
+    public DataResponse<ProductionCostRecordResponse> updateProductionCostRecordStatus(
+            BootstrapIdentity identity,
+            @PathVariable String costNo,
+            @Valid @RequestBody ProductionCostStatusRequest request) {
+        return new DataResponse<>(workflowExecutionService.updateProductionCostRecordStatus(costNo, request, identity));
+    }
+
+    @GetMapping("/production/outsourcing")
+    @RequirePermission(value = "check:read-internal", roles = {UserRole.ADMIN, UserRole.CS, UserRole.WORKER})
+    public DataResponse<List<ProductionOutsourcingBatchResponse>> listProductionOutsourcing(
+            BootstrapIdentity identity,
+            @RequestParam(name = "keyword", required = false) String keyword,
+            @RequestParam(name = "status", required = false) String status) {
+        return new DataResponse<>(workflowExecutionService.listProductionOutsourcing(keyword, status, identity));
+    }
+
+    @GetMapping("/production/outsourcing/{batchNo}")
+    @RequirePermission(value = "check:read-internal", roles = {UserRole.ADMIN, UserRole.CS, UserRole.WORKER})
+    public DataResponse<ProductionOutsourcingBatchResponse> getProductionOutsourcing(
+            BootstrapIdentity identity,
+            @PathVariable String batchNo) {
+        return new DataResponse<>(workflowExecutionService.getProductionOutsourcing(batchNo, identity));
     }
 
     @PostMapping("/production/cost-management/records")

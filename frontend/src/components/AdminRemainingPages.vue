@@ -60,6 +60,12 @@ const performanceRows = ref<Row[]>([])
 const qualitySummary = ref<Row | null>(null)
 const qualityRows = ref<Row[]>([])
 const supportSummary = ref<Row | null>(null)
+const supportRows = ref<Row[]>([])
+const equipmentApprovals = ref<Row[]>([])
+const safetyRules = ref<Row[]>([])
+const outsourcingRows = ref<Row[]>([])
+const actionBusy = ref<string | number | null>(null)
+const actionMessage = ref('')
 const products = ref<Row[]>([])
 const aiSummary = ref<Row | null>(null)
 const aiTrend = ref<Row | null>(null)
@@ -116,6 +122,8 @@ function resetViewState() {
   statusFilter.value = 'ALL'
   page.value = 1
   drawerVisible.value = false
+  actionBusy.value = null
+  actionMessage.value = ''
   failed.value = false
   failureKind.value = 'request'
 }
@@ -189,7 +197,41 @@ async function loadSupportSummary() {
     '/production/safety-environment': '/production/safety-environment/summary',
     '/production/cost-management': '/production/cost-management/summary'
   }
-  supportSummary.value = await request<Row>(pathByRoute[props.activeRoute])
+  if (props.activeRoute === '/production/devices') {
+    const [summary, rows, approvals] = await Promise.all([
+      request<Row>(pathByRoute[props.activeRoute]),
+      request<Row[]>('/production/equipment'),
+      request<Row[]>('/production/equipment/approvals')
+    ])
+    supportSummary.value = summary
+    supportRows.value = rows
+    equipmentApprovals.value = approvals
+    return
+  }
+  if (props.activeRoute === '/production/safety-environment') {
+    const [summary, rows, rules] = await Promise.all([
+      request<Row>(pathByRoute[props.activeRoute]),
+      request<Row[]>('/production/safety-environment/events'),
+      request<Row[]>('/production/safety-environment/rules')
+    ])
+    supportSummary.value = summary
+    supportRows.value = rows
+    safetyRules.value = rules
+    return
+  }
+  const listPath = props.activeRoute === '/production/material-exceptions'
+    ? '/production/material-exceptions'
+    : '/production/cost-management/records'
+  const [summary, rows] = await Promise.all([
+    request<Row>(pathByRoute[props.activeRoute]),
+    request<Row[]>(listPath)
+  ])
+  supportSummary.value = summary
+  supportRows.value = rows
+}
+
+async function loadOutsourcing() {
+  outsourcingRows.value = await request<Row[]>('/production/outsourcing')
 }
 
 async function loadProducts() {
@@ -222,6 +264,7 @@ async function refresh() {
   try {
     if (props.activeRoute === '/admin/clinics') await loadClients()
     else if (props.activeRoute === '/delivery') await loadDelivery()
+    else if (props.activeRoute === '/admin/outsourcing') await loadOutsourcing()
     else if (props.activeRoute === '/workflow/process-instance') await loadProcesses()
     else if (props.activeRoute === '/production/quality') await loadQuality()
     else if (props.activeRoute === '/performance') await loadPerformance()
@@ -274,12 +317,37 @@ const filteredPerformance = computed(() => performanceRows.value.filter((row) =>
   return !keyword.value || `${staff.display_name ?? ''} ${staff.username ?? ''} ${staff.department_name ?? ''}`.toLowerCase().includes(keyword.value.toLowerCase())
 }))
 
+const visibleSupportRows = computed<Row[]>(() => {
+  if (props.activeRoute === '/production/devices') {
+    return equipmentTab.value === 'approval' ? equipmentApprovals.value : supportRows.value
+  }
+  if (props.activeRoute === '/production/safety-environment' && safetyTab.value === 'rules') {
+    return safetyRules.value
+  }
+  return supportRows.value
+})
+
+const filteredSupport = computed(() => visibleSupportRows.value.filter((item) => {
+  const text = Object.values(item).filter((value) => typeof value === 'string' || typeof value === 'number').join(' ').toLowerCase()
+  const keywordMatch = !keyword.value || text.includes(keyword.value.toLowerCase())
+  const statusMatch = statusFilter.value === 'ALL' || item.status === statusFilter.value
+  return keywordMatch && statusMatch
+}))
+
+const filteredOutsourcing = computed(() => outsourcingRows.value.filter((item) => {
+  const text = `${item.batch_no} ${item.order_no} ${item.item_name} ${item.supplier_name}`.toLowerCase()
+  return (!keyword.value || text.includes(keyword.value.toLowerCase()))
+    && (statusFilter.value === 'ALL' || item.status === statusFilter.value || (statusFilter.value === 'OVERDUE' && item.is_overdue))
+}))
+
 const filteredNotices = computed(() => props.notifications.filter((item) => notificationTab.value === 'all' || !item.read_at))
 const currentRows = computed<Row[]>(() => {
   if (props.activeRoute === '/admin/clinics') return filteredClients.value
   if (props.activeRoute === '/workflow/process-instance') return filteredProcesses.value
   if (props.activeRoute === '/production/quality') return filteredQuality.value
   if (props.activeRoute === '/performance') return filteredPerformance.value
+  if (props.activeRoute === '/admin/outsourcing') return filteredOutsourcing.value
+  if (['/production/devices', '/production/material-exceptions', '/production/safety-environment', '/production/cost-management'].includes(props.activeRoute)) return filteredSupport.value
   if (props.activeRoute === '/system/form-configs') return filteredProducts.value
   if (props.activeRoute === '/notifications') return filteredNotices.value
   return []
@@ -301,10 +369,23 @@ function compactDate(value: string | null | undefined) {
 
 function statusLabel(value: string | null | undefined) {
   const labels: Record<string, string> = {
-    ACTIVE: '启用', INACTIVE: '停用', RUNNING: '运行', IDLE: '待机', MAINTENANCE: '维护', FAULT: '故障',
+    ACTIVE: '启用', INACTIVE: '停用', RUNNING: '运行', IDLE: '待机', MAINTENANCE: '维护', FAULT: '故障', SCRAPPED: '已报废',
     PENDING: '待处理', IN_PROGRESS: '处理中', CLOSED: '已关闭', COMPLETED: '已完成', READY: '待开始',
     SHIPPED: '已发货', DELIVERED: '已送达', EXCEPTION: '异常', FOLLOWING: '跟进中', RESOLVED: '已解决',
-    NORMAL: '正常', WARNING: '异常提醒', CONFIRMED: '已确认', PAID: '已付款', PENDING_PAYMENT: '待付款'
+    NORMAL: '正常', WARNING: '异常提醒', CONFIRMED: '已确认', PAID: '已付款', PENDING_PAYMENT: '待付款',
+    APPROVED: '已通过', REJECTED: '已驳回', DONE: '已完成', SENT: '已发出', DELAYED: '已延迟', RETURNED: '已返回'
+  }
+  return labels[value ?? ''] ?? value ?? '暂未记录'
+}
+
+function supportTypeLabel(value: string | null | undefined) {
+  const labels: Record<string, string> = {
+    MAINTENANCE_PLAN: '维护登记', CALIBRATION: '校准登记', FAULT_REPAIR: '维修登记', DOWNTIME: '停机登记',
+    REPAIR_REQUEST: '维修审批', SCRAP_REQUEST: '报废审批', SHORTAGE: '缺料', WRONG_MATERIAL: '错料',
+    BATCH_ABNORMAL: '批次异常', MATERIAL_LOSS: '材料损耗', SAFETY_INSPECTION: '安全检查',
+    HAZARD_RECTIFICATION: '隐患整改', ENVIRONMENT_RECORD: '环境检查', PPE_DEVICE_REMINDER: '防护提醒',
+    PROCESS: '工序成本', MATERIAL: '材料成本', LABOR: '人员成本', REWORK: '返工成本', OUTSOURCING: '外协成本',
+    SAFETY: '安全检查', ENVIRONMENT: '环境检查', DAILY: '每日', WEEKLY: '每周', MONTHLY: '每月'
   }
   return labels[value ?? ''] ?? value ?? '暂未记录'
 }
@@ -402,6 +483,84 @@ async function openPerformance(row: Row) {
   }
 }
 
+async function openSupport(row: Row) {
+  const route = props.activeRoute
+  const config = route === '/production/devices'
+    ? { title: '设备详情', kind: 'equipment', path: `/production/equipment/${encodeURIComponent(row.equipment_code)}` }
+    : route === '/production/material-exceptions'
+      ? { title: '物料异常详情', kind: 'material', path: `/production/material-exceptions/${encodeURIComponent(row.exception_no)}` }
+      : route === '/production/safety-environment'
+        ? { title: safetyTab.value === 'rules' ? '检查规则详情' : '安环事项详情', kind: safetyTab.value === 'rules' ? 'safety-rule' : 'safety', path: safetyTab.value === 'rules' ? '' : `/production/safety-environment/events/${encodeURIComponent(row.event_no)}` }
+        : { title: '订单成本详情', kind: 'cost', path: `/production/cost-management/records/${encodeURIComponent(row.cost_no)}` }
+  openDrawer(config.title, config.kind, row)
+  if (!config.path) return
+  drawerLoading.value = true
+  try {
+    drawerData.value = await request<Row>(config.path)
+  } catch {
+    drawerData.value = { ...row, detailFailed: true }
+  } finally {
+    drawerLoading.value = false
+  }
+}
+
+async function openOutsourcing(row: Row) {
+  openDrawer('外协批次详情', 'outsourcing', row)
+  drawerLoading.value = true
+  try {
+    drawerData.value = await request<Row>(`/production/outsourcing/${encodeURIComponent(row.batch_no)}`)
+  } catch {
+    drawerData.value = { ...row, detailFailed: true }
+  } finally {
+    drawerLoading.value = false
+  }
+}
+
+async function decideEquipmentApproval(row: Row, decision: 'APPROVED' | 'REJECTED') {
+  actionBusy.value = row.event_id
+  actionMessage.value = ''
+  try {
+    await request<Row>(`/production/equipment/approvals/${row.event_id}`, {
+      method: 'PUT',
+      body: JSON.stringify({ decision, decision_note: decision === 'APPROVED' ? '管理端已复核并同意' : '管理端复核后暂不通过' })
+    })
+    await loadSupportSummary()
+    actionMessage.value = decision === 'APPROVED' ? '审批已通过' : '审批已驳回'
+  } catch {
+    actionMessage.value = '当前审批暂时无法完成，请稍后重试'
+  } finally {
+    actionBusy.value = null
+  }
+}
+
+async function advanceSupportStatus(row: Row) {
+  actionBusy.value = row.exception_no ?? row.event_no ?? row.cost_no
+  actionMessage.value = ''
+  try {
+    if (props.activeRoute === '/production/material-exceptions') {
+      const status = row.status === 'PENDING' ? 'IN_PROGRESS' : 'CLOSED'
+      await request<Row>(`/production/material-exceptions/${encodeURIComponent(row.exception_no)}/status`, {
+        method: 'PUT', body: JSON.stringify({ status, responsibility_owner: row.responsibility_owner, description: row.description })
+      })
+    } else if (props.activeRoute === '/production/safety-environment') {
+      const status = row.status === 'PENDING' ? 'IN_PROGRESS' : 'CLOSED'
+      await request<Row>(`/production/safety-environment/events/${encodeURIComponent(row.event_no)}/status`, {
+        method: 'PUT', body: JSON.stringify({ status, responsible_owner: row.responsible_owner, description: row.description })
+      })
+    } else if (props.activeRoute === '/production/cost-management') {
+      await request<Row>(`/production/cost-management/records/${encodeURIComponent(row.cost_no)}/status`, {
+        method: 'PUT', body: JSON.stringify({ status: 'CONFIRMED' })
+      })
+    }
+    await loadSupportSummary()
+    actionMessage.value = '处理结果已保存'
+  } catch {
+    actionMessage.value = '当前操作暂时无法完成，请稍后重试'
+  } finally {
+    actionBusy.value = null
+  }
+}
+
 function openDrawer(title: string, kind: string, data: Row) {
   drawerTitle.value = title
   drawerKind.value = kind
@@ -477,10 +636,10 @@ const supportCards = computed(() => {
 })
 
 const supportEmptyText = computed(() => {
-  if (props.activeRoute === '/production/devices') return '当前仅有设备总体情况，设备明细和审批记录尚未纳入'
-  if (props.activeRoute === '/production/material-exceptions') return '当前仅有物料异常总体情况，明细记录尚未纳入'
-  if (props.activeRoute === '/production/safety-environment') return '当前仅有安环总体情况，检查计划和整改明细尚未纳入'
-  return '当前仅有成本总体情况，成本明细尚未纳入'
+  if (props.activeRoute === '/production/devices') return '当前没有可查看的设备或审批记录'
+  if (props.activeRoute === '/production/material-exceptions') return '当前没有可查看的物料异常记录'
+  if (props.activeRoute === '/production/safety-environment') return '当前没有可查看的检查、整改或规则记录'
+  return '当前没有可查看的订单成本记录'
 })
 
 const aiHoverIndex = ref<number | null>(null)
@@ -545,6 +704,7 @@ watch(() => [props.activeRoute, props.token], () => {
 }, { immediate: true })
 
 watch([keyword, statusFilter], () => { page.value = 1 })
+watch([equipmentTab, safetyTab], () => { page.value = 1; keyword.value = ''; statusFilter.value = 'ALL' })
 watch(dictionaryType, () => { if (drawerKind.value === 'dictionary') void loadDictionaryItems() })
 
 onMounted(() => window.addEventListener('keydown', escapeClose))
@@ -588,7 +748,7 @@ defineExpose({ refresh, openQualitySettings })
     </template>
 
     <template v-else-if="activeRoute === '/admin/outsourcing'">
-      <div class="arp-table-card arp-fill-card"><div class="arp-toolbar"><label class="arp-search"><span>⌕</span><input disabled placeholder="搜索外协件、订单或供应商"></label><select disabled><option>全部状态</option></select><button @click="refresh">刷新</button><em>真实记录 0 条</em></div><div class="arp-table-scroll"><table class="arp-wide"><thead><tr><th>外协件 / 订单</th><th>供应商</th><th>发出时间</th><th>预计返回</th><th>实际返回</th><th>流转状态</th><th>异常状态</th><th>操作</th></tr></thead></table><div class="arp-empty arp-empty-large"><span>☁️</span><strong>当前还没有可查看的外协进度记录</strong><p>发生外协后，将按外协件或批次展示发出、预计返回、实际返回、超时和异常。</p></div></div></div>
+      <div class="arp-table-card arp-fill-card"><div class="arp-toolbar"><label class="arp-search"><span>⌕</span><input v-model="keyword" placeholder="搜索外协件、订单或供应商"></label><select v-model="statusFilter"><option value="ALL">全部状态</option><option value="SENT">已发出</option><option value="OVERDUE">已超时</option><option value="DELAYED">已延迟</option><option value="RETURNED">已返回</option></select><button @click="clearFilters">清空</button><button @click="refresh">刷新</button><em>真实记录 {{ filteredOutsourcing.length }} 条</em></div><div class="arp-table-scroll"><table class="arp-wide"><thead><tr><th>外协件 / 订单</th><th>供应商</th><th>数量</th><th>发出时间</th><th>预计返回</th><th>实际返回</th><th>流转状态</th><th>异常状态</th><th>操作</th></tr></thead><tbody><tr v-for="row in pagedRows" :key="row.outsourcing_id" @click="openOutsourcing(row)"><td><strong>{{ row.item_name }}</strong><small>{{ row.batch_no }} · {{ row.order_no }}</small></td><td>{{ row.supplier_name }}</td><td>{{ row.quantity }} 件</td><td>{{ compactDate(row.sent_at) }}</td><td>{{ compactDate(row.expected_return_at) }}</td><td>{{ compactDate(row.actual_return_at) }}</td><td><i class="arp-badge" :class="row.status === 'RETURNED' ? 'ok' : row.status === 'DELAYED' ? 'danger' : 'info'">{{ statusLabel(row.status) }}</i></td><td><i v-if="row.is_overdue" class="arp-badge danger">已超时</i><span v-else>{{ row.abnormal_note || '无异常' }}</span></td><td><button @click.stop="openOutsourcing(row)">查看</button></td></tr></tbody></table><div v-if="filteredOutsourcing.length === 0" class="arp-empty arp-empty-large"><span>☁️</span><strong>当前还没有可查看的外协进度记录</strong><p>发生外协后，将按外协件或批次展示发出、预计返回、实际返回、超时和异常。</p></div></div><footer class="arp-pagination"><span>按外协件或批次追踪，不按整单合并</span><div><button :disabled="page <= 1" @click="page--">上一页</button><b>{{ page }}</b><button :disabled="page >= pageCount" @click="page++">下一页</button></div></footer></div>
     </template>
 
     <template v-else-if="activeRoute === '/workflow/process-instance'">
@@ -608,7 +768,16 @@ defineExpose({ refresh, openQualitySettings })
       <nav v-if="activeRoute === '/production/devices'" class="arp-primary-tabs"><button :class="{ active: equipmentTab === 'list' }" @click="equipmentTab = 'list'">设备清单</button><button :class="{ active: equipmentTab === 'approval' }" @click="equipmentTab = 'approval'">审批事项</button></nav>
       <nav v-if="activeRoute === '/production/safety-environment'" class="arp-primary-tabs"><button :class="{ active: safetyTab === 'supervision' }" @click="safetyTab = 'supervision'">检查监督</button><button :class="{ active: safetyTab === 'rules' }" @click="safetyTab = 'rules'">检查规则</button></nav>
       <div class="arp-metric-band"><article v-for="card in supportCards" :key="card[0]"><span>{{ card[0] }}</span><strong>{{ card[1] ?? 0 }}</strong></article></div>
-      <div class="arp-table-card arp-metric-table"><div class="arp-toolbar"><label class="arp-search"><span>⌕</span><input disabled :placeholder="activeRoute === '/production/devices' ? '搜索设备编号或名称' : activeRoute === '/production/material-exceptions' ? '搜索异常编号或物料' : activeRoute === '/production/safety-environment' ? '搜索部门或检查规则' : '搜索成本或订单编号'"></label><select disabled><option>全部状态</option></select><button @click="refresh">刷新</button><em>更新于 {{ compactDate(supportSummary?.generated_at) }}</em></div><div class="arp-placeholder-table"><div class="arp-placeholder-head"><span>业务对象</span><span>关联范围</span><span>当前状态</span><span>最近更新</span><span>操作</span></div><div class="arp-empty arp-empty-large"><span>{{ activeRoute === '/production/devices' ? '⚙️' : activeRoute === '/production/material-exceptions' ? '⚠️' : activeRoute === '/production/safety-environment' ? '🛡️' : '📊' }}</span><strong>{{ supportEmptyText }}</strong><p>当前总体数据已经真实展示，明细纳入后将在此处提供查询和追溯。</p></div></div></div>
+      <div class="arp-table-card arp-metric-table"><div class="arp-toolbar"><label class="arp-search"><span>⌕</span><input v-model="keyword" :placeholder="activeRoute === '/production/devices' ? '搜索设备编号或名称' : activeRoute === '/production/material-exceptions' ? '搜索异常编号或物料' : activeRoute === '/production/safety-environment' ? '搜索部门、事项或检查规则' : '搜索成本或订单编号'"></label><select v-model="statusFilter"><option value="ALL">全部状态</option><option value="PENDING">待处理</option><option value="IN_PROGRESS">处理中</option><option value="CLOSED">已关闭</option><option value="WARNING">异常提醒</option><option value="CONFIRMED">已确认</option><option value="APPROVED">已通过</option><option value="REJECTED">已驳回</option></select><button @click="clearFilters">清空</button><button @click="refresh">刷新</button><em>{{ actionMessage || `共 ${filteredSupport.length} 条 · 更新于 ${compactDate(supportSummary?.generated_at)}` }}</em></div>
+        <div class="arp-table-scroll">
+          <table v-if="activeRoute === '/production/devices' && equipmentTab === 'list'" class="arp-wide"><thead><tr><th>设备</th><th>类型 / 部门</th><th>状态</th><th>负责人</th><th>稼动率</th><th>上次维护</th><th>下次维护</th><th>最近更新</th><th>操作</th></tr></thead><tbody><tr v-for="row in pagedRows" :key="row.equipment_id" @click="openSupport(row)"><td><strong>{{ row.equipment_name }}</strong><small>{{ row.equipment_code }}</small></td><td><strong>{{ row.equipment_type }}</strong><small>{{ row.department_name || '部门暂未记录' }}</small></td><td><i class="arp-badge" :class="row.status === 'FAULT' ? 'danger' : row.status === 'RUNNING' ? 'ok' : 'warning'">{{ statusLabel(row.status) }}</i></td><td>{{ row.owner_user_id ? `员工 ${row.owner_user_id}` : '暂未指定' }}</td><td><div class="arp-progress"><i :style="{ width: `${row.utilization_rate}%` }" /></div><small>{{ row.utilization_rate }}%</small></td><td>{{ compactDate(row.last_maintenance_at) }}</td><td>{{ compactDate(row.next_maintenance_at) }}</td><td>{{ compactDate(row.updated_at) }}</td><td><button @click.stop="openSupport(row)">查看</button></td></tr></tbody></table>
+          <table v-else-if="activeRoute === '/production/devices'" class="arp-wide"><thead><tr><th>审批事项</th><th>设备编号</th><th>申请人</th><th>停机影响</th><th>申请说明</th><th>审批状态</th><th>申请时间</th><th>操作</th></tr></thead><tbody><tr v-for="row in pagedRows" :key="row.event_id"><td><strong>{{ supportTypeLabel(row.event_type) }}</strong></td><td>{{ row.equipment_code }}</td><td>{{ row.requested_by_user_id ? `员工 ${row.requested_by_user_id}` : '暂未记录' }}</td><td>{{ row.downtime_minutes }} 分钟</td><td>{{ row.description || '暂无说明' }}</td><td><i class="arp-badge" :class="row.status === 'PENDING' ? 'warning' : row.status === 'APPROVED' ? 'ok' : 'danger'">{{ statusLabel(row.status) }}</i></td><td>{{ compactDate(row.created_at) }}</td><td><div v-if="row.status === 'PENDING'" class="arp-row-actions"><button :disabled="actionBusy === row.event_id" @click="decideEquipmentApproval(row, 'APPROVED')">通过</button><button class="danger" :disabled="actionBusy === row.event_id" @click="decideEquipmentApproval(row, 'REJECTED')">驳回</button></div><span v-else>{{ row.decision_note || '已完成审批' }}</span></td></tr></tbody></table>
+          <table v-else-if="activeRoute === '/production/material-exceptions'" class="arp-wide"><thead><tr><th>异常 / 物料</th><th>关联订单</th><th>异常类型</th><th>损耗数量</th><th>责任人</th><th>处理状态</th><th>说明</th><th>最近更新</th><th>操作</th></tr></thead><tbody><tr v-for="row in pagedRows" :key="row.exception_id" @click="openSupport(row)"><td><strong>{{ row.material_name }}</strong><small>{{ row.exception_no }} · {{ row.material_code }}</small></td><td>{{ row.order_id ? `订单 ${row.order_id}` : '暂未关联' }}</td><td>{{ supportTypeLabel(row.exception_type) }}</td><td>{{ row.loss_quantity }}</td><td>{{ row.responsibility_owner || '待确认' }}</td><td><i class="arp-badge" :class="row.status === 'CLOSED' ? 'ok' : row.status === 'PENDING' ? 'warning' : 'info'">{{ statusLabel(row.status) }}</i></td><td>{{ row.description || '暂无说明' }}</td><td>{{ compactDate(row.updated_at) }}</td><td><div class="arp-row-actions"><button @click.stop="openSupport(row)">查看</button><button v-if="row.status !== 'CLOSED'" :disabled="actionBusy === row.exception_no" @click.stop="advanceSupportStatus(row)">{{ row.status === 'PENDING' ? '开始处理' : '关闭' }}</button></div></td></tr></tbody></table>
+          <table v-else-if="activeRoute === '/production/safety-environment' && safetyTab === 'rules'" class="arp-wide"><thead><tr><th>检查规则</th><th>检查类型</th><th>适用部门</th><th>固定周期</th><th>负责人</th><th>下次应检</th><th>状态</th><th>最近更新</th><th>操作</th></tr></thead><tbody><tr v-for="row in pagedRows" :key="row.rule_id" @click="openSupport(row)"><td><strong>{{ row.rule_name }}</strong><small>{{ row.rule_code }}</small></td><td>{{ supportTypeLabel(row.check_type) }}</td><td>{{ row.department_name }}</td><td>{{ supportTypeLabel(row.cycle_type) }} · 每 {{ row.cycle_interval }} 个周期</td><td>{{ row.responsible_owner || '暂未指定' }}</td><td>{{ compactDate(row.next_due_at) }}</td><td><i class="arp-badge" :class="row.status === 'ACTIVE' ? 'ok' : 'muted'">{{ statusLabel(row.status) }}</i></td><td>{{ compactDate(row.updated_at) }}</td><td><button @click.stop="openSupport(row)">查看</button></td></tr></tbody></table>
+          <table v-else-if="activeRoute === '/production/safety-environment'" class="arp-wide"><thead><tr><th>检查 / 整改事项</th><th>部门 / 设备</th><th>风险等级</th><th>负责人</th><th>应完成时间</th><th>整改状态</th><th>说明</th><th>操作</th></tr></thead><tbody><tr v-for="row in pagedRows" :key="row.event_id" @click="openSupport(row)"><td><strong>{{ supportTypeLabel(row.event_type) }}</strong><small>{{ row.event_no }}</small></td><td><strong>{{ row.department_name || '部门暂未记录' }}</strong><small>{{ row.equipment_code || '无关联设备' }}</small></td><td><i class="arp-badge" :class="row.risk_level === 'CRITICAL' ? 'danger' : row.risk_level === 'HIGH' ? 'warning' : 'ok'">{{ row.risk_level === 'CRITICAL' ? '重大' : row.risk_level === 'HIGH' ? '较高' : '一般' }}</i></td><td>{{ row.responsible_owner || '待确认' }}</td><td>{{ compactDate(row.due_at) }}<small v-if="row.status !== 'CLOSED' && row.due_at && new Date(row.due_at) < new Date()">已逾期</small></td><td>{{ statusLabel(row.status) }}</td><td>{{ row.description || '暂无说明' }}</td><td><div class="arp-row-actions"><button @click.stop="openSupport(row)">查看</button><button v-if="row.status !== 'CLOSED'" :disabled="actionBusy === row.event_no" @click.stop="advanceSupportStatus(row)">{{ row.status === 'PENDING' ? '开始整改' : '关闭' }}</button></div></td></tr></tbody></table>
+          <table v-else class="arp-wide"><thead><tr><th>成本记录</th><th>关联订单 / 工序</th><th>成本类型</th><th>金额</th><th>部门 / 供应方</th><th>异常状态</th><th>追溯说明</th><th>最近更新</th><th>操作</th></tr></thead><tbody><tr v-for="row in pagedRows" :key="row.cost_id" @click="openSupport(row)"><td><strong>{{ row.cost_no }}</strong></td><td><strong>{{ row.order_id ? `订单 ${row.order_id}` : '暂未关联订单' }}</strong><small>{{ row.node_instance_id ? `工序 ${row.node_instance_id}` : '订单级成本' }}</small></td><td>{{ supportTypeLabel(row.cost_type) }}</td><td><strong>¥{{ Number(row.amount).toFixed(2) }}</strong></td><td><strong>{{ row.department_name || '部门暂未记录' }}</strong><small>{{ row.supplier_name || '内部成本' }}</small></td><td><i class="arp-badge" :class="row.status === 'WARNING' ? 'danger' : row.status === 'CONFIRMED' ? 'ok' : 'info'">{{ statusLabel(row.status) }}</i></td><td>{{ row.description || '暂无说明' }}</td><td>{{ compactDate(row.updated_at) }}</td><td><div class="arp-row-actions"><button @click.stop="openSupport(row)">查看</button><button v-if="row.status !== 'CONFIRMED'" :disabled="actionBusy === row.cost_no" @click.stop="advanceSupportStatus(row)">确认记录</button></div></td></tr></tbody></table>
+          <div v-if="filteredSupport.length === 0" class="arp-empty arp-empty-large"><span>{{ activeRoute === '/production/devices' ? '⚙️' : activeRoute === '/production/material-exceptions' ? '⚠️' : activeRoute === '/production/safety-environment' ? '🛡️' : '📊' }}</span><strong>{{ supportEmptyText }}</strong><p>当前筛选条件下没有可查看的业务记录。</p></div>
+        </div><footer class="arp-pagination"><span>显示 {{ (page - 1) * pageSize + (currentRows.length ? 1 : 0) }}–{{ Math.min(page * pageSize, currentRows.length) }}，共 {{ currentRows.length }} 条</span><div><button :disabled="page <= 1" @click="page--">上一页</button><b>{{ page }}</b><button :disabled="page >= pageCount" @click="page++">下一页</button></div></footer></div>
     </template>
 
     <template v-else-if="activeRoute === '/system/form-configs'">
@@ -705,9 +874,47 @@ defineExpose({ refresh, openQualitySettings })
       </div>
     </template>
 
+    <template v-if="!['equipment', 'material', 'safety', 'safety-rule', 'cost', 'outsourcing'].includes(drawerKind)">
+
     <div v-if="drawerVisible" class="arp-drawer-layer" @click.self="closeDrawer"><aside class="arp-drawer" role="dialog" aria-modal="true" :aria-label="drawerTitle"><header><div><span>只读业务详情</span><h2>{{ drawerTitle }}</h2></div><button aria-label="关闭" @click="closeDrawer">×</button></header><div class="arp-drawer-body"><div v-if="drawerLoading" class="arp-state"><span class="arp-spinner" />正在加载详情…</div><template v-else-if="drawerKind === 'client' && drawerData"><section class="arp-profile-banner"><i>🏥</i><div><strong>{{ drawerData.clinic_name }}</strong><span>客户编号 {{ drawerData.clinic_id }} · {{ statusLabel(drawerData.status) }}</span></div></section><section class="arp-detail-section"><header><span>01</span><div><h3>客户档案</h3><small>由客服端维护</small></div></header><dl><div><dt>联系人</dt><dd>{{ drawerData.contact_name || '暂未维护' }}</dd></div><div><dt>联系电话</dt><dd>{{ drawerData.contact_phone || '暂未维护' }}</dd></div><div><dt>建档时间</dt><dd>{{ compactDate(drawerData.created_at) }}</dd></div><div><dt>最近维护</dt><dd>{{ compactDate(drawerData.updated_at) }}</dd></div></dl></section><section class="arp-detail-section"><header><span>02</span><div><h3>客户贡献</h3><small>本月真实统计</small></div></header><dl><div><dt>排名</dt><dd>{{ drawerData.ranking ? `第 ${clientSummary?.top_customers?.findIndex((item: Row) => item.clinic_id === drawerData.clinic_id) + 1} 名` : '暂未进入排名' }}</dd></div><div><dt>订单 / 件数</dt><dd>{{ drawerData.ranking?.order_count ?? '暂未统计' }} / {{ drawerData.ranking?.item_count ?? '暂未统计' }}</dd></div><div><dt>接单金额</dt><dd>暂未统计</dd></div><div><dt>出货金额</dt><dd>暂未统计</dd></div></dl></section><section class="arp-detail-section"><header><span>03</span><div><h3>制作偏好</h3><small>全部只读</small></div></header><dl><div v-for="(value, key) in drawerData.preference?.preferences ?? {}" :key="key"><dt>{{ key }}</dt><dd>{{ value || '暂未维护' }}</dd></div></dl><p v-if="!Object.keys(drawerData.preference?.preferences ?? {}).length" class="arp-detail-note">当前客户暂未维护制作偏好</p></section><p class="arp-readonly-note">客户资料由客服端维护，管理端仅用于经营与服务关系分析。</p></template><template v-else-if="drawerKind === 'delivery' && drawerData"><section class="arp-profile-banner"><i>📦</i><div><strong>{{ drawerData.order_no }}</strong><span>{{ productLabel(drawerData.product_type) }} · {{ statusLabel(drawerData.external_status) }}</span></div></section><section class="arp-detail-section"><header><span>01</span><div><h3>账单信息</h3><small>真实账单状态</small></div></header><dl><div><dt>账单状态</dt><dd>{{ statusLabel(drawerData.bill?.bill_status || drawerData.bill_status) }}</dd></div><div><dt>付款状态</dt><dd>{{ statusLabel(drawerData.bill?.payment_status || drawerData.payment_status) }}</dd></div><div><dt>账单金额</dt><dd>{{ amount(drawerData.bill?.amount_cents, drawerData.bill?.currency || 'CNY') }}</dd></div><div><dt>收款记录</dt><dd>{{ drawerData.payments?.length ?? 0 }} 条</dd></div></dl></section><section class="arp-detail-section"><header><span>02</span><div><h3>配送信息</h3><small>系统人工维护状态</small></div></header><dl><div><dt>承运商</dt><dd>{{ drawerData.logistics?.carrier || drawerData.carrier || '暂未记录' }}</dd></div><div><dt>运单号</dt><dd>{{ drawerData.logistics?.tracking_no || drawerData.tracking_no || '暂未记录' }}</dd></div><div><dt>配送状态</dt><dd>{{ statusLabel(drawerData.logistics?.logistics_status || drawerData.logistics_status) }}</dd></div><div><dt>配送地区</dt><dd>尚未维护</dd></div></dl></section></template><template v-else-if="drawerKind === 'process' && drawerData"><section class="arp-profile-banner"><i>⚙️</i><div><strong>{{ drawerData.order.order_no }}</strong><span>{{ productLabel(drawerData.order.product_type) }} · 进度 {{ processProgress(drawerData) }}%</span></div></section><p v-if="!drawerData.instance" class="arp-detail-note">当前订单尚未生成可查看的工序记录</p><section v-else class="arp-timeline"><article v-for="node in drawerData.instance.nodes" :key="node.node_instance_id"><i :class="node.node_status.toLowerCase()">{{ node.node_status === 'COMPLETED' ? '✓' : node.step_order }}</i><div><header><strong>{{ node.process_name }}</strong><span>{{ statusLabel(node.node_status) }}</span></header><p>执行人：{{ node.assigned_user_id ? `员工 ${node.assigned_user_id}` : '待派工' }}</p><small>开始 {{ compactDate(node.started_at) }} · 完成 {{ compactDate(node.completed_at) }} · 时限 {{ compactDate(node.deadline_at) }}</small></div></article></section><p class="arp-readonly-note">工序和派工信息由生产端维护，管理端仅查看生产进度并监督异常。</p></template><template v-else-if="drawerKind === 'quality' && drawerData"><section class="arp-profile-banner"><i>🔍</i><div><strong>{{ drawerData.order_no || `订单 ${drawerData.order_id}` }}</strong><span>{{ drawerData.issue_type }} · {{ statusLabel(drawerData.status) }}</span></div></section><section class="arp-detail-section"><header><span>01</span><div><h3>问题事实</h3><small>{{ drawerData.source }}</small></div></header><dl><div><dt>问题原因</dt><dd>{{ drawerData.reason_detail || drawerData.reason_category || '暂未记录' }}</dd></div><div><dt>发生时间</dt><dd>{{ compactDate(drawerData.created_at) }}</dd></div><div><dt>目标工序</dt><dd>{{ drawerData.target_process_name || '暂未记录' }}</dd></div><div><dt>影响节点</dt><dd>{{ drawerData.impacted_node_count ?? '暂未统计' }}</dd></div></dl></section><section class="arp-detail-section"><header><span>02</span><div><h3>责任与处理</h3><small>管理监督依据</small></div></header><dl><div><dt>责任依据</dt><dd>{{ drawerData.issue_type === '外返' ? '当前责任信息以客服登记结果为准' : statusLabel(drawerData.responsibility_type) }}</dd></div><div><dt>处理状态</dt><dd>{{ statusLabel(drawerData.status) }}</dd></div><div><dt>关闭说明</dt><dd>{{ drawerData.close_note || drawerData.status_note || '暂未记录' }}</dd></div><div><dt>最近更新</dt><dd>{{ compactDate(drawerData.updated_at || drawerData.status_updated_at) }}</dd></div></dl></section></template><template v-else-if="drawerKind === 'performance' && drawerData"><section class="arp-profile-banner"><i>{{ (drawerData.staff.display_name || drawerData.staff.username || '员').slice(0, 1) }}</i><div><strong>{{ drawerData.staff.display_name || drawerData.staff.username }}</strong><span>{{ drawerData.staff.department_name || '部门暂未记录' }} · 绩效参考分 {{ drawerData.stats?.performance_score ?? '暂未统计' }}</span></div></section><section class="arp-detail-section"><header><span>01</span><div><h3>绩效依据</h3><small>仅供绩效分析，不作为工资结算结果</small></div></header><dl><div><dt>完成工序</dt><dd>{{ drawerData.stats?.completed_count ?? '暂未统计' }}</dd></div><div><dt>有效 / 标准工时</dt><dd>{{ drawerData.stats?.effective_duration ?? '—' }} / {{ drawerData.stats?.standard_duration ?? '—' }} 分钟</dd></div><div><dt>准时 / 通过率</dt><dd>{{ drawerData.stats?.on_time_rate ?? '—' }}% / {{ drawerData.stats?.pass_rate ?? '—' }}%</dd></div><div><dt>公式版本</dt><dd>{{ drawerData.stats?.performance_formula_version || '暂未记录' }}</dd></div></dl></section><section class="arp-detail-section"><header><span>02</span><div><h3>工时明细</h3><small>{{ drawerData.details?.length ?? 0 }} 条</small></div></header><div class="arp-detail-list"><article v-for="item in drawerData.details ?? []" :key="item.work_log_id"><strong>{{ item.order_no }} · {{ item.node_name }}</strong><span>有效 {{ item.effective_duration ?? '—' }} / 标准 {{ item.standard_duration ?? '—' }} 分钟</span><small>{{ compactDate(item.started_at) }} – {{ compactDate(item.completed_at) }}</small></article><p v-if="!(drawerData.details?.length)" class="arp-detail-note">当前没有可查看的工时明细</p></div></section></template><template v-else-if="drawerKind === 'product' && drawerData"><section class="arp-profile-banner"><i>🦷</i><div><strong>{{ drawerData.product_name }}</strong><span>{{ productLabel(drawerData.product_type) }} · {{ statusLabel(drawerData.status) }}</span></div></section><section class="arp-detail-section"><header><span>01</span><div><h3>产品资料</h3><small>客服端维护结果</small></div></header><dl><div><dt>材料规格</dt><dd>{{ drawerData.material_spec || '暂未维护' }}</dd></div><div><dt>基础价格</dt><dd>{{ drawerData.base_price_cents <= 1 ? '价格待确认' : amount(drawerData.base_price_cents, drawerData.currency) }}</dd></div><div><dt>币种</dt><dd>{{ drawerData.currency }}</dd></div><div><dt>价格备注</dt><dd>{{ drawerData.price_note || '暂无备注' }}</dd></div><div><dt>创建时间</dt><dd>{{ compactDate(drawerData.created_at) }}</dd></div><div><dt>最近更新</dt><dd>{{ compactDate(drawerData.updated_at) }}</dd></div></dl></section><p class="arp-readonly-note">管理端只读查看产品资料，不提供产品配置或下单模板设置。</p></template><template v-else-if="drawerKind === 'dictionary'"><div class="arp-dictionary-tabs"><button :class="{ active: dictionaryType === 'REASON_CATEGORY' }" @click="dictionaryType = 'REASON_CATEGORY'">返工原因</button><button :class="{ active: dictionaryType === 'RESPONSIBILITY_TYPE' }" @click="dictionaryType = 'RESPONSIBILITY_TYPE'">责任类型</button></div><div v-if="dictionaryLoading" class="arp-state">正在加载设置…</div><div v-else-if="dictionaryError" class="arp-state arp-state-error">{{ businessFailure }}</div><div v-else class="arp-dictionary-layout"><div class="arp-dictionary-list"><button v-for="item in dictionaryItems" :key="item.item_id" :class="{ active: selectedDictionaryId === item.item_id }" @click="selectDictionary(item)"><span>{{ item.label }}</span><i class="arp-badge" :class="item.status === 'ACTIVE' ? 'ok' : 'muted'">{{ statusLabel(item.status) }}</i></button></div><div class="arp-dictionary-form"><label><span>业务名称</span><input v-model="dictionaryLabel"></label><label><span>显示顺序</span><input v-model.number="dictionarySort" type="number"></label><p>生产端和客服端只读取启用设置，管理端修改会保留真实业务记录。</p><button :disabled="dictionarySaving || !selectedDictionaryId" @click="saveDictionary">{{ dictionarySaving ? '保存中…' : '保存设置' }}</button><small v-if="dictionaryMessage">{{ dictionaryMessage }}</small></div></div></template></div><footer><span>按 Esc、点击遮罩或关闭按钮均可退出</span><button @click="closeDrawer">关闭</button></footer></aside></div>
+    </template>
+    <div v-if="drawerVisible && ['equipment', 'material', 'safety', 'safety-rule', 'cost', 'outsourcing'].includes(drawerKind)" class="arp-drawer-layer arp-support-drawer-layer" @click.self="closeDrawer">
+      <aside class="arp-drawer" role="dialog" aria-modal="true" :aria-label="drawerTitle">
+        <header><div><span>真实业务详情</span><h2>{{ drawerTitle }}</h2></div><button aria-label="关闭" @click="closeDrawer">×</button></header>
+        <div class="arp-drawer-body">
+          <div v-if="drawerLoading" class="arp-state"><span class="arp-spinner" />正在加载详情…</div>
+          <template v-else-if="drawerKind === 'equipment'">
+            <section class="arp-profile-banner"><i>⚙️</i><div><strong>{{ drawerData.equipment?.equipment_name || drawerData.equipment_name }}</strong><span>{{ drawerData.equipment?.equipment_code || drawerData.equipment_code }} · {{ statusLabel(drawerData.equipment?.status || drawerData.status) }}</span></div></section>
+            <section class="arp-detail-section"><header><span>01</span><div><h3>设备总体情况</h3><small>真实设备登记</small></div></header><dl><div><dt>设备类型</dt><dd>{{ drawerData.equipment?.equipment_type || drawerData.equipment_type }}</dd></div><div><dt>所属部门</dt><dd>{{ drawerData.equipment?.department_name || drawerData.department_name || '暂未记录' }}</dd></div><div><dt>稼动率</dt><dd>{{ drawerData.equipment?.utilization_rate ?? drawerData.utilization_rate }}%</dd></div><div><dt>负责人</dt><dd>{{ drawerData.equipment?.owner_user_id ? `员工 ${drawerData.equipment.owner_user_id}` : '暂未指定' }}</dd></div><div><dt>上次维护</dt><dd>{{ compactDate(drawerData.equipment?.last_maintenance_at) }}</dd></div><div><dt>下次维护</dt><dd>{{ compactDate(drawerData.equipment?.next_maintenance_at) }}</dd></div></dl></section>
+            <section class="arp-detail-section"><header><span>02</span><div><h3>维护与审批记录</h3><small>{{ drawerData.events?.length ?? 0 }} 条</small></div></header><div class="arp-detail-list"><article v-for="item in drawerData.events ?? []" :key="item.event_id"><strong>{{ supportTypeLabel(item.event_type) }} · {{ statusLabel(item.status) }}</strong><span>{{ item.description || '暂无说明' }}</span><small>{{ compactDate(item.created_at) }} · 停机影响 {{ item.downtime_minutes }} 分钟</small></article><p v-if="!(drawerData.events?.length)" class="arp-detail-note">当前没有维护、校准、维修或审批记录</p></div></section>
+          </template>
+          <template v-else-if="drawerKind === 'material'">
+            <section class="arp-profile-banner"><i>⚠️</i><div><strong>{{ drawerData.material_name }}</strong><span>{{ drawerData.exception_no }} · {{ supportTypeLabel(drawerData.exception_type) }}</span></div></section>
+            <section class="arp-detail-section"><header><span>01</span><div><h3>异常事实</h3><small>严格限定为物料异常</small></div></header><dl><div><dt>物料编码</dt><dd>{{ drawerData.material_code }}</dd></div><div><dt>关联订单</dt><dd>{{ drawerData.order_id ? `订单 ${drawerData.order_id}` : '暂未关联' }}</dd></div><div><dt>损耗数量</dt><dd>{{ drawerData.loss_quantity }}</dd></div><div><dt>处理状态</dt><dd>{{ statusLabel(drawerData.status) }}</dd></div><div><dt>责任人</dt><dd>{{ drawerData.responsibility_owner || '待确认' }}</dd></div><div><dt>异常说明</dt><dd>{{ drawerData.description || '暂无说明' }}</dd></div></dl></section><p class="arp-readonly-note">此处只追踪异常事实与处理结果，不作为库存数量或采购结论。</p>
+          </template>
+          <template v-else-if="drawerKind === 'safety'">
+            <section class="arp-profile-banner"><i>🛡️</i><div><strong>{{ supportTypeLabel(drawerData.event_type) }}</strong><span>{{ drawerData.event_no }} · {{ statusLabel(drawerData.status) }}</span></div></section>
+            <section class="arp-detail-section"><header><span>01</span><div><h3>检查与整改依据</h3><small>按固定周期监督</small></div></header><dl><div><dt>责任部门</dt><dd>{{ drawerData.department_name || '暂未记录' }}</dd></div><div><dt>责任人</dt><dd>{{ drawerData.responsible_owner || '待确认' }}</dd></div><div><dt>风险等级</dt><dd>{{ drawerData.risk_level }}</dd></div><div><dt>应完成时间</dt><dd>{{ compactDate(drawerData.due_at) }}</dd></div><div><dt>关联设备</dt><dd>{{ drawerData.equipment_code || '无关联设备' }}</dd></div><div><dt>检查说明</dt><dd>{{ drawerData.description || '暂无说明' }}</dd></div></dl></section>
+          </template>
+          <template v-else-if="drawerKind === 'safety-rule'">
+            <section class="arp-profile-banner"><i>🗓️</i><div><strong>{{ drawerData.rule_name }}</strong><span>{{ drawerData.rule_code }} · {{ statusLabel(drawerData.status) }}</span></div></section>
+            <section class="arp-detail-section"><header><span>01</span><div><h3>固定检查周期</h3><small>部门检查规则</small></div></header><dl><div><dt>检查类型</dt><dd>{{ supportTypeLabel(drawerData.check_type) }}</dd></div><div><dt>适用部门</dt><dd>{{ drawerData.department_name }}</dd></div><div><dt>执行周期</dt><dd>{{ supportTypeLabel(drawerData.cycle_type) }} · 每 {{ drawerData.cycle_interval }} 个周期</dd></div><div><dt>责任人</dt><dd>{{ drawerData.responsible_owner || '暂未指定' }}</dd></div><div><dt>下次应检</dt><dd>{{ compactDate(drawerData.next_due_at) }}</dd></div><div><dt>最近更新</dt><dd>{{ compactDate(drawerData.updated_at) }}</dd></div></dl></section>
+          </template>
+          <template v-else-if="drawerKind === 'cost'">
+            <section class="arp-profile-banner"><i>📊</i><div><strong>{{ drawerData.cost_no }}</strong><span>{{ supportTypeLabel(drawerData.cost_type) }} · {{ statusLabel(drawerData.status) }}</span></div></section>
+            <section class="arp-detail-section"><header><span>01</span><div><h3>订单成本追溯</h3><small>不含收入、利润和薪酬结算</small></div></header><dl><div><dt>关联订单</dt><dd>{{ drawerData.order_id ? `订单 ${drawerData.order_id}` : '暂未关联' }}</dd></div><div><dt>关联工序</dt><dd>{{ drawerData.node_instance_id ? `工序 ${drawerData.node_instance_id}` : '订单级成本' }}</dd></div><div><dt>成本金额</dt><dd>¥{{ Number(drawerData.amount ?? 0).toFixed(2) }}</dd></div><div><dt>异常状态</dt><dd>{{ statusLabel(drawerData.status) }}</dd></div><div><dt>部门 / 供应方</dt><dd>{{ drawerData.department_name || '暂未记录' }} / {{ drawerData.supplier_name || '内部成本' }}</dd></div><div><dt>追溯说明</dt><dd>{{ drawerData.description || '暂无说明' }}</dd></div></dl></section><p class="arp-readonly-note">异常提醒来自现有业务记录，页面没有自行设定成本阈值。</p>
+          </template>
+          <template v-else>
+            <section class="arp-profile-banner"><i>☁️</i><div><strong>{{ drawerData.item_name }}</strong><span>{{ drawerData.batch_no }} · {{ drawerData.order_no }}</span></div></section>
+            <section class="arp-detail-section"><header><span>01</span><div><h3>外协履约进度</h3><small>按外协件或批次追踪</small></div></header><dl><div><dt>供应商</dt><dd>{{ drawerData.supplier_name }}</dd></div><div><dt>数量</dt><dd>{{ drawerData.quantity }} 件</dd></div><div><dt>发出时间</dt><dd>{{ compactDate(drawerData.sent_at) }}</dd></div><div><dt>预计返回</dt><dd>{{ compactDate(drawerData.expected_return_at) }}</dd></div><div><dt>实际返回</dt><dd>{{ compactDate(drawerData.actual_return_at) }}</dd></div><div><dt>履约状态</dt><dd>{{ statusLabel(drawerData.status) }}{{ drawerData.is_overdue ? ' · 已超时' : '' }}</dd></div></dl></section><p v-if="drawerData.abnormal_note" class="arp-detail-note">异常说明：{{ drawerData.abnormal_note }}</p>
+          </template>
+        </div>
+        <footer><span>详情内容可独立滚动</span><button @click="closeDrawer">关闭</button></footer>
+      </aside>
+    </div>
   </section>
 </template>
 
 <style scoped src="../admin-remaining-pages.css"></style>
 <style scoped src="../admin-ai-polish.css"></style>
+<style scoped src="../admin-support-pages.css"></style>

@@ -1,9 +1,9 @@
 /*
  * 管理端视觉层。
  *
- * 工作台只共享左侧菜单与顶栏外壳；非工作台页面由
- * .admin-reference-mode 控制内容样式。本文件不覆盖 .prototype-* 类，
- * 避免改动已确定的管理端工作台内容。
+ * 工作台共享左侧菜单、顶栏和标准页面标题；非工作台页面由
+ * .admin-reference-mode 控制内容样式。工作台业务区只使用带
+ * .admin-workbench-* 前缀的局部覆盖，避免影响其他门户。
  */
 
 .portal-admin.admin-reference-mode,
@@ -451,8 +451,8 @@
   color: var(--admin-blue);
 }
 
-/* 非工作台页面的页头与内容容器 */
-.portal-admin.admin-reference-mode .health-panel {
+/* 管理端统一页头与内容容器 */
+:is(.portal-admin.admin-reference-mode, .portal-admin.admin-reference-dashboard-menu) .health-panel {
   display: grid;
   grid-template-columns: minmax(0, 1fr) auto;
   gap: 18px;
@@ -465,37 +465,37 @@
   box-shadow: none;
 }
 
-.portal-admin.admin-reference-mode .health-panel .route-hero-icon {
+:is(.portal-admin.admin-reference-mode, .portal-admin.admin-reference-dashboard-menu) .health-panel .route-hero-icon {
   display: none;
 }
 
-.portal-admin.admin-reference-mode .route-hero-copy,
-.portal-admin.admin-reference-mode .admin-page-head {
+:is(.portal-admin.admin-reference-mode, .portal-admin.admin-reference-dashboard-menu) .route-hero-copy,
+:is(.portal-admin.admin-reference-mode, .portal-admin.admin-reference-dashboard-menu) .admin-page-head {
   min-width: 0;
 }
 
-.portal-admin.admin-reference-mode .health-panel:has(> .admin-page-head) {
+:is(.portal-admin.admin-reference-mode, .portal-admin.admin-reference-dashboard-menu) .health-panel:has(> .admin-page-head) {
   grid-template-columns: minmax(0, 1fr);
   gap: 0;
   padding-bottom: 0;
 }
 
-.portal-admin.admin-reference-mode .admin-page-head {
+:is(.portal-admin.admin-reference-mode, .portal-admin.admin-reference-dashboard-menu) .admin-page-head {
   display: flex;
   align-items: flex-start;
   justify-content: space-between;
   gap: 16px;
 }
 
-.portal-admin.admin-reference-mode .health-panel > .admin-page-tabs {
+:is(.portal-admin.admin-reference-mode, .portal-admin.admin-reference-dashboard-menu) .health-panel > .admin-page-tabs {
   grid-column: 1 / -1;
   margin: 10px 0 0;
   padding: 0;
 }
 
-.portal-admin.admin-reference-mode .route-hero-copy span,
-.portal-admin.admin-reference-mode .admin-page-head-copy > span,
-.portal-admin.admin-reference-mode .admin-page-eyebrow {
+:is(.portal-admin.admin-reference-mode, .portal-admin.admin-reference-dashboard-menu) .route-hero-copy span,
+:is(.portal-admin.admin-reference-mode, .portal-admin.admin-reference-dashboard-menu) .admin-page-head-copy > span,
+:is(.portal-admin.admin-reference-mode, .portal-admin.admin-reference-dashboard-menu) .admin-page-eyebrow {
   display: block;
   margin: 0 0 4px;
   color: var(--admin-blue);
@@ -504,8 +504,8 @@
   letter-spacing: 1.25px;
 }
 
-.portal-admin.admin-reference-mode .route-hero-copy h1,
-.portal-admin.admin-reference-mode .admin-page-head h1 {
+:is(.portal-admin.admin-reference-mode, .portal-admin.admin-reference-dashboard-menu) .route-hero-copy h1,
+:is(.portal-admin.admin-reference-mode, .portal-admin.admin-reference-dashboard-menu) .admin-page-head h1 {
   margin: 0;
   color: var(--admin-text);
   font-family: "Plus Jakarta Sans", "PingFang SC", sans-serif;
@@ -515,19 +515,19 @@
   letter-spacing: -0.45px;
 }
 
-.portal-admin.admin-reference-mode .route-hero-copy p,
-.portal-admin.admin-reference-mode .admin-page-head p {
+:is(.portal-admin.admin-reference-mode, .portal-admin.admin-reference-dashboard-menu) .route-hero-copy p,
+:is(.portal-admin.admin-reference-mode, .portal-admin.admin-reference-dashboard-menu) .admin-page-head p {
   margin: 5px 0 0;
   color: var(--admin-muted);
   font-size: 10px;
   line-height: 1.55;
 }
 
-.portal-admin.admin-reference-mode .health-actions {
+:is(.portal-admin.admin-reference-mode, .portal-admin.admin-reference-dashboard-menu) .health-actions {
   display: none;
 }
 
-.portal-admin.admin-reference-mode .admin-page-actions {
+:is(.portal-admin.admin-reference-mode, .portal-admin.admin-reference-dashboard-menu) .admin-page-actions {
   display: flex;
   align-items: flex-start;
   justify-content: flex-end;
@@ -535,8 +535,8 @@
   padding-top: 2px;
 }
 
-.portal-admin.admin-reference-mode .admin-page-actions .el-button,
-.portal-admin.admin-reference-mode .admin-action-button {
+:is(.portal-admin.admin-reference-mode, .portal-admin.admin-reference-dashboard-menu) .admin-page-actions .el-button,
+:is(.portal-admin.admin-reference-mode, .portal-admin.admin-reference-dashboard-menu) .admin-action-button {
   min-height: 34px;
   margin: 0;
   padding: 0 13px;
@@ -563,6 +563,16 @@
   background: transparent;
   box-shadow: none;
   overflow: visible;
+}
+
+.portal-admin.admin-reference-dashboard-menu .prototype-dashboard-panel {
+  min-width: 0;
+  margin: 14px 24px 24px;
+  padding: 0;
+  border: 0;
+  border-radius: 0;
+  background: transparent;
+  box-shadow: none;
 }
 
 .portal-admin.admin-reference-mode .route-heading {
@@ -4355,12 +4365,17 @@
     grid-template-columns: repeat(2, minmax(0, 1fr));
   }
 
-  .portal-admin.admin-reference-mode .health-panel {
+  :is(.portal-admin.admin-reference-mode, .portal-admin.admin-reference-dashboard-menu) .health-panel {
     padding-right: 18px;
     padding-left: 18px;
   }
 
   .portal-admin.admin-reference-mode .route-panel.admin-remaining-shell {
+    margin-right: 18px;
+    margin-left: 18px;
+  }
+
+  .portal-admin.admin-reference-dashboard-menu .prototype-dashboard-panel {
     margin-right: 18px;
     margin-left: 18px;
   }
@@ -4434,12 +4449,17 @@
     grid-column: 1;
   }
 
-  .portal-admin.admin-reference-mode .health-panel {
+  :is(.portal-admin.admin-reference-mode, .portal-admin.admin-reference-dashboard-menu) .health-panel {
     padding-right: 16px;
     padding-left: 16px;
   }
 
   .portal-admin.admin-reference-mode .route-panel {
+    margin-right: 16px;
+    margin-left: 16px;
+  }
+
+  .portal-admin.admin-reference-dashboard-menu .prototype-dashboard-panel {
     margin-right: 16px;
     margin-left: 16px;
   }
@@ -4603,7 +4623,7 @@
     max-height: 390px;
   }
 
-  .portal-admin.admin-reference-mode .health-panel {
+  :is(.portal-admin.admin-reference-mode, .portal-admin.admin-reference-dashboard-menu) .health-panel {
     grid-template-columns: minmax(0, 1fr);
     min-height: auto;
     padding-top: 14px;
@@ -4621,6 +4641,10 @@
   .portal-admin.admin-reference-mode .route-panel.admin-remaining-shell {
     margin: 0 10px 16px;
     padding: 0;
+  }
+
+  .portal-admin.admin-reference-dashboard-menu .prototype-dashboard-panel {
+    margin: 10px 10px 16px;
   }
 
   .portal-admin.admin-personnel-mode .admin-personnel-page {
