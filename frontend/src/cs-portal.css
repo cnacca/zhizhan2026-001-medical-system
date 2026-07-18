@@ -3,7 +3,7 @@
   --cs-navy: #1e1b4b;
 }
 
-.cs-reference-mode {
+:is(.cs-reference-mode, .cs-reference-dashboard-menu) {
   --cs-white: #ffffff;
   --cs-off: #f7f9fc;
   --cs-off-2: #eef2f8;
@@ -17,9 +17,10 @@
   --cs-navy: #1e1b4b;
   background: var(--cs-off);
   color: var(--cs-text);
+  font-family: "Plus Jakarta Sans", "PingFang SC", "Microsoft YaHei", sans-serif;
 }
 
-.cs-reference-mode .status-bar {
+:is(.cs-reference-mode, .cs-reference-dashboard-menu) .status-bar {
   display: none;
 }
 
@@ -39,13 +40,20 @@
 }
 
 :is(.cs-reference-mode, .cs-reference-dashboard-menu) .portal-brand {
-  min-height: 78px;
-  padding: 18px 10px 12px;
+  display: block;
+  width: calc(100% + 16px);
+  height: 97px;
+  min-height: 97px;
+  margin: 0 -8px;
+  padding: 20px 18px 14px;
   border-bottom: 1px solid rgba(255, 255, 255, 0.08);
 }
 
 :is(.cs-reference-mode, .cs-reference-dashboard-menu) .portal-brand strong {
+  font-family: Lora, "Songti SC", serif;
   font-size: 14px;
+  font-weight: 600;
+  line-height: 18px;
 }
 
 :is(.cs-reference-mode, .cs-reference-dashboard-menu) .portal-brand small {
@@ -56,13 +64,39 @@
   text-transform: uppercase;
 }
 
+:is(.cs-reference-mode, .cs-reference-dashboard-menu) .cs-portal-badge {
+  display: inline-flex;
+  align-items: center;
+  min-height: 21px;
+  margin-top: 8px;
+  padding: 3px 8px;
+  border: 1px solid rgba(167, 139, 250, 0.4);
+  border-radius: 4px;
+  background: rgba(139, 92, 246, 0.28);
+  color: #c4b5fd;
+  font-size: 9px;
+  font-weight: 700;
+  letter-spacing: 0.8px;
+}
+
 :is(.cs-reference-mode, .cs-reference-dashboard-menu) .user-block {
+  display: grid;
+  grid-template-columns: 32px minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 9px;
+  width: calc(100% + 16px);
+  height: 57px;
+  min-height: 57px;
   margin: 0 -8px 8px;
   padding: 12px 16px;
   border: 0;
   border-bottom: 1px solid rgba(255, 255, 255, 0.08);
   border-radius: 0;
   background: transparent;
+}
+
+:is(.cs-reference-mode, .cs-reference-dashboard-menu) .account-identity span:nth-of-type(2) {
+  display: none;
 }
 
 :is(.cs-reference-mode, .cs-reference-dashboard-menu) .account-avatar {
@@ -90,6 +124,7 @@
 }
 
 :is(.cs-reference-mode, .cs-reference-dashboard-menu) .nav-section-title {
+  margin: 0;
   padding: 7px 10px 3px;
   color: rgba(255, 255, 255, 0.28);
   font-size: 9px;
@@ -99,8 +134,8 @@
 
 :is(.cs-reference-mode, .cs-reference-dashboard-menu) .route-menu .el-menu-item,
 :is(.cs-reference-mode, .cs-reference-dashboard-menu) .route-menu .el-sub-menu__title {
-  height: 34px;
-  min-height: 34px;
+  height: 33px;
+  min-height: 33px;
   margin: 1px 0;
   padding: 0 10px !important;
   border-radius: 7px;
@@ -150,11 +185,7 @@
   font-size: 10px;
 }
 
-.cs-reference-dashboard-menu .status-bar {
-  padding-left: 264px;
-}
-
-.cs-reference-mode .health-panel {
+:is(.cs-reference-mode, .cs-reference-dashboard-menu) .health-panel {
   position: sticky;
   top: 0;
   z-index: 20;
@@ -162,7 +193,7 @@
   grid-column: 2;
   align-items: center;
   justify-content: space-between;
-  gap: 18px;
+  gap: 12px;
   min-height: 56px;
   height: 56px;
   margin: 0;
@@ -177,7 +208,7 @@
 .cs-reference-topbar-title {
   flex: 1;
   min-width: 130px;
-  font-family: Lora, "PingFang SC", serif;
+  font-family: Lora, "Songti SC", serif;
   font-size: 16px;
   font-weight: 600;
 }
@@ -185,7 +216,7 @@
 .cs-reference-topbar-tools {
   display: flex;
   align-items: center;
-  gap: 10px;
+  gap: 12px;
 }
 
 .cs-reference-global-search {
@@ -193,8 +224,9 @@
 }
 
 .cs-reference-global-search .el-input__wrapper {
-  min-height: 32px;
-  border: 1px solid var(--cs-line);
+  min-height: 30px;
+  height: 30px;
+  border: 1.5px solid var(--cs-line);
   border-radius: 8px;
   background: var(--cs-off);
   box-shadow: none;
@@ -206,13 +238,24 @@
   white-space: nowrap;
 }
 
-.cs-reference-mode .health-panel .el-button {
-  min-height: 32px;
+:is(.cs-reference-mode, .cs-reference-dashboard-menu) .health-panel .el-button {
+  min-height: 31px;
   border-radius: 8px;
-  font-size: 11px;
+  font-size: 12px;
 }
 
-.cs-reference-mode .health-panel .el-button--primary {
+:is(.cs-reference-mode, .cs-reference-dashboard-menu) .health-panel .el-button.is-circle,
+:is(.cs-reference-mode, .cs-reference-dashboard-menu) .cs-topbar-icon-button {
+  width: 32px;
+  min-width: 32px;
+  height: 32px;
+  min-height: 32px;
+  padding: 0;
+  border: 1.5px solid var(--cs-line);
+  border-radius: 7px;
+}
+
+:is(.cs-reference-mode, .cs-reference-dashboard-menu) .health-panel .el-button--primary {
   --el-button-disabled-bg-color: #7c3aed;
   --el-button-disabled-border-color: #7c3aed;
   --el-button-disabled-text-color: #ffffff;
@@ -223,7 +266,7 @@
   grid-column: 2;
   min-width: 0;
   margin: 0;
-  padding: 22px 26px 28px;
+  padding: 22px 26px;
   border: 0;
   border-radius: 0;
   background: var(--cs-off);

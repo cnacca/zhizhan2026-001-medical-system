@@ -2,6 +2,7 @@
 import Uppy from '@uppy/core'
 import { computed, defineAsyncComponent, onBeforeUnmount, ref, watch } from 'vue'
 import AdminRemainingPages from './components/AdminRemainingPages.vue'
+import CsPortalPages from './components/CsPortalPages.vue'
 
 const StlViewerDialog = defineAsyncComponent(() => import('./components/StlViewerDialog.vue'))
 
@@ -2097,50 +2098,39 @@ const displayNavigationConfig: Record<PortalTone, NavigationGroup[]> = {
   ],
   cs: [
     {
-      title: '客服端',
+      title: '总览',
       items: [
-        { id: 'cs-dashboard', title: '工作台', description: '集中查看审核、沟通、发货和客户待办。', icon: 'dashboard', routePath: '/dashboard' },
-        {
-          id: 'cs-orders',
-          title: '订单管理',
-          description: '处理待审核订单、补资料、生产备注和内部订单详情。',
-          icon: 'order',
-          routePath: '/orders/internal',
-          children: [
-            { id: 'cs-order-review', title: '待审核订单', description: '审核医生提交资料并通过或驳回。', icon: 'order', routePath: '/orders/internal' },
-            { id: 'cs-order-all', title: '全部订单', description: '查看客服权限内的内部订单。', icon: 'doctorOrder', routePath: '/orders/internal' }
-          ]
-        },
-        {
-          id: 'cs-communication',
-          title: '沟通中心',
-          description: '处理医生沟通、生产沟通和待审核消息队列。',
-          icon: 'chat',
-          routePath: '/collaboration',
-          children: [
-            { id: 'cs-order-messages', title: '订单消息', description: '查看订单内医生、客服、生产沟通。', icon: 'chat', routePath: '/collaboration' },
-            { id: 'cs-message-review', title: '待审核消息', description: '审核生产端发给医生的消息。', icon: 'audit', routePath: '/collaboration' }
-          ]
-        },
-        { id: 'cs-customers', title: '客户管理', description: '维护诊所档案、联系人、历史订单和客户偏好。', icon: 'customer', routePath: '/customers' },
-        { id: 'cs-products', title: '产品管理', description: '查看产品类型、产品资料和动态表单字段。', icon: 'product', routePath: '/system/form-configs' },
-        { id: 'cs-designs', title: '设计稿管理', description: '审核生产端上传的设计稿并发给医生确认。', icon: 'design', routePath: '/orders/internal' },
-        { id: 'cs-billing', title: '账单管理', description: '上传账单文件、查看订单费用和客户账单。', icon: 'bill', routePath: '/delivery' },
-        { id: 'cs-delivery', title: '配送管理', description: '录入承运商、运单号并跟进待发货订单。', icon: 'delivery', routePath: '/delivery' },
-        { id: 'cs-outsourcing', title: '外协管理', description: '登记并查询外协成本台账和异常预警。', icon: 'partner', routePath: '/production/cost-management' },
-        {
-          id: 'cs-ai',
-          title: '智能助手',
-          description: '使用翻译、资料缺失检查和客服查询能力。',
-          icon: 'ai',
-          routePath: '/ai/cs',
-          children: [
-            { id: 'cs-ai-translate', title: '翻译助手', description: '把外文描述整理成中文生产指令草稿。', icon: 'ai', routePath: '/orders/internal' },
-            { id: 'cs-ai-query', title: '客服查询助手', description: '查询内部订单、工序、客户偏好和物流。', icon: 'ai', routePath: '/ai/cs' },
-            { id: 'cs-ai-note', title: '生产备注助手', description: '整理客户要求并生成、确认生产备注草稿。', icon: 'ai', routePath: '/orders/internal' }
-          ]
-        },
-        { id: 'cs-notifications', title: '通知中心', description: '查看订单、消息、设计稿和预算通知。', icon: 'notification', routePath: '/notifications' }
+        { id: 'cs-dashboard', title: '工作台', description: '集中查看订单、问单、发货和客户待办。', icon: 'dashboard', routePath: '/dashboard' }
+      ]
+    },
+    {
+      title: '订单管理',
+      items: [
+        { id: 'cs-orders', title: '订单管理', description: '查看新订单、登记状态和完整订单信息。', icon: 'order', routePath: '/cs/orders' },
+        { id: 'cs-information-translation', title: '信息审核/翻译', description: '审核客户资料、翻译内容并整理生产信息。', icon: 'ai', routePath: '/cs/information-translation' },
+        { id: 'cs-designs', title: '设计稿管理', description: '查看设计版本、执行信息并发起设计确认。', icon: 'design', routePath: '/cs/designs' }
+      ]
+    },
+    {
+      title: '沟通',
+      items: [
+        { id: 'cs-inquiries', title: '问单沟通', description: '围绕订单事项与客户进行自由会话。', icon: 'chat', routePath: '/cs/inquiries' }
+      ]
+    },
+    {
+      title: '业务管理',
+      items: [
+        { id: 'cs-customers', title: '客户管理', description: '维护诊所业务档案、偏好和结算资料。', icon: 'customer', routePath: '/cs/customers' },
+        { id: 'cs-products', title: '产品管理', description: '维护已有产品资料和医生下单要求。', icon: 'product', routePath: '/cs/products' },
+        { id: 'cs-billing', title: '账单管理', description: '处理按单账单、收款记录和月结账单。', icon: 'bill', routePath: '/cs/billing' },
+        { id: 'cs-delivery', title: '配送管理', description: '登记发货并跟进物流与异常。', icon: 'delivery', routePath: '/cs/delivery' },
+        { id: 'cs-outsourcing', title: '外协管理', description: '按外发地点和合作方跟进外协履约。', icon: 'partner', routePath: '/cs/outsourcing' }
+      ]
+    },
+    {
+      title: '系统',
+      items: [
+        { id: 'cs-settings', title: '设置与账号', description: '查看团队范围并维护常用回复和通知偏好。', icon: 'settings', routePath: '/cs/settings' }
       ]
     }
   ],
@@ -2953,15 +2943,15 @@ const prototypeDashboards = computed<Record<PortalTone, PrototypeDashboard>>(() 
     },
     cs: {
       greeting: '客服工作台',
-      subtitle: '订单审核、资料处理、客户沟通、账单物流和异常跟进集中处理。',
+      subtitle: '订单登记、信息处理、问单沟通、账单物流和异常跟进集中处理。',
       primaryAction: {
-        title: '新建内部订单',
-        detail: '客服协助客户录入订单',
-        meta: '快速录单',
+        title: '订单管理',
+        detail: '查看新订单与已登记订单',
+        meta: '订单入口',
         tone: 'violet',
         actionLabel: '进入订单',
-        routePath: '/orders/internal',
-        navId: 'cs-order-review'
+        routePath: '/cs/orders',
+        navId: 'cs-orders'
       },
       metrics: [
         { title: '订单数量 / 件数', value: `${phaseOneAbCsDashboardStats.value.orderCount} / ${phaseOneAbCsDashboardStats.value.itemCount}`, note: '当前订单总量与累计件数', icon: 'order', tone: 'violet' },
@@ -2980,8 +2970,8 @@ const prototypeDashboards = computed<Record<PortalTone, PrototypeDashboard>>(() 
           badge: `${phaseOneAbCsDashboardStats.value.shipmentFollowUpCount + phaseOneAbCsDashboardStats.value.billManualFollowUpCount} 单`,
           tone: 'teal',
           items: [
-            { title: '发货状态', detail: `${phaseOneAbCsDashboardStats.value.shipmentFollowUpCount} 单已有发货/配送人工状态`, meta: '真实物流平台未接', tone: 'green', actionLabel: '录入物流', routePath: '/delivery', navId: 'cs-delivery' },
-            { title: '客户排名', detail: `${phaseOneAbCsDashboardStats.value.customerRanking.clinicName}：${phaseOneAbCsDashboardStats.value.customerRanking.orderCount} 单`, meta: '复用 /orders 诊所字段', tone: 'orange', actionLabel: '查看客户', routePath: '/customers', navId: 'cs-customers' }
+            { title: '发货状态', detail: `${phaseOneAbCsDashboardStats.value.shipmentFollowUpCount} 单已有发货/配送人工状态`, meta: '真实物流平台未接', tone: 'green', actionLabel: '录入物流', routePath: '/cs/delivery', navId: 'cs-delivery' },
+            { title: '客户排名', detail: `${phaseOneAbCsDashboardStats.value.customerRanking.clinicName}：${phaseOneAbCsDashboardStats.value.customerRanking.orderCount} 单`, meta: '来自真实订单诊所字段', tone: 'orange', actionLabel: '查看客户', routePath: '/cs/customers', navId: 'cs-customers' }
           ]
         }
       ],
@@ -3283,6 +3273,23 @@ const visibleCustomerAttentionItems = computed(() => customerAttentionExpanded.v
   ? customerAttentionItems.value
   : customerAttentionItems.value.slice(0, 3))
 const isCsAiQueryRoute = computed(() => activeRoute.value === '/ai/cs')
+const csRebuiltRoutePaths = new Set([
+  '/cs/orders',
+  '/cs/information-translation',
+  '/cs/designs',
+  '/cs/inquiries',
+  '/cs/customers',
+  '/cs/products',
+  '/cs/billing',
+  '/cs/delivery',
+  '/cs/outsourcing',
+  '/cs/settings',
+  '/cs/notifications',
+  '/cs/help',
+  '/cs/search'
+])
+const isCsRebuiltRoute = computed(() => portalTone.value === 'cs' && csRebuiltRoutePaths.has(activeRoute.value))
+const isCsAuxiliaryRoute = computed(() => portalTone.value === 'cs' && ['/cs/notifications', '/cs/help', '/cs/search'].includes(activeRoute.value))
 const isProductionReviewRoute = computed(() => activeRoute.value === '/workflow/review')
 const isProcessInstanceRoute = computed(() => activeRoute.value === '/workflow/process-instance')
 const isWorkflowAssignRoute = computed(() => activeRoute.value === '/workflow/assign')
@@ -3735,6 +3742,25 @@ const routeChrome = computed<RouteChrome>(() => {
       eyebrow: `${activeAdminNavigationGroup.value} / ${parentItem?.title ?? detail.title}`,
       ...detail
     }
+  }
+  if (portalTone.value === 'cs' && route.startsWith('/cs/')) {
+    const routeDetails: Record<string, Pick<RouteChrome, 'title' | 'description' | 'icon'>> = {
+      '/cs/orders': { title: '订单管理', description: '查看新订单、登记状态和完整订单信息。', icon: 'order' },
+      '/cs/information-translation': { title: '信息审核/翻译', description: '审核客户资料、翻译内容并整理生产信息。', icon: 'ai' },
+      '/cs/designs': { title: '设计稿管理', description: '查看设计版本、执行信息并发起设计确认。', icon: 'design' },
+      '/cs/inquiries': { title: '问单沟通', description: '围绕订单事项与客户进行自由会话。', icon: 'chat' },
+      '/cs/customers': { title: '客户管理', description: '维护诊所业务档案、偏好和结算资料。', icon: 'customer' },
+      '/cs/products': { title: '产品管理', description: '维护已有产品资料和医生下单要求。', icon: 'product' },
+      '/cs/billing': { title: '账单管理', description: '处理按单账单、收款记录和月结账单。', icon: 'bill' },
+      '/cs/delivery': { title: '配送管理', description: '登记发货并跟进物流与异常。', icon: 'delivery' },
+      '/cs/outsourcing': { title: '外协管理', description: '按外发地点和合作方跟进外协履约。', icon: 'partner' },
+      '/cs/settings': { title: '设置与账号', description: '查看团队范围并维护常用回复和通知偏好。', icon: 'settings' },
+      '/cs/notifications': { title: '通知中心', description: '查看本人业务通知和未读提醒。', icon: 'notification' },
+      '/cs/help': { title: '帮助中心', description: '查看当前客服端页面操作说明。', icon: 'help' },
+      '/cs/search': { title: '全局搜索', description: '在当前业务权限范围内查找记录。', icon: 'search' }
+    }
+    const detail = routeDetails[route] ?? { title: '客服端', description: '处理当前客服业务。', icon: 'support_agent' }
+    return { eyebrow: '客服端 / 业务协同', ...detail }
   }
   if (route === '/doctor/orders') {
     return { eyebrow: '医生端 / 订单与病例', title: '医生订单工作台', description: '下单、补资料、查看公开进度、确认设计稿、查看账单物流和订单助手。', icon: 'clinical_notes' }
@@ -5345,29 +5371,14 @@ function navigateToRoute(routePath: string) {
 }
 
 function runCsPortalGlobalSearch() {
-  const keyword = csPortalGlobalSearch.value.trim()
-  if (activeRoute.value === '/orders/internal') {
-    internalOrderKeyword.value = keyword
-    void loadInternalOrders()
-    return
-  }
-  if (activeRoute.value === '/customers') {
-    clinicKeyword.value = keyword
-    void loadClinics()
-    return
-  }
-  if (activeRoute.value === '/system/form-configs') {
-    productCatalogKeyword.value = keyword
-    void loadProductCatalog()
-    return
-  }
-  if (activeRoute.value === '/collaboration' && /^\d+$/.test(keyword)) {
-    customerCollaborationOrderId.value = keyword
-    void loadCustomerCollaborationOrderMessages()
-  }
+  navigateToRoute('/cs/search')
 }
 
 function openNotificationCenter() {
+  if (portalTone.value === 'cs') {
+    navigateToRoute('/cs/notifications')
+    return
+  }
   const notificationItem = findDisplayItemByRoute('/notifications')
   if (notificationItem) {
     selectDisplayNavigationItem(notificationItem)
@@ -5375,6 +5386,18 @@ function openNotificationCenter() {
   }
   activeNavId.value = defaultDisplayNavIdForRoute('/notifications')
   navigateToRoute('/notifications')
+}
+
+function openCsHelpCenter() {
+  navigateToRoute('/cs/help')
+}
+
+function navigateFromCsPage(routePath: string) {
+  const matchedItem = findDisplayItemByRoute(routePath)
+  if (matchedItem) {
+    activeNavId.value = matchedItem.id
+  }
+  navigateToRoute(routePath)
 }
 
 async function openAdminRemainingOrder(orderId: number) {
@@ -7818,17 +7841,12 @@ async function loadCustomerAttentionItems() {
     return
   }
   customerAttentionLoading.value = true
-  const acceptanceDemoItems: MessageAttentionItem[] = [
-    { message_id: -101, order_id: 0, order_no: '示例订单 A-1024', sender_role: 'DOCTOR', content: '客户补充资料：请跟进缺少的比色照片。', created_at: '刚刚', demo: true },
-    { message_id: -102, order_id: 0, order_no: '示例订单 A-1028', sender_role: 'WORKER', content: '沟通待确认：请确认客户的交期要求。', created_at: '10 分钟前', demo: true },
-    { message_id: -103, order_id: 0, order_no: '示例订单 A-1031', sender_role: 'CS', content: '客服备注待补全：请补充客户的特殊要求说明。', created_at: '30 分钟前', demo: true }
-  ]
   try {
     const payload = await apiFetch<MessageAttentionItem[]>('/messages/attention-items')
-    customerAttentionItems.value = [...payload.data, ...acceptanceDemoItems]
+    customerAttentionItems.value = payload.data
   } catch (error) {
     customerCollaborationError.value = error instanceof Error ? error.message : '需要关注事项加载失败'
-    customerAttentionItems.value = acceptanceDemoItems
+    customerAttentionItems.value = []
   } finally {
     customerAttentionLoading.value = false
   }
@@ -10295,7 +10313,8 @@ onBeforeUnmount(() => {
             <span class="portal-brand-mark" aria-hidden="true">{{ portalTone === 'admin' ? 'AI' : '单' }}</span>
             <div>
               <strong>AI智能下单平台</strong>
-              <small>{{ portalTone === 'admin' ? '管理中心' : '下单 · 审核 · 生产' }}</small>
+              <small>{{ portalTone === 'admin' ? '管理中心' : portalTone === 'cs' ? '客服工作台' : '下单 · 审核 · 生产' }}</small>
+              <span v-if="portalTone === 'cs'" class="cs-portal-badge">客服端</span>
             </div>
           </div>
           <el-popover
@@ -10412,7 +10431,8 @@ onBeforeUnmount(() => {
           </el-menu>
           <div class="nav-footnote">
             <span class="nav-note-mark" aria-hidden="true">权</span>
-            <span>医生端仅展示外部安全进度，内部工序与绩效由服务端隔离。</span>
+            <span v-if="portalTone === 'cs'">客服端 · v1.0</span>
+            <span v-else>医生端仅展示外部安全进度，内部工序与绩效由服务端隔离。</span>
           </div>
         </aside>
 
@@ -10481,18 +10501,40 @@ onBeforeUnmount(() => {
               </button>
             </nav>
           </template>
-          <template v-else-if="portalTone === 'cs' && activeRoute !== '/dashboard'">
-            <div class="cs-reference-topbar-title">{{ activeDisplayItem ? activeDisplayItem.title : routeChrome.title }}</div>
+          <template v-else-if="portalTone === 'cs'">
+            <div class="cs-reference-topbar-title">{{ isCsAuxiliaryRoute ? routeChrome.title : activeDisplayItem ? activeDisplayItem.title : routeChrome.title }}</div>
             <div class="cs-reference-topbar-tools">
               <el-input
                 v-model="csPortalGlobalSearch"
                 class="cs-reference-global-search"
                 clearable
-                placeholder="搜索订单、客户、消息..."
+                placeholder="搜索订单、客户、产品..."
                 @keyup.enter="runCsPortalGlobalSearch"
               />
               <span class="cs-reference-date">{{ new Date().toLocaleDateString('zh-CN') }}</span>
-              <el-button circle plain aria-label="通知中心" @click="navigateToRoute('/notifications')">铃</el-button>
+              <el-popover placement="bottom-end" :width="340" trigger="click" popper-class="cs-notification-popover">
+                <template #reference>
+                  <button class="cs-topbar-icon-button" type="button" aria-label="通知中心" title="通知中心" @click="loadNotifications">
+                    <span aria-hidden="true">🔔</span>
+                    <i v-if="unreadCount > 0">{{ unreadCount > 99 ? '99+' : unreadCount }}</i>
+                  </button>
+                </template>
+                <div class="cs-notification-preview">
+                  <header><strong>最近通知</strong><button type="button" @click="openNotificationCenter">查看全部</button></header>
+                  <button
+                    v-for="notification in notifications.slice(0, 5)"
+                    :key="notification.notification_id"
+                    class="cs-notification-preview-row"
+                    type="button"
+                    @click="markNotificationRead(notification.notification_id); openNotificationCenter()"
+                  >
+                    <span :class="{ unread: !notification.read_at }" />
+                    <div><strong>{{ notification.message || '业务通知' }}</strong><small>{{ compactDateTime(notification.created_at) }}</small></div>
+                  </button>
+                  <p v-if="notifications.length === 0">当前没有通知</p>
+                </div>
+              </el-popover>
+              <el-button circle plain aria-label="帮助中心" title="帮助中心" @click="openCsHelpCenter">?</el-button>
               <el-tooltip content="客服代下单接口开放后启用" placement="bottom">
                 <span><el-button type="primary" disabled>＋ 新建订单</el-button></span>
               </el-tooltip>
@@ -10611,6 +10653,21 @@ onBeforeUnmount(() => {
             </div>
             <p>© 2026 AI智能下单平台</p>
           </div>
+        </section>
+
+        <section
+          v-else-if="isCsRebuiltRoute"
+          class="panel route-panel cs-rebuilt-page-host"
+          data-testid="cs-rebuilt-page-host"
+        >
+          <CsPortalPages
+            :active-route="activeRoute"
+            :token="token"
+            :user="currentUser"
+            :search-keyword="csPortalGlobalSearch"
+            @navigate="navigateFromCsPage"
+            @refresh-notifications="loadNotifications"
+          />
         </section>
 
         <section
@@ -15363,7 +15420,7 @@ onBeforeUnmount(() => {
             <article v-for="item in visibleCustomerAttentionItems" :key="item.message_id" class="customer-attention-item" data-testid="customer-attention-item" @click="openCustomerAttentionConversation(item)">
               <span class="attention-dot tone-rose" />
               <div>
-                <strong>{{ item.demo ? item.content.split('：')[0] : '沟通待确认' }}</strong>
+                <strong>沟通待确认</strong>
                 <p>{{ item.content }}</p>
                 <small>{{ item.order_no }} / {{ roleLabel(item.sender_role) }} / {{ item.created_at }}</small>
               </div>
@@ -15745,7 +15802,7 @@ onBeforeUnmount(() => {
                   </g>
                 </svg>
                 <p class="cs-business-note">
-                  {{ salesDashboardSummary?.source_note ?? '销售金额数据同步中' }}；统计截至 {{ salesDashboardSummary?.through_date ?? '-' }}。
+                  {{ salesDashboardSummary?.source_note?.replace('客服审核通过时间', '订单登记时间') ?? '销售金额数据同步中' }}；统计截至 {{ salesDashboardSummary?.through_date ?? '-' }}。
                 </p>
               </section>
             </div>

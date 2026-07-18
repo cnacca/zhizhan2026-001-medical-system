@@ -45,7 +45,12 @@ export default defineConfig({
       '/ws': {
         target: websocketTarget,
         ws: true,
-        changeOrigin: true
+        changeOrigin: true,
+        configure(proxy) {
+          proxy.on('proxyReqWs', (proxyReq) => {
+            proxyReq.removeHeader('origin')
+          })
+        }
       }
     }
   }
