@@ -95,6 +95,12 @@ function safeFileName(value) {
   return value.replace(/[^a-z0-9._-]+/gi, '-').replace(/^-+|-+$/g, '') || 'artifact'
 }
 
+function portableArtifactPath(target) {
+  const relative = path.relative(process.cwd(), target)
+  if (!relative || relative.startsWith('..')) return target
+  return relative.split(path.sep).join('/')
+}
+
 async function assertReachable() {
   let response
   try {
@@ -171,7 +177,7 @@ async function capturePage(page, order, slug) {
   await page.mouse.move(1430, 890)
   await page.waitForTimeout(800)
   await page.screenshot({ path: target, fullPage: false, animations: 'disabled' })
-  return target
+  return portableArtifactPath(target)
 }
 
 async function waitForVisibleDataOrEmpty(page, readiness) {
