@@ -5,6 +5,7 @@ import AdminRemainingPages from './components/AdminRemainingPages.vue'
 import CsPortalPages from './components/CsPortalPages.vue'
 
 const StlViewerDialog = defineAsyncComponent(() => import('./components/StlViewerDialog.vue'))
+const DoctorPortalV2 = defineAsyncComponent(() => import('./doctor/DoctorPortalV2.vue'))
 
 type AuthMenu = {
   menuCode: string
@@ -1424,6 +1425,13 @@ type AccountProfile = {
   summary: string
 }
 
+const isDoctorAcceptanceMode = new URLSearchParams(window.location.search).get('doctorMock') === '1'
+  || String(import.meta.env.VITE_DOCTOR_DATA_SOURCE ?? '').toLowerCase() === 'mock'
+const doctorAcceptanceCredentials = {
+  username: 'doctor',
+  password: 'change-me-doctor'
+} as const
+
 const username = ref('admin')
 const password = ref('change-me-admin')
 const selectedPortal = ref<LoginPortal | null>(null)
@@ -2014,8 +2022,8 @@ const portalOptions: PortalOption[] = [
     subtitle: '医生 / 诊所',
     icon: 'stethoscope',
     tone: 'doctor',
-    defaultUsername: 'doctor',
-    defaultPassword: 'change-me-doctor'
+    defaultUsername: isDoctorAcceptanceMode ? doctorAcceptanceCredentials.username : '',
+    defaultPassword: isDoctorAcceptanceMode ? doctorAcceptanceCredentials.password : ''
   },
   {
     value: 'CS',
@@ -3694,6 +3702,7 @@ const portalTone = computed<PortalTone>(() => {
   }
   return 'admin'
 })
+const isDoctorV2Active = computed(() => isLoggedIn.value && portalTone.value === 'doctor' && currentUser.value !== null)
 const portalTitle = computed(() => {
   if (portalTone.value === 'doctor') {
     return '医生工作台'
@@ -5025,6 +5034,12 @@ function selectPortal(option: PortalOption) {
   selectedPortal.value = option.value
   username.value = option.defaultUsername
   password.value = option.defaultPassword
+  loginError.value = ''
+}
+
+function fillDoctorAcceptanceCredentials() {
+  username.value = doctorAcceptanceCredentials.username
+  password.value = doctorAcceptanceCredentials.password
   loginError.value = ''
 }
 
@@ -10126,7 +10141,9 @@ function connectNotificationSocket() {
   }
   notificationSocketStatus.value = '连接中'
   const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:'
-  const socket = new WebSocket(`${protocol}//${window.location.host}/ws/connect?token=${encodeURIComponent(token.value)}`)
+  const configuredOrigin = import.meta.env.VITE_PUBLIC_WS_ORIGIN?.trim().replace(/\/+$/, '')
+  const socketOrigin = configuredOrigin || `${protocol}//${window.location.host}`
+  const socket = new WebSocket(`${socketOrigin}/ws/connect?token=${encodeURIComponent(token.value)}`)
   notificationSocket.value = socket
 
   socket.onopen = () => {
@@ -10238,14 +10255,21 @@ onBeforeUnmount(() => {
       { 'admin-reference-dashboard-menu': portalTone === 'admin' && activeRoute === '/dashboard' },
       { 'admin-personnel-mode': isAdminPersonnelRoute },
       { 'admin-order-top-mode': isAdminOrderSection },
-      { 'doctor-portal-clone': isDoctorPortalClone },
-      { 'doctor-reference-dashboard-menu': portalTone === 'doctor' && activeRoute === '/dashboard' },
-      { 'doctor-order-create-mode': isDoctorOrderCreateMode },
+      { 'doctor-v2-mode': isDoctorV2Active },
+      { 'doctor-portal-clone': isDoctorPortalClone && !isDoctorV2Active },
+      { 'doctor-reference-dashboard-menu': portalTone === 'doctor' && activeRoute === '/dashboard' && !isDoctorV2Active },
+      { 'doctor-order-create-mode': isDoctorOrderCreateMode && !isDoctorV2Active },
       isLoggedIn ? `portal-${portalTone}` : ''
     ]"
-    :data-doctor-route="isDoctorPortalClone ? activeRoute : undefined"
+    :data-doctor-route="isDoctorPortalClone && !isDoctorV2Active ? activeRoute : undefined"
   >
-    <section class="workspace" :class="{ 'login-workspace': !isLoggedIn }">
+    <DoctorPortalV2
+      v-if="isDoctorV2Active"
+      :token="token"
+      :current-user="currentUser"
+      @logout="logout"
+    />
+    <section v-else class="workspace" :class="{ 'login-workspace': !isLoggedIn }">
       <div v-if="isLoggedIn" class="status-bar">
         <template v-if="isDoctorPortalClone">
           <div class="doctor-clone-topbar-title">{{ doctorPortalTopbarTitle }}</div>
@@ -10602,16 +10626,33 @@ onBeforeUnmount(() => {
                 :value="selectedPortalOption?.value ?? selectedPortal ?? ''"
                 data-testid="login-portal-value"
               >
+              <div
+                v-if="selectedPortal === 'DOCTOR' && isDoctorAcceptanceMode"
+                class="login-demo-credentials"
+                data-testid="doctor-demo-credentials"
+              >
+                <div class="login-demo-credentials-header">
+                  <div>
+                    <strong>医生端验收账号</strong>
+                    <span>仅当前本地模拟环境显示</span>
+                  </div>
+                  <button type="button" @click="fillDoctorAcceptanceCredentials">一键填入</button>
+                </div>
+                <div class="login-demo-credentials-values">
+                  <span>账号 <code>{{ doctorAcceptanceCredentials.username }}</code></span>
+                  <span>密码 <code>{{ doctorAcceptanceCredentials.password }}</code></span>
+                </div>
+              </div>
               <label class="login-field">
-                <span class="field-label">用户名</span>
+                <span class="field-label">{{ selectedPortal === 'DOCTOR' ? '账号' : '用户名' }}</span>
                 <span class="field-icon svg-symbol" aria-hidden="true" v-html="businessIconSvg('person')" />
                 <input
                   v-model="username"
                   name="username"
                   autocomplete="username"
-                  placeholder="请输入授权账号"
+                  :placeholder="selectedPortal === 'DOCTOR' ? '请输入医生账号' : '请输入授权账号'"
                   type="text"
-                  aria-label="用户名"
+                  :aria-label="selectedPortal === 'DOCTOR' ? '账号' : '用户名'"
                 >
               </label>
               <label class="login-field">
@@ -10636,7 +10677,7 @@ onBeforeUnmount(() => {
               </button>
             </form>
 
-            <div class="login-divider">
+            <div v-if="selectedPortal && selectedPortal !== 'DOCTOR'" class="login-divider">
               <span>快速登录通道</span>
             </div>
 
@@ -17463,6 +17504,7 @@ onBeforeUnmount(() => {
       </el-drawer>
     </section>
     <StlViewerDialog
+      v-if="!isDoctorV2Active"
       v-model:visible="productionBoardStlViewerVisible"
       :source-url="productionBoardStlViewerUrl"
       :filename="productionBoardStlViewerFilename"

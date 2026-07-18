@@ -295,6 +295,76 @@ body {
   gap: 16px;
 }
 
+.login-demo-credentials {
+  display: grid;
+  gap: 9px;
+  padding: 11px 12px;
+  border: 1px solid #bfdbfe;
+  border-radius: 9px;
+  background: #eff6ff;
+  color: #1e3a5f;
+}
+
+.login-demo-credentials-header {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.login-demo-credentials-header > div {
+  display: grid;
+  gap: 2px;
+}
+
+.login-demo-credentials-header strong {
+  font-size: 12px;
+  line-height: 18px;
+}
+
+.login-demo-credentials-header span {
+  color: #64748b;
+  font-size: 10px;
+  line-height: 16px;
+}
+
+.login-demo-credentials-header button {
+  flex: 0 0 auto;
+  padding: 5px 9px;
+  border: 1px solid #93c5fd;
+  border-radius: 6px;
+  background: #ffffff;
+  color: #0369a1;
+  font-size: 11px;
+  font-weight: 700;
+  cursor: pointer;
+}
+
+.login-demo-credentials-values {
+  display: grid;
+  grid-template-columns: minmax(0, 0.7fr) minmax(0, 1.3fr);
+  gap: 8px;
+}
+
+.login-demo-credentials-values span {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  min-width: 0;
+  color: #64748b;
+  font-size: 11px;
+}
+
+.login-demo-credentials-values code {
+  overflow: hidden;
+  color: #0f172a;
+  font-family: "JetBrains Mono", monospace;
+  font-size: 11px;
+  font-weight: 700;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
 .login-field {
   position: relative;
   display: block;

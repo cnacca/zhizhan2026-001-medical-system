@@ -1,0 +1,649 @@
+plugins = []
+
+[functions]
+
+[functions."*"]
+
+[build]
+publish = "/Users/yuri/Documents/AI智能下单平台/frontend/dist"
+publishOrigin = "ui"
+commandOrigin = "ui"
+command = "pnpm --filter ai-order-platform-frontend... run build"
+
+[build.environment]
+
+[build.processing]
+
+[build.processing.css]
+
+[build.processing.html]
+
+[build.processing.images]
+
+[build.processing.js]
+
+[build.services]
+
+[[headers]]
+for = "/assets/*"
+
+[headers.values]
+Cache-Control = "public, max-age=31536000, immutable"
+
+[[headers]]
+for = "/index.html"
+
+[headers.values]
+Cache-Control = "no-cache, no-store, must-revalidate"
+
+[[redirects]]
+from = "/api/*"
+to = "https://guards-acre-surrounded-ultimately.trycloudflare.com/api/:splat"
+status = 200.0
+force = false
+
+[redirects.query]
+
+[redirects.conditions]
+
+[redirects.headers]
+
+[[redirects]]
+from = "/api"
+to = "https://guards-acre-surrounded-ultimately.trycloudflare.com/api"
+status = 200.0
+force = false
+
+[redirects.query]
+
+[redirects.conditions]
+
+[redirects.headers]
+
+[[redirects]]
+from = "/notifications/*"
+to = "https://guards-acre-surrounded-ultimately.trycloudflare.com/notifications/:splat"
+status = 200.0
+force = false
+
+[redirects.query]
+
+[redirects.conditions]
+
+[redirects.headers]
+
+[[redirects]]
+from = "/notifications"
+to = "https://guards-acre-surrounded-ultimately.trycloudflare.com/notifications"
+status = 200.0
+force = false
+
+[redirects.query]
+
+[redirects.conditions]
+
+[redirects.headers]
+
+[[redirects]]
+from = "/dashboards/*"
+to = "https://guards-acre-surrounded-ultimately.trycloudflare.com/dashboards/:splat"
+status = 200.0
+force = false
+
+[redirects.query]
+
+[redirects.conditions]
+
+[redirects.headers]
+
+[[redirects]]
+from = "/dashboards"
+to = "https://guards-acre-surrounded-ultimately.trycloudflare.com/dashboards"
+status = 200.0
+force = false
+
+[redirects.query]
+
+[redirects.conditions]
+
+[redirects.headers]
+
+[[redirects]]
+from = "/messages/*"
+to = "https://guards-acre-surrounded-ultimately.trycloudflare.com/messages/:splat"
+status = 200.0
+force = false
+
+[redirects.query]
+
+[redirects.conditions]
+
+[redirects.headers]
+
+[[redirects]]
+from = "/messages"
+to = "https://guards-acre-surrounded-ultimately.trycloudflare.com/messages"
+status = 200.0
+force = false
+
+[redirects.query]
+
+[redirects.conditions]
+
+[redirects.headers]
+
+[[redirects]]
+from = "/logistics/*"
+to = "https://guards-acre-surrounded-ultimately.trycloudflare.com/logistics/:splat"
+status = 200.0
+force = false
+
+[redirects.query]
+
+[redirects.conditions]
+
+[redirects.headers]
+
+[[redirects]]
+from = "/logistics"
+to = "https://guards-acre-surrounded-ultimately.trycloudflare.com/logistics"
+status = 200.0
+force = false
+
+[redirects.query]
+
+[redirects.conditions]
+
+[redirects.headers]
+
+[[redirects]]
+from = "/clinics/*"
+to = "https://guards-acre-surrounded-ultimately.trycloudflare.com/clinics/:splat"
+status = 200.0
+force = false
+
+[redirects.query]
+
+[redirects.conditions]
+
+[redirects.headers]
+
+[[redirects]]
+from = "/clinics"
+to = "https://guards-acre-surrounded-ultimately.trycloudflare.com/clinics"
+status = 200.0
+force = false
+
+[redirects.query]
+
+[redirects.conditions]
+
+[redirects.headers]
+
+[[redirects]]
+from = "/patients/*"
+to = "https://guards-acre-surrounded-ultimately.trycloudflare.com/patients/:splat"
+status = 200.0
+force = false
+
+[redirects.query]
+
+[redirects.conditions]
+
+[redirects.headers]
+
+[[redirects]]
+from = "/patients"
+to = "https://guards-acre-surrounded-ultimately.trycloudflare.com/patients"
+status = 200.0
+force = false
+
+[redirects.query]
+
+[redirects.conditions]
+
+[redirects.headers]
+
+[[redirects]]
+from = "/orders/*"
+to = "https://guards-acre-surrounded-ultimately.trycloudflare.com/orders/:splat"
+status = 200.0
+force = false
+
+[redirects.query]
+
+[redirects.conditions]
+
+[redirects.headers]
+
+[[redirects]]
+from = "/orders"
+to = "https://guards-acre-surrounded-ultimately.trycloudflare.com/orders"
+status = 200.0
+force = false
+
+[redirects.query]
+
+[redirects.conditions]
+
+[redirects.headers]
+
+[[redirects]]
+from = "/files/*"
+to = "https://guards-acre-surrounded-ultimately.trycloudflare.com/files/:splat"
+status = 200.0
+force = false
+
+[redirects.query]
+
+[redirects.conditions]
+
+[redirects.headers]
+
+[[redirects]]
+from = "/files"
+to = "https://guards-acre-surrounded-ultimately.trycloudflare.com/files"
+status = 200.0
+force = false
+
+[redirects.query]
+
+[redirects.conditions]
+
+[redirects.headers]
+
+[[redirects]]
+from = "/form-configs/*"
+to = "https://guards-acre-surrounded-ultimately.trycloudflare.com/form-configs/:splat"
+status = 200.0
+force = false
+
+[redirects.query]
+
+[redirects.conditions]
+
+[redirects.headers]
+
+[[redirects]]
+from = "/form-configs"
+to = "https://guards-acre-surrounded-ultimately.trycloudflare.com/form-configs"
+status = 200.0
+force = false
+
+[redirects.query]
+
+[redirects.conditions]
+
+[redirects.headers]
+
+[[redirects]]
+from = "/products/*"
+to = "https://guards-acre-surrounded-ultimately.trycloudflare.com/products/:splat"
+status = 200.0
+force = false
+
+[redirects.query]
+
+[redirects.conditions]
+
+[redirects.headers]
+
+[[redirects]]
+from = "/products"
+to = "https://guards-acre-surrounded-ultimately.trycloudflare.com/products"
+status = 200.0
+force = false
+
+[redirects.query]
+
+[redirects.conditions]
+
+[redirects.headers]
+
+[[redirects]]
+from = "/workflow-chains/*"
+to = "https://guards-acre-surrounded-ultimately.trycloudflare.com/workflow-chains/:splat"
+status = 200.0
+force = false
+
+[redirects.query]
+
+[redirects.conditions]
+
+[redirects.headers]
+
+[[redirects]]
+from = "/workflow-chains"
+to = "https://guards-acre-surrounded-ultimately.trycloudflare.com/workflow-chains"
+status = 200.0
+force = false
+
+[redirects.query]
+
+[redirects.conditions]
+
+[redirects.headers]
+
+[[redirects]]
+from = "/tasks/*"
+to = "https://guards-acre-surrounded-ultimately.trycloudflare.com/tasks/:splat"
+status = 200.0
+force = false
+
+[redirects.query]
+
+[redirects.conditions]
+
+[redirects.headers]
+
+[[redirects]]
+from = "/tasks"
+to = "https://guards-acre-surrounded-ultimately.trycloudflare.com/tasks"
+status = 200.0
+force = false
+
+[redirects.query]
+
+[redirects.conditions]
+
+[redirects.headers]
+
+[[redirects]]
+from = "/process-instance/*"
+to = "https://guards-acre-surrounded-ultimately.trycloudflare.com/process-instance/:splat"
+status = 200.0
+force = false
+
+[redirects.query]
+
+[redirects.conditions]
+
+[redirects.headers]
+
+[[redirects]]
+from = "/process-instance"
+to = "https://guards-acre-surrounded-ultimately.trycloudflare.com/process-instance"
+status = 200.0
+force = false
+
+[redirects.query]
+
+[redirects.conditions]
+
+[redirects.headers]
+
+[[redirects]]
+from = "/check-records/*"
+to = "https://guards-acre-surrounded-ultimately.trycloudflare.com/check-records/:splat"
+status = 200.0
+force = false
+
+[redirects.query]
+
+[redirects.conditions]
+
+[redirects.headers]
+
+[[redirects]]
+from = "/check-records"
+to = "https://guards-acre-surrounded-ultimately.trycloudflare.com/check-records"
+status = 200.0
+force = false
+
+[redirects.query]
+
+[redirects.conditions]
+
+[redirects.headers]
+
+[[redirects]]
+from = "/reworks/*"
+to = "https://guards-acre-surrounded-ultimately.trycloudflare.com/reworks/:splat"
+status = 200.0
+force = false
+
+[redirects.query]
+
+[redirects.conditions]
+
+[redirects.headers]
+
+[[redirects]]
+from = "/reworks"
+to = "https://guards-acre-surrounded-ultimately.trycloudflare.com/reworks"
+status = 200.0
+force = false
+
+[redirects.query]
+
+[redirects.conditions]
+
+[redirects.headers]
+
+[[redirects]]
+from = "/final-inspection-reports/*"
+to = "https://guards-acre-surrounded-ultimately.trycloudflare.com/final-inspection-reports/:splat"
+status = 200.0
+force = false
+
+[redirects.query]
+
+[redirects.conditions]
+
+[redirects.headers]
+
+[[redirects]]
+from = "/final-inspection-reports"
+to = "https://guards-acre-surrounded-ultimately.trycloudflare.com/final-inspection-reports"
+status = 200.0
+force = false
+
+[redirects.query]
+
+[redirects.conditions]
+
+[redirects.headers]
+
+[[redirects]]
+from = "/work-logs/*"
+to = "https://guards-acre-surrounded-ultimately.trycloudflare.com/work-logs/:splat"
+status = 200.0
+force = false
+
+[redirects.query]
+
+[redirects.conditions]
+
+[redirects.headers]
+
+[[redirects]]
+from = "/work-logs"
+to = "https://guards-acre-surrounded-ultimately.trycloudflare.com/work-logs"
+status = 200.0
+force = false
+
+[redirects.query]
+
+[redirects.conditions]
+
+[redirects.headers]
+
+[[redirects]]
+from = "/performance/*"
+to = "https://guards-acre-surrounded-ultimately.trycloudflare.com/performance/:splat"
+status = 200.0
+force = false
+
+[redirects.query]
+
+[redirects.conditions]
+
+[redirects.headers]
+
+[[redirects]]
+from = "/performance"
+to = "https://guards-acre-surrounded-ultimately.trycloudflare.com/performance"
+status = 200.0
+force = false
+
+[redirects.query]
+
+[redirects.conditions]
+
+[redirects.headers]
+
+[[redirects]]
+from = "/staff/*"
+to = "https://guards-acre-surrounded-ultimately.trycloudflare.com/staff/:splat"
+status = 200.0
+force = false
+
+[redirects.query]
+
+[redirects.conditions]
+
+[redirects.headers]
+
+[[redirects]]
+from = "/staff"
+to = "https://guards-acre-surrounded-ultimately.trycloudflare.com/staff"
+status = 200.0
+force = false
+
+[redirects.query]
+
+[redirects.conditions]
+
+[redirects.headers]
+
+[[redirects]]
+from = "/quality-records/*"
+to = "https://guards-acre-surrounded-ultimately.trycloudflare.com/quality-records/:splat"
+status = 200.0
+force = false
+
+[redirects.query]
+
+[redirects.conditions]
+
+[redirects.headers]
+
+[[redirects]]
+from = "/quality-records"
+to = "https://guards-acre-surrounded-ultimately.trycloudflare.com/quality-records"
+status = 200.0
+force = false
+
+[redirects.query]
+
+[redirects.conditions]
+
+[redirects.headers]
+
+[[redirects]]
+from = "/doctor/*"
+to = "https://guards-acre-surrounded-ultimately.trycloudflare.com/doctor/:splat"
+status = 200.0
+force = false
+
+[redirects.query]
+
+[redirects.conditions]
+
+[redirects.headers]
+
+[[redirects]]
+from = "/doctor"
+to = "https://guards-acre-surrounded-ultimately.trycloudflare.com/doctor"
+status = 200.0
+force = false
+
+[redirects.query]
+
+[redirects.conditions]
+
+[redirects.headers]
+
+[[redirects]]
+from = "/production/*"
+to = "https://guards-acre-surrounded-ultimately.trycloudflare.com/production/:splat"
+status = 200.0
+force = false
+
+[redirects.query]
+
+[redirects.conditions]
+
+[redirects.headers]
+
+[[redirects]]
+from = "/production"
+to = "https://guards-acre-surrounded-ultimately.trycloudflare.com/production"
+status = 200.0
+force = false
+
+[redirects.query]
+
+[redirects.conditions]
+
+[redirects.headers]
+
+[[redirects]]
+from = "/ai/*"
+to = "https://guards-acre-surrounded-ultimately.trycloudflare.com/ai/:splat"
+status = 200.0
+force = false
+
+[redirects.query]
+
+[redirects.conditions]
+
+[redirects.headers]
+
+[[redirects]]
+from = "/ai"
+to = "https://guards-acre-surrounded-ultimately.trycloudflare.com/ai"
+status = 200.0
+force = false
+
+[redirects.query]
+
+[redirects.conditions]
+
+[redirects.headers]
+
+[[redirects]]
+from = "/ws/*"
+to = "https://guards-acre-surrounded-ultimately.trycloudflare.com/ws/:splat"
+status = 200.0
+force = false
+
+[redirects.query]
+
+[redirects.conditions]
+
+[redirects.headers]
+
+[[redirects]]
+from = "/ws"
+to = "https://guards-acre-surrounded-ultimately.trycloudflare.com/ws"
+status = 200.0
+force = false
+
+[redirects.query]
+
+[redirects.conditions]
+
+[redirects.headers]
+
+[[redirects]]
+from = "/*"
+to = "/index.html"
+status = 200.0
+force = false
+
+[redirects.query]
+
+[redirects.conditions]
+
+[redirects.headers]
