@@ -21,9 +21,11 @@ requireText(files.packageJson, 'package.json', [
 ])
 
 requireText(files.app, 'frontend/src/App.vue', [
-  'v-if="portalTone !== \'admin\'" class="prototype-page-heading"',
+  'class="prototype-page-heading"',
   'adminBusinessMetrics',
   'adminEfficiencyMetrics',
+  'adminGlobalTodoPanel',
+  'adminMonthComparisonMetrics',
   'adminMonthComparison',
   'adminSalesTrendPoints',
   'adminCurrentInboundTrendPolyline',
@@ -41,11 +43,19 @@ requireText(files.app, 'frontend/src/App.vue', [
   '客户异常',
   '物料异常',
   '成本异常',
+  '全局运营待办',
+  '客服审核',
+  '返工未关闭',
+  '本月 vs 上月',
+  '本月订单',
+  '本月件数',
+  '接单金额',
+  '出货金额',
   '本月运营效率',
   '订单完成率',
   '出货率',
   '返工率',
-  '接单与出货金额分析',
+  '接单与出货金额趋势',
   '本月截至今日 / 上月同期',
   '本月与上月同期接单金额累计趋势',
   '本月与上月同期出货金额累计趋势',
@@ -57,8 +67,8 @@ if (!files.app.includes("portalTone !== 'production' && portalTone !== 'admin'")
   failures.push('frontend/src/App.vue should hide the generic trend chart on the admin dashboard')
 }
 
-if (files.app.includes('管理控制台') && !files.app.includes('管理经营驾驶舱')) {
-  failures.push('frontend/src/App.vue still uses old admin dashboard headline without management cockpit copy')
+if (files.app.includes('v-if="portalTone !== \'admin\'" class="prototype-page-heading"')) {
+  failures.push('frontend/src/App.vue should render the shared contextual heading on the admin dashboard')
 }
 
 if (failures.length > 0) {

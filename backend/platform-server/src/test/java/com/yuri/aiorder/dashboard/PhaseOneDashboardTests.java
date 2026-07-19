@@ -79,6 +79,8 @@ class PhaseOneDashboardTests {
                 .andExpect(jsonPath("$.data.top_customers[0].item_count").exists())
                 .andExpect(jsonPath("$.data.production_exception_count").value(greaterThanOrEqualTo(1)))
                 .andExpect(jsonPath("$.data.pending_question_count").value(greaterThanOrEqualTo(0)))
+                .andExpect(jsonPath("$.data.previous_month_shipping_rate").exists())
+                .andExpect(jsonPath("$.data.previous_week_shipping_rate").exists())
                 .andExpect(jsonPath("$.data.source_note").value("本地月度趋势接口 / 客户排名第一段"))
                 .andExpect(content().string(containsString(topClinicName)));
     }

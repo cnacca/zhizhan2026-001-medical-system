@@ -1109,11 +1109,21 @@ public class WorkflowExecutionService {
             String exceptionNoPrefix, BootstrapIdentity identity) {
         accessControlService.requireCheckRecordRead(identity);
         String normalizedPrefix = blankToNull(exceptionNoPrefix);
-        String prefixClause = normalizedPrefix == null ? "" : " WHERE m.exception_no LIKE :exceptionNoPattern";
+        String prefixClause = normalizedPrefix == null ? "" : " AND m.exception_no LIKE :exceptionNoPattern";
+        YearMonth currentMonth = YearMonth.now(WORKBENCH_ZONE);
+        LocalDateTime currentMonthStart = currentMonth.atDay(1).atStartOfDay();
+        LocalDateTime nextMonthStart = currentMonth.plusMonths(1).atDay(1).atStartOfDay();
+        LocalDateTime previousMonthStart = currentMonth.minusMonths(1).atDay(1).atStartOfDay();
 
         JdbcClient.StatementSpec spec = jdbcClient.sql("""
                         SELECT
                             COUNT(*) AS total_exception_count,
+                            COALESCE(SUM(CASE
+                                WHEN m.created_at >= :currentMonthStart AND m.created_at < :nextMonthStart
+                                THEN 1 ELSE 0 END), 0) AS current_month_count,
+                            COALESCE(SUM(CASE
+                                WHEN m.created_at >= :previousMonthStart AND m.created_at < :currentMonthStart
+                                THEN 1 ELSE 0 END), 0) AS previous_month_count,
                             COALESCE(SUM(CASE WHEN m.exception_type = 'SHORTAGE' THEN 1 ELSE 0 END), 0)
                                 AS shortage_count,
                             COALESCE(SUM(CASE WHEN m.exception_type = 'WRONG_MATERIAL' THEN 1 ELSE 0 END), 0)
@@ -1131,12 +1141,19 @@ public class WorkflowExecutionService {
                                 THEN 1 ELSE 0 END), 0) AS responsibility_assigned_count,
                             COALESCE(SUM(m.loss_quantity), 0) AS total_loss_quantity
                         FROM production_material_exception m
+                        WHERE 1 = 1
                         """ + prefixClause);
+        spec = spec
+                .param("currentMonthStart", currentMonthStart)
+                .param("nextMonthStart", nextMonthStart)
+                .param("previousMonthStart", previousMonthStart);
         if (normalizedPrefix != null) {
             spec = spec.param("exceptionNoPattern", normalizedPrefix + "%");
         }
         MaterialExceptionSummaryRow summary = spec.query((rs, rowNum) -> new MaterialExceptionSummaryRow(
                         rs.getLong("total_exception_count"),
+                        rs.getLong("current_month_count"),
+                        rs.getLong("previous_month_count"),
                         rs.getLong("shortage_count"),
                         rs.getLong("wrong_material_count"),
                         rs.getLong("batch_abnormal_count"),
@@ -1151,6 +1168,8 @@ public class WorkflowExecutionService {
         return new ProductionMaterialExceptionSummaryResponse(
                 normalizedPrefix,
                 summary.totalExceptionCount(),
+                summary.currentMonthCount(),
+                summary.previousMonthCount(),
                 summary.shortageCount(),
                 summary.wrongMaterialCount(),
                 summary.batchAbnormalCount(),
@@ -3716,6 +3735,8 @@ public class WorkflowExecutionService {
 
     private record MaterialExceptionSummaryRow(
             long totalExceptionCount,
+            long currentMonthCount,
+            long previousMonthCount,
             long shortageCount,
             long wrongMaterialCount,
             long batchAbnormalCount,

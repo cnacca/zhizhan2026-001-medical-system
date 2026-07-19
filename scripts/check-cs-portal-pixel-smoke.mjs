@@ -12,7 +12,7 @@ const browserChannel = process.env.CS_BROWSER_CHANNEL?.trim() || undefined
 const headless = process.env.CS_HEADLESS !== 'false'
 
 const pageCases = [
-  { slug: 'workbench', menu: '工作台', heading: '客服工作台', interact: interactWithWorkbench },
+  { slug: 'workbench', menu: '工作台', heading: /^(早上好|下午好|晚上好)，.+ 👋$/, interact: interactWithWorkbench },
   { slug: 'orders', menu: '订单管理', heading: '订单管理', dataRequest: /^\/orders$/, interact: interactWithOrders },
   { slug: 'information-translation', menu: '信息审核/翻译', heading: '信息审核/翻译', dataRequest: /^\/orders$/, interact: interactWithInformationTranslation },
   { slug: 'designs', menu: '设计稿管理', heading: '设计稿管理', dataRequest: /^\/orders$/, interact: interactWithDesigns },
@@ -367,7 +367,7 @@ async function login(page) {
   await page.getByLabel('密码').fill(password)
   await page.getByRole('button', { name: '登录', exact: true }).click()
   await page.locator('.route-menu').waitFor({ state: 'visible', timeout: timeoutMs })
-  await assertHeading(page, '客服工作台')
+  await assertHeading(page, /^(早上好|下午好|晚上好)，.+ 👋$/)
 }
 
 async function installReadOnlyGuard(page) {

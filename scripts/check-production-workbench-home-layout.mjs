@@ -17,19 +17,23 @@ const productionBlock = app.slice(productionStart, productionEnd)
 
 const requiredAppFragments = [
   'featuredPanel: {',
-  "title: '生产异常待办'",
+  "title: '生产运营待办'",
   "title: '生产异常'",
-  "title: '待问异常'",
-  "title: '员工异常'",
+  "title: '待问异常 / 员工异常'",
   "title: '质量与返工'",
   "title: '设备异常'",
-  "title: '安环待办'",
-  "title: '奖惩待审'",
-  "{ label: '订单数'",
-  "{ label: '生产产值'",
-  "{ label: '发货单数'",
+  "title: '安环 / 奖惩待办'",
+  "{ label: '本月订单'",
+  "{ label: '本月件数'",
+  "{ label: '发货率'",
   "{ label: '物料异常'",
   'activePrototypeDashboard.monthComparison',
+  'class="production-workbench-top-broadcast"',
+  "portalTone === 'production' && activeRoute === '/dashboard'",
+  '客服发货前待复核',
+  'production-operation-todo-list',
+  'v-for="item in activePrototypeDashboard.featuredPanel.items"',
+  '点击部门可联动右侧近 7 日趋势',
   "{ label: '内返率'",
   "{ label: '外返率'",
   "{ label: '发货率'",
@@ -59,6 +63,14 @@ const forbiddenProductionFragments = [
   "title: '物料管理'"
 ]
 
+const forbiddenAppFragments = [
+  'activePrototypeDashboard.featuredPanel.items.slice(0, 3)',
+  'activePrototypeDashboard.featuredPanel.items.slice(3)',
+  '部门负载变化',
+  'production-dashboard-workload-card',
+  'class="prototype-sync-banner production-dashboard-live-strip"'
+]
+
 const requiredStyleFragments = [
   '.production-month-metric-grid',
   '.production-week-rate-row',
@@ -66,6 +78,7 @@ const requiredStyleFragments = [
   '.production-department-expand'
   ,'.production-department-line-chart'
   ,'.production-department-workspace'
+  ,'.production-workbench-top-broadcast'
 ]
 
 const missingApp = requiredAppFragments.filter((fragment) => !app.includes(fragment))
@@ -80,6 +93,7 @@ const weekRatesBlock = weekRatesStart === -1 || weekRatesEnd === -1
 const failures = [
   ...missingApp.map((fragment) => `App.vue 缺少工作台布局片段: ${fragment}`),
   ...forbiddenApp.map((fragment) => `生产工作台首页不应继续出现成本入口: ${fragment}`),
+  ...forbiddenAppFragments.filter((fragment) => app.includes(fragment)).map((fragment) => `生产运营待办不应再拆分列表: ${fragment}`),
   ...(weekRatesBlock.includes("{ label: '返工率'") ? ['周环比速率不应继续使用笼统返工率'] : []),
   ...missingStyles.map((fragment) => `styles.css 缺少工作台同排样式: ${fragment}`)
 ]

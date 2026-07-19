@@ -3,9 +3,11 @@ package com.yuri.aiorder.dashboard;
 import com.yuri.aiorder.common.BootstrapIdentity;
 import com.yuri.aiorder.common.UserRole;
 import com.yuri.aiorder.common.auth.AccessControlService;
+import java.time.DayOfWeek;
 import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.time.YearMonth;
+import java.time.temporal.TemporalAdjusters;
 import java.util.EnumSet;
 import java.util.List;
 import org.springframework.jdbc.core.simple.JdbcClient;
@@ -59,6 +61,10 @@ public class PhaseOneDashboardService {
         long productionExceptionCount = productionExceptionCount(currentStart, nextStart, identity, dataScope);
         long pendingQuestionCount = pendingQuestionCount(currentStart, nextStart, identity, dataScope);
         int shippingRate = shippingRate(currentStart, nextStart, identity, dataScope);
+        int previousMonthShippingRate = shippingRate(previousStart, currentStart, identity, dataScope);
+        LocalDate currentWeekStart = LocalDate.now().with(TemporalAdjusters.previousOrSame(DayOfWeek.MONDAY));
+        int previousWeekShippingRate = shippingRate(
+                currentWeekStart.minusWeeks(1), currentWeekStart, identity, dataScope);
         int completionRate = completionRate(currentStart, nextStart, identity, dataScope);
 
         return new PhaseOneDashboardResponse(
@@ -70,6 +76,8 @@ public class PhaseOneDashboardService {
                 productionExceptionCount,
                 pendingQuestionCount,
                 shippingRate,
+                previousMonthShippingRate,
+                previousWeekShippingRate,
                 completionRate,
                 SOURCE_NOTE,
                 LocalDateTime.now());

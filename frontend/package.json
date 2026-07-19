@@ -9,6 +9,8 @@
     "preview": "vite preview --host 0.0.0.0"
   },
   "dependencies": {
+    "@fontsource/lora": "5.2.8",
+    "@fontsource/plus-jakarta-sans": "5.2.8",
     "@uppy/core": "^5.2.0",
     "@vitejs/plugin-vue": "^6.0.1",
     "element-plus": "^2.11.9",

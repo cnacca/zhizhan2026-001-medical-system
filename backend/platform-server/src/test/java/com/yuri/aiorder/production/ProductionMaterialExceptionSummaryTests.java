@@ -38,6 +38,8 @@ class ProductionMaterialExceptionSummaryTests {
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.data.exception_no_prefix").value(prefix))
                 .andExpect(jsonPath("$.data.total_exception_count").value(4))
+                .andExpect(jsonPath("$.data.current_month_count").value(4))
+                .andExpect(jsonPath("$.data.previous_month_count").value(0))
                 .andExpect(jsonPath("$.data.shortage_count").value(1))
                 .andExpect(jsonPath("$.data.wrong_material_count").value(1))
                 .andExpect(jsonPath("$.data.batch_abnormal_count").value(1))

@@ -377,6 +377,8 @@ type PhaseOneAbDashboardResponse = {
   production_exception_count: number
   pending_question_count: number
   shipping_rate: number
+  previous_month_shipping_rate: number
+  previous_week_shipping_rate: number
   completion_rate: number
   source_note: string
   generated_at: string
@@ -911,9 +913,13 @@ type ProductionWorkbenchDepartmentRow = {
   department_name: string
   department_subtitle: string
   display_order: number
+  today_task_count: number
+  last_month_daily_avg_task_count: number
   today_completion_rate: number
   today_rework_rate: number
   last_month_rework_rate: number
+  today_shipping_rate: number
+  last_month_shipping_rate: number
   status: ProductionWorkbenchDepartmentStatus
   status_label: string
 }
@@ -994,6 +1000,8 @@ type ProductionEquipmentEventResponse = {
 type ProductionMaterialExceptionSummaryResponse = {
   exception_no_prefix: string | null
   total_exception_count: number
+  current_month_count: number
+  previous_month_count: number
   shortage_count: number
   wrong_material_count: number
   batch_abnormal_count: number
@@ -1360,6 +1368,36 @@ type PrototypeDashboard = {
   monthComparison?: MonthComparison
   panels: DashboardPanel[]
   trends: DashboardTrend[]
+}
+
+function dashboardGreetingText(now = new Date()) {
+  const hour = now.getHours()
+  if (hour < 12) return '早上好'
+  if (hour < 18) return '下午好'
+  return '晚上好'
+}
+
+function dashboardDateText(now = new Date()) {
+  const date = new Intl.DateTimeFormat('zh-CN', {
+    year: 'numeric',
+    month: 'long',
+    day: 'numeric'
+  }).format(now)
+  const weekday = new Intl.DateTimeFormat('zh-CN', { weekday: 'long' }).format(now)
+  return `${date} ${weekday}`
+}
+
+function dashboardAudienceText(portal: 'cs' | 'production') {
+  const scope = currentUser.value?.dataScope
+  if (portal === 'cs') {
+    if (scope === 'ALL') return '全部客户账户'
+    if (scope === 'CLINIC') return '所属诊所客户'
+    if (scope === 'SELF') return '本人负责客户'
+    return '当前权限客户'
+  }
+  if (scope === 'ALL') return '全部部门'
+  if (scope === 'SELF') return '本人任务范围'
+  return '当前权限部门'
 }
 
 type QueueChip = {
@@ -1943,6 +1981,7 @@ const phaseOneAbDashboardOrders = ref<InternalOrderItem[]>([])
 const phaseOneAbDashboardPendingMessages = ref<MessageItem[]>([])
 const phaseOneAbDashboardDeliveryOrders = ref<DeliveryOrderItem[]>([])
 const phaseOneAbDashboardSummary = ref<PhaseOneAbDashboardResponse | null>(null)
+const productionPreviousWeekQualitySummary = ref<ProductionQualitySummaryResponse | null>(null)
 const salesDashboardSummary = ref<SalesDashboardResponse | null>(null)
 const deliveryLoading = ref(false)
 const deliverySaving = ref(false)
@@ -2022,8 +2061,8 @@ const portalOptions: PortalOption[] = [
     subtitle: '医生 / 诊所',
     icon: 'stethoscope',
     tone: 'doctor',
-    defaultUsername: isDoctorAcceptanceMode ? doctorAcceptanceCredentials.username : '',
-    defaultPassword: isDoctorAcceptanceMode ? doctorAcceptanceCredentials.password : ''
+    defaultUsername: doctorAcceptanceCredentials.username,
+    defaultPassword: doctorAcceptanceCredentials.password
   },
   {
     value: 'CS',
@@ -2753,6 +2792,42 @@ const adminEfficiencyMetrics = computed<AdminEfficiencyMetric[]>(() => {
   ]
 })
 const adminMonthComparison = computed(() => salesDashboardSummary.value?.month_comparison ?? null)
+const adminGlobalTodoPanel = computed<DashboardPanel>(() => {
+  const csStats = phaseOneAbCsDashboardStats.value
+  const productionStats = phaseOneAbProductionDashboardStats.value
+  const pendingShipmentCount = countOrdersByStatus(phaseOneAbDashboardOrders.value, ['QC_PASSED', 'PENDING_SHIP'])
+  const customerServiceReviewCount = csStats.pendingReviewCount + csStats.pendingMessageReviewCount
+  const items: DashboardAction[] = [
+    { title: '客服审核', detail: `${csStats.pendingReviewCount} 条订单资料 / ${csStats.pendingMessageReviewCount} 条翻译待审`, meta: `${customerServiceReviewCount} 项`, tone: 'violet', actionLabel: '去处理', routePath: '/orders/internal', navId: 'admin-orders' },
+    { title: '生产异常', detail: `${productionStats.productionExceptionCount} 单工序或生产事项待跟进`, meta: `${productionStats.productionExceptionCount} 项`, tone: 'orange', actionLabel: '查看进度', routePath: '/workflow/process-instance', navId: 'admin-workflow' },
+    { title: '返工未关闭', detail: `${productionStats.totalReworkCount} 条返工记录需要核对状态与责任`, meta: `${productionStats.totalReworkCount} 项`, tone: 'rose', actionLabel: '跟进质量', routePath: '/production/quality', navId: 'admin-quality' },
+    { title: '待发货订单', detail: `${pendingShipmentCount} 单已完成质检，待配送或物流登记`, meta: `${pendingShipmentCount} 项`, tone: 'teal', actionLabel: '查看配送', routePath: '/delivery', navId: 'admin-billing-delivery' },
+    { title: '物料异常', detail: `${productionStats.materialPendingCount} 项缺料、错料或损耗事项处理中`, meta: `${productionStats.materialPendingCount} 项`, tone: 'amber', actionLabel: '查看物料', routePath: '/production/material-exceptions', navId: 'admin-material' },
+    { title: '成本预警', detail: `${productionStats.costWarningCount} 条成本异常或预警记录待核对`, meta: `${productionStats.costWarningCount} 项`, tone: 'orange', actionLabel: '查看成本', routePath: '/production/cost-management', navId: 'admin-cost-control' }
+  ]
+  const total = customerServiceReviewCount
+    + productionStats.productionExceptionCount
+    + productionStats.totalReworkCount
+    + pendingShipmentCount
+    + productionStats.materialPendingCount
+    + productionStats.costWarningCount
+  return { title: '全局运营待办', badge: `${total} 项`, tone: 'rose', items }
+})
+const adminMonthComparisonMetrics = computed<MonthComparisonMetric[]>(() => {
+  const summary = phaseOneAbDashboardSummary.value
+  const sales = adminMonthComparison.value
+  const countComparison = (delta: number | undefined, previous: number | undefined) => {
+    if (delta === undefined || previous === undefined) return '月度数据待同步'
+    if (delta === 0) return `→ 与上月持平（上月 ${previous}）`
+    return `${delta > 0 ? '↑' : '↓'} 较上月 ${delta > 0 ? '+' : ''}${delta}（上月 ${previous}）`
+  }
+  return [
+    { label: '本月订单', value: summary ? String(summary.current_month.order_count) : '—', comparison: countComparison(summary?.monthly_order_delta, summary?.previous_month.order_count), tone: 'blue' },
+    { label: '本月件数', value: summary ? String(summary.current_month.item_count) : '—', comparison: countComparison(summary?.monthly_item_delta, summary?.previous_month.item_count), tone: 'violet' },
+    { label: '接单金额', value: formatSalesAmount(sales?.inbound.current_amount_cents), comparison: sales ? `环比 ${formatYearOverYear(sales.inbound.month_over_month_percent)}` : '金额数据待同步', baseline: sales ? `已录账单 ${sales.inbound.current_amount_order_count}/${sales.inbound.current_order_count} 单` : undefined, tone: 'violet' },
+    { label: '出货金额', value: formatSalesAmount(sales?.outbound.current_amount_cents), comparison: sales ? `环比 ${formatYearOverYear(sales.outbound.month_over_month_percent)}` : '金额数据待同步', baseline: sales ? `已录账单 ${sales.outbound.current_amount_order_count}/${sales.outbound.current_order_count} 单` : undefined, tone: 'teal' }
+  ]
+})
 const adminSalesTrendPoints = computed<AdminSalesTrendPoint[]>(() =>
   (adminMonthComparison.value?.daily_trend ?? []).map((point) => ({
     day: point.day,
@@ -2825,6 +2900,7 @@ const phaseOneAbProductionDashboardStats = computed(() => {
       ?? (orders.length > 0 ? Math.round((completedCount / orders.length) * 100) : 0),
     firstPassRate: qualitySummary?.first_pass_rate ?? 0,
     finalPassRate: qualitySummary?.final_pass_rate ?? 0,
+    complaintRate: qualitySummary?.complaint_rate ?? 0,
     totalReworkRate: qualitySummary?.total_rework_rate ?? 0,
     internalReworkRate: qualitySummary?.internal_rework_rate ?? 0,
     externalReworkRate: qualitySummary?.external_rework_rate ?? 0
@@ -2852,6 +2928,10 @@ const productionWorkbenchTrendSvgPoints = computed(() => selectedProductionWorkb
 }).join(' '))
 function selectProductionWorkbenchDepartment(departmentKey: string) {
   selectedProductionWorkbenchDepartmentKey.value = departmentKey
+  const selectedIndex = productionWorkbenchDepartments.value.findIndex((department) => department.department_key === departmentKey)
+  if (selectedIndex >= 6) {
+    showAllProductionWorkbenchDepartments.value = true
+  }
 }
 const phaseOneAbDashboardSourceNote = computed(() => {
   if (phaseOneAbDashboardDataError.value) {
@@ -2899,6 +2979,31 @@ const businessOverviewCards = computed<BusinessCard[]>(() => {
 
 const prototypeDashboards = computed<Record<PortalTone, PrototypeDashboard>>(() => {
   const unreadText = String(unreadCount.value)
+  const productionLiveOrderCount = countOrdersByStatus(phaseOneAbDashboardOrders.value, [
+    'PROCESS_INSTANCE_CREATED',
+    'PRODUCING',
+    'REWORKING'
+  ])
+  const productionMonthSummary = phaseOneAbDashboardSummary.value
+  const currentMonthOrders = productionMonthSummary?.current_month.order_count
+  const previousMonthOrders = productionMonthSummary?.previous_month.order_count
+  const currentMonthItems = productionMonthSummary?.current_month.item_count
+  const previousMonthItems = productionMonthSummary?.previous_month.item_count
+  const orderDelta = productionMonthSummary?.monthly_order_delta
+  const itemDelta = productionMonthSummary?.monthly_item_delta
+  const signedDelta = (value: number | undefined) => value === undefined ? '待同步' : `${value >= 0 ? '+' : ''}${value}`
+  const monthDeltaNote = (value: number | undefined, previous: number | undefined) => {
+    if (value === undefined || previous === undefined) return '月度数据待同步'
+    if (value === 0) return `→ 与上月持平（上月 ${previous}）`
+    const arrow = value > 0 ? '↑' : '↓'
+    return `${arrow} 较上月 ${signedDelta(value)}（上月 ${previous}）`
+  }
+  const monthRateDeltaNote = (current: number | undefined, previous: number | undefined) => {
+    if (current === undefined || previous === undefined) return '月度数据待同步'
+    const delta = current - previous
+    if (Math.abs(delta) < 0.05) return `→ 与上月持平（上月 ${formatRate(previous)}）`
+    return `${delta > 0 ? '↑' : '↓'} 较上月 ${delta > 0 ? '+' : ''}${delta.toFixed(1)} 个百分点`
+  }
   return {
     doctor: {
       greeting: '早上好，医生',
@@ -2950,8 +3055,8 @@ const prototypeDashboards = computed<Record<PortalTone, PrototypeDashboard>>(() 
       ]
     },
     cs: {
-      greeting: '客服工作台',
-      subtitle: '订单登记、信息处理、问单沟通、账单物流和异常跟进集中处理。',
+      greeting: `${dashboardGreetingText()}，${currentUser.value?.username || '客服'} 👋`,
+      subtitle: `今日概览 · ${dashboardDateText()} · ${dashboardAudienceText('cs')}`,
       primaryAction: {
         title: '订单管理',
         detail: '查看新订单与已登记订单',
@@ -2963,8 +3068,7 @@ const prototypeDashboards = computed<Record<PortalTone, PrototypeDashboard>>(() 
       },
       metrics: [
         { title: '订单数量 / 件数', value: `${phaseOneAbCsDashboardStats.value.orderCount} / ${phaseOneAbCsDashboardStats.value.itemCount}`, note: '当前订单总量与累计件数', icon: 'order', tone: 'violet' },
-        { title: '信息评审', value: String(phaseOneAbCsDashboardStats.value.pendingReviewCount), note: '待核对订单资料及生产备注', icon: 'audit', tone: 'amber' },
-        { title: '翻译待审', value: String(phaseOneAbCsDashboardStats.value.pendingMessageReviewCount), note: 'AI 翻译结果待人工确认', icon: 'ai', tone: 'sky' },
+        { title: '信息评审 / 翻译待审', value: `${phaseOneAbCsDashboardStats.value.pendingReviewCount} / ${phaseOneAbCsDashboardStats.value.pendingMessageReviewCount}`, note: '订单资料 / AI 结果待确认', icon: 'audit', tone: 'amber' },
         { title: '待回复', value: String(phaseOneAbCsDashboardStats.value.pendingReplyCount), note: '客户与内部消息待回复', icon: 'chat', tone: 'sky' },
         { title: '设计更新', value: String(phaseOneAbCsDashboardStats.value.designUpdateCount), note: '设计进度有更新，请及时跟进', icon: 'design', tone: 'green' },
         { title: '延期提醒', value: String(phaseOneAbCsDashboardStats.value.logisticsManualFollowUpCount), note: '临近交期订单，请优先跟进', icon: 'timer', tone: 'orange' },
@@ -2992,30 +3096,28 @@ const prototypeDashboards = computed<Record<PortalTone, PrototypeDashboard>>(() 
       ]
     },
     production: {
-      greeting: '今日生产',
-      subtitle: '异常、返工、设备、物料和出货按当前队列汇总。',
-      syncBanner: `生产播报：异常 ${phaseOneAbProductionDashboardStats.value.productionExceptionCount} 单 · 待确认 ${phaseOneAbProductionDashboardStats.value.pendingQuestionCount} 单 · 返工未关闭 ${phaseOneAbProductionDashboardStats.value.totalReworkCount} 条 · 设备待处理 ${phaseOneAbProductionDashboardStats.value.equipmentExceptionCount} 项`,
+      greeting: '生产仪表盘',
+      subtitle: `${dashboardDateText()} · ${dashboardAudienceText('production')} · 实时生产状态`,
+      syncBanner: `实时同步医生端与客服端 · 刚刚更新 · ${productionLiveOrderCount} 个订单生产中 · ${phaseOneAbProductionDashboardStats.value.pendingQuestionCount} 个等待医生确认`,
       primaryAction: {
         title: '查看生产看板',
         detail: '按工序队列查看订单状态',
         meta: '13 个生产队列',
         tone: 'teal',
-        actionLabel: '看板',
+        actionLabel: '查看看板 →',
         routePath: '/production/board',
         navId: 'production-board'
       },
       metrics: [
         { title: '生产异常', value: String(phaseOneAbProductionDashboardStats.value.productionExceptionCount), note: '当前队列异常订单', icon: 'process', tone: 'teal' },
-        { title: '待问异常', value: String(phaseOneAbProductionDashboardStats.value.pendingQuestionCount), note: '等待医生或客服确认', icon: 'chat', tone: 'amber' },
-        { title: '员工异常', value: String(phaseOneAbProductionDashboardStats.value.staffExceptionCount), note: '人员任务负载异常', icon: 'staff', tone: 'orange' },
+        { title: '待问异常 / 员工异常', value: `${phaseOneAbProductionDashboardStats.value.pendingQuestionCount} / ${phaseOneAbProductionDashboardStats.value.staffExceptionCount}`, note: '待确认 / 任务负载', icon: 'chat', tone: 'amber' },
         { title: '质量与返工', value: String(phaseOneAbProductionDashboardStats.value.totalReworkCount), note: `内返 ${phaseOneAbProductionDashboardStats.value.internalReworkCount} / 外返 ${phaseOneAbProductionDashboardStats.value.externalReworkCount}`, icon: 'quality', tone: 'rose' },
         { title: '设备异常', value: String(phaseOneAbProductionDashboardStats.value.equipmentExceptionCount), note: '保养与故障待处理', icon: 'device', tone: 'orange' },
         { title: '物料异常', value: String(phaseOneAbProductionDashboardStats.value.materialPendingCount), note: '缺料、错料、损耗处理中', icon: 'material', tone: 'amber' },
-        { title: '安环待办', value: String(phaseOneAbProductionDashboardStats.value.safetyTodoCount), note: '巡检与隐患待处理', icon: 'safety', tone: 'sky' },
-        { title: '奖惩待审', value: String(phaseOneAbProductionDashboardStats.value.rewardPendingCount), note: '等待主管确认', icon: 'reward', tone: 'green' }
+        { title: '安环 / 奖惩待办', value: `${phaseOneAbProductionDashboardStats.value.safetyTodoCount} / ${phaseOneAbProductionDashboardStats.value.rewardPendingCount}`, note: '巡检隐患 / 主管确认', icon: 'safety', tone: 'sky' }
       ],
       featuredPanel: {
-        title: '生产异常待办',
+        title: '生产运营待办',
         badge: `${phaseOneAbProductionDashboardStats.value.productionExceptionCount + phaseOneAbProductionDashboardStats.value.safetyTodoCount + phaseOneAbProductionDashboardStats.value.rewardPendingCount} 项`,
         tone: 'rose',
         items: [
@@ -3030,17 +3132,17 @@ const prototypeDashboards = computed<Record<PortalTone, PrototypeDashboard>>(() 
       monthComparison: {
         title: '本月 vs 上月',
         metrics: [
-          { label: '订单数', value: '24', comparison: '较上月 +4', baseline: '上月 20', tone: 'violet' },
-          { label: '生产产值', value: '¥8.6万', comparison: '较上月 +16%', tone: 'green' },
-          { label: '发货单数', value: '21', comparison: '出货率 87.5%', tone: 'teal' },
-          { label: '物料异常', value: String(phaseOneAbProductionDashboardStats.value.materialPendingCount), comparison: '缺料、错料、损耗处理中', tone: 'amber' }
+          { label: '本月订单', value: currentMonthOrders === undefined ? '—' : String(currentMonthOrders), comparison: monthDeltaNote(orderDelta, previousMonthOrders), tone: 'violet' },
+          { label: '本月件数', value: currentMonthItems === undefined ? '—' : String(currentMonthItems), comparison: monthDeltaNote(itemDelta, previousMonthItems), tone: 'green' },
+          { label: '发货率', value: formatRate(phaseOneAbProductionDashboardStats.value.shippingRate), comparison: monthRateDeltaNote(phaseOneAbProductionDashboardStats.value.shippingRate, phaseOneAbDashboardSummary.value?.previous_month_shipping_rate), tone: 'teal' },
+          { label: '物料异常', value: String(productionMaterialExceptionSummary.value?.current_month_count ?? 0), comparison: monthDeltaNote(productionMaterialExceptionSummary.value ? productionMaterialExceptionSummary.value.current_month_count - productionMaterialExceptionSummary.value.previous_month_count : undefined, productionMaterialExceptionSummary.value?.previous_month_count), tone: 'amber' }
         ],
         weekRatesTitle: '周环比速率',
         weekRates: [
-          { label: '内返率', value: formatRate(phaseOneAbProductionDashboardStats.value.internalReworkRate), comparison: '较上周 -0.9%', tone: 'green' },
-          { label: '外返率', value: formatRate(phaseOneAbProductionDashboardStats.value.externalReworkRate), comparison: '较上周 -0.3%', tone: 'green' },
-          { label: '发货率', value: '87.5%', comparison: '↑ vs 83.3% 上周', tone: 'green' },
-          { label: '客诉率', value: '1.2%', comparison: '↓ vs 0.8% 上周', tone: 'rose' }
+          { label: '内返率', value: formatRate(phaseOneAbProductionDashboardStats.value.internalReworkRate), comparison: rateComparedWithLastWeek(phaseOneAbProductionDashboardStats.value.internalReworkRate, productionPreviousWeekQualitySummary.value?.internal_rework_rate, false), tone: 'green' },
+          { label: '外返率', value: formatRate(phaseOneAbProductionDashboardStats.value.externalReworkRate), comparison: rateComparedWithLastWeek(phaseOneAbProductionDashboardStats.value.externalReworkRate, productionPreviousWeekQualitySummary.value?.external_rework_rate, false), tone: 'green' },
+          { label: '发货率', value: formatRate(phaseOneAbProductionDashboardStats.value.shippingRate), comparison: rateComparedWithLastWeek(phaseOneAbProductionDashboardStats.value.shippingRate, phaseOneAbDashboardSummary.value?.previous_week_shipping_rate, true), tone: 'green' },
+          { label: '客诉率', value: formatRate(phaseOneAbProductionDashboardStats.value.complaintRate), comparison: rateComparedWithLastWeek(phaseOneAbProductionDashboardStats.value.complaintRate, productionPreviousWeekQualitySummary.value?.complaint_rate, false), tone: 'rose' }
         ]
       },
       panels: [],
@@ -3057,17 +3159,8 @@ const prototypeDashboards = computed<Record<PortalTone, PrototypeDashboard>>(() 
       ]
     },
     admin: {
-      greeting: '管理经营驾驶舱',
-      subtitle: '集中查看本月订单、生产质量、销售环比和客户贡献。',
-      primaryAction: {
-        title: '查看订单经营',
-        detail: '进入订单管理核对入货、出货和异常明细',
-        meta: '管理端',
-        tone: 'teal',
-        actionLabel: '查看',
-        routePath: '/orders/internal',
-        navId: 'admin-orders'
-      },
+      greeting: `${dashboardGreetingText()}，${currentUser.value?.username === 'admin' ? '管理员' : (currentUser.value?.username || '管理员')} 👋`,
+      subtitle: `${dashboardDateText()} · ${currentUser.value?.dataScope === 'ALL' ? '全平台数据' : dataScopeLabel(currentUser.value?.dataScope)} · ${phaseOneAbDashboardLastSyncedAt.value ? `统计截至 ${compactDateTime(phaseOneAbDashboardLastSyncedAt.value)}` : '数据正在同步'}`,
       metrics: adminBusinessMetrics.value,
       panels: [],
       trends: [
@@ -4197,6 +4290,34 @@ function compactDateTime(value: string | undefined) {
 function formatRate(value: number | null | undefined) {
   return `${Number(value ?? 0).toFixed(1)}%`
 }
+function previousCalendarWeekQuery() {
+  const today = new Date()
+  const currentWeekMonday = new Date(today.getFullYear(), today.getMonth(), today.getDate())
+  currentWeekMonday.setDate(currentWeekMonday.getDate() - ((currentWeekMonday.getDay() + 6) % 7))
+  const previousWeekMonday = new Date(currentWeekMonday)
+  previousWeekMonday.setDate(previousWeekMonday.getDate() - 7)
+  const previousWeekSunday = new Date(currentWeekMonday)
+  previousWeekSunday.setDate(previousWeekSunday.getDate() - 1)
+  const localDate = (date: Date) => [
+    date.getFullYear(),
+    String(date.getMonth() + 1).padStart(2, '0'),
+    String(date.getDate()).padStart(2, '0')
+  ].join('-')
+  return new URLSearchParams({
+    start_date: localDate(previousWeekMonday),
+    end_date: localDate(previousWeekSunday)
+  }).toString()
+}
+function rateComparedWithLastWeek(
+  current: number,
+  previous: number | null | undefined,
+  higherIsBetter: boolean
+) {
+  if (previous === null || previous === undefined) return '较上周待同步'
+  const delta = current - previous
+  const arrow = Math.abs(delta) < 0.05 ? '→' : ((higherIsBetter ? delta > 0 : delta < 0) ? '↑' : '↓')
+  return `${arrow} 较上周 ${formatRate(previous)}`
+}
 function formatMoney(value: number | null | undefined) {
   return `¥${Number(value ?? 0).toFixed(2)}`
 }
@@ -5285,6 +5406,7 @@ function clearLoginSession() {
   phaseOneAbDashboardPendingMessages.value = []
   phaseOneAbDashboardDeliveryOrders.value = []
   phaseOneAbDashboardSummary.value = null
+  productionPreviousWeekQualitySummary.value = null
   salesDashboardSummary.value = null
   aiGovernanceLocalHardening.value = null
   aiGovernanceLocalHardeningError.value = ''
@@ -5862,6 +5984,7 @@ async function loadPhaseOneAbDashboardData() {
       orderList,
       pendingMessages,
       qualitySummary,
+      previousWeekQualitySummary,
       deliveryList,
       staffWorkload,
       departmentSummary,
@@ -5880,6 +6003,7 @@ async function loadPhaseOneAbDashboardData() {
         ? fetchResource('待审消息', () => apiFetch<MessageItem[]>('/messages/pending-review'))
         : Promise.resolve(null),
       fetchResource('质量返工', () => apiFetch<ProductionQualitySummaryResponse>('/production/quality/summary')),
+      fetchResource('上周质量对比', () => apiFetch<ProductionQualitySummaryResponse>(`/production/quality/summary?${previousCalendarWeekQuery()}`)),
       shouldLoadCsSharedDashboardData
         ? fetchResource('账单物流', () => apiFetch<DeliveryOrderItem[]>('/logistics/orders?limit=50'))
         : Promise.resolve(null),
@@ -5913,6 +6037,7 @@ async function loadPhaseOneAbDashboardData() {
     if (qualitySummary) {
       productionQualitySummary.value = qualitySummary
     }
+    productionPreviousWeekQualitySummary.value = previousWeekQualitySummary
     if (staffWorkload) {
       staffWorkloadItems.value = staffWorkload.items
       staffWorkloadTotal.value = staffWorkload.total
@@ -10270,6 +10395,14 @@ onBeforeUnmount(() => {
       @logout="logout"
     />
     <section v-else class="workspace" :class="{ 'login-workspace': !isLoggedIn }">
+      <div
+        v-if="isLoggedIn && portalTone === 'production' && activeRoute === '/dashboard' && activePrototypeDashboard.syncBanner"
+        class="production-workbench-top-broadcast"
+      >
+        <span class="sync-dot" aria-hidden="true" />
+        <span>{{ activePrototypeDashboard.syncBanner }}</span>
+        <small>客服发货前待复核：{{ phaseOneAbCsDashboardStats.pendingReviewCount }} 项</small>
+      </div>
       <div v-if="isLoggedIn" class="status-bar">
         <template v-if="isDoctorPortalClone">
           <div class="doctor-clone-topbar-title">{{ doctorPortalTopbarTitle }}</div>
@@ -10460,7 +10593,10 @@ onBeforeUnmount(() => {
           </div>
         </aside>
 
-        <section v-if="isLoggedIn && !isProductionCompactRoute && !isAdminPersonnelRoute" class="panel health-panel">
+        <section
+          v-if="isLoggedIn && !isProductionCompactRoute && !(portalTone === 'production' && activeRoute === '/dashboard') && !(portalTone === 'admin' && activeRoute === '/dashboard') && !isAdminPersonnelRoute"
+          class="panel health-panel"
+        >
           <template v-if="portalTone === 'admin'">
             <div class="admin-page-head">
               <div class="admin-page-head-copy">
@@ -15406,12 +15542,7 @@ onBeforeUnmount(() => {
         </section>
 
         <section v-else-if="activeRoute === '/dashboard'" class="route-panel prototype-dashboard-panel">
-          <div v-if="activePrototypeDashboard.syncBanner" class="prototype-sync-banner">
-            <span class="sync-dot" aria-hidden="true" />
-            <span>{{ activePrototypeDashboard.syncBanner }}</span>
-          </div>
-
-          <div v-if="portalTone !== 'admin'" class="prototype-page-heading">
+          <div class="prototype-page-heading">
             <div>
               <h2>{{ activePrototypeDashboard.greeting }}</h2>
               <p>{{ activePrototypeDashboard.subtitle }}</p>
@@ -15426,13 +15557,14 @@ onBeforeUnmount(() => {
             </button>
           </div>
 
-          <el-alert
-            v-if="['cs', 'production'].includes(portalTone)"
-            :title="phaseOneAbDashboardSourceNote"
-            :type="phaseOneAbDashboardDataError ? 'warning' : 'success'"
-            show-icon
-            :closable="false"
-          />
+          <div
+            v-if="portalTone === 'cs'"
+            class="portal-dashboard-source-strip"
+            :class="{ 'is-warning': phaseOneAbDashboardDataError }"
+          >
+            <span class="portal-dashboard-source-dot" aria-hidden="true" />
+            <span>{{ phaseOneAbDashboardSourceNote }}</span>
+          </div>
 
           <div class="prototype-metric-grid" :class="`metric-count-${activePrototypeDashboard.metrics.length}`">
             <article
@@ -15446,6 +15578,50 @@ onBeforeUnmount(() => {
               <strong>{{ metric.value }}</strong>
               <small>{{ metric.note }}</small>
             </article>
+          </div>
+
+          <div v-if="portalTone === 'admin'" class="admin-workbench-priority-row">
+            <section class="prototype-panel-card admin-global-todo-card">
+              <div class="prototype-panel-head">
+                <h3>{{ adminGlobalTodoPanel.title }}</h3>
+                <span class="prototype-badge tone-rose">{{ adminGlobalTodoPanel.badge }}</span>
+              </div>
+              <div class="admin-global-todo-list">
+                <button
+                  v-for="item in adminGlobalTodoPanel.items"
+                  :key="item.title"
+                  type="button"
+                  class="prototype-attention-item admin-global-todo-item"
+                  @click="selectDashboardAction(item)"
+                >
+                  <span class="attention-dot" :class="`tone-${item.tone}`" />
+                  <span><strong>{{ item.title }}</strong><small>{{ item.detail }}</small></span>
+                  <em>{{ item.meta }}</em>
+                  <b>{{ item.actionLabel }}</b>
+                </button>
+              </div>
+            </section>
+
+            <section class="prototype-panel-card admin-month-comparison-card">
+              <div class="prototype-panel-head">
+                <h3>本月 vs 上月</h3>
+                <span class="prototype-badge tone-blue">经营环比</span>
+              </div>
+              <div class="admin-month-comparison-grid">
+                <article
+                  v-for="metric in adminMonthComparisonMetrics"
+                  :key="metric.label"
+                  class="admin-month-comparison-item"
+                  :class="`tone-${metric.tone}`"
+                >
+                  <span class="prototype-card-accent" />
+                  <small>{{ metric.label }}</small>
+                  <strong>{{ metric.value }}</strong>
+                  <em>{{ metric.comparison }}</em>
+                  <span v-if="metric.baseline">{{ metric.baseline }}</span>
+                </article>
+              </div>
+            </section>
           </div>
 
           <div v-if="portalTone === 'cs'" class="customer-dashboard-pair" data-testid="customer-dashboard-pair">
@@ -15480,27 +15656,25 @@ onBeforeUnmount(() => {
               {{ customerAttentionExpanded ? '收起' : '查看全部' }}
             </el-button>
           </section>
-          <section
-            v-for="panel in activePrototypeDashboard.panels"
-            :key="panel.title"
-            class="prototype-panel-card"
-          >
-            <div class="prototype-panel-head">
-              <h3>{{ panel.title }}</h3>
-              <span v-if="panel.badge" class="prototype-badge" :class="`tone-${panel.tone ?? 'slate'}`">{{ panel.badge }}</span>
-            </div>
-            <button v-for="item in panel.items" :key="`${panel.title}-${item.title}`" type="button" class="prototype-attention-item" @click="selectDashboardAction(item)">
-              <span class="attention-dot" :class="`tone-${item.tone}`" />
-              <span><strong>{{ item.title }}</strong><small>{{ item.detail }}</small></span>
-              <em>{{ item.meta }}</em><b>{{ item.actionLabel }}</b>
-            </button>
-          </section>
+          <div class="cs-dashboard-side-stack">
+            <template v-for="panel in activePrototypeDashboard.panels" :key="panel.title">
+              <div class="cs-dashboard-side-label">{{ panel.title }}</div>
+              <section v-for="item in panel.items" :key="`${panel.title}-${item.title}`" class="prototype-panel-card cs-dashboard-side-card">
+                <div class="prototype-panel-head">
+                  <h3>{{ item.title }}</h3>
+                  <span class="prototype-badge" :class="`tone-${item.tone}`">{{ item.meta }}</span>
+                </div>
+                <button type="button" class="prototype-attention-item" @click="selectDashboardAction(item)">
+                  <span class="attention-dot" :class="`tone-${item.tone}`" />
+                  <span><strong>{{ item.title }}</strong><small>{{ item.detail }}</small></span>
+                  <b>{{ item.actionLabel }}</b>
+                </button>
+              </section>
+            </template>
+          </div>
           </div>
 
-          <div
-            v-if="portalTone === 'production' && (activePrototypeDashboard.featuredPanel || activePrototypeDashboard.monthComparison)"
-            class="production-workbench-highlight-row"
-          >
+          <div v-if="portalTone === 'production' && activePrototypeDashboard.featuredPanel" class="production-workbench-highlight-row">
             <section
               v-if="activePrototypeDashboard.featuredPanel"
               class="prototype-panel-card production-exception-panel"
@@ -15515,29 +15689,28 @@ onBeforeUnmount(() => {
                   {{ activePrototypeDashboard.featuredPanel.badge }}
                 </span>
               </div>
-              <button
-                v-for="item in activePrototypeDashboard.featuredPanel.items"
-                :key="`${activePrototypeDashboard.featuredPanel.title}-${item.title}`"
-                type="button"
-                class="prototype-attention-item"
-                @click="selectDashboardAction(item)"
-              >
-                <span class="attention-dot" :class="`tone-${item.tone}`" />
-                <span>
-                  <strong>{{ item.title }}</strong>
-                  <small>{{ item.detail }}</small>
-                </span>
-                <em>{{ item.meta }}</em>
-                <b>{{ item.actionLabel }}</b>
-              </button>
+              <div class="production-operation-todo-list">
+                <button
+                  v-for="item in activePrototypeDashboard.featuredPanel.items"
+                  :key="`${activePrototypeDashboard.featuredPanel.title}-${item.title}`"
+                  type="button"
+                  class="prototype-attention-item"
+                  @click="selectDashboardAction(item)"
+                >
+                  <span class="attention-dot" :class="`tone-${item.tone}`" />
+                  <span>
+                    <strong>{{ item.title }}</strong>
+                    <small>{{ item.detail }}</small>
+                  </span>
+                  <em>{{ item.meta }}</em>
+                  <b>{{ item.actionLabel }}</b>
+                </button>
+              </div>
             </section>
 
-            <section
-              v-if="activePrototypeDashboard.monthComparison"
-              class="production-month-comparison-card"
-            >
+            <section v-if="activePrototypeDashboard.monthComparison" class="production-month-comparison-card production-dashboard-comparison-card">
               <div class="production-month-comparison-title">
-                <span class="production-month-comparison-icon" aria-hidden="true">▥</span>
+                <span class="production-month-comparison-icon" aria-hidden="true">📊</span>
                 <h3>{{ activePrototypeDashboard.monthComparison.title }}</h3>
               </div>
 
@@ -15558,11 +15731,7 @@ onBeforeUnmount(() => {
 
               <div class="production-week-rate-list">
                 <h4>{{ activePrototypeDashboard.monthComparison.weekRatesTitle }}</h4>
-                <div
-                  v-for="rate in activePrototypeDashboard.monthComparison.weekRates"
-                  :key="rate.label"
-                  class="production-week-rate-row"
-                >
+                <div v-for="rate in activePrototypeDashboard.monthComparison.weekRates" :key="rate.label" class="production-week-rate-row">
                   <span>{{ rate.label }}</span>
                   <strong>{{ rate.value }}</strong>
                   <small :class="`tone-${rate.tone}`">{{ rate.comparison }}</small>
@@ -15577,6 +15746,7 @@ onBeforeUnmount(() => {
               <div>
                 <h3>部门效能对比</h3>
                 <small>按部门查看内返与完成表现</small>
+                <small class="production-department-linkage-hint">点击部门可联动右侧近 7 日趋势</small>
               </div>
               <button v-if="productionWorkbenchDepartments.length > 6" class="production-department-expand" type="button" @click="showAllProductionWorkbenchDepartments = !showAllProductionWorkbenchDepartments">
                 {{ showAllProductionWorkbenchDepartments ? '收起' : `查看全部（${productionWorkbenchDepartments.length}）` }}
@@ -15669,32 +15839,8 @@ onBeforeUnmount(() => {
             <div class="admin-business-lower">
               <section class="prototype-panel-card admin-sales-card">
                 <div class="prototype-panel-head">
-                  <h3>接单与出货金额分析</h3>
+                  <h3>接单与出货金额趋势</h3>
                   <span class="prototype-badge tone-teal">本月截至今日 / 上月同期</span>
-                </div>
-                <div class="admin-sales-summary">
-                  <article class="tone-inbound">
-                    <small>本月接单金额</small>
-                    <strong>{{ formatSalesAmount(adminMonthComparison?.inbound.current_amount_cents) }}</strong>
-                    <div class="sales-comparison-detail">
-                      <span>上月同期 <b>{{ formatSalesAmount(adminMonthComparison?.inbound.previous_month_amount_cents) }}</b></span>
-                      <span class="sales-yoy" :class="{ negative: (adminMonthComparison?.inbound.month_over_month_percent ?? 0) < 0 }">
-                        环比 {{ formatYearOverYear(adminMonthComparison?.inbound.month_over_month_percent) }}
-                      </span>
-                    </div>
-                    <em>本月已录账单 {{ adminMonthComparison?.inbound.current_amount_order_count ?? 0 }}/{{ adminMonthComparison?.inbound.current_order_count ?? 0 }} 单</em>
-                  </article>
-                  <article class="tone-outbound">
-                    <small>本月出货金额</small>
-                    <strong>{{ formatSalesAmount(adminMonthComparison?.outbound.current_amount_cents) }}</strong>
-                    <div class="sales-comparison-detail">
-                      <span>上月同期 <b>{{ formatSalesAmount(adminMonthComparison?.outbound.previous_month_amount_cents) }}</b></span>
-                      <span class="sales-yoy" :class="{ negative: (adminMonthComparison?.outbound.month_over_month_percent ?? 0) < 0 }">
-                        环比 {{ formatYearOverYear(adminMonthComparison?.outbound.month_over_month_percent) }}
-                      </span>
-                    </div>
-                    <em>本月已录账单 {{ adminMonthComparison?.outbound.current_amount_order_count ?? 0 }}/{{ adminMonthComparison?.outbound.current_order_count ?? 0 }} 单</em>
-                  </article>
                 </div>
                 <div class="admin-month-trend-grid">
                   <article class="admin-month-trend-card tone-inbound">

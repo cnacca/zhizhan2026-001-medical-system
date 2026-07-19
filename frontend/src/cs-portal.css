@@ -262,6 +262,230 @@
   opacity: 0.64;
 }
 
+/* Dashboard body follows cs-portal.html#page-dashboard. */
+.cs-reference-dashboard-menu .prototype-dashboard-panel {
+  grid-column: 2;
+  gap: 18px;
+  min-width: 0;
+  margin: 0;
+  padding: 22px 26px 26px;
+  border: 0;
+  border-radius: 0;
+  background: var(--cs-off);
+  box-shadow: none;
+}
+
+.cs-reference-dashboard-menu .prototype-page-heading {
+  align-items: flex-start;
+  gap: 10px;
+}
+
+.cs-reference-dashboard-menu .prototype-page-heading h2 {
+  font-family: Lora, "Songti SC", serif;
+  font-size: 21px;
+  font-weight: 600;
+  line-height: 1.25;
+}
+
+.cs-reference-dashboard-menu .prototype-page-heading p {
+  margin-top: 3px;
+  color: var(--cs-muted);
+  font-size: 12px;
+}
+
+.cs-reference-dashboard-menu .prototype-primary-button {
+  min-height: 32px;
+  padding: 6px 14px;
+  border-radius: 8px;
+  background: var(--cs-violet);
+  box-shadow: 0 2px 8px rgba(124, 58, 237, .28);
+}
+
+.cs-reference-dashboard-menu .portal-dashboard-source-strip {
+  border-color: var(--cs-violet-line);
+  background: var(--cs-violet-soft);
+  color: var(--cs-violet);
+}
+
+.cs-reference-dashboard-menu .portal-dashboard-source-strip.is-warning {
+  border-color: #fde68a;
+  background: #fffbeb;
+  color: #b45309;
+}
+
+.cs-reference-dashboard-menu .prototype-metric-grid.metric-count-8 {
+  grid-template-columns: repeat(8, minmax(0, 1fr));
+  gap: 11px;
+}
+
+.cs-reference-dashboard-menu .prototype-metric-grid.metric-count-8 .prototype-stat-card {
+  min-height: 92px;
+  gap: 4px;
+  padding: 13px 14px 11px;
+  border-radius: 14px;
+  box-shadow: 0 1px 3px rgba(30, 27, 75, .06), 0 1px 2px rgba(30, 27, 75, .04);
+}
+
+.cs-reference-dashboard-menu .prototype-metric-grid.metric-count-8 .prototype-stat-label {
+  min-height: 26px;
+  font-size: 10px;
+  line-height: 1.3;
+}
+
+.cs-reference-dashboard-menu .prototype-metric-grid.metric-count-8 .prototype-stat-card strong {
+  font-family: Lora, "Songti SC", serif;
+  font-size: 22px;
+  font-weight: 600;
+}
+
+.cs-reference-dashboard-menu .prototype-metric-grid.metric-count-8 .prototype-stat-card small {
+  font-size: 10px;
+  line-height: 1.25;
+}
+
+.cs-reference-dashboard-menu .customer-dashboard-pair {
+  grid-template-columns: minmax(0, 1.6fr) minmax(280px, 1fr);
+  gap: 16px;
+  align-items: stretch;
+}
+
+.cs-reference-dashboard-menu .customer-attention-panel,
+.cs-reference-dashboard-menu .cs-dashboard-side-card {
+  border-radius: 14px;
+  box-shadow: 0 1px 3px rgba(30, 27, 75, .06), 0 1px 2px rgba(30, 27, 75, .04);
+}
+
+.cs-reference-dashboard-menu .customer-attention-panel > .prototype-panel-head,
+.cs-reference-dashboard-menu .cs-dashboard-side-card > .prototype-panel-head {
+  min-height: 38px;
+  padding: 9px 14px;
+  background: var(--cs-off);
+}
+
+.cs-reference-dashboard-menu .customer-attention-item {
+  min-height: 54px;
+  padding: 9px 13px;
+  border-top: 1px solid var(--cs-off-2);
+}
+
+.cs-reference-dashboard-menu .customer-attention-item strong {
+  font-size: 11px;
+}
+
+.cs-reference-dashboard-menu .customer-attention-item p,
+.cs-reference-dashboard-menu .customer-attention-item small {
+  font-size: 10px;
+  line-height: 1.35;
+}
+
+.cs-dashboard-side-stack {
+  display: grid;
+  align-content: start;
+  gap: 12px;
+  min-width: 0;
+}
+
+.cs-dashboard-side-label {
+  margin: -2px 0 -5px;
+  color: var(--cs-faint);
+  font-size: 10px;
+  font-weight: 700;
+}
+
+.cs-reference-dashboard-menu .cs-dashboard-side-card .prototype-attention-item {
+  min-height: 58px;
+  grid-template-columns: 8px minmax(0, 1fr) auto;
+  padding: 9px 13px;
+}
+
+.cs-reference-dashboard-menu .cs-business-board {
+  gap: 18px;
+  margin: 0;
+  padding: 0;
+  border: 0;
+  border-radius: 0;
+  background: transparent;
+  box-shadow: none;
+}
+
+.cs-reference-dashboard-menu .cs-business-board > .prototype-panel-head {
+  min-height: 0;
+  padding: 0;
+  border: 0;
+  background: transparent;
+}
+
+.cs-reference-dashboard-menu .cs-business-overview {
+  grid-template-columns: minmax(360px, 1fr) minmax(520px, 1.8fr);
+  gap: 16px;
+}
+
+.cs-reference-dashboard-menu .cs-month-card,
+.cs-reference-dashboard-menu .cs-annual-card,
+.cs-reference-dashboard-menu .cs-customer-rank-card {
+  border-radius: 14px;
+  box-shadow: 0 1px 3px rgba(30, 27, 75, .06), 0 1px 2px rgba(30, 27, 75, .04);
+}
+
+.cs-reference-dashboard-menu .cs-business-metric-grid {
+  gap: 8px;
+  padding: 14px 14px 0;
+}
+
+.cs-reference-dashboard-menu .cs-business-metric {
+  min-height: 80px;
+  padding: 11px 10px;
+  border-radius: 10px;
+  box-shadow: none;
+}
+
+.cs-reference-dashboard-menu .cs-business-metric small,
+.cs-reference-dashboard-menu .cs-business-metric em {
+  font-size: 9px;
+}
+
+.cs-reference-dashboard-menu .cs-business-metric strong {
+  margin: 6px 0 4px;
+  font-size: 18px;
+}
+
+.cs-reference-dashboard-menu .cs-week-rate-block {
+  margin: 14px;
+  padding-top: 12px;
+}
+
+.cs-reference-dashboard-menu .cs-week-rate-row {
+  min-height: 30px;
+}
+
+.cs-reference-dashboard-menu .cs-annual-chart {
+  min-height: 156px;
+  height: 156px;
+  padding-top: 0;
+}
+
+.cs-reference-dashboard-menu .cs-business-note {
+  padding-bottom: 12px;
+  font-size: 10px;
+}
+
+.cs-reference-dashboard-menu .cs-customer-rank-row {
+  min-height: 34px;
+  padding-top: 7px;
+  padding-bottom: 7px;
+}
+
+@media (max-width: 1100px) {
+  .cs-reference-dashboard-menu .prototype-metric-grid.metric-count-8 {
+    grid-template-columns: repeat(4, minmax(0, 1fr));
+  }
+
+  .cs-reference-dashboard-menu .customer-dashboard-pair,
+  .cs-reference-dashboard-menu .cs-business-overview {
+    grid-template-columns: minmax(0, 1fr);
+  }
+}
+
 .cs-reference-mode .route-panel {
   grid-column: 2;
   min-width: 0;

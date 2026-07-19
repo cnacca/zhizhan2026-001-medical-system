@@ -13,6 +13,8 @@ public record PhaseOneDashboardResponse(
         @JsonProperty("production_exception_count") long productionExceptionCount,
         @JsonProperty("pending_question_count") long pendingQuestionCount,
         @JsonProperty("shipping_rate") int shippingRate,
+        @JsonProperty("previous_month_shipping_rate") int previousMonthShippingRate,
+        @JsonProperty("previous_week_shipping_rate") int previousWeekShippingRate,
         @JsonProperty("completion_rate") int completionRate,
         @JsonProperty("source_note") String sourceNote,
         @JsonProperty("generated_at") LocalDateTime generatedAt) {

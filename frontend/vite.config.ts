@@ -1,4 +1,5 @@
 import vue from '@vitejs/plugin-vue'
+import { fileURLToPath } from 'node:url'
 import { defineConfig, type ProxyOptions } from 'vite'
 
 const backendProxy: ProxyOptions = {
@@ -16,6 +17,9 @@ const websocketTarget = process.env.VITE_WS_TARGET ?? 'ws://127.0.0.1:8080'
 export default defineConfig({
   plugins: [vue()],
   server: {
+    fs: {
+      allow: [fileURLToPath(new URL('..', import.meta.url))]
+    },
     port: 5173,
     proxy: {
       '/api': backendProxy,

@@ -290,23 +290,45 @@ const wizardStlCount = computed(() => wizard.files.filter((candidate) => candida
 const wizardReviewSummary = computed(() => wizard.reviewOptions.length ? wizard.reviewOptions.map((candidate) => reviewLabel(candidate)).join('、') : '不启用额外确认')
 const clinicRoleOptions = computed(() => (Object.entries(roleLabels) as Array<[ClinicRole, string]>).map(([value, name]) => ({ value, name })))
 const filePreviewName = computed(() => filePreview.value?.name ?? '')
+const dashboardAttentionCount = computed(() => (dataset.value?.orders ?? []).filter((item) => item.current_action !== 'NONE').length)
 const pendingTaskOrders = computed(() => (dataset.value?.orders ?? []).filter((item) => item.current_action !== 'NONE').slice(0, 5))
 const dashboardToday = computed(() => new Date().toLocaleDateString('sv-SE'))
+const dashboardGreeting = computed(() => {
+  const hour = new Date().getHours()
+  const greeting = hour < 12 ? '早上好' : hour < 18 ? '下午好' : '晚上好'
+  return `${greeting}，${account.value?.display_name || props.currentUser?.username || '医生'} 👋`
+})
+const dashboardContext = computed(() => {
+  const now = new Date()
+  const date = new Intl.DateTimeFormat('zh-CN', {
+    year: 'numeric',
+    month: 'long',
+    day: 'numeric'
+  }).format(now)
+  const weekday = new Intl.DateTimeFormat('zh-CN', { weekday: 'long' }).format(now)
+  return `${date} ${weekday} · ${account.value?.clinic_name || '当前诊所'} · ${dashboardAttentionCount.value} 项需要处理`
+})
 const dashboardStats = computed(() => {
   const items = dataset.value?.orders ?? []
   return [
-    { key: 'today', label: '今日订单', value: items.filter((item) => item.created_at.startsWith(dashboardToday.value)).length, note: '今日提交与草稿', tone: 'blue', icon: '▤' },
-    { key: 'production', label: '制作中', value: items.filter((item) => item.external_status === 'IN_PRODUCTION').length, note: '公开进度更新', tone: 'indigo', icon: '◉' },
-    { key: 'delivery', label: '即将送达', value: items.filter((item) => ['SHIPPED', 'DELIVERED_PENDING_CONFIRMATION'].includes(item.external_status)).length, note: '配送与收货', tone: 'amber', icon: '⌁' },
-    { key: 'reply', label: '待回复', value: dataset.value?.threads.filter((item) => item.unread).length ?? 0, note: '消息与沟通', tone: 'rose', icon: '◇' },
-    { key: 'review', label: '设计待确认', value: items.filter((item) => item.current_action.includes('REVIEW')).length, note: '确认后继续制作', tone: 'violet', icon: '✓' },
-    { key: 'due', label: '到期提醒', value: items.filter((item) => isDueSoon(item)).length, note: '预计日期临近', tone: 'orange', icon: '!' }
+    { key: 'today', label: '今日订单', value: items.filter((item) => item.created_at.startsWith(dashboardToday.value)).length, note: '今日提交与草稿', tone: 'blue', icon: '📦' },
+    { key: 'production', label: '制作中', value: items.filter((item) => item.external_status === 'IN_PRODUCTION').length, note: '公开进度更新', tone: 'indigo', icon: '🔬' },
+    { key: 'delivery', label: '即将送达', value: items.filter((item) => ['SHIPPED', 'DELIVERED_PENDING_CONFIRMATION'].includes(item.external_status)).length, note: '配送与收货', tone: 'amber', icon: '🚀' },
+    { key: 'reply', label: '待回复', value: dataset.value?.threads.filter((item) => item.unread).length ?? 0, note: '消息与沟通', tone: 'rose', icon: '⚠️' },
+    { key: 'review', label: '设计待确认', value: items.filter((item) => item.current_action.includes('REVIEW')).length, note: '确认后继续制作', tone: 'violet', icon: '✏️' },
+    { key: 'due', label: '到期提醒', value: items.filter((item) => isDueSoon(item)).length, note: '预计日期临近', tone: 'orange', icon: '🕐' }
   ]
 })
 const dashboardUpcomingOrders = computed(() => (dataset.value?.orders ?? [])
   .filter((item) => item.due_at !== '-' && item.external_status !== 'COMPLETED')
   .sort((left, right) => left.due_at.localeCompare(right.due_at))
   .slice(0, 3))
+const dashboardDeliveryOrders = computed(() => dashboardUpcomingOrders.value.filter((item) =>
+  ['SHIPPED', 'DELIVERED_PENDING_CONFIRMATION'].includes(item.external_status)
+))
+const dashboardDueOrders = computed(() => dashboardUpcomingOrders.value.filter((item) =>
+  !['SHIPPED', 'DELIVERED_PENDING_CONFIRMATION'].includes(item.external_status)
+))
 const dashboardWeeklyCounts = computed(() => {
   const counts = [0, 0, 0, 0, 0, 0]
   const today = new Date(`${dashboardToday.value}T12:00:00`)
@@ -946,7 +968,7 @@ onBeforeUnmount(() => window.removeEventListener('keydown', handleGlobalShortcut
       </div>
 
       <main class="dv2-content">
-        <div class="dv2-page-heading">
+        <div v-if="activePage !== 'dashboard'" class="dv2-page-heading">
           <div><h1>{{ currentMeta.title }}</h1><p>{{ currentMeta.description }}</p></div>
           <span v-if="dataMode === 'mock'" class="dv2-demo-chip">二期前端预览</span>
         </div>
@@ -955,11 +977,11 @@ onBeforeUnmount(() => window.removeEventListener('keydown', handleGlobalShortcut
         <div v-else-if="loadError" class="dv2-error-card"><strong>页面数据暂时不可用</strong><p>{{ loadError }}</p><button type="button" @click="loadPortal">重新加载</button></div>
 
         <template v-else-if="dataset">
-          <section v-if="activePage === 'dashboard'" class="dv2-dashboard" data-testid="doctor-page-dashboard">
-            <section class="dv2-dashboard-welcome">
-              <div><small>医生工作台</small><h2>早上好，{{ account?.display_name || '医生' }}</h2><p>今日订单、确认事项、沟通消息和交付提醒集中在这里。</p></div>
+          <section v-if="activePage === 'dashboard'" class="dv2-dashboard dv2-reference-dashboard" data-testid="doctor-page-dashboard">
+            <header class="dv2-dashboard-reference-heading">
+              <div><h2>{{ dashboardGreeting }}</h2><p>{{ dashboardContext }}</p></div>
               <button type="button" class="dv2-primary-button" @click="switchPage('orders')">进入订单管理</button>
-            </section>
+            </header>
 
             <div class="dv2-metric-grid is-six">
               <article v-for="item in dashboardStats" :key="item.key" :class="`is-${item.tone}`">
@@ -967,31 +989,57 @@ onBeforeUnmount(() => window.removeEventListener('keydown', handleGlobalShortcut
               </article>
             </div>
 
-            <div class="dv2-dashboard-grid is-balanced">
-              <section class="dv2-card dv2-task-card">
-                <header><div><h2>需要处理</h2><p>优先处理会阻塞订单继续推进的事项</p></div><button type="button" @click="switchPage('orders')">{{ pendingTaskOrders.length }} 项 · 查看全部 →</button></header>
-                <button v-for="order in pendingTaskOrders.slice(0, 3)" :key="order.order_id" type="button" class="dv2-task-row" @click="openOrder(order.order_id, order.current_action.includes('REVIEW') ? 'reviews' : 'overview')">
-                  <span :class="`dv2-dot is-${statusTone(order.external_status)}`" />
-                  <div><strong>{{ label(order.current_action) }}</strong><small>{{ order.order_no }} · {{ order.patient_name }} · {{ order.product_name }}</small></div>
-                  <time>{{ order.due_at }}</time><i>›</i>
-                </button>
-                <div v-if="!pendingTaskOrders.length" class="dv2-empty">暂无待处理事项</div>
-              </section>
+            <div class="dv2-dashboard-reference-columns">
+              <div class="dv2-dashboard-reference-section">
+                <div class="dv2-dashboard-section-label"><span>🔴</span>需要处理</div>
+                <section class="dv2-card dv2-task-card dv2-reference-action-list">
+                  <header><div><h2>需要处理</h2><p>优先处理会阻塞订单继续推进的事项</p></div><button type="button" @click="switchPage('orders')">{{ pendingTaskOrders.length }} 项 · 查看全部 →</button></header>
+                  <button v-for="order in pendingTaskOrders.slice(0, 4)" :key="order.order_id" type="button" class="dv2-task-row" @click="openOrder(order.order_id, order.current_action.includes('REVIEW') ? 'reviews' : 'overview')">
+                    <span :class="`dv2-dot is-${statusTone(order.external_status)}`" />
+                    <div><strong>{{ label(order.current_action) }}</strong><small>{{ order.order_no }} · {{ order.patient_name }} · {{ order.product_name }}</small></div>
+                    <time>{{ order.due_at }}</time><i>›</i>
+                  </button>
+                  <div v-if="!pendingTaskOrders.length" class="dv2-empty">暂无待处理事项</div>
+                </section>
+              </div>
 
-              <section class="dv2-card dv2-task-card">
-                <header><div><h2>即将送达 / 到期</h2><p>根据医生可见预计日期排序</p></div><span>{{ dashboardUpcomingOrders.length }} 单</span></header>
-                <button v-for="order in dashboardUpcomingOrders" :key="order.order_id" type="button" class="dv2-task-row" @click="openOrder(order.order_id)">
-                  <span :class="`dv2-dot is-${isDueSoon(order) ? 'warning' : statusTone(order.external_status)}`" />
-                  <div><strong>{{ order.patient_name }} · {{ order.product_name }}</strong><small>{{ order.order_no }} · {{ label(order.external_status) }}</small></div>
-                  <time>预计 {{ order.due_at }}</time><i>›</i>
-                </button>
-                <div v-if="!dashboardUpcomingOrders.length" class="dv2-empty">暂无临近交付订单</div>
-              </section>
+              <div class="dv2-dashboard-reference-stack">
+                <div class="dv2-dashboard-reference-section">
+                  <div class="dv2-dashboard-section-label"><span>🚚</span>即将送达</div>
+                  <section class="dv2-card dv2-task-card dv2-reference-compact-list">
+                    <header><div><h2>配送与收货</h2><p>医生可见的在途订单</p></div><span>{{ dashboardDeliveryOrders.length }} 单</span></header>
+                    <button v-for="order in dashboardDeliveryOrders" :key="order.order_id" type="button" class="dv2-task-row" @click="openOrder(order.order_id)">
+                      <span :class="`dv2-dot is-${statusTone(order.external_status)}`" />
+                      <div><strong>{{ order.patient_name }} · {{ order.product_name }}</strong><small>{{ order.order_no }} · {{ label(order.external_status) }}</small></div>
+                      <time>预计 {{ order.due_at }}</time><i>›</i>
+                    </button>
+                    <div v-if="!dashboardDeliveryOrders.length" class="dv2-empty">暂无在途订单</div>
+                  </section>
+                </div>
+                <div class="dv2-dashboard-reference-section">
+                  <div class="dv2-dashboard-section-label"><span>🕐</span>到期提醒</div>
+                  <section class="dv2-card dv2-task-card dv2-reference-compact-list">
+                    <header><div><h2>临近交付订单</h2><p>根据预计日期排序</p></div><span>{{ dashboardDueOrders.length }} 单</span></header>
+                    <button v-for="order in dashboardDueOrders" :key="order.order_id" type="button" class="dv2-task-row" @click="openOrder(order.order_id)">
+                      <span class="dv2-dot is-warning" />
+                      <div><strong>{{ order.patient_name }} · {{ order.product_name }}</strong><small>{{ order.order_no }} · {{ label(order.external_status) }}</small></div>
+                      <time>预计 {{ order.due_at }}</time><i>›</i>
+                    </button>
+                    <div v-if="!dashboardDueOrders.length" class="dv2-empty">暂无临近交付订单</div>
+                  </section>
+                </div>
+              </div>
             </div>
 
-            <section class="dv2-card dv2-dashboard-trend">
+            <section class="dv2-card dv2-dashboard-trend dv2-reference-performance">
               <header><div><h2>医生工作台趋势图</h2><p>近 6 周医生可见订单创建趋势</p></div><span>近 6 周</span></header>
-              <div class="dv2-dashboard-trend-body">
+              <div class="dv2-trend-summary dv2-reference-trend-summary">
+                <article class="is-blue"><small>本月订单</small><strong>{{ dataset.orders.filter((item) => item.created_at.startsWith(dashboardToday.slice(0, 7))).length }}</strong><i /></article>
+                <article class="is-violet"><small>待确认</small><strong>{{ dataset.orders.filter((item) => item.current_action.includes('REVIEW')).length }}</strong><i /></article>
+                <article class="is-amber"><small>待付款</small><strong>{{ dataset.orders.filter((item) => item.current_action === 'PAYMENT_REQUIRED').length }}</strong><i /></article>
+                <article class="is-green"><small>已完成</small><strong>{{ dataset.orders.filter((item) => item.external_status === 'COMPLETED').length }}</strong><i /></article>
+              </div>
+              <div class="dv2-dashboard-trend-body dv2-reference-trend-body">
                 <div class="dv2-trend-chart">
                   <svg viewBox="0 0 560 132" role="img" aria-label="近六周订单趋势">
                     <line v-for="y in [32, 68, 104]" :key="y" x1="20" :y1="y" x2="548" :y2="y" />
@@ -999,12 +1047,6 @@ onBeforeUnmount(() => window.removeEventListener('keydown', handleGlobalShortcut
                     <circle v-for="(value, index) in dashboardWeeklyCounts" :key="index" :cx="24 + index * 103" :cy="104 - Math.round(value / dashboardTrendMax * 72)" r="4" />
                   </svg>
                   <div><span v-for="index in 6" :key="index">第{{ index }}周</span></div>
-                </div>
-                <div class="dv2-trend-summary">
-                  <article><small>本月订单</small><strong>{{ dataset.orders.filter((item) => item.created_at.startsWith(dashboardToday.slice(0, 7))).length }}</strong><i /></article>
-                  <article><small>待确认</small><strong>{{ dataset.orders.filter((item) => item.current_action.includes('REVIEW')).length }}</strong><i /></article>
-                  <article><small>待付款</small><strong>{{ dataset.orders.filter((item) => item.current_action === 'PAYMENT_REQUIRED').length }}</strong><i /></article>
-                  <article><small>已完成</small><strong>{{ dataset.orders.filter((item) => item.external_status === 'COMPLETED').length }}</strong><i /></article>
                 </div>
               </div>
             </section>
