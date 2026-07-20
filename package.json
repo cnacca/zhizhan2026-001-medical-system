@@ -28,6 +28,7 @@
     "check:admin-dashboard-workbench": "node scripts/check-admin-dashboard-workbench.mjs",
     "check:feedback-20260713": "node scripts/check-feedback-20260713-browser-acceptance.mjs",
     "check:cs-portal-pixel-smoke": "node scripts/check-cs-portal-pixel-smoke.mjs",
+    "check:customer-management-v2": "node scripts/check-customer-management-v2.mjs",
   "check:local-main-chain-acceptance-hardening": "node scripts/check-local-main-chain-acceptance-hardening.mjs",
   "check:ai-production-governance-local-hardening": "node scripts/check-ai-production-governance-local-hardening.mjs",
   "check:deployment-ops-local-hardening": "node scripts/check-deployment-ops-local-hardening.mjs",

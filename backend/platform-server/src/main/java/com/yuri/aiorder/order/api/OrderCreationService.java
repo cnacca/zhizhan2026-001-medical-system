@@ -46,8 +46,10 @@ public class OrderCreationService {
     public CreateOrderResponse createOrder(CreateOrderRequest request, BootstrapIdentity identity) {
         accessControlService.requireDoctorOnly(identity, "only doctors can create orders");
         accessControlService.requireScopedIdentity(identity, "CLINIC");
+        ensureClinicCanOrder(identity.clinicId());
 
         String productType = normalizeProductType(request.productType());
+        PriceSnapshot priceSnapshot = resolvePriceSnapshot(identity.clinicId(), productType);
         boolean draft = Boolean.TRUE.equals(request.draft());
         validateFormData(productType, request.formData(), !draft);
         validateOwnedPatient(request.patientId(), identity);
@@ -57,10 +59,12 @@ public class OrderCreationService {
         String orderNo = nextOrderNo();
         jdbcClient.sql("""
                         INSERT INTO orders
-                            (order_no, clinic_id, doctor_user_id, patient_id, product_type, form_data,
+                            (order_no, clinic_id, doctor_user_id, patient_id, product_type,
+                             quoted_price_cents, quoted_price_currency, pricing_source, form_data,
                              internal_status, external_status)
                         VALUES
-                            (:orderNo, :clinicId, :doctorUserId, :patientId, :productType, CAST(:formData AS JSON),
+                            (:orderNo, :clinicId, :doctorUserId, :patientId, :productType,
+                             :quotedPriceCents, :quotedPriceCurrency, :pricingSource, CAST(:formData AS JSON),
                              'DRAFT', 'DRAFT')
                         """)
                 .param("orderNo", orderNo)
@@ -68,6 +72,9 @@ public class OrderCreationService {
                 .param("doctorUserId", identity.userId())
                 .param("patientId", request.patientId())
                 .param("productType", productType)
+                .param("quotedPriceCents", priceSnapshot.priceCents())
+                .param("quotedPriceCurrency", priceSnapshot.currency())
+                .param("pricingSource", priceSnapshot.source())
                 .param("formData", writeJson(request.formData()))
                 .update();
         long orderId = jdbcClient.sql("SELECT order_id FROM orders WHERE order_no = :orderNo")
@@ -95,10 +102,12 @@ public class OrderCreationService {
     public CreateOrderResponse updateDoctorOrder(long orderId, UpdateOrderRequest request, BootstrapIdentity identity) {
         accessControlService.requireDoctorOnly(identity, "only doctors can update orders");
         accessControlService.requireScopedIdentity(identity, "CLINIC");
+        ensureClinicCanOrder(identity.clinicId());
 
         DoctorEditableOrder order = loadDoctorEditableOrder(orderId, identity);
         boolean submit = Boolean.TRUE.equals(request.submit());
         String productType = normalizeProductType(request.productType());
+        PriceSnapshot priceSnapshot = resolvePriceSnapshot(identity.clinicId(), productType);
         validateEditableStatus(order.internalStatus(), submit);
         validateFormData(productType, request.formData(), submit);
         validateOwnedPatient(request.patientId(), identity);
@@ -108,12 +117,18 @@ public class OrderCreationService {
         jdbcClient.sql("""
                         UPDATE orders
                         SET product_type = :productType,
+                            quoted_price_cents = :quotedPriceCents,
+                            quoted_price_currency = :quotedPriceCurrency,
+                            pricing_source = :pricingSource,
                             patient_id = :patientId,
                             form_data = CAST(:formData AS JSON),
                             reject_reason = CASE WHEN :submit THEN NULL ELSE reject_reason END
                         WHERE order_id = :orderId
                         """)
                 .param("productType", productType)
+                .param("quotedPriceCents", priceSnapshot.priceCents())
+                .param("quotedPriceCurrency", priceSnapshot.currency())
+                .param("pricingSource", priceSnapshot.source())
                 .param("patientId", request.patientId())
                 .param("formData", writeJson(request.formData()))
                 .param("submit", submit)
@@ -161,6 +176,66 @@ public class OrderCreationService {
                 throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "missing required field: " + field.fieldKey());
             }
         }
+    }
+
+    private void ensureClinicCanOrder(Long clinicId) {
+        if (clinicId == null) {
+            throw new ResponseStatusException(HttpStatus.FORBIDDEN, "doctor clinic scope is required");
+        }
+        ClinicOrderGate gate;
+        try {
+            gate = jdbcClient.sql("""
+                            SELECT c.status,
+                                   EXISTS (
+                                       SELECT 1 FROM clinic_blacklist_record blacklist
+                                       WHERE blacklist.clinic_id = c.clinic_id
+                                         AND blacklist.blacklist_status = 'ACTIVE'
+                                   ) AS blacklisted
+                            FROM clinic c
+                            WHERE c.clinic_id = :clinicId
+                              AND c.status <> 'DELETED'
+                            """)
+                    .param("clinicId", clinicId)
+                    .query((rs, rowNum) -> new ClinicOrderGate(
+                            rs.getString("status"), rs.getBoolean("blacklisted")))
+                    .single();
+        } catch (EmptyResultDataAccessException ex) {
+            throw new ResponseStatusException(HttpStatus.FORBIDDEN, "clinic is not available", ex);
+        }
+        if (gate.blacklisted()) {
+            throw new ResponseStatusException(
+                    HttpStatus.CONFLICT,
+                    "CLINIC_BLACKLISTED: 当前客户已被限制下单，请联系平台客服");
+        }
+        if (!"ACTIVE".equals(gate.status())) {
+            throw new ResponseStatusException(HttpStatus.CONFLICT, "CLINIC_INACTIVE: 当前客户已停用");
+        }
+    }
+
+    private PriceSnapshot resolvePriceSnapshot(Long clinicId, String productType) {
+        return jdbcClient.sql("""
+                        SELECT COALESCE(cpp.price_cents, product.base_price_cents) AS price_cents,
+                               COALESCE(cpp.currency, product.currency) AS currency,
+                               CASE WHEN cpp.clinic_product_price_id IS NULL
+                                    THEN 'BASE_PRICE' ELSE 'CUSTOMER_PRICE' END AS pricing_source
+                        FROM product_catalog product
+                        LEFT JOIN clinic_product_price cpp
+                          ON cpp.product_id = product.product_id
+                         AND cpp.clinic_id = :clinicId
+                         AND cpp.status = 'ACTIVE'
+                         AND (cpp.effective_from IS NULL OR cpp.effective_from <= CURRENT_DATE)
+                         AND (cpp.effective_until IS NULL OR cpp.effective_until >= CURRENT_DATE)
+                        WHERE product.product_type = :productType
+                          AND product.status = 'ACTIVE'
+                        """)
+                .param("clinicId", clinicId)
+                .param("productType", productType)
+                .query((rs, rowNum) -> new PriceSnapshot(
+                        rs.getObject("price_cents", Long.class),
+                        rs.getString("currency"),
+                        rs.getString("pricing_source")))
+                .optional()
+                .orElse(new PriceSnapshot(null, null, null));
     }
 
     private boolean isMissing(JsonNode value) {
@@ -331,5 +406,11 @@ public class OrderCreationService {
             Long doctorUserId,
             String internalStatus,
             String externalStatus) {
+    }
+
+    private record ClinicOrderGate(String status, boolean blacklisted) {
+    }
+
+    private record PriceSnapshot(Long priceCents, String currency, String source) {
     }
 }

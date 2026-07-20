@@ -443,6 +443,10 @@ components:
       required:
       - clinic_name
       properties:
+        clinic_code:
+          type: string
+          nullable: true
+          description: 客户编码；未填写时由服务端生成 KH 开头编码。
         clinic_name:
           type: string
           example: 本地测试诊所
@@ -452,12 +456,38 @@ components:
         contact_phone:
           type: string
           nullable: true
+        contact_email:
+          type: string
+          nullable: true
+        business_region:
+          type: string
+          nullable: true
+        salesperson:
+          type: string
+          nullable: true
+        customer_type:
+          type: string
+          nullable: true
+        settlement_type:
+          type: string
+          nullable: true
+        organization_nature:
+          type: string
+          nullable: true
+        business_level:
+          type: string
+          nullable: true
+        default_shipping_method:
+          type: string
+          nullable: true
     Clinic:
       type: object
-      description: 一期诊所档案基础视图，不包含定价体系、开户审批或真实客户导入结果。
+      description: 客户主档列表视图；客户专属价格、单据模板、黑名单和子档案通过 management 接口维护。
       properties:
         clinic_id:
           type: integer
+        clinic_code:
+          type: string
         clinic_name:
           type: string
         contact_name:
@@ -466,8 +496,34 @@ components:
         contact_phone:
           type: string
           nullable: true
+        contact_email:
+          type: string
+          nullable: true
+        business_region:
+          type: string
+          nullable: true
+        salesperson:
+          type: string
+          nullable: true
+        customer_type:
+          type: string
+          nullable: true
+        settlement_type:
+          type: string
+          nullable: true
+        organization_nature:
+          type: string
+          nullable: true
+        business_level:
+          type: string
+          nullable: true
+        default_shipping_method:
+          type: string
+          nullable: true
         status:
           type: string
+        blacklisted:
+          type: boolean
         preference_count:
           type: integer
         created_at:
@@ -489,6 +545,155 @@ components:
           type: integer
         size:
           type: integer
+    ClinicManagementRequest:
+      type: object
+      required:
+      - clinic_code
+      - clinic_name
+      properties:
+        clinic_code:
+          type: string
+        clinic_name:
+          type: string
+        contact_name:
+          type: string
+          nullable: true
+        contact_phone:
+          type: string
+          nullable: true
+        contact_email:
+          type: string
+          nullable: true
+        business_region:
+          type: string
+          nullable: true
+        salesperson:
+          type: string
+          nullable: true
+        customer_type:
+          type: string
+          nullable: true
+        settlement_type:
+          type: string
+          nullable: true
+        organization_nature:
+          type: string
+          nullable: true
+        business_level:
+          type: string
+          nullable: true
+        default_shipping_method:
+          type: string
+          nullable: true
+        status:
+          type: string
+        invoice_profile:
+          type: object
+          additionalProperties: true
+        addresses:
+          type: array
+          items:
+            type: object
+            additionalProperties: true
+        doctors:
+          type: array
+          items:
+            type: object
+            additionalProperties: true
+        documents:
+          type: array
+          items:
+            type: object
+            additionalProperties: true
+        prices:
+          type: array
+          items:
+            type: object
+            additionalProperties: true
+        preferences:
+          type: object
+          additionalProperties: true
+        template_bindings:
+          type: array
+          items:
+            type: object
+            required:
+            - document_type
+            - template_id
+            properties:
+              document_type:
+                type: string
+              template_id:
+                type: integer
+    ClinicManagementResponse:
+      type: object
+      description: 客户主档、开票、收货地址、主要医生、资质合同、专属价格、打印模板、偏好、黑名单与审计记录的聚合视图。
+      properties:
+        clinic:
+          "$ref": "#/components/schemas/Clinic"
+        invoice_profile:
+          type: object
+          nullable: true
+          additionalProperties: true
+        addresses:
+          type: array
+          items:
+            type: object
+            additionalProperties: true
+        doctors:
+          type: array
+          items:
+            type: object
+            additionalProperties: true
+        documents:
+          type: array
+          items:
+            type: object
+            additionalProperties: true
+        prices:
+          type: array
+          items:
+            type: object
+            additionalProperties: true
+        preferences:
+          type: object
+          additionalProperties: true
+        available_templates:
+          type: array
+          items:
+            type: object
+            additionalProperties: true
+        template_bindings:
+          type: array
+          items:
+            type: object
+            additionalProperties: true
+        blacklist:
+          type: object
+          nullable: true
+          additionalProperties: true
+        change_logs:
+          type: array
+          items:
+            type: object
+            additionalProperties: true
+    BlacklistClinicRequest:
+      type: object
+      required:
+      - reason
+      properties:
+        reason:
+          type: string
+        overdue_amount_cents:
+          type: integer
+          nullable: true
+    ReleaseClinicBlacklistRequest:
+      type: object
+      required:
+      - release_reason
+      properties:
+        release_reason:
+          type: string
     ClinicPreference:
       type: object
       description: 一期客户偏好基础视图；医生只能读取本人诊所偏好，CS / ADMIN 可覆盖维护。
@@ -4468,6 +4673,179 @@ paths:
         '503':
           "$ref": "#/components/responses/ServiceUnavailable"
       operationId: getClinicsByClinicId
+  "/clinics/{clinicId}/management":
+    get:
+      tags:
+      - Clinic
+      summary: 获取客户完整管理档案
+      description: 权限：CS / ADMIN。聚合返回开票、地址、医生、资质合同、专属价格、打印模板、黑名单和审计记录。
+      parameters:
+      - name: clinicId
+        in: path
+        required: true
+        schema:
+          type: integer
+      responses:
+        '200':
+          description: 客户完整管理档案
+          content:
+            application/json:
+              schema:
+                allOf:
+                - "$ref": "#/components/schemas/CommonResponse"
+                - type: object
+                  properties:
+                    data:
+                      "$ref": "#/components/schemas/ClinicManagementResponse"
+        '400':
+          "$ref": "#/components/responses/BadRequest"
+        '401':
+          "$ref": "#/components/responses/Unauthorized"
+        '403':
+          "$ref": "#/components/responses/Forbidden"
+        '404':
+          "$ref": "#/components/responses/NotFound"
+        '409':
+          "$ref": "#/components/responses/Conflict"
+        default:
+          "$ref": "#/components/responses/DefaultError"
+        '503':
+          "$ref": "#/components/responses/ServiceUnavailable"
+      operationId: getClinicManagement
+    put:
+      tags:
+      - Clinic
+      summary: 覆盖保存客户完整管理档案
+      description: 权限：CS / ADMIN。黑名单操作不由普通档案保存覆盖。
+      parameters:
+      - name: clinicId
+        in: path
+        required: true
+        schema:
+          type: integer
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              "$ref": "#/components/schemas/ClinicManagementRequest"
+      responses:
+        '200':
+          description: 保存后的完整管理档案
+          content:
+            application/json:
+              schema:
+                allOf:
+                - "$ref": "#/components/schemas/CommonResponse"
+                - type: object
+                  properties:
+                    data:
+                      "$ref": "#/components/schemas/ClinicManagementResponse"
+        '400':
+          "$ref": "#/components/responses/BadRequest"
+        '401':
+          "$ref": "#/components/responses/Unauthorized"
+        '403':
+          "$ref": "#/components/responses/Forbidden"
+        '404':
+          "$ref": "#/components/responses/NotFound"
+        '409':
+          "$ref": "#/components/responses/Conflict"
+        default:
+          "$ref": "#/components/responses/DefaultError"
+        '503':
+          "$ref": "#/components/responses/ServiceUnavailable"
+      operationId: putClinicManagement
+  "/clinics/{clinicId}/blacklist":
+    post:
+      tags:
+      - Clinic
+      summary: 将客户加入黑名单
+      description: 权限：CS / ADMIN。生效后该客户下医生无法新建或提交订单。
+      parameters:
+      - name: clinicId
+        in: path
+        required: true
+        schema:
+          type: integer
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              "$ref": "#/components/schemas/BlacklistClinicRequest"
+      responses:
+        '200':
+          description: 黑名单已生效
+          content:
+            application/json:
+              schema:
+                allOf:
+                - "$ref": "#/components/schemas/CommonResponse"
+                - type: object
+                  properties:
+                    data:
+                      "$ref": "#/components/schemas/ClinicManagementResponse"
+        '400':
+          "$ref": "#/components/responses/BadRequest"
+        '401':
+          "$ref": "#/components/responses/Unauthorized"
+        '403':
+          "$ref": "#/components/responses/Forbidden"
+        '404':
+          "$ref": "#/components/responses/NotFound"
+        '409':
+          "$ref": "#/components/responses/Conflict"
+        default:
+          "$ref": "#/components/responses/DefaultError"
+        '503':
+          "$ref": "#/components/responses/ServiceUnavailable"
+      operationId: postClinicBlacklist
+  "/clinics/{clinicId}/blacklist/release":
+    post:
+      tags:
+      - Clinic
+      summary: 解除客户黑名单
+      description: 权限：CS / ADMIN。解除原因写入审计记录。
+      parameters:
+      - name: clinicId
+        in: path
+        required: true
+        schema:
+          type: integer
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              "$ref": "#/components/schemas/ReleaseClinicBlacklistRequest"
+      responses:
+        '200':
+          description: 黑名单已解除
+          content:
+            application/json:
+              schema:
+                allOf:
+                - "$ref": "#/components/schemas/CommonResponse"
+                - type: object
+                  properties:
+                    data:
+                      "$ref": "#/components/schemas/ClinicManagementResponse"
+        '400':
+          "$ref": "#/components/responses/BadRequest"
+        '401':
+          "$ref": "#/components/responses/Unauthorized"
+        '403':
+          "$ref": "#/components/responses/Forbidden"
+        '404':
+          "$ref": "#/components/responses/NotFound"
+        '409':
+          "$ref": "#/components/responses/Conflict"
+        default:
+          "$ref": "#/components/responses/DefaultError"
+        '503':
+          "$ref": "#/components/responses/ServiceUnavailable"
+      operationId: postClinicBlacklistRelease
   "/clinics/{clinicId}/preference":
     get:
       tags:

@@ -48,8 +48,8 @@ const dataReadiness = {
   },
   customers: {
     label: '客户列表',
-    dataSelector: '.cs-r-customer-grid > button',
-    emptyTexts: ['没有符合条件的客户']
+    dataSelector: '.cmp-customer-grid article',
+    emptyTexts: ['没有符合当前条件的客户']
   },
   products: {
     label: '产品列表',
@@ -203,7 +203,7 @@ async function waitForVisibleDataOrEmpty(page, readiness) {
     if (error) return { kind: 'error', text: error.textContent?.trim() || '页面显示未知错误' }
     const data = [...document.querySelectorAll(dataSelector)].find((element) => isVisible(element))
     if (data) return { kind: 'data' }
-    const empty = [...document.querySelectorAll('.cs-r-state')].find((element) => {
+    const empty = [...document.querySelectorAll('.cs-r-state, .cmp-state')].find((element) => {
       if (!isVisible(element)) return false
       const text = element.textContent?.trim() || ''
       return emptyTexts.some((expected) => text.includes(expected))
@@ -335,21 +335,21 @@ async function interactWithCustomers(page) {
   await clickMatchingButtonIfVisible(page, /^资料待完善(?:\s|\d|$)/)
   await clickMatchingButtonIfVisible(page, /^全部客户(?:\s|\d|$)/)
   if (ready.kind === 'empty') return `明确空态：${ready.text}`
-  const card = page.locator('.cs-r-customer-grid > button').first()
+  const card = page.locator('.cmp-customer-grid article').first()
   await card.waitFor({ state: 'visible', timeout: timeoutMs })
-  await card.click()
-  const dialog = page.locator('.el-dialog.cs-r-customer-dialog')
-  await assertContainerWidth(dialog, 860, '客户详情弹窗')
-  for (const required of ['诊所客户', '医生成员接口尚未接入客服端', '制作偏好', '商务条款尚未建立独立数据模型', '真实订单记录']) {
+  await card.getByRole('button', { name: '管理档案 →', exact: true }).click()
+  const dialog = page.locator('.el-dialog.cmp-detail-dialog')
+  await assertContainerWidth(dialog, 960, '客户完整档案弹窗')
+  for (const required of ['客户主档', '开票信息', '收货地址与发货方式', '主要医生及联系方式', '资质证件与合同管理', '客户专属产品价格', '客户单据与打印模板', '制作偏好', '黑名单与下单风险', '操作记录']) {
     await dialog.getByText(required, { exact: true }).waitFor({ state: 'visible', timeout: timeoutMs })
   }
-  if (await dialog.locator('.cs-r-detail-tabs').count()) throw new Error('客户详情仍显示页签')
-  const preferenceText = await dialog.innerText()
-  if (preferenceText.includes('[object Object]')) throw new Error('客户制作偏好仍显示 [object Object]')
-  const close = page.getByRole('button', { name: '关闭客户详情', exact: true }).first()
+  if (await dialog.locator('.cs-r-detail-tabs').count()) throw new Error('客户完整档案仍显示页签')
+  const dialogText = await dialog.innerText()
+  if (dialogText.includes('[object Object]')) throw new Error('客户完整档案仍显示 [object Object]')
+  const close = dialog.getByRole('button', { name: '关闭', exact: true })
   await close.waitFor({ state: 'visible', timeout: timeoutMs })
   await close.click()
-  return '已验证 860px 客户弹窗、五个连续内容区与结构化偏好渲染'
+  return '已验证 960px 客户完整档案、十个连续内容区、专属价格、打印模板与黑名单状态'
 }
 
 async function interactWithProducts(page) {

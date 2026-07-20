@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import { computed, ref, watch } from 'vue'
+import CustomerManagementPage from './CustomerManagementPage.vue'
 
 type AuthMenu = {
   menuCode: string
@@ -1703,6 +1704,10 @@ watch(billingTab, (tab) => {
     </template>
 
     <template v-else-if="activeRoute === '/cs/customers'">
+      <CustomerManagementPage :token="token" />
+    </template>
+
+    <template v-else-if="activeRoute === '/__legacy-customers' && selectedClinic">
       <header class="cs-r-heading"><div><h1>客户管理</h1><p>查看诊所基础档案、联系人和制作偏好；仅展示接口返回的真实资料状态。</p></div><button class="cs-r-primary" type="button" disabled title="当前后端仅允许管理端创建诊所业务档案">＋ 新增客户</button></header>
       <div v-if="incompleteClinics.length || inactiveClinics.length" class="cs-r-client-alerts">
         <div v-if="incompleteClinics.length" class="cs-r-client-alert is-amber"><span>⚠</span><div><strong>{{ incompleteClinics.length }} 个客户资料待完善</strong><p>仅按真实联系人、联系电话和制作偏好字段判断：{{ incompleteClinics.map(item => item.clinic_name).join('、') }}</p></div></div>

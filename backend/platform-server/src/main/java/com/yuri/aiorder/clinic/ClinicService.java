@@ -8,6 +8,8 @@ import com.yuri.aiorder.common.UserRole;
 import com.yuri.aiorder.common.auth.AccessControlService;
 import com.yuri.aiorder.order.api.OrderProjectionQueryService.OrderListResponse;
 import java.time.LocalDateTime;
+import java.util.Locale;
+import java.util.UUID;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
@@ -43,7 +45,7 @@ public class ClinicService {
         int offset = (safePage - 1) * safeSize;
         String whereClause = (keyword == null || keyword.isBlank())
                 ? "WHERE c.status <> 'DELETED'"
-                : "WHERE c.status <> 'DELETED' AND (c.clinic_name LIKE :keyword OR c.contact_name LIKE :keyword)";
+                : "WHERE c.status <> 'DELETED' AND (c.clinic_code LIKE :keyword OR c.clinic_name LIKE :keyword OR c.contact_name LIKE :keyword OR c.contact_phone LIKE :keyword)";
 
         JdbcClient.StatementSpec listSpec = bindKeyword(jdbcClient.sql("""
                         %s
@@ -68,19 +70,44 @@ public class ClinicService {
     public ClinicResponse createClinic(CreateClinicRequest request, BootstrapIdentity identity) {
         accessControlService.requireAnyRole(identity, Set.of(UserRole.ADMIN), "clinic creation requires ADMIN role");
         String clinicName = normalizeRequired(request.clinicName(), "clinic_name is required");
+        String requestedCode = normalizeClinicCode(request.clinicCode());
+        String temporaryCode = requestedCode == null
+                ? "TMP" + UUID.randomUUID().toString().replace("-", "").substring(0, 20).toUpperCase(Locale.ROOT)
+                : requestedCode;
         try {
             jdbcClient.sql("""
-                            INSERT INTO clinic (clinic_name, contact_name, contact_phone, status)
-                            VALUES (:clinicName, :contactName, :contactPhone, 'ACTIVE')
+                            INSERT INTO clinic (
+                                clinic_code, clinic_name, contact_name, contact_phone, contact_email,
+                                business_region, salesperson, customer_type, settlement_type,
+                                organization_nature, business_level, default_shipping_method, status)
+                            VALUES (
+                                :clinicCode, :clinicName, :contactName, :contactPhone, :contactEmail,
+                                :businessRegion, :salesperson, :customerType, :settlementType,
+                                :organizationNature, :businessLevel, :defaultShippingMethod, 'ACTIVE')
                             """)
+                    .param("clinicCode", temporaryCode)
                     .param("clinicName", clinicName)
                     .param("contactName", normalizeNullable(request.contactName()))
                     .param("contactPhone", normalizeNullable(request.contactPhone()))
+                    .param("contactEmail", normalizeNullable(request.contactEmail()))
+                    .param("businessRegion", normalizeNullable(request.businessRegion()))
+                    .param("salesperson", normalizeNullable(request.salesperson()))
+                    .param("customerType", normalizeNullable(request.customerType()))
+                    .param("settlementType", normalizeNullable(request.settlementType()))
+                    .param("organizationNature", normalizeNullable(request.organizationNature()))
+                    .param("businessLevel", normalizeNullable(request.businessLevel()))
+                    .param("defaultShippingMethod", normalizeNullable(request.defaultShippingMethod()))
                     .update();
         } catch (DuplicateKeyException ex) {
             throw new ResponseStatusException(HttpStatus.CONFLICT, "clinic name already exists", ex);
         }
         long clinicId = jdbcClient.sql("SELECT LAST_INSERT_ID()").query(Long.class).single();
+        if (requestedCode == null) {
+            jdbcClient.sql("UPDATE clinic SET clinic_code = :clinicCode WHERE clinic_id = :clinicId")
+                    .param("clinicCode", "KH" + String.format("%06d", clinicId))
+                    .param("clinicId", clinicId)
+                    .update();
+        }
         return getClinic(clinicId, identity);
     }
 
@@ -183,10 +210,25 @@ public class ClinicService {
         return """
                 SELECT
                     c.clinic_id,
+                    c.clinic_code,
                     c.clinic_name,
                     c.contact_name,
                     c.contact_phone,
+                    c.contact_email,
+                    c.business_region,
+                    c.salesperson,
+                    c.customer_type,
+                    c.settlement_type,
+                    c.organization_nature,
+                    c.business_level,
+                    c.default_shipping_method,
                     c.status,
+                    EXISTS (
+                        SELECT 1
+                        FROM clinic_blacklist_record cbr
+                        WHERE cbr.clinic_id = c.clinic_id
+                          AND cbr.blacklist_status = 'ACTIVE'
+                    ) AS blacklisted,
                     (
                         SELECT COUNT(*)
                         FROM customer_preference cp
@@ -208,10 +250,20 @@ public class ClinicService {
     private ClinicResponse mapClinic(java.sql.ResultSet rs, int rowNum) throws java.sql.SQLException {
         return new ClinicResponse(
                 rs.getLong("clinic_id"),
+                rs.getString("clinic_code"),
                 rs.getString("clinic_name"),
                 rs.getString("contact_name"),
                 rs.getString("contact_phone"),
+                rs.getString("contact_email"),
+                rs.getString("business_region"),
+                rs.getString("salesperson"),
+                rs.getString("customer_type"),
+                rs.getString("settlement_type"),
+                rs.getString("organization_nature"),
+                rs.getString("business_level"),
+                rs.getString("default_shipping_method"),
                 rs.getString("status"),
+                rs.getBoolean("blacklisted"),
                 rs.getLong("preference_count"),
                 rs.getObject("created_at", LocalDateTime.class),
                 rs.getObject("updated_at", LocalDateTime.class));
@@ -272,5 +324,17 @@ public class ClinicService {
 
     private String normalizeNullable(String value) {
         return value == null || value.isBlank() ? null : value.trim();
+    }
+
+    private String normalizeClinicCode(String value) {
+        if (value == null || value.isBlank()) {
+            return null;
+        }
+        String normalized = value.trim().toUpperCase(Locale.ROOT);
+        if (!normalized.matches("[A-Z0-9_-]{2,32}")) {
+            throw new ResponseStatusException(
+                    HttpStatus.BAD_REQUEST, "clinic_code must use A-Z, 0-9, underscore or dash");
+        }
+        return normalized;
     }
 }

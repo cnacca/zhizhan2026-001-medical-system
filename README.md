@@ -1554,6 +1554,17 @@ npm run build:frontend
 
 9D.85 复用 `clinic` 和 `customer_preference`，新增 `ClinicPreferenceTests`、`/clinics`、`/clinics/{clinicId}`、`/clinics/{clinicId}/preference`、客服端 `/customers`、管理端 `/admin/clinics`、医生端 `/doctor/account/clinic` 和 `npm run check:task9d85`。CS / ADMIN 可创建基础诊所档案并维护客户偏好，医生只能只读查看本人诊所偏好，WORKER 不能访问。本轮不做客户开户审批、定价体系、真实客户数据导入、复杂 CRM 或客户 / PM 字段最终确认。
 
+2026-07-20 在该基础上完成客户管理本地全栈扩展：V46 增加客户编码和商务主档字段，并新增开票、收货地址、主要医生、资质合同、客户专属价格、打印模板绑定、黑名单和客户操作记录；`GET/PUT /clinics/{clinicId}/management` 维护聚合档案，黑名单接口控制客户级下单门禁。订单创建和可编辑订单更新会保存客户价优先、全局基础价回退的价格快照。客服端客户管理按现有参考视觉使用单页连续档案和浏览器 A4 打印。定向验证入口：
+
+```bash
+./scripts/with-jdk21.sh mvn -f backend/pom.xml -pl platform-server -Dtest=CustomerManagementTests,ClinicPreferenceTests,ProductCatalogTests,OrderStatusProjectionTests test
+npm run check:openapi
+npm run check:customer-management-v2
+npm run build:frontend
+```
+
+该扩展不代表已接电子税票、外部打印服务、价格审批、自动账单重算或正式客户数据导入。
+
 ## 9D.86 人员档案 / 工作量看板第一增量
 
 检查命令：
