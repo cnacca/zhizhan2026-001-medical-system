@@ -170,6 +170,16 @@ async function assertNoHorizontalOverflow(page, label) {
   return overflow
 }
 
+async function assertContainerWidth(locator, expected, label) {
+  await locator.waitFor({ state: 'visible', timeout: timeoutMs })
+  const box = await locator.boundingBox()
+  if (!box) throw new Error(`${label}无法读取可见尺寸`)
+  if (Math.abs(box.width - expected) > 2) {
+    throw new Error(`${label}宽度应为 ${expected}px，实际为 ${box.width}px`)
+  }
+  return Math.round(box.width)
+}
+
 async function capturePage(page, order, slug) {
   const fileName = `${String(order).padStart(2, '0')}-${safeFileName(slug)}.png`
   const target = path.join(artifactDir, fileName)
@@ -230,7 +240,26 @@ async function interactWithOrders(page) {
   await waitForVisibleDataOrEmpty(page, dataReadiness.orders)
   await clickMatchingButtonIfVisible(page, /^新订单(?:\s|\d|$)/)
   await clickMatchingButtonIfVisible(page, /^全部(?:\s|\d|$)/)
-  return openFirstRowAndClose(page, '关闭订单详情', dataReadiness.orders)
+  const row = page.locator('.cs-r-table-card tbody tr').first()
+  await row.click()
+  const drawer = page.locator('.el-drawer.cs-r-drawer')
+  await assertContainerWidth(drawer, 540, '订单详情抽屉')
+  for (const required of ['生产与交付进度', '临床与制作参数', '订单文件', '关联业务', '订单消息']) {
+    await drawer.getByText(required, { exact: true }).waitFor({ state: 'visible', timeout: timeoutMs })
+  }
+  const reply = drawer.getByLabel('回复订单消息')
+  const send = drawer.getByRole('button', { name: '发送', exact: true })
+  await reply.waitFor({ state: 'visible', timeout: timeoutMs })
+  if (await send.isEnabled()) throw new Error('订单抽屉空消息仍允许发送')
+  await reply.fill('只读验收草稿')
+  if (!await send.isEnabled()) throw new Error('订单抽屉填写消息后发送按钮未启用')
+  await reply.fill('')
+  const text = await drawer.innerText()
+  for (const forbidden of ['PENDING_CS_REVIEW', 'PENDING_PAYMENT', 'PROCESS_INSTANCE_CREATED', '[object Object]']) {
+    if (text.includes(forbidden)) throw new Error(`订单详情仍显示内部值：${forbidden}`)
+  }
+  await page.getByRole('button', { name: '关闭订单详情', exact: true }).click()
+  return '已验证 540px 连续滚动订单详情、底部内嵌回复和中文业务值；草稿已清空且未发送'
 }
 
 async function interactWithInformationTranslation(page) {
@@ -241,10 +270,18 @@ async function interactWithInformationTranslation(page) {
   const firstTask = page.locator('.cs-r-side-list > button').first()
   await firstTask.waitFor({ state: 'visible', timeout: timeoutMs })
   await firstTask.click()
+  const reviewCard = page.getByTestId('cs-information-review-card')
+  await reviewCard.waitFor({ state: 'visible', timeout: timeoutMs })
+  const workspaceText = await page.locator('.cs-r-workspace.is-translation').innerText()
+  for (const forbiddenText of ['patient_name', 'tooth_position', 'acceptance_marker', 'demo_scenario', 'IMPLANT_RESTORATION', 'ORTHODONTICS', 'REMOVABLE']) {
+    if (workspaceText.includes(forbiddenText)) {
+      throw new Error(`信息审核页仍在展示内部英文键或产品代码：${forbiddenText}`)
+    }
+  }
   await clickButtonIfVisible(page, '翻译整理')
   await clickMatchingButtonIfVisible(page, /^附件(?:\s|\d|$)/)
   await clickButtonIfVisible(page, '信息审核')
-  return '已切换真实任务和只读页签，未生成或确认内容'
+  return '已验证中文结构化资料并切换只读页签，未生成或确认内容'
 }
 
 async function interactWithDesigns(page) {
@@ -254,7 +291,23 @@ async function interactWithDesigns(page) {
     await search.fill('只读验收筛选')
     await search.fill('')
   }
-  return openFirstRowAndClose(page, '关闭设计稿详情', dataReadiness.designs)
+  const row = page.locator('.cs-r-table-card tbody tr').first()
+  await row.click()
+  const drawer = page.locator('.el-drawer.cs-r-drawer')
+  await assertContainerWidth(drawer, 540, '设计详情抽屉')
+  await drawer.getByText('版本与审核记录', { exact: true }).waitFor({ state: 'visible', timeout: timeoutMs })
+  const versionCards = drawer.locator('.cs-r-version-list article')
+  for (let index = 0; index < await versionCards.count(); index += 1) {
+    const card = versionCards.nth(index)
+    const isReviewable = (await card.getAttribute('class') || '').split(/\s+/).includes('is-reviewable')
+    const approve = card.getByRole('button', { name: '审核通过', exact: true })
+    const reject = card.getByRole('button', { name: '退回修改', exact: true })
+    if (isReviewable !== await locatorIsVisible(approve) || isReviewable !== await locatorIsVisible(reject)) {
+      throw new Error(`设计版本 ${index + 1} 的审核按钮与真实状态不一致`)
+    }
+  }
+  await page.getByRole('button', { name: '关闭设计稿详情', exact: true }).click()
+  return '已验证 540px 版本抽屉与设计审核状态门禁'
 }
 
 async function interactWithInquiries(page) {
@@ -285,10 +338,18 @@ async function interactWithCustomers(page) {
   const card = page.locator('.cs-r-customer-grid > button').first()
   await card.waitFor({ state: 'visible', timeout: timeoutMs })
   await card.click()
+  const dialog = page.locator('.el-dialog.cs-r-customer-dialog')
+  await assertContainerWidth(dialog, 860, '客户详情弹窗')
+  for (const required of ['诊所客户', '医生成员接口尚未接入客服端', '制作偏好', '商务条款尚未建立独立数据模型', '真实订单记录']) {
+    await dialog.getByText(required, { exact: true }).waitFor({ state: 'visible', timeout: timeoutMs })
+  }
+  if (await dialog.locator('.cs-r-detail-tabs').count()) throw new Error('客户详情仍显示页签')
+  const preferenceText = await dialog.innerText()
+  if (preferenceText.includes('[object Object]')) throw new Error('客户制作偏好仍显示 [object Object]')
   const close = page.getByRole('button', { name: '关闭客户详情', exact: true }).first()
   await close.waitFor({ state: 'visible', timeout: timeoutMs })
   await close.click()
-  return '已打开并关闭首个真实客户详情'
+  return '已验证 860px 客户弹窗、五个连续内容区与结构化偏好渲染'
 }
 
 async function interactWithProducts(page) {
@@ -298,28 +359,70 @@ async function interactWithProducts(page) {
     await search.fill('只读验收筛选')
     await search.fill('')
   }
-  return openFirstRowAndClose(page, '关闭产品详情', dataReadiness.products)
+  const row = page.locator('.cs-r-table-card tbody tr').first()
+  await row.click()
+  const drawer = page.locator('.el-drawer.cs-r-drawer')
+  await assertContainerWidth(drawer, 540, '产品详情抽屉')
+  for (const required of ['产品资料', '医生下单要求', '变更记录']) {
+    await drawer.getByText(required, { exact: true }).waitFor({ state: 'visible', timeout: timeoutMs })
+  }
+  if (await drawer.locator('.cs-r-detail-tabs').count()) throw new Error('产品详情仍显示页签')
+  await page.getByRole('button', { name: '关闭产品详情', exact: true }).click()
+  return '已验证 540px 产品抽屉及三个连续真实数据区'
 }
 
 async function interactWithBilling(page) {
   await waitForVisibleDataOrEmpty(page, dataReadiness.billing)
   await clickButtonIfVisible(page, '月结账单')
   await clickButtonIfVisible(page, '按单账单')
-  return openFirstRowAndClose(page, '关闭账单详情', dataReadiness.billing)
+  const row = page.locator('.cs-r-table-card tbody tr').first()
+  await row.click()
+  const drawer = page.locator('.el-drawer.cs-r-drawer')
+  await assertContainerWidth(drawer, 540, '账单详情抽屉')
+  for (const required of ['账单金额', '关联订单', '人工收款记录', '操作记录']) {
+    await drawer.getByText(required, { exact: true }).waitFor({ state: 'visible', timeout: timeoutMs })
+  }
+  if (await drawer.locator('.cs-r-detail-tabs').count()) throw new Error('账单详情仍显示页签')
+  const paymentText = await drawer.innerText()
+  if (paymentText.includes('BANK_TRANSFER')) throw new Error('账单详情仍显示英文收款方式')
+  await page.getByRole('button', { name: '关闭账单详情', exact: true }).click()
+  return '已验证 540px 连续账单详情与收款状态守卫'
 }
 
 async function interactWithDelivery(page) {
   await waitForVisibleDataOrEmpty(page, dataReadiness.delivery)
   await clickButtonIfVisible(page, '待发货')
   await clickButtonIfVisible(page, '全部')
-  return openFirstRowAndClose(page, '关闭配送详情', dataReadiness.delivery)
+  const row = page.locator('.cs-r-table-card tbody tr').first()
+  await row.click()
+  const drawer = page.locator('.el-drawer.cs-r-drawer')
+  await assertContainerWidth(drawer, 540, '配送详情抽屉')
+  for (const required of ['发货门禁', '物流时间线', '配送异常跟进', '操作记录']) {
+    await drawer.getByText(required, { exact: true }).waitFor({ state: 'visible', timeout: timeoutMs })
+  }
+  if (await drawer.locator('.cs-r-detail-tabs').count()) throw new Error('配送详情仍显示页签')
+  const statusText = await drawer.innerText()
+  if (statusText.includes('SHIPPED') || statusText.includes('PENDING_PAYMENT')) throw new Error('配送详情仍显示英文状态值')
+  await page.getByRole('button', { name: '关闭配送详情', exact: true }).click()
+  return '已验证 540px 连续配送详情与发货门禁'
 }
 
 async function interactWithOutsourcing(page) {
   await waitForVisibleDataOrEmpty(page, dataReadiness.outsourcing)
   await clickButtonIfVisible(page, '已发出')
   await clickButtonIfVisible(page, '全部外发')
-  return openFirstRowAndClose(page, '关闭外协详情', dataReadiness.outsourcing)
+  const row = page.locator('.cs-r-table-card tbody tr').first()
+  await row.click()
+  const drawer = page.locator('.el-drawer.cs-r-drawer')
+  await assertContainerWidth(drawer, 540, '外协详情抽屉')
+  for (const required of ['外协履约进度', '异常写入能力尚未接入', '操作记录']) {
+    await drawer.getByText(required, { exact: true }).waitFor({ state: 'visible', timeout: timeoutMs })
+  }
+  if (await drawer.locator('.cs-r-detail-tabs').count()) throw new Error('外协详情仍显示页签')
+  const text = await drawer.innerText()
+  if (text.includes('SENT') || text.includes('RETURNED') || text.includes('DELAYED')) throw new Error('外协详情仍显示英文状态值')
+  await page.getByRole('button', { name: '关闭外协详情', exact: true }).click()
+  return '已验证 540px 外协抽屉、真实进度与只读能力边界'
 }
 
 async function interactWithSettings(page) {
