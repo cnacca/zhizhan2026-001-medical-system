@@ -244,10 +244,10 @@ async function interactWithOrders(page) {
   await row.click()
   const drawer = page.locator('.el-drawer.cs-r-drawer')
   await assertContainerWidth(drawer, 540, '订单详情抽屉')
-  for (const required of ['生产与交付进度', '临床与制作参数', '订单文件', '关联业务', '订单消息']) {
+  for (const required of ['制作时间线', '订单资料', '文件与设计稿', '订单时间线', '沟通信息']) {
     await drawer.getByText(required, { exact: true }).waitFor({ state: 'visible', timeout: timeoutMs })
   }
-  const reply = drawer.getByLabel('回复订单消息')
+  const reply = drawer.getByLabel('订单沟通消息')
   const send = drawer.getByRole('button', { name: '发送', exact: true })
   await reply.waitFor({ state: 'visible', timeout: timeoutMs })
   if (await send.isEnabled()) throw new Error('订单抽屉空消息仍允许发送')

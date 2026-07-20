@@ -1,0 +1,167 @@
+{
+  "baseUrl": "http://127.0.0.1:15173",
+  "viewport": {
+    "width": 1440,
+    "height": 900
+  },
+  "startedAt": "2026-07-19T21:35:55.301Z",
+  "pages": [
+    {
+      "menu": "工作台",
+      "heading": {},
+      "dimensions": {
+        "scrollWidth": 1440,
+        "viewportWidth": 1440,
+        "offenders": []
+      },
+      "interaction": "工作台仅执行只读可见性检查",
+      "screenshot": "docs/design-references/cs-portal/order-drawer-20260720/full-cs-smoke/01-workbench.png"
+    },
+    {
+      "menu": "订单管理",
+      "heading": "订单管理",
+      "dimensions": {
+        "scrollWidth": 1440,
+        "viewportWidth": 1440,
+        "offenders": []
+      },
+      "interaction": "已打开并关闭首条真实数据详情",
+      "screenshot": "docs/design-references/cs-portal/order-drawer-20260720/full-cs-smoke/02-orders.png"
+    },
+    {
+      "menu": "信息审核/翻译",
+      "heading": "信息审核/翻译",
+      "dimensions": {
+        "scrollWidth": 1440,
+        "viewportWidth": 1440,
+        "offenders": []
+      },
+      "interaction": "已切换真实任务和只读页签，未生成或确认内容",
+      "screenshot": "docs/design-references/cs-portal/order-drawer-20260720/full-cs-smoke/03-information-translation.png"
+    },
+    {
+      "menu": "设计稿管理",
+      "heading": "设计稿管理",
+      "dimensions": {
+        "scrollWidth": 1440,
+        "viewportWidth": 1440,
+        "offenders": []
+      },
+      "interaction": "已打开并关闭首条真实数据详情",
+      "screenshot": "docs/design-references/cs-portal/order-drawer-20260720/full-cs-smoke/04-designs.png"
+    },
+    {
+      "menu": "问单沟通",
+      "heading": "问单沟通",
+      "dimensions": {
+        "scrollWidth": 1440,
+        "viewportWidth": 1440,
+        "offenders": []
+      },
+      "interaction": "快捷回复仅填入后已清空，未点击发送",
+      "screenshot": "docs/design-references/cs-portal/order-drawer-20260720/full-cs-smoke/05-inquiries.png"
+    },
+    {
+      "menu": "客户管理",
+      "heading": "客户管理",
+      "dimensions": {
+        "scrollWidth": 1440,
+        "viewportWidth": 1440,
+        "offenders": []
+      },
+      "interaction": "已打开并关闭首个真实客户详情",
+      "screenshot": "docs/design-references/cs-portal/order-drawer-20260720/full-cs-smoke/06-customers.png"
+    },
+    {
+      "menu": "产品管理",
+      "heading": "产品管理",
+      "dimensions": {
+        "scrollWidth": 1440,
+        "viewportWidth": 1440,
+        "offenders": []
+      },
+      "interaction": "已打开并关闭首条真实数据详情",
+      "screenshot": "docs/design-references/cs-portal/order-drawer-20260720/full-cs-smoke/07-products.png"
+    },
+    {
+      "menu": "账单管理",
+      "heading": "账单管理",
+      "dimensions": {
+        "scrollWidth": 1440,
+        "viewportWidth": 1440,
+        "offenders": []
+      },
+      "interaction": "已打开并关闭首条真实数据详情",
+      "screenshot": "docs/design-references/cs-portal/order-drawer-20260720/full-cs-smoke/08-billing.png"
+    },
+    {
+      "menu": "配送管理",
+      "heading": "配送管理",
+      "dimensions": {
+        "scrollWidth": 1440,
+        "viewportWidth": 1440,
+        "offenders": []
+      },
+      "interaction": "已打开并关闭首条真实数据详情",
+      "screenshot": "docs/design-references/cs-portal/order-drawer-20260720/full-cs-smoke/09-delivery.png"
+    },
+    {
+      "menu": "外协管理",
+      "heading": "外协管理",
+      "dimensions": {
+        "scrollWidth": 1440,
+        "viewportWidth": 1440,
+        "offenders": []
+      },
+      "interaction": "已打开并关闭首条真实数据详情",
+      "screenshot": "docs/design-references/cs-portal/order-drawer-20260720/full-cs-smoke/10-outsourcing.png"
+    },
+    {
+      "menu": "设置与账号",
+      "heading": "设置与账号",
+      "dimensions": {
+        "scrollWidth": 1440,
+        "viewportWidth": 1440,
+        "offenders": []
+      },
+      "interaction": "已切换全部设置页签，未执行保存",
+      "screenshot": "docs/design-references/cs-portal/order-drawer-20260720/full-cs-smoke/11-settings.png"
+    }
+  ],
+  "auxiliaryPages": [
+    {
+      "page": "通知中心",
+      "dimensions": {
+        "scrollWidth": 1440,
+        "viewportWidth": 1440,
+        "offenders": []
+      },
+      "screenshot": "docs/design-references/cs-portal/order-drawer-20260720/full-cs-smoke/12-notifications.png"
+    },
+    {
+      "page": "帮助中心",
+      "dimensions": {
+        "scrollWidth": 1440,
+        "viewportWidth": 1440,
+        "offenders": []
+      },
+      "screenshot": "docs/design-references/cs-portal/order-drawer-20260720/full-cs-smoke/13-help.png"
+    },
+    {
+      "page": "全局搜索",
+      "dimensions": {
+        "scrollWidth": 1440,
+        "viewportWidth": 1440,
+        "offenders": []
+      },
+      "interaction": "已从搜索结果打开并关闭对应订单详情",
+      "screenshot": "docs/design-references/cs-portal/order-drawer-20260720/full-cs-smoke/14-search.png"
+    }
+  ],
+  "consoleErrors": [],
+  "pageErrors": [],
+  "externalResourceWarnings": [],
+  "blockedMutations": [],
+  "finishedAt": "2026-07-19T21:36:18.876Z",
+  "status": "passed"
+}

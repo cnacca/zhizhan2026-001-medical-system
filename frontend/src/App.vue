@@ -2251,7 +2251,7 @@ const displayNavigationConfig: Record<PortalTone, NavigationGroup[]> = {
       items: [
         { id: 'production-message', title: '沟通中心', description: '消息中心：查看订单沟通、@ 提醒和待处理消息。', icon: 'chat', routePath: '/collaboration' },
         { id: 'production-notifications', title: '通知中心', description: '查看生产任务、质量、返工和系统通知。', icon: 'notification', routePath: '/notifications' },
-        { id: 'production-cloud-data', title: '云端数据中心', description: '查看订单设计稿和生产附件台账。', icon: 'cloud', routePath: '/orders/internal' }
+        { id: 'production-cloud-data', title: '云端数据中心', description: '作为订单文件中心，查看设计稿和生产附件台账。', icon: 'cloud', routePath: '/orders/internal' }
       ]
     }
   ],
@@ -5282,6 +5282,8 @@ async function loadActiveRouteData() {
   } else if (activeRoute.value === '/collaboration' || activeRoute.value === '/admin/communication-management') {
     if (portalTone.value === 'doctor') {
       await loadDoctorCollaboration()
+    } else if (portalTone.value === 'production') {
+      await Promise.all([loadCustomerCollaborationPage(), loadInternalOrders()])
     } else {
       await loadCustomerCollaborationPage()
     }
@@ -5448,6 +5450,8 @@ function navigateToRoute(routePath: string) {
   } else if (routePath === '/collaboration' || routePath === '/admin/communication-management') {
     if (portalTone.value === 'doctor') {
       void loadDoctorCollaboration()
+    } else if (portalTone.value === 'production') {
+      void Promise.all([loadCustomerCollaborationPage(), loadInternalOrders()])
     } else {
       void loadCustomerCollaborationPage()
     }
@@ -7962,6 +7966,12 @@ async function openDoctorCollaborationOrder(order: DoctorOrderItem) {
   await loadCustomerCollaborationOrderMessages()
 }
 
+async function openProductionCollaborationOrder(order: InternalOrderItem) {
+  selectedInternalOrder.value = order
+  customerCollaborationOrderId.value = String(order.order_id)
+  await loadCustomerCollaborationOrderMessages()
+}
+
 async function loadDoctorCollaboration() {
   await loadDoctorOrders()
   const order = selectedDoctorOrder.value ?? doctorOrders.value[0]
@@ -10472,6 +10482,7 @@ onBeforeUnmount(() => {
               <strong>AI智能下单平台</strong>
               <small>{{ portalTone === 'admin' ? '管理中心' : portalTone === 'cs' ? '客服工作台' : '下单 · 审核 · 生产' }}</small>
               <span v-if="portalTone === 'cs'" class="cs-portal-badge">客服端</span>
+              <span v-if="portalTone === 'production'" class="production-portal-badge">🏭 生产端</span>
             </div>
           </div>
           <el-popover
@@ -10589,6 +10600,7 @@ onBeforeUnmount(() => {
           <div class="nav-footnote">
             <span class="nav-note-mark" aria-hidden="true">权</span>
             <span v-if="portalTone === 'cs'">客服端 · v1.0</span>
+            <span v-else-if="portalTone === 'production'">生产端 · 仅展示当前账号可访问的业务数据</span>
             <span v-else>医生端仅展示外部安全进度，内部工序与绩效由服务端隔离。</span>
           </div>
         </aside>
@@ -10868,7 +10880,7 @@ onBeforeUnmount(() => {
 
         <section v-else-if="isProductionCloudDataView" class="factory-cloud-page">
           <header class="factory-page-heading">
-            <div><h2>云端数据中心</h2><p>集中查看生产权限内订单的设计稿与附件信息。</p></div>
+            <div><h2>订单文件中心</h2><p>云端数据中心当前用于集中查看生产权限内的设计稿与附件。</p></div>
             <button class="factory-btn-g" type="button" :disabled="internalOrdersLoading" @click="loadInternalOrders">↻ 刷新文件台账</button>
           </header>
           <div class="factory-cloud-layout">
@@ -11821,8 +11833,12 @@ onBeforeUnmount(() => {
           <div class="factory-task-grid">
             <article v-for="task in workerTasks" :key="task.node_instance_id" class="factory-task-card" :class="`status-${task.node_status.toLowerCase()}`">
               <div class="factory-task-card-head"><span>{{ task.order_no }}</span><b>{{ statusLabel(task.node_status) }}</b></div>
+              <div class="factory-task-priority" :class="`status-${task.node_status.toLowerCase()}`">
+                {{ task.node_status === 'IN_PROGRESS' ? '正在执行' : task.node_status === 'READY' ? '下一步可执行' : '任务记录' }}
+              </div>
               <h3>{{ task.process_name }}</h3>
               <p>节点 {{ task.node_instance_id }} · 标准 {{ task.standard_duration ?? '未设置' }} 分钟</p>
+              <p class="factory-task-deadline">检查要求：{{ requiresInCheck(task) ? '入检通过后开工' : '可直接开始工作' }}</p>
               <p v-if="requiresInCheck(task)" class="factory-task-prerequisite">需先完成入检并通过，才可以开始工作。</p>
               <div class="factory-task-card-actions">
                 <button type="button" class="factory-action-primary" :disabled="workerTaskActionLoading || task.node_status !== 'READY' || !canStartTask(task)" @click="operateWorkerTask(task, 'START')">
@@ -12275,6 +12291,10 @@ onBeforeUnmount(() => {
               </div>
             </section>
 
+            <details class="factory-action-drawer factory-rework-action-drawer">
+              <summary><span>＋ 登记或更新外返</span><small>从右侧打开处理面板</small></summary>
+              <div class="factory-action-drawer-panel">
+                <header><div><strong>外返处理</strong><span>登记质量问题并维护真实处理状态</span></div><small>点击“收起操作面板”关闭</small></header>
             <aside class="factory-rework-action-card">
               <div class="factory-section-title"><div><h3>登记外返</h3><small>使用已有质量记录接口保存</small></div></div>
               <el-form label-position="top">
@@ -12292,6 +12312,8 @@ onBeforeUnmount(() => {
                 <el-button :loading="qualityRecordStatusSaving" data-testid="quality-record-status-button" @click="updateQualityRecordStatus">保存状态</el-button>
               </div>
             </aside>
+              </div>
+            </details>
           </div>
         </section>
 
@@ -12776,9 +12798,10 @@ onBeforeUnmount(() => {
 
           <div v-if="staffWorkloadItems.length" class="factory-staff-grid">
             <article v-for="staff in staffWorkloadItems" :key="staff.user_id" class="factory-staff-card">
-              <header><div><strong>{{ staff.display_name || staff.username || '未命名员工' }}</strong><span>{{ staff.dept_name || '未分配部门' }}</span></div><el-tag :type="staff.status === 'ACTIVE' ? 'success' : 'info'" round>{{ statusLabel(staff.status) }}</el-tag></header>
+              <header><span class="factory-staff-avatar">{{ (staff.display_name || staff.username || '员工').slice(0, 2) }}</span><div><strong>{{ staff.display_name || staff.username || '未命名员工' }}</strong><span>{{ staff.dept_name || '未分配部门' }}</span></div><el-tag :type="staff.status === 'ACTIVE' ? 'success' : 'info'" round>{{ statusLabel(staff.status) }}</el-tag></header>
               <div class="factory-staff-posts"><span v-for="post in staff.post_names" :key="post">{{ post }}</span><span v-if="staff.post_names.length === 0">岗位未设置</span></div>
               <div class="factory-staff-metrics"><div><span>任务</span><strong>{{ staff.active_node_count }} / {{ staff.assigned_node_count }}</strong></div><div><span>有效工时</span><strong>{{ staff.effective_duration }}</strong></div><div><span>返工</span><strong>{{ staff.rework_count }}</strong></div></div>
+              <div class="factory-staff-load"><span>当前负荷</span><div><i :style="{ width: `${Math.min(100, Math.round((staff.active_node_count / Math.max(staff.assigned_node_count, 1)) * 100))}%` }" /></div><b>{{ staff.active_node_count }} 项进行中</b></div>
               <small>最近完工：{{ staff.last_work_finished_at ? compactDateTime(staff.last_work_finished_at) : '暂无记录' }}</small>
             </article>
           </div>
@@ -12955,7 +12978,12 @@ onBeforeUnmount(() => {
           >
             <section v-if="selectedProductionBoardOrder" class="factory-drawer" data-testid="production-orders-drawer">
               <header class="factory-drawer-head">
-                <h3>订单详情 · {{ selectedProductionBoardOrder.order_no }}</h3>
+                <div>
+                  <span>生产工单</span>
+                  <h3>{{ selectedProductionBoardOrder.order_no }}</h3>
+                  <p>{{ productTypeLabel(selectedProductionBoardOrder.product_type) }} · {{ productionOrderOwnerLabel(selectedProductionBoardOrder) }}</p>
+                </div>
+                <b class="factory-drawer-status">{{ statusLabel(selectedProductionBoardOrder.internal_status) }}</b>
                 <button type="button" aria-label="关闭" @click="productionBoardDrawerVisible = false">✕</button>
               </header>
               <div class="factory-drawer-body">
@@ -13059,6 +13087,22 @@ onBeforeUnmount(() => {
             </div>
           </div>
 
+          <div class="factory-kanban-action-summary" aria-label="生产看板行动摘要">
+            <section v-for="group in productionBoardActionSummaryGroups" :key="group.label">
+              <span>{{ group.label }}</span>
+              <button
+                v-for="item in group.items"
+                :key="item.key"
+                type="button"
+                :class="[`tone-${item.tone}`, { active: productionBoardActionSummaryFilter === item.key }]"
+                @click="selectProductionBoardActionSummary(item.key)"
+              >
+                {{ item.label }} <b>{{ item.count }}</b>
+              </button>
+            </section>
+            <button v-if="productionBoardActionSummaryFilter !== 'all'" class="factory-kanban-clear-filter" type="button" @click="selectProductionBoardActionSummary(productionBoardActionSummaryFilter)">清除筛选</button>
+          </div>
+
           <div class="factory-kanban-summary-bar">
             <div
               v-for="summary in productionBoardKanbanSummaries"
@@ -13122,7 +13166,7 @@ onBeforeUnmount(() => {
                     v-for="card in column.cards"
                     :key="card.orderId"
                     class="factory-kanban-card"
-                    :class="{ urgent: ['overdue', 'rework'].includes(card.risk), warning: card.risk === 'rush' }"
+                    :class="{ urgent: ['overdue', 'rework'].includes(card.risk), warning: card.risk === 'rush', selected: productionBoardSelectedCard?.orderId === card.orderId }"
                     :style="{ borderLeftColor: card.risk === 'overdue' || card.risk === 'rework' ? '#e11d48' : '#99f6e4' }"
                     type="button"
                     @click="selectProductionBoardOrder(card.order, card)"
@@ -13153,7 +13197,12 @@ onBeforeUnmount(() => {
           <el-drawer v-model="productionBoardDrawerVisible" class="factory-kanban-drawer" direction="rtl" size="560px" :with-header="false">
             <section v-if="selectedProductionBoardOrder" class="factory-drawer">
               <header class="factory-drawer-head">
-                <h3>订单详情 · {{ selectedProductionBoardOrder.order_no }}</h3>
+                <div>
+                  <span>生产工单</span>
+                  <h3>{{ selectedProductionBoardOrder.order_no }}</h3>
+                  <p>{{ productionBoardSelectedCard?.currentProcess || productTypeLabel(selectedProductionBoardOrder.product_type) }} · {{ productionBoardSelectedCard?.assignedUserLabel || '暂未分配' }}</p>
+                </div>
+                <b class="factory-drawer-status" :class="{ 'is-danger': ['overdue', 'rework'].includes(productionBoardSelectedCard?.risk || '') }">{{ productionBoardSelectedCard?.riskLabel || statusLabel(selectedProductionBoardOrder.internal_status) }}</b>
                 <button type="button" aria-label="关闭" @click="productionBoardDrawerVisible = false">✕</button>
               </header>
               <div class="factory-drawer-body">
@@ -15151,7 +15200,7 @@ onBeforeUnmount(() => {
             <el-tag v-else type="info" round>订单协同沟通</el-tag>
           </header>
 
-          <div v-if="portalTone !== 'doctor'" class="doctor-order-toolbar">
+          <div v-if="!['doctor', 'production'].includes(portalTone)" class="doctor-order-toolbar">
             <el-select
               v-if="portalTone === 'admin'"
               v-model="customerCollaborationOrderId"
@@ -15198,6 +15247,80 @@ onBeforeUnmount(() => {
             :closable="false"
           />
 
+          <div v-if="portalTone === 'production'" class="factory-chat-shell" data-testid="production-message-layout">
+            <aside class="factory-chat-sidebar">
+              <header>
+                <div><h3>订单会话</h3><span>{{ internalOrders.length }} 个可见订单</span></div>
+                <label class="factory-chat-search">
+                  <span aria-hidden="true">⌕</span>
+                  <input v-model="internalOrderKeyword" type="search" placeholder="搜索订单号或诊所" @keyup.enter="loadInternalOrders">
+                </label>
+              </header>
+              <div class="factory-chat-thread-list">
+                <button
+                  v-for="order in internalOrders"
+                  :key="order.order_id"
+                  type="button"
+                  class="factory-chat-thread"
+                  :class="{ active: customerCollaborationOrderId === String(order.order_id) }"
+                  @click="openProductionCollaborationOrder(order)"
+                >
+                  <span class="factory-chat-avatar">{{ order.order_no.slice(-2) }}</span>
+                  <span>
+                    <strong>{{ order.order_no }}</strong>
+                    <small>{{ order.clinic_name || '诊所未设置' }} · {{ productTypeLabel(order.product_type) }}</small>
+                    <em>{{ statusLabel(order.internal_status) }}</em>
+                  </span>
+                </button>
+                <div v-if="!customerCollaborationLoading && internalOrders.length === 0" class="factory-chat-empty">暂无可沟通订单</div>
+              </div>
+            </aside>
+
+            <section class="factory-chat-main">
+              <div class="factory-chat-review-notice">
+                <span aria-hidden="true">!</span>
+                <p><strong>对外消息需要客服审核</strong><small>生产端发送后将进入待审核状态，不会直接展示给医生。</small></p>
+              </div>
+              <header class="factory-chat-head">
+                <div>
+                  <strong>{{ selectedInternalOrder?.order_no || (customerCollaborationOrderId ? `订单 ${customerCollaborationOrderId}` : '请选择订单会话') }}</strong>
+                  <span v-if="selectedInternalOrder">{{ selectedInternalOrder.clinic_name || '诊所未设置' }} · {{ productTypeLabel(selectedInternalOrder.product_type) }}</span>
+                  <span v-else>从左侧选择订单后查看沟通记录</span>
+                </div>
+                <el-tag v-if="selectedInternalOrder" type="info" round>{{ statusLabel(selectedInternalOrder.internal_status) }}</el-tag>
+              </header>
+              <div class="factory-chat-messages">
+                <article
+                  v-for="message in customerCollaborationOrderMessages"
+                  :key="message.msg_id"
+                  :class="{ mine: message.sender_role === 'WORKER' }"
+                >
+                  <span>{{ roleLabel(message.sender_role) }}</span>
+                  <p>{{ message.content }}</p>
+                  <small>{{ statusLabel(message.review_status) }} · #{{ message.msg_id }}</small>
+                </article>
+                <div v-if="!customerCollaborationOrderId" class="factory-chat-empty is-center">请选择左侧订单会话</div>
+                <div v-else-if="!customerCollaborationLoading && customerCollaborationOrderMessages.length === 0" class="factory-chat-empty is-center">该订单暂无沟通记录，可以从下方发起消息</div>
+              </div>
+              <footer class="factory-chat-composer">
+                <el-select
+                  v-model="customerCollaborationMentionUserIds"
+                  multiple
+                  clearable
+                  collapse-tags
+                  placeholder="@ 当前订单参与人"
+                  :disabled="!customerCollaborationOrderId || customerCollaborationMentionableUsers.length === 0"
+                >
+                  <el-option v-for="user in customerCollaborationMentionableUsers" :key="user.user_id" :label="`${user.display_name}（${roleLabel(user.user_role)}）`" :value="user.user_id" />
+                </el-select>
+                <div>
+                  <el-input v-model="customerCollaborationDraft" type="textarea" :rows="2" placeholder="输入生产协同内容；发送后由客服审核" :disabled="!customerCollaborationOrderId" />
+                  <el-button type="primary" :loading="customerCollaborationSending" :disabled="!customerCollaborationOrderId || !customerCollaborationDraft.trim()" @click="sendCustomerCollaborationMessage">发送消息</el-button>
+                </div>
+              </footer>
+            </section>
+          </div>
+
           <div v-if="portalTone === 'doctor'" class="doctor-message-layout" data-testid="doctor-message-layout">
             <aside class="doctor-message-sidebar">
               <div class="doctor-message-sidebar-head">
@@ -15232,7 +15355,7 @@ onBeforeUnmount(() => {
             </section>
           </div>
 
-          <section v-if="portalTone !== 'doctor'" class="customer-collaboration-card collaboration-composer" data-testid="collaboration-composer">
+          <section v-if="!['doctor', 'production'].includes(portalTone)" class="customer-collaboration-card collaboration-composer" data-testid="collaboration-composer">
             <div class="subheading-row">
               <h3>发送沟通</h3>
               <el-tag type="info" round>@ 仅可选择当前订单参与人</el-tag>
@@ -15265,7 +15388,7 @@ onBeforeUnmount(() => {
             <p v-if="portalTone === 'production'" class="factory-message-hint">发送后状态为“待客服审核”，生产端不提供审核操作。</p>
           </section>
 
-          <div v-if="portalTone !== 'doctor'" class="customer-collaboration-grid factory-message-layout">
+          <div v-if="!['doctor', 'production'].includes(portalTone)" class="customer-collaboration-grid factory-message-layout">
             <section v-if="canReviewCustomerCollaboration" class="customer-collaboration-card">
               <div class="subheading-row">
                 <h3>待审核消息</h3>
@@ -15495,6 +15618,12 @@ onBeforeUnmount(() => {
             <el-button type="primary" :disabled="!hasUnreadNotifications" @click="markAllNotificationsRead">
               全部已读
             </el-button>
+          </div>
+
+          <div v-if="portalTone === 'production'" class="factory-notification-summary">
+            <article><span>待处理</span><strong>{{ unreadCount }}</strong><small>未读生产提醒</small></article>
+            <article><span>全部消息</span><strong>{{ notifications.length }}</strong><small>当前账号可见</small></article>
+            <article><span>实时连接</span><strong>{{ notificationSocketStatus === '已连接' ? '正常' : '等待' }}</strong><small>{{ notificationSocketStatus }}</small></article>
           </div>
 
           <div v-if="lastRealtimeNotification" class="realtime-strip">
@@ -16207,8 +16336,15 @@ onBeforeUnmount(() => {
               <el-table-column prop="reason_detail" label="详情" min-width="180" show-overflow-tooltip />
             </el-table>
 
-            <el-collapse-transition>
-              <div v-if="adminQualityActionVisible" class="admin-quality-actions">
+            <el-drawer
+              v-model="adminQualityActionVisible"
+              class="factory-support-el-drawer"
+              title="外返登记与处理"
+              direction="rtl"
+              size="560px"
+              append-to-body
+            >
+              <div class="admin-quality-actions">
                 <section class="admin-data-card">
                   <div class="admin-filter-bar"><strong>登记外返问题</strong></div>
                   <el-form label-position="top">
@@ -16266,7 +16402,7 @@ onBeforeUnmount(() => {
                   </el-form>
                 </section>
               </div>
-            </el-collapse-transition>
+            </el-drawer>
           </div>
         </section>
 
@@ -16622,6 +16758,10 @@ onBeforeUnmount(() => {
             <div v-else-if="!productionEquipmentSummaryLoading && !productionEquipmentSummaryError" class="empty-state">
               暂无设备汇总数据
             </div>
+            <details class="factory-action-drawer">
+              <summary><span>＋ 登记设备或设备事件</span><small>表单将在右侧操作面板中打开</small></summary>
+              <div class="factory-action-drawer-panel">
+                <header><div><strong>设备登记</strong><span>新增设备台账或记录保养、故障和停机事件</span></div><small>点击“收起操作面板”关闭</small></header>
             <div class="placeholder-content-grid">
               <article class="placeholder-content-card tone-blue">
                 <span class="placeholder-content-dot" />
@@ -16693,6 +16833,8 @@ onBeforeUnmount(() => {
                 </el-button>
               </article>
             </div>
+              </div>
+            </details>
             <el-alert
               v-if="productionEquipmentResult"
               :title="productionEquipmentResult"
@@ -16743,6 +16885,10 @@ onBeforeUnmount(() => {
             >
               暂无物料异常汇总数据
             </div>
+            <details class="factory-action-drawer">
+              <summary><span>＋ 登记或处理物料异常</span><small>保持异常概览为页面主视图</small></summary>
+              <div class="factory-action-drawer-panel">
+                <header><div><strong>物料异常处理</strong><span>登记缺料、错料、批次异常或更新处理进度</span></div><small>点击“收起操作面板”关闭</small></header>
             <div class="placeholder-content-grid">
               <article class="placeholder-content-card tone-orange">
                 <span class="placeholder-content-dot" />
@@ -16816,6 +16962,8 @@ onBeforeUnmount(() => {
                 </el-button>
               </article>
             </div>
+              </div>
+            </details>
             <el-alert
               v-if="productionMaterialExceptionResult"
               :title="productionMaterialExceptionResult"
@@ -16866,6 +17014,10 @@ onBeforeUnmount(() => {
             >
               暂无安环汇总数据
             </div>
+            <details class="factory-action-drawer">
+              <summary><span>＋ 登记安环事件或整改进度</span><small>高风险事项仍优先显示在概览中</small></summary>
+              <div class="factory-action-drawer-panel">
+                <header><div><strong>安环事件处理</strong><span>登记巡检、隐患、环境记录并更新整改状态</span></div><small>点击“收起操作面板”关闭</small></header>
             <div class="placeholder-content-grid">
               <article class="placeholder-content-card tone-sky">
                 <span class="placeholder-content-dot" />
@@ -16944,6 +17096,8 @@ onBeforeUnmount(() => {
                 </el-button>
               </article>
             </div>
+              </div>
+            </details>
             <el-alert
               v-if="productionSafetyEnvironmentResult"
               :title="productionSafetyEnvironmentResult"
@@ -16994,6 +17148,10 @@ onBeforeUnmount(() => {
             >
               暂无成本汇总数据
             </div>
+            <details class="factory-action-drawer">
+              <summary><span>＋ {{ activeNavId === 'production-cost-outsourcing' ? '登记外协成本' : '登记成本记录' }}</span><small>汇总与异常预警保持在主视图</small></summary>
+              <div class="factory-action-drawer-panel">
+                <header><div><strong>{{ activeNavId === 'production-cost-outsourcing' ? '外协成本登记' : '成本记录登记' }}</strong><span>填写成本来源、金额、责任部门和处理状态</span></div><small>点击“收起操作面板”关闭</small></header>
             <div class="placeholder-content-grid">
               <article class="placeholder-content-card tone-sky">
                 <span class="placeholder-content-dot" />
@@ -17037,6 +17195,8 @@ onBeforeUnmount(() => {
                 </el-button>
               </article>
             </div>
+              </div>
+            </details>
             <el-alert
               v-if="productionCostResult"
               :title="productionCostResult"
@@ -17087,6 +17247,10 @@ onBeforeUnmount(() => {
             >
               暂无奖惩汇总数据
             </div>
+            <details class="factory-action-drawer">
+              <summary><span>＋ 登记或审批奖惩</span><small>待审批和已生效汇总保持在主视图</small></summary>
+              <div class="factory-action-drawer-panel">
+                <header><div><strong>奖惩处理</strong><span>登记奖励、扣罚并更新审批状态</span></div><small>点击“收起操作面板”关闭</small></header>
             <div class="placeholder-content-grid">
               <article class="placeholder-content-card tone-sky">
                 <span class="placeholder-content-dot" />
@@ -17154,6 +17318,8 @@ onBeforeUnmount(() => {
                 </el-button>
               </article>
             </div>
+              </div>
+            </details>
             <el-alert
               v-if="productionRewardPenaltyResult"
               :title="productionRewardPenaltyResult"
@@ -17162,7 +17328,7 @@ onBeforeUnmount(() => {
               :closable="false"
             />
           </div>
-          <div v-if="activePlaceholderContentItems.length" class="placeholder-content-grid">
+          <div v-if="activePlaceholderContentItems.length && !isProductizedProductionSupportRoute" class="placeholder-content-grid">
             <article
               v-for="item in activePlaceholderContentItems"
               :key="`${activeDisplayItem.id}-${item.title}`"

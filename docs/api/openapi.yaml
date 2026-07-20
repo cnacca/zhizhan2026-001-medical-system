@@ -310,7 +310,10 @@ components:
           type: string
         external_status:
           "$ref": "#/components/schemas/OrderStatus"
-        create_time:
+        created_at:
+          type: string
+          format: date-time
+        updated_at:
           type: string
           format: date-time
         clinic_name:
@@ -344,6 +347,12 @@ components:
         tracking_no:
           type: string
           nullable: true
+        created_at:
+          type: string
+          format: date-time
+        updated_at:
+          type: string
+          format: date-time
     CreatePatientRequest:
       type: object
       required:
@@ -1069,7 +1078,7 @@ components:
           "$ref": "#/components/schemas/MessageStatus"
         review_note:
           type: string
-        create_time:
+        created_at:
           type: string
           format: date-time
     DraftStatus:
@@ -2640,6 +2649,12 @@ components:
           enum:
           - IMPRESSION
           - SCAN
+        created_at:
+          type: string
+          format: date-time
+        updated_at:
+          type: string
+          format: date-time
         nodes:
           type: array
           items:

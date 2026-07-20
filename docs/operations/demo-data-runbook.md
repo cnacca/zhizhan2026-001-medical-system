@@ -69,6 +69,16 @@ npm run demo:status
 npm run demo:stop
 ```
 
+## 可选：导入1013真实STL样例
+
+1013压缩包只作为隔离演示订单的真实技术附件使用，不提交到Git、不写入主展示库，也不替换脱敏患者、客户和订单字段。导入工具会校验压缩包路径、三份固定STL、二进制长度、文件哈希和隔离环境，随后幂等绑定到“07-已完成”订单，并验证医生、客服、生产、管理四端的读取与短时效签名预览。
+
+```bash
+DEMO_STL_ARCHIVE="/absolute/path/to/1013.rar" npm run demo:import-1013-stl
+```
+
+导入清单写入 `.demo-runtime/1013-stl-manifest.json`。原始压缩包和解压文件不会进入仓库，临时解压目录会在完成或失败后清理。
+
 运行时日志和演示订单清单保存在 `.demo-runtime/`，该目录不会提交到 Git。
 
 ## 重置保护

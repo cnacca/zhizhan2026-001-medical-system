@@ -5,8 +5,11 @@ import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.yuri.aiorder.common.BootstrapIdentity;
 import com.yuri.aiorder.common.auth.AccessControlService;
+import java.time.LocalDateTime;
 import java.util.ArrayList;
+import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
 import org.springframework.dao.EmptyResultDataAccessException;
 import org.springframework.http.HttpStatus;
 import org.springframework.jdbc.core.simple.JdbcClient;
@@ -15,6 +18,15 @@ import org.springframework.web.server.ResponseStatusException;
 
 @Service
 public class OrderProjectionQueryService {
+
+    private static final List<DoctorProgressMilestone> DOCTOR_PROGRESS_MILESTONES = List.of(
+            new DoctorProgressMilestone("review", "资料审核", "PENDING_REVIEW", 0, "订单资料正在审核"),
+            new DoctorProgressMilestone("design", "方案设计", "DESIGNING", 1, "订单已通过审核，正在进行方案设计"),
+            new DoctorProgressMilestone("production", "制作处理中", "PRODUCING", 2, "方案已确认，正在制作"),
+            new DoctorProgressMilestone("final-review", "成品复核", "QC", 3, "成品正在复核"),
+            new DoctorProgressMilestone("ready-to-ship", "待发货", "PENDING_SHIP", 4, "成品已完成，等待发货"),
+            new DoctorProgressMilestone("shipped", "配送中", "SHIPPED", 5, "订单已发货，请在物流页面查看配送信息"),
+            new DoctorProgressMilestone("completed", "已完成", "COMPLETED", 6, "订单已完成"));
 
     private final JdbcClient jdbcClient;
     private final ObjectMapper objectMapper;
@@ -29,7 +41,7 @@ public class OrderProjectionQueryService {
 
     public DoctorOrderVO getDoctorOrder(long orderId, BootstrapIdentity identity) {
         OrderReadRow row = loadOrder(orderId, identity, "doctor cannot access this order");
-        return toDoctorOrder(row);
+        return toDoctorOrder(row, doctorPublicProgress(row));
     }
 
     public OrderInternalDTO getInternalOrder(long orderId, BootstrapIdentity identity) {
@@ -68,7 +80,7 @@ public class OrderProjectionQueryService {
                 .single();
 
         if (identity.isDoctor()) {
-            return new OrderListResponse<>(rows.stream().map(this::toDoctorOrder).toList(), total, safePage, safeSize);
+            return new OrderListResponse<>(rows.stream().map(row -> toDoctorOrder(row, List.of())).toList(), total, safePage, safeSize);
         }
         return new OrderListResponse<>(rows.stream().map(this::toInternalOrder).toList(), total, safePage, safeSize);
     }
@@ -209,6 +221,8 @@ public class OrderProjectionQueryService {
                     o.production_note,
                     o.reject_reason,
                     o.form_data,
+                    o.created_at,
+                    o.updated_at,
                     p.public_message,
                     b.bill_status,
                     l.logistics_status,
@@ -236,13 +250,15 @@ public class OrderProjectionQueryService {
                 rs.getString("production_note"),
                 rs.getString("reject_reason"),
                 rs.getString("form_data"),
+                rs.getObject("created_at", LocalDateTime.class),
+                rs.getObject("updated_at", LocalDateTime.class),
                 rs.getString("public_message"),
                 rs.getString("bill_status"),
                 rs.getString("logistics_status"),
                 rs.getString("tracking_no"));
     }
 
-    private DoctorOrderVO toDoctorOrder(OrderReadRow row) {
+    private DoctorOrderVO toDoctorOrder(OrderReadRow row, List<DoctorOrderProgressItem> publicProgress) {
         return new DoctorOrderVO(
                 row.orderId(),
                 row.orderNo(),
@@ -254,7 +270,72 @@ public class OrderProjectionQueryService {
                 row.publicMessage(),
                 row.billStatus(),
                 row.logisticsStatus(),
-                row.trackingNo());
+                row.trackingNo(),
+                row.createdAt(),
+                row.updatedAt(),
+                publicProgress);
+    }
+
+    private List<DoctorOrderProgressItem> doctorPublicProgress(OrderReadRow row) {
+        int currentRank = doctorExternalStatusRank(row.externalStatus());
+        Map<String, LocalDateTime> occurredAtByStatus = new HashMap<>();
+        jdbcClient.sql("""
+                        SELECT to_external_status, MIN(created_at) AS occurred_at
+                        FROM order_status_history
+                        WHERE order_id = :orderId
+                        GROUP BY to_external_status
+                        """)
+                .param("orderId", row.orderId())
+                .query((rs, rowNum) -> new DoctorStatusOccurrence(
+                        rs.getString("to_external_status"),
+                        rs.getObject("occurred_at", LocalDateTime.class)))
+                .list()
+                .forEach(item -> occurredAtByStatus.put(item.externalStatus(), item.occurredAt()));
+
+        List<DoctorOrderProgressItem> result = new ArrayList<>();
+        result.add(new DoctorOrderProgressItem(
+                "submitted",
+                currentRank < 0 ? "订单待提交" : "订单已提交",
+                currentRank < 0 ? "ACTIVE" : "DONE",
+                row.createdAt(),
+                currentRank < 0 ? "订单仍为草稿，提交后进入资料审核" : "订单已进入公开处理流程"));
+
+        for (DoctorProgressMilestone milestone : DOCTOR_PROGRESS_MILESTONES) {
+            String status;
+            if (currentRank > milestone.rank()) {
+                status = "DONE";
+            } else if (currentRank == milestone.rank()) {
+                status = "COMPLETED".equals(milestone.externalStatus()) ? "DONE" : "ACTIVE";
+            } else {
+                status = "PENDING";
+            }
+            LocalDateTime occurredAt = occurredAtByStatus.get(milestone.externalStatus());
+            if (occurredAt == null && currentRank == milestone.rank()) {
+                occurredAt = row.updatedAt();
+            }
+            if (occurredAt == null && "PENDING_REVIEW".equals(milestone.externalStatus()) && currentRank >= 0) {
+                occurredAt = row.createdAt();
+            }
+            result.add(new DoctorOrderProgressItem(
+                    milestone.key(),
+                    milestone.label(),
+                    status,
+                    occurredAt,
+                    "ACTIVE".equals(status) ? milestone.activeNote() : null));
+        }
+        return result;
+    }
+
+    private int doctorExternalStatusRank(String externalStatus) {
+        if (externalStatus == null || "DRAFT".equals(externalStatus)) {
+            return -1;
+        }
+        for (DoctorProgressMilestone milestone : DOCTOR_PROGRESS_MILESTONES) {
+            if (milestone.externalStatus().equals(externalStatus)) {
+                return milestone.rank();
+            }
+        }
+        return 0;
     }
 
     private boolean isDoctorEditable(String internalStatus) {
@@ -277,7 +358,9 @@ public class OrderProjectionQueryService {
                 row.externalStatus(),
                 row.productionNote(),
                 row.rejectReason(),
-                readJson(row.formData()));
+                readJson(row.formData()),
+                row.createdAt(),
+                row.updatedAt());
     }
 
     private boolean orderExists(long orderId) {
@@ -312,6 +395,13 @@ public class OrderProjectionQueryService {
         }
     }
 
+    private record DoctorProgressMilestone(
+            String key, String label, String externalStatus, int rank, String activeNote) {
+    }
+
+    private record DoctorStatusOccurrence(String externalStatus, LocalDateTime occurredAt) {
+    }
+
     private record OrderReadRow(
             long orderId,
             String orderNo,
@@ -326,6 +416,8 @@ public class OrderProjectionQueryService {
             String productionNote,
             String rejectReason,
             String formData,
+            LocalDateTime createdAt,
+            LocalDateTime updatedAt,
             String publicMessage,
             String billStatus,
             String logisticsStatus,

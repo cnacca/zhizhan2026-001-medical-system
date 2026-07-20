@@ -784,7 +784,8 @@ public class CollaborationService {
         String orderFilter = orderId == null ? "" : "AND m.order_id = :orderId";
         JdbcClient.StatementSpec spec = jdbcClient.sql("""
                         SELECT m.message_id, m.order_id, o.order_no, o.product_type, o.external_status,
-                               m.sender_user_id, m.sender_role, m.content, m.visibility, m.review_status
+                               m.sender_user_id, m.sender_role, m.content, m.visibility, m.review_status,
+                               m.created_at
                         FROM order_message m
                         JOIN orders o ON o.order_id = m.order_id
                         WHERE 1 = 1
@@ -809,7 +810,8 @@ public class CollaborationService {
                         rs.getString("content"),
                         rs.getString("visibility"),
                         rs.getString("review_status"),
-                        visibleMentionUserIds(rs.getLong("message_id"), identity)))
+                        visibleMentionUserIds(rs.getLong("message_id"), identity),
+                        rs.getObject("created_at", LocalDateTime.class)))
                 .list();
     }
 
@@ -818,7 +820,7 @@ public class CollaborationService {
         return new MessageResponse(
                 row.messageId(), row.orderId(), row.orderNo(), row.productType(), row.externalStatus(),
                 row.senderUserId(), row.senderRole(), row.content(), row.visibility(), row.reviewStatus(),
-                visibleMentionUserIds(messageId, identity));
+                visibleMentionUserIds(messageId, identity), row.createdAt());
     }
 
     private List<Long> validateMentionedUserIds(
@@ -986,7 +988,8 @@ public class CollaborationService {
         try {
             return jdbcClient.sql("""
                             SELECT m.message_id, m.order_id, o.order_no, o.product_type, o.external_status,
-                                   m.sender_user_id, m.sender_role, m.content, m.visibility, m.review_status
+                                   m.sender_user_id, m.sender_role, m.content, m.visibility, m.review_status,
+                                   m.created_at
                             FROM order_message m
                             JOIN orders o ON o.order_id = m.order_id
                             WHERE m.message_id = :messageId
@@ -1002,7 +1005,8 @@ public class CollaborationService {
                             rs.getString("sender_role"),
                             rs.getString("content"),
                             rs.getString("visibility"),
-                            rs.getString("review_status")))
+                            rs.getString("review_status"),
+                            rs.getObject("created_at", LocalDateTime.class)))
                     .single();
         } catch (EmptyResultDataAccessException ex) {
             throw new ResponseStatusException(HttpStatus.NOT_FOUND, "message not found", ex);
@@ -1258,7 +1262,8 @@ public class CollaborationService {
             String senderRole,
             String content,
             String visibility,
-            String reviewStatus) {
+            String reviewStatus,
+            LocalDateTime createdAt) {
     }
 
     private record DesignDraftRow(long draftId, long orderId, Long uploadedByUserId, String draftStatus) {

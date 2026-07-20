@@ -29,6 +29,7 @@
     "check:feedback-20260713": "node scripts/check-feedback-20260713-browser-acceptance.mjs",
     "check:cs-portal-pixel-smoke": "node scripts/check-cs-portal-pixel-smoke.mjs",
     "check:customer-management-v2": "node scripts/check-customer-management-v2.mjs",
+    "check:cs-order-drawer-reference": "node scripts/check-cs-order-drawer-reference.mjs",
   "check:local-main-chain-acceptance-hardening": "node scripts/check-local-main-chain-acceptance-hardening.mjs",
   "check:ai-production-governance-local-hardening": "node scripts/check-ai-production-governance-local-hardening.mjs",
   "check:deployment-ops-local-hardening": "node scripts/check-deployment-ops-local-hardening.mjs",
@@ -180,6 +181,7 @@
     "demo:stop": "bash scripts/demo-runtime.sh stop",
     "demo:seed": "DEMO_ISOLATED_ENV=true DEMO_FRONTEND_URL=http://127.0.0.1:15173 node scripts/seed-demo-data.mjs && DEMO_ISOLATED_ENV=true bash scripts/seed-admin-portal-demo-data.sh",
     "demo:check": "DEMO_ISOLATED_ENV=true DEMO_FRONTEND_URL=http://127.0.0.1:15173 node scripts/check-demo-data.mjs",
+    "demo:import-1013-stl": "DEMO_ISOLATED_ENV=true DEMO_FRONTEND_URL=http://127.0.0.1:15173 node scripts/import-1013-demo-stl.mjs",
     "demo:prepare": "npm run demo:start && npm run demo:seed && npm run demo:check",
     "demo:reset": "bash scripts/reset-demo-environment.sh",
     "check:demo-data-tooling": "node scripts/check-demo-data-tooling.mjs"

@@ -1,6 +1,8 @@
 <script setup lang="ts">
-import { computed, ref, watch } from 'vue'
+import { computed, defineAsyncComponent, ref, watch } from 'vue'
 import CustomerManagementPage from './CustomerManagementPage.vue'
+
+const StlViewerDialog = defineAsyncComponent(() => import('./StlViewerDialog.vue'))
 
 type AuthMenu = {
   menuCode: string
@@ -115,6 +117,31 @@ type LogisticsInfo = {
   carrier: string | null
   tracking_no: string | null
   logistics_status: string
+}
+
+type ProcessNodeItem = {
+  node_instance_id: number
+  node_code: string
+  process_name: string
+  stage_name: string
+  step_order: number
+  is_optional: number
+  assigned_user_id: number | null
+  node_status: string
+  standard_duration: number | null
+  started_at: string | null
+  deadline_at: string | null
+  completed_at: string | null
+}
+
+type ProcessInstanceInfo = {
+  instance_id: number
+  order_id: number
+  instance_status: string
+  intake_branch_used: string | null
+  created_at: string
+  updated_at: string
+  nodes: ProcessNodeItem[]
 }
 
 type DeliveryItem = {
@@ -269,12 +296,22 @@ const orderDrafts = ref<DesignDraft[]>([])
 const orderFiles = ref<OrderFile[]>([])
 const orderBill = ref<BillInfo | null>(null)
 const orderLogistics = ref<LogisticsInfo | null>(null)
-const orderDetailState = ref<DetailLoadState>({ loading: false, error: '' })
-const orderDetailSectionErrors = ref<string[]>([])
-const orderReplyDraft = ref('')
-const orderReplySending = ref(false)
-const orderReplyError = ref('')
-const orderReplyResult = ref('')
+const orderProcess = ref<ProcessInstanceInfo | null>(null)
+const orderDrawerMessageDraft = ref('')
+const orderDrawerMessageSending = ref(false)
+const orderDrawerMessageError = ref('')
+const orderDrawerShowAllMessages = ref(false)
+const orderDrawerShowAllFiles = ref(false)
+const orderDrawerShowAllDetails = ref(false)
+const orderDrawerShowAllHistory = ref(false)
+const expandedProductionStageKeys = ref<string[]>([])
+const orderFilePreviewVisible = ref(false)
+const orderFilePreviewLoading = ref(false)
+const orderFilePreviewUrl = ref('')
+const orderFilePreviewName = ref('')
+const orderFilePreviewKind = ref<'IMAGE' | 'DOCUMENT'>('DOCUMENT')
+const orderFilePreviewError = ref('')
+const orderStlViewerVisible = ref(false)
 
 const inquiryOrderId = ref<number | null>(null)
 const inquiryMessages = ref<MessageItem[]>([])
@@ -458,20 +495,27 @@ function statusLabel(status?: string | null) {
   const labels: Record<string, string> = {
     DRAFT: '草稿', SUBMITTED: '已提交', PENDING_CS_REVIEW: '新订单', PENDING_PRODUCTION_REVIEW: '待生产审核',
     PENDING_DOCTOR_CONFIRM: '待客户确认', PROCESS_INSTANCE_CREATED: '已进入生产', PRODUCING: '生产中',
+    IN_PRODUCTION: '生产中',
     SHIPPED: '已发货', COMPLETED: '已完成', REJECTED: '已退回', APPROVED: '已通过',
     PENDING: '待处理', PENDING_PAYMENT: '待收款', PARTIALLY_PAID: '部分收款', PAID: '已收款',
     UNPAID: '待收款', UPLOADED: '已上传', SENT: '已发送', DELIVERED: '已签收',
     EXCEPTION: '配送异常', FOLLOWING_UP: '跟进中', RESOLVED: '已解决', DELAYED: '已延迟',
     RETURNED: '已返回', CANCELLED: '已取消', ACTIVE: '启用', INACTIVE: '停用', PENDING_CS_REVIEW_DESIGN: '待内部审核',
     PENDING_DOCTOR_REVIEW: '待客户确认', DOCTOR_CONFIRMED: '客户已确认', DOCTOR_REJECTED: '客户要求修改',
-    NO_PAYMENT_REQUIRED: '无需收款', NOT_REQUIRED: '无需处理', PROCESSING: '处理中', READY: '已就绪',
-    FAILED: '处理失败', UPLOADING: '上传中', VALID: '有效', INVALID: '无效', ARCHIVED: '已归档',
-    OUTSOURCED: '外协中', IN_TRANSIT: '运输中', RECEIVED: '已接收', OVERDUE: '已超期',
-    CS_REJECTED: '客服已退回', PRODUCTION_REJECTED: '生产审核已退回', ASSIGNED: '已分配生产',
-    IN_DESIGN: '设计处理中', IN_PRODUCTION: '生产制作中', IN_QC: '质检中', QC_PASSED: '终检已通过',
-    PENDING_SHIP: '待发货', DESIGNING: '设计中', QC: '质检中'
+    READY: '待开工', IN_PROGRESS: '进行中', SKIPPED: '已跳过', DIRECT: '已发送',
+    ISSUED: '已出账', PENDING_QUOTE: '待报价', UNKNOWN: '暂未记录', UNDER_REVIEW: '审核中',
+    PENDING_REVIEW: '待审核', CS_REJECTED: '客服已退回', PRODUCTION_REJECTED: '生产已退回',
+    DESIGN_UPLOADED: '设计稿已上传', QC_PASSED: '质检通过', PENDING_SHIP: '待发货',
+    READY_TO_SHIP: '待发货', RECEIVED: '已收货', NO_PAYMENT_REQUIRED: '无需收款',
+    NOT_ISSUED: '未出账', PROCESSING: '处理中', FAILED: '处理失败', DISABLED: '已停用',
+    PENDING_CONFIRM: '待确认', REVISION_REQUESTED: '要求修改', REVISING: '修改中',
+    NOT_REQUIRED: '无需处理', UPLOADING: '上传中', VALID: '有效', INVALID: '无效',
+    ARCHIVED: '已归档', OUTSOURCED: '外协中', IN_TRANSIT: '运输中', OVERDUE: '已超期',
+    ASSIGNED: '已分配生产', IN_DESIGN: '设计处理中', IN_QC: '质检中',
+    DESIGNING: '设计中', QC: '质检中'
   }
-  return status ? labels[status] || '未知状态' : '状态未记录'
+  if (!status) return '状态未记录'
+  return labels[status] || (/[一-鿿]/.test(status) ? status : '状态待确认')
 }
 
 function productLabel(type?: string | null) {
@@ -487,12 +531,22 @@ function productLabel(type?: string | null) {
     FIXED_BRIDGE: '固定桥',
     PFM_BRIDGE: '烤瓷桥',
     DENTURE: '活动义齿',
+    REMOVABLE_DENTURE: '活动修复',
     REMOVABLE: '活动修复',
+    ORTHODONTIC: '正畸产品',
     ORTHODONTICS: '正畸产品',
     CLEAR_ALIGNER: '隐形矫治',
     NIGHT_GUARD: '夜磨牙垫'
   }
-  return type ? labels[type] || '其他修复产品' : '产品未记录'
+  if (!type) return '产品未记录'
+  return labels[type] || (/[一-鿿]/.test(type) ? type : '其他定制产品')
+}
+
+function fileSizeLabel(value?: number | null) {
+  if (value == null) return '大小未记录'
+  if (value < 1024) return `${value} 字节`
+  if (value < 1024 * 1024) return `${(value / 1024).toFixed(1)} 千字节`
+  return `${(value / 1024 / 1024).toFixed(1)} 兆字节`
 }
 
 function registrationStatus(order: OrderItem) {
@@ -503,6 +557,13 @@ function informationStatus(order: OrderItem) {
   if (order.production_note?.trim()) return '已完成人工确认'
   if (order.internal_status === 'PENDING_CS_REVIEW') return '登记后待处理'
   return '待信息审核/翻译'
+}
+
+function orderMayHaveProcess(order: OrderItem) {
+  return [
+    'PROCESS_INSTANCE_CREATED', 'PRODUCING', 'IN_PRODUCTION', 'PENDING_SHIP',
+    'READY_TO_SHIP', 'SHIPPED', 'COMPLETED'
+  ].includes(order.internal_status)
 }
 
 function orderFormValue(order: OrderItem | null, keys: string[]) {
@@ -560,8 +621,11 @@ function reviewFieldValue(value: unknown): string {
 }
 
 function senderLabel(role: string) {
-  const labels: Record<string, string> = { DOCTOR: '医生/客户', CS: '客服', WORKER: '生产人员', ADMIN: '系统' }
-  return labels[role] || '其他参与人'
+  const labels: Record<string, string> = {
+    DOCTOR: '医生/客户', CUSTOMER: '医生/客户', CS: '客服', WORKER: '生产人员',
+    FACTORY: '生产人员', ADMIN: '系统管理员', SYSTEM: '系统'
+  }
+  return labels[role] || '其他协作人员'
 }
 
 function fileEmoji(file: Pick<OrderFile, 'content_type' | 'original_filename'>) {
@@ -616,6 +680,377 @@ function detailError(error: unknown, fallback: string) {
 function fileIds(draft: DesignDraft) {
   return draft.file_ids?.length ? draft.file_ids : draft.file_id ? [draft.file_id] : []
 }
+
+function fileTypeLabel(file: OrderFile) {
+  const extension = file.original_filename.split('.').pop()?.toLowerCase() || ''
+  if (extension === 'stl' || extension === 'obj' || extension === 'ply') return '三维模型'
+  if (file.content_type?.startsWith('image/') || ['jpg', 'jpeg', 'png', 'gif', 'webp'].includes(extension)) return '图片'
+  if (file.content_type === 'application/pdf' || extension === 'pdf') return '文档'
+  if (file.content_type?.startsWith('text/') || ['txt', 'csv'].includes(extension)) return '文本'
+  return '订单文件'
+}
+
+function fileSourceLabel(source?: string | null) {
+  const labels: Record<string, string> = {
+    DOCTOR_UPLOAD: '医生上传', CS_UPLOAD: '客服上传', PRODUCTION_UPLOAD: '生产上传',
+    WORKER_UPLOAD: '生产上传', SYSTEM_GENERATED: '系统生成', DESIGN_DRAFT: '设计稿',
+    ORDER: '订单资料', ORDER_ATTACHMENT: '医生订单附件', BILL: '账单文件'
+  }
+  return source ? labels[source] || '业务附件' : '来源未记录'
+}
+
+function fileVisibilityLabel(visibility?: string | null) {
+  const labels: Record<string, string> = {
+    DOCTOR: '医生可见', DOCTOR_CS: '医生与客服可见', INTERNAL: '仅内部可见',
+    CS: '客服可见', CS_ONLY: '仅客服可见', CS_WORKER: '客服与生产可见',
+    PRODUCTION: '生产可见', ALL: '相关人员可见'
+  }
+  return visibility ? labels[visibility] || '按权限可见' : '可见范围未记录'
+}
+
+function messageVisibilityLabel(visibility?: string | null) {
+  const labels: Record<string, string> = {
+    DOCTOR: '医生可见', DOCTOR_CS: '医生与客服可见', INTERNAL: '仅内部可见',
+    CS: '客服可见', CS_ONLY: '仅客服可见', CS_WORKER: '客服与生产可见',
+    PRODUCTION: '生产可见', ALL: '相关人员可见'
+  }
+  return visibility ? labels[visibility] || '按权限可见' : '可见范围未记录'
+}
+
+function formValueLabel(value: unknown): string {
+  if (typeof value === 'boolean') return value ? '是' : '否'
+  if (typeof value === 'number') return String(value)
+  if (Array.isArray(value)) return value.map(formValueLabel).filter(Boolean).join('、')
+  if (value == null || typeof value === 'object') return ''
+  const text = String(value).trim()
+  const labels: Record<string, string> = {
+    YES: '是', NO: '否', TRUE: '是', FALSE: '否', HIGH: '高', MEDIUM: '中', LOW: '低',
+    URGENT: '加急', NORMAL: '普通', ZIRCONIA: '氧化锆', METAL: '金属', RESIN: '树脂',
+    TITANIUM: '钛', UPPER: '上颌', LOWER: '下颌', LEFT: '左侧', RIGHT: '右侧'
+  }
+  const mapped = labels[text.toUpperCase()]
+  if (mapped) return mapped
+  return /^[A-Z][A-Z0-9_]*$/.test(text) && text.includes('_') ? '其他' : text
+}
+
+const formFieldLabels: Record<string, string> = {
+  shade: '颜色', color: '颜色', material: '材料', restoration_type: '修复类型',
+  abutment_type: '基台类型', implant_brand: '种植系统', implant_system: '种植系统',
+  emergence_profile: '穿龈轮廓', retention_type: '固位方式', occlusion: '咬合要求',
+  contact: '邻接要求', margin: '边缘要求', pontic_type: '桥体形式', surface: '表面处理',
+  translucency: '透光度', gingiva_color: '牙龈颜色', appliance_type: '矫治器类型',
+  arch: '牙弓', stages: '阶段数', due_date: '期望完成时间', priority: '优先级',
+  scan_type: '扫描类型', impression_type: '印模类型', cement_gap: '粘接间隙',
+  connector_size: '连接体尺寸', framework_material: '支架材料', clasp_type: '卡环类型'
+}
+
+const ignoredFormFieldPattern = /(demo|mock|fixture|test|acceptance|marker|debug|internal|scenario|token|secret|password|测试|验收标记|内部调试)/i
+const duplicateFormFields = new Set([
+  'patient_name', 'patient_id', 'tooth_position', 'tooth', 'teeth', 'instruction',
+  'customer_instruction', 'description', 'notes', 'special_requirements', 'doctor_note',
+  'shade', 'color'
+])
+
+const selectedOrderSpecEntries = computed(() => {
+  const order = selectedOrder.value
+  if (!order) return []
+  return Object.entries(order.form_data || {}).flatMap(([key, rawValue]) => {
+    if (duplicateFormFields.has(key) || ignoredFormFieldPattern.test(key)) return []
+    const label = formFieldLabels[key] || (/[一-鿿]/.test(key) ? key : '')
+    const value = formValueLabel(rawValue)
+    return label && value ? [{ key, label, value }] : []
+  })
+})
+
+const selectedOrderClinicalNotes = computed(() => {
+  const order = selectedOrder.value
+  if (!order) return []
+  const entries = [
+    { label: '医生指示', value: orderFormValue(order, ['instruction', 'customer_instruction', 'description']) },
+    { label: '特殊要求', value: orderFormValue(order, ['special_requirements', 'notes', 'doctor_note']) },
+    { label: '人工确认的生产信息', value: order.production_note?.trim() || '' },
+    { label: '退回原因', value: order.reject_reason?.trim() || '' }
+  ]
+  const seen = new Set<string>()
+  return entries.filter((item) => {
+    if (!item.value || seen.has(item.value)) return false
+    seen.add(item.value)
+    return true
+  })
+})
+
+const toothRows = [
+  { key: 'upper', label: '上颌', teeth: [18, 17, 16, 15, 14, 13, 12, 11, 21, 22, 23, 24, 25, 26, 27, 28] },
+  { key: 'lower', label: '下颌', teeth: [48, 47, 46, 45, 44, 43, 42, 41, 31, 32, 33, 34, 35, 36, 37, 38] }
+]
+
+const selectedToothNumbers = computed(() => {
+  const raw = orderFormValue(selectedOrder.value, ['tooth_position', 'tooth', 'teeth']).replace(/[–—~至]/g, '-')
+  const selected = new Set((raw.match(/\b(?:1[1-8]|2[1-8]|3[1-8]|4[1-8])\b/g) || []).map(Number))
+  for (const match of raw.matchAll(/\b([1-4][1-8])\s*-\s*([1-4][1-8])\b/g)) {
+    const start = Number(match[1])
+    const end = Number(match[2])
+    if (Math.floor(start / 10) !== Math.floor(end / 10)) continue
+    for (let tooth = Math.min(start, end); tooth <= Math.max(start, end); tooth += 1) selected.add(tooth)
+  }
+  return [...selected]
+})
+
+const orderDrawerAlert = computed(() => {
+  const order = selectedOrder.value
+  if (!order) return null
+  if (order.reject_reason?.trim()) return { tone: 'danger', title: '订单存在退回事项', text: order.reject_reason.trim() }
+  if (order.internal_status === 'PENDING_CS_REVIEW') return { tone: 'warning', title: '新订单待客服登记', text: '请核对客户资料后完成登记，再进入信息审核与生产流程。' }
+  const rejectedStatuses = ['REJECTED', 'RETURNED', 'REVISION_REQUESTED', 'CS_REJECTED', 'PRODUCTION_REJECTED']
+  if (rejectedStatuses.includes(order.internal_status)) return { tone: 'danger', title: '订单需要重新处理', text: `当前订单阶段：${statusLabel(order.internal_status)}。` }
+  const pendingReviewStatuses = [
+    'PENDING_PRODUCTION_REVIEW', 'PENDING_DOCTOR_CONFIRM', 'PENDING_REVIEW',
+    'PENDING_CONFIRM', 'PENDING_CS_REVIEW_DESIGN'
+  ]
+  if (pendingReviewStatuses.includes(order.internal_status)) return { tone: 'warning', title: '订单存在待审核事项', text: `当前订单阶段：${statusLabel(order.internal_status)}，请完成对应审核或确认。` }
+  if (orderMessages.value.some((message) => ['PENDING', 'PENDING_REVIEW', 'UNDER_REVIEW'].includes(message.review_status))) {
+    return { tone: 'warning', title: '订单沟通待处理', text: '当前订单存在待审核或待回复的真实沟通消息。' }
+  }
+  if (orderDrafts.value.some((draft) => ['PENDING_CS_REVIEW_DESIGN', 'PENDING_DOCTOR_REVIEW', 'PENDING_DOCTOR_CONFIRM'].includes(draft.status))) {
+    return { tone: 'warning', title: '设计稿待审核或确认', text: '请在文件与设计区域核对最新设计稿状态。' }
+  }
+  const supplementStatuses = ['PENDING_INFORMATION', 'INFORMATION_REQUIRED', 'SUPPLEMENT_REQUIRED', 'PENDING_SUPPLEMENT', 'MISSING_INFORMATION', 'NEEDS_INFO']
+  if (supplementStatuses.includes(order.internal_status)) return { tone: 'warning', title: '订单资料待补充', text: '请根据订单记录与沟通信息补齐真实资料后继续处理。' }
+  return null
+})
+
+const orderAuditTimeline = computed(() => {
+  const order = selectedOrder.value
+  if (!order) return []
+  const entries: Array<{ key: string; label: string; detail: string; time: string }> = []
+  const push = (key: string, label: string, detail: string, time?: string | null) => {
+    if (time) entries.push({ key, label, detail, time })
+  }
+  push('order-created', '订单创建', `${order.clinic_name}提交${productLabel(order.product_type)}订单`, order.created_at)
+  if (order.updated_at && order.updated_at !== order.created_at) push('order-updated', '订单资料更新', statusLabel(order.internal_status), order.updated_at)
+  if (orderProcess.value) {
+    push('process-created', '生产流程创建', statusLabel(orderProcess.value.instance_status), orderProcess.value.created_at)
+    if (orderProcess.value.updated_at !== orderProcess.value.created_at) push('process-updated', '生产流程更新', statusLabel(orderProcess.value.instance_status), orderProcess.value.updated_at)
+    orderProcess.value.nodes.forEach((node) => {
+      push(`node-${node.node_instance_id}-start`, `${node.process_name}开始`, node.stage_name, node.started_at)
+      push(`node-${node.node_instance_id}-complete`, `${node.process_name}完成`, node.stage_name, node.completed_at)
+    })
+  }
+  orderMessages.value.forEach((message) => push(`message-${message.msg_id}`, '沟通消息', `${senderLabel(message.sender_role)}发送消息`, message.created_at))
+  return entries.sort((a, b) => new Date(b.time).getTime() - new Date(a.time).getTime())
+})
+
+const orderedDrawerMessages = computed(() => [...orderMessages.value].sort((a, b) => {
+  const left = a.created_at ? new Date(a.created_at).getTime() : 0
+  const right = b.created_at ? new Date(b.created_at).getTime() : 0
+  return left - right
+}))
+
+const sortedOrderProcessNodes = computed(() => [...(orderProcess.value?.nodes || [])].sort((a, b) => a.step_order - b.step_order))
+
+type ProcessNodeVisual = {
+  icon: string
+  label: string
+}
+
+const PROCESS_NODE_VISUAL_GROUPS: ReadonlyArray<ProcessNodeVisual & { processNames: readonly string[] }> = [
+  {
+    icon: '📥',
+    label: '接收节点',
+    processNames: ['客户、客服、销售下单', '收发入货', '印模', '模型接收']
+  },
+  {
+    icon: '🔎',
+    label: '信息与入货审核',
+    processNames: [
+      '国外件信息检验、翻译，国内件信息检验', '入厂检验', 'CAD入货检', '种植入货检',
+      '模型入货检验', '胶托入货检验', '上瓷入货检验', '车瓷入货检验', '车金入货检验',
+      '钢托入货检验'
+    ]
+  },
+  {
+    icon: '💾',
+    label: '数据审核',
+    processNames: ['入厂检验、数据技术检验', '数据审核', '口扫', 'CAD扫描', '扫描']
+  },
+  {
+    icon: '✏️',
+    label: '设计节点',
+    processNames: [
+      'CAD设计', 'CAD内冠设计', 'CAD设计外冠', '种植上部冠设计', '钢托画线设计',
+      '活动钢托设计', '设计钢托', '钢托设计'
+    ]
+  },
+  {
+    icon: '🔍',
+    label: '设计与形态确认',
+    processNames: ['CAD确认设计', '车瓷形态确认', '客服定基台']
+  },
+  {
+    icon: '⚙️',
+    label: '制作加工',
+    processNames: [
+      'CAD传统切蜡', 'CAD切削', 'CAD切削基台', 'CAD包埋', 'CAD打印内冠', 'CAD打印外冠',
+      'CAD打印金属', 'CAD烧结', 'CAD铸造', '个性化基台', '成品基台', '充胶', '刻蜡', '复模',
+      '打印模型', '打印钢托', '打磨', '打磨就位', '就位', '排牙', '烧结', '研磨（订配件）',
+      '种植研磨基台', '种植配基台', '落盒充胶', '车瓷', '车金固+活焊接', '车金就位',
+      '车金焊接/安装配件', '车金研磨/就位冠', '选牙排牙', '钢托打印', '钢托打磨/就位',
+      '钢托打磨就位'
+    ]
+  },
+  {
+    icon: '🎨',
+    label: '上色与表面处理',
+    processNames: [
+      'CAD排版/切削/染色', '上光固化', '上瓷', '上瓷烧结', '上瓷（上op）', '上釉', '抛光'
+    ]
+  },
+  {
+    icon: '✅',
+    label: '质量检查',
+    processNames: [
+      'CAD出货检', 'CAD检验出货', '上瓷出货检验', '收发出货检验', '模型检验出货',
+      '胶托打磨出货检验', '胶托打磨出货检验质检出货', '质检出货', '车瓷出货检验',
+      '车金出货检', '车金出货检验', '钢托出货检验'
+    ]
+  },
+  {
+    icon: '💳',
+    label: '账单核对',
+    processNames: ['客服核对订单信息及账单']
+  },
+  {
+    icon: '🚀',
+    label: '出货节点',
+    processNames: ['收发出货', '等待出货', '发货']
+  }
+]
+
+const PROCESS_NODE_VISUALS = new Map<string, ProcessNodeVisual>(
+  PROCESS_NODE_VISUAL_GROUPS.flatMap(({ icon, label, processNames }) =>
+    processNames.map((processName) => [processName, { icon, label }]))
+)
+
+const DEFAULT_PROCESS_NODE_VISUAL: ProcessNodeVisual = { icon: '⚙️', label: '制作工序' }
+
+function processNodeVisual(node: ProcessNodeItem) {
+  return PROCESS_NODE_VISUALS.get(node.process_name.trim()) || DEFAULT_PROCESS_NODE_VISUAL
+}
+
+type MainProductionStageKey =
+  | 'ORDER_RECEIVED'
+  | 'INFORMATION_REVIEW'
+  | 'FACTORY_INTAKE'
+  | 'IMPLANT_PRODUCTION'
+  | 'CAD_PRODUCTION'
+  | 'MATERIAL_PRODUCTION'
+  | 'FINISH_AND_QC'
+  | 'BILLING_AND_SHIPPING'
+
+type MainProductionStageDefinition = {
+  key: MainProductionStageKey
+  label: string
+  icon: string
+  description: string
+}
+
+type MainProductionStage = MainProductionStageDefinition & {
+  nodes: ProcessNodeItem[]
+  status: string
+  resolvedCount: number
+  currentNode: ProcessNodeItem | null
+}
+
+const MAIN_PRODUCTION_STAGES: readonly MainProductionStageDefinition[] = [
+  { key: 'ORDER_RECEIVED', label: '订单接收', icon: '📥', description: '订单已提交并进入工厂业务流程' },
+  { key: 'INFORMATION_REVIEW', label: '信息与数据审核', icon: '💾', description: '核对订单资料、印模、口扫和生产数据' },
+  { key: 'FACTORY_INTAKE', label: '入厂收货', icon: '📥', description: '收发人员完成实物接收与内部流转' },
+  { key: 'IMPLANT_PRODUCTION', label: '种植部件制作', icon: '⚙️', description: '完成种植基台及相关部件制作' },
+  { key: 'CAD_PRODUCTION', label: 'CAD设计与切削', icon: '✏️', description: '完成数字设计、切削、打印与设计检验' },
+  { key: 'MATERIAL_PRODUCTION', label: '金属与瓷层加工', icon: '⚙️', description: '完成车金、上瓷、车瓷及材料成型加工' },
+  { key: 'FINISH_AND_QC', label: '上釉、抛光与质检', icon: '✅', description: '完成表面处理和最终质量检查' },
+  { key: 'BILLING_AND_SHIPPING', label: '账单核对与发货', icon: '🚀', description: '完成账单核对、待发货与最终发出' }
+]
+
+const INFORMATION_STAGE_NAMES = new Set(['下单入厂', '取模分支', '模型'])
+const IMPLANT_STAGE_NAMES = new Set(['种植', '基台分支'])
+const CAD_STAGE_NAMES = new Set(['CAD', '正畸'])
+const CAD_ROUTE_STAGE_NAMES = new Set(['内冠', '外冠', '贴面路线'])
+const BILLING_AND_SHIPPING_PROCESS_NAMES = new Set(['等待出货', '客服核对订单信息及账单', '发货'])
+const RESOLVED_PROCESS_NODE_STATUSES = new Set(['COMPLETED', 'SKIPPED'])
+const ACTIVE_PROCESS_NODE_STATUSES = new Set(['IN_PROGRESS', 'PROCESSING', 'RUNNING'])
+
+function mainProductionStageKey(node: ProcessNodeItem): MainProductionStageKey {
+  if (node.process_name === '客户、客服、销售下单') return 'ORDER_RECEIVED'
+  if (INFORMATION_STAGE_NAMES.has(node.stage_name)) return 'INFORMATION_REVIEW'
+  if (node.stage_name === '收发') return 'FACTORY_INTAKE'
+  if (IMPLANT_STAGE_NAMES.has(node.stage_name)) return 'IMPLANT_PRODUCTION'
+  if (CAD_STAGE_NAMES.has(node.stage_name)) return 'CAD_PRODUCTION'
+  if (CAD_ROUTE_STAGE_NAMES.has(node.stage_name) && node.process_name.startsWith('CAD')) return 'CAD_PRODUCTION'
+  if (node.stage_name === '收尾' && BILLING_AND_SHIPPING_PROCESS_NAMES.has(node.process_name)) return 'BILLING_AND_SHIPPING'
+  if (node.stage_name === '收尾') return 'FINISH_AND_QC'
+  return 'MATERIAL_PRODUCTION'
+}
+
+function mainProductionStageStatus(nodes: ProcessNodeItem[]) {
+  if (nodes.every((node) => node.node_status === 'SKIPPED')) return 'SKIPPED'
+  if (nodes.every((node) => RESOLVED_PROCESS_NODE_STATUSES.has(node.node_status))) return 'COMPLETED'
+  if (nodes.some((node) => ACTIVE_PROCESS_NODE_STATUSES.has(node.node_status) || node.node_status === 'COMPLETED')) return 'IN_PROGRESS'
+  if (nodes.some((node) => node.node_status === 'READY')) return 'READY'
+  return 'PENDING'
+}
+
+const mainProductionStages = computed<MainProductionStage[]>(() => MAIN_PRODUCTION_STAGES.flatMap((definition) => {
+  const nodes = sortedOrderProcessNodes.value.filter((node) => mainProductionStageKey(node) === definition.key)
+  if (!nodes.length) return []
+  const status = mainProductionStageStatus(nodes)
+  const currentNode = nodes.find((node) => ACTIVE_PROCESS_NODE_STATUSES.has(node.node_status))
+    || nodes.find((node) => node.node_status === 'READY')
+    || nodes.find((node) => !RESOLVED_PROCESS_NODE_STATUSES.has(node.node_status))
+    || nodes.at(-1)
+    || null
+  return [{
+    ...definition,
+    nodes,
+    status,
+    resolvedCount: nodes.filter((node) => RESOLVED_PROCESS_NODE_STATUSES.has(node.node_status)).length,
+    currentNode
+  }]
+}))
+
+const mainProductionCompletedCount = computed(() => mainProductionStages.value.filter((stage) => stage.status === 'COMPLETED').length)
+
+function productionStageExpanded(stageKey: MainProductionStageKey) {
+  return expandedProductionStageKeys.value.includes(stageKey)
+}
+
+function toggleProductionStage(stageKey: MainProductionStageKey) {
+  expandedProductionStageKeys.value = productionStageExpanded(stageKey)
+    ? expandedProductionStageKeys.value.filter((key) => key !== stageKey)
+    : [...expandedProductionStageKeys.value, stageKey]
+}
+
+const displayedOrderMessages = computed(() => orderDrawerShowAllMessages.value
+  ? orderedDrawerMessages.value
+  : orderedDrawerMessages.value.slice(-5))
+
+const sortedOrderFiles = computed(() => [...orderFiles.value].sort((a, b) =>
+  new Date(b.created_at).getTime() - new Date(a.created_at).getTime()))
+
+const displayedOrderFiles = computed(() => orderDrawerShowAllFiles.value
+  ? sortedOrderFiles.value
+  : sortedOrderFiles.value.slice(0, 3))
+
+const sortedOrderDrafts = computed(() => [...orderDrafts.value].sort((a, b) => b.version - a.version))
+const displayedOrderDrafts = computed(() => sortedOrderDrafts.value.slice(0, 2))
+
+const displayedOrderSpecEntries = computed(() => orderDrawerShowAllDetails.value
+  ? selectedOrderSpecEntries.value
+  : selectedOrderSpecEntries.value.slice(0, 6))
+
+const displayedOrderAuditTimeline = computed(() => orderDrawerShowAllHistory.value
+  ? orderAuditTimeline.value
+  : orderAuditTimeline.value.slice(0, 5))
 
 async function loadOrders() {
   const payload = await apiFetch<Paged<OrderItem>>('/orders?page=1&size=100')
@@ -672,6 +1107,14 @@ async function loadInquiryMessages(orderId: number) {
   inquiryMessages.value = (await apiFetch<MessageItem[]>(`/orders/${orderId}/messages`)).data
 }
 
+function resetOrderDrawerLayout() {
+  orderDrawerShowAllMessages.value = false
+  orderDrawerShowAllFiles.value = false
+  orderDrawerShowAllDetails.value = false
+  orderDrawerShowAllHistory.value = false
+  expandedProductionStageKeys.value = []
+}
+
 async function sendInquiryMessage() {
   if (!inquiryOrderId.value || !inquiryDraft.value.trim()) return
   inquirySending.value = true
@@ -691,70 +1134,104 @@ async function sendInquiryMessage() {
 }
 
 async function openOrder(order: OrderItem) {
+  resetOrderDrawerLayout()
+  if (selectedOrder.value?.order_id !== order.order_id) {
+    orderDrawerMessageDraft.value = ''
+    orderDrawerMessageError.value = ''
+  }
+  resetOrderPreview()
   selectedOrder.value = order
   orderDrawerVisible.value = true
-  orderReplyDraft.value = ''
-  orderReplyError.value = ''
-  orderReplyResult.value = ''
-  orderDetailState.value = { loading: true, error: '' }
-  orderDetailSectionErrors.value = []
-  orderMessages.value = []
-  orderDrafts.value = []
-  orderFiles.value = []
-  orderBill.value = null
-  orderLogistics.value = null
-  const requests = await Promise.allSettled([
-    apiFetch<MessageItem[]>(`/orders/${order.order_id}/messages`),
-    apiFetch<DesignDraft[]>(`/orders/${order.order_id}/design-drafts`),
-    apiFetch<OrderFile[]>(`/orders/${order.order_id}/files`),
-    apiFetch<BillInfo>(`/orders/${order.order_id}/bill`),
-    apiFetch<LogisticsInfo>(`/orders/${order.order_id}/logistics`)
+  const [messages, drafts, files, bill, logistics, process] = await Promise.all([
+    safeData<MessageItem[]>(`/orders/${order.order_id}/messages`, []),
+    safeData<DesignDraft[]>(`/orders/${order.order_id}/design-drafts`, []),
+    safeData<OrderFile[]>(`/orders/${order.order_id}/files`, []),
+    safeData<BillInfo | null>(`/orders/${order.order_id}/bill`, null),
+    safeData<LogisticsInfo | null>(`/orders/${order.order_id}/logistics`, null),
+    orderMayHaveProcess(order)
+      ? safeData<ProcessInstanceInfo | null>(`/orders/${order.order_id}/process-instance`, null)
+      : Promise.resolve(null)
   ])
-  if (selectedOrder.value?.order_id !== order.order_id) return
-  const [messages, drafts, files, bill, logistics] = requests
-  if (messages.status === 'fulfilled') orderMessages.value = messages.value.data
-  else orderDetailSectionErrors.value.push('沟通记录')
-  if (drafts.status === 'fulfilled') orderDrafts.value = drafts.value.data
-  else orderDetailSectionErrors.value.push('设计版本')
-  if (files.status === 'fulfilled') orderFiles.value = files.value.data
-  else orderDetailSectionErrors.value.push('订单附件')
-  if (bill.status === 'fulfilled') orderBill.value = bill.value.data
-  else orderDetailSectionErrors.value.push('账单资料')
-  if (logistics.status === 'fulfilled') orderLogistics.value = logistics.value.data
-  else orderDetailSectionErrors.value.push('物流资料')
-  orderDetailState.value = { loading: false, error: orderDetailSectionErrors.value.length === requests.length ? '订单关联资料暂时无法加载' : '' }
+  orderMessages.value = messages
+  orderDrafts.value = drafts
+  orderFiles.value = files
+  orderBill.value = bill
+  orderLogistics.value = logistics
+  orderProcess.value = process
 }
 
-async function sendOrderReply() {
-  const orderId = selectedOrder.value?.order_id
-  const content = orderReplyDraft.value.trim()
-  if (!orderId || !content || orderReplySending.value) return
-  orderReplySending.value = true
-  orderReplyError.value = ''
-  orderReplyResult.value = ''
+async function sendOrderDrawerMessage() {
+  const order = selectedOrder.value
+  const content = orderDrawerMessageDraft.value.trim()
+  if (!order || !content || orderDrawerMessageSending.value) return
+  orderDrawerMessageSending.value = true
+  orderDrawerMessageError.value = ''
   try {
-    await apiFetch<MessageItem>(`/orders/${orderId}/messages`, {
-      method: 'POST', body: JSON.stringify({ content, mention_user_ids: [] })
+    await apiFetch<MessageItem>(`/orders/${order.order_id}/messages`, {
+      method: 'POST',
+      body: JSON.stringify({ content, visible_to: 'DOCTOR_CS', mention_user_ids: [] })
     })
-    if (selectedOrder.value?.order_id !== orderId) return
-    orderReplyDraft.value = ''
-    orderMessages.value = (await apiFetch<MessageItem[]>(`/orders/${orderId}/messages`)).data
-    orderReplyResult.value = '消息已发送并保存到订单会话。'
+    orderMessages.value = (await apiFetch<MessageItem[]>(`/orders/${order.order_id}/messages`)).data
+    if (inquiryOrderId.value === order.order_id) inquiryMessages.value = [...orderMessages.value]
+    orderDrawerMessageDraft.value = ''
+    pageResult.value = '消息已发送并保存到订单沟通记录。'
   } catch (error) {
-    orderReplyError.value = detailError(error, '消息发送失败')
+    orderDrawerMessageError.value = error instanceof Error ? error.message : '消息发送失败，请稍后重试。'
   } finally {
-    orderReplySending.value = false
+    orderDrawerMessageSending.value = false
   }
+}
+
+function resetOrderPreview() {
+  orderFilePreviewVisible.value = false
+  orderFilePreviewLoading.value = false
+  orderFilePreviewUrl.value = ''
+  orderFilePreviewName.value = ''
+  orderFilePreviewKind.value = 'DOCUMENT'
+  orderFilePreviewError.value = ''
+  orderStlViewerVisible.value = false
 }
 
 async function previewOrderFile(file: OrderFile) {
-  pageError.value = ''
+  orderFilePreviewLoading.value = true
+  orderFilePreviewError.value = ''
   try {
     const payload = await apiFetch<PreviewResponse>(`/files/${file.file_id}/preview-url`)
-    window.open(payload.data.preview_url, '_blank', 'noopener,noreferrer')
+    orderFilePreviewUrl.value = payload.data.preview_url
+    orderFilePreviewName.value = file.original_filename
+    const extension = file.original_filename.split('.').pop()?.toLowerCase() || ''
+    if (extension === 'stl') {
+      orderStlViewerVisible.value = true
+      return
+    }
+    orderFilePreviewKind.value = file.content_type?.startsWith('image/') || ['jpg', 'jpeg', 'png', 'gif', 'webp'].includes(extension)
+      ? 'IMAGE'
+      : 'DOCUMENT'
+    orderFilePreviewVisible.value = true
   } catch (error) {
-    pageError.value = detailError(error, '文件预览失败')
+    orderFilePreviewError.value = error instanceof Error ? error.message : '文件预览失败，请稍后重试。'
+  } finally {
+    orderFilePreviewLoading.value = false
   }
+}
+
+async function navigateFromOrderDrawer(route: '/cs/inquiries' | '/cs/information-translation' | '/cs/designs' | '/cs/billing' | '/cs/delivery') {
+  const order = selectedOrder.value
+  if (!order) return
+  orderDrawerVisible.value = false
+  if (route === '/cs/inquiries') {
+    inquiryOrderId.value = order.order_id
+    inquiryMessages.value = [...orderMessages.value]
+  } else if (route === '/cs/information-translation') {
+    await selectTranslationOrder(order)
+  } else if (route === '/cs/designs') {
+    designOrderId.value = order.order_id
+  } else if (route === '/cs/billing') {
+    selectedBillingOrderId.value = order.order_id
+  } else if (route === '/cs/delivery') {
+    selectedDeliveryOrderId.value = order.order_id
+  }
+  emit('navigate', route)
 }
 
 function openInquiryForOrder(orderId: number) {
@@ -1582,40 +2059,129 @@ watch(billingTab, (tab) => {
           </tr></tbody>
         </table>
       </section>
-      <el-drawer v-model="orderDrawerVisible" size="540px" :with-header="false" class="cs-r-drawer" modal-class="cs-r-drawer-overlay">
-        <div v-if="selectedOrder" class="cs-r-drawer-shell">
-          <header class="cs-r-detail-head"><div><small>ORDER DETAILS</small><h2>{{ selectedOrder.order_no }}</h2></div><div><span class="cs-r-badge is-violet">{{ statusLabel(selectedOrder.internal_status) }}</span><button type="button" aria-label="关闭订单详情" @click="orderDrawerVisible = false">×</button></div></header>
-          <div v-if="orderDetailState.loading" class="cs-r-state cs-r-detail-loading"><span class="cs-r-loading-orbit">🦷</span><strong>正在读取订单关联资料</strong><span>附件、设计、账单和物流会分别核对。</span></div>
-          <template v-else>
-            <section v-if="orderDetailState.error" class="cs-r-detail-alert is-danger"><span>!</span><div><strong>关联资料加载失败</strong><p>{{ orderDetailState.error }}</p></div><button type="button" @click="openOrder(selectedOrder)">重试</button></section>
-            <section v-else-if="orderDetailSectionErrors.length" class="cs-r-detail-alert is-warning"><span>⚠️</span><div><strong>部分资料暂未加载</strong><p>{{ orderDetailSectionErrors.join('、') }}暂时不可用，其余真实资料仍可查看。</p></div><button type="button" @click="openOrder(selectedOrder)">重试</button></section>
-            <section class="cs-r-summary-grid cs-r-detail-summary"><div><span>患者</span><strong>{{ orderFormValue(selectedOrder,['patient_name']) || '按权限未显示' }}</strong></div><div><span>产品</span><strong>{{ productLabel(selectedOrder.product_type) }}</strong></div><div><span>诊所</span><strong>{{ selectedOrder.clinic_name }}</strong></div><div><span>建立时间</span><strong>{{ compactDateTime(selectedOrder.created_at) }}</strong></div></section>
-            <section v-if="selectedOrder.reject_reason || registrationStatus(selectedOrder)==='NEW'" class="cs-r-detail-alert" :class="selectedOrder.reject_reason ? 'is-danger' : 'is-warning'"><span>{{ selectedOrder.reject_reason ? '!' : '✏️' }}</span><div><strong>{{ selectedOrder.reject_reason ? '订单存在退回记录' : '等待客服登记与资料核对' }}</strong><p>{{ selectedOrder.reject_reason || '先核对客户资料、附件和制作参数，再进入信息审核/翻译。' }}</p></div></section>
-            <section><div class="cs-r-section-title"><div><span class="cs-r-section-emoji">🧭</span><div><h3>生产与交付进度</h3><p>节点依据订单和关联记录的真实状态展示</p></div></div></div><div class="cs-r-detail-timeline"><article v-for="step in orderTimeline" :key="step.key" :class="`is-${step.state}`"><span class="cs-r-timeline-node">{{ step.icon }}</span><div><strong>{{ step.label }}</strong><small>{{ step.detail }}</small></div></article></div></section>
-            <section><div class="cs-r-section-title"><div><span class="cs-r-section-emoji">🦷</span><div><h3>临床与制作参数</h3><p>客户原始资料保持只读</p></div></div><span>{{ orderDetailFields.length }} 项</span></div><div v-if="orderDetailFields.length" class="cs-r-detail-field-grid"><article v-for="field in orderDetailFields" :key="field.key" :class="{'is-wide':field.long}"><span>{{ field.label }}</span><strong>{{ field.value }}</strong></article></div><div v-else class="cs-r-state"><strong>尚未提交结构化制作参数</strong><span>可通过问单向客户补充确认。</span></div></section>
-            <section><div class="cs-r-section-title"><div><span class="cs-r-section-emoji">📎</span><div><h3>订单文件</h3><p>仅显示当前账号可访问的真实附件</p></div></div><span>{{ orderFiles.length }} 个</span></div><div v-if="orderFiles.length" class="cs-r-file-grid"><button v-for="file in orderFiles" :key="file.file_id" type="button" @click="previewOrderFile(file)"><span>{{ fileEmoji(file) }}</span><div><strong>{{ file.original_filename }}</strong><small>{{ formatFileSize(file.file_size) }} · {{ statusLabel(file.upload_status) }}</small></div><b>预览</b></button></div><div v-else class="cs-r-state">当前订单没有可查看附件</div></section>
-            <section><div class="cs-r-section-title"><div><span class="cs-r-section-emoji">🔗</span><div><h3>关联业务</h3><p>设计、账单、物流和沟通记录</p></div></div></div><div class="cs-r-related-row"><span>🎨 设计稿 {{ orderDrafts.length }}</span><span>💬 消息 {{ orderMessages.length }}</span><span>💳 {{ orderBill?.bill_id ? statusLabel(orderBill.payment_status) : '账单未建立' }}</span><span>🚀 {{ statusLabel(orderLogistics?.logistics_status) }}</span></div></section>
-            <section class="cs-r-drawer-actions"><span>可在下方直接回复客户，也可进入完整沟通中心处理待审核事项。</span><button type="button" @click="openInquiryForOrder(selectedOrder.order_id)">💬 完整沟通中心</button><button class="is-primary" type="button" @click="translationOrderId = selectedOrder.order_id; emit('navigate','/cs/information-translation')">✏️ 信息审核/翻译</button></section>
-            <section class="cs-r-order-messages" data-testid="cs-order-inline-reply">
-              <div class="cs-r-section-title"><div><span class="cs-r-section-emoji">💬</span><div><h3>订单消息</h3><p>当前订单的跨端真实会话</p></div></div><span>{{ orderMessages.length }} 条</span></div>
-              <div v-if="orderMessages.length" class="cs-r-order-thread">
-                <article v-for="message in orderMessages.slice(-15)" :key="message.msg_id" class="cs-r-order-message" :class="{'is-self':message.sender_role==='CS'}">
-                  <div class="cs-r-order-message-meta"><strong>{{ senderLabel(message.sender_role) }}</strong><span v-if="message.review_status && message.review_status!=='APPROVED'">{{ statusLabel(message.review_status) }}</span></div>
-                  <p>{{ message.content }}</p>
-                  <small>{{ compactDateTime(message.created_at) }}</small>
-                </article>
-              </div>
-              <div v-else class="cs-r-order-message-empty">当前订单还没有消息，直接在下方开始对话。</div>
-              <div v-if="orderReplyError" class="cs-r-order-reply-state is-error">{{ orderReplyError }}</div>
-              <div v-else-if="orderReplyResult" class="cs-r-order-reply-state is-success">{{ orderReplyResult }}</div>
-              <div class="cs-r-order-reply">
-                <input v-model="orderReplyDraft" type="text" aria-label="回复订单消息" placeholder="回复诊所 / 医生…" @keydown.enter.exact.prevent="sendOrderReply">
-                <button type="button" :disabled="orderReplySending || !orderReplyDraft.trim()" @click="sendOrderReply">{{ orderReplySending ? '发送中…' : '发送' }}</button>
+      <el-drawer v-model="orderDrawerVisible" size="540px" :with-header="false" class="cs-r-drawer cs-r-order-drawer" modal-class="cs-r-drawer-overlay" @closed="resetOrderPreview">
+        <div v-if="selectedOrder" class="cs-r-drawer-shell cs-r-order-drawer-shell">
+          <header class="cs-r-order-drawer-head">
+            <div><small>订单详情</small><h2>{{ selectedOrder.order_no }}</h2><p>{{ selectedOrder.clinic_name }} · {{ productLabel(selectedOrder.product_type) }}</p></div>
+            <div class="cs-r-order-head-actions"><button type="button" @click="navigateFromOrderDrawer('/cs/information-translation')">信息审核</button><button type="button" aria-label="关闭订单详情" @click="orderDrawerVisible = false">×</button></div>
+          </header>
+
+          <div class="cs-r-order-drawer-body">
+            <section class="cs-r-order-summary">
+              <div class="cs-r-summary-grid">
+                <div><span>客户</span><strong>{{ selectedOrder.clinic_name }}</strong></div>
+                <div><span>患者</span><strong>{{ orderFormValue(selectedOrder,['patient_name']) || (selectedOrder.patient_id ? `档案 #${selectedOrder.patient_id}` : '按权限显示') }}</strong></div>
+                <div><span>产品</span><strong>{{ productLabel(selectedOrder.product_type) }}</strong></div>
+                <div><span>订单阶段</span><strong>{{ statusLabel(selectedOrder.internal_status) }}</strong></div>
+                <div><span>牙位</span><strong>{{ orderFormValue(selectedOrder,['tooth_position','tooth','teeth']) || '待确认' }}</strong></div>
+                <div><span>色号</span><strong>{{ orderFormValue(selectedOrder,['shade','color']) || '待确认' }}</strong></div>
+                <div><span>负责医生</span><strong>{{ selectedOrder.doctor_user_id ? `人员 #${selectedOrder.doctor_user_id}` : '未分配' }}</strong></div>
+                <div><span>客服负责人</span><strong>{{ selectedOrder.cs_user_id ? `人员 #${selectedOrder.cs_user_id}` : '未分配' }}</strong></div>
+                <div><span>应收金额</span><strong>{{ orderBill ? money(orderBill.amount_cents, orderBill.currency || 'CNY') : '金额待录入' }}</strong></div>
+                <div class="is-state"><span>登记状态</span><strong>{{ registrationStatus(selectedOrder) === 'NEW' ? '新订单' : '已登记' }}</strong></div>
+                <div><span>订单创建时间</span><strong>{{ compactDateTime(selectedOrder.created_at) }}</strong></div>
+                <div><span>最近更新</span><strong>{{ compactDateTime(selectedOrder.updated_at) }}</strong></div>
+                <div><span>生产创建时间</span><strong>{{ orderProcess ? compactDateTime(orderProcess.created_at) : '尚未创建生产流程' }}</strong></div>
               </div>
             </section>
-          </template>
+
+            <section v-if="orderDrawerAlert" class="cs-r-order-alert" :class="`is-${orderDrawerAlert.tone}`">
+              <span aria-hidden="true">{{ orderDrawerAlert.tone === 'success' ? '✓' : orderDrawerAlert.tone === 'danger' ? '!' : 'i' }}</span>
+              <div><strong>{{ orderDrawerAlert.title }}</strong><p>{{ orderDrawerAlert.text }}</p></div>
+            </section>
+
+            <section class="cs-r-order-section cs-r-order-production-timeline" data-testid="cs-order-production-timeline">
+              <div class="cs-r-order-section-title"><div><span>生产进度</span><h3>制作时间线</h3></div><b v-if="orderProcess">已完成 {{ mainProductionCompletedCount }} / {{ mainProductionStages.length }} 个主流程</b></div>
+              <div v-if="mainProductionStages.length" class="cs-r-order-production-list">
+                <article v-for="stage in mainProductionStages" :key="stage.key" class="cs-r-order-production-step" :class="`is-${stage.status.toLowerCase().replaceAll('_','-')}`">
+                  <span class="cs-r-order-production-marker" :aria-label="stage.status === 'COMPLETED' ? `${stage.label}已完成` : `${stage.label}，${statusLabel(stage.status)}`">
+                    <span v-if="stage.status === 'COMPLETED'" aria-hidden="true">✓</span>
+                    <span v-else class="cs-r-order-production-icon" aria-hidden="true">{{ stage.icon }}</span>
+                  </span>
+                  <div class="cs-r-order-production-content">
+                    <header><strong>{{ stage.label }}</strong><b>{{ statusLabel(stage.status) }}</b></header>
+                    <p>{{ stage.description }}</p>
+                    <time>已处理 {{ stage.resolvedCount }} / {{ stage.nodes.length }} 道内部工序</time>
+                    <p v-if="stage.status === 'IN_PROGRESS' && stage.currentNode" class="cs-r-order-production-current-note">当前内部工序：{{ stage.currentNode.process_name }}<template v-if="stage.currentNode.assigned_user_id != null">，负责人 #{{ stage.currentNode.assigned_user_id }}</template></p>
+                    <button class="cs-r-order-production-toggle" type="button" :aria-expanded="productionStageExpanded(stage.key)" @click="toggleProductionStage(stage.key)">
+                      {{ productionStageExpanded(stage.key) ? '收起内部工序' : `查看${stage.nodes.length}道内部工序` }}
+                      <span aria-hidden="true">{{ productionStageExpanded(stage.key) ? '⌃' : '⌄' }}</span>
+                    </button>
+                    <div v-if="productionStageExpanded(stage.key)" class="cs-r-order-production-sublist">
+                      <div v-for="node in stage.nodes" :key="node.node_instance_id" class="cs-r-order-production-substep" :class="`is-${node.node_status.toLowerCase().replaceAll('_','-')}`">
+                        <span class="cs-r-order-production-submarker" :aria-label="node.node_status === 'COMPLETED' ? `${node.process_name}已完成` : `${node.process_name}，${processNodeVisual(node).label}`">
+                          <span v-if="node.node_status === 'COMPLETED'" aria-hidden="true">✓</span>
+                          <span v-else class="cs-r-order-production-icon" aria-hidden="true">{{ processNodeVisual(node).icon }}</span>
+                        </span>
+                        <div><strong>{{ node.process_name }}</strong><small>{{ node.stage_name }}<template v-if="node.assigned_user_id != null"> · 负责人 #{{ node.assigned_user_id }}</template></small><time v-if="node.completed_at">完成 {{ compactDateTime(node.completed_at) }}</time><time v-else-if="node.started_at">开始 {{ compactDateTime(node.started_at) }}</time><time v-else-if="node.deadline_at">截止 {{ compactDateTime(node.deadline_at) }}</time><time v-else>时间尚未安排</time></div>
+                        <b>{{ statusLabel(node.node_status) }}</b>
+                      </div>
+                    </div>
+                  </div>
+                </article>
+              </div>
+              <div v-else class="cs-r-state">当前订单尚未创建生产流程</div>
+            </section>
+
+            <section id="cs-order-section-details" class="cs-r-order-section cs-r-order-flow-section cs-r-order-panel-details" data-testid="cs-order-section-details">
+              <div class="cs-r-order-section-title"><div><span>临床信息</span><h3>订单资料</h3></div></div>
+              <div class="cs-r-order-panel-core"><div><span>产品</span><strong>{{ productLabel(selectedOrder.product_type) }}</strong></div><div><span>牙位</span><strong>{{ orderFormValue(selectedOrder,['tooth_position','tooth','teeth']) || '待确认' }}</strong></div><div><span>色号</span><strong>{{ orderFormValue(selectedOrder,['shade','color']) || '待确认' }}</strong></div></div>
+              <div v-if="displayedOrderSpecEntries.length" class="cs-r-spec-grid"><div v-for="item in displayedOrderSpecEntries" :key="item.key"><span>{{ item.label }}</span><strong>{{ item.value }}</strong></div></div>
+              <div v-else class="cs-r-state">当前订单暂无额外临床或制作参数</div>
+              <div v-if="selectedOrderClinicalNotes.length" class="cs-r-order-notes"><article v-for="item in selectedOrderClinicalNotes" :key="item.label"><strong>{{ item.label }}</strong><p>{{ item.value }}</p></article></div>
+              <div v-else class="cs-r-state">当前订单暂无临床备注</div>
+              <div v-if="orderDrawerShowAllDetails" class="cs-r-order-panel-tooth-chart">
+                <header><span>完整牙位图</span><strong>{{ orderFormValue(selectedOrder,['tooth_position','tooth','teeth']) || '待确认' }}</strong></header>
+                <div class="cs-r-tooth-chart"><div v-for="row in toothRows" :key="row.key"><strong>{{ row.label }}</strong><div><span v-for="tooth in row.teeth" :key="tooth" :class="{ 'is-selected': selectedToothNumbers.includes(tooth) }">{{ tooth }}</span></div></div></div>
+              </div>
+              <button class="cs-r-order-panel-toggle" type="button" @click="orderDrawerShowAllDetails = !orderDrawerShowAllDetails">{{ orderDrawerShowAllDetails ? '收起完整资料' : '展开完整资料' }}</button>
+            </section>
+
+            <section id="cs-order-section-files" class="cs-r-order-section cs-r-order-flow-section cs-r-order-panel-files" data-testid="cs-order-section-files">
+              <div class="cs-r-order-section-title"><div><span>资料附件</span><h3>文件与设计稿</h3></div><b>{{ orderFiles.length }} 个文件</b></div>
+              <p v-if="orderFilePreviewError" class="cs-r-order-inline-error">{{ orderFilePreviewError }}</p>
+              <div v-if="displayedOrderFiles.length" class="cs-r-order-files">
+                <button v-for="file in displayedOrderFiles" :key="file.file_id" type="button" :disabled="orderFilePreviewLoading" @click="previewOrderFile(file)">
+                  <i>{{ fileTypeLabel(file).slice(0, 1) }}</i>
+                  <span><strong>{{ file.original_filename }}</strong><small>{{ fileTypeLabel(file) }} · {{ fileSizeLabel(file.file_size) }} · {{ compactDateTime(file.created_at) }}</small><em>{{ fileSourceLabel(file.source_type) }} · {{ fileVisibilityLabel(file.visibility) }}</em></span>
+                  <b>{{ orderFilePreviewLoading ? '读取中' : '预览' }}</b>
+                </button>
+              </div>
+              <div v-else class="cs-r-state">当前订单暂无可查看文件</div>
+              <button v-if="sortedOrderFiles.length > 3" class="cs-r-order-panel-toggle" type="button" @click="orderDrawerShowAllFiles = !orderDrawerShowAllFiles">{{ orderDrawerShowAllFiles ? '收起文件' : '查看全部文件' }}</button>
+              <div class="cs-r-order-panel-designs">
+                <header><div><span>设计资料</span><h3>最近设计稿</h3></div><b>{{ orderDrafts.length }} 个版本</b></header>
+                <div v-if="displayedOrderDrafts.length" class="cs-r-order-drafts"><article v-for="draft in displayedOrderDrafts" :key="draft.draft_id"><header><strong>设计稿第 {{ draft.version }} 版</strong><span>{{ statusLabel(draft.status) }}</span></header><p>上传人 {{ draft.uploader_user_id ? `#${draft.uploader_user_id}` : '未记录' }} · {{ draft.file_count || fileIds(draft).length }} 个文件</p><small v-if="draft.cs_reject_reason">客服退回：{{ draft.cs_reject_reason }}</small><small v-if="draft.doctor_reject_reason">客户反馈：{{ draft.doctor_reject_reason }}</small><button v-if="fileIds(draft).length" type="button" @click="previewDesignDraft(draft)">预览当前版本</button></article></div>
+                <div v-else class="cs-r-state">当前订单暂无设计稿版本</div>
+                <button class="cs-r-order-panel-route" type="button" @click="navigateFromOrderDrawer('/cs/designs')">进入设计稿管理</button>
+              </div>
+            </section>
+
+            <section id="cs-order-section-history" class="cs-r-order-section cs-r-order-flow-section cs-r-order-panel-history" data-testid="cs-order-section-history">
+              <div class="cs-r-order-section-title"><div><span>处理记录</span><h3>订单时间线</h3></div><b>{{ orderAuditTimeline.length }} 条</b></div>
+              <div v-if="displayedOrderAuditTimeline.length" class="cs-r-audit-timeline"><article v-for="entry in displayedOrderAuditTimeline" :key="entry.key"><time>{{ compactDateTime(entry.time) }}</time><span></span><div><strong>{{ entry.label }}</strong><p>{{ entry.detail }}</p></div></article></div>
+              <div v-else class="cs-r-state">当前订单暂无可用的真实时间记录</div>
+              <button v-if="orderAuditTimeline.length > 5" class="cs-r-order-panel-toggle" type="button" @click="orderDrawerShowAllHistory = !orderDrawerShowAllHistory">{{ orderDrawerShowAllHistory ? '收起记录' : '查看全部记录' }}</button>
+            </section>
+
+            <section id="cs-order-section-messages" class="cs-r-order-section cs-r-order-flow-section cs-r-order-panel-messages" data-testid="cs-order-section-messages">
+              <div class="cs-r-order-section-title"><div><span>订单会话</span><h3>沟通信息</h3></div><b>{{ orderMessages.length }} 条</b></div>
+              <div v-if="displayedOrderMessages.length" class="cs-r-order-messages"><article v-for="message in displayedOrderMessages" :key="message.msg_id" :class="{ 'is-self': message.sender_role === 'CS' }"><span>{{ senderLabel(message.sender_role).slice(0,1) }}</span><div><header><strong>{{ senderLabel(message.sender_role) }}</strong><small>{{ compactDateTime(message.created_at) }}</small></header><p>{{ message.content }}</p><footer><em>{{ messageVisibilityLabel(message.visible_to) }}</em><b>{{ statusLabel(message.review_status) }}</b></footer></div></article></div>
+              <div v-else class="cs-r-state">当前订单暂无沟通记录，可直接发送第一条消息</div>
+              <button v-if="orderedDrawerMessages.length > 5" class="cs-r-order-panel-toggle" type="button" @click="orderDrawerShowAllMessages = !orderDrawerShowAllMessages">{{ orderDrawerShowAllMessages ? '收起消息' : '查看全部消息' }}</button>
+              <p v-if="orderDrawerMessageError" class="cs-r-order-inline-error">{{ orderDrawerMessageError }}</p>
+              <div class="cs-r-order-composer"><textarea v-model="orderDrawerMessageDraft" rows="3" placeholder="给医生或客户发送消息……" aria-label="订单沟通消息" @keydown.ctrl.enter.exact.prevent="sendOrderDrawerMessage" @keydown.meta.enter.exact.prevent="sendOrderDrawerMessage"></textarea><div><span>按住控制键或命令键并回车发送</span><button class="is-primary" type="button" :disabled="orderDrawerMessageSending || !orderDrawerMessageDraft.trim()" @click="sendOrderDrawerMessage">{{ orderDrawerMessageSending ? '发送中…' : '发送' }}</button></div></div>
+            </section>
+          </div>
         </div>
       </el-drawer>
+
+      <el-dialog v-model="orderFilePreviewVisible" width="min(920px, 92vw)" append-to-body destroy-on-close class="cs-r-order-file-dialog">
+        <template #header><div><strong>订单文件预览</strong><span>{{ orderFilePreviewName }}</span></div></template>
+        <img v-if="orderFilePreviewKind === 'IMAGE'" :src="orderFilePreviewUrl" :alt="orderFilePreviewName">
+        <iframe v-else :src="orderFilePreviewUrl" :title="`${orderFilePreviewName}预览`" />
+      </el-dialog>
+      <StlViewerDialog v-model:visible="orderStlViewerVisible" :source-url="orderFilePreviewUrl" :filename="orderFilePreviewName" />
     </template>
 
     <template v-else-if="activeRoute === '/cs/information-translation'">

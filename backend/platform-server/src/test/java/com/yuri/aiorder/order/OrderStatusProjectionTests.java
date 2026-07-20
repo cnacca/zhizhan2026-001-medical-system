@@ -122,10 +122,19 @@ class OrderStatusProjectionTests {
                 .andExpect(jsonPath("$.data.order_id").value(orderId))
                 .andExpect(jsonPath("$.data.external_status").value("PRODUCING"))
                 .andExpect(jsonPath("$.data.editable").value(false))
+                .andExpect(jsonPath("$.data.public_progress", hasSize(8)))
+                .andExpect(jsonPath("$.data.public_progress[0].key").value("submitted"))
+                .andExpect(jsonPath("$.data.public_progress[0].status").value("DONE"))
+                .andExpect(jsonPath("$.data.public_progress[2].label").value("方案设计"))
+                .andExpect(jsonPath("$.data.public_progress[3].label").value("制作处理中"))
+                .andExpect(jsonPath("$.data.public_progress[3].status").value("ACTIVE"))
+                .andExpect(jsonPath("$.data.public_progress[3].occurred_at").exists())
                 .andExpect(jsonPath("$.data.internal_status").doesNotExist())
                 .andExpect(jsonPath("$.data.production_note").doesNotExist())
                 .andExpect(jsonPath("$.data.cs_user_id").doesNotExist())
-                .andExpect(content().string(not(containsString("内部生产备注"))));
+                .andExpect(content().string(not(containsString("内部生产备注"))))
+                .andExpect(content().string(not(containsString("to_internal_status"))))
+                .andExpect(content().string(not(containsString("operator_user_id"))));
 
         mockMvc.perform(get("/orders/{orderId}", orderId)
                         .header("X-Bootstrap-Role", "ADMIN"))

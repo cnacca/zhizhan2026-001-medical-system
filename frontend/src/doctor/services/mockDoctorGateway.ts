@@ -17,6 +17,7 @@ import type {
   PatientCreateInput,
   PatientSummary,
   ProductOption,
+  PublicProgressItem,
   ReviewDecisionInput,
   ReviewType
 } from '../types/contracts'
@@ -94,6 +95,58 @@ const products: ProductOption[] = [
       { key: 'units', label: '单位数', type: 'NUMBER', required: true },
       { key: 'pontic', label: '桥体设计', type: 'SELECT', required: true, options: ['改良盖嵴式', '卫生型', '骑跨式'] }
     ]
+  },
+  {
+    product_id: 'PRD-REMOVABLE',
+    product_type: 'REMOVABLE_DENTURE',
+    product_name: '局部活动义齿',
+    material: '钴铬支架·树脂牙',
+    quote: null,
+    review_capabilities: ['CAD_DESIGN', 'POST_GLAZING_PHOTOS'],
+    form_fields: [
+      { key: 'denture_scope', label: '修复范围', type: 'SELECT', required: true, options: ['上颌', '下颌', '上下颌'] },
+      { key: 'framework', label: '支架材料', type: 'SELECT', required: true, options: ['钴铬合金', '纯钛', '树脂基托'] },
+      { key: 'clasp_note', label: '卡环与基托要求', type: 'TEXTAREA', required: false }
+    ]
+  },
+  {
+    product_id: 'PRD-ORTHO',
+    product_type: 'ORTHODONTIC',
+    product_name: '正畸保持器',
+    material: '透明热压膜片',
+    quote: null,
+    review_capabilities: ['CAD_DESIGN'],
+    form_fields: [
+      { key: 'arch', label: '牙弓', type: 'SELECT', required: true, options: ['上颌', '下颌', '上下颌'] },
+      { key: 'thickness', label: '膜片厚度', type: 'SELECT', required: true, options: ['0.75mm', '1.0mm', '1.5mm'] },
+      { key: 'ortho_note', label: '正畸要求', type: 'TEXTAREA', required: false }
+    ]
+  },
+  {
+    product_id: 'PRD-ALIGNER',
+    product_type: 'CLEAR_ALIGNER',
+    product_name: '隐形矫治方案',
+    material: '多层复合膜片',
+    quote: null,
+    review_capabilities: ['CAD_DESIGN'],
+    form_fields: [
+      { key: 'treatment_goal', label: '矫治目标', type: 'TEXTAREA', required: true },
+      { key: 'stage_count', label: '预期阶段数', type: 'NUMBER', required: false },
+      { key: 'attachment', label: '附件偏好', type: 'SELECT', required: false, options: ['由设计师建议', '尽量减少', '医生指定'] }
+    ]
+  },
+  {
+    product_id: 'PRD-DESIGN',
+    product_type: 'DIGITAL_DESIGN',
+    product_name: '数字化修复设计',
+    material: '数字文件交付',
+    quote: null,
+    review_capabilities: ['CAD_DESIGN'],
+    form_fields: [
+      { key: 'design_output', label: '设计输出', type: 'SELECT', required: true, options: ['冠桥设计', '美学蜡型', '种植导板', '数字排牙'] },
+      { key: 'software_format', label: '文件格式', type: 'SELECT', required: true, options: ['STL', 'PLY', 'OBJ'] },
+      { key: 'design_note', label: '设计说明', type: 'TEXTAREA', required: false }
+    ]
   }
 ]
 
@@ -123,6 +176,60 @@ const orders: OrderSummary[] = [
     order_id: '1008', order_no: 'DRAFT-20260718-08', doctor_name: '陈医生', patient_id: 'P-1003', patient_code: 'B008', patient_name: '王*', clinic_name: '明悦口腔诊所', product_type: 'FIXED_BRIDGE', product_name: '固定桥', tags: ['草稿'], external_status: 'DRAFT', current_action: 'NONE', created_at: '2026-07-18 13:10', due_at: '-', quote: null, allowed_actions: ['VIEW_ORDER', 'SUBMIT_ORDER'], state_version: 2
   }
 ]
+
+const publicProgressMilestones = [
+  { key: 'review', label: '资料审核', rank: 0, note: '订单资料正在审核' },
+  { key: 'design', label: '方案设计', rank: 1, note: '订单已通过审核，正在进行方案设计' },
+  { key: 'production', label: '制作处理中', rank: 2, note: '方案已确认，正在制作' },
+  { key: 'final-review', label: '成品复核', rank: 3, note: '成品正在复核' },
+  { key: 'ready-to-ship', label: '待发货', rank: 4, note: '成品已完成，等待发货' },
+  { key: 'shipped', label: '配送中', rank: 5, note: '订单已发货，请在物流页面查看配送信息' },
+  { key: 'completed', label: '已完成', rank: 6, note: '订单已完成' }
+] as const
+
+function publicProgressRank(order: OrderSummary): number {
+  if (order.external_status === 'DRAFT') return -1
+  if (['SUBMITTED', 'UNDER_REVIEW', 'NEEDS_INFO'].includes(order.external_status)) return 0
+  if (order.external_status === 'IN_PRODUCTION') {
+    if (order.current_action === 'DESIGN_REVIEW_REQUIRED') return 1
+    if (order.current_action === 'POST_MILLING_REVIEW_REQUIRED') return 3
+    return 2
+  }
+  if (order.external_status === 'PRODUCTION_COMPLETED') return 3
+  if (['READY_TO_DISPATCH', 'AWAITING_PAYMENT'].includes(order.external_status)) return 4
+  if (['SHIPPED', 'DELIVERED_PENDING_CONFIRMATION'].includes(order.external_status)) return 5
+  if (order.external_status === 'COMPLETED') return 6
+  return 0
+}
+
+function publicProgressFor(order: OrderSummary): PublicProgressItem[] {
+  const currentRank = publicProgressRank(order)
+  return [
+    {
+      key: 'submitted',
+      label: currentRank < 0 ? '订单待提交' : '订单已提交',
+      status: currentRank < 0 ? 'ACTIVE' : 'DONE',
+      occurred_at: order.created_at,
+      note: currentRank < 0 ? '订单仍为草稿，提交后进入资料审核' : '订单已进入公开处理流程'
+    },
+    ...publicProgressMilestones.map((milestone): PublicProgressItem => {
+      const status = currentRank > milestone.rank
+        ? 'DONE'
+        : currentRank === milestone.rank
+          ? milestone.rank === 6 ? 'DONE' : 'ACTIVE'
+          : 'PENDING'
+      const deliveredNote = order.external_status === 'DELIVERED_PENDING_CONFIRMATION' && milestone.rank === 5
+        ? '订单已送达，等待确认收货'
+        : milestone.note
+      return {
+        key: milestone.key,
+        label: milestone.label,
+        status,
+        note: status === 'ACTIVE' ? deliveredNote : undefined
+      }
+    })
+  ]
+}
 
 const patients: PatientSummary[] = [
   { patient_id: 'P-1001', patient_code: 'A026', patient_name: '张先生', patient_age: 42, patient_gender: '男', doctor_name: '陈医生', tags: ['VIP', '种植'], oral_description: '右上后牙缺失，已完成种植体植入。', latest_order_no: 'ORD20260718-1001', latest_product_name: '种植冠', latest_order_at: '2026-07-15', order_count: 4 },
@@ -180,16 +287,11 @@ for (const order of orders) {
       '色号': 'A2',
       '制作要求': '依订单确认资料制作'
     },
-    progress: [
-      { key: 'submitted', label: '已提交', status: 'DONE', occurred_at: order.created_at },
-      { key: 'reviewed', label: '资料已确认', status: order.external_status === 'NEEDS_INFO' || order.external_status === 'DRAFT' ? 'PENDING' : 'DONE' },
-      { key: 'production', label: '制作中', status: ['IN_PRODUCTION', 'AWAITING_PAYMENT'].includes(order.external_status) ? 'ACTIVE' : ['SHIPPED', 'DELIVERED_PENDING_CONFIRMATION', 'COMPLETED'].includes(order.external_status) ? 'DONE' : 'PENDING' },
-      { key: 'dispatch', label: '已发货', status: ['SHIPPED', 'DELIVERED_PENDING_CONFIRMATION', 'COMPLETED'].includes(order.external_status) ? 'DONE' : 'PENDING' },
-      { key: 'complete', label: '已完成', status: order.external_status === 'COMPLETED' ? 'DONE' : order.external_status === 'DELIVERED_PENDING_CONFIRMATION' ? 'ACTIVE' : 'PENDING' }
-    ],
+    progress: publicProgressFor(order),
     review_options: orderReviews.map((item) => item.review_type),
     reviews: clone(orderReviews),
     files: [file(`F-ORDER-${order.order_id}`, `${order.patient_code}-scan.stl`, 'STL', order.created_at), file(`F-PHOTO-${order.order_id}`, `${order.patient_code}-shade.jpg`, 'IMAGE', order.created_at)],
+    messages: [],
     bill_summary: {
       bill_status: order.quote ? 'ISSUED' : 'PENDING_QUOTE',
       payment_status: order.current_action === 'PAYMENT_REQUIRED' ? 'UNPAID' : order.quote ? 'PAID' : 'UNPAID',
@@ -297,6 +399,7 @@ export class MockDoctorGateway implements DoctorGateway {
     const detail = details.get(orderId)
     if (!detail) throw new Error('订单不存在')
     const result = clone(detail)
+    result.messages = clone(threads.find((thread) => thread.order_id === orderId)?.messages ?? [])
     if (this.activeRole !== 'DOCTOR') {
       result.allowed_actions = result.allowed_actions.filter((action) => !['CREATE_ORDER', 'SUBMIT_ORDER', 'APPROVE_REVIEW', 'REJECT_REVIEW'].includes(action))
       result.reviews.forEach((item) => { item.allowed_actions = [] })
@@ -374,16 +477,11 @@ export class MockDoctorGateway implements DoctorGateway {
       ...clone(created),
       public_message: '订单已提交，等待订单服务确认资料。',
       form_snapshot: { ...clone(input.caseFields), ...clone(input.dynamicFields) },
-      progress: [
-        { key: 'submitted', label: '已提交', status: 'DONE', occurred_at: now },
-        { key: 'reviewed', label: '资料确认', status: 'ACTIVE' },
-        { key: 'production', label: '制作中', status: 'PENDING' },
-        { key: 'dispatch', label: '已发货', status: 'PENDING' },
-        { key: 'complete', label: '已完成', status: 'PENDING' }
-      ],
+      progress: publicProgressFor(created),
       review_options: [...input.reviewOptions],
       reviews: createdReviews,
       files: clone(input.files),
+      messages: [],
       bill_summary: { bill_status: 'PENDING_QUOTE', payment_status: 'UNPAID', outstanding: null }
     }
     orders.unshift(created)

@@ -12,8 +12,17 @@ import type {
   PatientDetail,
   PatientCreateInput,
   PatientSummary,
+  PublicProgressItem,
   ReviewDecisionInput
 } from '../types/contracts'
+
+type LegacyPublicProgressItem = {
+  key: string
+  label: string
+  status: 'DONE' | 'ACTIVE' | 'PENDING'
+  occurred_at?: string | null
+  note?: string | null
+}
 
 type LegacyOrder = {
   order_id: number
@@ -24,6 +33,28 @@ type LegacyOrder = {
   editable?: boolean
   form_data?: Record<string, unknown>
   public_message?: string | null
+  bill_status?: string | null
+  logistics_status?: string | null
+  tracking_no?: string | null
+  created_at?: string | null
+  updated_at?: string | null
+  public_progress?: LegacyPublicProgressItem[]
+}
+
+type LegacyMessage = {
+  msg_id: number
+  sender_role: string
+  content: string
+  created_at?: string | null
+}
+
+type LegacyOrderFile = {
+  file_id: number
+  original_filename: string
+  content_type: string | null
+  file_size: number | null
+  upload_status: string
+  created_at: string
 }
 
 type LegacyCreateOrderResponse = Pick<LegacyOrder, 'order_id' | 'order_no' | 'product_type' | 'external_status' | 'form_data'>
@@ -90,6 +121,45 @@ const statusMap: Record<string, string> = {
   COMPLETED: 'COMPLETED'
 }
 
+const publicProgressMilestones = [
+  { key: 'review', label: '资料审核', externalStatus: 'PENDING_REVIEW', rank: 0, note: '订单资料正在审核' },
+  { key: 'design', label: '方案设计', externalStatus: 'DESIGNING', rank: 1, note: '订单已通过审核，正在进行方案设计' },
+  { key: 'production', label: '制作处理中', externalStatus: 'PRODUCING', rank: 2, note: '方案已确认，正在制作' },
+  { key: 'final-review', label: '成品复核', externalStatus: 'QC', rank: 3, note: '成品正在复核' },
+  { key: 'ready-to-ship', label: '待发货', externalStatus: 'PENDING_SHIP', rank: 4, note: '成品已完成，等待发货' },
+  { key: 'shipped', label: '配送中', externalStatus: 'SHIPPED', rank: 5, note: '订单已发货，请在物流页面查看配送信息' },
+  { key: 'completed', label: '已完成', externalStatus: 'COMPLETED', rank: 6, note: '订单已完成' }
+] as const
+
+function fallbackPublicProgress(order: LegacyOrder): PublicProgressItem[] {
+  const currentRank = order.external_status === 'DRAFT'
+    ? -1
+    : publicProgressMilestones.find((item) => item.externalStatus === order.external_status)?.rank ?? 0
+  return [
+    {
+      key: 'submitted',
+      label: currentRank < 0 ? '订单待提交' : '订单已提交',
+      status: currentRank < 0 ? 'ACTIVE' : 'DONE',
+      occurred_at: order.created_at || undefined,
+      note: currentRank < 0 ? '订单仍为草稿，提交后进入资料审核' : '订单已进入公开处理流程'
+    },
+    ...publicProgressMilestones.map((milestone): PublicProgressItem => {
+      const status = currentRank > milestone.rank
+        ? 'DONE'
+        : currentRank === milestone.rank
+          ? milestone.externalStatus === 'COMPLETED' ? 'DONE' : 'ACTIVE'
+          : 'PENDING'
+      return {
+        key: milestone.key,
+        label: milestone.label,
+        status,
+        occurred_at: status === 'ACTIVE' ? order.updated_at || undefined : undefined,
+        note: status === 'ACTIVE' ? milestone.note : undefined
+      }
+    })
+  ]
+}
+
 const hiddenFormKey = /(internal|process|worklog|work_log|employee|staff|technician|operator|assignee|inspection|quality|qc|rework|performance|responsibility|工序|员工|技师|质检|返工|工时|绩效|责任)/i
 const unsafeDoctorContent = /(内部工序|生产员工|员工编号|技师姓名|入检|出检|质检|工时|返工|绩效|责任分类|internal_status|node_instance|worker_user|assigned_user|work_log|rework|performance|responsibility)/i
 
@@ -128,6 +198,20 @@ function asText(value: unknown): string {
   if (typeof value === 'string') return value
   if (typeof value === 'number' || typeof value === 'boolean') return String(value)
   return JSON.stringify(value)
+}
+
+function fileSizeLabel(bytes: number | null): string {
+  if (bytes == null) return '大小未记录'
+  if (bytes < 1024 * 1024) return `${Math.max(1, Math.round(bytes / 1024))} KB`
+  return `${(bytes / 1024 / 1024).toFixed(1)} MB`
+}
+
+function fileKind(file: LegacyOrderFile): DoctorFile['kind'] {
+  const extension = file.original_filename.split('.').pop()?.toLowerCase()
+  if (extension === 'stl') return 'STL'
+  if (extension === 'pdf') return 'PDF'
+  if (/^(jpg|jpeg|png|webp)$/.test(extension ?? '') || file.content_type?.startsWith('image/')) return 'IMAGE'
+  return 'OTHER'
 }
 
 function notificationCategory(event: string): DoctorNotification['category'] {
@@ -197,7 +281,7 @@ export class LegacyHttpDoctorGateway implements DoctorGateway {
       tags: [],
       external_status: statusMap[order.external_status] ?? order.external_status,
       current_action: isDraft ? 'NONE' : editable ? 'SUPPLEMENT_REQUIRED' : 'NONE',
-      created_at: asText(form.created_at) || '-',
+      created_at: asText(order.created_at) || asText(form.created_at) || '-',
       due_at: asText(form.due_date) || asText(form.delivery_date) || '-',
       quote: null,
       allowed_actions: isDraft
@@ -296,21 +380,50 @@ export class LegacyHttpDoctorGateway implements DoctorGateway {
   async loadOrderDetail(orderId: string): Promise<OrderDetail> {
     const legacy = await this.request<LegacyOrder>(`/orders/${encodeURIComponent(orderId)}`)
     assertSafeOrderPayload(legacy)
+    const [messagesResult, filesResult] = await Promise.allSettled([
+      this.request<LegacyMessage[]>(`/orders/${encodeURIComponent(orderId)}/messages`),
+      this.request<LegacyOrderFile[]>(`/orders/${encodeURIComponent(orderId)}/files`)
+    ])
     const summary = this.mapOrder(legacy)
     const formSnapshot = safeFormSnapshot(legacy.form_data ?? {})
+    const messages = messagesResult.status === 'fulfilled'
+      ? messagesResult.value.map((message) => ({
+          message_id: String(message.msg_id),
+          sender: message.sender_role === 'DOCTOR' ? 'SELF' as const : 'ORDER_SERVICE' as const,
+          content: message.content,
+          sent_at: message.created_at || '时间未记录',
+          status: 'SENT' as const,
+          attachments: []
+        }))
+      : []
+    const files = filesResult.status === 'fulfilled'
+      ? filesResult.value.map((file) => ({
+          file_id: String(file.file_id),
+          name: file.original_filename,
+          kind: fileKind(file),
+          size_label: fileSizeLabel(file.file_size),
+          status: file.upload_status === 'READY' ? 'READY' as const : file.upload_status === 'FAILED' ? 'FAILED' as const : 'PROCESSING' as const,
+          uploaded_at: file.created_at
+        }))
+      : []
     return {
       ...summary,
       public_message: legacy.public_message || '暂无公开进度说明。',
       form_snapshot: formSnapshot,
-      progress: [
-        { key: 'submitted', label: '已提交', status: 'DONE' },
-        { key: 'processing', label: summary.external_status === 'COMPLETED' ? '已完成' : '处理中', status: summary.external_status === 'COMPLETED' ? 'DONE' : 'ACTIVE' }
-      ],
+      progress: legacy.public_progress?.length
+        ? legacy.public_progress.map((item) => ({
+            key: item.key,
+            label: item.label,
+            status: item.status,
+            occurred_at: item.occurred_at || undefined,
+            note: item.note || undefined
+          }))
+        : fallbackPublicProgress(legacy),
       review_options: [],
       reviews: [],
-      // 旧文件列表尚未完成医生 visibility 投影，新页面不直读。
-      files: [],
-      bill_summary: { bill_status: 'UNKNOWN', payment_status: 'UNKNOWN', outstanding: null }
+      files,
+      messages,
+      bill_summary: { bill_status: legacy.bill_status || 'UNKNOWN', payment_status: 'UNKNOWN', outstanding: null }
     }
   }
 

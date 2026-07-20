@@ -28,12 +28,13 @@ const between = (source, start, end, scope) => {
 }
 
 for (const text of ['DoctorPortalV2', 'isDoctorV2Active', "v-if=\"isDoctorV2Active\""]) requireText(app, text, 'App.vue doctor mount')
-for (const text of ['width: 230px', 'height: 56px', 'width: 500px', 'position: fixed', 'inset: 0']) requireText(css, text, 'doctor shell geometry')
-for (const text of ['工作台', '订单管理', '订单助手', '患者管理', '账单与物流', '账户设置', '消息中心']) requireText(portal, text, 'doctor navigation')
+for (const text of ['width: 224px', 'height: 58px', 'font-size: 14px', '--dv2-text: #0f172a', 'width: 500px', 'position: fixed', 'inset: 0']) requireText(css, text, 'doctor shell geometry')
+for (const text of ['首页概览', '我的订单', '订单助手', '患者档案', '账单中心', '诊所设置', '消息中心']) requireText(portal, text, 'doctor navigation')
 for (const text of ['今日订单', '制作中', '即将送达', '待回复', '设计待确认', '到期提醒', '需要处理', '医生工作台趋势图']) requireText(portal, text, 'dashboard preserved composition')
 
 const orderPage = between(portal, "activePage === 'orders'", "activePage === 'assistant'", 'orders page')
 for (const text of ['医生 / 患者', '诊所', '标签', '创建 / 到期', '公开状态', '当前操作']) requireText(orderPage, text, 'orders page columns')
+for (const text of ['高级筛选', '负责医生', '订单标签', '创建日期从', '配送中', '待付款']) requireText(orderPage, text, 'orders reference filters')
 rejectText(orderPage, /(物流公司|运单号|承运商|tracking_no|carrier)/, 'orders page boundary')
 
 const orderDrawer = between(portal, 'doctor-order-drawer', 'patientDrawerOpen', 'order drawer')
@@ -45,13 +46,19 @@ rejectText(patientPage, /(手机号|完整生日|出生日期|病史|治疗状�
 
 const billingPage = between(portal, "activePage === 'billing'", "activePage === 'messages'", 'billing page')
 for (const text of ['按单结算', '月结账单', '发票与退款', '物流', '运单号']) requireText(billingPage, text, 'billing and logistics')
+for (const text of ['账期提示', '下载全部', '下载 PDF']) requireText(billingPage, text, 'billing reference composition')
+for (const text of ['本期账单', '账户余额']) requireText(portal, text, 'billing reference metrics')
 
 const messagePage = between(portal, "activePage === 'messages'", "activePage === 'account'", 'messages page')
 for (const text of ['搜索订单、患者或消息', "key: 'UNREAD'", "key: 'READ'", 'thread.messages.map', '驳回并留言', '同意当前版本']) requireText(portal, text, 'messages and review flow')
 rejectText(messagePage, /(AI翻译|技师姓名|内部工序)/, 'messages business boundary')
 
 for (const text of [
-  "['患者与产品', '病例与牙位', '产品配置', '上传文件', '确认选项', '复核提交']",
+  "['产品与患者', '牙位与病例', '产品配置', '上传资料', '确认选项', '复核提交']",
+  'wizardCategories',
+  'wizardToothNumbers',
+  'handleWizardDrop',
+  'dv2-tooth-chart',
   'selectedProductReviewOptions',
   'CAD_DESIGN',
   'POST_MILLING_PHOTOS',

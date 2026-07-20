@@ -2,6 +2,8 @@ package com.yuri.aiorder.order.api;
 
 import com.fasterxml.jackson.annotation.JsonProperty;
 import com.fasterxml.jackson.databind.JsonNode;
+import java.time.LocalDateTime;
+import java.util.List;
 
 public record DoctorOrderVO(
         @JsonProperty("order_id") long orderId,
@@ -14,5 +16,8 @@ public record DoctorOrderVO(
         @JsonProperty("public_message") String publicMessage,
         @JsonProperty("bill_status") String billStatus,
         @JsonProperty("logistics_status") String logisticsStatus,
-        @JsonProperty("tracking_no") String trackingNo) {
+        @JsonProperty("tracking_no") String trackingNo,
+        @JsonProperty("created_at") LocalDateTime createdAt,
+        @JsonProperty("updated_at") LocalDateTime updatedAt,
+        @JsonProperty("public_progress") List<DoctorOrderProgressItem> publicProgress) {
 }

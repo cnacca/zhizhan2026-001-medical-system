@@ -100,6 +100,7 @@ export type OrderDetail = OrderSummary & {
   review_options: ReviewType[]
   reviews: OrderReview[]
   files: DoctorFile[]
+  messages: Message[]
   bill_summary: {
     bill_status: string
     payment_status: string

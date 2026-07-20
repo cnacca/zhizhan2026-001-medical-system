@@ -423,7 +423,7 @@
 }
 
 .cs-r-drawer-overlay {
-  background: rgba(28, 25, 68, .16) !important;
+  background: rgba(30, 27, 75, .15) !important;
 }
 
 .cs-r-drawer {
@@ -544,6 +544,2694 @@
   cursor: pointer;
   font-size: 11px;
   font-weight: 700;
+}
+
+/* CS order drawer: the reference scroll model and live project data share one surface. */
+.cs-r-order-drawer.el-drawer {
+  display: block;
+  overflow-x: hidden;
+  overflow-y: auto;
+  border-left: 1.5px solid var(--csr-line);
+  background: #fff;
+  box-shadow: -8px 0 32px rgba(30, 27, 75, .1);
+  transition: transform .28s cubic-bezier(.4, 0, .2, 1) !important;
+  scrollbar-color: #ddd6fe #f7f9fc;
+  scrollbar-width: thin;
+}
+
+.cs-r-order-drawer.el-drawer::-webkit-scrollbar,
+.cs-r-order-chat-history::-webkit-scrollbar,
+.cs-r-order-timeline::-webkit-scrollbar {
+  width: 4px;
+  height: 4px;
+}
+
+.cs-r-order-drawer.el-drawer::-webkit-scrollbar-track,
+.cs-r-order-chat-history::-webkit-scrollbar-track,
+.cs-r-order-timeline::-webkit-scrollbar-track {
+  background: #f7f9fc;
+}
+
+.cs-r-order-drawer.el-drawer::-webkit-scrollbar-thumb,
+.cs-r-order-chat-history::-webkit-scrollbar-thumb,
+.cs-r-order-timeline::-webkit-scrollbar-thumb {
+  border-radius: 999px;
+  background: #ddd6fe;
+}
+
+.cs-r-order-drawer.el-drawer .el-drawer__body {
+  height: auto;
+  overflow: visible;
+}
+
+.cs-r-order-drawer-shell {
+  display: block;
+  min-height: 100vh;
+  color: var(--csr-text);
+  background: #fff;
+  font-family: "Plus Jakarta Sans", "PingFang SC", "Microsoft YaHei", sans-serif;
+}
+
+.cs-r-order-drawer-shell > header,
+.cs-r-order-drawer-header,
+.cs-r-order-drawer-head {
+  position: sticky;
+  z-index: 2;
+  top: 0;
+  display: flex;
+  height: 61px;
+  min-height: 61px;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 14px 20px;
+  border-bottom: 1.5px solid var(--csr-line);
+  background: rgba(255, 255, 255, .98);
+}
+
+.cs-r-order-drawer-shell > header > div:first-child,
+.cs-r-order-drawer-title {
+  min-width: 0;
+}
+
+.cs-r-order-drawer-shell > header small,
+.cs-r-order-drawer-header small,
+.cs-r-order-drawer-head small {
+  display: block;
+  margin-bottom: 2px;
+  color: var(--csr-faint);
+  font-size: 9px;
+  font-weight: 700;
+  letter-spacing: 1px;
+  line-height: 1.1;
+  text-transform: uppercase;
+}
+
+.cs-r-order-drawer-shell > header h2,
+.cs-r-order-drawer-header h2,
+.cs-r-order-drawer-head h2 {
+  overflow: hidden;
+  margin: 0;
+  color: var(--csr-text);
+  font-family: Lora, "Songti SC", serif;
+  font-size: 14px;
+  font-weight: 600;
+  line-height: 1.35;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.cs-r-order-header-actions,
+.cs-r-order-head-actions {
+  display: flex;
+  flex: 0 0 auto;
+  align-items: center;
+  gap: 7px;
+}
+
+.cs-r-order-header-actions button,
+.cs-r-order-head-actions button,
+.cs-r-order-drawer-shell > header button {
+  min-height: 26px;
+  border-radius: 6px;
+  font-family: inherit;
+  cursor: pointer;
+  transition: border-color .14s, color .14s, background-color .14s, transform .14s;
+}
+
+.cs-r-order-header-actions button:not(.cs-r-order-close),
+.cs-r-order-head-actions button:first-child {
+  width: auto;
+  min-width: 62px;
+  height: 26px;
+  padding: 4px 10px;
+  border: 1px solid #ddd6fe;
+  color: var(--csr-violet);
+  font-size: 10px;
+  font-weight: 700;
+  background: #fff;
+  white-space: nowrap;
+}
+
+.cs-r-order-header-actions button:not(.cs-r-order-close):hover,
+.cs-r-order-header-actions button:not(.cs-r-order-close):focus-visible,
+.cs-r-order-head-actions button:first-child:hover,
+.cs-r-order-head-actions button:first-child:focus-visible {
+  border-color: var(--csr-violet);
+  background: var(--csr-violet-soft);
+  outline: none;
+}
+
+.cs-r-order-header-actions .cs-r-order-close,
+.cs-r-order-head-actions button:last-child,
+.cs-r-order-drawer-shell > header > button:last-child {
+  display: grid;
+  width: 26px;
+  min-width: 26px;
+  height: 26px;
+  padding: 0;
+  place-items: center;
+  border: 0;
+  color: var(--csr-faint);
+  font-size: 18px;
+  font-weight: 400;
+  line-height: 1;
+  background: transparent;
+}
+
+.cs-r-order-header-actions .cs-r-order-close:hover,
+.cs-r-order-header-actions .cs-r-order-close:focus-visible,
+.cs-r-order-head-actions button:last-child:hover,
+.cs-r-order-head-actions button:last-child:focus-visible,
+.cs-r-order-drawer-shell > header > button:last-child:hover,
+.cs-r-order-drawer-shell > header > button:last-child:focus-visible {
+  color: var(--csr-muted);
+  background: #f1f5f9;
+  outline: none;
+}
+
+.cs-r-order-drawer-body {
+  display: block;
+  height: auto;
+  min-height: 0;
+  overflow: visible;
+  padding: 16px 20px 24px;
+}
+
+.cs-r-order-drawer-body > section {
+  margin: 0;
+  padding: 0;
+  border: 0;
+  border-radius: 0;
+  background: transparent;
+}
+
+.cs-r-order-drawer-body > .cs-r-order-section {
+  margin-top: 16px;
+  padding-top: 14px;
+  border-top: 1.5px solid #f1f5f9;
+}
+
+.cs-r-order-drawer-body > .cs-r-order-section > h3 {
+  margin: 0 0 10px;
+  color: var(--csr-faint);
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: .6px;
+  line-height: 1.4;
+  text-transform: uppercase;
+}
+
+.cs-r-order-section-title {
+  display: flex;
+  align-items: flex-end;
+  justify-content: space-between;
+  gap: 12px;
+  margin: 0 0 10px;
+  text-transform: none;
+}
+
+.cs-r-order-section-title > div {
+  min-width: 0;
+}
+
+.cs-r-order-section-title span {
+  display: block;
+  color: var(--csr-faint);
+  font-size: 9px;
+  font-weight: 700;
+  letter-spacing: .6px;
+  line-height: 1.35;
+  text-transform: uppercase;
+}
+
+.cs-r-order-section-title h3 {
+  margin: 2px 0 0;
+  color: var(--csr-text);
+  font-family: Lora, "Songti SC", serif;
+  font-size: 12px;
+  font-weight: 600;
+  letter-spacing: 0;
+  line-height: 1.45;
+}
+
+.cs-r-order-section-title > b {
+  flex: 0 0 auto;
+  color: var(--csr-violet);
+  font-size: 9px;
+  font-weight: 700;
+}
+
+.cs-r-order-drawer-shell .cs-r-summary-grid {
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 10px;
+}
+
+.cs-r-order-drawer-shell .cs-r-summary-grid > div {
+  min-width: 0;
+  padding: 0;
+  border: 0;
+  border-radius: 0;
+  background: transparent;
+}
+
+.cs-r-order-drawer-shell .cs-r-summary-grid span,
+.cs-r-order-drawer-shell .cs-r-spec-grid span {
+  display: block;
+  margin-bottom: 3px;
+  color: var(--csr-faint);
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: .5px;
+  line-height: 1.35;
+  text-transform: uppercase;
+}
+
+.cs-r-order-drawer-shell .cs-r-summary-grid strong,
+.cs-r-order-drawer-shell .cs-r-spec-grid strong {
+  display: block;
+  overflow: visible;
+  color: var(--csr-text);
+  font-size: 12px;
+  font-weight: 500;
+  line-height: 1.45;
+  text-overflow: clip;
+  white-space: normal;
+  word-break: break-word;
+}
+
+.cs-r-order-drawer-shell .cs-r-summary-grid > .is-state strong {
+  display: inline-flex;
+  min-height: 22px;
+  align-items: center;
+  padding: 3px 8px;
+  border: 1px solid #ddd6fe;
+  border-radius: 999px;
+  color: var(--csr-violet);
+  font-size: 10px;
+  font-weight: 700;
+  background: var(--csr-violet-soft);
+}
+
+.cs-r-order-alert,
+.cs-r-order-lock-note,
+.cs-r-order-empty,
+.cs-r-order-message-error {
+  padding: 10px 14px;
+  border: 1.5px solid #e2e8f0;
+  border-radius: 9px;
+  color: var(--csr-muted);
+  font-size: 11px;
+  line-height: 1.6;
+  background: #f8fafc;
+}
+
+.cs-r-order-alert {
+  margin-top: 14px;
+  display: flex;
+  align-items: flex-start;
+  gap: 9px;
+  font-size: 12px;
+}
+
+.cs-r-order-alert > span {
+  display: grid;
+  width: 20px;
+  height: 20px;
+  flex: 0 0 20px;
+  place-items: center;
+  border: 1px solid currentColor;
+  border-radius: 50%;
+  font-size: 10px;
+  font-weight: 800;
+}
+
+.cs-r-order-alert p {
+  margin: 2px 0 0;
+  color: currentColor;
+  font-size: 10px;
+  line-height: 1.55;
+}
+
+.cs-r-order-alert strong {
+  font-weight: 700;
+}
+
+.cs-r-order-alert.is-success {
+  border-color: #a7f3d0;
+  color: #047857;
+  background: #ecfdf5;
+}
+
+.cs-r-order-alert.is-warning {
+  border-color: #fed7aa;
+  color: #c2410c;
+  background: #fff7ed;
+}
+
+.cs-r-order-alert.is-danger {
+  border-color: #fecdd3;
+  color: #be123c;
+  background: #fff1f2;
+}
+
+.cs-r-order-alert.is-info {
+  border-color: #ddd6fe;
+  color: #6d28d9;
+  background: #f5f3ff;
+}
+
+.cs-r-order-actions,
+.cs-r-order-flags,
+.cs-r-order-drawer-shell .cs-r-related-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 7px;
+}
+
+.cs-r-order-drawer-body > .cs-r-order-actions {
+  margin-top: 16px;
+  padding-top: 14px;
+  border-top: 1.5px solid #f1f5f9;
+}
+
+.cs-r-order-actions > p {
+  width: 100%;
+  margin: 3px 0 0;
+  padding: 9px 12px;
+  border: 1.5px solid #e2e8f0;
+  border-radius: 8px;
+  color: var(--csr-muted);
+  font-size: 10px;
+  line-height: 1.55;
+  background: #f8fafc;
+}
+
+.cs-r-order-drawer-body > .cs-r-order-flags {
+  margin-top: 10px;
+}
+
+.cs-r-order-actions button,
+.cs-r-order-file-card,
+.cs-r-order-drafts > article,
+.cs-r-order-drawer-shell .cs-r-related-row button,
+.cs-r-order-drawer-shell .cs-r-related-row span {
+  transition: border-color .15s, color .15s, background-color .15s, box-shadow .15s, transform .15s;
+}
+
+.cs-r-order-actions button {
+  min-height: 30px;
+  padding: 5px 10px;
+  border: 1.5px solid #e2e8f0;
+  border-radius: 7px;
+  color: var(--csr-muted);
+  font-family: inherit;
+  font-size: 10px;
+  font-weight: 700;
+  background: #fff;
+  cursor: pointer;
+}
+
+.cs-r-order-actions button:hover,
+.cs-r-order-actions button:focus-visible {
+  border-color: var(--csr-violet);
+  color: var(--csr-violet);
+  background: var(--csr-violet-soft);
+  outline: none;
+}
+
+.cs-r-order-actions button.is-primary {
+  border-color: var(--csr-violet);
+  color: #fff;
+  background: var(--csr-violet);
+}
+
+.cs-r-order-actions button.is-primary:hover,
+.cs-r-order-actions button.is-primary:focus-visible {
+  border-color: #6d28d9;
+  color: #fff;
+  background: #6d28d9;
+}
+
+.cs-r-order-lock-note {
+  flex: 1 0 100%;
+  margin-top: 10px;
+  border-radius: 8px;
+}
+
+.cs-r-order-flags span,
+.cs-r-order-flag {
+  display: inline-flex;
+  min-height: 24px;
+  align-items: center;
+  padding: 3px 8px;
+  border: 1px solid #ddd6fe;
+  border-radius: 999px;
+  color: var(--csr-violet);
+  font-size: 9px;
+  font-weight: 700;
+  background: var(--csr-violet-soft);
+}
+
+.cs-r-order-flags .is-warning,
+.cs-r-order-flag.is-warning {
+  border-color: #fde68a;
+  color: #b45309;
+  background: #fffbeb;
+}
+
+.cs-r-order-flags .is-success,
+.cs-r-order-flag.is-success {
+  border-color: #a7f3d0;
+  color: #047857;
+  background: #ecfdf5;
+}
+
+/* Reference HTML production timeline: vertical nodes and one continuous rail. */
+.cs-r-order-timeline {
+  display: grid;
+}
+
+.cs-r-order-timeline > article {
+  position: relative;
+  display: grid;
+  min-height: 58px;
+  grid-template-columns: 24px minmax(0, 1fr);
+  gap: 11px;
+  padding-bottom: 14px;
+}
+
+.cs-r-order-timeline > article::after {
+  position: absolute;
+  top: 24px;
+  bottom: 0;
+  left: 12px;
+  width: 1px;
+  background: #eef2f8;
+  content: "";
+}
+
+.cs-r-order-timeline > article:last-child {
+  min-height: 24px;
+  padding-bottom: 0;
+}
+
+.cs-r-order-timeline > article:last-child::after {
+  display: none;
+}
+
+.cs-r-order-timeline > article > span {
+  z-index: 1;
+  display: grid;
+  width: 24px;
+  height: 24px;
+  place-items: center;
+  border: 2px solid #e2e8f0;
+  border-radius: 50%;
+  color: #94a3b8;
+  font-size: 9px;
+  font-weight: 700;
+  background: #fff;
+}
+
+.cs-r-order-timeline > article.is-completed > span {
+  border-color: #ddd6fe;
+  color: #7c3aed;
+  background: #f5f3ff;
+}
+
+.cs-r-order-timeline > article.is-completed::after {
+  background: #ddd6fe;
+}
+
+.cs-r-order-timeline > article.is-in-progress > span,
+.cs-r-order-timeline > article.is-processing > span,
+.cs-r-order-timeline > article.is-running > span {
+  border-color: var(--csr-violet);
+  color: #fff;
+  background: var(--csr-violet);
+  box-shadow: 0 0 0 4px rgba(124, 58, 237, .15);
+}
+
+.cs-r-order-timeline > article.is-skipped > span {
+  border-style: dashed;
+  color: #94a3b8;
+  background: #f8fafc;
+}
+
+.cs-r-order-timeline > article > div {
+  min-width: 0;
+  padding-top: 3px;
+}
+
+.cs-r-order-timeline header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+}
+
+.cs-r-order-timeline header strong {
+  overflow: hidden;
+  color: var(--csr-text);
+  font-size: 11px;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.cs-r-order-timeline header b {
+  flex: 0 0 auto;
+  color: var(--csr-violet);
+  font-size: 9px;
+  font-weight: 700;
+}
+
+.cs-r-order-timeline p,
+.cs-r-order-timeline small {
+  display: block;
+  margin: 3px 0 0;
+  color: var(--csr-muted);
+  font-size: 9px;
+  line-height: 1.45;
+}
+
+.cs-r-order-business-card,
+.cs-r-order-shipment-card,
+.cs-r-order-clinical-note,
+.cs-r-order-tooth-chart,
+.cs-r-tooth-chart {
+  padding: 12px 14px;
+  border: 1.5px solid #e2e8f0;
+  border-radius: 10px;
+  background: #f8fafc;
+}
+
+.cs-r-order-business-card,
+.cs-r-order-shipment-card {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 9px 14px;
+}
+
+.cs-r-order-business-card span,
+.cs-r-order-shipment-card span {
+  display: block;
+  color: var(--csr-faint);
+  font-size: 9px;
+  font-weight: 700;
+}
+
+.cs-r-order-business-card strong,
+.cs-r-order-shipment-card strong {
+  display: block;
+  margin-top: 3px;
+  color: var(--csr-text);
+  font-size: 11px;
+  font-weight: 600;
+  word-break: break-word;
+}
+
+.cs-r-order-tooth-chart header,
+.cs-r-order-tooth-row {
+  display: flex;
+  align-items: center;
+}
+
+.cs-r-order-tooth-chart header {
+  justify-content: space-between;
+  gap: 10px;
+  margin-bottom: 9px;
+}
+
+.cs-r-order-tooth-chart header strong,
+.cs-r-order-tooth-chart > strong {
+  color: var(--csr-muted);
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: .6px;
+}
+
+.cs-r-order-tooth-chart header span {
+  color: var(--csr-violet);
+  font-size: 10px;
+  font-weight: 700;
+}
+
+.cs-r-order-tooth-row {
+  flex-wrap: wrap;
+  justify-content: center;
+  gap: 2px;
+}
+
+.cs-r-order-tooth-row + .cs-r-order-tooth-row {
+  margin-top: 4px;
+}
+
+.cs-r-order-tooth-row span,
+.cs-r-order-tooth {
+  display: grid;
+  width: 24px;
+  height: 24px;
+  place-items: center;
+  border: 1px solid #cbd5e1;
+  border-radius: 4px;
+  color: #64748b;
+  font-size: 9px;
+  font-weight: 600;
+  background: #fff;
+}
+
+.cs-r-order-tooth-row span.is-selected,
+.cs-r-order-tooth.is-selected {
+  border-color: #3b82f6;
+  color: #1d4ed8;
+  background: #dbeafe;
+}
+
+.cs-r-order-tooth-row span.is-bridge,
+.cs-r-order-tooth.is-bridge {
+  border-color: #f59e0b;
+  color: #92400e;
+  background: #fef3c7;
+}
+
+.cs-r-tooth-chart > div {
+  display: grid;
+  grid-template-columns: 34px minmax(0, 1fr);
+  gap: 8px;
+  align-items: center;
+}
+
+.cs-r-tooth-chart > div + div {
+  margin-top: 6px;
+}
+
+.cs-r-tooth-chart > div > strong {
+  color: var(--csr-muted);
+  font-size: 9px;
+  font-weight: 700;
+}
+
+.cs-r-tooth-chart > div > div {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 2px;
+}
+
+.cs-r-tooth-chart > div > div > span {
+  display: grid;
+  width: 24px;
+  height: 24px;
+  place-items: center;
+  border: 1px solid #cbd5e1;
+  border-radius: 4px;
+  color: #64748b;
+  font-size: 9px;
+  font-weight: 600;
+  background: #fff;
+}
+
+.cs-r-tooth-chart > div > div > span.is-selected {
+  border-color: #3b82f6;
+  color: #1d4ed8;
+  background: #dbeafe;
+}
+
+.cs-r-order-drawer-shell .cs-r-spec-grid,
+.cs-r-order-clinical-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 8px;
+}
+
+.cs-r-order-drawer-shell .cs-r-spec-grid > div,
+.cs-r-order-clinical-grid > div {
+  min-width: 0;
+  padding: 9px 12px;
+  border: 1.5px solid #e2e8f0;
+  border-radius: 8px;
+  background: #fff;
+}
+
+.cs-r-order-drawer-shell .cs-r-spec-grid > .is-full,
+.cs-r-order-clinical-grid > .is-full {
+  grid-column: 1 / -1;
+}
+
+.cs-r-order-drawer-shell .cs-r-spec-grid span,
+.cs-r-order-clinical-grid span {
+  font-size: 9px;
+  letter-spacing: .4px;
+}
+
+.cs-r-order-clinical-grid strong {
+  display: block;
+  color: var(--csr-text);
+  font-size: 12px;
+  font-weight: 500;
+  line-height: 1.5;
+  word-break: break-word;
+}
+
+.cs-r-order-clinical-grid.is-implant,
+.cs-r-order-implant-card {
+  padding: 10px;
+  border: 1.5px solid #c4b5fd;
+  border-radius: 10px;
+  background: #f5f3ff;
+}
+
+.cs-r-order-clinical-grid.is-implant > div,
+.cs-r-order-implant-card > div {
+  border-color: #ddd6fe;
+  background: rgba(255, 255, 255, .76);
+}
+
+.cs-r-order-clinical-grid.is-implant span,
+.cs-r-order-implant-card span {
+  color: var(--csr-violet);
+}
+
+.cs-r-order-clinical-note {
+  color: var(--csr-muted);
+  font-size: 11px;
+  line-height: 1.7;
+  white-space: pre-wrap;
+  word-break: break-word;
+}
+
+.cs-r-order-notes {
+  display: grid;
+  gap: 8px;
+}
+
+.cs-r-order-notes > article {
+  padding: 12px 14px;
+  border: 1.5px solid #e2e8f0;
+  border-radius: 10px;
+  background: #f8fafc;
+}
+
+.cs-r-order-notes strong {
+  display: block;
+  color: var(--csr-muted);
+  font-size: 9px;
+  font-weight: 700;
+  letter-spacing: .4px;
+}
+
+.cs-r-order-notes p {
+  margin: 5px 0 0;
+  color: var(--csr-muted);
+  font-size: 11px;
+  line-height: 1.7;
+  white-space: pre-wrap;
+  word-break: break-word;
+}
+
+.cs-r-order-files,
+.cs-r-order-drafts {
+  display: grid;
+  gap: 8px;
+}
+
+.cs-r-order-files > article,
+.cs-r-order-files > button,
+.cs-r-order-file-card {
+  display: grid;
+  width: 100%;
+  min-height: 58px;
+  grid-template-columns: 38px minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 9px;
+  padding: 9px 10px;
+  border: 1px solid var(--csr-line);
+  border-radius: 8px;
+  color: inherit;
+  font-family: inherit;
+  background: #fff;
+  cursor: pointer;
+  text-align: left;
+}
+
+.cs-r-order-files > article:hover,
+.cs-r-order-files > article:focus-visible,
+.cs-r-order-files > button:hover:not(:disabled),
+.cs-r-order-files > button:focus-visible,
+.cs-r-order-file-card:hover,
+.cs-r-order-file-card:focus-visible {
+  border-color: #c4b5fd;
+  background: #faf5ff;
+  box-shadow: 0 2px 8px rgba(124, 58, 237, .08);
+  outline: none;
+}
+
+.cs-r-order-files > article > i,
+.cs-r-order-files > button > i,
+.cs-r-order-file-card > i,
+.cs-r-order-file-icon {
+  display: grid;
+  width: 36px;
+  height: 36px;
+  place-items: center;
+  overflow: hidden;
+  border-radius: 7px;
+  color: var(--csr-violet);
+  font-size: 8px;
+  font-style: normal;
+  font-weight: 700;
+  background: var(--csr-violet-soft);
+}
+
+.cs-r-order-files strong,
+.cs-r-order-files small,
+.cs-r-order-files p,
+.cs-r-order-files em {
+  display: block;
+  overflow: hidden;
+  margin: 0;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.cs-r-order-files strong {
+  color: var(--csr-text);
+  font-size: 10px;
+}
+
+.cs-r-order-files small,
+.cs-r-order-files p,
+.cs-r-order-files em,
+.cs-r-order-files > article > span,
+.cs-r-order-file-card > span {
+  margin-top: 3px;
+  color: var(--csr-faint);
+  font-size: 8px;
+}
+
+.cs-r-order-files em {
+  font-style: normal;
+}
+
+.cs-r-order-files > button > span {
+  min-width: 0;
+}
+
+.cs-r-order-files > button > b {
+  color: var(--csr-violet);
+  font-size: 9px;
+  font-weight: 700;
+}
+
+.cs-r-order-files > button:disabled {
+  cursor: wait;
+  opacity: .62;
+}
+
+.cs-r-order-drafts > article {
+  padding: 10px 11px;
+  border: 1px solid var(--csr-line);
+  border-radius: 8px;
+  background: #fafbfc;
+}
+
+.cs-r-order-drafts > article:hover,
+.cs-r-order-drafts > article:focus-within {
+  border-color: #c4b5fd;
+  background: #faf5ff;
+}
+
+.cs-r-order-drafts header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+}
+
+.cs-r-order-drafts header strong {
+  color: var(--csr-text);
+  font-size: 10px;
+}
+
+.cs-r-order-drafts header span {
+  color: var(--csr-violet);
+  font-size: 9px;
+  font-weight: 700;
+}
+
+.cs-r-order-drafts button {
+  margin-top: 8px;
+  padding: 4px 9px;
+  border: 1px solid #ddd6fe;
+  border-radius: 6px;
+  color: var(--csr-violet);
+  font-family: inherit;
+  font-size: 9px;
+  font-weight: 700;
+  background: #fff;
+  cursor: pointer;
+}
+
+.cs-r-order-drafts p,
+.cs-r-order-drafts small {
+  display: block;
+  margin: 5px 0 0;
+  color: var(--csr-muted);
+  font-size: 9px;
+  line-height: 1.5;
+}
+
+.cs-r-order-audit-timeline,
+.cs-r-audit-timeline {
+  position: relative;
+  display: grid;
+  gap: 0;
+}
+
+.cs-r-order-audit-timeline > article,
+.cs-r-audit-timeline > article {
+  position: relative;
+  display: grid;
+  min-height: 46px;
+  grid-template-columns: 68px 12px minmax(0, 1fr);
+  gap: 8px;
+  padding-bottom: 10px;
+}
+
+.cs-r-order-audit-timeline > article::after,
+.cs-r-audit-timeline > article::after {
+  position: absolute;
+  top: 12px;
+  bottom: -2px;
+  left: 81px;
+  width: 1px;
+  background: #e2e8f0;
+  content: "";
+}
+
+.cs-r-order-audit-timeline > article:last-child::after,
+.cs-r-audit-timeline > article:last-child::after {
+  display: none;
+}
+
+.cs-r-order-audit-timeline time,
+.cs-r-audit-timeline time {
+  color: var(--csr-faint);
+  font-size: 8px;
+  line-height: 1.45;
+}
+
+.cs-r-order-audit-timeline i,
+.cs-r-audit-timeline > article > span {
+  z-index: 1;
+  width: 8px;
+  height: 8px;
+  margin-top: 2px;
+  border: 2px solid #fff;
+  border-radius: 50%;
+  background: var(--csr-violet);
+  box-shadow: 0 0 0 1px #c4b5fd;
+}
+
+.cs-r-order-audit-timeline strong,
+.cs-r-order-audit-timeline small,
+.cs-r-audit-timeline strong,
+.cs-r-audit-timeline p {
+  display: block;
+}
+
+.cs-r-order-audit-timeline strong,
+.cs-r-audit-timeline strong {
+  color: var(--csr-text);
+  font-size: 10px;
+}
+
+.cs-r-order-audit-timeline small,
+.cs-r-audit-timeline p {
+  margin: 2px 0 0;
+  color: var(--csr-muted);
+  font-size: 8px;
+  line-height: 1.45;
+}
+
+.cs-r-order-drawer-shell .cs-r-related-row span,
+.cs-r-order-drawer-shell .cs-r-related-row button {
+  min-height: 28px;
+  padding: 6px 10px;
+  border: 1px solid var(--csr-line);
+  border-radius: 7px;
+  color: var(--csr-muted);
+  font-family: inherit;
+  font-size: 10px;
+  font-weight: 600;
+  background: #fff;
+}
+
+.cs-r-order-drawer-shell .cs-r-related-row button {
+  cursor: pointer;
+}
+
+.cs-r-order-drawer-shell .cs-r-related-row button:hover,
+.cs-r-order-drawer-shell .cs-r-related-row button:focus-visible {
+  border-color: #c4b5fd;
+  color: var(--csr-violet);
+  background: #faf5ff;
+  outline: none;
+}
+
+.cs-r-order-chat,
+.cs-r-order-chat-panel {
+  padding: 12px 14px;
+  border: 1.5px solid #e2e8f0;
+  border-radius: 10px;
+  background: #f7f9fc;
+}
+
+.cs-r-order-chat-history,
+.cs-r-order-messages {
+  display: grid;
+  max-height: 220px;
+  gap: 10px;
+  overflow-y: auto;
+  padding-right: 4px;
+  scrollbar-color: #ddd6fe #f7f9fc;
+  scrollbar-width: thin;
+}
+
+.cs-r-order-messages > article,
+.cs-r-order-chat-message {
+  display: grid;
+  grid-template-columns: 28px minmax(0, 1fr);
+  gap: 9px;
+  align-items: start;
+}
+
+.cs-r-order-messages > article.is-self,
+.cs-r-order-chat-message.is-self {
+  grid-template-columns: minmax(0, 1fr) 28px;
+}
+
+.cs-r-order-messages > article.is-self > span,
+.cs-r-order-chat-message.is-self > .cs-r-order-message-avatar {
+  grid-column: 2;
+  color: #047857;
+  background: #d1fae5;
+}
+
+.cs-r-order-messages > article.is-self > div,
+.cs-r-order-chat-message.is-self > .cs-r-order-message-bubble {
+  grid-row: 1;
+  grid-column: 1;
+  border-radius: 8px 0 8px 8px;
+  border-color: #ddd6fe;
+  background: #f5f3ff;
+}
+
+.cs-r-order-messages > article > span,
+.cs-r-order-message-avatar {
+  display: grid;
+  width: 28px;
+  height: 28px;
+  place-items: center;
+  border-radius: 8px;
+  color: #7c3aed;
+  font-size: 9px;
+  font-weight: 700;
+  background: #ede9fe;
+}
+
+.cs-r-order-messages > article > div,
+.cs-r-order-message-bubble {
+  min-width: 0;
+  padding: 9px 10px;
+  border: 1px solid #e2e8f0;
+  border-radius: 0 8px 8px;
+  background: #fff;
+}
+
+.cs-r-order-messages header,
+.cs-r-order-messages footer,
+.cs-r-order-message-bubble header,
+.cs-r-order-message-bubble footer {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+}
+
+.cs-r-order-messages header strong,
+.cs-r-order-message-bubble header strong {
+  color: var(--csr-text);
+  font-size: 10px;
+}
+
+.cs-r-order-messages header small,
+.cs-r-order-messages footer em,
+.cs-r-order-messages footer b,
+.cs-r-order-message-bubble header small,
+.cs-r-order-message-bubble footer span {
+  color: var(--csr-faint);
+  font-size: 8px;
+  font-style: normal;
+  font-weight: 600;
+}
+
+.cs-r-order-messages p,
+.cs-r-order-message-bubble p {
+  margin: 5px 0 7px;
+  color: #475569;
+  font-size: 10px;
+  line-height: 1.55;
+  white-space: pre-wrap;
+  word-break: break-word;
+}
+
+.cs-r-order-chat-section .cs-r-order-messages {
+  padding: 12px 10px;
+  border: 1.5px solid #e2e8f0;
+  border-radius: 10px;
+  background: #f7f9fc;
+}
+
+.cs-r-order-chat-compose,
+.cs-r-order-message-compose {
+  display: flex;
+  align-items: flex-end;
+  gap: 7px;
+  margin-top: 10px;
+}
+
+.cs-r-order-chat-compose textarea,
+.cs-r-order-chat-compose input,
+.cs-r-order-message-compose textarea,
+.cs-r-order-message-compose input {
+  width: 100%;
+  min-height: 34px;
+  flex: 1;
+  padding: 7px 11px;
+  border: 1.5px solid #e2e8f0;
+  border-radius: 8px;
+  color: var(--csr-text);
+  font-family: inherit;
+  font-size: 12px;
+  line-height: 1.55;
+  background: #f8fafc;
+  outline: none;
+  resize: vertical;
+  transition: border-color .15s, background-color .15s, box-shadow .15s;
+}
+
+.cs-r-order-chat-compose textarea:focus,
+.cs-r-order-chat-compose input:focus,
+.cs-r-order-message-compose textarea:focus,
+.cs-r-order-message-compose input:focus {
+  border-color: var(--csr-violet);
+  background: #fff;
+  box-shadow: 0 0 0 3px rgba(124, 58, 237, .1);
+}
+
+.cs-r-order-chat-compose button,
+.cs-r-order-message-compose button {
+  min-width: 58px;
+  min-height: 34px;
+  padding: 7px 13px;
+  border: 1.5px solid var(--csr-violet);
+  border-radius: 8px;
+  color: #fff;
+  font-family: inherit;
+  font-size: 11px;
+  font-weight: 700;
+  background: var(--csr-violet);
+  cursor: pointer;
+  transition: background-color .15s, border-color .15s, opacity .15s, transform .15s;
+}
+
+.cs-r-order-chat-compose button:hover:not(:disabled),
+.cs-r-order-chat-compose button:focus-visible:not(:disabled),
+.cs-r-order-message-compose button:hover:not(:disabled),
+.cs-r-order-message-compose button:focus-visible:not(:disabled) {
+  border-color: #6d28d9;
+  background: #6d28d9;
+  outline: none;
+  transform: translateY(-1px);
+}
+
+.cs-r-order-chat-compose button:disabled,
+.cs-r-order-message-compose button:disabled {
+  cursor: not-allowed;
+  opacity: .48;
+}
+
+.cs-r-order-composer {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  gap: 5px 7px;
+  align-items: stretch;
+  margin-top: 10px;
+}
+
+.cs-r-order-composer > textarea {
+  min-height: 56px;
+  grid-row: 1;
+  grid-column: 1;
+  padding: 8px 11px;
+  border: 1.5px solid #e2e8f0;
+  border-radius: 8px;
+  color: var(--csr-text);
+  font-family: inherit;
+  font-size: 12px;
+  line-height: 1.55;
+  background: #f8fafc;
+  outline: none;
+  resize: vertical;
+  transition: border-color .15s, background-color .15s, box-shadow .15s;
+}
+
+.cs-r-order-composer > textarea:focus {
+  border-color: var(--csr-violet);
+  background: #fff;
+  box-shadow: 0 0 0 3px rgba(124, 58, 237, .1);
+}
+
+.cs-r-order-composer > div {
+  display: contents;
+}
+
+.cs-r-order-composer > div > span {
+  grid-row: 2;
+  grid-column: 1;
+  color: var(--csr-faint);
+  font-size: 8px;
+  line-height: 1.4;
+}
+
+.cs-r-order-composer > div > button {
+  min-width: 58px;
+  grid-row: 1;
+  grid-column: 2;
+  align-self: stretch;
+  padding: 7px 13px;
+  border: 1.5px solid var(--csr-violet);
+  border-radius: 8px;
+  color: #fff;
+  font-family: inherit;
+  font-size: 11px;
+  font-weight: 700;
+  background: var(--csr-violet);
+  cursor: pointer;
+  transition: background-color .15s, border-color .15s, opacity .15s, transform .15s;
+}
+
+.cs-r-order-composer > div > button:hover:not(:disabled),
+.cs-r-order-composer > div > button:focus-visible:not(:disabled) {
+  border-color: #6d28d9;
+  background: #6d28d9;
+  outline: none;
+  transform: translateY(-1px);
+}
+
+.cs-r-order-composer > div > button:disabled {
+  cursor: not-allowed;
+  opacity: .48;
+}
+
+.cs-r-order-inline-error {
+  margin: 0 0 8px;
+  padding: 8px 10px;
+  border: 1px solid #fecdd3;
+  border-radius: 8px;
+  color: #be123c;
+  font-size: 10px;
+  line-height: 1.55;
+  background: #fff1f2;
+}
+
+/* Compact CS order detail: keep the reference drawer shell, reduce the body to
+   one progress summary and four task-oriented panels. */
+.cs-r-order-compact-progress {
+  margin-top: 14px;
+  padding: 12px 14px;
+  border: 1.5px solid #e2e8f0;
+  border-radius: 10px;
+  background: #f8fafc;
+}
+
+.cs-r-order-drawer-body > .cs-r-order-compact-progress {
+  margin-top: 14px;
+  padding: 12px 14px;
+  border: 1.5px solid #e2e8f0;
+}
+
+.cs-r-order-compact-progress > .cs-r-order-section-title {
+  margin-bottom: 10px;
+}
+
+.cs-r-order-compact-progress > .cs-r-order-section-title h3 {
+  color: #1e293b;
+  font-family: inherit;
+  font-size: 13px;
+  font-weight: 700;
+}
+
+.cs-r-order-compact-progress > .cs-r-order-section-title span {
+  color: #94a3b8;
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: .6px;
+}
+
+.cs-r-order-compact-progress > .cs-r-order-section-title > b {
+  color: #7c3aed;
+  font-size: 10px;
+}
+
+.cs-r-order-compact-progress > header,
+.cs-r-order-compact-progress-head,
+.cs-r-order-panel-head {
+  display: flex;
+  align-items: flex-end;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.cs-r-order-compact-progress > header,
+.cs-r-order-compact-progress-head {
+  margin-bottom: 10px;
+}
+
+.cs-r-order-compact-progress > header > div,
+.cs-r-order-compact-progress-head > div,
+.cs-r-order-panel-head > div {
+  min-width: 0;
+}
+
+.cs-r-order-compact-progress > header span,
+.cs-r-order-compact-progress-head span,
+.cs-r-order-panel-eyebrow,
+.cs-r-order-panel-head span {
+  display: block;
+  color: #94a3b8;
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: .6px;
+  line-height: 1.35;
+}
+
+.cs-r-order-compact-progress > header strong,
+.cs-r-order-compact-progress-head strong,
+.cs-r-order-panel-title,
+.cs-r-order-panel-head h3,
+.cs-r-order-panel-head strong {
+  display: block;
+  margin: 2px 0 0;
+  color: #1e293b;
+  font-size: 13px;
+  font-weight: 700;
+  line-height: 1.45;
+}
+
+.cs-r-order-compact-progress button,
+.cs-r-order-compact-progress a,
+.cs-r-order-panel-link,
+.cs-r-order-tab-panel .cs-r-order-link,
+.cs-r-order-tab-panel button.cs-r-order-link {
+  min-height: 0;
+  flex: 0 0 auto;
+  padding: 2px 0;
+  border: 0;
+  border-radius: 4px;
+  color: #7c3aed;
+  font-family: inherit;
+  font-size: 11px;
+  font-weight: 700;
+  line-height: 1.4;
+  background: transparent;
+  cursor: pointer;
+  text-decoration: none;
+}
+
+.cs-r-order-compact-progress button:hover,
+.cs-r-order-compact-progress button:focus-visible,
+.cs-r-order-compact-progress a:hover,
+.cs-r-order-compact-progress a:focus-visible,
+.cs-r-order-panel-link:hover,
+.cs-r-order-panel-link:focus-visible,
+.cs-r-order-tab-panel .cs-r-order-link:hover,
+.cs-r-order-tab-panel .cs-r-order-link:focus-visible {
+  color: #6d28d9;
+  background: #ede9fe;
+  outline: none;
+}
+
+.cs-r-order-compact-nodes,
+.cs-r-order-compact-progress-list,
+.cs-r-order-panel-progress-list {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 8px;
+}
+
+.cs-r-order-compact-node,
+.cs-r-order-compact-progress-list > article,
+.cs-r-order-panel-progress-list > article {
+  position: relative;
+  display: grid;
+  min-width: 0;
+  grid-template-columns: 20px minmax(0, 1fr);
+  align-items: start;
+  gap: 7px;
+  padding: 8px;
+  border: 1px solid #e2e8f0;
+  border-radius: 8px;
+  color: #64748b;
+  background: #fff;
+}
+
+.cs-r-order-compact-node > i,
+.cs-r-order-compact-node > span:first-child,
+.cs-r-order-compact-progress-list > article > i,
+.cs-r-order-compact-progress-list > article > span:first-child,
+.cs-r-order-panel-progress-list > article > i,
+.cs-r-order-panel-progress-list > article > span:first-child,
+.cs-r-order-panel-progress-step {
+  display: grid;
+  width: 18px;
+  height: 18px;
+  place-items: center;
+  border: 1.5px solid #cbd5e1;
+  border-radius: 50%;
+  color: #94a3b8;
+  font-size: 8px;
+  font-style: normal;
+  font-weight: 700;
+  line-height: 1;
+  background: #f8fafc;
+}
+
+.cs-r-order-compact-node strong,
+.cs-r-order-compact-progress-list > article strong,
+.cs-r-order-panel-progress-list > article strong {
+  display: block;
+  overflow: hidden;
+  color: #475569;
+  font-size: 10px;
+  font-weight: 700;
+  line-height: 1.35;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.cs-r-order-compact-node small,
+.cs-r-order-compact-node p,
+.cs-r-order-compact-progress-list > article small,
+.cs-r-order-compact-progress-list > article p,
+.cs-r-order-panel-progress-list > article small,
+.cs-r-order-panel-progress-list > article p,
+.cs-r-order-panel-progress-list > article time {
+  display: block;
+  margin: 2px 0 0;
+  color: #94a3b8;
+  font-size: 9px;
+  line-height: 1.35;
+}
+
+.cs-r-order-compact-node.is-completed,
+.cs-r-order-compact-node.is-done,
+.cs-r-order-compact-progress-list > article.is-completed,
+.cs-r-order-compact-progress-list > article.is-done,
+.cs-r-order-panel-progress-list > article.is-completed,
+.cs-r-order-panel-progress-list > article.is-done {
+  border-color: #d1fae5;
+  background: #f0fdf4;
+}
+
+.cs-r-order-compact-node.is-completed > i,
+.cs-r-order-compact-node.is-completed > span:first-child,
+.cs-r-order-compact-node.is-done > i,
+.cs-r-order-compact-node.is-done > span:first-child,
+.cs-r-order-compact-progress-list > article.is-completed > i,
+.cs-r-order-compact-progress-list > article.is-completed > span:first-child,
+.cs-r-order-compact-progress-list > article.is-done > i,
+.cs-r-order-compact-progress-list > article.is-done > span:first-child,
+.cs-r-order-panel-progress-list > article.is-completed > i,
+.cs-r-order-panel-progress-list > article.is-completed > span:first-child,
+.cs-r-order-panel-progress-list > article.is-done > i,
+.cs-r-order-panel-progress-list > article.is-done > span:first-child {
+  border-color: #86efac;
+  color: #047857;
+  background: #dcfce7;
+}
+
+.cs-r-order-compact-node.is-current,
+.cs-r-order-compact-node.is-active,
+.cs-r-order-compact-progress-list > article.is-current,
+.cs-r-order-compact-progress-list > article.is-active,
+.cs-r-order-panel-progress-list > article.is-current,
+.cs-r-order-panel-progress-list > article.is-active,
+.cs-r-order-panel-progress-list > article.is-in-progress,
+.cs-r-order-panel-progress-list > article.is-processing,
+.cs-r-order-panel-progress-list > article.is-running {
+  border-color: #c4b5fd;
+  background: #faf5ff;
+}
+
+.cs-r-order-compact-node.is-current > i,
+.cs-r-order-compact-node.is-current > span:first-child,
+.cs-r-order-compact-node.is-active > i,
+.cs-r-order-compact-node.is-active > span:first-child,
+.cs-r-order-compact-progress-list > article.is-current > i,
+.cs-r-order-compact-progress-list > article.is-current > span:first-child,
+.cs-r-order-compact-progress-list > article.is-active > i,
+.cs-r-order-compact-progress-list > article.is-active > span:first-child,
+.cs-r-order-panel-progress-list > article.is-current > i,
+.cs-r-order-panel-progress-list > article.is-current > span:first-child,
+.cs-r-order-panel-progress-list > article.is-active > i,
+.cs-r-order-panel-progress-list > article.is-active > span:first-child,
+.cs-r-order-panel-progress-list > article.is-in-progress > span:first-child,
+.cs-r-order-panel-progress-list > article.is-processing > span:first-child,
+.cs-r-order-panel-progress-list > article.is-running > span:first-child {
+  border-color: #7c3aed;
+  color: #fff;
+  background: #7c3aed;
+  box-shadow: 0 0 0 4px rgba(124, 58, 237, .15);
+}
+
+.cs-r-order-compact-node.is-current strong,
+.cs-r-order-compact-node.is-active strong,
+.cs-r-order-compact-progress-list > article.is-current strong,
+.cs-r-order-compact-progress-list > article.is-active strong,
+.cs-r-order-panel-progress-list > article.is-current strong,
+.cs-r-order-panel-progress-list > article.is-active strong,
+.cs-r-order-panel-progress-list > article.is-in-progress strong,
+.cs-r-order-panel-progress-list > article.is-processing strong,
+.cs-r-order-panel-progress-list > article.is-running strong {
+  color: #6d28d9;
+}
+
+.cs-r-order-compact-node.is-next,
+.cs-r-order-compact-node.is-pending,
+.cs-r-order-compact-progress-list > article.is-next,
+.cs-r-order-compact-progress-list > article.is-pending,
+.cs-r-order-panel-progress-list > article.is-next,
+.cs-r-order-panel-progress-list > article.is-pending,
+.cs-r-order-panel-progress-list > article.is-ready,
+.cs-r-order-panel-progress-list > article.is-skipped {
+  color: #94a3b8;
+  background: #f8fafc;
+}
+
+.cs-r-order-panel-progress-list > article.is-ready > span:first-child,
+.cs-r-order-panel-progress-list > article.is-skipped > span:first-child {
+  border-color: #cbd5e1;
+  color: #94a3b8;
+  background: #f8fafc;
+  box-shadow: none;
+}
+
+.cs-r-order-panel-progress-list > article.is-skipped {
+  opacity: .66;
+}
+
+.cs-r-order-panel-progress-list > article header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 6px;
+}
+
+.cs-r-order-panel-progress-list > article header b {
+  flex: 0 0 auto;
+  color: #7c3aed;
+  font-size: 8px;
+  font-weight: 700;
+}
+
+.cs-r-order-panel-toggle {
+  display: block;
+  margin: 9px auto 0;
+  padding: 2px 5px;
+  border: 0;
+  border-radius: 4px;
+  color: #7c3aed;
+  font-family: inherit;
+  font-size: 11px;
+  font-weight: 700;
+  line-height: 1.4;
+  background: transparent;
+  cursor: pointer;
+}
+
+.cs-r-order-panel-toggle:hover,
+.cs-r-order-panel-toggle:focus-visible {
+  color: #6d28d9;
+  background: #ede9fe;
+  outline: none;
+}
+
+.cs-r-order-compact-all,
+.cs-r-order-compact-progress-all {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  gap: 0;
+  margin-top: 10px;
+  padding-top: 10px;
+  border-top: 1px solid #e2e8f0;
+}
+
+.cs-r-order-compact-all > article,
+.cs-r-order-compact-progress-all > article {
+  position: relative;
+  display: grid;
+  min-height: 38px;
+  grid-template-columns: 20px minmax(0, 1fr) auto;
+  gap: 8px;
+  align-items: start;
+  padding: 5px 0;
+}
+
+.cs-r-order-compact-all > article::after,
+.cs-r-order-compact-progress-all > article::after {
+  position: absolute;
+  top: 24px;
+  bottom: -5px;
+  left: 9px;
+  width: 1px;
+  background: #e2e8f0;
+  content: "";
+}
+
+.cs-r-order-compact-all > article:last-child::after,
+.cs-r-order-compact-progress-all > article:last-child::after {
+  display: none;
+}
+
+.cs-r-order-compact-all > article > span:first-child,
+.cs-r-order-compact-progress-all > article > span:first-child {
+  z-index: 1;
+  display: grid;
+  width: 18px;
+  height: 18px;
+  place-items: center;
+  border: 1.5px solid #cbd5e1;
+  border-radius: 50%;
+  color: #94a3b8;
+  font-size: 8px;
+  font-weight: 700;
+  background: #fff;
+}
+
+.cs-r-order-compact-all > article strong,
+.cs-r-order-compact-progress-all > article strong {
+  display: block;
+  color: #475569;
+  font-size: 10px;
+  line-height: 1.35;
+}
+
+.cs-r-order-compact-all > article small,
+.cs-r-order-compact-progress-all > article small {
+  display: block;
+  margin-top: 2px;
+  color: #94a3b8;
+  font-size: 9px;
+  line-height: 1.35;
+}
+
+.cs-r-order-compact-all > article > time,
+.cs-r-order-compact-progress-all > article > time {
+  color: #94a3b8;
+  font-size: 9px;
+  white-space: nowrap;
+}
+
+.cs-r-order-compact-all > article.is-completed > span:first-child,
+.cs-r-order-compact-progress-all > article.is-completed > span:first-child {
+  border-color: #86efac;
+  color: #047857;
+  background: #dcfce7;
+}
+
+.cs-r-order-compact-all > article.is-current > span:first-child,
+.cs-r-order-compact-all > article.is-active > span:first-child,
+.cs-r-order-compact-progress-all > article.is-current > span:first-child,
+.cs-r-order-compact-progress-all > article.is-active > span:first-child {
+  border-color: #7c3aed;
+  color: #fff;
+  background: #7c3aed;
+  box-shadow: 0 0 0 4px rgba(124, 58, 237, .15);
+}
+
+.cs-r-order-tabs {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 0;
+  margin-top: 16px;
+  padding: 4px;
+  border: 1.5px solid #e2e8f0;
+  border-radius: 10px;
+  background: #f8fafc;
+}
+
+.cs-r-order-tabs > button {
+  min-width: 0;
+  min-height: 36px;
+  padding: 7px 6px;
+  border: 0;
+  border-radius: 7px;
+  color: #64748b;
+  font-family: inherit;
+  font-size: 11px;
+  font-weight: 700;
+  line-height: 1.25;
+  background: transparent;
+  cursor: pointer;
+  transition: color .14s, background-color .14s, box-shadow .14s;
+}
+
+.cs-r-order-tabs > button:hover,
+.cs-r-order-tabs > button:focus-visible {
+  color: #7c3aed;
+  background: #f3e8ff;
+  outline: none;
+}
+
+.cs-r-order-tabs > button.is-active,
+.cs-r-order-tabs > button.active,
+.cs-r-order-tabs > button[aria-selected="true"] {
+  color: #7c3aed;
+  background: #fff;
+  box-shadow: 0 1px 4px rgba(30, 27, 75, .08);
+}
+
+.cs-r-order-tab-panel {
+  min-width: 0;
+  padding-top: 14px;
+  animation: cs-r-order-panel-in .16s ease both;
+}
+
+.cs-r-order-drawer-body > .cs-r-order-tab-panel {
+  margin-top: 0;
+  padding-top: 14px;
+  border-top: 0;
+}
+
+.cs-r-order-tab-panel > .cs-r-order-section-title span {
+  color: #94a3b8;
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: .6px;
+}
+
+.cs-r-order-tab-panel > .cs-r-order-section-title h3 {
+  color: #1e293b;
+  font-family: inherit;
+  font-size: 13px;
+  font-weight: 700;
+}
+
+.cs-r-order-tab-panel > .cs-r-order-section-title > b {
+  color: #7c3aed;
+  font-size: 10px;
+}
+
+.cs-r-order-tab-panel > section,
+.cs-r-order-tab-panel > .cs-r-order-section,
+.cs-r-order-tab-panel .cs-r-order-panel-section {
+  margin: 0;
+  padding: 0;
+  border: 0;
+  border-radius: 0;
+  background: transparent;
+}
+
+.cs-r-order-tab-panel > section + section,
+.cs-r-order-tab-panel > .cs-r-order-section + .cs-r-order-section,
+.cs-r-order-tab-panel .cs-r-order-panel-section + .cs-r-order-panel-section {
+  margin-top: 14px;
+  padding-top: 12px;
+  border-top: 1px solid #eef2f7;
+}
+
+@keyframes cs-r-order-panel-in {
+  from { opacity: 0; transform: translateY(2px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+
+/* Reference-aligned production timeline. The drawer is a single, continuous
+   document; each content block is separated only by the quiet divider used in
+   the source CS portal. */
+.cs-r-order-production-timeline {
+  min-width: 0;
+  margin-top: 16px;
+  padding-top: 14px;
+  border-top: 1.5px solid #eef2f8;
+}
+
+.cs-r-order-production-timeline > .cs-r-order-section-title,
+.cs-r-order-production-timeline > .cs-r-order-production-head {
+  margin-bottom: 10px;
+}
+
+.cs-r-order-production-timeline > .cs-r-order-section-title span,
+.cs-r-order-production-eyebrow,
+.cs-r-order-production-head span {
+  display: block;
+  color: #94a3b8;
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: .6px;
+  line-height: 1.35;
+}
+
+.cs-r-order-production-timeline > .cs-r-order-section-title h3,
+.cs-r-order-production-title,
+.cs-r-order-production-head h3,
+.cs-r-order-production-head strong {
+  display: block;
+  margin: 2px 0 0;
+  color: #1e293b;
+  font-size: 13px;
+  font-weight: 700;
+  line-height: 1.45;
+}
+
+.cs-r-order-production-timeline > .cs-r-order-section-title > b,
+.cs-r-order-production-count,
+.cs-r-order-production-head > b {
+  color: #7c3aed;
+  font-size: 10px;
+  font-weight: 700;
+}
+
+.cs-r-order-production-list {
+  display: flex;
+  min-width: 0;
+  flex-direction: column;
+}
+
+.cs-r-order-production-step {
+  position: relative;
+  display: flex;
+  min-width: 0;
+  gap: 11px;
+  padding-bottom: 14px;
+}
+
+.cs-r-order-production-step:last-child {
+  padding-bottom: 0;
+}
+
+.cs-r-order-production-step::before {
+  position: absolute;
+  top: 24px;
+  bottom: 0;
+  left: 12px;
+  width: 1px;
+  background: #eef2f8;
+  content: "";
+}
+
+.cs-r-order-production-step:last-child::before {
+  display: none;
+}
+
+.cs-r-order-production-marker,
+.cs-r-order-production-step > i,
+.cs-r-order-production-step > span:first-child {
+  z-index: 1;
+  display: flex;
+  width: 24px;
+  height: 24px;
+  flex: 0 0 24px;
+  align-items: center;
+  justify-content: center;
+  border: 2px solid #e2e8f0;
+  border-radius: 50%;
+  color: #94a3b8;
+  font-size: 9px;
+  font-style: normal;
+  font-weight: 700;
+  line-height: 1;
+  background: #fff;
+}
+
+.cs-r-order-production-icon {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  font-family: "Apple Color Emoji", "Segoe UI Emoji", "Noto Color Emoji", sans-serif;
+  font-size: 9px;
+  font-weight: 400;
+  line-height: 1;
+}
+
+.cs-r-order-production-step.is-completed .cs-r-order-production-marker,
+.cs-r-order-production-step.is-done .cs-r-order-production-marker,
+.cs-r-order-production-step.is-completed > i,
+.cs-r-order-production-step.is-completed > span:first-child,
+.cs-r-order-production-step.is-done > i,
+.cs-r-order-production-step.is-done > span:first-child {
+  border-color: #ddd6fe;
+  color: #7c3aed;
+  background: #f5f3ff;
+}
+
+.cs-r-order-production-step.is-current .cs-r-order-production-marker,
+.cs-r-order-production-step.is-active .cs-r-order-production-marker,
+.cs-r-order-production-step.is-in-progress .cs-r-order-production-marker,
+.cs-r-order-production-step.is-processing .cs-r-order-production-marker,
+.cs-r-order-production-step.is-running .cs-r-order-production-marker,
+.cs-r-order-production-step.is-current > i,
+.cs-r-order-production-step.is-current > span:first-child,
+.cs-r-order-production-step.is-active > i,
+.cs-r-order-production-step.is-active > span:first-child,
+.cs-r-order-production-step.is-in-progress > i,
+.cs-r-order-production-step.is-in-progress > span:first-child,
+.cs-r-order-production-step.is-processing > i,
+.cs-r-order-production-step.is-processing > span:first-child,
+.cs-r-order-production-step.is-running > i,
+.cs-r-order-production-step.is-running > span:first-child {
+  border-color: #7c3aed;
+  color: #fff;
+  background: #7c3aed;
+  box-shadow: 0 0 0 4px rgba(124, 58, 237, .15);
+}
+
+.cs-r-order-production-step.is-pending .cs-r-order-production-marker,
+.cs-r-order-production-step.is-ready .cs-r-order-production-marker,
+.cs-r-order-production-step.is-pending > i,
+.cs-r-order-production-step.is-pending > span:first-child,
+.cs-r-order-production-step.is-ready > i,
+.cs-r-order-production-step.is-ready > span:first-child {
+  border-color: #e2e8f0;
+  color: #94a3b8;
+  background: #fff;
+  box-shadow: none;
+}
+
+.cs-r-order-production-step.is-skipped {
+  opacity: .32;
+}
+
+.cs-r-order-production-content,
+.cs-r-order-production-step > div {
+  min-width: 0;
+  flex: 1;
+  padding-top: 3px;
+}
+
+.cs-r-order-production-content > header,
+.cs-r-order-production-step > div > header {
+  display: flex;
+  min-width: 0;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 8px;
+}
+
+.cs-r-order-production-content > header strong,
+.cs-r-order-production-step > div > header strong,
+.cs-r-order-production-name {
+  min-width: 0;
+  color: #94a3b8;
+  font-size: 12px;
+  font-weight: 600;
+  line-height: 1.45;
+  overflow-wrap: anywhere;
+}
+
+.cs-r-order-production-step.is-current .cs-r-order-production-content > header strong,
+.cs-r-order-production-step.is-active .cs-r-order-production-content > header strong,
+.cs-r-order-production-step.is-in-progress .cs-r-order-production-content > header strong,
+.cs-r-order-production-step.is-processing .cs-r-order-production-content > header strong,
+.cs-r-order-production-step.is-running .cs-r-order-production-content > header strong,
+.cs-r-order-production-step.is-current .cs-r-order-production-name,
+.cs-r-order-production-step.is-active .cs-r-order-production-name,
+.cs-r-order-production-step.is-in-progress .cs-r-order-production-name,
+.cs-r-order-production-step.is-processing .cs-r-order-production-name,
+.cs-r-order-production-step.is-running .cs-r-order-production-name {
+  color: #0f172a;
+}
+
+.cs-r-order-production-status,
+.cs-r-order-production-content > header b,
+.cs-r-order-production-step > div > header b {
+  flex: 0 0 auto;
+  color: #94a3b8;
+  font-size: 10px;
+  font-weight: 700;
+  line-height: 1.45;
+  white-space: nowrap;
+}
+
+.cs-r-order-production-step.is-current .cs-r-order-production-status,
+.cs-r-order-production-step.is-active .cs-r-order-production-status,
+.cs-r-order-production-step.is-in-progress .cs-r-order-production-status,
+.cs-r-order-production-step.is-processing .cs-r-order-production-status,
+.cs-r-order-production-step.is-running .cs-r-order-production-status,
+.cs-r-order-production-step.is-current .cs-r-order-production-content > header b,
+.cs-r-order-production-step.is-active .cs-r-order-production-content > header b,
+.cs-r-order-production-step.is-in-progress .cs-r-order-production-content > header b,
+.cs-r-order-production-step.is-processing .cs-r-order-production-content > header b,
+.cs-r-order-production-step.is-running .cs-r-order-production-content > header b,
+.cs-r-order-production-step.is-current > div > header b,
+.cs-r-order-production-step.is-active > div > header b,
+.cs-r-order-production-step.is-in-progress > div > header b,
+.cs-r-order-production-step.is-processing > div > header b,
+.cs-r-order-production-step.is-running > div > header b {
+  color: #7c3aed;
+}
+
+.cs-r-order-production-meta,
+.cs-r-order-production-phase,
+.cs-r-order-production-owner,
+.cs-r-order-production-content > p:not(.cs-r-order-production-current-note) {
+  margin: 1px 0 0;
+  color: #94a3b8;
+  font-size: 10px;
+  line-height: 1.45;
+  overflow-wrap: anywhere;
+}
+
+.cs-r-order-production-time,
+.cs-r-order-production-step time {
+  display: block;
+  margin-top: 1px;
+  color: #94a3b8;
+  font-size: 11px;
+  line-height: 1.45;
+  overflow-wrap: anywhere;
+}
+
+.cs-r-order-production-current-note {
+  margin: 5px 0 0;
+  padding: 6px 10px;
+  border-left: 2px solid #7c3aed;
+  border-radius: 7px;
+  color: #475569;
+  font-size: 11px;
+  line-height: 1.5;
+  background: #f5f3ff;
+  overflow-wrap: anywhere;
+}
+
+.cs-r-order-production-toggle {
+  display: inline-flex;
+  margin: 5px 0 0;
+  padding: 0;
+  align-items: center;
+  gap: 4px;
+  border: 0;
+  color: #7c3aed;
+  font: inherit;
+  font-size: 10px;
+  font-weight: 700;
+  line-height: 1.45;
+  background: transparent;
+  cursor: pointer;
+}
+
+.cs-r-order-production-toggle:hover {
+  color: #6d28d9;
+}
+
+.cs-r-order-production-toggle:focus-visible {
+  border-radius: 4px;
+  outline: 2px solid rgba(124, 58, 237, .28);
+  outline-offset: 2px;
+}
+
+.cs-r-order-production-sublist {
+  display: flex;
+  margin: 8px 0 2px;
+  padding: 2px 9px;
+  flex-direction: column;
+  border: 1px solid #eef2f8;
+  border-radius: 8px;
+  background: #f8fafc;
+}
+
+.cs-r-order-production-substep {
+  display: grid;
+  min-width: 0;
+  padding: 7px 0;
+  grid-template-columns: 18px minmax(0, 1fr) auto;
+  align-items: start;
+  gap: 7px;
+  border-bottom: 1px solid #eef2f8;
+}
+
+.cs-r-order-production-substep:last-child {
+  border-bottom: 0;
+}
+
+.cs-r-order-production-submarker {
+  display: inline-flex;
+  width: 18px;
+  height: 18px;
+  align-items: center;
+  justify-content: center;
+  border: 1.5px solid #e2e8f0;
+  border-radius: 50%;
+  color: #94a3b8;
+  font-size: 8px;
+  font-weight: 700;
+  line-height: 1;
+  background: #fff;
+}
+
+.cs-r-order-production-substep.is-completed .cs-r-order-production-submarker {
+  border-color: #ddd6fe;
+  color: #7c3aed;
+  background: #f5f3ff;
+}
+
+.cs-r-order-production-substep.is-in-progress .cs-r-order-production-submarker,
+.cs-r-order-production-substep.is-processing .cs-r-order-production-submarker,
+.cs-r-order-production-substep.is-running .cs-r-order-production-submarker {
+  border-color: #7c3aed;
+  color: #fff;
+  background: #7c3aed;
+}
+
+.cs-r-order-production-substep.is-skipped {
+  opacity: .42;
+}
+
+.cs-r-order-production-substep > div {
+  min-width: 0;
+}
+
+.cs-r-order-production-substep > div > strong,
+.cs-r-order-production-substep > div > small,
+.cs-r-order-production-substep > div > time {
+  display: block;
+  overflow-wrap: anywhere;
+}
+
+.cs-r-order-production-substep > div > strong {
+  color: #475569;
+  font-size: 11px;
+  font-weight: 600;
+  line-height: 1.45;
+}
+
+.cs-r-order-production-substep > div > small,
+.cs-r-order-production-substep > div > time {
+  margin-top: 1px;
+  color: #94a3b8;
+  font-size: 10px;
+  font-weight: 400;
+  line-height: 1.4;
+}
+
+.cs-r-order-production-substep > b {
+  color: #94a3b8;
+  font-size: 9px;
+  font-weight: 700;
+  line-height: 1.45;
+  white-space: nowrap;
+}
+
+.cs-r-order-production-substep.is-in-progress > b,
+.cs-r-order-production-substep.is-processing > b,
+.cs-r-order-production-substep.is-running > b {
+  color: #7c3aed;
+}
+
+.cs-r-order-flow-section {
+  min-width: 0;
+  margin-top: 16px;
+  padding-top: 14px;
+  border: 0;
+  border-top: 1.5px solid #f1f5f9;
+  border-radius: 0;
+  background: transparent;
+  animation: none;
+}
+
+/* The former switcher is intentionally absent in the continuous drawer. Keep
+   it suppressed as a compatibility guard while old cached markup is replaced. */
+.cs-r-order-tabs {
+  display: none;
+}
+
+.cs-r-order-tab-panel,
+.cs-r-order-drawer-body > .cs-r-order-tab-panel {
+  margin-top: 16px;
+  padding-top: 14px;
+  border-top: 1.5px solid #f1f5f9;
+  animation: none;
+}
+
+.cs-r-order-panel-head {
+  margin-bottom: 9px;
+}
+
+.cs-r-order-panel-chat,
+.cs-r-order-panel-messages,
+.cs-r-order-panel-files,
+.cs-r-order-panel-details,
+.cs-r-order-panel-records,
+.cs-r-order-panel-history {
+  min-width: 0;
+}
+
+.cs-r-order-panel-chat .cs-r-order-chat,
+.cs-r-order-panel-chat .cs-r-order-chat-panel {
+  max-height: none;
+}
+
+.cs-r-order-panel-chat .cs-r-order-messages,
+.cs-r-order-panel-chat .cs-r-order-chat-history {
+  max-height: 220px;
+}
+
+.cs-r-order-panel-messages .cs-r-order-messages,
+.cs-r-order-panel-messages .cs-r-order-chat-history {
+  max-height: 220px;
+}
+
+.cs-r-order-panel-chat .cs-r-order-chat,
+.cs-r-order-panel-chat .cs-r-order-chat-panel {
+  padding: 10px;
+  border: 0;
+  border-radius: 9px;
+  background: #f8fafc;
+}
+
+.cs-r-order-panel-chat .cs-r-order-messages,
+.cs-r-order-panel-chat .cs-r-order-chat-history {
+  gap: 9px;
+  padding-right: 4px;
+}
+
+.cs-r-order-panel-chat .cs-r-order-messages > article,
+.cs-r-order-panel-chat .cs-r-order-chat-message {
+  grid-template-columns: 28px minmax(0, 1fr);
+  gap: 9px;
+}
+
+.cs-r-order-panel-chat .cs-r-order-messages > article.is-self,
+.cs-r-order-panel-chat .cs-r-order-chat-message.is-self {
+  grid-template-columns: minmax(0, 1fr) 28px;
+}
+
+.cs-r-order-panel-chat .cs-r-order-messages > article > div,
+.cs-r-order-panel-chat .cs-r-order-message-bubble {
+  padding: 9px 10px;
+  border: 1px solid #e2e8f0;
+  border-radius: 0 8px 8px;
+  background: #fff;
+}
+
+.cs-r-order-panel-chat .cs-r-order-messages > article.is-self > div,
+.cs-r-order-panel-chat .cs-r-order-chat-message.is-self > .cs-r-order-message-bubble {
+  border-color: #ddd6fe;
+  border-radius: 8px 0 8px 8px;
+  background: #f5f3ff;
+}
+
+.cs-r-order-panel-chat .cs-r-order-composer,
+.cs-r-order-panel-chat .cs-r-order-message-compose,
+.cs-r-order-panel-chat .cs-r-order-chat-compose {
+  margin-top: 10px;
+}
+
+.cs-r-order-panel-files .cs-r-order-files,
+.cs-r-order-panel-files .cs-r-order-drafts {
+  gap: 8px;
+}
+
+.cs-r-order-panel-files .cs-r-order-files > article,
+.cs-r-order-panel-files .cs-r-order-files > button,
+.cs-r-order-panel-files .cs-r-order-file-card {
+  min-height: 58px;
+  grid-template-columns: 38px minmax(0, 1fr) auto;
+  padding: 9px 10px;
+  border-width: 1px;
+  border-radius: 8px;
+}
+
+.cs-r-order-panel-files .cs-r-order-drafts > article {
+  padding: 10px 11px;
+  border: 1px solid #e2e8f0;
+  border-radius: 8px;
+  background: #fafbfc;
+}
+
+.cs-r-order-panel-designs {
+  margin-top: 14px;
+  padding-top: 12px;
+  border-top: 1px solid #eef2f7;
+}
+
+.cs-r-order-panel-designs > header {
+  display: flex;
+  align-items: flex-end;
+  justify-content: space-between;
+  gap: 10px;
+  margin-bottom: 9px;
+}
+
+.cs-r-order-panel-designs > header span {
+  display: block;
+  color: #94a3b8;
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: .6px;
+}
+
+.cs-r-order-panel-designs > header h3 {
+  margin: 2px 0 0;
+  color: #1e293b;
+  font-size: 13px;
+  font-weight: 700;
+}
+
+.cs-r-order-panel-designs > header b {
+  color: #7c3aed;
+  font-size: 10px;
+  font-weight: 700;
+}
+
+.cs-r-order-panel-route {
+  display: block;
+  margin: 9px auto 0;
+  padding: 2px 5px;
+  border: 0;
+  border-radius: 4px;
+  color: #7c3aed;
+  font-family: inherit;
+  font-size: 11px;
+  font-weight: 700;
+  line-height: 1.4;
+  background: transparent;
+  cursor: pointer;
+}
+
+.cs-r-order-panel-route:hover,
+.cs-r-order-panel-route:focus-visible {
+  color: #6d28d9;
+  background: #ede9fe;
+  outline: none;
+}
+
+.cs-r-order-panel-details .cs-r-spec-grid,
+.cs-r-order-panel-details .cs-r-order-clinical-grid,
+.cs-r-order-panel-specs {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 8px;
+}
+
+.cs-r-order-panel-core {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 8px;
+  margin-bottom: 8px;
+}
+
+.cs-r-order-panel-core > div {
+  min-width: 0;
+  padding: 9px 12px;
+  border: 1.5px solid #e2e8f0;
+  border-radius: 8px;
+  background: #fff;
+}
+
+.cs-r-order-panel-core span {
+  display: block;
+  margin-bottom: 3px;
+  color: #94a3b8;
+  font-size: 9px;
+  font-weight: 700;
+  letter-spacing: .4px;
+}
+
+.cs-r-order-panel-core strong {
+  display: block;
+  color: #0f172a;
+  font-size: 12px;
+  font-weight: 500;
+  line-height: 1.5;
+  word-break: break-word;
+}
+
+.cs-r-order-panel-details .cs-r-order-notes {
+  gap: 6px;
+  margin-top: 8px;
+}
+
+.cs-r-order-panel-details .cs-r-order-notes > article {
+  padding: 9px 12px;
+  border-width: 1px;
+  border-radius: 8px;
+}
+
+.cs-r-order-panel-details .cs-r-order-notes p {
+  margin-top: 3px;
+  font-size: 10px;
+  line-height: 1.55;
+}
+
+.cs-r-order-panel-details .cs-r-spec-grid > div,
+.cs-r-order-panel-details .cs-r-order-clinical-grid > div,
+.cs-r-order-panel-specs > div {
+  min-width: 0;
+  padding: 9px 12px;
+  border: 1.5px solid #e2e8f0;
+  border-radius: 8px;
+  background: #fff;
+}
+
+.cs-r-order-panel-details .cs-r-order-tooth-chart,
+.cs-r-order-panel-details .cs-r-tooth-chart,
+.cs-r-order-panel-tooth-chart {
+  margin-top: 10px;
+  padding: 10px 12px;
+}
+
+.cs-r-order-panel-tooth-chart {
+  border: 1.5px solid #e2e8f0;
+  border-radius: 8px;
+  background: #f8fafc;
+}
+
+.cs-r-order-panel-tooth-chart > header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  margin-bottom: 8px;
+}
+
+.cs-r-order-panel-tooth-chart > header span {
+  color: #64748b;
+  font-size: 10px;
+  font-weight: 700;
+}
+
+.cs-r-order-panel-tooth-chart > header strong {
+  color: #7c3aed;
+  font-size: 10px;
+  font-weight: 700;
+}
+
+.cs-r-order-panel-tooth-chart > .cs-r-tooth-chart {
+  margin-top: 0;
+  padding: 0;
+  border: 0;
+  border-radius: 0;
+  background: transparent;
+}
+
+.cs-r-order-panel-records .cs-r-order-audit-timeline > article,
+.cs-r-order-panel-records .cs-r-audit-timeline > article,
+.cs-r-order-panel-history .cs-r-order-audit-timeline > article,
+.cs-r-order-panel-history .cs-r-audit-timeline > article,
+.cs-r-order-panel-record-list > article,
+.cs-r-order-panel-timeline > article {
+  position: relative;
+  display: grid;
+  min-height: 42px;
+  grid-template-columns: 84px 8px minmax(0, 1fr);
+  gap: 8px;
+  padding: 8px 0;
+  border-bottom: 1px solid #eef2f7;
+}
+
+.cs-r-order-panel-records .cs-r-order-audit-timeline > article:last-child,
+.cs-r-order-panel-records .cs-r-audit-timeline > article:last-child,
+.cs-r-order-panel-history .cs-r-order-audit-timeline > article:last-child,
+.cs-r-order-panel-history .cs-r-audit-timeline > article:last-child,
+.cs-r-order-panel-record-list > article:last-child,
+.cs-r-order-panel-timeline > article:last-child {
+  border-bottom: 0;
+}
+
+.cs-r-order-panel-records .cs-r-order-audit-timeline > article::after,
+.cs-r-order-panel-records .cs-r-audit-timeline > article::after,
+.cs-r-order-panel-history .cs-r-order-audit-timeline > article::after,
+.cs-r-order-panel-history .cs-r-audit-timeline > article::after,
+.cs-r-order-panel-record-list > article::after,
+.cs-r-order-panel-timeline > article::after {
+  position: absolute;
+  top: 20px;
+  bottom: -9px;
+  left: 95px;
+  width: 1px;
+  background: #e2e8f0;
+  content: "";
+}
+
+.cs-r-order-panel-records .cs-r-order-audit-timeline > article:last-child::after,
+.cs-r-order-panel-records .cs-r-audit-timeline > article:last-child::after,
+.cs-r-order-panel-history .cs-r-order-audit-timeline > article:last-child::after,
+.cs-r-order-panel-history .cs-r-audit-timeline > article:last-child::after,
+.cs-r-order-panel-record-list > article:last-child::after,
+.cs-r-order-panel-timeline > article:last-child::after {
+  display: none;
+}
+
+.cs-r-order-panel-records time,
+.cs-r-order-panel-history time,
+.cs-r-order-panel-record-list time,
+.cs-r-order-panel-timeline time {
+  color: #94a3b8;
+  font-size: 9px;
+  line-height: 1.45;
+}
+
+.cs-r-order-panel-records .cs-r-order-audit-timeline i,
+.cs-r-order-panel-records .cs-r-audit-timeline > article > span,
+.cs-r-order-panel-history .cs-r-order-audit-timeline i,
+.cs-r-order-panel-history .cs-r-audit-timeline > article > span,
+.cs-r-order-panel-record-list > article > i,
+.cs-r-order-panel-record-list > article > span,
+.cs-r-order-panel-timeline > article > i,
+.cs-r-order-panel-timeline > article > span {
+  z-index: 1;
+  width: 8px;
+  height: 8px;
+  margin-top: 2px;
+  border: 0;
+  border-radius: 50%;
+  background: #7c3aed;
+  box-shadow: 0 0 0 3px #f5f3ff;
+}
+
+.cs-r-order-panel-records strong,
+.cs-r-order-panel-history strong,
+.cs-r-order-panel-record-list strong,
+.cs-r-order-panel-timeline strong {
+  display: block;
+  color: #1e293b;
+  font-size: 11px;
+  font-weight: 700;
+  line-height: 1.45;
+}
+
+.cs-r-order-panel-records small,
+.cs-r-order-panel-records p,
+.cs-r-order-panel-history small,
+.cs-r-order-panel-history p,
+.cs-r-order-panel-record-list small,
+.cs-r-order-panel-record-list p,
+.cs-r-order-panel-timeline small,
+.cs-r-order-panel-timeline p {
+  display: block;
+  margin: 2px 0 0;
+  color: #94a3b8;
+  font-size: 10px;
+  line-height: 1.45;
+}
+
+.cs-r-order-message-error {
+  margin-top: 8px;
+  border-color: #fecdd3;
+  color: #be123c;
+  background: #fff1f2;
+}
+
+.cs-r-order-file-dialog.el-dialog {
+  overflow: hidden;
+  border: 1.5px solid #e2e8f0;
+  border-radius: 14px;
+  box-shadow: 0 8px 32px rgba(30, 27, 75, .14);
+}
+
+.cs-r-order-file-dialog .el-dialog__header {
+  padding: 14px 18px;
+  border-bottom: 1.5px solid #e2e8f0;
+}
+
+.cs-r-order-file-dialog .el-dialog__header > div,
+.cs-r-order-file-dialog .el-dialog__header strong,
+.cs-r-order-file-dialog .el-dialog__header span {
+  display: block;
+}
+
+.cs-r-order-file-dialog .el-dialog__header strong {
+  color: #0f172a;
+  font-family: Lora, "Songti SC", serif;
+  font-size: 14px;
+}
+
+.cs-r-order-file-dialog .el-dialog__header span {
+  overflow: hidden;
+  margin-top: 3px;
+  color: #94a3b8;
+  font-size: 10px;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.cs-r-order-file-dialog .el-dialog__body {
+  padding: 12px;
+  background: #f7f9fc;
+}
+
+.cs-r-order-file-dialog img,
+.cs-r-order-file-dialog iframe {
+  display: block;
+  width: 100%;
+  max-height: 72vh;
+  border: 0;
+  border-radius: 9px;
+  background: #fff;
+  object-fit: contain;
+}
+
+.cs-r-order-file-dialog iframe {
+  height: 72vh;
+}
+
+.cs-r-order-drawer-shell > footer {
+  position: static;
+  min-height: 0;
+  margin: 16px 20px 24px;
+  padding: 14px 0 0;
+  border-top: 1.5px solid #f1f5f9;
+  background: #fff;
+}
+
+.cs-r-order-drawer-shell > footer button {
+  min-height: 34px;
+  border-radius: 7px;
+  font-size: 11px;
+}
+
+.cs-r-order-drawer-shell > footer button.is-primary {
+  border-color: var(--csr-violet);
+  color: #fff;
+  background: var(--csr-violet);
+}
+
+.cs-r-order-drawer-shell > footer button:not(.is-primary):hover {
+  border-color: var(--csr-violet);
+  color: var(--csr-violet);
+  background: var(--csr-violet-soft);
 }
 
 .cs-r-summary-grid,
@@ -2431,4 +5119,175 @@
   .cs-r-search { width: 100%; }
   .cs-r-review-field-grid,
   .cs-r-review-checklist { grid-template-columns: 1fr; }
+}
+
+@media (max-width: 520px) {
+  .cs-r-order-drawer.el-drawer {
+    width: 100vw !important;
+    max-width: 100vw;
+  }
+
+  .cs-r-order-drawer-shell > header,
+  .cs-r-order-drawer-header,
+  .cs-r-order-drawer-head {
+    padding-right: 14px;
+    padding-left: 14px;
+  }
+
+  .cs-r-order-drawer-body {
+    max-width: 100%;
+    overflow-x: hidden;
+    padding-right: 14px;
+    padding-left: 14px;
+  }
+
+  .cs-r-order-production-timeline,
+  .cs-r-order-production-list,
+  .cs-r-order-production-step,
+  .cs-r-order-production-content,
+  .cs-r-order-flow-section {
+    max-width: 100%;
+    min-width: 0;
+  }
+
+  .cs-r-order-production-marker,
+  .cs-r-order-production-step > i,
+  .cs-r-order-production-step > span:first-child {
+    width: 24px;
+    height: 24px;
+    flex-basis: 24px;
+  }
+
+  .cs-r-order-production-content > header,
+  .cs-r-order-production-step > div > header {
+    align-items: flex-start;
+    flex-wrap: wrap;
+  }
+
+  .cs-r-order-header-actions,
+  .cs-r-order-head-actions {
+    gap: 4px;
+  }
+
+  .cs-r-order-header-actions button:not(.cs-r-order-close),
+  .cs-r-order-head-actions button:first-child {
+    padding-right: 7px;
+    padding-left: 7px;
+    font-size: 9px;
+  }
+
+  .cs-r-order-drawer-shell .cs-r-summary-grid,
+  .cs-r-order-drawer-shell .cs-r-spec-grid,
+  .cs-r-order-clinical-grid,
+  .cs-r-order-panel-details .cs-r-spec-grid,
+  .cs-r-order-panel-details .cs-r-order-clinical-grid,
+  .cs-r-order-panel-specs,
+  .cs-r-order-panel-core,
+  .cs-r-order-business-card,
+  .cs-r-order-shipment-card {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  .cs-r-order-drawer-shell .cs-r-spec-grid > .is-full,
+  .cs-r-order-clinical-grid > .is-full {
+    grid-column: auto;
+  }
+
+  .cs-r-order-actions button {
+    flex: 1 1 calc(50% - 4px);
+  }
+
+  .cs-r-order-chat-compose,
+  .cs-r-order-message-compose {
+    align-items: stretch;
+    flex-wrap: wrap;
+  }
+
+  .cs-r-order-chat-compose textarea,
+  .cs-r-order-chat-compose input,
+  .cs-r-order-message-compose textarea,
+  .cs-r-order-message-compose input {
+    min-width: 100%;
+  }
+
+  .cs-r-order-chat-compose button,
+  .cs-r-order-message-compose button {
+    width: 100%;
+  }
+
+  .cs-r-order-audit-timeline > article,
+  .cs-r-audit-timeline > article {
+    grid-template-columns: 58px 12px minmax(0, 1fr);
+  }
+
+  .cs-r-order-audit-timeline > article::after,
+  .cs-r-audit-timeline > article::after {
+    left: 71px;
+  }
+
+  .cs-r-order-composer {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  .cs-r-order-composer > textarea,
+  .cs-r-order-composer > div > span,
+  .cs-r-order-composer > div > button {
+    grid-column: 1;
+  }
+
+  .cs-r-order-composer > div > button {
+    grid-row: 2;
+  }
+
+  .cs-r-order-composer > div > span {
+    grid-row: 3;
+  }
+
+  .cs-r-order-tabs {
+    padding: 3px;
+  }
+
+  .cs-r-order-tabs > button {
+    min-height: 34px;
+    padding: 6px 2px;
+    font-size: 10px;
+  }
+
+  .cs-r-order-compact-nodes,
+  .cs-r-order-compact-progress-list,
+  .cs-r-order-panel-progress-list {
+    grid-template-columns: minmax(0, 1fr);
+    gap: 6px;
+  }
+
+  .cs-r-order-compact-node,
+  .cs-r-order-compact-progress-list > article,
+  .cs-r-order-panel-progress-list > article {
+    padding: 7px 8px;
+  }
+
+  .cs-r-order-panel-files .cs-r-order-files > article,
+  .cs-r-order-panel-files .cs-r-order-files > button,
+  .cs-r-order-panel-files .cs-r-order-file-card {
+    grid-template-columns: 38px minmax(0, 1fr) auto;
+    gap: 7px;
+  }
+
+  .cs-r-order-panel-records .cs-r-order-audit-timeline > article,
+  .cs-r-order-panel-records .cs-r-audit-timeline > article,
+  .cs-r-order-panel-history .cs-r-order-audit-timeline > article,
+  .cs-r-order-panel-history .cs-r-audit-timeline > article,
+  .cs-r-order-panel-record-list > article,
+  .cs-r-order-panel-timeline > article {
+    grid-template-columns: 70px 8px minmax(0, 1fr);
+  }
+
+  .cs-r-order-panel-records .cs-r-order-audit-timeline > article::after,
+  .cs-r-order-panel-records .cs-r-audit-timeline > article::after,
+  .cs-r-order-panel-history .cs-r-order-audit-timeline > article::after,
+  .cs-r-order-panel-history .cs-r-audit-timeline > article::after,
+  .cs-r-order-panel-record-list > article::after,
+  .cs-r-order-panel-timeline > article::after {
+    left: 81px;
+  }
 }

@@ -1,6 +1,7 @@
 package com.yuri.aiorder.collaboration;
 
 import com.fasterxml.jackson.annotation.JsonProperty;
+import java.time.LocalDateTime;
 import java.util.List;
 
 public record MessageResponse(
@@ -14,5 +15,6 @@ public record MessageResponse(
         String content,
         @JsonProperty("visible_to") String visibleTo,
         @JsonProperty("review_status") String reviewStatus,
-        @JsonProperty("mention_user_ids") List<Long> mentionUserIds) {
+        @JsonProperty("mention_user_ids") List<Long> mentionUserIds,
+        @JsonProperty("created_at") LocalDateTime createdAt) {
 }

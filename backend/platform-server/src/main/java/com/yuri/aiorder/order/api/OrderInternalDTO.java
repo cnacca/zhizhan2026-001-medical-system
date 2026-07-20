@@ -2,6 +2,7 @@ package com.yuri.aiorder.order.api;
 
 import com.fasterxml.jackson.annotation.JsonProperty;
 import com.fasterxml.jackson.databind.JsonNode;
+import java.time.LocalDateTime;
 
 public record OrderInternalDTO(
         @JsonProperty("order_id") long orderId,
@@ -16,5 +17,7 @@ public record OrderInternalDTO(
         @JsonProperty("external_status") String externalStatus,
         @JsonProperty("production_note") String productionNote,
         @JsonProperty("reject_reason") String rejectReason,
-        @JsonProperty("form_data") JsonNode formData) {
+        @JsonProperty("form_data") JsonNode formData,
+        @JsonProperty("created_at") LocalDateTime createdAt,
+        @JsonProperty("updated_at") LocalDateTime updatedAt) {
 }

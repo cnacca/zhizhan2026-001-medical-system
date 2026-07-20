@@ -115,6 +115,8 @@ public class WorkflowRuntimeService {
                 instance.orderId(),
                 instance.instanceStatus(),
                 instance.intakeBranchUsed(),
+                instance.createdAt(),
+                instance.updatedAt(),
                 loadNodes(instance.instanceId()),
                 loadEdges(instance.instanceId()));
     }
@@ -1002,7 +1004,7 @@ public class WorkflowRuntimeService {
     private InstanceRow loadInstanceByOrder(long orderId) {
         try {
             return jdbcClient.sql("""
-                            SELECT instance_id, order_id, instance_status, intake_branch_used
+                            SELECT instance_id, order_id, instance_status, intake_branch_used, created_at, updated_at
                             FROM order_process_instance
                             WHERE order_id = :orderId
                             """)
@@ -1011,7 +1013,9 @@ public class WorkflowRuntimeService {
                             rs.getLong("instance_id"),
                             rs.getLong("order_id"),
                             rs.getString("instance_status"),
-                            rs.getString("intake_branch_used")))
+                            rs.getString("intake_branch_used"),
+                            rs.getObject("created_at", LocalDateTime.class),
+                            rs.getObject("updated_at", LocalDateTime.class)))
                     .single();
         } catch (EmptyResultDataAccessException ex) {
             throw new ResponseStatusException(HttpStatus.NOT_FOUND, "process instance not found", ex);
@@ -1023,7 +1027,8 @@ public class WorkflowRuntimeService {
         accessControlService.requireScopedIdentity(identity, dataScope);
         try {
             return jdbcClient.sql("""
-                            SELECT i.instance_id, i.order_id, i.instance_status, i.intake_branch_used
+                            SELECT i.instance_id, i.order_id, i.instance_status, i.intake_branch_used,
+                                   i.created_at, i.updated_at
                             FROM order_process_instance i
                             JOIN orders o ON o.order_id = i.order_id
                             WHERE i.order_id = :orderId
@@ -1048,7 +1053,9 @@ public class WorkflowRuntimeService {
                             rs.getLong("instance_id"),
                             rs.getLong("order_id"),
                             rs.getString("instance_status"),
-                            rs.getString("intake_branch_used")))
+                            rs.getString("intake_branch_used"),
+                            rs.getObject("created_at", LocalDateTime.class),
+                            rs.getObject("updated_at", LocalDateTime.class)))
                     .single();
         } catch (EmptyResultDataAccessException ex) {
             if (processInstanceExists(orderId)) {
@@ -1202,7 +1209,13 @@ public class WorkflowRuntimeService {
     private record ChainRow(long chainId, int version) {
     }
 
-    private record InstanceRow(long instanceId, long orderId, String instanceStatus, String intakeBranchUsed) {
+    private record InstanceRow(
+            long instanceId,
+            long orderId,
+            String instanceStatus,
+            String intakeBranchUsed,
+            LocalDateTime createdAt,
+            LocalDateTime updatedAt) {
     }
 
     private record NodeRow(
