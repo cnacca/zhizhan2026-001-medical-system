@@ -5,6 +5,7 @@ import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.Matchers.not;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.put;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.content;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
@@ -61,7 +62,43 @@ class PatientManagementTests {
                 .andExpect(jsonPath("$.data.items", hasSize(1)))
                 .andExpect(jsonPath("$.data.items[0].patient_id").value(patientId))
                 .andExpect(jsonPath("$.data.items[0].patient_name").value("林一舟"))
+                .andExpect(jsonPath("$.data.items[0].phone").value("13800138000"))
+                .andExpect(jsonPath("$.data.items[0].email").value("lin@example.com"))
+                .andExpect(jsonPath("$.data.items[0].treatment_status").value("IN_TREATMENT"))
                 .andExpect(jsonPath("$.data.items[0].order_count").value(0));
+
+        mockMvc.perform(put("/patients/{patientId}", patientId)
+                        .header("X-Bootstrap-Role", "DOCTOR")
+                        .header("X-Bootstrap-User-Id", DOCTOR_USER_ID)
+                        .header("X-Bootstrap-Clinic-Id", clinicId)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("""
+                                {
+                                  "patient_name": "林一舟",
+                                  "patient_age": 43,
+                                  "patient_gender": "男",
+                                  "date_of_birth": "1983-08-12",
+                                  "phone": "13900139000",
+                                  "email": "lin.updated@example.com",
+                                  "medical_notes": "青霉素过敏",
+                                  "tags": "VIP，种植",
+                                  "treatment_status": "FOLLOW_UP",
+                                  "treatment_started_at": "2026-03-01",
+                                  "oral_description": "右下后牙修复复诊"
+                                }
+                                """))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.phone").value("13900139000"))
+                .andExpect(jsonPath("$.data.medical_notes").value("青霉素过敏"))
+                .andExpect(jsonPath("$.data.tags").value("VIP，种植"))
+                .andExpect(jsonPath("$.data.treatment_status").value("FOLLOW_UP"));
+
+        mockMvc.perform(get("/patients/{patientId}", patientId)
+                        .header("X-Bootstrap-Role", "DOCTOR")
+                        .header("X-Bootstrap-User-Id", DOCTOR_USER_ID)
+                        .header("X-Bootstrap-Clinic-Id", clinicId))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.email").value("lin.updated@example.com"));
 
         String orderRequest = """
                 {
@@ -128,6 +165,19 @@ class PatientManagementTests {
                         .header("X-Bootstrap-User-Id", DOCTOR_USER_ID)
                         .header("X-Bootstrap-Clinic-Id", clinicId))
                 .andExpect(status().isForbidden());
+
+        mockMvc.perform(put("/patients/{patientId}", otherPatientId)
+                        .header("X-Bootstrap-Role", "DOCTOR")
+                        .header("X-Bootstrap-User-Id", DOCTOR_USER_ID)
+                        .header("X-Bootstrap-Clinic-Id", clinicId)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("""
+                                {
+                                  "patient_name": "越权修改",
+                                  "treatment_status": "IN_TREATMENT"
+                                }
+                                """))
+                .andExpect(status().isForbidden());
     }
 
     private long createPatient(long doctorUserId, String patientName) throws Exception {
@@ -135,7 +185,14 @@ class PatientManagementTests {
                 {
                   "patient_name": "%s",
                   "patient_age": 42,
-                  "patient_gender": "UNKNOWN",
+                  "patient_gender": "男",
+                  "date_of_birth": "1983-08-12",
+                  "phone": "13800138000",
+                  "email": "lin@example.com",
+                  "medical_notes": "无特殊用药",
+                  "tags": "一期患者",
+                  "treatment_status": "IN_TREATMENT",
+                  "treatment_started_at": "2026-03-01",
                   "oral_description": "一期患者档案验收"
                 }
                 """.formatted(patientName);

@@ -22,7 +22,7 @@ const requiredFragments = [
   [files.app, 'frontend/src/App.vue', '待问异常'],
   [files.app, 'frontend/src/App.vue', '客服统计基础版'],
   [files.app, 'frontend/src/App.vue', '翻译待审'],
-  [files.app, 'frontend/src/App.vue', '账单超期'],
+  [files.app, 'frontend/src/App.vue', '账单待处理'],
   [files.app, 'frontend/src/App.vue', '客服经营看板'],
   [files.app, 'frontend/src/App.vue', '本月 vs 上月'],
   [files.app, 'frontend/src/App.vue', '销售额'],

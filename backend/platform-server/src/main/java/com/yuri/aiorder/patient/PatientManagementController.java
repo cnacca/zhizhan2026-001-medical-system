@@ -10,6 +10,7 @@ import org.springframework.web.bind.annotation.CrossOrigin;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
+import org.springframework.web.bind.annotation.PutMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
@@ -40,6 +41,23 @@ public class PatientManagementController {
             @Valid @RequestBody CreatePatientRequest request,
             BootstrapIdentity identity) {
         return new DataResponse<>(patientManagementService.createPatient(request, identity));
+    }
+
+    @GetMapping("/patients/{patientId}")
+    @RequirePermission(value = "patient:manage-doctor", roles = {UserRole.DOCTOR})
+    public DataResponse<PatientRecordResponse> getPatient(
+            @PathVariable long patientId,
+            BootstrapIdentity identity) {
+        return new DataResponse<>(patientManagementService.getPatient(patientId, identity));
+    }
+
+    @PutMapping("/patients/{patientId}")
+    @RequirePermission(value = "patient:manage-doctor", roles = {UserRole.DOCTOR})
+    public DataResponse<PatientRecordResponse> updatePatient(
+            @PathVariable long patientId,
+            @Valid @RequestBody UpdatePatientRequest request,
+            BootstrapIdentity identity) {
+        return new DataResponse<>(patientManagementService.updatePatient(patientId, request, identity));
     }
 
     @GetMapping("/patients/{patientId}/orders")

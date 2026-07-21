@@ -554,7 +554,7 @@ function registrationStatus(order: OrderItem) {
 }
 
 function informationStatus(order: OrderItem) {
-  if (order.production_note?.trim()) return '已完成人工确认'
+  if (businessProductionNote(order.production_note)) return '已完成人工确认'
   if (order.internal_status === 'PENDING_CS_REVIEW') return '登记后待处理'
   return '待信息审核/翻译'
 }
@@ -768,7 +768,7 @@ const selectedOrderClinicalNotes = computed(() => {
   const entries = [
     { label: '医生指示', value: orderFormValue(order, ['instruction', 'customer_instruction', 'description']) },
     { label: '特殊要求', value: orderFormValue(order, ['special_requirements', 'notes', 'doctor_note']) },
-    { label: '人工确认的生产信息', value: order.production_note?.trim() || '' },
+    { label: '已确认制作要求', value: businessProductionNote(order.production_note) },
     { label: '退回原因', value: order.reject_reason?.trim() || '' }
   ]
   const seen = new Set<string>()
@@ -777,6 +777,43 @@ const selectedOrderClinicalNotes = computed(() => {
     seen.add(item.value)
     return true
   })
+})
+
+function businessProductionNote(value: string | null | undefined): string {
+  const note = value?.trim() || ''
+  if (!note) return ''
+  if (/(?:^|\s)(?:task\s*)?9D\.\d+(?:\.\d+)?|\u56fa\u5b9a\u6f14\u793a\u6570\u636e|\u9a8c\u6536(?:\u6807\u8bb0|\u6570\u636e)|acceptance|fixture|mock/i.test(note)) return ''
+  if (/^\u5ba2\u670d\u521d\u5ba1\u901a\u8fc7[\uff0c,]?\s*\u8fdb\u5165\u751f\u4ea7\u5ba1\u6838[\u3002.]?$/.test(note)) return ''
+  return note
+}
+
+const roleNames: Record<string, string> = {
+  CS: '客服',
+  ADMIN: '管理员',
+  WORKER: '生产人员',
+  DOCTOR: '医生'
+}
+
+const dataScopeNames: Record<string, string> = {
+  ALL: '全部客户范围',
+  DEPT: '本部门范围',
+  SELF: '仅本人负责范围',
+  CLINIC: '本诊所范围'
+}
+
+const accountRoleSummary = computed(() => props.user?.roles.map((role) => roleNames[role] || '业务账号').join(' / ') || '角色未返回')
+const accountDataScope = computed(() => dataScopeNames[props.user?.dataScope || ''] || '数据范围未返回')
+const businessCapabilities = computed(() => {
+  const permissions = props.user?.permissions || []
+  const groups = [
+    { label: '订单与流程协同', match: /^(order|workflow|check):/ },
+    { label: '客户资料管理', match: /^clinic:/ },
+    { label: '文件与设计协同', match: /^file:/ },
+    { label: '沟通与通知', match: /^(message|notification):/ },
+    { label: '产品资料管理', match: /^product:/ },
+    { label: 'AI 辅助处理', match: /^ai:/ }
+  ]
+  return groups.filter((group) => permissions.some((permission) => group.match.test(permission))).map((group) => group.label)
 })
 
 const toothRows = [
@@ -1244,7 +1281,7 @@ async function selectTranslationOrder(order: OrderItem) {
   translationTab.value = 'INFO'
   const customerText = orderFormValue(order, ['instruction', 'customer_instruction', 'description', 'notes', 'special_requirements', 'doctor_note'])
   translationSource.value = customerText
-  productionNoteDraft.value = order.production_note || ''
+  productionNoteDraft.value = businessProductionNote(order.production_note)
   translationDraft.value = ''
   translationFiles.value = []
   translationRequirements.value = []
@@ -1814,12 +1851,12 @@ const conversationOrders = computed(() => {
 const filteredTranslationOrders = computed(() => {
   const keyword = translationKeyword.value.trim().toLowerCase()
   return orders.value.filter((order) => {
-    if (translationFilter.value === 'PENDING' && order.production_note?.trim()) return false
-    if (translationFilter.value === 'CONFIRMED' && !order.production_note?.trim()) return false
+    if (translationFilter.value === 'PENDING' && businessProductionNote(order.production_note)) return false
+    if (translationFilter.value === 'CONFIRMED' && !businessProductionNote(order.production_note)) return false
     return !keyword || [order.order_no, order.clinic_name, productLabel(order.product_type)]
       .some((value) => value.toLowerCase().includes(keyword))
   }).sort((left, right) => {
-    const confirmationOrder = Number(Boolean(left.production_note?.trim())) - Number(Boolean(right.production_note?.trim()))
+    const confirmationOrder = Number(Boolean(businessProductionNote(left.production_note))) - Number(Boolean(businessProductionNote(right.production_note)))
     if (confirmationOrder !== 0) return confirmationOrder
     return new Date(left.created_at || 0).getTime() - new Date(right.created_at || 0).getTime()
   })
@@ -1889,8 +1926,8 @@ const translationReviewChecklist = computed(() => {
 
 const translationFilterCounts = computed(() => ({
   ALL: orders.value.length,
-  PENDING: orders.value.filter((order) => !order.production_note?.trim()).length,
-  CONFIRMED: orders.value.filter((order) => Boolean(order.production_note?.trim())).length
+  PENDING: orders.value.filter((order) => !businessProductionNote(order.production_note)).length,
+  CONFIRMED: orders.value.filter((order) => Boolean(businessProductionNote(order.production_note))).length
 }))
 
 const filteredClinics = computed(() => {
@@ -2229,7 +2266,7 @@ watch(billingTab, (tab) => {
           </template>
           <template v-else-if="translationTab==='TRANSLATION'"><section class="cs-r-readonly-note"><strong>需要翻译的客户文字</strong><p class="cs-r-preserve-text">{{ translationSource || '该订单未单独填写外文指示，可直接整理生产执行信息。' }}</p></section><section class="cs-r-editor-card"><header><div><h3>AI 翻译草稿</h3><p>AI 内容不会自动发送或写入生产。</p></div><button type="button" :disabled="aiLoading || !translationSource.trim()" @click="generateTranslation">生成翻译草稿</button></header><textarea v-model="translationDraft" rows="5" placeholder="生成后由翻译人员逐项校对" aria-label="翻译草稿"></textarea></section><section class="cs-r-editor-card"><header><div><h3>人工确认的生产信息</h3><p>保存后供生产审核读取，保留修改人与时间。</p></div><button type="button" :disabled="aiLoading" @click="generateProductionNote">生成生产信息建议</button></header><textarea v-model="productionNoteDraft" rows="6" placeholder="整理颜色、材料、牙位及客户全部指示" aria-label="生产信息确认稿"></textarea><input v-model="productionNoteConfirmation" placeholder="填写本次人工确认说明（可选）" aria-label="人工确认说明"><footer><button type="button" @click="openInquiryForOrder(selectedTranslationOrder.order_id)">发现疑点，创建问单</button><button class="is-primary" type="button" :disabled="aiLoading || !productionNoteDraft.trim()" @click="confirmProductionNote">翻译人员人工确认</button></footer></section></template>
           <section v-else-if="translationTab==='FILES'" class="cs-r-editor-card"><header><div><h3>订单附件</h3><p>只显示当前账号可访问的真实文件记录。</p></div><span>{{ translationFiles.length }} 个</span></header><div v-if="translationFiles.length" class="cs-r-record-list"><article v-for="file in translationFiles" :key="file.file_id"><div><strong>{{ file.original_filename }}</strong><span>{{ file.content_type || '类型未记录' }} · {{ file.file_size == null ? '大小未记录' : `${file.file_size} B` }}</span></div><span class="cs-r-badge">{{ statusLabel(file.upload_status) }}</span></article></div><div v-else class="cs-r-state">当前订单没有可查看附件</div></section>
-          <section v-else class="cs-r-editor-card"><header><div><h3>处理记录</h3><p>显示当前订单已有的真实时间和确认结果。</p></div></header><div class="cs-r-record-list"><article><div><strong>订单建立</strong><span>{{ compactDateTime(selectedTranslationOrder.created_at) }}</span></div><span class="cs-r-badge">{{ statusLabel(selectedTranslationOrder.internal_status) }}</span></article><article><div><strong>最近更新</strong><span>{{ compactDateTime(selectedTranslationOrder.updated_at) }}</span></div><span class="cs-r-badge" :class="selectedTranslationOrder.production_note ? 'is-green':'is-amber'">{{ selectedTranslationOrder.production_note ? '已有人工确认稿':'尚未人工确认' }}</span></article></div><section class="cs-r-readonly-note"><strong>当前生产信息</strong><p>{{ selectedTranslationOrder.production_note || '尚未保存翻译人员人工确认的生产信息。' }}</p></section></section>
+          <section v-else class="cs-r-editor-card"><header><div><h3>处理记录</h3><p>显示当前订单已有的真实时间和确认结果。</p></div></header><div class="cs-r-record-list"><article><div><strong>订单建立</strong><span>{{ compactDateTime(selectedTranslationOrder.created_at) }}</span></div><span class="cs-r-badge">{{ statusLabel(selectedTranslationOrder.internal_status) }}</span></article><article><div><strong>最近更新</strong><span>{{ compactDateTime(selectedTranslationOrder.updated_at) }}</span></div><span class="cs-r-badge" :class="businessProductionNote(selectedTranslationOrder.production_note) ? 'is-green':'is-amber'">{{ businessProductionNote(selectedTranslationOrder.production_note) ? '已有人工确认稿':'尚未人工确认' }}</span></article></div><section class="cs-r-readonly-note"><strong>已确认制作要求</strong><p>{{ businessProductionNote(selectedTranslationOrder.production_note) || '尚未保存翻译人员确认的制作要求。' }}</p></section></section>
         </section>
         <div v-else class="cs-r-state">请选择左侧任务</div>
       </div>
@@ -2251,7 +2288,6 @@ watch(billingTab, (tab) => {
           <template v-else>
             <section v-if="designDetailState.error" class="cs-r-detail-alert is-danger"><span>!</span><div><strong>设计版本加载失败</strong><p>{{ designDetailState.error }}</p></div><button type="button" @click="selectDesignOrder(selectedDesignOrder.order_id)">重试</button></section>
             <section class="cs-r-info-band"><div><span>产品</span><strong>{{ productLabel(selectedDesignOrder.product_type) }}</strong></div><div><span>颜色</span><strong>{{ orderFormValue(selectedDesignOrder,['shade','color']) || '待确认' }}</strong></div><div><span>牙位</span><strong>{{ orderFormValue(selectedDesignOrder,['tooth_position','tooth','teeth']) || '待确认' }}</strong></div><div><span>诊所</span><strong>{{ selectedDesignOrder.clinic_name }}</strong></div></section>
-            <section class="cs-r-detail-alert is-info"><span>📝</span><div><strong>订单级人工确认信息</strong><p>{{ selectedDesignOrder.production_note || '当前订单尚无人工确认的生产信息，审核前应先核对原始资料。' }}</p></div></section>
             <section><div class="cs-r-section-title"><div><span class="cs-r-section-emoji">🗂️</span><div><h3>版本与审核记录</h3><p>操作权限严格跟随当前版本状态</p></div></div><span>{{ designDrafts.length }} 个</span></div>
               <div v-if="designDrafts.length" class="cs-r-version-list"><article v-for="draft in designDrafts" :key="draft.draft_id" :class="{'is-reviewable':designCanReview(draft)}"><header><div class="cs-r-version-mark"><span>📐</span><div><strong>设计稿 V{{ draft.version }}</strong><small>{{ draft.file_count || fileIds(draft).length }} 个文件 · 上传人 #{{ draft.uploader_user_id || '未记录' }}</small></div></div><span class="cs-r-badge" :class="draft.status.includes('REJECT') ? 'is-red' : draft.status.includes('CONFIRM') ? 'is-green' : 'is-amber'">{{ statusLabel(draft.status) }}</span></header><div v-if="draft.cs_reject_reason || draft.doctor_reject_reason" class="cs-r-version-reason"><strong>退回原因</strong><p>{{ draft.cs_reject_reason || draft.doctor_reject_reason }}</p></div><div v-else class="cs-r-version-body"><div><span>文件状态</span><p>{{ fileIds(draft).length ? '已有可关联文件' : '版本尚未关联文件' }}</p></div><div><span>客户确认</span><p>{{ draft.status.includes('CONFIRM') ? '客户已明确确认' : '尚未形成客户确认结果' }}</p></div></div><label v-if="designCanReview(draft)"><span>退回修改原因</span><input v-model="designRejectReasons[draft.draft_id]" placeholder="退回时必填，审核通过可留空"></label><footer><button type="button" :disabled="fileIds(draft).length === 0" @click="previewDesignDraft(draft)">👁 预览文件</button><template v-if="designCanReview(draft)"><button type="button" @click="reviewDesignDraft(draft,'REJECT')">退回修改</button><button class="is-primary" type="button" @click="reviewDesignDraft(draft,'APPROVE')">审核通过</button></template><button v-else-if="['PENDING_DOCTOR_REVIEW','PENDING_DOCTOR_CONFIRM'].includes(draft.status)" class="is-primary" type="button" @click="openInquiryForOrder(selectedDesignOrder.order_id)">进入客户确认问单</button><span v-else class="cs-r-action-state">当前状态仅支持查看</span></footer></article></div>
               <div v-else-if="!designDetailState.error" class="cs-r-state"><strong>当前订单还没有设计稿版本</strong><span>设计文件由生产端上传后在这里出现。</span></div>
@@ -2364,9 +2400,9 @@ watch(billingTab, (tab) => {
     </template>
 
     <template v-else-if="activeRoute === '/cs/settings'">
-      <header class="cs-r-heading"><div><h1>设置与账号</h1><p>查看当前登录账号、真实权限和数据范围；未接入的团队与偏好能力显示空态。</p></div><span class="cs-r-count">{{ props.user?.username }}</span></header>
+      <header class="cs-r-heading"><div><h1>设置与账号</h1><p>查看当前登录账号、业务能力和数据范围；账号权限由管理员统一维护。</p></div><span class="cs-r-count">{{ props.user?.username }}</span></header>
       <div class="cs-r-tab-strip is-large"><button type="button" :class="{active:settingsTab==='TEAM'}" @click="settingsTab='TEAM'">当前账号</button><button type="button" :class="{active:settingsTab==='ASSIGNMENT'}" @click="settingsTab='ASSIGNMENT'">客户分配</button><button type="button" :class="{active:settingsTab==='REPLIES'}" @click="settingsTab='REPLIES'">常用回复</button><button type="button" :class="{active:settingsTab==='PREFERENCES'}" @click="settingsTab='PREFERENCES'">通知与偏好</button></div>
-      <section v-if="settingsTab==='TEAM'" class="cs-r-settings-card"><header><span class="cs-r-avatar">{{ props.user?.username.slice(0,1).toUpperCase() }}</span><div><h2>{{ props.user?.username }}</h2><p>{{ props.user?.roles.join(' / ') || '角色未返回' }} · {{ props.user?.dataScope || '数据范围未返回' }}</p></div><span class="cs-r-badge is-green">当前账号</span></header><div class="cs-r-summary-grid"><div><span>用户编号</span><strong>{{ props.user?.userId ?? '未返回' }}</strong></div><div><span>登录账号</span><strong>{{ props.user?.username }}</strong></div><div><span>真实角色</span><strong>{{ props.user?.roles.join(' / ') || '未返回' }}</strong></div><div><span>业务权限</span><strong>{{ props.user?.permissions.length || 0 }} 项</strong></div></div><div v-if="props.user?.permissions.length" class="cs-r-permission-chips"><span v-for="permission in props.user.permissions" :key="permission">{{ permission }}</span></div><div v-else class="cs-r-state">身份接口未返回业务权限</div><div class="cs-r-readonly-note"><strong>团队账号</strong><p>当前接口只返回本人身份，不创建或展示虚构团队成员；账号安全和团队维护由管理端处理。</p></div></section>
+      <section v-if="settingsTab==='TEAM'" class="cs-r-settings-card"><header><span class="cs-r-avatar">{{ props.user?.username.slice(0,1).toUpperCase() }}</span><div><h2>{{ props.user?.username }}</h2><p>{{ accountRoleSummary }} · {{ accountDataScope }}</p></div><span class="cs-r-badge is-green">当前账号</span></header><div class="cs-r-summary-grid"><div><span>用户编号</span><strong>{{ props.user?.userId ?? '未返回' }}</strong></div><div><span>登录账号</span><strong>{{ props.user?.username }}</strong></div><div><span>岗位角色</span><strong>{{ accountRoleSummary }}</strong></div><div><span>数据范围</span><strong>{{ accountDataScope }}</strong></div></div><div v-if="businessCapabilities.length" class="cs-r-permission-chips"><span v-for="capability in businessCapabilities" :key="capability">{{ capability }}</span></div><div v-else class="cs-r-state">当前账号尚未配置业务能力</div><div class="cs-r-readonly-note"><strong>权限维护</strong><p>页面仅展示可理解的业务能力；具体权限由管理员在管理端统一配置。</p></div></section>
       <section v-else-if="settingsTab==='ASSIGNMENT'" class="cs-r-settings-card"><header><div><h2>客户分配</h2><p>客服经理可查看与调整客户负责人；普通岗位只读取自身服务范围。</p></div></header><div class="cs-r-state"><strong>客户级分配接口尚未提供</strong><span>当前只有订单负责人字段，页面不会使用模拟客户分配结果。</span></div></section>
       <section v-else-if="settingsTab==='REPLIES'" class="cs-r-settings-card"><header><div><h2>常用回复</h2><p>快捷回复只填入问单输入框，不自动向客户发送。</p></div><button type="button" disabled>＋ 新增回复</button></header><div class="cs-r-state"><strong>尚未建立真实常用回复</strong><span>团队/个人范围、版本与停用接口接入后在此维护。</span></div></section>
       <section v-else class="cs-r-settings-card"><header><div><h2>通知与显示偏好</h2><p>偏好读取和保存接口尚未提供。</p></div></header><div class="cs-r-state"><strong>暂无真实偏好数据</strong><span>接口接入前不显示默认开启、默认关闭或保存成功等模拟状态。</span></div></section>

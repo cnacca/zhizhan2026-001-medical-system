@@ -1273,6 +1273,7 @@ type DashboardPanel = {
   title: string
   badge?: string
   tone?: PrototypeTone
+  emptyText?: string
   items: DashboardAction[]
 }
 
@@ -2582,6 +2583,95 @@ function topPhaseOneCustomerRanking(orders: InternalOrderItem[]): PhaseOneAbCust
   const [clinicName, orderCount] = [...ranking.entries()].sort((left, right) => right[1] - left[1])[0] ?? ['暂无客户数据', 0]
   return { clinicName, orderCount }
 }
+function csDashboardOrderMap() {
+  return new Map(phaseOneAbDashboardOrders.value.map((order) => [order.order_id, order]))
+}
+function isCsShipmentReady(order: DeliveryOrderItem, dashboardOrder?: InternalOrderItem) {
+  return order.external_status === 'PENDING_SHIP'
+    || ['QC_PASSED', 'COMPLETED'].includes(dashboardOrder?.internal_status ?? '')
+}
+function csShipmentReminderPriority(order: DeliveryOrderItem, dashboardOrder?: InternalOrderItem) {
+  if (order.logistics_status === 'PENDING' && isCsShipmentReady(order, dashboardOrder)) return 0
+  if (order.logistics_status === 'EXCEPTION') return 1
+  if (order.logistics_status === 'FOLLOWING') return 2
+  if (order.logistics_status === 'SHIPPED') return 3
+  if (order.logistics_status === 'RESOLVED') return 4
+  return 5
+}
+const csShippingReminderItems = computed<DashboardAction[]>(() => {
+  const orderMap = csDashboardOrderMap()
+  return phaseOneAbDashboardDeliveryOrders.value
+    .filter((order) => {
+      const dashboardOrder = orderMap.get(order.order_id)
+      return isCsShipmentReady(order, dashboardOrder)
+        || ['EXCEPTION', 'FOLLOWING', 'SHIPPED', 'RESOLVED'].includes(order.logistics_status)
+    })
+    .sort((left, right) => {
+      const priorityDelta = csShipmentReminderPriority(left, orderMap.get(left.order_id))
+        - csShipmentReminderPriority(right, orderMap.get(right.order_id))
+      return priorityDelta || right.order_id - left.order_id
+    })
+    .slice(0, 4)
+    .map((order) => {
+      const dashboardOrder = orderMap.get(order.order_id)
+      const readyToShip = order.logistics_status === 'PENDING' && isCsShipmentReady(order, dashboardOrder)
+      const logisticsException = order.logistics_status === 'EXCEPTION'
+      const following = order.logistics_status === 'FOLLOWING'
+      const shipped = order.logistics_status === 'SHIPPED'
+      const statusMeta = readyToShip
+        ? '优先发货'
+        : logisticsException
+          ? '异常待处理'
+          : following
+            ? '跟进中'
+            : shipped
+              ? '已发货'
+              : '已处理'
+      const shippingDetail = readyToShip
+        ? `${productTypeLabel(order.product_type)} · 已完成质检，等待录入物流`
+        : logisticsException || following
+          ? `${productTypeLabel(order.product_type)} · ${order.last_follow_up_note?.replace(/^\[物流跟进\]\s*/, '') || statusLabel(order.logistics_status)}`
+          : `${productTypeLabel(order.product_type)} · ${[order.carrier, order.tracking_no].filter(Boolean).join(' / ') || statusLabel(order.logistics_status)}`
+      return {
+        title: order.order_no,
+        detail: shippingDetail,
+        meta: statusMeta,
+        tone: readyToShip || logisticsException ? 'rose' : following ? 'amber' : shipped ? 'green' : 'slate',
+        actionLabel: readyToShip ? '去发货' : logisticsException || following ? '去处理' : '查看',
+        routePath: '/cs/delivery',
+        navId: 'cs-delivery'
+      }
+    })
+})
+const csBillingReminderItems = computed<DashboardAction[]>(() => {
+  const orderMap = csDashboardOrderMap()
+  const completedPaymentStatuses = new Set(['PAID', 'NOT_REQUIRED', 'SETTLED'])
+  return phaseOneAbDashboardDeliveryOrders.value
+    .filter((order) => !completedPaymentStatuses.has(order.payment_status))
+    .sort((left, right) => {
+      const priority = (order: DeliveryOrderItem) => {
+        if (order.payment_status === 'PARTIALLY_PAID') return 0
+        if (order.bill_status === 'UPLOADED') return 1
+        return 2
+      }
+      return priority(left) - priority(right) || right.order_id - left.order_id
+    })
+    .slice(0, 3)
+    .map((order) => {
+      const dashboardOrder = orderMap.get(order.order_id)
+      const partiallyPaid = order.payment_status === 'PARTIALLY_PAID'
+      const billUploaded = order.bill_status === 'UPLOADED'
+      return {
+        title: order.order_no,
+        detail: `${dashboardOrder?.clinic_name || '客户待确认'} · ${productTypeLabel(order.product_type)}`,
+        meta: partiallyPaid ? '部分付款' : billUploaded ? '待收款' : '待上传账单',
+        tone: partiallyPaid ? 'orange' : billUploaded ? 'rose' : 'amber',
+        actionLabel: partiallyPaid || billUploaded ? '去跟进' : '去处理',
+        routePath: '/cs/billing',
+        navId: 'cs-billing'
+      }
+    })
+})
 const phaseOneAbMonthlyComparison = computed(() => {
   const summary = phaseOneAbDashboardSummary.value
   if (!summary) {
@@ -2609,11 +2699,17 @@ const phaseOneAbCsDashboardStats = computed(() => {
   const orderCount = orders.length
   const itemCount = orders.reduce((total, order) => total + estimatePhaseOneOrderItemCount(order), 0)
   const billManualFollowUpCount = deliveryOrdersForDashboard.filter((order) =>
-    !['PAID', 'SETTLED'].includes(order.payment_status)
+    !['PAID', 'NOT_REQUIRED', 'SETTLED'].includes(order.payment_status)
   ).length
   const logisticsManualFollowUpCount = deliveryOrdersForDashboard.filter((order) =>
-    ['PENDING', 'EXCEPTION', 'FOLLOWING'].includes(order.logistics_status)
+    ['EXCEPTION', 'FOLLOWING'].includes(order.logistics_status)
   ).length
+  const dashboardOrderMap = new Map(orders.map((order) => [order.order_id, order]))
+  const shippingAttentionCount = deliveryOrdersForDashboard.filter((order) => {
+    const dashboardOrder = dashboardOrderMap.get(order.order_id)
+    return (order.logistics_status === 'PENDING' && isCsShipmentReady(order, dashboardOrder))
+      || ['EXCEPTION', 'FOLLOWING'].includes(order.logistics_status)
+  }).length
   const source: PhaseOneAbDashboardSource = phaseOneAbDashboardDataError.value ? 'partial' : 'reused-api'
   return {
     source,
@@ -2624,6 +2720,7 @@ const phaseOneAbCsDashboardStats = computed(() => {
     pendingReplyCount: unreadCount.value,
     designUpdateCount: countOrdersByStatus(orders, ['DESIGN_UPLOADED', 'PENDING_DOCTOR_CONFIRM']),
     shipmentFollowUpCount: countDeliveryByStatus(deliveryOrdersForDashboard, ['SHIPPED', 'IN_TRANSIT', 'DELIVERED']),
+    shippingAttentionCount,
     billManualFollowUpCount,
     logisticsManualFollowUpCount,
     reworkFollowUpCount: productionQualitySummary.value?.external_rework_count ?? 0,
@@ -3071,27 +3168,32 @@ const prototypeDashboards = computed<Record<PortalTone, PrototypeDashboard>>(() 
         { title: '信息评审 / 翻译待审', value: `${phaseOneAbCsDashboardStats.value.pendingReviewCount} / ${phaseOneAbCsDashboardStats.value.pendingMessageReviewCount}`, note: '订单资料 / AI 结果待确认', icon: 'audit', tone: 'amber' },
         { title: '待回复', value: String(phaseOneAbCsDashboardStats.value.pendingReplyCount), note: '客户与内部消息待回复', icon: 'chat', tone: 'sky' },
         { title: '设计更新', value: String(phaseOneAbCsDashboardStats.value.designUpdateCount), note: '设计进度有更新，请及时跟进', icon: 'design', tone: 'green' },
-        { title: '延期提醒', value: String(phaseOneAbCsDashboardStats.value.logisticsManualFollowUpCount), note: '临近交期订单，请优先跟进', icon: 'timer', tone: 'orange' },
-        { title: '今日发货', value: String(phaseOneAbCsDashboardStats.value.shipmentFollowUpCount), note: '今日待发货订单数量', icon: 'delivery', tone: 'teal' },
-        { title: '账单超期', value: String(phaseOneAbCsDashboardStats.value.billManualFollowUpCount), note: '超期账单待催收或确认', icon: 'bill', tone: 'rose' },
+        { title: '物流跟进', value: String(phaseOneAbCsDashboardStats.value.logisticsManualFollowUpCount), note: '异常与跟进中物流事项', icon: 'timer', tone: 'orange' },
+        { title: '发货待办', value: String(phaseOneAbCsDashboardStats.value.shippingAttentionCount), note: '待发货与物流异常优先处理', icon: 'delivery', tone: 'teal' },
+        { title: '账单待处理', value: String(phaseOneAbCsDashboardStats.value.billManualFollowUpCount), note: '待上传、待收款或部分付款', icon: 'bill', tone: 'rose' },
         { title: '投诉/返工', value: String(phaseOneAbCsDashboardStats.value.reworkFollowUpCount), note: '客诉与返工事项待跟进', icon: 'quality', tone: 'rose' }
       ],
       panels: [
         {
-          title: '今日发货 / 客户账单',
-          badge: `${phaseOneAbCsDashboardStats.value.shipmentFollowUpCount + phaseOneAbCsDashboardStats.value.billManualFollowUpCount} 单`,
+          title: '发货提醒',
+          badge: `${phaseOneAbCsDashboardStats.value.shippingAttentionCount} 项待处理`,
           tone: 'teal',
-          items: [
-            { title: '发货状态', detail: `${phaseOneAbCsDashboardStats.value.shipmentFollowUpCount} 单已有发货/配送人工状态`, meta: '真实物流平台未接', tone: 'green', actionLabel: '录入物流', routePath: '/cs/delivery', navId: 'cs-delivery' },
-            { title: '客户排名', detail: `${phaseOneAbCsDashboardStats.value.customerRanking.clinicName}：${phaseOneAbCsDashboardStats.value.customerRanking.orderCount} 单`, meta: '来自真实订单诊所字段', tone: 'orange', actionLabel: '查看客户', routePath: '/cs/customers', navId: 'cs-customers' }
-          ]
+          emptyText: '当前没有待发货或物流异常事项',
+          items: csShippingReminderItems.value
+        },
+        {
+          title: '账单待处理',
+          badge: `${phaseOneAbCsDashboardStats.value.billManualFollowUpCount} 单`,
+          tone: 'rose',
+          emptyText: '当前没有需要处理的账单',
+          items: csBillingReminderItems.value
         }
       ],
       trends: [
         { label: '本月订单', value: `${phaseOneAbCsDashboardStats.value.orderCount} 单`, percent: phaseOneProgress(phaseOneAbCsDashboardStats.value.orderCount * 4), tone: 'violet' },
         { label: '本月 / 上月对比', value: phaseOneAbMonthlyComparison.value.orderLabel, percent: phaseOneAbMonthlyComparison.value.orderPercent, tone: 'green' },
         { label: '十大客户排名', value: phaseOneAbCsDashboardStats.value.customerRanking.clinicName, percent: phaseOneProgress(phaseOneAbCsDashboardStats.value.customerRanking.orderCount * 10), tone: 'blue' },
-        { label: '今日发货', value: `${phaseOneAbCsDashboardStats.value.shipmentFollowUpCount} 单`, percent: phaseOneProgress(phaseOneAbCsDashboardStats.value.shipmentFollowUpCount * 12), tone: 'teal' },
+        { label: '发货待办', value: `${phaseOneAbCsDashboardStats.value.shippingAttentionCount} 单`, percent: phaseOneProgress(phaseOneAbCsDashboardStats.value.shippingAttentionCount * 12), tone: 'teal' },
         { label: '返工投诉', value: `${phaseOneAbCsDashboardStats.value.reworkFollowUpCount} 单`, percent: phaseOneProgress(phaseOneAbCsDashboardStats.value.reworkFollowUpCount * 10), tone: 'rose' }
       ]
     },
@@ -4095,9 +4197,20 @@ const statusLabelMap: Record<string, string> = {
 }
 const productTypeLabelMap: Record<string, string> = {
   REGULAR_CROWN: '普通牙冠',
+  FIXED_CROWN: '普通牙冠',
   PFM_BRIDGE: '烤瓷桥',
+  BRIDGE: '桥体',
+  FIXED_BRIDGE: '固定桥',
+  VENEER: '贴面',
   VENEER_SET: '贴面套装',
+  IMPLANT: '种植修复',
   IMPLANT_CROWN: '种植牙冠',
+  IMPLANT_RESTORATION: '种植修复',
+  DENTURE: '活动义齿',
+  REMOVABLE_DENTURE: '活动修复',
+  REMOVABLE: '活动修复',
+  ORTHODONTIC: '正畸产品',
+  ORTHODONTICS: '正畸产品',
   CLEAR_ALIGNER: '隐形矫治',
   NIGHT_GUARD: '夜磨牙垫',
   RUNTIME_TEST: '测试订单'
@@ -15786,20 +15899,25 @@ onBeforeUnmount(() => {
             </el-button>
           </section>
           <div class="cs-dashboard-side-stack">
-            <template v-for="panel in activePrototypeDashboard.panels" :key="panel.title">
-              <div class="cs-dashboard-side-label">{{ panel.title }}</div>
-              <section v-for="item in panel.items" :key="`${panel.title}-${item.title}`" class="prototype-panel-card cs-dashboard-side-card">
-                <div class="prototype-panel-head">
-                  <h3>{{ item.title }}</h3>
-                  <span class="prototype-badge" :class="`tone-${item.tone}`">{{ item.meta }}</span>
-                </div>
-                <button type="button" class="prototype-attention-item" @click="selectDashboardAction(item)">
+            <section v-for="panel in activePrototypeDashboard.panels" :key="panel.title" class="prototype-panel-card cs-dashboard-side-card">
+              <div class="prototype-panel-head">
+                <h3>{{ panel.title }}</h3>
+                <span v-if="panel.badge" class="prototype-badge" :class="`tone-${panel.tone ?? 'slate'}`">{{ panel.badge }}</span>
+              </div>
+              <div v-if="panel.items.length === 0" class="cs-dashboard-side-empty">{{ panel.emptyText ?? '暂无待处理事项' }}</div>
+              <button
+                v-for="item in panel.items"
+                :key="`${panel.title}-${item.title}`"
+                type="button"
+                class="prototype-attention-item"
+                @click="selectDashboardAction(item)"
+              >
                   <span class="attention-dot" :class="`tone-${item.tone}`" />
                   <span><strong>{{ item.title }}</strong><small>{{ item.detail }}</small></span>
+                  <em>{{ item.meta }}</em>
                   <b>{{ item.actionLabel }}</b>
-                </button>
-              </section>
-            </template>
+              </button>
+            </section>
           </div>
           </div>
 

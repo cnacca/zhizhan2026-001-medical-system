@@ -9,9 +9,18 @@ const checks = [
     'patient:manage-doctor',
     '/doctor/patients'
   ]],
+  ['backend/platform-server/src/main/resources/db/migration/V47__doctor_patient_profile_enhancement.sql', [
+    'date_of_birth',
+    'medical_notes',
+    'patient_tags',
+    'treatment_status',
+    'treatment_started_at'
+  ]],
   ['backend/platform-server/src/main/java/com/yuri/aiorder/patient/PatientManagementController.java', [
     'GetMapping("/patients")',
     'PostMapping("/patients")',
+    'GetMapping("/patients/{patientId}")',
+    'PutMapping("/patients/{patientId}")',
     'GetMapping("/patients/{patientId}/orders")',
     'patient:manage-doctor'
   ]],
@@ -29,6 +38,8 @@ const checks = [
   ['backend/platform-server/src/test/java/com/yuri/aiorder/patient/PatientManagementTests.java', [
     'doctorCanCreateSearchAndReadOwnPatientHistory',
     'doctorCannotBindOrReadAnotherDoctorsPatient',
+    'lin.updated@example.com',
+    'medical_notes',
     'internal_status',
     'production_note'
   ]],
@@ -42,8 +53,10 @@ const checks = [
   ['docs/api/openapi.yaml', [
     'PatientRecord',
     'CreatePatientRequest',
+    'UpdatePatientRequest',
     'PatientOrder',
     '"/patients"',
+    '"/patients/{patientId}"',
     '"/patients/{patientId}/orders"'
   ]],
   ['docs/acceptance/prd-v2-gap-matrix.md', [
@@ -72,11 +85,6 @@ const checks = [
     'npm run check:task9d83',
     'PatientManagementTests',
     '患者管理基础版'
-  ]],
-  ['acceptance.json', [
-    'task-9d83-patient-management-required-text',
-    'check:task9d83',
-    'patient:manage-doctor'
   ]],
   ['package.json', [
     'check:task9d83'

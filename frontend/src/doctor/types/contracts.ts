@@ -114,12 +114,22 @@ export type PatientSummary = {
   patient_name: string
   patient_age: number | null
   patient_gender: string | null
+  date_of_birth: string | null
+  phone: string
+  email: string
+  medical_notes: string
+  treatment_status: 'IN_TREATMENT' | 'FOLLOW_UP' | 'TREATMENT_ENDED' | 'ARCHIVED'
+  treatment_started_at: string | null
+  treatment_ended_at: string | null
+  clinic_name: string
   doctor_name: string
   tags: string[]
   oral_description: string
   latest_order_no: string | null
   latest_product_name: string | null
   latest_order_at: string | null
+  created_at: string
+  updated_at: string
   order_count: number
 }
 
@@ -138,9 +148,18 @@ export type PatientCreateInput = {
   patientName: string
   patientAge: number | null
   patientGender: string | null
+  dateOfBirth: string | null
+  phone: string
+  email: string
+  medicalNotes: string
+  treatmentStatus: PatientSummary['treatment_status']
+  treatmentStartedAt: string | null
+  treatmentEndedAt: string | null
   oralDescription: string
   tags: string[]
 }
+
+export type PatientUpdateInput = PatientCreateInput & { patientId: string }
 
 export type BillRecord = {
   bill_id: string
@@ -303,6 +322,7 @@ export interface DoctorGateway {
   loadOrderDetail(orderId: string): Promise<OrderDetail>
   loadPatientDetail(patientId: string): Promise<PatientDetail>
   createPatient(input: PatientCreateInput): Promise<PatientSummary>
+  updatePatient(input: PatientUpdateInput): Promise<PatientSummary>
   saveDraft(input: OrderDraftInput): Promise<{ orderId: string; stateVersion: number }>
   uploadOrderFiles(orderId: string, files: File[]): Promise<DoctorFile[]>
   submitOrder(input: OrderDraftInput): Promise<OrderSummary>

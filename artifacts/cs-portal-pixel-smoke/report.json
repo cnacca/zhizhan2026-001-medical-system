@@ -1,10 +1,10 @@
 {
-  "baseUrl": "http://127.0.0.1:15173",
+  "baseUrl": "http://127.0.0.1:15174",
   "viewport": {
     "width": 1440,
     "height": 900
   },
-  "startedAt": "2026-07-20T10:35:32.521Z",
+  "startedAt": "2026-07-21T06:03:20.805Z",
   "pages": [
     {
       "menu": "工作台",
@@ -69,7 +69,7 @@
         "viewportWidth": 1440,
         "offenders": []
       },
-      "interaction": "已验证 860px 客户弹窗、五个连续内容区与结构化偏好渲染",
+      "interaction": "已验证 960px 客户完整档案、十个连续内容区、专属价格、打印模板与黑名单状态",
       "screenshot": "artifacts/cs-portal-pixel-smoke/06-customers.png"
     },
     {
@@ -162,6 +162,6 @@
   "pageErrors": [],
   "externalResourceWarnings": [],
   "blockedMutations": [],
-  "finishedAt": "2026-07-20T10:35:52.542Z",
+  "finishedAt": "2026-07-21T06:03:39.442Z",
   "status": "passed"
 }

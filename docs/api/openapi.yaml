@@ -368,11 +368,50 @@ components:
         patient_gender:
           type: string
           nullable: true
-          example: UNKNOWN
+          example: 男
+        date_of_birth:
+          type: string
+          format: date
+          nullable: true
+        phone:
+          type: string
+          nullable: true
+        email:
+          type: string
+          format: email
+          nullable: true
+        medical_notes:
+          type: string
+          nullable: true
+          description: 患者主动提供的病史、用药、过敏及特殊注意事项。
+        tags:
+          type: string
+          nullable: true
+          description: 使用逗号分隔的轻量患者标签。
+        treatment_status:
+          type: string
+          enum:
+          - IN_TREATMENT
+          - FOLLOW_UP
+          - TREATMENT_ENDED
+          - ARCHIVED
+          default: IN_TREATMENT
+        treatment_started_at:
+          type: string
+          format: date
+          nullable: true
+        treatment_ended_at:
+          type: string
+          format: date
+          nullable: true
         oral_description:
           type: string
           nullable: true
-          description: 一期基础口腔情况描述，不包含高级标签或 AI 历史推荐。
+          description: 口腔情况与修复关注点摘要。
+    UpdatePatientRequest:
+      allOf:
+      - "$ref": "#/components/schemas/CreatePatientRequest"
+      description: 更新患者档案；归属诊所和负责医生不可通过该请求变更。
     PatientRecord:
       type: object
       description: 医生端患者档案基础视图，只返回当前医生本人患者。
@@ -391,11 +430,48 @@ components:
         patient_gender:
           type: string
           nullable: true
+        date_of_birth:
+          type: string
+          format: date
+          nullable: true
+        phone:
+          type: string
+          nullable: true
+        email:
+          type: string
+          nullable: true
+        medical_notes:
+          type: string
+          nullable: true
+        tags:
+          type: string
+          nullable: true
+        treatment_status:
+          type: string
+          enum:
+          - IN_TREATMENT
+          - FOLLOW_UP
+          - TREATMENT_ENDED
+          - ARCHIVED
+        treatment_started_at:
+          type: string
+          format: date
+          nullable: true
+        treatment_ended_at:
+          type: string
+          format: date
+          nullable: true
         oral_description:
           type: string
           nullable: true
         order_count:
           type: integer
+        latest_order_no:
+          type: string
+          nullable: true
+        latest_product_type:
+          type: string
+          nullable: true
         latest_order_at:
           type: string
           format: date-time
@@ -4022,7 +4098,7 @@ paths:
       summary: 医生患者档案列表
       description: |
         权限：DOCTOR。只返回当前医生本人、当前诊所下的 ACTIVE 患者档案。
-        一期仅支持按患者姓名检索，不包含自定义标签、批量检索或 AI 历史推荐。
+        支持按患者姓名、编号、电话、邮箱和标签检索；不包含跨诊所批量检索或 AI 历史推荐。
       parameters:
       - name: keyword
         in: query
@@ -4099,6 +4175,85 @@ paths:
         '503':
           "$ref": "#/components/responses/ServiceUnavailable"
       operationId: postPatients
+  "/patients/{patientId}":
+    get:
+      tags:
+      - Patient
+      summary: 查看患者档案详情
+      description: 权限：DOCTOR。只返回当前医生本人、当前诊所下的患者档案。
+      parameters:
+      - name: patientId
+        in: path
+        required: true
+        schema:
+          type: integer
+      responses:
+        '200':
+          description: 患者档案详情
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data:
+                    "$ref": "#/components/schemas/PatientRecord"
+        '400':
+          "$ref": "#/components/responses/BadRequest"
+        '401':
+          "$ref": "#/components/responses/Unauthorized"
+        '403':
+          "$ref": "#/components/responses/Forbidden"
+        '404':
+          "$ref": "#/components/responses/NotFound"
+        '409':
+          "$ref": "#/components/responses/Conflict"
+        default:
+          "$ref": "#/components/responses/DefaultError"
+        '503':
+          "$ref": "#/components/responses/ServiceUnavailable"
+      operationId: getPatientById
+    put:
+      tags:
+      - Patient
+      summary: 更新患者档案
+      description: 权限：DOCTOR。只能更新当前医生本人患者，不能修改患者归属。
+      parameters:
+      - name: patientId
+        in: path
+        required: true
+        schema:
+          type: integer
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              "$ref": "#/components/schemas/UpdatePatientRequest"
+      responses:
+        '200':
+          description: 患者档案更新成功
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data:
+                    "$ref": "#/components/schemas/PatientRecord"
+        '400':
+          "$ref": "#/components/responses/BadRequest"
+        '401':
+          "$ref": "#/components/responses/Unauthorized"
+        '403':
+          "$ref": "#/components/responses/Forbidden"
+        '404':
+          "$ref": "#/components/responses/NotFound"
+        '409':
+          "$ref": "#/components/responses/Conflict"
+        default:
+          "$ref": "#/components/responses/DefaultError"
+        '503':
+          "$ref": "#/components/responses/ServiceUnavailable"
+      operationId: putPatientById
   "/patients/{patientId}/orders":
     get:
       tags:

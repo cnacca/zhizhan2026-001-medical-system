@@ -15,6 +15,7 @@ import type {
   OrderSummary,
   PatientDetail,
   PatientCreateInput,
+  PatientUpdateInput,
   PatientSummary,
   ProductOption,
   PublicProgressItem,
@@ -232,11 +233,11 @@ function publicProgressFor(order: OrderSummary): PublicProgressItem[] {
 }
 
 const patients: PatientSummary[] = [
-  { patient_id: 'P-1001', patient_code: 'A026', patient_name: '张先生', patient_age: 42, patient_gender: '男', doctor_name: '陈医生', tags: ['VIP', '种植'], oral_description: '右上后牙缺失，已完成种植体植入。', latest_order_no: 'ORD20260718-1001', latest_product_name: '种植冠', latest_order_at: '2026-07-15', order_count: 4 },
-  { patient_id: 'P-1002', patient_code: 'A031', patient_name: '李女士', patient_age: 35, patient_gender: '女', doctor_name: '陈医生', tags: ['复诊'], oral_description: '左下后牙牙体缺损。', latest_order_no: 'ORD20260718-1002', latest_product_name: '常规牙冠', latest_order_at: '2026-07-16', order_count: 3 },
-  { patient_id: 'P-1003', patient_code: 'B008', patient_name: '王先生', patient_age: 51, patient_gender: '男', doctor_name: '陈医生', tags: ['新患者'], oral_description: '前牙美学修复咨询。', latest_order_no: 'ORD20260717-1003', latest_product_name: '常规牙冠', latest_order_at: '2026-07-13', order_count: 2 },
-  { patient_id: 'P-1004', patient_code: 'B012', patient_name: '赵女士', patient_age: 47, patient_gender: '女', doctor_name: '陈医生', tags: [], oral_description: '下颌后牙连续缺失。', latest_order_no: 'ORD20260712-1004', latest_product_name: '固定桥', latest_order_at: '2026-07-12', order_count: 1 },
-  { patient_id: 'P-1005', patient_code: 'C003', patient_name: '周先生', patient_age: 39, patient_gender: '男', doctor_name: '陈医生', tags: ['VIP'], oral_description: '左上第一磨牙种植修复。', latest_order_no: 'ORD20260708-1006', latest_product_name: '种植冠', latest_order_at: '2026-07-08', order_count: 5 }
+  { patient_id: 'P-1001', patient_code: 'A026', patient_name: '张先生', patient_age: 42, patient_gender: '男', date_of_birth: '1984-03-18', phone: '138****2026', email: 'zhang@example.com', medical_notes: '青霉素过敏；请避免相关用药。', treatment_status: 'IN_TREATMENT', treatment_started_at: '2026-04-01', treatment_ended_at: null, clinic_name: '明悦口腔诊所', doctor_name: '陈医生', tags: ['VIP', '种植'], oral_description: '右上后牙缺失，已完成种植体植入。', latest_order_no: 'ORD20260718-1001', latest_product_name: '种植冠', latest_order_at: '2026-07-15', created_at: '2026-04-01', updated_at: '2026-07-18', order_count: 4 },
+  { patient_id: 'P-1002', patient_code: 'A031', patient_name: '李女士', patient_age: 35, patient_gender: '女', date_of_birth: '1991-06-12', phone: '139****8812', email: '', medical_notes: '', treatment_status: 'IN_TREATMENT', treatment_started_at: '2026-05-10', treatment_ended_at: null, clinic_name: '明悦口腔诊所', doctor_name: '陈医生', tags: ['复诊'], oral_description: '左下后牙牙体缺损。', latest_order_no: 'ORD20260718-1002', latest_product_name: '常规牙冠', latest_order_at: '2026-07-16', created_at: '2026-05-10', updated_at: '2026-07-17', order_count: 3 },
+  { patient_id: 'P-1003', patient_code: 'B008', patient_name: '王先生', patient_age: 51, patient_gender: '男', date_of_birth: '1975-09-03', phone: '', email: '', medical_notes: '高血压病史，术前复核血压。', treatment_status: 'FOLLOW_UP', treatment_started_at: '2026-03-15', treatment_ended_at: null, clinic_name: '明悦口腔诊所', doctor_name: '陈医生', tags: ['新患者'], oral_description: '前牙美学修复咨询。', latest_order_no: 'ORD20260717-1003', latest_product_name: '常规牙冠', latest_order_at: '2026-07-13', created_at: '2026-03-15', updated_at: '2026-07-18', order_count: 2 },
+  { patient_id: 'P-1004', patient_code: 'B012', patient_name: '赵女士', patient_age: 47, patient_gender: '女', date_of_birth: '1979-12-23', phone: '', email: '', medical_notes: '', treatment_status: 'TREATMENT_ENDED', treatment_started_at: '2026-01-10', treatment_ended_at: '2026-05-05', clinic_name: '明悦口腔诊所', doctor_name: '陈医生', tags: [], oral_description: '下颌后牙连续缺失。', latest_order_no: 'ORD20260712-1004', latest_product_name: '固定桥', latest_order_at: '2026-07-12', created_at: '2026-01-10', updated_at: '2026-07-12', order_count: 1 },
+  { patient_id: 'P-1005', patient_code: 'C003', patient_name: '周先生', patient_age: 39, patient_gender: '男', date_of_birth: '1987-02-06', phone: '', email: '', medical_notes: '', treatment_status: 'ARCHIVED', treatment_started_at: '2025-10-02', treatment_ended_at: '2026-02-11', clinic_name: '明悦口腔诊所', doctor_name: '陈医生', tags: ['VIP'], oral_description: '左上第一磨牙种植修复。', latest_order_no: 'ORD20260708-1006', latest_product_name: '种植冠', latest_order_at: '2026-07-08', created_at: '2025-10-02', updated_at: '2026-07-08', order_count: 5 }
 ]
 
 const bills: BillRecord[] = orders.filter((order) => order.quote).map((order, index) => {
@@ -367,7 +368,7 @@ const dataset: DoctorPortalDataset = {
 function patientDetail(patient: PatientSummary): PatientDetail {
   return {
     ...clone(patient),
-    notes: '患者档案仅用于订单资料与历史病例关联。',
+    notes: patient.medical_notes,
     orders: orders.filter((order) => order.patient_id === patient.patient_id).map((order) => ({ order_id: order.order_id, order_no: order.order_no, product_name: order.product_name, external_status: order.external_status, created_at: order.created_at })),
     history_references: [
       { order_no: 'ORD20260312-0812', product_name: patient.latest_product_name ?? '常规牙冠', matched_fields: ['产品类型', '材料', '牙位区域'], summary: '同诊所权限范围内的相似历史订单，仅供资料参考。' }
@@ -420,16 +421,47 @@ export class MockDoctorGateway implements DoctorGateway {
       patient_name: input.patientName,
       patient_age: input.patientAge,
       patient_gender: input.patientGender,
+      date_of_birth: input.dateOfBirth,
+      phone: input.phone,
+      email: input.email,
+      medical_notes: input.medicalNotes,
+      treatment_status: input.treatmentStatus,
+      treatment_started_at: input.treatmentStartedAt,
+      treatment_ended_at: input.treatmentEndedAt,
+      clinic_name: account.clinic_name,
       doctor_name: account.display_name,
       tags: [...input.tags],
       oral_description: input.oralDescription,
       latest_order_no: null,
       latest_product_name: null,
       latest_order_at: null,
+      created_at: new Date().toISOString(),
+      updated_at: new Date().toISOString(),
       order_count: 0
     }
     patients.unshift(item)
     return clone(item)
+  }
+
+  async updatePatient(input: PatientUpdateInput): Promise<PatientSummary> {
+    const patient = patients.find((item) => item.patient_id === input.patientId)
+    if (!patient) throw new Error('患者不存在')
+    Object.assign(patient, {
+      patient_name: input.patientName,
+      patient_age: input.patientAge,
+      patient_gender: input.patientGender,
+      date_of_birth: input.dateOfBirth,
+      phone: input.phone,
+      email: input.email,
+      medical_notes: input.medicalNotes,
+      treatment_status: input.treatmentStatus,
+      treatment_started_at: input.treatmentStartedAt,
+      treatment_ended_at: input.treatmentEndedAt,
+      oral_description: input.oralDescription,
+      tags: [...input.tags],
+      updated_at: new Date().toISOString()
+    })
+    return clone(patient)
   }
 
   async saveDraft(input: OrderDraftInput): Promise<{ orderId: string; stateVersion: number }> {

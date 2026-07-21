@@ -1,4 +1,5 @@
 import type {
+  BillRecord,
   ClinicRole,
   DoctorAccount,
   DoctorFile,
@@ -11,6 +12,7 @@ import type {
   OrderSummary,
   PatientDetail,
   PatientCreateInput,
+  PatientUpdateInput,
   PatientSummary,
   PublicProgressItem,
   ReviewDecisionInput
@@ -67,12 +69,25 @@ class DoctorApiError extends Error {
 
 type LegacyPatient = {
   patient_id: number
+  patient_code: string | null
   patient_name: string
   patient_age: number | null
   patient_gender: string | null
+  date_of_birth: string | null
+  phone: string | null
+  email: string | null
+  medical_notes: string | null
+  tags: string | null
+  treatment_status: PatientSummary['treatment_status']
+  treatment_started_at: string | null
+  treatment_ended_at: string | null
   oral_description: string | null
   order_count: number
+  latest_order_no: string | null
+  latest_product_type: string | null
   latest_order_at: string | null
+  created_at: string
+  updated_at: string
 }
 
 type LegacyNotification = {
@@ -91,6 +106,23 @@ type LegacyAccount = {
   shipping_address: string | null
 }
 
+type LegacyBill = {
+  bill_id: number | null
+  order_id: number
+  bill_status: string
+  payment_status: string
+  amount_cents: number | null
+  currency: string
+  file_id: number | null
+}
+
+type LegacyPayment = {
+  payment_id: number
+  amount_cents: number
+  currency: string
+  received_at: string
+}
+
 type LegacyList<T> = { items: T[]; total: number; page: number; size: number }
 
 type MultipartInitiateResponse = {
@@ -104,9 +136,13 @@ type MultipartPartUrlResponse = { upload_url: string }
 
 const productLabels: Record<string, string> = {
   FIXED_CROWN: '常规牙冠',
+  REGULAR_CROWN: '常规牙冠',
   FIXED_BRIDGE: '固定桥',
   IMPLANT_RESTORATION: '种植修复',
+  IMPLANT: '种植修复',
   REMOVABLE_DENTURE: '活动义齿',
+  REMOVABLE: '活动义齿',
+  ORTHODONTICS: '正畸产品',
   ORTHODONTIC: '正畸产品'
 }
 
@@ -200,6 +236,14 @@ function asText(value: unknown): string {
   return JSON.stringify(value)
 }
 
+function addDays(value: string | null | undefined, days: number): string {
+  if (!value) return '-'
+  const date = new Date(value.replace(' ', 'T'))
+  if (Number.isNaN(date.getTime())) return '-'
+  date.setDate(date.getDate() + days)
+  return date.toLocaleDateString('sv-SE')
+}
+
 function fileSizeLabel(bytes: number | null): string {
   if (bytes == null) return '大小未记录'
   if (bytes < 1024 * 1024) return `${Math.max(1, Math.round(bytes / 1024))} KB`
@@ -291,6 +335,50 @@ export class LegacyHttpDoctorGateway implements DoctorGateway {
     }
   }
 
+  private mapPatient(patient: LegacyPatient, account: DoctorAccount): PatientSummary {
+    return {
+      patient_id: String(patient.patient_id),
+      patient_code: patient.patient_code || `P-${patient.patient_id}`,
+      patient_name: patient.patient_name,
+      patient_age: patient.patient_age,
+      patient_gender: patient.patient_gender,
+      date_of_birth: patient.date_of_birth,
+      phone: patient.phone ?? '',
+      email: patient.email ?? '',
+      medical_notes: patient.medical_notes ?? '',
+      treatment_status: patient.treatment_status || 'IN_TREATMENT',
+      treatment_started_at: patient.treatment_started_at,
+      treatment_ended_at: patient.treatment_ended_at,
+      clinic_name: account.clinic_name,
+      doctor_name: account.display_name,
+      tags: (patient.tags ?? '').split(/[,，]/).map((item) => item.trim()).filter(Boolean),
+      oral_description: patient.oral_description ?? '',
+      latest_order_no: patient.latest_order_no,
+      latest_product_name: patient.latest_product_type ? productLabels[patient.latest_product_type] ?? patient.latest_product_type : null,
+      latest_order_at: patient.latest_order_at,
+      created_at: patient.created_at,
+      updated_at: patient.updated_at,
+      order_count: patient.order_count
+    }
+  }
+
+  private patientPayload(input: PatientCreateInput) {
+    return {
+      patient_name: input.patientName,
+      patient_age: input.patientAge,
+      patient_gender: input.patientGender,
+      date_of_birth: input.dateOfBirth,
+      phone: input.phone,
+      email: input.email,
+      medical_notes: input.medicalNotes,
+      tags: input.tags.join('，'),
+      treatment_status: input.treatmentStatus,
+      treatment_started_at: input.treatmentStartedAt,
+      treatment_ended_at: input.treatmentEndedAt,
+      oral_description: input.oralDescription
+    }
+  }
+
   async loadDataset(): Promise<DoctorPortalDataset> {
     const [ordersResult, patientsResult, notificationsResult, accountResult] = await Promise.allSettled([
       this.request<LegacyList<LegacyOrder>>('/orders?page=1&size=100'),
@@ -305,6 +393,49 @@ export class LegacyHttpDoctorGateway implements DoctorGateway {
 
     if (ordersResult.status === 'fulfilled') assertSafeOrderPayload(ordersResult.value)
 
+    const legacyOrders = ordersResult.status === 'fulfilled' ? ordersResult.value.items : []
+    const mappedOrders = legacyOrders.map((order) => this.mapOrder(order))
+    const billResults = await Promise.allSettled(legacyOrders.map(async (order): Promise<BillRecord | null> => {
+      const [billResult, paymentsResult] = await Promise.allSettled([
+        this.request<LegacyBill>(`/orders/${order.order_id}/bill`),
+        this.request<LegacyPayment[]>(`/orders/${order.order_id}/payments`)
+      ])
+      if (billResult.status !== 'fulfilled') return null
+
+      const bill = billResult.value
+      const amount = bill.amount_cents
+      if (bill.bill_id == null || amount == null) return null
+      const payments = paymentsResult.status === 'fulfilled' ? paymentsResult.value : []
+      const recordedPaid = payments.reduce((total, payment) => total + payment.amount_cents, 0)
+      const paidAmount = bill.payment_status === 'PAID'
+        ? amount
+        : Math.min(amount, recordedPaid)
+      const orderSummary = mappedOrders.find((item) => item.order_id === String(order.order_id))
+      const dueAt = orderSummary?.due_at && orderSummary.due_at !== '-'
+        ? orderSummary.due_at.slice(0, 10)
+        : addDays(order.created_at, 30)
+      const currency = bill.currency || 'CNY'
+
+      return {
+        bill_id: `BILL-${order.order_no}`,
+        order_id: String(order.order_id),
+        order_no: order.order_no,
+        clinic_name: this.profile.clinicName,
+        doctor_name: this.profile.displayName,
+        product_name: productLabels[order.product_type] ?? order.product_type,
+        settlement_type: 'PER_ORDER',
+        amount: { amount_minor: amount, currency },
+        paid: { amount_minor: paidAmount, currency },
+        outstanding: { amount_minor: Math.max(0, amount - paidAmount), currency },
+        payment_status: bill.payment_status,
+        bill_status: bill.bill_status,
+        issued_at: order.created_at || '-',
+        due_at: dueAt,
+        allowed_actions: bill.payment_status === 'PAID' ? ['REQUEST_INVOICE'] : ['PAY_BILL', 'REQUEST_INVOICE']
+      }
+    }))
+    const bills = billResults.flatMap((result) => result.status === 'fulfilled' && result.value ? [result.value] : [])
+
     const accountValue = accountResult.status === 'fulfilled' ? accountResult.value : null
     const account: DoctorAccount = {
       display_name: accountValue?.display_name || this.profile.displayName,
@@ -317,20 +448,7 @@ export class LegacyHttpDoctorGateway implements DoctorGateway {
     }
 
     const patients: PatientSummary[] = patientsResult.status === 'fulfilled'
-      ? patientsResult.value.items.map((patient) => ({
-          patient_id: String(patient.patient_id),
-          patient_code: `P-${patient.patient_id}`,
-          patient_name: patient.patient_name,
-          patient_age: patient.patient_age,
-          patient_gender: patient.patient_gender,
-          doctor_name: account.display_name,
-          tags: [],
-          oral_description: patient.oral_description ?? '',
-          latest_order_no: null,
-          latest_product_name: null,
-          latest_order_at: patient.latest_order_at,
-          order_count: patient.order_count
-        }))
+      ? patientsResult.value.items.map((patient) => this.mapPatient(patient, account))
       : []
 
     const notifications: DoctorNotification[] = notificationsResult.status === 'fulfilled'
@@ -353,9 +471,9 @@ export class LegacyHttpDoctorGateway implements DoctorGateway {
       : []
 
     return {
-      orders: ordersResult.status === 'fulfilled' ? ordersResult.value.items.map((order) => this.mapOrder(order)) : [],
+      orders: mappedOrders,
       patients,
-      bills: [],
+      bills,
       statements: [],
       invoiceRefunds: [],
       logistics: [],
@@ -428,19 +546,28 @@ export class LegacyHttpDoctorGateway implements DoctorGateway {
   }
 
   async loadPatientDetail(patientId: string): Promise<PatientDetail> {
-    const dataset = await this.loadDataset()
-    const patient = dataset.patients.find((item) => item.patient_id === patientId)
-    if (!patient) throw new Error('患者不存在或无权访问')
-    const response = await this.request<LegacyList<LegacyOrder>>(`/patients/${encodeURIComponent(patientId)}/orders?page=1&size=100`)
+    const [patient, response] = await Promise.all([
+      this.request<LegacyPatient>(`/patients/${encodeURIComponent(patientId)}`),
+      this.request<LegacyList<LegacyOrder>>(`/patients/${encodeURIComponent(patientId)}/orders?page=1&size=100`)
+    ])
+    const account: DoctorAccount = {
+      display_name: this.profile.displayName,
+      email: '',
+      clinic_name: this.profile.clinicName,
+      clinic_address: '',
+      clinic_contact: '',
+      notification_preferences: {},
+      members: []
+    }
     return {
-      ...patient,
-      notes: '',
+      ...this.mapPatient(patient, account),
+      notes: patient.medical_notes ?? '',
       orders: response.items.map((order) => ({
         order_id: String(order.order_id),
         order_no: order.order_no,
         product_name: productLabels[order.product_type] ?? order.product_type,
         external_status: statusMap[order.external_status] ?? order.external_status,
-        created_at: '-'
+        created_at: order.created_at || '-'
       })),
       history_references: []
     }
@@ -449,27 +576,19 @@ export class LegacyHttpDoctorGateway implements DoctorGateway {
   async createPatient(input: PatientCreateInput): Promise<PatientSummary> {
     const patient = await this.request<LegacyPatient>('/patients', {
       method: 'POST',
-      body: JSON.stringify({
-        patient_name: input.patientName,
-        patient_age: input.patientAge,
-        patient_gender: input.patientGender,
-        oral_description: input.oralDescription
-      })
+      body: JSON.stringify(this.patientPayload(input))
     })
-    return {
-      patient_id: String(patient.patient_id),
-      patient_code: `P-${patient.patient_id}`,
-      patient_name: patient.patient_name,
-      patient_age: patient.patient_age,
-      patient_gender: patient.patient_gender,
-      doctor_name: this.profile.displayName,
-      tags: input.tags,
-      oral_description: patient.oral_description ?? '',
-      latest_order_no: null,
-      latest_product_name: null,
-      latest_order_at: patient.latest_order_at,
-      order_count: patient.order_count
-    }
+    const account = { display_name: this.profile.displayName, clinic_name: this.profile.clinicName } as DoctorAccount
+    return this.mapPatient(patient, account)
+  }
+
+  async updatePatient(input: PatientUpdateInput): Promise<PatientSummary> {
+    const patient = await this.request<LegacyPatient>(`/patients/${encodeURIComponent(input.patientId)}`, {
+      method: 'PUT',
+      body: JSON.stringify(this.patientPayload(input))
+    })
+    const account = { display_name: this.profile.displayName, clinic_name: this.profile.clinicName } as DoctorAccount
+    return this.mapPatient(patient, account)
   }
 
   async saveDraft(input: OrderDraftInput): Promise<{ orderId: string; stateVersion: number }> {

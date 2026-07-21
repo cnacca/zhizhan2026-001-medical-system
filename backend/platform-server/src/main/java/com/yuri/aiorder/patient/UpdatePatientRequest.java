@@ -6,7 +6,7 @@ import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.Size;
 import java.time.LocalDate;
 
-public record CreatePatientRequest(
+public record UpdatePatientRequest(
         @JsonProperty("patient_name") @NotBlank @Size(max = 128) String patientName,
         @JsonProperty("patient_age") Integer patientAge,
         @JsonProperty("patient_gender") @Size(max = 32) String patientGender,

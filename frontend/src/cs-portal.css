@@ -385,17 +385,24 @@
   min-width: 0;
 }
 
-.cs-dashboard-side-label {
-  margin: -2px 0 -5px;
+.cs-dashboard-side-empty {
+  min-height: 58px;
+  padding: 20px 14px;
   color: var(--cs-faint);
   font-size: 10px;
-  font-weight: 700;
+  text-align: center;
 }
 
 .cs-reference-dashboard-menu .cs-dashboard-side-card .prototype-attention-item {
   min-height: 58px;
-  grid-template-columns: 8px minmax(0, 1fr) auto;
+  grid-template-columns: 8px minmax(0, 1fr) auto auto;
   padding: 9px 13px;
+}
+
+.cs-reference-dashboard-menu .cs-dashboard-side-card .prototype-attention-item em {
+  font-size: 9px;
+  font-weight: 700;
+  white-space: nowrap;
 }
 
 .cs-reference-dashboard-menu .cs-business-board {

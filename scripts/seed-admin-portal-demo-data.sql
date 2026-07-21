@@ -178,6 +178,46 @@ SET @rework_order_id := (
     ORDER BY order_id DESC LIMIT 1
 );
 
+INSERT INTO order_bill (order_id, bill_no, amount_cent, currency, bill_status, payment_status)
+SELECT order_id, CONCAT('BILL-', order_no),
+       CASE JSON_UNQUOTE(JSON_EXTRACT(form_data, '$.demo_scenario'))
+         WHEN '05-待设计确认' THEN 268000
+         WHEN '06-待发货' THEN 128000
+         WHEN '07-已完成' THEN 198000
+         ELSE 158000
+       END,
+       'CNY', 'ISSUED',
+       CASE JSON_UNQUOTE(JSON_EXTRACT(form_data, '$.demo_scenario'))
+         WHEN '06-待发货' THEN 'PARTIALLY_PAID'
+         WHEN '07-已完成' THEN 'PAID'
+         ELSE 'PENDING_PAYMENT'
+       END
+FROM orders
+WHERE JSON_UNQUOTE(JSON_EXTRACT(form_data, '$.demo_scenario')) IN ('05-待设计确认', '06-待发货', '07-已完成')
+   OR JSON_UNQUOTE(JSON_EXTRACT(form_data, '$.acceptance_marker')) IN (
+       'DEMO_DATA_V1:05-待设计确认', 'DEMO_DATA_V1:06-待发货', 'DEMO_DATA_V1:07-已完成'
+   )
+ON DUPLICATE KEY UPDATE
+    amount_cent = VALUES(amount_cent), currency = VALUES(currency),
+    bill_status = VALUES(bill_status), payment_status = VALUES(payment_status);
+
+INSERT INTO order_payment_record
+    (order_id, amount_cents, currency, payment_method, received_at, payment_note, created_by_user_id)
+SELECT order_id,
+       CASE JSON_UNQUOTE(JSON_EXTRACT(form_data, '$.demo_scenario'))
+         WHEN '06-待发货' THEN 64000
+         ELSE 198000
+       END,
+       'CNY', 'BANK_TRANSFER', DATE_SUB(NOW(3), INTERVAL 1 DAY),
+       CONCAT('医生端账单演示-', JSON_UNQUOTE(JSON_EXTRACT(form_data, '$.demo_scenario'))), 8002
+FROM orders source
+WHERE JSON_UNQUOTE(JSON_EXTRACT(form_data, '$.demo_scenario')) IN ('06-待发货', '07-已完成')
+  AND NOT EXISTS (
+      SELECT 1 FROM order_payment_record existing
+      WHERE existing.order_id = source.order_id
+        AND existing.payment_note LIKE '医生端账单演示-%'
+  );
+
 INSERT INTO work_log
     (order_id, node_instance_id, worker_user_id, started_at, finished_at,
      pause_duration_seconds, effective_duration_seconds, status)
@@ -355,6 +395,31 @@ FROM (
 ) seed
 WHERE NOT EXISTS (SELECT 1 FROM ai_audit_log existing WHERE existing.prompt_hash = seed.prompt_hash);
 
+-- Keep idempotent demo audit rows inside the rolling dashboard windows. Without
+-- refreshing these timestamps, a long-lived demo database eventually loses the
+-- 24-hour refusal/failure evidence and the seven-day trend even though reseeding
+-- succeeds.
+UPDATE ai_audit_log
+SET created_at = CASE prompt_hash
+    WHEN 'DEMO_AI_01' THEN DATE_SUB(NOW(3), INTERVAL 1 HOUR)
+    WHEN 'DEMO_AI_02' THEN DATE_SUB(NOW(3), INTERVAL 4 HOUR)
+    WHEN 'DEMO_AI_03' THEN DATE_SUB(NOW(3), INTERVAL 8 HOUR)
+    WHEN 'DEMO_AI_04' THEN DATE_SUB(NOW(3), INTERVAL 9 HOUR)
+    WHEN 'DEMO_AI_05' THEN DATE_SUB(NOW(3), INTERVAL 10 HOUR)
+    WHEN 'DEMO_AI_06' THEN DATE_SUB(NOW(3), INTERVAL 11 HOUR)
+    WHEN 'DEMO_AI_DAY2' THEN DATE_SUB(NOW(3), INTERVAL 1 DAY)
+    WHEN 'DEMO_AI_DAY3' THEN DATE_SUB(NOW(3), INTERVAL 2 DAY)
+    WHEN 'DEMO_AI_DAY4' THEN DATE_SUB(NOW(3), INTERVAL 3 DAY)
+    WHEN 'DEMO_AI_DAY5' THEN DATE_SUB(NOW(3), INTERVAL 4 DAY)
+    WHEN 'DEMO_AI_DAY6' THEN DATE_SUB(NOW(3), INTERVAL 5 DAY)
+    WHEN 'DEMO_AI_DAY7' THEN DATE_SUB(NOW(3), INTERVAL 6 DAY)
+    ELSE created_at
+END
+WHERE prompt_hash IN (
+    'DEMO_AI_01', 'DEMO_AI_02', 'DEMO_AI_03', 'DEMO_AI_04', 'DEMO_AI_05', 'DEMO_AI_06',
+    'DEMO_AI_DAY2', 'DEMO_AI_DAY3', 'DEMO_AI_DAY4', 'DEMO_AI_DAY5', 'DEMO_AI_DAY6', 'DEMO_AI_DAY7'
+);
+
 INSERT INTO notification_event (order_id, event_type, audience_role, payload, delivery_status, created_at)
 SELECT seed.order_id, seed.event_type, 'ADMIN',
        JSON_OBJECT('orderNo', seed.order_no, 'message', seed.message, 'demoMarker', seed.marker),
@@ -394,3 +459,54 @@ SET notification.read_at = CASE
     END
 WHERE notification.user_id = 8001
   AND JSON_UNQUOTE(JSON_EXTRACT(event.payload, '$.demoMarker')) LIKE 'ADMIN_NOTICE_%';
+
+-- Doctor portal patient profiles mirrored from the visual acceptance mock.
+-- They belong to the built-in demo doctor so the API-backed doctor portal can
+-- display them after `doctorMock=1` is removed.
+UPDATE clinic
+SET clinic_name = '明悦口腔诊所',
+    contact_name = '陈医生'
+WHERE clinic_id = (SELECT clinic_id FROM system_user WHERE user_id = 9701);
+
+UPDATE system_user
+SET display_name = '陈医生'
+WHERE user_id = 9701;
+
+INSERT INTO patient_record
+    (clinic_id, doctor_user_id, patient_name, patient_age, patient_gender,
+     date_of_birth, phone, email, medical_notes, patient_tags,
+     treatment_status, treatment_started_at, treatment_ended_at,
+     oral_description, status, created_at, updated_at)
+SELECT u.clinic_id, u.user_id, seed.patient_name, seed.patient_age, seed.patient_gender,
+       seed.date_of_birth, seed.phone, seed.email, seed.medical_notes, seed.patient_tags,
+       seed.treatment_status, seed.treatment_started_at, seed.treatment_ended_at,
+       seed.oral_description, 'ACTIVE', seed.created_at, seed.updated_at
+FROM system_user u
+JOIN (
+    SELECT '张先生' patient_name, 42 patient_age, '男' patient_gender,
+           DATE '1984-03-18' date_of_birth, '138****2026' phone,
+           'zhang@example.com' email, '青霉素过敏；请避免相关用药。' medical_notes,
+           'VIP,种植' patient_tags, 'IN_TREATMENT' treatment_status,
+           DATE '2026-04-01' treatment_started_at, NULL treatment_ended_at,
+           '右上后牙缺失，已完成种植体植入。' oral_description,
+           TIMESTAMP '2026-04-01 09:00:00' created_at, TIMESTAMP '2026-07-18 09:00:00' updated_at
+    UNION ALL SELECT '李女士', 35, '女', DATE '1991-06-12', '139****8812', NULL, NULL,
+           '复诊', 'IN_TREATMENT', DATE '2026-05-10', NULL,
+           '左下后牙牙体缺损。', TIMESTAMP '2026-05-10 09:00:00', TIMESTAMP '2026-07-17 09:00:00'
+    UNION ALL SELECT '王先生', 51, '男', DATE '1975-09-03', NULL, NULL,
+           '高血压病史，术前复核血压。', '新患者', 'FOLLOW_UP', DATE '2026-03-15', NULL,
+           '前牙美学修复咨询。', TIMESTAMP '2026-03-15 09:00:00', TIMESTAMP '2026-07-18 09:00:00'
+    UNION ALL SELECT '赵女士', 47, '女', DATE '1979-12-23', NULL, NULL, NULL, NULL,
+           'TREATMENT_ENDED', DATE '2026-01-10', DATE '2026-05-05',
+           '下颌后牙连续缺失。', TIMESTAMP '2026-01-10 09:00:00', TIMESTAMP '2026-07-12 09:00:00'
+    UNION ALL SELECT '周先生', 39, '男', DATE '1987-02-06', NULL, NULL, NULL, 'VIP',
+           'ARCHIVED', DATE '2025-10-02', DATE '2026-02-11',
+           '左上第一磨牙种植修复。', TIMESTAMP '2025-10-02 09:00:00', TIMESTAMP '2026-07-08 09:00:00'
+) seed
+WHERE u.user_id = 9701
+  AND NOT EXISTS (
+      SELECT 1
+      FROM patient_record existing
+      WHERE existing.doctor_user_id = u.user_id
+        AND existing.patient_name = seed.patient_name
+  );

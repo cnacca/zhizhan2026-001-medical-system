@@ -42,11 +42,15 @@ for (const text of ['公开进度', '订单资料', '确认记录', '进入订�
 rejectText(orderDrawer, /(物流公司|运单号|承运商|tracking_no|carrier)/, 'order drawer boundary')
 
 const patientPage = between(portal, "activePage === 'patients'", "activePage === 'billing'", 'patient page')
-rejectText(patientPage, /(手机号|完整生日|出生日期|病史|治疗状态|疗程时长)/, 'patient page minimization')
+for (const text of ['患者姓名', '诊所', '负责医生', '最近产品', '建档日期', '订单', '治疗状态', '疗程', '治疗结束', '已归档']) requireText(patientPage, text, 'patient reference table')
+for (const text of ['出生日期', '联系电话', '电子邮箱', '病史 / 用药 / 过敏信息', '所属诊所']) requireText(portal, text, 'patient profile form')
+for (const text of ['编辑患者档案', '患者资料', '订单历史', '历史参考', '为患者新建订单']) requireText(portal, text, 'patient drawer preserved capabilities')
 
 const billingPage = between(portal, "activePage === 'billing'", "activePage === 'messages'", 'billing page')
 for (const text of ['按单结算', '月结账单', '发票与退款', '物流', '运单号']) requireText(billingPage, text, 'billing and logistics')
 for (const text of ['账期提示', '下载全部', '下载 PDF']) requireText(billingPage, text, 'billing reference composition')
+requireText(billingPage, '@click="openOrder(bill.order_id)"', 'billing order drawer stays on billing page')
+if (billingPage.includes('@click="openGlobalOrder(bill.order_id)"')) fail('billing order action must not navigate to the orders page')
 for (const text of ['本期账单', '账户余额']) requireText(portal, text, 'billing reference metrics')
 
 const messagePage = between(portal, "activePage === 'messages'", "activePage === 'account'", 'messages page')
@@ -69,9 +73,9 @@ for (const text of [
   "review.allowed_actions.includes('REJECT_REVIEW')"
 ]) requireText(portal, text, 'wizard roles and reviews')
 
-for (const text of ['productId: string', 'reviewOptions: ReviewType[]', 'switchRole(role: ClinicRole)', 'uploadOrderFiles(orderId: string, files: File[])', 'markThreadRead(threadId: string)']) requireText(contracts, text, 'doctor gateway contract')
+for (const text of ['productId: string', 'reviewOptions: ReviewType[]', 'switchRole(role: ClinicRole)', 'uploadOrderFiles(orderId: string, files: File[])', 'markThreadRead(threadId: string)', 'updatePatient(input: PatientUpdateInput)']) requireText(contracts, text, 'doctor gateway contract')
 for (const text of ['X-Clinic-Role', 'product_id: input.productId', 'review_options: input.reviewOptions', '/files/multipart/initiate', 'assertSafeOrderPayload', 'unsafeDoctorContent']) requireText(httpGateway, text, 'http doctor gateway')
-for (const text of ['orders.unshift(created)', 'details.set(created.order_id, detail)', 'async switchRole', 'async uploadOrderFiles', 'async createPatient', 'hasPendingReview']) requireText(mockGateway, text, 'mock doctor closed loops')
+for (const text of ['orders.unshift(created)', 'details.set(created.order_id, detail)', 'async switchRole', 'async uploadOrderFiles', 'async createPatient', 'async updatePatient', 'hasPendingReview']) requireText(mockGateway, text, 'mock doctor closed loops')
 
 rejectText(portal, /(internal_status|work_log|worker_user_id|responsibility_type|performance_score)/, 'doctor rendered internal fields')
 

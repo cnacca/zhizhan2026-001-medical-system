@@ -18,4 +18,10 @@ docker compose -f "$ROOT_DIR/compose.yaml" exec -T mysql sh -c \
   'MYSQL_PWD="$MYSQL_ROOT_PASSWORD" mysql -uroot --database="'$demo_database'"' \
   < "$ROOT_DIR/scripts/seed-admin-portal-demo-data.sql"
 
+docker compose -f "$ROOT_DIR/compose.yaml" exec -T mysql sh -c \
+  'MYSQL_PWD="$MYSQL_ROOT_PASSWORD" mysql -uroot --database="'$demo_database'"' \
+  < "$ROOT_DIR/scripts/seed-doctor-portal-demo-data.sql"
+
+DEMO_ISOLATED_ENV=true "$ROOT_DIR/scripts/seed-doctor-portal-demo-files.sh"
+
 echo "Admin portal acceptance data is ready in ${demo_database}."

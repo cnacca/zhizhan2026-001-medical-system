@@ -60,7 +60,7 @@ GOAL-021 / TASK-022 已把 PRD V2 的31项主验收和7项设计稿验收重新�
 
 9D.82 最新 PRD V2.0 差异对齐矩阵第一段已新增 `docs/acceptance/prd-v2-gap-matrix.md` 和 `npm run check:task9d82`，把最新版 PRD 正文 `V2.0 / 2026-07-04` 拆成一期已覆盖、部分覆盖、缺失、BLOCKED 和二期项；该记录确认医生患者管理、基础支付流水、客户 / 诊所档案与偏好、人员档案、专项质量管理、设备 / 物料 / 安环 / 成本 / 奖惩仍是一期待补缺口。Task 8 仍保持 `NOT_READY`。
 
-9D.83 患者管理基础版第一增量已新增 `patient_record`、`orders.patient_id`、`patient:manage-doctor`、`/patients`、`/patients/{patientId}/orders` 和医生端 `/doctor/patients`，覆盖患者档案、订单绑定、本人数据隔离和列表检索第一段；本轮不做真实客户数据导入、高级标签、批量检索或 AI 历史方案推荐，Task 8 仍保持 `NOT_READY`。
+9D.83 患者管理基础版已在 2026-07-21 参考页复刻中继续增强：新增出生日期、联系方式、病史/过敏、标签、治疗状态、疗程日期、最近产品、`GET/PUT /patients/{patientId}`，并完成患者列表、新增弹窗和可编辑详情抽屉；订单绑定、本人数据隔离、历史订单、历史参考和患者下单入口继续保留。真实客户患者数据导入、跨诊所批量检索和 AI 历史方案推荐仍未完成，Task 8 保持 `NOT_READY`。
 
 9D.84 人工支付流水 / 收支记录第一增量已新增 `order_payment_record`、`/orders/{orderId}/payments` 和前端人工收款入口；CS / ADMIN 可录入人工收款流水，医生只读查看本人订单流水。本轮不接真实支付网关，不做退款、对账、发票、财务审批或月结自动归集，Task 8 仍保持 `NOT_READY`。
 

@@ -27,6 +27,10 @@ const requiredFragments = [
   [files.app, 'frontend/src/App.vue', "apiFetch<ProductionQualitySummaryResponse>('/production/quality/summary')"],
   [files.app, 'frontend/src/App.vue', "apiFetch<DeliveryOrderItem[]>('/logistics/orders?limit=50')"],
   [files.app, 'frontend/src/App.vue', 'phaseOneAbCsDashboardStats'],
+  [files.app, 'frontend/src/App.vue', 'csShippingReminderItems'],
+  [files.app, 'frontend/src/App.vue', 'csBillingReminderItems'],
+  [files.app, 'frontend/src/App.vue', "title: '发货提醒'"],
+  [files.app, 'frontend/src/App.vue', "title: '账单待处理'"],
   [files.app, 'frontend/src/App.vue', 'phaseOneAbProductionDashboardStats'],
   [files.app, 'frontend/src/App.vue', '复用 /orders 列表'],
   [files.app, 'frontend/src/App.vue', '复用物流人工状态'],
@@ -46,6 +50,10 @@ const requiredFragments = [
 ]
 
 const forbiddenAppFragments = [
+  "title: '今日发货 / 客户账单'",
+  "title: '客户排名', detail:",
+  '真实物流平台未接',
+  '来自真实订单诊所字段',
   "title: '订单数量 / 件数', value: '12 / 38'",
   "title: '翻译待审', value: '4'",
   "title: '账单超期', value: '3'",

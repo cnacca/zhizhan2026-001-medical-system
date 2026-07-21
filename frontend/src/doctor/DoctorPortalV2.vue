@@ -172,6 +172,7 @@ const statusLabels: Record<string, string> = {
   ISSUED: '已出账',
   UPLOADED: '已上传',
   PENDING_PAYMENT: '待支付',
+  PARTIALLY_PAID: '部分支付',
   OPEN: '待结清',
   SETTLED: '已结清',
   PENDING_REVIEW: '待确认',
@@ -235,14 +236,20 @@ const orderDrawerMessageDraft = ref('')
 const orderDrawerMessageSending = ref(false)
 
 const patientKeyword = ref('')
-const patientStatus = ref<'ALL' | 'ACTIVE' | 'FOLLOW_UP' | 'ARCHIVED'>('ALL')
+const patientStatus = ref<'ALL' | PatientSummary['treatment_status']>('ALL')
 const wizardPatientKeyword = ref('')
 const patientDrawerOpen = ref(false)
 const patientDrawerTab = ref<'basic' | 'orders' | 'history'>('basic')
 const selectedPatient = ref<PatientDetail | null>(null)
 const patientLoading = ref(false)
 const patientDialogOpen = ref(false)
-const newPatient = reactive({ name: '', age: '', gender: '', oralDescription: '', tags: '' })
+const patientEditMode = ref(false)
+const patientSaving = ref(false)
+const newPatient = reactive({
+  name: '', age: '', gender: '', dateOfBirth: '', phone: '', email: '', medicalNotes: '',
+  treatmentStatus: 'IN_TREATMENT' as PatientSummary['treatment_status'], treatmentStartedAt: '',
+  treatmentEndedAt: '', oralDescription: '', tags: ''
+})
 
 const billingTab = ref<'perOrder' | 'monthly' | 'invoiceRefund' | 'logistics'>('perOrder')
 const billingStatus = ref<'ALL' | 'UNPAID' | 'PAID' | 'OVERDUE'>('ALL')
@@ -351,7 +358,7 @@ const pagedOrders = computed(() => orderRows.value.slice((orderPage.value - 1) *
 const patientRows = computed(() => {
   const keyword = patientKeyword.value.trim().toLowerCase()
   return (dataset.value?.patients ?? []).filter((patient) => {
-    const matchesKeyword = !keyword || [patient.patient_name, patient.patient_code, patient.doctor_name, patient.oral_description, ...patient.tags].join(' ').toLowerCase().includes(keyword)
+    const matchesKeyword = !keyword || [patient.patient_name, patient.patient_code, patient.doctor_name, patient.clinic_name, patient.phone, patient.email, patient.oral_description, ...patient.tags].join(' ').toLowerCase().includes(keyword)
     return matchesKeyword && (patientStatus.value === 'ALL' || patientTreatmentState(patient) === patientStatus.value)
   })
 })
@@ -359,6 +366,7 @@ const patientRows = computed(() => {
 const billingRows = computed(() => (dataset.value?.bills ?? []).filter((item) => {
   if (billingStatus.value === 'ALL') return true
   if (billingStatus.value === 'OVERDUE') return item.outstanding.amount_minor > 0 && item.due_at < dashboardToday.value
+  if (billingStatus.value === 'UNPAID') return item.outstanding.amount_minor > 0
   return item.payment_status === billingStatus.value
 }))
 
@@ -665,28 +673,77 @@ function productTypeLabel(value: string): string {
   return productTypeLabels[value] ?? '定制修复'
 }
 
-function patientTreatmentState(patient: PatientSummary): 'ACTIVE' | 'FOLLOW_UP' | 'ARCHIVED' {
-  if (!patient.latest_order_at) return 'ARCHIVED'
-  const latest = new Date(`${patient.latest_order_at.slice(0, 10)}T12:00:00`)
-  const age = Date.now() - latest.getTime()
-  if (age <= 45 * 86400000) return 'ACTIVE'
-  if (age <= 180 * 86400000) return 'FOLLOW_UP'
-  return 'ARCHIVED'
+function patientTreatmentState(patient: PatientSummary): PatientSummary['treatment_status'] {
+  return patient.treatment_status
 }
 
 function patientTreatmentLabel(patient: PatientSummary): string {
-  return ({ ACTIVE: '治疗中', FOLLOW_UP: '待复诊', ARCHIVED: '已归档' } as const)[patientTreatmentState(patient)]
+  return ({ IN_TREATMENT: '治疗中', FOLLOW_UP: '待复诊', TREATMENT_ENDED: '治疗结束', ARCHIVED: '已归档' } as const)[patientTreatmentState(patient)]
 }
 
 function patientTreatmentTone(patient: PatientSummary): string {
-  return ({ ACTIVE: 'primary', FOLLOW_UP: 'warning', ARCHIVED: 'neutral' } as const)[patientTreatmentState(patient)]
+  return ({ IN_TREATMENT: 'success', FOLLOW_UP: 'warning', TREATMENT_ENDED: 'neutral', ARCHIVED: 'neutral' } as const)[patientTreatmentState(patient)]
 }
 
 function patientDurationLabel(patient: PatientSummary): string {
-  if (!patient.latest_order_at) return '暂无治疗记录'
-  const latest = new Date(`${patient.latest_order_at.slice(0, 10)}T12:00:00`)
-  const days = Math.max(0, Math.floor((Date.now() - latest.getTime()) / 86400000))
-  return days === 0 ? '今日更新' : `${days} 天前更新`
+  if (!patient.treatment_started_at) return '尚未记录'
+  const start = new Date(`${patient.treatment_started_at.slice(0, 10)}T12:00:00`)
+  const endValue = patient.treatment_ended_at || new Date().toISOString().slice(0, 10)
+  const end = new Date(`${endValue.slice(0, 10)}T12:00:00`)
+  const days = Math.max(0, Math.floor((end.getTime() - start.getTime()) / 86400000))
+  if (days < 31) return `${days || 1} 天`
+  const months = Math.floor(days / 30)
+  const rest = days % 30
+  return rest ? `${months}个月${rest}天` : `${months}个月`
+}
+
+function patientDate(value: string | null | undefined): string {
+  return value ? value.slice(0, 10) : '-'
+}
+
+function patientAgeValue(): number | null {
+  if (newPatient.age) return Number(newPatient.age)
+  if (!newPatient.dateOfBirth) return null
+  const birth = new Date(`${newPatient.dateOfBirth}T12:00:00`)
+  const today = new Date()
+  let age = today.getFullYear() - birth.getFullYear()
+  const beforeBirthday = today.getMonth() < birth.getMonth() || (today.getMonth() === birth.getMonth() && today.getDate() < birth.getDate())
+  if (beforeBirthday) age--
+  return Math.max(0, age)
+}
+
+function resetPatientForm() {
+  Object.assign(newPatient, {
+    name: '', age: '', gender: '', dateOfBirth: '', phone: '', email: '', medicalNotes: '',
+    treatmentStatus: 'IN_TREATMENT', treatmentStartedAt: new Date().toISOString().slice(0, 10),
+    treatmentEndedAt: '', oralDescription: '', tags: ''
+  })
+}
+
+function openPatientCreate() {
+  resetPatientForm()
+  patientDialogOpen.value = true
+}
+
+function beginPatientEdit() {
+  if (!selectedPatient.value) return
+  const patient = selectedPatient.value
+  Object.assign(newPatient, {
+    name: patient.patient_name,
+    age: patient.patient_age == null ? '' : String(patient.patient_age),
+    gender: patient.patient_gender || '',
+    dateOfBirth: patient.date_of_birth || '',
+    phone: patient.phone,
+    email: patient.email,
+    medicalNotes: patient.medical_notes,
+    treatmentStatus: patient.treatment_status,
+    treatmentStartedAt: patient.treatment_started_at || '',
+    treatmentEndedAt: patient.treatment_ended_at || '',
+    oralDescription: patient.oral_description,
+    tags: patient.tags.join('，')
+  })
+  patientEditMode.value = true
+  patientDrawerTab.value = 'basic'
 }
 
 function deliveryProgress(order: OrderSummary): number {
@@ -727,7 +784,7 @@ function isDueSoon(order: OrderSummary): boolean {
 
 function statusTone(value: string): string {
   if (['COMPLETED', 'PAID', 'SETTLED', 'APPROVED', 'ACTIVE'].includes(value)) return 'success'
-  if (['NEEDS_INFO', 'AWAITING_PAYMENT', 'DELIVERED_PENDING_CONFIRMATION', 'PENDING_REVIEW', 'REVISION_REQUESTED', 'UNPAID'].includes(value)) return 'warning'
+  if (['NEEDS_INFO', 'AWAITING_PAYMENT', 'DELIVERED_PENDING_CONFIRMATION', 'PENDING_REVIEW', 'REVISION_REQUESTED', 'UNPAID', 'PENDING_PAYMENT', 'PARTIALLY_PAID'].includes(value)) return 'warning'
   if (['IN_PRODUCTION', 'SHIPPED', 'IN_TRANSIT', 'SUBMITTED', 'UNDER_REVIEW'].includes(value)) return 'primary'
   return 'neutral'
 }
@@ -822,6 +879,7 @@ async function openPatient(patientId: string) {
   patientDrawerTab.value = 'basic'
   patientLoading.value = true
   selectedPatient.value = null
+  patientEditMode.value = false
   try {
     selectedPatient.value = await gateway.loadPatientDetail(patientId)
   } catch (cause) {
@@ -1277,20 +1335,64 @@ async function createPatient() {
     ElMessage.warning('请填写患者姓名')
     return
   }
+  patientSaving.value = true
   try {
     const item = await gateway.createPatient({
       patientName: newPatient.name.trim(),
-      patientAge: newPatient.age ? Number(newPatient.age) : null,
+      patientAge: patientAgeValue(),
       patientGender: newPatient.gender || null,
+      dateOfBirth: newPatient.dateOfBirth || null,
+      phone: newPatient.phone.trim(),
+      email: newPatient.email.trim(),
+      medicalNotes: newPatient.medicalNotes.trim(),
+      treatmentStatus: newPatient.treatmentStatus,
+      treatmentStartedAt: newPatient.treatmentStartedAt || null,
+      treatmentEndedAt: newPatient.treatmentEndedAt || null,
       oralDescription: newPatient.oralDescription.trim(),
       tags: newPatient.tags.split(/[,，]/).map((candidate) => candidate.trim()).filter(Boolean)
     })
     dataset.value.patients.unshift(item)
-    Object.assign(newPatient, { name: '', age: '', gender: '', oralDescription: '', tags: '' })
+    resetPatientForm()
     patientDialogOpen.value = false
     ElMessage.success('患者已保存')
   } catch (cause) {
     ElMessage.error(cause instanceof Error ? cause.message : '患者保存失败')
+  } finally {
+    patientSaving.value = false
+  }
+}
+
+async function savePatientChanges() {
+  if (!dataset.value || !selectedPatient.value || !newPatient.name.trim()) {
+    ElMessage.warning('请填写患者姓名')
+    return
+  }
+  patientSaving.value = true
+  try {
+    const updated = await gateway.updatePatient({
+      patientId: selectedPatient.value.patient_id,
+      patientName: newPatient.name.trim(),
+      patientAge: patientAgeValue(),
+      patientGender: newPatient.gender || null,
+      dateOfBirth: newPatient.dateOfBirth || null,
+      phone: newPatient.phone.trim(),
+      email: newPatient.email.trim(),
+      medicalNotes: newPatient.medicalNotes.trim(),
+      treatmentStatus: newPatient.treatmentStatus,
+      treatmentStartedAt: newPatient.treatmentStartedAt || null,
+      treatmentEndedAt: newPatient.treatmentEndedAt || null,
+      oralDescription: newPatient.oralDescription.trim(),
+      tags: newPatient.tags.split(/[,，]/).map((candidate) => candidate.trim()).filter(Boolean)
+    })
+    const index = dataset.value.patients.findIndex((item) => item.patient_id === updated.patient_id)
+    if (index >= 0) dataset.value.patients.splice(index, 1, updated)
+    selectedPatient.value = { ...selectedPatient.value, ...updated, notes: updated.medical_notes }
+    patientEditMode.value = false
+    ElMessage.success('患者档案已更新')
+  } catch (cause) {
+    ElMessage.error(cause instanceof Error ? cause.message : '患者档案更新失败')
+  } finally {
+    patientSaving.value = false
   }
 }
 
@@ -1494,7 +1596,7 @@ onBeforeUnmount(() => window.removeEventListener('keydown', handleGlobalShortcut
       <main class="dv2-content">
         <div v-if="activePage !== 'dashboard'" class="dv2-page-heading">
           <div><h1>{{ currentMeta.title }}</h1><p>{{ currentMeta.description }}</p></div>
-          <span v-if="dataMode === 'mock'" class="dv2-demo-chip">二期前端预览</span>
+          <button v-if="activePage === 'patients' && activeRole === 'DOCTOR'" type="button" class="dv2-primary-button dv2-patient-add" @click="openPatientCreate">＋ 新建患者</button>
         </div>
 
         <div v-if="loading" class="dv2-loading-card"><span class="dv2-spinner" />正在加载医生端数据…</div>
@@ -1639,15 +1741,15 @@ onBeforeUnmount(() => window.removeEventListener('keydown', handleGlobalShortcut
 
           <section v-else-if="activePage === 'patients'" class="dv2-patients" data-testid="doctor-page-patients">
             <div class="dv2-card dv2-list-card">
-              <div class="dv2-list-toolbar"><label class="dv2-field-search"><span>⌕</span><input v-model="patientKeyword" type="search" placeholder="搜索患者姓名、编号、医生或标签"></label><div class="dv2-patient-filters"><button v-for="item in [{ key: 'ALL', label: '全部患者' }, { key: 'ACTIVE', label: '治疗中' }, { key: 'FOLLOW_UP', label: '待复诊' }, { key: 'ARCHIVED', label: '已归档' }]" :key="item.key" type="button" :class="{ active: patientStatus === item.key }" @click="patientStatus = item.key as typeof patientStatus">{{ item.label }}</button></div><button v-if="activeRole === 'DOCTOR' || activeRole === 'RECEPTION'" type="button" class="dv2-primary-button" @click="patientDialogOpen = true">＋ 新建患者</button></div>
+              <div class="dv2-patient-list-tools"><div class="dv2-patient-filters"><button v-for="item in [{ key: 'ALL', label: '全部' }, { key: 'IN_TREATMENT', label: '治疗中' }, { key: 'FOLLOW_UP', label: '待复诊' }, { key: 'TREATMENT_ENDED', label: '治疗结束' }, { key: 'ARCHIVED', label: '已归档' }]" :key="item.key" type="button" :class="{ active: patientStatus === item.key }" @click="patientStatus = item.key as typeof patientStatus">{{ item.label }}</button></div><label class="dv2-field-search"><span>⌕</span><input v-model="patientKeyword" type="search" placeholder="搜索患者姓名、编号、电话或标签"></label></div>
               <div class="dv2-table-wrap">
-                <table class="dv2-table">
-                  <thead><tr><th>患者</th><th>状态</th><th>年龄 / 性别</th><th>负责医生</th><th>治疗摘要</th><th>最近订单</th><th>更新</th><th /></tr></thead>
-                  <tbody><tr v-for="patient in patientRows" :key="patient.patient_id"><td><button type="button" class="dv2-link-strong" @click="openPatient(patient.patient_id)">{{ patient.patient_name }}</button><small>{{ patient.patient_code }} · {{ patient.order_count }} 个订单</small></td><td><span :class="`dv2-status is-${patientTreatmentTone(patient)}`">{{ patientTreatmentLabel(patient) }}</span></td><td>{{ patient.patient_age ?? '-' }} / {{ patient.patient_gender ?? '-' }}</td><td>{{ patient.doctor_name }}</td><td class="is-wide"><span>{{ patient.oral_description || '-' }}</span><small><span v-for="tag in patient.tags" :key="tag" class="dv2-tag">{{ tag }}</span></small></td><td><span>{{ patient.latest_order_no || '-' }}</span><small>{{ patient.latest_product_name || '暂无订单' }}</small></td><td>{{ patientDurationLabel(patient) }}</td><td><button type="button" class="dv2-row-action" @click="openPatient(patient.patient_id)">编辑 / 查看 →</button></td></tr></tbody>
+                <table class="dv2-table dv2-patient-table">
+                  <thead><tr><th>患者姓名</th><th>诊所</th><th>负责医生</th><th>最近产品</th><th>建档日期</th><th>订单</th><th>治疗状态</th><th>疗程</th><th /></tr></thead>
+                  <tbody><tr v-for="patient in patientRows" :key="patient.patient_id" @dblclick="openPatient(patient.patient_id)"><td><button type="button" class="dv2-link-strong" @click="openPatient(patient.patient_id)">{{ patient.patient_name }}</button><small>{{ patient.patient_code }}<span v-if="patient.tags.length"> · {{ patient.tags.join(' / ') }}</span></small></td><td>{{ patient.clinic_name }}</td><td>{{ patient.doctor_name }}</td><td><span>{{ patient.latest_product_name || '暂无订单' }}</span><small>{{ patient.latest_order_no || '—' }}</small></td><td>{{ patientDate(patient.created_at) }}</td><td class="is-count">{{ patient.order_count }}</td><td><span :class="`dv2-status is-${patientTreatmentTone(patient)}`">● {{ patientTreatmentLabel(patient) }}</span></td><td><span class="dv2-duration-chip">{{ patientDurationLabel(patient) }}</span></td><td><button type="button" class="dv2-row-action is-boxed" @click="openPatient(patient.patient_id)">编辑</button></td></tr></tbody>
                 </table>
                 <div v-if="!patientRows.length" class="dv2-empty">没有符合当前条件的患者</div>
               </div>
-              <footer class="dv2-pagination"><span>共 {{ patientRows.length }} 位患者</span></footer>
+              <footer class="dv2-pagination"><span>共 {{ patientRows.length }} 位患者 · 点击姓名查看完整档案与历史订单</span></footer>
             </div>
           </section>
 
@@ -1658,7 +1760,7 @@ onBeforeUnmount(() => window.removeEventListener('keydown', handleGlobalShortcut
             <div class="dv2-card dv2-list-card">
               <template v-if="billingTab === 'perOrder'">
                 <div class="dv2-list-toolbar"><div><strong>按单结算</strong><small>按单付款的订单需结清后发货</small></div><div class="dv2-patient-filters"><button v-for="item in [{ key: 'ALL', label: '全部' }, { key: 'UNPAID', label: '待支付' }, { key: 'OVERDUE', label: '已逾期' }, { key: 'PAID', label: '已支付' }]" :key="item.key" type="button" :class="{ active: billingStatus === item.key }" @click="billingStatus = item.key as typeof billingStatus">{{ item.label }}</button></div></div>
-                <div class="dv2-table-wrap"><table class="dv2-table"><thead><tr><th>账单 / 订单</th><th>诊所 / 医生</th><th>产品</th><th>账单金额</th><th>已付</th><th>待付</th><th>状态</th><th>到期</th><th /></tr></thead><tbody><tr v-for="bill in billingRows.filter((item) => item.settlement_type === 'PER_ORDER')" :key="bill.bill_id"><td><strong>{{ bill.bill_id }}</strong><small>{{ bill.order_no }}</small></td><td>{{ bill.clinic_name }}<small>{{ bill.doctor_name }}</small></td><td>{{ bill.product_name }}</td><td>{{ money(bill.amount) }}</td><td>{{ money(bill.paid) }}</td><td>{{ money(bill.outstanding) }}</td><td><span :class="`dv2-status is-${statusTone(bill.payment_status)}`">{{ bill.outstanding.amount_minor > 0 && bill.due_at < dashboardToday ? '已逾期' : label(bill.payment_status) }}</span></td><td>{{ bill.due_at }}</td><td><button v-if="bill.allowed_actions.includes('PAY_BILL')" type="button" class="dv2-row-action is-primary" @click="ElMessage.info('付款交互已完成，待支付接口接入')">去付款</button><button v-else type="button" class="dv2-row-action" @click="openGlobalOrder(bill.order_id)">查看订单</button></td></tr></tbody></table><div v-if="!billingRows.some((item) => item.settlement_type === 'PER_ORDER')" class="dv2-empty">暂无符合筛选条件的账单</div></div>
+                <div class="dv2-table-wrap"><table class="dv2-table"><thead><tr><th>账单 / 订单</th><th>诊所 / 医生</th><th>产品</th><th>账单金额</th><th>已付</th><th>待付</th><th>状态</th><th>到期</th><th /></tr></thead><tbody><tr v-for="bill in billingRows.filter((item) => item.settlement_type === 'PER_ORDER')" :key="bill.bill_id"><td><strong>{{ bill.bill_id }}</strong><small>{{ bill.order_no }}</small></td><td>{{ bill.clinic_name }}<small>{{ bill.doctor_name }}</small></td><td>{{ bill.product_name }}</td><td>{{ money(bill.amount) }}</td><td>{{ money(bill.paid) }}</td><td>{{ money(bill.outstanding) }}</td><td><span :class="`dv2-status is-${statusTone(bill.payment_status)}`">{{ bill.outstanding.amount_minor > 0 && bill.due_at < dashboardToday ? '已逾期' : label(bill.payment_status) }}</span></td><td>{{ bill.due_at }}</td><td><button v-if="bill.allowed_actions.includes('PAY_BILL')" type="button" class="dv2-row-action is-primary" @click="ElMessage.info('付款交互已完成，待支付接口接入')">去付款</button><button v-else type="button" class="dv2-row-action" @click="openOrder(bill.order_id)">查看订单</button></td></tr></tbody></table><div v-if="!billingRows.some((item) => item.settlement_type === 'PER_ORDER')" class="dv2-empty">暂无符合筛选条件的账单</div></div>
               </template>
               <template v-else-if="billingTab === 'monthly'">
                 <div class="dv2-list-toolbar"><div><strong>月结账单</strong><small>月结订单可先发货，在账期内统一结算</small></div></div>
@@ -1852,7 +1954,53 @@ onBeforeUnmount(() => window.removeEventListener('keydown', handleGlobalShortcut
       </aside>
     </div>
 
-    <div v-if="patientDrawerOpen" class="dv2-drawer-mask" @mousedown.self="patientDrawerOpen = false"><aside class="dv2-patient-drawer"><header><div><small>患者档案</small><h2>{{ selectedPatient?.patient_name || '正在加载' }}</h2></div><button type="button" @click="patientDrawerOpen = false">×</button></header><div v-if="patientLoading" class="dv2-loading-card"><span class="dv2-spinner" />正在读取患者档案…</div><template v-else-if="selectedPatient"><div class="dv2-patient-head"><span class="dv2-avatar is-large">{{ selectedPatient.patient_name.slice(0, 1) }}</span><div><strong>{{ selectedPatient.patient_name }}</strong><small>{{ selectedPatient.patient_code }} · {{ selectedPatient.patient_age ?? '-' }} 岁 · {{ selectedPatient.patient_gender || '-' }}</small><p><span v-for="tag in selectedPatient.tags" :key="tag" class="dv2-tag">{{ tag }}</span></p></div></div><div class="dv2-tabbar is-drawer"><button v-for="item in [{ key: 'basic', label: '基础资料' }, { key: 'orders', label: '订单历史' }, { key: 'history', label: '历史参考' }]" :key="item.key" type="button" :class="{ active: patientDrawerTab === item.key }" @click="patientDrawerTab = item.key as typeof patientDrawerTab">{{ item.label }}</button></div><div class="dv2-drawer-body"><template v-if="patientDrawerTab === 'basic'"><section class="dv2-detail-section"><h3>基础信息</h3><dl class="dv2-detail-grid"><div><dt>患者编号</dt><dd>{{ selectedPatient.patient_code }}</dd></div><div><dt>负责医生</dt><dd>{{ selectedPatient.doctor_name }}</dd></div><div class="is-full"><dt>口腔情况摘要</dt><dd>{{ selectedPatient.oral_description || '-' }}</dd></div><div class="is-full"><dt>档案备注</dt><dd>{{ selectedPatient.notes || '-' }}</dd></div></dl></section></template><template v-else-if="patientDrawerTab === 'orders'"><section class="dv2-detail-section"><h3>订单历史</h3><button v-for="order in selectedPatient.orders" :key="order.order_id" type="button" class="dv2-history-order" @click="patientDrawerOpen = false; openGlobalOrder(order.order_id)"><div><strong>{{ order.order_no }}</strong><small>{{ order.product_name }} · {{ order.created_at }}</small></div><span :class="`dv2-status is-${statusTone(order.external_status)}`">{{ label(order.external_status) }}</span></button><div v-if="!selectedPatient.orders.length" class="dv2-empty">暂无历史订单</div></section></template><template v-else><section class="dv2-detail-section"><h3>历史病例参考</h3><p class="dv2-section-note">仅展示当前诊所权限范围内、可用于填写参考的历史订单。</p><article v-for="item in selectedPatient.history_references" :key="item.order_no" class="dv2-history-reference"><strong>{{ item.order_no }} · {{ item.product_name }}</strong><p>{{ item.summary }}</p><div><span v-for="field in item.matched_fields" :key="field" class="dv2-tag">{{ field }}</span></div></article><div v-if="!selectedPatient.history_references.length" class="dv2-empty">暂无可参考历史记录</div></section></template></div><footer class="dv2-drawer-footer"><button v-if="canCreateOrder" type="button" class="dv2-primary-button" @click="patientDrawerOpen = false; openWizard(); wizard.patientId = selectedPatient.patient_id">为患者新建订单</button></footer></template></aside></div>
+    <div v-if="patientDrawerOpen" class="dv2-drawer-mask" @mousedown.self="patientDrawerOpen = false">
+      <aside class="dv2-patient-drawer">
+        <header>
+          <div><small>患者档案 · {{ selectedPatient?.patient_code || '读取中' }}</small><h2>{{ selectedPatient?.patient_name || '正在加载' }}</h2></div>
+          <div class="dv2-drawer-header-actions"><button v-if="selectedPatient && !patientEditMode" type="button" @click="beginPatientEdit">编辑档案</button><button type="button" class="is-close" @click="patientDrawerOpen = false">×</button></div>
+        </header>
+        <div v-if="patientLoading" class="dv2-loading-card"><span class="dv2-spinner" />正在读取患者档案…</div>
+        <template v-else-if="selectedPatient">
+          <div class="dv2-patient-head">
+            <span class="dv2-avatar is-large">{{ selectedPatient.patient_name.slice(0, 1) }}</span>
+            <div><strong>{{ selectedPatient.patient_name }}</strong><small>{{ selectedPatient.clinic_name }} · {{ selectedPatient.doctor_name }}</small><p><span :class="`dv2-status is-${patientTreatmentTone(selectedPatient)}`">● {{ patientTreatmentLabel(selectedPatient) }}</span><span v-for="tag in selectedPatient.tags" :key="tag" class="dv2-tag">{{ tag }}</span></p></div>
+            <dl><div><dt>订单</dt><dd>{{ selectedPatient.order_count }}</dd></div><div><dt>疗程</dt><dd>{{ patientDurationLabel(selectedPatient) }}</dd></div></dl>
+          </div>
+          <div v-if="!patientEditMode" class="dv2-tabbar is-drawer"><button v-for="item in [{ key: 'basic', label: '患者资料' }, { key: 'orders', label: `订单历史 ${selectedPatient.orders.length}` }, { key: 'history', label: '历史参考' }]" :key="item.key" type="button" :class="{ active: patientDrawerTab === item.key }" @click="patientDrawerTab = item.key as typeof patientDrawerTab">{{ item.label }}</button></div>
+          <div class="dv2-drawer-body">
+            <form v-if="patientEditMode" class="dv2-patient-edit-form" @submit.prevent="savePatientChanges">
+              <header><div><h3>编辑患者档案</h3><p>诊所和负责医生由当前登录身份确定，不能跨诊所修改。</p></div></header>
+              <div class="dv2-form-grid">
+                <label><span>患者姓名 *</span><input v-model="newPatient.name" maxlength="128"></label>
+                <label><span>患者编号</span><input :value="selectedPatient.patient_code" disabled></label>
+                <label><span>出生日期</span><input v-model="newPatient.dateOfBirth" type="date"></label>
+                <label><span>年龄</span><input v-model="newPatient.age" type="number" min="0" max="150"></label>
+                <label><span>性别</span><select v-model="newPatient.gender"><option value="">请选择</option><option value="男">男</option><option value="女">女</option><option value="其他">其他</option></select></label>
+                <label><span>治疗状态</span><select v-model="newPatient.treatmentStatus"><option value="IN_TREATMENT">治疗中</option><option value="FOLLOW_UP">待复诊</option><option value="TREATMENT_ENDED">治疗结束</option><option value="ARCHIVED">已归档</option></select></label>
+                <label><span>联系电话</span><input v-model="newPatient.phone" maxlength="64" placeholder="请输入联系电话"></label>
+                <label><span>电子邮箱</span><input v-model="newPatient.email" type="email" maxlength="160" placeholder="patient@example.com"></label>
+                <label><span>疗程开始</span><input v-model="newPatient.treatmentStartedAt" type="date"></label>
+                <label><span>疗程结束</span><input v-model="newPatient.treatmentEndedAt" type="date" :disabled="!['TREATMENT_ENDED', 'ARCHIVED'].includes(newPatient.treatmentStatus)"></label>
+                <label class="is-full"><span>标签</span><input v-model="newPatient.tags" maxlength="512" placeholder="多个标签用逗号分隔"></label>
+                <label class="is-full"><span>口腔情况摘要</span><textarea v-model="newPatient.oralDescription" maxlength="512" rows="3" placeholder="记录牙位、口内情况及修复关注点"></textarea></label>
+                <label class="is-full"><span>病史 / 用药 / 过敏信息</span><textarea v-model="newPatient.medicalNotes" maxlength="1000" rows="4" placeholder="过敏、用药、特殊注意事项……"></textarea></label>
+              </div>
+            </form>
+            <template v-else-if="patientDrawerTab === 'basic'">
+              <section class="dv2-detail-section"><h3>联系与身份</h3><dl class="dv2-detail-grid"><div><dt>患者编号</dt><dd>{{ selectedPatient.patient_code }}</dd></div><div><dt>出生日期</dt><dd>{{ patientDate(selectedPatient.date_of_birth) }}</dd></div><div><dt>年龄 / 性别</dt><dd>{{ selectedPatient.patient_age ?? '-' }} 岁 / {{ selectedPatient.patient_gender || '-' }}</dd></div><div><dt>建档日期</dt><dd>{{ patientDate(selectedPatient.created_at) }}</dd></div><div><dt>联系电话</dt><dd>{{ selectedPatient.phone || '-' }}</dd></div><div><dt>电子邮箱</dt><dd>{{ selectedPatient.email || '-' }}</dd></div></dl></section>
+              <section class="dv2-detail-section"><h3>治疗概览</h3><dl class="dv2-detail-grid"><div><dt>疗程开始</dt><dd>{{ patientDate(selectedPatient.treatment_started_at) }}</dd></div><div><dt>疗程结束</dt><dd>{{ patientDate(selectedPatient.treatment_ended_at) }}</dd></div><div class="is-full"><dt>口腔情况摘要</dt><dd>{{ selectedPatient.oral_description || '-' }}</dd></div><div class="is-full"><dt>病史 / 用药 / 过敏</dt><dd>{{ selectedPatient.medical_notes || '未记录' }}</dd></div></dl></section>
+            </template>
+            <template v-else-if="patientDrawerTab === 'orders'"><section class="dv2-detail-section"><h3>订单历史</h3><button v-for="order in selectedPatient.orders" :key="order.order_id" type="button" class="dv2-history-order" @click="patientDrawerOpen = false; openGlobalOrder(order.order_id)"><div><strong>{{ order.order_no }}</strong><small>{{ order.product_name }} · {{ order.created_at }}</small></div><span :class="`dv2-status is-${statusTone(order.external_status)}`">{{ label(order.external_status) }}</span></button><div v-if="!selectedPatient.orders.length" class="dv2-empty">暂无历史订单</div></section></template>
+            <template v-else><section class="dv2-detail-section"><h3>历史病例参考</h3><p class="dv2-section-note">仅展示当前诊所权限范围内、可用于填写参考的历史订单。</p><article v-for="item in selectedPatient.history_references" :key="item.order_no" class="dv2-history-reference"><strong>{{ item.order_no }} · {{ item.product_name }}</strong><p>{{ item.summary }}</p><div><span v-for="field in item.matched_fields" :key="field" class="dv2-tag">{{ field }}</span></div></article><div v-if="!selectedPatient.history_references.length" class="dv2-empty">暂无可参考历史记录</div></section></template>
+          </div>
+          <footer class="dv2-drawer-footer">
+            <template v-if="patientEditMode"><button type="button" class="dv2-secondary-button" @click="patientEditMode = false">取消</button><button type="button" class="dv2-primary-button" :disabled="patientSaving" @click="savePatientChanges">{{ patientSaving ? '保存中…' : '保存修改' }}</button></template>
+            <button v-else-if="canCreateOrder" type="button" class="dv2-primary-button" @click="patientDrawerOpen = false; openWizard(); wizard.patientId = selectedPatient.patient_id">＋ 为患者新建订单</button>
+          </footer>
+        </template>
+      </aside>
+    </div>
 
     <div v-if="logisticsDrawerOpen" class="dv2-drawer-mask" @mousedown.self="logisticsDrawerOpen = false"><aside class="dv2-logistics-drawer"><header><div><small>物流详情</small><h2>{{ selectedLogistics?.order_no }}</h2></div><button type="button" @click="logisticsDrawerOpen = false">×</button></header><template v-if="selectedLogistics"><div class="dv2-logistics-summary"><div><small>物流公司</small><strong>{{ selectedLogistics.carrier }}</strong></div><div><small>运单号</small><strong class="dv2-mono">{{ selectedLogistics.tracking_no }}</strong></div><span :class="`dv2-status is-${statusTone(selectedLogistics.status)}`">{{ label(selectedLogistics.status) }}</span></div><div class="dv2-logistics-timeline"><article v-for="(event, index) in selectedLogistics.events" :key="`${event.time}-${event.label}`" :class="{ current: index === selectedLogistics.events.length - 1 }"><span>{{ index === selectedLogistics.events.length - 1 ? '✓' : '' }}</span><div><strong>{{ event.label }}</strong><p>{{ event.location || '' }}</p><small>{{ event.time }}</small></div></article></div></template></aside></div>
 
@@ -1894,7 +2042,25 @@ onBeforeUnmount(() => window.removeEventListener('keydown', handleGlobalShortcut
 
     <el-dialog v-model="rejectDialogOpen" title="驳回并提交修改意见" width="520px" append-to-body><p class="dv2-dialog-note">说明需要调整的具体内容。对方提交新版本后，您可以再次确认。</p><el-input v-model="rejectReason" type="textarea" :rows="5" maxlength="500" show-word-limit placeholder="必填，请写明需要修改的位置和要求" /><template #footer><el-button @click="rejectDialogOpen = false">取消</el-button><el-button type="danger" :disabled="!rejectReason.trim()" @click="submitReviewDecision('REJECT')">确认驳回并发送</el-button></template></el-dialog>
 
-    <el-dialog v-model="patientDialogOpen" title="新建患者" width="560px" append-to-body><div class="dv2-form-grid"><label><span>患者姓名 *</span><input v-model="newPatient.name"></label><label><span>年龄</span><input v-model="newPatient.age" type="number"></label><label><span>性别</span><select v-model="newPatient.gender"><option value="">请选择</option><option value="男">男</option><option value="女">女</option><option value="其他">其他</option></select></label><label><span>标签</span><input v-model="newPatient.tags" placeholder="多个标签用逗号分隔"></label><label class="is-full"><span>口腔情况摘要</span><textarea v-model="newPatient.oralDescription" rows="4" /></label></div><template #footer><el-button @click="patientDialogOpen = false">取消</el-button><el-button type="primary" @click="createPatient">保存患者</el-button></template></el-dialog>
+    <el-dialog v-model="patientDialogOpen" class="dv2-patient-dialog" title="新建患者" width="720px" append-to-body destroy-on-close>
+      <p class="dv2-patient-dialog-intro">建立患者档案后，可直接关联订单并持续查看治疗历史。</p>
+      <div class="dv2-form-grid">
+        <label><span>患者姓名 *</span><input v-model="newPatient.name" maxlength="128" placeholder="请输入患者姓名"></label>
+        <label><span>患者编号</span><input value="保存后自动生成" disabled></label>
+        <label><span>出生日期</span><input v-model="newPatient.dateOfBirth" type="date"></label>
+        <label><span>性别</span><select v-model="newPatient.gender"><option value="">请选择</option><option value="男">男</option><option value="女">女</option><option value="其他">其他</option></select></label>
+        <label><span>联系电话</span><input v-model="newPatient.phone" maxlength="64" placeholder="请输入联系电话"></label>
+        <label><span>电子邮箱</span><input v-model="newPatient.email" type="email" maxlength="160" placeholder="patient@example.com"></label>
+        <label><span>所属诊所</span><input :value="account?.clinic_name || '当前诊所'" disabled></label>
+        <label><span>负责医生</span><input :value="account?.display_name || '当前医生'" disabled></label>
+        <label><span>治疗状态</span><select v-model="newPatient.treatmentStatus"><option value="IN_TREATMENT">治疗中</option><option value="FOLLOW_UP">待复诊</option><option value="TREATMENT_ENDED">治疗结束</option><option value="ARCHIVED">已归档</option></select></label>
+        <label><span>疗程开始</span><input v-model="newPatient.treatmentStartedAt" type="date"></label>
+        <label class="is-full"><span>标签</span><input v-model="newPatient.tags" maxlength="512" placeholder="例如：VIP、种植、复诊；多个标签用逗号分隔"></label>
+        <label class="is-full"><span>口腔情况摘要</span><textarea v-model="newPatient.oralDescription" maxlength="512" rows="3" placeholder="记录牙位、口内情况及修复关注点"></textarea></label>
+        <label class="is-full"><span>病史 / 用药 / 过敏信息</span><textarea v-model="newPatient.medicalNotes" maxlength="1000" rows="4" placeholder="过敏、用药、特殊注意事项……"></textarea></label>
+      </div>
+      <template #footer><el-button @click="patientDialogOpen = false">取消</el-button><el-button type="primary" :disabled="patientSaving || !newPatient.name.trim()" @click="createPatient">{{ patientSaving ? '保存中…' : '保存患者' }}</el-button></template>
+    </el-dialog>
 
     <el-dialog v-model="memberDialogOpen" title="邀请诊所成员" width="600px" append-to-body><div class="dv2-form-grid"><label><span>成员姓名 *</span><input v-model="newMember.displayName"></label><label><span>邮箱 *</span><input v-model="newMember.email" type="email"></label><label><span>诊所角色</span><select v-model="newMember.role">
   <option v-for="roleOption in clinicRoleOptions" :key="roleOption.value" :value="roleOption.value">{{ roleOption.name }}</option>

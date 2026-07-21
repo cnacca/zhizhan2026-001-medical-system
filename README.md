@@ -1526,7 +1526,7 @@ npm run check:openapi
 npm run build:frontend
 ```
 
-9D.83 新增医生端患者管理基础版：`patient_record`、`orders.patient_id`、`patient:manage-doctor`、`/patients`、`/patients/{patientId}/orders` 和医生端 `/doctor/patients` 最小入口。医生只能管理本人 + 本诊所患者，患者历史订单只返回外部状态。本轮不做真实客户数据导入、高级标签、批量检索或 AI 历史方案推荐。
+9D.83 医生端患者管理已在基础版上增强：`patient_record` 支持出生日期、联系方式、病史/过敏、标签、治疗状态和疗程日期，新增 `GET/PUT /patients/{patientId}`，参考式列表、新增弹窗和详情/编辑抽屉保留历史订单、历史参考与患者下单入口。医生只能管理本人 + 本诊所患者，历史订单只返回外部状态；真实客户患者数据导入、跨诊所批量检索和 AI 历史方案推荐仍未完成。
 
 ## 9D.84 人工支付流水 / 收支记录第一增量
 
