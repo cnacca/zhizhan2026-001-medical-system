@@ -1,8 +1,10 @@
 <script setup lang="ts">
 import Uppy from '@uppy/core'
-import { computed, defineAsyncComponent, onBeforeUnmount, ref, watch } from 'vue'
+import { computed, defineAsyncComponent, onBeforeUnmount, onMounted, ref, watch } from 'vue'
 import AdminRemainingPages from './components/AdminRemainingPages.vue'
 import CsPortalPages from './components/CsPortalPages.vue'
+import ProductionDesignWorkspace from './components/ProductionDesignWorkspace.vue'
+import { productionProgressNodes, productionProgressSummary } from './utils/productionProgress'
 
 const StlViewerDialog = defineAsyncComponent(() => import('./components/StlViewerDialog.vue'))
 const DoctorPortalV2 = defineAsyncComponent(() => import('./doctor/DoctorPortalV2.vue'))
@@ -24,7 +26,7 @@ type LoginResponse = {
   accessToken: string
   refreshToken: string
   username: string
-  userId: number | null
+  userId: string | number | null
   clinicId: number | null
   roles: string[]
   permissions: string[]
@@ -179,7 +181,7 @@ type DoctorAccountSettings = {
 }
 
 type StaffWorkloadResponse = {
-  user_id: number
+  user_id: string
   username: string
   display_name: string
   user_type: string
@@ -188,6 +190,7 @@ type StaffWorkloadResponse = {
   dept_name: string | null
   post_names: string[]
   role_codes: string[]
+  permission_codes?: string[]
   assigned_node_count: number
   active_node_count: number
   completed_work_log_count: number
@@ -209,12 +212,13 @@ type StaffAccountOption = { id: number; name: string }
 type StaffAccountOptionsResponse = {
   departments: StaffAccountOption[]
   posts: StaffAccountOption[]
+  permissions?: Array<{ code: string; name: string }>
 }
 
 type AdminPersonnelLevel = '管理员' | '经理' | '主管' | '普通员工'
 
 type AdminPersonnelRow = {
-  userId: number | null
+  userId: string | number | null
   username: string
   displayName: string
   level: AdminPersonnelLevel
@@ -294,7 +298,7 @@ type DesignDraftItem = {
   draft_id: number
   order_id: number
   version: number
-  uploader_user_id: number | null
+  uploader_user_id: string | number | null
   file_id: number | null
   file_ids: number[]
   file_count: number
@@ -676,8 +680,20 @@ type FilePreviewUrlResponse = {
 type WorkflowChainSummary = {
   chain_id: number
   chain_name: string
+  product_type: string
   intake_branch: 'IMPRESSION' | 'SCAN' | 'BOTH'
   status: number
+}
+
+type ProductionReviewBranchConfig = {
+  group: 'implant_abutment' | 'veneer_route'
+  label: string
+  help: string
+  options: Array<{
+    label: string
+    value: string
+    description: string
+  }>
 }
 
 type WorkflowChainNodeSummary = {
@@ -700,6 +716,7 @@ type ProcessNodeItem = {
   node_code: string
   process_name: string
   stage_name: string | null
+  node_category: string | null
   step_order: number
   is_optional: number
   branch_group: string | null
@@ -1636,10 +1653,6 @@ const adminOrderProcessMap = ref<Record<number, ProcessInstanceDetail | null>>({
 const csProductionNote = ref('')
 const csRejectReason = ref('')
 const csReviewActionLoading = ref(false)
-const csDesignDraftFileIds = ref('')
-const csDesignDraftUploadNote = ref('')
-const csDesignDraftResult = ref('')
-const csDesignDraftRejectReasons = ref<Record<number, string>>({})
 const csDesignDrafts = ref<DesignDraftItem[]>([])
 const csDesignDraftPreviewUrls = ref<Record<string, string>>({})
 const csOrderFiles = ref<OrderFileItem[]>([])
@@ -1694,6 +1707,14 @@ const adminCommunicationSenderRole = ref('ALL')
 const adminCommunicationContextDrawerVisible = ref(false)
 const productionReviewOrders = ref<InternalOrderItem[]>([])
 const selectedProductionReviewOrder = ref<InternalOrderItem | null>(null)
+const productionReviewDrawerVisible = ref(false)
+const productionReviewStatusCounts = ref({
+  all: 0,
+  pending: 0,
+  processCreated: 0,
+  producing: 0,
+  completed: 0
+})
 const productionReviewKeyword = ref('')
 const productionReviewStatus = ref('PENDING_PRODUCTION_REVIEW')
 const productionReviewLoading = ref(false)
@@ -1706,13 +1727,34 @@ const selectedWorkflowChainNodes = ref<WorkflowChainNodeSummary[]>([])
 const workflowChainNodesLoading = ref(false)
 const workflowChainNodesError = ref('')
 const productionReviewChainId = ref<number | null>(null)
-const productionReviewIntakeBranch = ref<'IMPRESSION' | 'SCAN'>('SCAN')
-const productionReviewBranchParams = ref('{}')
+const productionReviewIntakeBranch = ref<'IMPRESSION' | 'SCAN' | ''>('')
+const productionReviewBranchChoice = ref('')
 const productionReviewRejectReason = ref('')
 const productionReviewResult = ref<ProductionReviewResponse | null>(null)
+const productionReviewBranchConfigs: Partial<Record<string, ProductionReviewBranchConfig>> = {
+  IMPLANT_RESTORATION: {
+    group: 'implant_abutment',
+    label: '基台类型',
+    help: '根据订单实际使用的种植基台类型选择，系统会生成对应工序。',
+    options: [
+      { label: '成品基台', value: 'FINISHED_ABUTMENT', description: '使用厂家标准成品基台。' },
+      { label: '个性化基台', value: 'CUSTOM_ABUTMENT', description: '需要按病例进行个性化设计和加工。' }
+    ]
+  },
+  VENEER_RESTORATION: {
+    group: 'veneer_route',
+    label: '贴面制作路线',
+    help: '根据本单确认的贴面加工方式选择，系统会生成对应工序。',
+    options: [
+      { label: 'CAD 切削', value: 'CAD_MILLING', description: '采用数字化设计和切削加工。' },
+      { label: '传统蜡型', value: 'TRADITIONAL_WAX', description: '采用传统蜡型制作路线。' }
+    ]
+  }
+}
 const processInstanceOrders = ref<InternalOrderItem[]>([])
 const selectedProcessInstanceOrder = ref<InternalOrderItem | null>(null)
 const selectedProcessInstance = ref<ProcessInstanceDetail | null>(null)
+const processAssignmentDrawerVisible = ref(false)
 const selectedProcessNodeId = ref<number | null>(null)
 const processInstanceKeyword = ref('')
 const processInstanceLoading = ref(false)
@@ -1808,12 +1850,14 @@ const adminOrganizationSelectedDepartmentId = ref<number | null>(null)
 const staffAccountSaving = ref(false)
 const staffAccountResult = ref('')
 const adminPersonnelToast = ref('')
-const staffAccountEditUserId = ref<number | null>(null)
+const staffAccountEditUserId = ref<string | null>(null)
 const staffAccountUsername = ref('')
 const staffAccountPassword = ref('')
 const staffAccountDisplayName = ref('')
 const staffAccountDeptId = ref<number | null>(null)
 const staffAccountPostId = ref<number | null>(null)
+const staffAccountPermissionCodes = ref<string[]>([])
+const designInternalReviewPermissionCode = 'design-draft:internal-review'
 const productionQualitySummary = ref<ProductionQualitySummaryResponse | null>(null)
 const productionQualitySummaryLoading = ref(false)
 const productionQualitySummaryError = ref('')
@@ -2189,6 +2233,9 @@ const displayNavigationConfig: Record<PortalTone, NavigationGroup[]> = {
         { id: 'production-dashboard', title: '工作台', description: '集中查看本人任务、异常提醒和生产待办。', icon: 'dashboard', routePath: '/dashboard' },
         { id: 'production-orders', title: '生产订单', description: '查看待生产、生产异常和待发货订单。', icon: 'order', routePath: '/production/board' },
         { id: 'production-board', title: '生产看板', description: '跨状态查看生产订单、节点进度和终检发货门禁。', icon: 'dashboard', routePath: '/production/board' },
+        { id: 'production-design-pool', title: '设计任务池', description: '领取尚未分配的设计任务。', icon: 'design', routePath: '/production/design-tasks/pool' },
+        { id: 'production-design-mine', title: '我的设计任务', description: '上传版本并提交设计内审。', icon: 'design', routePath: '/production/design-tasks/mine' },
+        { id: 'production-design-reviews', title: '设计内审', description: '由具备内审权限的负责人审核设计版本。', icon: 'audit', routePath: '/production/design-reviews' },
         { id: 'production-tasks', title: '我的任务', description: '处理分配给当前员工的工序任务。', icon: 'task', routePath: '/tasks/mine' },
         { id: 'production-scan', title: '扫码登记', description: '通过人工核验登记入检、开工、暂停、完工和流转节点。', icon: 'scan', routePath: '/checks' }
       ]
@@ -2271,7 +2318,9 @@ const displayNavigationConfig: Record<PortalTone, NavigationGroup[]> = {
     {
       title: '生产运营',
       items: [
+        { id: 'admin-production-review', title: '生产审核', description: '审核客服初审通过的订单并生成生产工序。', icon: 'fact_check', routePath: '/workflow/review' },
         { id: 'admin-workflow', title: '工艺生产', description: '按订单监督生产进度与各工序节点的执行信息。', icon: 'process', routePath: '/workflow/process-instance' },
+        { id: 'admin-design-tasks', title: '设计任务', description: '查看设计任务全量状态并执行有理由转派。', icon: 'design', routePath: '/admin/design-tasks' },
         { id: 'admin-quality', title: '质量管理', description: '查看质量汇总、外返记录、返工责任和终检状态。', icon: 'quality', routePath: '/production/quality' },
         { id: 'admin-staff', title: '人员管理', description: '管理人员账号、职责关系、组织岗位和任务负载。', icon: 'staff', routePath: '/admin/staff' },
         { id: 'admin-performance', title: '绩效统计', description: '查看全员工时、绩效指标和返工归因。', icon: 'performance', routePath: '/performance' },
@@ -2487,7 +2536,12 @@ const placeholderContentMap: Record<string, PlaceholderContentItem[]> = {
     { title: '安全处理', detail: '后续接入风险账号提醒和处理记录。', tone: 'rose' }
   ]
 }
-const navigationGroups = computed<NavigationGroup[]>(() => displayNavigationConfig[portalTone.value])
+const navigationGroups = computed<NavigationGroup[]>(() => displayNavigationConfig[portalTone.value].map((group) => ({
+  ...group,
+  items: group.items.filter((item) =>
+    item.id !== 'production-design-reviews'
+    || (currentUser.value?.permissions.includes('design-draft:internal-review') ?? false))
+})))
 const accountNavigationGroups = computed<NavigationGroup[]>(() => accountNavigationConfig[portalTone.value])
 const adminRemainingRoutePaths = new Set([
   '/admin/clinics', '/delivery', '/admin/outsourcing', '/workflow/process-instance',
@@ -2501,7 +2555,9 @@ const adminParentNavIdByRoute: Record<string, string> = {
   '/admin/files': 'admin-orders',
   '/collaboration': 'admin-communication',
   '/admin/communication-management': 'admin-communication',
+  '/workflow/review': 'admin-production-review',
   '/workflow/process-instance': 'admin-workflow',
+  '/workflow/assign': 'admin-workflow',
   '/admin/staff': 'admin-staff',
   '/admin/staff/roles': 'admin-staff',
   '/admin/staff/organization': 'admin-staff',
@@ -2516,6 +2572,10 @@ const adminPageTabsByParent: Record<string, AdminPageTab[]> = {
   'admin-communication': [
     { label: '消息处理', routePath: '/collaboration' },
     { label: '沟通管理', routePath: '/admin/communication-management' }
+  ],
+  'admin-workflow': [
+    { label: '工序进度', routePath: '/workflow/process-instance' },
+    { label: '员工派工', routePath: '/workflow/assign' }
   ]
 }
 const activeAdminParentNavId = computed(() => adminParentNavIdByRoute[activeRoute.value] ?? activeNavId.value)
@@ -3304,7 +3364,16 @@ const prototypeQueueChips = computed<QueueChip[]>(() => {
       { label: '待处理', count: '2', tone: 'rose', filter: 'PENDING' }
     ]
   }
-  if (isProductionBoardRoute.value || isProductionReviewRoute.value) {
+  if (isProductionReviewRoute.value) {
+    return [
+      { label: '待生产审核', count: String(productionReviewStatusCounts.value.pending), tone: 'amber', active: true, filter: 'PENDING_PRODUCTION_REVIEW' },
+      { label: '全部订单', count: String(productionReviewStatusCounts.value.all), tone: 'teal', filter: 'ALL' },
+      { label: '已生成工序', count: String(productionReviewStatusCounts.value.processCreated), tone: 'sky', filter: 'PROCESS_INSTANCE_CREATED' },
+      { label: '生产中', count: String(productionReviewStatusCounts.value.producing), tone: 'violet', filter: 'PRODUCING' },
+      { label: '已完成', count: String(productionReviewStatusCounts.value.completed), tone: 'green', filter: 'COMPLETED' }
+    ]
+  }
+  if (isProductionBoardRoute.value) {
     return [
       { label: '全部生产订单', count: '8', tone: 'teal', active: true, filter: 'ALL' },
       { label: '待派工', count: '6', tone: 'sky', filter: 'PROCESS_INSTANCE_CREATED' },
@@ -3329,6 +3398,9 @@ const prototypeDataQueueRows: PrototypeQueueRow[] = [
   { orderNo: 'PDL-0472', patient: 'Tom A.', product: '氧化锆冠 #30', status: '等待付款', statusTone: 'orange', checklist: '资料齐全', checklistTone: 'green', reviewType: '账单确认', awaiting: '医生付款', awaitingTone: 'sky', days: '3d', daysTone: 'rose', action: '发送账单' }
 ]
 function isPrototypeChipActive(chip: QueueChip) {
+  if (isProductionReviewRoute.value) {
+    return chip.filter === productionReviewStatus.value
+  }
   return activePrototypeChip.value ? activePrototypeChip.value === chip.label : Boolean(chip.active)
 }
 async function selectPrototypeQueueChip(chip: QueueChip) {
@@ -3497,6 +3569,12 @@ const isProductionReviewRoute = computed(() => activeRoute.value === '/workflow/
 const isProcessInstanceRoute = computed(() => activeRoute.value === '/workflow/process-instance')
 const isWorkflowAssignRoute = computed(() => activeRoute.value === '/workflow/assign')
 const isWorkerTasksRoute = computed(() => activeRoute.value === '/tasks/mine')
+const isProductionDesignRoute = computed(() => [
+  '/production/design-tasks/pool',
+  '/production/design-tasks/mine',
+  '/production/design-reviews',
+  '/admin/design-tasks'
+].includes(activeRoute.value))
 const isCheckRecordsRoute = computed(() => activeRoute.value === '/checks')
 const isReworkFinalRoute = computed(() => activeRoute.value === '/rework-final')
 const isWorklogsRoute = computed(() => activeRoute.value === '/worklogs/self')
@@ -3508,7 +3586,8 @@ const isProductionOrdersView = computed(() => isProductionBoardRoute.value && ac
 const isProductionKanbanView = computed(() => isProductionBoardRoute.value && activeNavId.value === 'production-board')
 const isProductionReferenceView = computed(() => isProductionBoardRoute.value && (isProductionOrdersView.value || isProductionKanbanView.value))
 const isProductionCompactRoute = computed(() => portalTone.value === 'production' && [
-  'production-orders', 'production-board', 'production-tasks', 'production-scan', 'production-quality', 'production-quality-overview',
+  'production-orders', 'production-board', 'production-design-pool', 'production-design-mine', 'production-design-reviews',
+  'production-tasks', 'production-scan', 'production-quality', 'production-quality-overview',
   'production-internal-rework-management', 'production-external-rework-management', 'production-final-report', 'production-staff',
   'production-performance', 'production-reward-penalty', 'production-device', 'production-material', 'production-cost',
   'production-cost-outsourcing', 'production-safety', 'production-message', 'production-notifications', 'production-cloud-data'
@@ -3590,12 +3669,6 @@ const productCatalogEditPriceYuan = computed({
     productCatalogEditPrice.value = Math.max(1, Math.round(Number(value ?? 0) * 100))
   }
 })
-const csDesignSelectedFileIds = computed<number[]>({
-  get: () => parseFileIds(csDesignDraftFileIds.value),
-  set: (value) => {
-    csDesignDraftFileIds.value = value.join(',')
-  }
-})
 const csBillSelectedFileId = computed<number | null>({
   get: () => {
     const fileId = Number(csBillFileId.value.trim())
@@ -3609,6 +3682,15 @@ const selectedFormConfigField = computed(() => formConfigFields.value.find((fiel
 const selectedReworkDictionaryItem = computed(() =>
   reworkDictionaryManageItems.value.find((item) => item.item_id === selectedReworkDictionaryItemId.value) ?? null)
 const selectedProductionReviewChain = computed(() => workflowChains.value.find((chain) => chain.chain_id === productionReviewChainId.value) ?? null)
+const selectedProductionReviewBranchConfig = computed(() =>
+  selectedProductionReviewChain.value
+    ? productionReviewBranchConfigs[selectedProductionReviewChain.value.product_type] ?? null
+    : null)
+const productionReviewConfigurationReady = computed(() => Boolean(
+  selectedProductionReviewChain.value
+  && productionReviewIntakeBranch.value
+  && (!selectedProductionReviewBranchConfig.value || productionReviewBranchChoice.value)
+))
 const selectedProcessNode = computed(() => selectedProcessInstance.value?.nodes.find((node) => node.node_instance_id === selectedProcessNodeId.value) ?? null)
 const fixedWorkflowChainNames = [
   '常规冠修复',
@@ -3670,7 +3752,9 @@ const adminPersonnelAllRows = computed<AdminPersonnelRow[]>(() => {
     updatedAt: staff.updated_at,
     source: staff
   }))
-  const hasCurrentAdministrator = rows.some((row) => row.userId === currentUser.value?.userId || row.username === currentUser.value?.username)
+  const hasCurrentAdministrator = rows.some((row) =>
+    String(row.userId ?? '') === String(currentUser.value?.userId ?? '')
+    || row.username === currentUser.value?.username)
   if (currentUser.value?.roles.includes('ADMIN') && !hasCurrentAdministrator) {
     rows.unshift({
       userId: currentUser.value.userId,
@@ -3752,7 +3836,9 @@ const selectedAdminOrganization = computed(() => adminOrganizationRows.value.fin
 const adminPersonnelSelectedLevel = computed<AdminPersonnelLevel>(() => adminPersonnelSelectedRow.value?.level ?? '普通员工')
 const adminPersonnelCanSave = computed(() => canManageStaffAccounts.value
   && (!adminPersonnelSelectedRow.value || Boolean(adminPersonnelSelectedRow.value.source))
-  && adminPersonnelSelectedLevel.value === '普通员工')
+  && adminPersonnelSelectedLevel.value === '普通员工'
+  && (!adminPersonnelSelectedRow.value
+    || adminPersonnelSelectedRow.value.source?.user_type === 'WORKER'))
 const adminCommunicationOrderCount = computed(() => new Set(customerCollaborationPendingMessages.value.map((item) => item.order_id)).size)
 const adminCommunicationThreads = computed<AdminCommunicationThread[]>(() => {
   const threads = new Map<number, AdminCommunicationThread>()
@@ -3923,6 +4009,7 @@ const routeChrome = computed<RouteChrome>(() => {
       '/admin/clinics': { title: '客户管理', description: '查看客户结构、月度贡献与只读客户档案。', icon: 'customer' },
       '/delivery': { title: '账单配送', description: '查看账单、付款和配送跟进情况。', icon: 'delivery' },
       '/admin/outsourcing': { title: '外协管理', description: '查看订单内外协件或外协批次的履约进度与异常。', icon: 'partner' },
+      '/workflow/review': { title: '生产审核', description: '审核客服初审通过的订单，选择工序链和入口路线后生成生产工序。', icon: 'fact_check' },
       '/workflow/process-instance': { title: '工艺生产', description: '按订单监督生产进度与各工序节点的执行信息。', icon: 'process' },
       '/production/quality': { title: '质量管理', description: '监督质量问题、责任依据、处理状态与最终关闭。', icon: 'quality' },
       '/admin/staff': { title: '人员管理', description: '管理人员账号、职责关系和当前工作量。', icon: 'staff' },
@@ -3987,6 +4074,15 @@ const routeChrome = computed<RouteChrome>(() => {
   if (route === '/workflow/assign') {
     return { eyebrow: '管理端 / 员工派工', title: '员工派工', description: '为生产节点绑定或调整执行员工，并保留转派记录。', icon: 'assignment_ind' }
   }
+  if (route === '/production/design-tasks/pool') {
+    return { eyebrow: '生产端 / 设计协同', title: '设计任务池', description: '领取尚未分配的设计任务；并发领取以服务端结果为准。', icon: 'design' }
+  }
+  if (route === '/production/design-tasks/mine') {
+    return { eyebrow: '生产端 / 设计协同', title: '我的设计任务', description: '上传多文件设计版本并提交负责人内部审核。', icon: 'design' }
+  }
+  if (route === '/production/design-reviews') {
+    return { eyebrow: '生产端 / 设计协同', title: '设计内审', description: '由具备内审权限的负责人确认版本是否提交医生。', icon: 'audit' }
+  }
   if (route === '/tasks/mine') {
     return { eyebrow: '生产端 / 我的工单', title: '我的任务', description: '按待开工、进行中、已完成等状态处理本人生产任务。', icon: 'task_alt' }
   }
@@ -4050,6 +4146,9 @@ const menuIconSvgMap: Record<string, string> = {
   '/workflow/review': '<svg viewBox="0 0 24 24"><path d="M5 4h14v16H5z"/><path d="M8 8h8M8 12h5M9 16l2 2 4-5"/></svg>',
   '/workflow/process-instance': '<svg viewBox="0 0 24 24"><path d="M12 4v5M7 9h10M7 9v5M17 9v5M5 14h4v4H5zM10 3h4v4h-4zM15 14h4v4h-4z"/></svg>',
   '/workflow/assign': '<svg viewBox="0 0 24 24"><path d="M8 11a4 4 0 1 1 8 0"/><path d="M5 20a7 7 0 0 1 14 0M17 4h4v4M21 4l-5 5"/></svg>',
+  '/production/design-tasks/pool': '<svg viewBox="0 0 24 24"><path d="M5 5h14v14H5z"/><path d="M8 9h8M8 13h5M15 16l2 2 3-4"/></svg>',
+  '/production/design-tasks/mine': '<svg viewBox="0 0 24 24"><path d="M5 5h14v14H5z"/><path d="M8 9h8M8 13h5M15 16l2 2 3-4"/></svg>',
+  '/production/design-reviews': '<svg viewBox="0 0 24 24"><path d="M5 5h14v14H5z"/><path d="M8 9h8M8 13h5M15 16l2 2 3-4"/></svg>',
   '/tasks/mine': '<svg viewBox="0 0 24 24"><path d="M5 4h14v16H5z"/><path d="M8 9l2 2 4-5M8 15h8"/></svg>',
   '/checks': '<svg viewBox="0 0 24 24"><path d="M4 5h16v14H4z"/><path d="M8 12l3 3 5-6"/></svg>',
   '/rework-final': '<svg viewBox="0 0 24 24"><path d="M7 7h9a4 4 0 0 1 0 8H9"/><path d="M7 7l3-3M7 7l3 3M17 17l2 2 3-4"/></svg>',
@@ -4163,6 +4262,29 @@ const statusLabelMap: Record<string, string> = {
   SKIPPED: '已跳过',
   FAILED: '失败',
   PENDING_REVIEW: '待审核',
+  SUBMITTED: '已提交',
+  UNDER_REVIEW: '资料审核中',
+  NEEDS_INFO: '待补充资料',
+  DESIGNING: '设计中',
+  QC: '质检中',
+  PRODUCTION_COMPLETED: '制作完成',
+  READY_TO_DISPATCH: '待发货',
+  DELIVERED_PENDING_CONFIRMATION: '已送达待确认',
+  AWAITING_PAYMENT: '待付款',
+  DESIGN_REVIEW_REQUIRED: '设计稿待确认',
+  POST_MILLING_REVIEW_REQUIRED: '照片待确认',
+  SUPPLEMENT_REQUIRED: '待补充资料',
+  PAYMENT_REQUIRED: '待付款',
+  RECEIPT_CONFIRMATION_REQUIRED: '待确认收货',
+  NONE: '无需操作',
+  UNPAID: '待付款',
+  ISSUED: '已出账',
+  SETTLED: '已结清',
+  SUPERSEDED: '已被新版本替代',
+  REVISION_REQUESTED: '待修改',
+  REVISING: '修改中',
+  WAITING: '等待提交',
+  NOT_REQUESTED: '未启用',
   DIRECT: '直接发送',
   PENDING_CS_REVIEW: '待客服初审',
   PENDING_PRODUCTION_REVIEW: '待生产审核',
@@ -4343,7 +4465,9 @@ function menuLabel(menu: AuthMenu) {
   return menu.menuName
 }
 function statusLabel(status: string | null | undefined) {
-  return status ? (statusLabelMap[status] ?? status.replaceAll('_', ' ')) : '待处理'
+  if (!status) return '待处理'
+  if (statusLabelMap[status]) return statusLabelMap[status]
+  return /[\u4e00-\u9fff]/.test(status) ? status : '状态待确认'
 }
 const reworkImpactSteps = computed<ReworkImpactStep[]>(() => {
   const record = selectedRework.value
@@ -4496,7 +4620,7 @@ function formatOrderFileSize(fileSize: number | null) {
 }
 
 function productionBoardCurrentNode(instance: ProcessInstanceDetail | null) {
-  const nodes = instance?.nodes.slice().sort((a, b) => a.step_order - b.step_order) ?? []
+  const nodes = productionProgressNodes(instance?.nodes ?? []).slice().sort((a, b) => a.step_order - b.step_order)
   return nodes.find((node) => node.node_status === 'IN_PROGRESS')
     ?? nodes.find((node) => node.node_status === 'READY')
     ?? nodes.find((node) => node.node_status === 'PENDING')
@@ -4582,12 +4706,7 @@ function startTaskErrorMessage(error: unknown) {
 }
 
 function productionBoardProgress(instance: ProcessInstanceDetail | null) {
-  const nodes = instance?.nodes ?? []
-  if (nodes.length === 0) {
-    return 8
-  }
-  const completed = nodes.filter((node) => node.node_status === 'COMPLETED' || node.node_status === 'SKIPPED').length
-  return phaseOneProgress((completed / nodes.length) * 100)
+  return productionProgressSummary(instance?.nodes ?? []).percent
 }
 
 function productionBoardRisk(order: InternalOrderItem, node: ProcessNodeItem | null): ProductionKanbanRisk {
@@ -5481,6 +5600,34 @@ async function refreshSession() {
   }
 }
 
+let lastSilentSessionRefreshAt = 0
+let silentSessionRefreshing = false
+
+async function refreshSessionOnWindowFocus() {
+  if (!refreshToken.value || silentSessionRefreshing || Date.now() - lastSilentSessionRefreshAt < 60_000) {
+    return
+  }
+  silentSessionRefreshing = true
+  lastSilentSessionRefreshAt = Date.now()
+  try {
+    const response = await fetch('/api/auth/refresh', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ refresh_token: refreshToken.value })
+    })
+    if (!response.ok) return
+    const payload = await response.json() as LoginResponse
+    token.value = payload.accessToken
+    refreshToken.value = payload.refreshToken
+    currentUser.value = payload
+    connectNotificationSocket()
+  } catch {
+    // 静默刷新失败不打断当前操作；下一次显式请求仍会返回真实鉴权结果。
+  } finally {
+    silentSessionRefreshing = false
+  }
+}
+
 async function logout() {
   authActionLoading.value = true
   loginError.value = ''
@@ -5773,6 +5920,7 @@ function openAdminPersonnelDrawer(row?: AdminPersonnelRow) {
     staffAccountDisplayName.value = row.displayName
     staffAccountDeptId.value = null
     staffAccountPostId.value = null
+    staffAccountPermissionCodes.value = []
     staffAccountResult.value = ''
   } else {
     resetStaffAccountForm()
@@ -5868,7 +6016,7 @@ function adminOrderProcess(order: InternalOrderItem) {
 }
 
 function adminOrderCurrentNode(order: InternalOrderItem) {
-  const nodes = adminOrderProcess(order)?.nodes ?? []
+  const nodes = productionProgressNodes(adminOrderProcess(order)?.nodes ?? [])
   return nodes.find((node) => node.node_status === 'IN_PROGRESS')
     ?? nodes.find((node) => node.node_status === 'PENDING')
     ?? [...nodes].reverse().find((node) => ['COMPLETED', 'SKIPPED'].includes(node.node_status))
@@ -5905,9 +6053,7 @@ async function loadAdminOrderProcessSummaries(orders: InternalOrderItem[]) {
 }
 
 function adminOrderProcessProgress(instance: ProcessInstanceDetail | null) {
-  if (!instance?.nodes.length) return 0
-  const completed = instance.nodes.filter((node) => ['COMPLETED', 'SKIPPED'].includes(node.node_status)).length
-  return Math.round((completed / instance.nodes.length) * 100)
+  return productionProgressSummary(instance?.nodes ?? []).percent
 }
 
 async function openAdminOrderDrawer(order: InternalOrderItem) {
@@ -5953,6 +6099,17 @@ function openSelectedAdminOrderFiles() {
   adminOrderDrawerVisible.value = false
   activeNavId.value = 'admin-orders'
   navigateToRoute('/admin/files')
+}
+
+function openSelectedAdminOrderProductionReview() {
+  if (!selectedInternalOrder.value || selectedInternalOrder.value.internal_status !== 'PENDING_PRODUCTION_REVIEW') {
+    return
+  }
+  selectProductionReviewOrder(selectedInternalOrder.value)
+  productionReviewDrawerVisible.value = true
+  adminOrderDrawerVisible.value = false
+  activeNavId.value = 'admin-production-review'
+  navigateToRoute('/workflow/review')
 }
 
 async function openAdminCommunicationContext(message: MessageItem) {
@@ -7507,12 +7664,47 @@ function doctorFieldLabel(key: string) {
     patient: '患者姓名',
     tooth_position: '牙位',
     toothPosition: '牙位',
+    tooth: '牙位',
+    teeth: '牙位',
+    tooth_no: '牙位',
+    tooth_number: '牙位',
     material: '材料',
     shade: '色号',
+    shade_system: '比色系统',
+    color: '颜色',
     doctor_note: '医生备注',
-    acceptance_marker: '业务标记'
+    instruction: '制作要求',
+    customer_instruction: '客户要求',
+    description: '制作说明',
+    notes: '补充说明',
+    special_requirements: '特殊要求',
+    retention_type: '固位方式',
+    retention: '固位方式',
+    contact: '邻接要求',
+    contact_type: '邻接要求',
+    occlusion: '咬合要求',
+    occlusal: '咬合要求',
+    margin: '边缘要求',
+    margin_type: '边缘类型',
+    quantity: '数量',
+    item_count: '件数',
+    qty: '数量',
+    due_date: '期望交期',
+    delivery_date: '期望交期',
+    implant_system: '种植系统',
+    implant_brand: '种植体品牌',
+    implant_dimension: '种植体规格',
+    implant_spec: '种植体规格',
+    platform: '平台规格',
+    emergence: '穿龈轮廓要求',
+    units: '单位数',
+    pontic: '桥体设计',
+    arch: '牙弓范围',
+    case_type: '病例类型',
+    demo_scenario: '演示场景',
+    acceptance_marker: '验收标记'
   }
-  return labels[key] ?? key.replaceAll('_', ' ')
+  return labels[key] ?? '其他订单信息'
 }
 
 function designDraftFileIds(draft: DesignDraftItem) {
@@ -7697,9 +7889,6 @@ function selectInternalOrder(order: InternalOrderItem) {
   selectedInternalOrder.value = order
   csProductionNote.value = order.production_note ?? ''
   csRejectReason.value = ''
-  csDesignDraftFileIds.value = ''
-  csDesignDraftUploadNote.value = ''
-  csDesignDraftResult.value = ''
   csDesignDrafts.value = []
   csDesignDraftPreviewUrls.value = {}
   csOrderFiles.value = []
@@ -7958,41 +8147,6 @@ async function loadAiGovernanceLocalHardening() {
   }
 }
 
-async function uploadInternalDesignDraft() {
-  if (!selectedInternalOrder.value) {
-    return
-  }
-  const fileIds = parseFileIds(csDesignDraftFileIds.value)
-  if (fileIds.length === 0) {
-    internalOrderError.value = '请选择至少一个设计文件'
-    return
-  }
-  csReviewActionLoading.value = true
-  internalOrderError.value = ''
-  csDesignDraftResult.value = ''
-  try {
-    const payload = await apiFetch<DesignDraftItem>(
-      `/orders/${selectedInternalOrder.value.order_id}/design-drafts`,
-      {
-        method: 'POST',
-        body: JSON.stringify({
-          file_ids: fileIds,
-          upload_note: csDesignDraftUploadNote.value.trim() || null
-        })
-      }
-    )
-    csDesignDraftResult.value = `已上传 V${payload.data.version}，文件数 ${payload.data.file_count}`
-    csDesignDraftFileIds.value = ''
-    csDesignDraftUploadNote.value = ''
-    await loadInternalDesignDrafts(selectedInternalOrder.value.order_id)
-    await loadNotifications()
-  } catch (error) {
-    internalOrderError.value = error instanceof Error ? error.message : '设计稿上传失败'
-  } finally {
-    csReviewActionLoading.value = false
-  }
-}
-
 async function loadInternalDesignDrafts(orderId: number) {
   internalOrderError.value = ''
   try {
@@ -8024,32 +8178,6 @@ async function loadCsDesignDraftPreviewUrls(draft: DesignDraftItem) {
     }
   } catch (error) {
     internalOrderError.value = error instanceof Error ? error.message : '客服设计稿预览链接加载失败'
-  } finally {
-    csReviewActionLoading.value = false
-  }
-}
-
-async function reviewInternalDesignDraft(draft: DesignDraftItem, action: 'APPROVE' | 'REJECT') {
-  if (!selectedInternalOrder.value) return
-  const rejectReason = csDesignDraftRejectReasons.value[draft.draft_id]?.trim() ?? ''
-  if (action === 'REJECT' && !rejectReason) {
-    internalOrderError.value = '请填写客服驳回原因'
-    return
-  }
-  csReviewActionLoading.value = true
-  internalOrderError.value = ''
-  try {
-    const payload = await apiFetch<DesignDraftItem>(
-      `/orders/${selectedInternalOrder.value.order_id}/design-drafts/${draft.draft_id}/cs-review`,
-      { method: 'POST', body: JSON.stringify({ action, cs_reject_reason: action === 'REJECT' ? rejectReason : null }) }
-    )
-    csDesignDraftResult.value = action === 'APPROVE'
-      ? `设计稿 V${payload.data.version} 已提交给医生确认`
-      : `设计稿 V${payload.data.version} 已驳回并通知上传人`
-    await loadInternalDesignDrafts(selectedInternalOrder.value.order_id)
-    await loadNotifications()
-  } catch (error) {
-    internalOrderError.value = error instanceof Error ? error.message : '设计稿审核失败'
   } finally {
     csReviewActionLoading.value = false
   }
@@ -8377,8 +8505,31 @@ async function reviewCustomerCollaborationMessage(message: MessageItem | null = 
 async function loadProductionReviewPage() {
   await Promise.all([
     loadWorkflowChains(),
-    loadProductionReviewOrders()
+    loadProductionReviewOrders(),
+    loadProductionReviewStatusCounts()
   ])
+}
+
+async function loadProductionReviewStatusCounts() {
+  if (!token.value) return
+  try {
+    const payload = await apiFetch<InternalOrderListResponse>('/orders?page=1&size=100')
+    productionReviewStatusCounts.value = {
+      all: payload.data.total,
+      pending: payload.data.items.filter((order) => order.internal_status === 'PENDING_PRODUCTION_REVIEW').length,
+      processCreated: payload.data.items.filter((order) => order.internal_status === 'PROCESS_INSTANCE_CREATED').length,
+      producing: payload.data.items.filter((order) => ['PRODUCING', 'IN_PRODUCTION'].includes(order.internal_status)).length,
+      completed: payload.data.items.filter((order) => order.internal_status === 'COMPLETED').length
+    }
+  } catch {
+    productionReviewStatusCounts.value = {
+      all: productionReviewOrders.value.length,
+      pending: productionReviewOrders.value.filter((order) => order.internal_status === 'PENDING_PRODUCTION_REVIEW').length,
+      processCreated: productionReviewOrders.value.filter((order) => order.internal_status === 'PROCESS_INSTANCE_CREATED').length,
+      producing: productionReviewOrders.value.filter((order) => ['PRODUCING', 'IN_PRODUCTION'].includes(order.internal_status)).length,
+      completed: productionReviewOrders.value.filter((order) => order.internal_status === 'COMPLETED').length
+    }
+  }
 }
 
 async function loadWorkflowChains() {
@@ -8388,8 +8539,8 @@ async function loadWorkflowChains() {
   try {
     const payload = await apiFetch<WorkflowChainSummary[]>('/workflow-chains')
     workflowChains.value = payload.data.filter((chain) => chain.status === 1)
-    if (!productionReviewChainId.value && workflowChains.value.length > 0) {
-      productionReviewChainId.value = workflowChains.value[0].chain_id
+    if (selectedProductionReviewOrder.value) {
+      syncProductionReviewConfiguration(selectedProductionReviewOrder.value)
     }
   } catch (error) {
     productionReviewError.value = error instanceof Error ? error.message : '工序链加载失败'
@@ -8405,7 +8556,7 @@ async function loadProductionReviewOrders() {
   try {
     const params = new URLSearchParams({
       page: '1',
-      size: '20'
+      size: '100'
     })
     if (productionReviewStatus.value !== 'ALL') {
       params.set('internal_status', productionReviewStatus.value)
@@ -8414,7 +8565,7 @@ async function loadProductionReviewOrders() {
       params.set('keyword', productionReviewKeyword.value.trim())
     }
     const payload = await apiFetch<InternalOrderListResponse>(`/orders?${params.toString()}`)
-    productionReviewOrders.value = payload.data.items
+    productionReviewOrders.value = sortProductionReviewOrders(payload.data.items)
     const selectedStillVisible = selectedProductionReviewOrder.value
       ? payload.data.items.some((item) => item.order_id === selectedProductionReviewOrder.value?.order_id)
       : false
@@ -8423,7 +8574,7 @@ async function loadProductionReviewOrders() {
       return
     }
     if (!selectedStillVisible) {
-      selectProductionReviewOrder(payload.data.items[0])
+      selectProductionReviewOrder(productionReviewOrders.value[0])
     }
   } catch (error) {
     productionReviewError.value = error instanceof Error ? error.message : '生产审核订单加载失败'
@@ -8432,22 +8583,54 @@ async function loadProductionReviewOrders() {
   }
 }
 
+function productionReviewRequiresAction(order: InternalOrderItem) {
+  return order.internal_status === 'PENDING_PRODUCTION_REVIEW'
+}
+
+function sortProductionReviewOrders(orders: InternalOrderItem[]) {
+  return [...orders].sort((left, right) => {
+    const actionPriority = Number(!productionReviewRequiresAction(left)) - Number(!productionReviewRequiresAction(right))
+    return actionPriority || right.order_id - left.order_id
+  })
+}
+
 function selectProductionReviewOrder(order: InternalOrderItem) {
   selectedProductionReviewOrder.value = order
+  syncProductionReviewConfiguration(order)
   productionReviewRejectReason.value = ''
   productionReviewResult.value = null
 }
 
-function parseProductionBranchParams() {
-  const rawValue = productionReviewBranchParams.value.trim()
-  if (!rawValue) {
+function openProductionReviewDrawer(order: InternalOrderItem) {
+  selectProductionReviewOrder(order)
+  productionReviewDrawerVisible.value = true
+}
+
+function syncProductionReviewConfiguration(order: InternalOrderItem) {
+  const matchingChains = workflowChains.value
+    .filter((chain) => chain.product_type === order.product_type)
+    .sort((left, right) => right.chain_id - left.chain_id)
+  const matchedChain = matchingChains[0] ?? null
+  productionReviewChainId.value = matchedChain?.chain_id ?? null
+  productionReviewIntakeBranch.value = matchedChain?.intake_branch === 'IMPRESSION'
+    ? 'IMPRESSION'
+    : matchedChain?.intake_branch === 'SCAN'
+      ? 'SCAN'
+      : ''
+  productionReviewBranchChoice.value = ''
+}
+
+function buildProductionBranchParams() {
+  const branchConfig = selectedProductionReviewBranchConfig.value
+  if (!branchConfig) {
     return {}
   }
-  const parsed = JSON.parse(rawValue) as unknown
-  if (parsed === null || Array.isArray(parsed) || typeof parsed !== 'object') {
-    throw new Error('branch_params 必须是 JSON 对象')
+  if (!productionReviewBranchChoice.value) {
+    throw new Error(`请选择${branchConfig.label}`)
   }
-  return parsed as Record<string, unknown>
+  return {
+    [branchConfig.group]: productionReviewBranchChoice.value
+  }
 }
 
 async function reviewProductionOrder(action: 'APPROVE' | 'REJECT') {
@@ -8458,7 +8641,7 @@ async function reviewProductionOrder(action: 'APPROVE' | 'REJECT') {
   productionReviewError.value = ''
   productionReviewResult.value = null
   try {
-    const branchParams = action === 'APPROVE' ? parseProductionBranchParams() : null
+    const branchParams = action === 'APPROVE' ? buildProductionBranchParams() : null
     const payload = await apiFetch<ProductionReviewResponse>(
       `/orders/${selectedProductionReviewOrder.value.order_id}/production-review`,
       {
@@ -8474,8 +8657,9 @@ async function reviewProductionOrder(action: 'APPROVE' | 'REJECT') {
     )
     productionReviewResult.value = payload.data
     productionReviewRejectReason.value = ''
-    await loadProductionReviewOrders()
+    await Promise.all([loadProductionReviewOrders(), loadProductionReviewStatusCounts()])
     await loadNotifications()
+    productionReviewDrawerVisible.value = false
   } catch (error) {
     productionReviewError.value = error instanceof Error ? error.message : '生产审核失败'
   } finally {
@@ -8568,13 +8752,19 @@ async function selectProcessInstanceOrder(order: InternalOrderItem) {
   await loadProcessInstanceDetail(order.order_id)
 }
 
+async function openProcessAssignmentDrawer(order: InternalOrderItem) {
+  await selectProcessInstanceOrder(order)
+  processAssignmentDrawerVisible.value = true
+}
+
 async function loadProcessInstanceDetail(orderId: number) {
   processInstanceError.value = ''
   try {
     const payload = await apiFetch<ProcessInstanceDetail>(`/orders/${orderId}/process-instance`)
     selectedProcessInstance.value = payload.data
-    if (!selectedProcessNodeId.value && payload.data.nodes.length > 0) {
-      selectedProcessNodeId.value = payload.data.nodes[0].node_instance_id
+    const productionNodes = productionProgressNodes(payload.data.nodes)
+    if (!selectedProcessNodeId.value && productionNodes.length > 0) {
+      selectedProcessNodeId.value = productionNodes[0].node_instance_id
     }
   } catch (error) {
     selectedProcessInstance.value = null
@@ -8601,8 +8791,8 @@ async function assignSelectedProcessNode(mode: 'ASSIGN' | 'REASSIGN') {
   processInstanceError.value = ''
   processAssignmentResult.value = ''
   try {
-    const targetUserId = Number(processAssignmentUserId.value.trim())
-    if (!Number.isInteger(targetUserId) || targetUserId <= 0) {
+    const targetUserId = processAssignmentUserId.value.trim()
+    if (!/^[1-9]\d*$/.test(targetUserId)) {
       throw new Error('请选择有效员工')
     }
     const path = mode === 'REASSIGN'
@@ -8616,7 +8806,7 @@ async function assignSelectedProcessNode(mode: 'ASSIGN' | 'REASSIGN') {
       body: JSON.stringify(body)
     })
     selectedProcessInstance.value = payload.data
-    const targetStaff = staffWorkloadItems.value.find((staff) => staff.user_id === targetUserId)
+    const targetStaff = staffWorkloadItems.value.find((staff) => String(staff.user_id) === targetUserId)
     processAssignmentResult.value = `${selectedProcessNode.value.process_name} 已${mode === 'REASSIGN' ? '调整' : '安排'}给 ${targetStaff?.display_name ?? `员工 ${targetUserId}`}`
     await loadWorkerTasks()
   } catch (error) {
@@ -9165,11 +9355,10 @@ async function loadPerformanceStats() {
     const params = new URLSearchParams()
     const requestedUserId = performanceUserId.value.trim()
     if (requestedUserId) {
-      const userId = Number(requestedUserId)
-      if (!Number.isInteger(userId) || userId <= 0) {
+      if (!/^[1-9]\d*$/.test(requestedUserId)) {
         throw new Error('请选择有效人员')
       }
-      params.set('user_id', String(userId))
+      params.set('user_id', requestedUserId)
     } else if (currentUser.value?.roles.includes('ADMIN')) {
       performanceStats.value = null
       performanceDetails.value = []
@@ -9234,6 +9423,8 @@ function editStaffAccount(staff: StaffWorkloadResponse) {
   staffAccountDisplayName.value = staff.display_name
   staffAccountDeptId.value = staff.dept_id
   staffAccountPostId.value = staffAccountOptions.value.posts.find((item) => staff.post_names.includes(item.name))?.id ?? null
+  staffAccountPermissionCodes.value = (staff.permission_codes ?? [])
+    .filter((code) => code === designInternalReviewPermissionCode)
   staffAccountResult.value = '请核对人员资料；新密码留空时，当前密码保持不变。'
 }
 
@@ -9244,6 +9435,7 @@ function resetStaffAccountForm() {
   staffAccountDisplayName.value = ''
   staffAccountDeptId.value = staffAccountOptions.value.departments.find((item) => item.name === '生产中心')?.id ?? null
   staffAccountPostId.value = staffAccountOptions.value.posts.find((item) => item.name === '生产员工')?.id ?? null
+  staffAccountPermissionCodes.value = []
   staffAccountResult.value = ''
 }
 
@@ -9271,6 +9463,8 @@ async function saveStaffAccount() {
           display_name: staffAccountDisplayName.value.trim(),
           dept_id: staffAccountDeptId.value,
           post_id: staffAccountPostId.value,
+          permission_codes: staffAccountPermissionCodes.value
+            .filter((code) => code === designInternalReviewPermissionCode),
           ...(staffAccountPassword.value ? { new_password: staffAccountPassword.value } : {})
         })
       })
@@ -9281,7 +9475,9 @@ async function saveStaffAccount() {
           initial_password: staffAccountPassword.value,
           display_name: staffAccountDisplayName.value.trim(),
           dept_id: staffAccountDeptId.value,
-          post_id: staffAccountPostId.value
+          post_id: staffAccountPostId.value,
+          permission_codes: staffAccountPermissionCodes.value
+            .filter((code) => code === designInternalReviewPermissionCode)
         })
       })
     const successMessage = editing ? '人员资料已保存' : `人员账号已创建：${(payload as { data: { username: string } }).data.username}`
@@ -10358,10 +10554,22 @@ async function saveDeliveryFollowUp() {
 function fieldEntries(formData: Record<string, unknown> | null | undefined) {
   return Object.entries(formData ?? {}).map(([key, value]) => ({
     key,
-    value: typeof value === 'string' || typeof value === 'number' || typeof value === 'boolean'
-      ? String(value)
-      : JSON.stringify(value)
+    value: value == null || value === ''
+      ? '未填写'
+      : Array.isArray(value)
+        ? (value.length > 0 ? value.join('、') : '未填写')
+        : typeof value === 'boolean'
+          ? (value ? '是' : '否')
+          : typeof value === 'string' || typeof value === 'number'
+            ? String(value)
+            : JSON.stringify(value) || '未填写'
   }))
+}
+
+function productionReviewFieldEntries(formData: Record<string, unknown> | null | undefined) {
+  return fieldEntries(formData).filter(({ key }) =>
+    !/^(?:demo|test|fixture|acceptance)[_-]/i.test(key)
+    && !key.startsWith('_'))
 }
 
 function parseDoctorOrderFileIds() {
@@ -10484,7 +10692,12 @@ watch(() => adminOrderPagedRows.value.map((order) => order.order_id).join(','), 
   }
 }, { immediate: true })
 
+onMounted(() => {
+  window.addEventListener('focus', refreshSessionOnWindowFocus)
+})
+
 onBeforeUnmount(() => {
+  window.removeEventListener('focus', refreshSessionOnWindowFocus)
   closeNotificationSocket()
 })
 </script>
@@ -11444,60 +11657,21 @@ onBeforeUnmount(() => {
 
                 <el-tab-pane label="设计稿">
                   <div class="review-form">
-                    <el-form-item label="选择设计文件">
-                      <el-select
-                        v-model="csDesignSelectedFileIds"
-                        data-testid="internal-design-draft-file-ids"
-                        multiple
-                        filterable
-                        placeholder="选择已上传的设计文件"
-                      >
-                        <el-option
-                          v-for="file in csOrderFiles"
-                          :key="file.file_id"
-                          :label="file.original_filename"
-                          :value="file.file_id"
-                        />
-                      </el-select>
-                    </el-form-item>
-                    <el-form-item label="上传说明">
-                      <el-input
-                        v-model="csDesignDraftUploadNote"
-                        data-testid="internal-design-draft-note"
-                        type="textarea"
-                        :rows="3"
-                      />
-                    </el-form-item>
-                    <div class="inline-actions">
-                      <el-button
-                        type="primary"
-                        :loading="csReviewActionLoading"
-                        data-testid="internal-design-draft-upload-button"
-                        @click="uploadInternalDesignDraft"
-                      >
-                        上传设计稿
-                      </el-button>
-                      <el-tag v-if="csDesignDraftResult" data-testid="internal-design-draft-result" type="success" round>
-                        {{ csDesignDraftResult }}
-                      </el-tag>
-                    </div>
+                    <el-alert
+                      title="客服仅查看已经提交给医生的设计稿和确认进度；上传与技术审核由生产端设计人员和内审负责人完成。"
+                      type="info"
+                      show-icon
+                      :closable="false"
+                    />
                     <div class="subheading-row">
-                      <h3>客服设计稿预览链接</h3>
-                      <el-tag type="info" round>短时效授权</el-tag>
+                      <h3>医生可见设计稿</h3>
+                      <el-tag type="info" round>只读进度</el-tag>
                     </div>
                     <div v-if="csDesignDrafts.length > 0" class="compact-list">
                       <article v-for="draft in csDesignDrafts" :key="draft.draft_id">
                         <strong>V{{ draft.version }} / {{ statusLabel(draft.status) }}</strong>
                         <span>文件数：{{ draft.file_count ?? designDraftFileIds(draft).length }}</span>
-                        <p v-if="draft.cs_reject_reason">客服驳回原因：{{ draft.cs_reject_reason }}</p>
                         <p v-if="draft.doctor_reject_reason">医生驳回原因：{{ draft.doctor_reject_reason }}</p>
-                        <template v-if="draft.status === 'PENDING_CS_REVIEW'">
-                          <el-input v-model="csDesignDraftRejectReasons[draft.draft_id]" type="textarea" :rows="2" placeholder="客服驳回时请填写原因" />
-                          <div class="inline-actions">
-                            <el-button type="primary" :loading="csReviewActionLoading" @click="reviewInternalDesignDraft(draft, 'APPROVE')">通过并提交医生确认</el-button>
-                            <el-button type="danger" plain :loading="csReviewActionLoading" @click="reviewInternalDesignDraft(draft, 'REJECT')">驳回设计稿</el-button>
-                          </div>
-                        </template>
                         <div class="inline-actions">
                           <el-button
                             plain
@@ -11506,14 +11680,14 @@ onBeforeUnmount(() => {
                             data-testid="cs-design-draft-preview-url-button"
                             @click="loadCsDesignDraftPreviewUrls(draft)"
                           >
-                            获取客服设计稿预览链接
+                            获取设计稿预览链接
                           </el-button>
                         </div>
                         <div
                           v-if="designDraftFileIds(draft).some((fileId) => csDesignDraftPreviewUrls[designDraftPreviewKey(draft, fileId)])"
                           class="preview-link-list"
                         >
-                          <span>客服设计稿预览链接</span>
+                          <span>设计稿预览链接</span>
                           <a
                             v-for="fileId in designDraftFileIds(draft)"
                             v-show="csDesignDraftPreviewUrls[designDraftPreviewKey(draft, fileId)]"
@@ -11633,300 +11807,343 @@ onBeforeUnmount(() => {
           </div>
         </section>
 
-        <section v-else-if="isProductionReviewRoute" class="panel route-panel production-review-panel">
-          <div class="route-heading">
-            <h2>生产审核</h2>
-            <el-tag round>{{ productionReviewOrders.length }} 单</el-tag>
-          </div>
-
-          <div class="prototype-chip-row">
-            <button
-              v-for="chip in prototypeQueueChips"
-              :key="`review-${chip.label}`"
-              class="prototype-chip"
-              :class="[`tone-${chip.tone}`, { active: isPrototypeChipActive(chip) }]"
-              type="button"
-              @click="selectPrototypeQueueChip(chip)"
-            >
-              {{ chip.label }}
-              <span>{{ chip.count }}</span>
-            </button>
-          </div>
-
-          <div class="doctor-order-toolbar">
-            <el-input
-              v-model="productionReviewKeyword"
-              placeholder="搜索订单号或患者"
-              clearable
-              @keyup.enter="loadProductionReviewOrders"
-            />
-            <el-button type="primary" :loading="productionReviewLoading" @click="loadProductionReviewOrders">
-              查询
-            </el-button>
-          </div>
-
-          <el-alert
-            v-if="productionReviewError"
-            :title="productionReviewError"
-            type="error"
-            show-icon
-            :closable="false"
-          />
-
-          <el-alert
-            v-if="productionReviewResult"
-            :title="`已处理订单 ${productionReviewResult.order_id}，状态 ${statusLabel(productionReviewResult.internal_status)}`"
-            type="success"
-            show-icon
-            :closable="false"
-          />
-
-          <div class="production-review-workspace">
-            <aside class="doctor-order-list">
-              <button
-                v-for="order in productionReviewOrders"
-                :key="order.order_id"
-                class="doctor-order-row"
-                :class="{ active: selectedProductionReviewOrder?.order_id === order.order_id }"
-                type="button"
-                @click="selectProductionReviewOrder(order)"
-              >
-                <strong>{{ order.order_no }}</strong>
-                <span>{{ order.clinic_name }} / {{ productTypeLabel(order.product_type) }}</span>
-                <small>{{ statusLabel(order.internal_status) }} / {{ statusLabel(order.external_status) }}</small>
-              </button>
-              <div v-if="productionReviewOrders.length === 0" class="empty-state">
-                暂无待生产审核订单
+        <section
+          v-else-if="isProductionReviewRoute"
+          class="panel route-panel production-review-panel admin-flow-page"
+          data-testid="admin-production-review-page"
+        >
+          <section class="aor-workspace">
+            <section class="aor-filter-panel aor-compact-filter" aria-label="筛选待生产审核订单">
+              <div class="aor-filter-main">
+                <label class="aor-filter-search">
+                  <i class="admin-menu-icon" aria-hidden="true" v-html="businessIconSvg('search')" />
+                  <input
+                    v-model="productionReviewKeyword"
+                    type="search"
+                    placeholder="搜索订单号、诊所或产品"
+                    @keyup.enter="loadProductionReviewOrders"
+                  >
+                </label>
+                <button class="aor-reset-button" type="button" :disabled="productionReviewLoading" @click="loadProductionReviewOrders">
+                  {{ productionReviewLoading ? '查询中' : '查询' }}
+                </button>
+                <span class="aor-filter-meta">待审核 <strong>{{ productionReviewOrders.length }}</strong> 单</span>
               </div>
-            </aside>
-
-            <section v-if="selectedProductionReviewOrder" class="doctor-order-detail">
-              <div class="doctor-order-summary">
-                <div>
-                  <span>订单号</span>
-                  <strong>{{ selectedProductionReviewOrder.order_no }}</strong>
-                </div>
-                <div>
-                  <span>诊所</span>
-                  <strong>{{ selectedProductionReviewOrder.clinic_name }}</strong>
-                </div>
-                <div>
-                  <span>内部状态</span>
-                  <strong>{{ statusLabel(selectedProductionReviewOrder.internal_status) }}</strong>
-                </div>
-                <div>
-                  <span>医生状态</span>
-                  <strong>{{ statusLabel(selectedProductionReviewOrder.external_status) }}</strong>
+              <div class="aor-filter-secondary">
+                <span class="aor-quick-label">审核队列</span>
+                <div class="aor-quick-row">
+                  <button
+                    v-for="chip in prototypeQueueChips"
+                    :key="`review-${chip.label}`"
+                    class="aor-quick"
+                    :class="{ active: isPrototypeChipActive(chip) }"
+                    type="button"
+                    @click="selectPrototypeQueueChip(chip)"
+                  >
+                    <i />{{ chip.label }} <b>{{ chip.count }}</b>
+                  </button>
                 </div>
               </div>
-
-              <el-tabs class="doctor-tabs">
-                <el-tab-pane label="订单资料">
-                  <div class="field-grid">
-                    <div
-                      v-for="field in fieldEntries(selectedProductionReviewOrder.form_data)"
-                      :key="field.key"
-                      class="field-cell"
-                    >
-                      <span>{{ doctorFieldLabel(field.key) }}</span>
-                      <strong>{{ field.value }}</strong>
-                    </div>
-                  </div>
-                  <p class="public-message">
-                    生产备注：{{ selectedProductionReviewOrder.production_note ?? '暂无' }}
-                  </p>
-                </el-tab-pane>
-
-                <el-tab-pane label="审核">
-                  <div class="review-form">
-                    <el-form-item label="工序链">
-                      <el-select v-model="productionReviewChainId" filterable>
-                        <el-option
-                          v-for="chain in workflowChains"
-                          :key="chain.chain_id"
-                          :label="`${chain.chain_name} / ${chain.intake_branch}`"
-                          :value="chain.chain_id"
-                        />
-                      </el-select>
-                    </el-form-item>
-                    <el-form-item label="入口路线">
-                      <el-radio-group v-model="productionReviewIntakeBranch">
-                        <el-radio-button label="SCAN">口扫</el-radio-button>
-                        <el-radio-button label="IMPRESSION">印模</el-radio-button>
-                      </el-radio-group>
-                    </el-form-item>
-                    <el-form-item label="分支参数 JSON">
-                      <el-input
-                        v-model="productionReviewBranchParams"
-                        type="textarea"
-                        :rows="4"
-                      />
-                    </el-form-item>
-                    <el-form-item label="驳回原因">
-                      <el-input
-                        v-model="productionReviewRejectReason"
-                        type="textarea"
-                        :rows="3"
-                      />
-                    </el-form-item>
-                    <div class="inline-actions">
-                      <el-button
-                        type="primary"
-                        :loading="productionReviewActionLoading"
-                        :disabled="!selectedProductionReviewChain || selectedProductionReviewOrder.internal_status !== 'PENDING_PRODUCTION_REVIEW'"
-                        @click="reviewProductionOrder('APPROVE')"
-                      >
-                        通过生产审核
-                      </el-button>
-                      <el-button
-                        type="danger"
-                        plain
-                        :loading="productionReviewActionLoading"
-                        :disabled="selectedProductionReviewOrder.internal_status !== 'PENDING_PRODUCTION_REVIEW' || !productionReviewRejectReason.trim()"
-                        @click="reviewProductionOrder('REJECT')"
-                      >
-                        驳回生产审核
-                      </el-button>
-                    </div>
-                  </div>
-                </el-tab-pane>
-              </el-tabs>
             </section>
-          </div>
+
+            <el-alert
+              v-if="productionReviewResult"
+              :title="`已处理订单 ${productionReviewResult.order_id}，状态 ${statusLabel(productionReviewResult.internal_status)}`"
+              type="success"
+              show-icon
+              :closable="false"
+            />
+            <div v-if="productionReviewError" class="aor-state is-error" role="alert">{{ productionReviewError }}</div>
+            <div v-else-if="productionReviewLoading" class="aor-state">正在加载待生产审核订单…</div>
+            <div v-else-if="productionReviewOrders.length === 0" class="aor-state">
+              <strong>暂无待生产审核订单</strong><span>新订单通过客服初审后会进入这里。</span>
+            </div>
+            <div v-else class="aor-table-wrap">
+              <div class="aor-table-scroll">
+                <table class="admin-flow-table" aria-label="待生产审核订单">
+                  <colgroup>
+                    <col class="admin-flow-col-order">
+                    <col class="admin-flow-col-customer">
+                    <col class="admin-flow-col-product">
+                    <col class="admin-flow-col-status">
+                    <col class="admin-flow-col-note">
+                    <col class="admin-flow-col-action">
+                  </colgroup>
+                  <thead><tr><th>订单编号</th><th>客户</th><th>产品</th><th>审核状态</th><th>生产备注</th><th>操作</th></tr></thead>
+                  <tbody>
+                    <tr
+                      v-for="order in productionReviewOrders"
+                      :key="order.order_id"
+                      tabindex="0"
+                      @click="openProductionReviewDrawer(order)"
+                      @keydown.enter="openProductionReviewDrawer(order)"
+                    >
+                      <td><span class="aor-cell-main aor-order-no">{{ order.order_no }}</span><span class="aor-cell-sub">编号 {{ order.order_id }}</span></td>
+                      <td><span class="aor-cell-main">{{ order.clinic_name || '诊所未设置' }}</span><span class="aor-cell-sub">客户编号 {{ order.clinic_id }}</span></td>
+                      <td><span class="aor-cell-main">{{ productTypeLabel(order.product_type) }}</span><span class="aor-cell-sub">系统自动匹配工艺</span></td>
+                      <td><em class="aor-badge" :class="adminOrderStatusClass(order.internal_status)">{{ statusLabel(order.internal_status) }}</em><span class="aor-cell-sub">{{ statusLabel(order.external_status) }}</span></td>
+                      <td><span class="aor-cell-main">{{ order.production_note || '暂无生产备注' }}</span><span class="aor-cell-sub">{{ order.reject_reason || '当前无驳回记录' }}</span></td>
+                      <td><button class="aor-view-button" type="button" @click.stop="openProductionReviewDrawer(order)">{{ productionReviewRequiresAction(order) ? '审核' : '查看' }}</button></td>
+                    </tr>
+                  </tbody>
+                </table>
+              </div>
+              <footer class="aor-table-footer"><span>共 {{ productionReviewOrders.length }} 单待处理</span><strong>点击订单从右侧审核</strong></footer>
+            </div>
+          </section>
+
+          <el-drawer
+            v-model="productionReviewDrawerVisible"
+            class="admin-flow-drawer aor-drawer"
+            modal-class="admin-drawer-overlay"
+            size="720px"
+            data-testid="admin-production-review-drawer"
+          >
+            <template #header>
+              <div class="aor-drawer-title">
+                <strong>生产审核</strong>
+                <small>{{ selectedProductionReviewOrder?.order_no }} · 核对资料并确认生产路线</small>
+              </div>
+            </template>
+            <div v-if="selectedProductionReviewOrder" class="admin-flow-drawer-body">
+              <div class="admin-flow-summary">
+                <div><span>订单</span><strong>{{ selectedProductionReviewOrder.order_no }}</strong></div>
+                <div><span>诊所</span><strong>{{ selectedProductionReviewOrder.clinic_name }}</strong></div>
+                <div><span>产品</span><strong>{{ productTypeLabel(selectedProductionReviewOrder.product_type) }}</strong></div>
+                <div><span>状态</span><strong>{{ statusLabel(selectedProductionReviewOrder.internal_status) }}</strong></div>
+              </div>
+
+              <section class="admin-flow-section">
+                <header><div><strong>订单资料</strong><small>审核前确认医生提交的生产信息</small></div></header>
+                <div class="field-grid admin-flow-field-grid">
+                  <div
+                  v-for="field in productionReviewFieldEntries(selectedProductionReviewOrder.form_data)"
+                    :key="field.key"
+                    class="field-cell"
+                  >
+                    <span>{{ doctorFieldLabel(field.key) }}</span>
+                    <strong>{{ field.value }}</strong>
+                  </div>
+                </div>
+                <p class="admin-flow-note">生产备注：{{ selectedProductionReviewOrder.production_note ?? '暂无' }}</p>
+              </section>
+
+              <section class="admin-flow-section">
+                <header><div><strong>生产配置</strong><small>工序链按产品自动匹配，审核员只确认真实资料路线</small></div></header>
+                <div class="review-form">
+                  <el-form-item label="工序链">
+                    <div v-if="selectedProductionReviewChain" class="production-review-auto-value">
+                      <div>
+                        <strong>{{ selectedProductionReviewChain.chain_name }}</strong>
+                        <span>{{ productTypeLabel(selectedProductionReviewChain.product_type) }} · {{ workflowIntakeLabel(selectedProductionReviewChain.intake_branch) }}</span>
+                      </div>
+                      <el-tag type="success" effect="plain">系统自动匹配</el-tag>
+                    </div>
+                    <el-alert v-else title="当前产品没有可用工序链，不能通过生产审核" type="error" show-icon :closable="false" />
+                  </el-form-item>
+                  <el-form-item label="入口路线">
+                    <el-radio-group v-if="selectedProductionReviewChain?.intake_branch === 'BOTH'" v-model="productionReviewIntakeBranch">
+                      <el-radio-button value="SCAN">口扫</el-radio-button>
+                      <el-radio-button value="IMPRESSION">印模</el-radio-button>
+                    </el-radio-group>
+                    <div v-else-if="selectedProductionReviewChain" class="production-review-fixed-route">
+                      <strong>{{ workflowIntakeLabel(selectedProductionReviewChain.intake_branch) }}</strong>
+                      <span>当前工序链仅支持该入口路线</span>
+                    </div>
+                    <p v-if="selectedProductionReviewChain?.intake_branch === 'BOTH'" class="production-review-field-help">
+                      有 STL、PLY 等数字扫描资料时选择“口扫”；收到实体印模或石膏模型时选择“印模”。
+                    </p>
+                  </el-form-item>
+                  <el-form-item v-if="selectedProductionReviewBranchConfig" :label="selectedProductionReviewBranchConfig.label">
+                    <el-radio-group v-model="productionReviewBranchChoice" class="production-review-branch-options">
+                      <el-radio v-for="option in selectedProductionReviewBranchConfig.options" :key="option.value" :value="option.value" border>
+                        <strong>{{ option.label }}</strong><span>{{ option.description }}</span>
+                      </el-radio>
+                    </el-radio-group>
+                    <p class="production-review-field-help">{{ selectedProductionReviewBranchConfig.help }}</p>
+                  </el-form-item>
+                  <el-alert v-else-if="selectedProductionReviewChain" title="当前产品没有额外工艺分支，无需填写技术参数" type="info" show-icon :closable="false" />
+                  <el-form-item label="驳回原因">
+                    <el-input v-model="productionReviewRejectReason" type="textarea" :rows="3" placeholder="仅驳回时填写需要补充或修正的内容" />
+                  </el-form-item>
+                </div>
+              </section>
+
+              <div class="admin-flow-actions">
+                <el-button @click="productionReviewDrawerVisible = false">取消</el-button>
+                <el-button
+                  type="danger"
+                  plain
+                  :loading="productionReviewActionLoading"
+                  :disabled="selectedProductionReviewOrder.internal_status !== 'PENDING_PRODUCTION_REVIEW' || !productionReviewRejectReason.trim()"
+                  @click="reviewProductionOrder('REJECT')"
+                >
+                  驳回生产审核
+                </el-button>
+                <el-button
+                  type="primary"
+                  :loading="productionReviewActionLoading"
+                  :disabled="!productionReviewConfigurationReady || selectedProductionReviewOrder.internal_status !== 'PENDING_PRODUCTION_REVIEW'"
+                  @click="reviewProductionOrder('APPROVE')"
+                >
+                  通过生产审核
+                </el-button>
+              </div>
+            </div>
+          </el-drawer>
         </section>
 
         <section
           v-else-if="isProcessInstanceRoute || isWorkflowAssignRoute"
-          class="panel route-panel process-instance-panel admin-process-page"
+          class="panel route-panel process-instance-panel admin-process-page admin-flow-page"
+          data-testid="admin-process-assignment-page"
         >
-          <div class="route-heading">
-            <div>
-              <h2>{{ isWorkflowAssignRoute ? '员工派工' : '工序进度' }}</h2>
-              <p>{{ isWorkflowAssignRoute ? '选择订单和工序后安排执行人员。' : '按订单查看每一道工序的当前进度。' }}</p>
-            </div>
-            <div class="inline-actions">
-              <el-tag round>{{ processInstanceOrders.length }} 单</el-tag>
-            </div>
-          </div>
-
-          <div class="doctor-order-toolbar">
-            <el-input
-              v-model="processInstanceKeyword"
-              placeholder="搜索订单号或客户"
-              clearable
-              @keyup.enter="loadProcessInstanceOrders"
-            />
-            <el-button type="primary" :loading="processInstanceLoading" @click="loadProcessInstanceOrders">
-              查询
-            </el-button>
-          </div>
-
-          <el-alert
-            v-if="processInstanceError"
-            :title="processInstanceError"
-            type="error"
-            show-icon
-            :closable="false"
-          />
-
-          <el-alert
-            v-if="processAssignmentResult"
-            :title="processAssignmentResult"
-            type="success"
-            show-icon
-            :closable="false"
-          />
-
-          <div class="process-instance-workspace">
-            <aside class="doctor-order-list">
-              <button
-                v-for="order in processInstanceOrders"
-                :key="order.order_id"
-                class="doctor-order-row"
-                :class="{ active: selectedProcessInstanceOrder?.order_id === order.order_id }"
-                type="button"
-                @click="selectProcessInstanceOrder(order)"
-              >
-                <strong>{{ order.order_no }}</strong>
-                <span>{{ order.clinic_name }} / {{ productTypeLabel(order.product_type) }}</span>
-                <small>{{ statusLabel(order.internal_status) }} / {{ statusLabel(order.external_status) }}</small>
-              </button>
-              <div v-if="processInstanceOrders.length === 0" class="empty-state">
-                暂无已生成工序的订单
-              </div>
-            </aside>
-
-            <section v-if="selectedProcessInstance" class="doctor-order-detail">
-              <div class="doctor-order-summary">
-                <div>
-                  <span>订单</span>
-                  <strong>{{ selectedProcessInstanceOrder?.order_no ?? selectedProcessInstance.order_id }}</strong>
-                </div>
-                <div>
-                  <span>生产批次</span>
-                  <strong>{{ selectedProcessInstance.instance_id }}</strong>
-                </div>
-                <div>
-                  <span>当前状态</span>
-                  <strong>{{ statusLabel(selectedProcessInstance.instance_status) }}</strong>
-                </div>
-                <div>
-                  <span>工序数量</span>
-                  <strong>{{ selectedProcessInstance.nodes.length }}</strong>
-                </div>
-              </div>
-
-              <div v-if="isWorkflowAssignRoute" class="assignment-toolbar">
-                <el-alert v-if="staffWorkloadError" :title="staffWorkloadError" type="error" show-icon :closable="false" />
-                <el-form-item label="选择员工">
-                  <el-select v-model="processAssignmentUserId" filterable placeholder="按姓名选择员工">
-                    <el-option
-                      v-for="staff in staffWorkloadItems"
-                      :key="staff.user_id"
-                      :label="`${staff.display_name} · ${staff.dept_name || '部门未设置'}`"
-                      :value="String(staff.user_id)"
-                    />
-                  </el-select>
-                </el-form-item>
-                <div class="inline-actions">
-                  <el-button
-                    type="primary"
-                    :loading="processAssignmentLoading"
-                    :disabled="!selectedProcessNode || !processAssignmentUserId"
-                    @click="assignSelectedProcessNode('ASSIGN')"
-                  >
-                    安排员工
-                  </el-button>
-                  <el-button
-                    :loading="processAssignmentLoading"
-                    :disabled="!selectedProcessNode || !selectedProcessNode.assigned_user_id || !processAssignmentUserId"
-                    @click="assignSelectedProcessNode('REASSIGN')"
-                  >
-                    调整员工
-                  </el-button>
-                </div>
-              </div>
-
-              <div class="process-node-list">
-                <button
-                  v-for="node in selectedProcessInstance.nodes"
-                  :key="node.node_instance_id"
-                  class="process-node-row"
-                  :class="{ active: selectedProcessNodeId === node.node_instance_id }"
-                  type="button"
-                  @click="selectProcessNode(node)"
-                >
-                  <span class="node-order">{{ node.step_order }}</span>
-                  <strong>{{ node.process_name }}</strong>
-                  <span>{{ node.stage_name || '生产工序' }}</span>
-                  <span>{{ statusLabel(node.node_status) }}</span>
-                  <span>{{ node.assigned_user_id ? (staffWorkloadItems.find((staff) => staff.user_id === node.assigned_user_id)?.display_name ?? `员工 ${node.assigned_user_id}`) : '尚未安排' }}</span>
-                  <span>{{ node.standard_duration ?? '-' }} 分钟</span>
+          <section class="aor-workspace">
+            <section class="aor-filter-panel aor-compact-filter" aria-label="筛选待派工订单">
+              <div class="aor-filter-main">
+                <label class="aor-filter-search">
+                  <i class="admin-menu-icon" aria-hidden="true" v-html="businessIconSvg('search')" />
+                  <input v-model="processInstanceKeyword" type="search" placeholder="搜索订单号、诊所或产品" @keyup.enter="loadProcessInstanceOrders">
+                </label>
+                <button class="aor-reset-button" type="button" :disabled="processInstanceLoading" @click="loadProcessInstanceOrders">
+                  {{ processInstanceLoading ? '查询中' : '查询' }}
                 </button>
+                <span class="aor-filter-meta">可派工 <strong>{{ processInstanceOrders.length }}</strong> 单</span>
+              </div>
+              <div class="aor-filter-secondary admin-flow-guidance">
+                <span class="aor-quick-label">操作说明</span>
+                <p>从订单表打开派工抽屉，选择具体工序和真实员工；调整已有执行人时继续保留转派记录。</p>
               </div>
             </section>
-          </div>
+
+            <div v-if="processInstanceError && !processAssignmentDrawerVisible" class="aor-state is-error" role="alert">{{ processInstanceError }}</div>
+            <div v-else-if="processInstanceLoading" class="aor-state">正在加载可派工订单…</div>
+            <div v-else-if="processInstanceOrders.length === 0" class="aor-state">
+              <strong>暂无已生成工序的订单</strong><span>订单通过生产审核并满足设计确认门禁后会进入这里。</span>
+            </div>
+            <div v-else class="aor-table-wrap">
+              <div class="aor-table-scroll">
+                <table class="admin-flow-table" aria-label="员工派工订单">
+                  <colgroup>
+                    <col class="admin-flow-col-order">
+                    <col class="admin-flow-col-customer">
+                    <col class="admin-flow-col-product">
+                    <col class="admin-flow-col-status">
+                    <col class="admin-flow-col-note">
+                    <col class="admin-flow-col-action">
+                  </colgroup>
+                  <thead><tr><th>订单编号</th><th>客户</th><th>产品</th><th>生产状态</th><th>派工提示</th><th>操作</th></tr></thead>
+                  <tbody>
+                    <tr
+                      v-for="order in processInstanceOrders"
+                      :key="order.order_id"
+                      tabindex="0"
+                      @click="openProcessAssignmentDrawer(order)"
+                      @keydown.enter="openProcessAssignmentDrawer(order)"
+                    >
+                      <td><span class="aor-cell-main aor-order-no">{{ order.order_no }}</span><span class="aor-cell-sub">编号 {{ order.order_id }}</span></td>
+                      <td><span class="aor-cell-main">{{ order.clinic_name || '诊所未设置' }}</span><span class="aor-cell-sub">客户编号 {{ order.clinic_id }}</span></td>
+                      <td><span class="aor-cell-main">{{ productTypeLabel(order.product_type) }}</span><span class="aor-cell-sub">查看工序后安排员工</span></td>
+                      <td><em class="aor-badge" :class="adminOrderStatusClass(order.internal_status)">{{ statusLabel(order.internal_status) }}</em><span class="aor-cell-sub">{{ statusLabel(order.external_status) }}</span></td>
+                      <td><span class="aor-cell-main">按工序安排执行人</span><span class="aor-cell-sub">不要求一次派完全部节点</span></td>
+                      <td><button class="aor-view-button" type="button" @click.stop="openProcessAssignmentDrawer(order)">派工</button></td>
+                    </tr>
+                  </tbody>
+                </table>
+              </div>
+              <footer class="aor-table-footer"><span>共 {{ processInstanceOrders.length }} 单可处理</span><strong>点击订单从右侧派工</strong></footer>
+            </div>
+          </section>
+
+          <el-drawer
+            v-model="processAssignmentDrawerVisible"
+            class="admin-flow-drawer aor-drawer"
+            modal-class="admin-drawer-overlay"
+            size="760px"
+            data-testid="admin-process-assignment-drawer"
+          >
+            <template #header>
+              <div class="aor-drawer-title">
+                <strong>员工派工</strong>
+                <small>{{ selectedProcessInstanceOrder?.order_no }} · 选择工序并安排执行人员</small>
+              </div>
+            </template>
+            <div v-if="selectedProcessInstance" class="admin-flow-drawer-body">
+              <el-alert v-if="processInstanceError" :title="processInstanceError" type="error" show-icon :closable="false" />
+              <el-alert v-if="processAssignmentResult" :title="processAssignmentResult" type="success" show-icon :closable="false" />
+
+              <div class="admin-flow-summary">
+                <div><span>订单</span><strong>{{ selectedProcessInstanceOrder?.order_no ?? selectedProcessInstance.order_id }}</strong></div>
+                <div><span>生产批次</span><strong>{{ selectedProcessInstance.instance_id }}</strong></div>
+                <div><span>当前状态</span><strong>{{ statusLabel(selectedProcessInstance.instance_status) }}</strong></div>
+                <div><span>生产进度</span><strong>{{ productionProgressSummary(selectedProcessInstance.nodes).completed }}/{{ productionProgressSummary(selectedProcessInstance.nodes).total }}</strong></div>
+              </div>
+
+              <section class="admin-flow-section">
+                <header>
+                  <div><strong>选择执行人</strong><small>{{ selectedProcessNode ? `当前选择：${selectedProcessNode.process_name}` : '请先从下方选择工序' }}</small></div>
+                </header>
+                <div class="assignment-toolbar admin-flow-assignment-toolbar">
+                  <el-alert v-if="staffWorkloadError" :title="staffWorkloadError" type="error" show-icon :closable="false" />
+                  <el-form-item label="目标员工">
+                    <el-select v-model="processAssignmentUserId" filterable placeholder="按姓名选择员工">
+                      <el-option
+                        v-for="staff in staffWorkloadItems"
+                        :key="staff.user_id"
+                        :label="`${staff.display_name} · ${staff.dept_name || '部门未设置'}`"
+                        :value="String(staff.user_id)"
+                      />
+                    </el-select>
+                  </el-form-item>
+                  <div class="inline-actions">
+                    <el-button
+                      type="primary"
+                      :loading="processAssignmentLoading"
+                      :disabled="!selectedProcessNode || !processAssignmentUserId"
+                      @click="assignSelectedProcessNode('ASSIGN')"
+                    >
+                      安排员工
+                    </el-button>
+                    <el-button
+                      :loading="processAssignmentLoading"
+                      :disabled="!selectedProcessNode || !selectedProcessNode.assigned_user_id || !processAssignmentUserId"
+                      @click="assignSelectedProcessNode('REASSIGN')"
+                    >
+                      调整员工
+                    </el-button>
+                  </div>
+                </div>
+              </section>
+
+              <section class="admin-flow-section">
+                <header><div><strong>生产工序</strong><small>仅展示并统计实际生产节点，不包含客服、审核和账单业务节点</small></div><span>{{ productionProgressNodes(selectedProcessInstance.nodes).length }} 道</span></header>
+                <div class="admin-flow-node-list">
+                  <button
+                    v-for="node in productionProgressNodes(selectedProcessInstance.nodes)"
+                    :key="node.node_instance_id"
+                    class="admin-flow-node-row"
+                    :class="{ active: selectedProcessNodeId === node.node_instance_id }"
+                    type="button"
+                    @click="selectProcessNode(node)"
+                  >
+                    <span class="node-order">{{ node.step_order }}</span>
+                    <span class="admin-flow-node-copy"><strong>{{ node.process_name }}</strong><small>{{ node.stage_name || '生产工序' }} · 标准 {{ node.standard_duration ?? '未设置' }} 分钟</small></span>
+                    <em class="aor-badge" :class="adminOrderStatusClass(node.node_status)">{{ statusLabel(node.node_status) }}</em>
+                    <span class="admin-flow-node-assignee">{{ node.assigned_user_id ? (staffWorkloadItems.find((staff) => String(staff.user_id) === String(node.assigned_user_id))?.display_name ?? `员工 ${node.assigned_user_id}`) : '尚未安排' }}</span>
+                  </button>
+                </div>
+              </section>
+              <div class="admin-flow-actions"><el-button @click="processAssignmentDrawerVisible = false">关闭</el-button></div>
+            </div>
+          </el-drawer>
         </section>
+
+        <ProductionDesignWorkspace
+          v-else-if="isProductionDesignRoute"
+          :active-route="activeRoute"
+          :token="token"
+          :user="currentUser"
+        />
 
         <section v-else-if="isWorkerTasksRoute" class="factory-task-page">
           <header class="factory-page-heading">
@@ -13116,7 +13333,7 @@ onBeforeUnmount(() => {
                 <div v-if="productionBoardInstance" class="factory-drawer-timeline">
                   <p class="factory-drawer-flow-hint">本单实际路径：{{ productionFlowPathLabel(productionBoardInstance) }}；仅展示已选取件/工艺分支，步骤序号按本单流程重新编号。</p>
                   <article
-                    v-for="node in productionBoardInstance.nodes"
+                    v-for="node in productionProgressNodes(productionBoardInstance.nodes)"
                     :key="node.node_instance_id"
                     :class="{
                       completed: ['COMPLETED', 'SKIPPED'].includes(node.node_status),
@@ -13124,9 +13341,9 @@ onBeforeUnmount(() => {
                       skipped: node.node_status === 'SKIPPED'
                     }"
                   >
-                    <span class="factory-drawer-timeline-marker">{{ ['COMPLETED', 'SKIPPED'].includes(node.node_status) ? '✓' : productionFlowStepNumber(productionBoardInstance.nodes, node) }}</span>
+                    <span class="factory-drawer-timeline-marker">{{ ['COMPLETED', 'SKIPPED'].includes(node.node_status) ? '✓' : productionFlowStepNumber(productionProgressNodes(productionBoardInstance.nodes), node) }}</span>
                     <div>
-                      <strong>{{ productionFlowStepLabel(productionBoardInstance.nodes, node) }} · {{ node.process_name }} <em v-if="node.stage_name">· {{ node.stage_name }}</em><em v-if="productionFlowBranchLabel(node)">· {{ productionFlowBranchLabel(node) }}</em></strong>
+                      <strong>{{ productionFlowStepLabel(productionProgressNodes(productionBoardInstance.nodes), node) }} · {{ node.process_name }} <em v-if="node.stage_name">· {{ node.stage_name }}</em><em v-if="productionFlowBranchLabel(node)">· {{ productionFlowBranchLabel(node) }}</em></strong>
                       <small>{{ statusLabel(node.node_status) }} · 标准 {{ node.standard_duration ?? '未设置' }} 分钟</small>
                       <small>开始 {{ node.started_at ? compactDateTime(node.started_at) : '未设置' }} · 截止 {{ node.deadline_at ? compactDateTime(node.deadline_at) : '未设置' }}</small>
                       <p v-if="productionBoardSelectedCard?.node?.node_instance_id === node.node_instance_id && node.node_status === 'IN_PROGRESS'">⚡ 进行中</p>
@@ -13340,7 +13557,7 @@ onBeforeUnmount(() => {
                 <div v-if="productionBoardInstance" class="factory-drawer-timeline">
                   <p class="factory-drawer-flow-hint">本单实际路径：{{ productionFlowPathLabel(productionBoardInstance) }}；仅展示已选取件/工艺分支，步骤序号按本单流程重新编号。</p>
                   <article
-                    v-for="node in productionBoardInstance.nodes"
+                    v-for="node in productionProgressNodes(productionBoardInstance.nodes)"
                     :key="node.node_instance_id"
                     :class="{
                       completed: ['COMPLETED', 'SKIPPED'].includes(node.node_status),
@@ -13348,9 +13565,9 @@ onBeforeUnmount(() => {
                       skipped: node.node_status === 'SKIPPED'
                     }"
                   >
-                    <span class="factory-drawer-timeline-marker">{{ ['COMPLETED', 'SKIPPED'].includes(node.node_status) ? '✓' : productionFlowStepNumber(productionBoardInstance.nodes, node) }}</span>
+                    <span class="factory-drawer-timeline-marker">{{ ['COMPLETED', 'SKIPPED'].includes(node.node_status) ? '✓' : productionFlowStepNumber(productionProgressNodes(productionBoardInstance.nodes), node) }}</span>
                     <div>
-                      <strong>{{ productionFlowStepLabel(productionBoardInstance.nodes, node) }} · {{ node.process_name }} <em v-if="node.stage_name">· {{ node.stage_name }}</em><em v-if="productionFlowBranchLabel(node)">· {{ productionFlowBranchLabel(node) }}</em></strong>
+                      <strong>{{ productionFlowStepLabel(productionProgressNodes(productionBoardInstance.nodes), node) }} · {{ node.process_name }} <em v-if="node.stage_name">· {{ node.stage_name }}</em><em v-if="productionFlowBranchLabel(node)">· {{ productionFlowBranchLabel(node) }}</em></strong>
                       <small>{{ statusLabel(node.node_status) }} · 员工 {{ node.assigned_user_id ?? '-' }} · 标准 {{ node.standard_duration ?? '-' }} 分钟</small>
                       <small>开始 {{ node.started_at ? compactDateTime(node.started_at) : '-' }} · 截止 {{ node.deadline_at ? compactDateTime(node.deadline_at) : '-' }}</small>
                       <p v-if="productionBoardSelectedCard?.node?.node_instance_id === node.node_instance_id && node.node_status === 'IN_PROGRESS'">⚡ 进行中</p>
@@ -17647,7 +17864,18 @@ onBeforeUnmount(() => {
                 <em v-if="adminOrderExceptionLabel(selectedInternalOrder) !== '无异常'" class="aor-badge is-danger">{{ adminOrderExceptionLabel(selectedInternalOrder) }}</em>
                 <em v-for="flag in adminOrderReviewFlags(selectedInternalOrder)" :key="flag" class="aor-badge is-violet">需要{{ flag }}审核</em>
               </div>
-              <button class="aor-button" type="button" @click="openSelectedAdminOrderFiles">查看文件</button>
+              <div class="aor-work-actions">
+                <button class="aor-button" type="button" @click="openSelectedAdminOrderFiles">查看文件</button>
+                <button
+                  v-if="selectedInternalOrder.internal_status === 'PENDING_PRODUCTION_REVIEW'"
+                  class="aor-button is-primary"
+                  type="button"
+                  data-testid="admin-order-production-review"
+                  @click="openSelectedAdminOrderProductionReview"
+                >
+                  去生产审核
+                </button>
+              </div>
             </header>
             <div class="aor-work-body">
               <div class="aor-work-grid">
@@ -17672,14 +17900,12 @@ onBeforeUnmount(() => {
                     <div class="aor-date-box is-due"><label>交期</label><strong>{{ adminOrderDueDate(selectedInternalOrder) }}</strong></div>
                     <div class="aor-date-box"><label>创建日期</label><strong class="aor-muted">暂未提供</strong></div>
                   </div>
-                  <div v-if="adminOrderProcessInstance?.nodes.length" class="aor-flow">
-                    <div v-for="(node, index) in adminOrderProcessInstance.nodes" :key="node.node_instance_id" class="aor-flow-step" :class="{ done: ['COMPLETED', 'SKIPPED'].includes(node.node_status), current: node.node_status === 'IN_PROGRESS' }">
+                  <div v-if="productionProgressNodes(adminOrderProcessInstance?.nodes ?? []).length" class="aor-flow">
+                    <div v-for="(node, index) in productionProgressNodes(adminOrderProcessInstance?.nodes ?? [])" :key="node.node_instance_id" class="aor-flow-step" :class="{ done: ['COMPLETED', 'SKIPPED'].includes(node.node_status), current: node.node_status === 'IN_PROGRESS' }">
                       <i>{{ ['COMPLETED', 'SKIPPED'].includes(node.node_status) ? '✓' : index + 1 }}</i><span>{{ node.stage_name || node.process_name }}<small>{{ node.assigned_user_id ? ` · 执行人 ${node.assigned_user_id}` : ' · 人员暂未安排' }}{{ node.deadline_at ? ` · ${compactDateTime(node.deadline_at)}` : '' }}</small></span>
                     </div>
                   </div>
-                  <div v-else class="aor-flow">
-                    <div v-for="(label, index) in ['草稿 / 接单', '客服审核', '生产审核', '工序生产', '质检完成', '发货交付']" :key="label" class="aor-flow-step" :class="{ done: index + 1 < adminOrderLifecycle(selectedInternalOrder).step, current: index + 1 === Math.max(1, adminOrderLifecycle(selectedInternalOrder).step) }"><i>{{ index + 1 < adminOrderLifecycle(selectedInternalOrder).step ? '✓' : index + 1 }}</i><span>{{ label }}<small v-if="index + 1 === Math.max(1, adminOrderLifecycle(selectedInternalOrder).step)"> · 当前</small></span></div>
-                  </div>
+                  <p v-else class="aor-empty-note">当前尚未生成实际生产工序；客服初审和生产审核不计入生产进度。</p>
                 </section>
               </div>
 
@@ -17814,6 +18040,17 @@ onBeforeUnmount(() => {
                 <input :value="adminPersonnelSelectedRow ? adminPersonnelScopeTitle(adminPersonnelSelectedRow) : '无管理职责'" disabled>
               </label>
             </div>
+            <label v-if="adminPersonnelCanSave" class="apm-permission-check">
+              <input
+                v-model="staffAccountPermissionCodes"
+                type="checkbox"
+                :value="designInternalReviewPermissionCode"
+              >
+              <span>
+                <strong>设计稿内部审核负责人</strong>
+                <small>允许进入设计内审队列，通过或退回设计版本；客服角色不具备此权限。</small>
+              </span>
+            </label>
             <div class="apm-drawer-note">
               <span aria-hidden="true" v-html="adminPersonnelIconSvg('shield')" />
               <span>经理和主管的保存接口尚未具备，目前只能查看，不会伪造权限调整结果。</span>

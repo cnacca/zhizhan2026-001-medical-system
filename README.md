@@ -4,6 +4,10 @@
 
 ## 当前仓库状态
 
+2026-07-26 `goals/GOAL-025-phase-two-design-collaboration-20260726.md` / `tasks/TASK-026-phase-two-design-collaboration-20260726.md` 已完成二期设计协作第一批本地开发闭环：设计任务领取 / 转派、多文件版本、个体组长内审、医生确认 / 驳回、文件隔离、生产门禁和三端真实 API 页面已落地，医生 Multipart 支持待续传恢复；86 项目标后端测试、OpenAPI、前端构建和本地真实浏览器 smoke 通过。M2 / M3 / M6、正式部署、客户确认和四端 PDF 手册仍需后续批次，一期 Task 8 保持 `NOT_READY`。
+
+2026-07-24 `goals/GOAL-024-ruoyi-core-foundation-20260724.md` / `tasks/TASK-025-ruoyi-core-foundation-20260724.md` 已完成。真实 RuoYi-Vue-Pro 默认后端核心固定到官方提交 `ec3f7cbf73e88514a70a6b59d365092ee470603d` 并引入 `vendor/ruoyi-vue-pro-core`；21 个核心模块、现有后端 192 个测试和前端生产构建均通过。该源码尚未接管现有运行时，角色权限分配暂缓，现有登录与业务授权结果不变。
+
 2026-07-15 最新完成阶段为 `goals/GOAL-022-prd-v2-p0-local-closure-20260715.md` / `tasks/TASK-023-prd-v2-p0-local-closure-20260715.md`。本阶段关闭 workflow 定义/实例内部访问边界、loopback 登录 CORS、按产品类型自动选链、设计确认/OUT-PASS 生产门禁，以及管理员创建/编辑技工账号并登录的本地闭环。原 PRD 验收表38项入口为 `docs/acceptance/prd-v2-38-item-acceptance-audit-20260715.md`，当前重算为21 PASS、8 PARTIAL、1 MISSING、8 EXTERNAL_ACCEPTANCE；表外 A/B/C 范围、剩余页面分支、无 token 读取边界和上线 readiness 仍独立跟踪，不能只凭38项宣称整个一期完成。Task 8 继续保持 `NOT_READY`；真实支付、物流 API、电子签章、STL 在线查看器、RAG 和 tool calling 不作为一期 P0 阻塞。
 
 下方 2026-07-07 各段出现的 handoff 工作区路径和“当前 active goal”都是阶段历史记录，不再代表当前工作区或执行指针；当前工作区为 `/Users/yuri/Documents/AI智能下单平台`，如有冲突以 GOAL-021 / TASK-022、D-162 和 38 项审计矩阵为准。
@@ -154,6 +158,27 @@ npm run demo:stop
 ```
 
 浏览器访问 `http://127.0.0.1:15173`。需要让当前终端以前台方式持续守护演示服务时，可运行 `npm run demo:serve`。完整场景、幂等造数和受保护重置说明见 `docs/operations/demo-data-runbook.md`。
+
+### 同时打开标准本地与演示环境
+
+日常使用优先通过统一入口管理两套环境。服务由独立的持久终端会话托管，关闭当前终端后仍会继续运行；状态命令按真实端口和健康接口判断，不依赖单一 PID 文件。
+
+```bash
+npm run env:open                 # 自动启动并打开两个页面
+npm run env:status               # 查看两套环境的真实运行状态
+npm run env:start                # 启动两套环境，但不打开浏览器
+npm run env:stop                 # 仅停止统一入口创建的持久会话
+
+npm run env:start -- local       # 只启动标准本地环境
+npm run env:start -- demo        # 只启动演示环境
+```
+
+固定入口：
+
+- 标准本地：`http://localhost:5173`，连接 `8080` 后端和 `ai_order_platform` 数据库。
+- 演示环境：`http://127.0.0.1:15173`，连接 `18080` 后端和 `ai_order_platform_demo` 数据库。
+
+统一入口不会接管或停止不属于它的进程；如果固定端口被其他程序占用但健康检查失败，会直接报告 PID 和日志位置。历史临时预览端口（例如 `15175`）不作为正式入口。
 
 一期 Docker / Compose 配置静态验收：
 

@@ -27,7 +27,7 @@ public class WorkflowRuntimeController {
     }
 
     @PostMapping("/orders/{orderId}/production-review")
-    @RequirePermission(value = "workflow:review-production", roles = {UserRole.ADMIN, UserRole.CS})
+    @RequirePermission(value = "workflow:review-production", roles = UserRole.ADMIN)
     public DataResponse<ProductionReviewResponse> reviewProduction(
             @PathVariable long orderId,
             @RequestBody ProductionReviewRequest request,
@@ -52,7 +52,7 @@ public class WorkflowRuntimeController {
     }
 
     @PostMapping("/orders/{orderId}/process-instance/assign")
-    @RequirePermission(value = "workflow:assign", roles = {UserRole.ADMIN, UserRole.CS})
+    @RequirePermission(value = "workflow:assign", roles = UserRole.ADMIN)
     public DataResponse<ProcessInstanceResponse> assign(
             @PathVariable long orderId,
             @RequestBody AssignmentRequest request,
@@ -62,7 +62,7 @@ public class WorkflowRuntimeController {
     }
 
     @PostMapping("/orders/{orderId}/process-instance/nodes/{nodeInstanceId}/reassign")
-    @RequirePermission(value = "workflow:assign", roles = {UserRole.ADMIN, UserRole.CS})
+    @RequirePermission(value = "workflow:assign", roles = UserRole.ADMIN)
     public DataResponse<ProcessInstanceResponse> reassign(
             @PathVariable long orderId,
             @PathVariable long nodeInstanceId,
@@ -107,7 +107,7 @@ public class WorkflowRuntimeController {
     }
 
     @PostMapping("/process-instance/nodes/{nodeInstanceId}/skip")
-    @RequirePermission(value = "workflow:assign", roles = {UserRole.ADMIN, UserRole.CS})
+    @RequirePermission(value = "workflow:assign", roles = UserRole.ADMIN)
     public DataResponse<NodeActionResponse> skipNode(
             @PathVariable long nodeInstanceId,
             @RequestBody(required = false) SkipNodeRequest request,

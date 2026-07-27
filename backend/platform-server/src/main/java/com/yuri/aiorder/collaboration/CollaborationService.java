@@ -239,155 +239,6 @@ public class CollaborationService {
         return loadAttentionItem(messageId, identity.userId());
     }
 
-    public List<DesignDraftResponse> listDesignDrafts(long orderId, BootstrapIdentity identity) {
-        OrderRow order = loadOrder(orderId, identity, "identity cannot access this order");
-        String doctorFilter = "";
-        if (identity.isDoctor()) {
-            identity.requireDoctorScope(order.doctorUserId(), order.clinicId());
-            doctorFilter = "AND draft_status IN ('PENDING_DOCTOR_CONFIRM', 'DOCTOR_CONFIRMED', 'DOCTOR_REJECTED')";
-        }
-        return jdbcClient.sql("""
-                        SELECT design_draft_id, order_id, version_no, uploaded_by_user_id, file_id, draft_status,
-                               cs_reject_reason, doctor_reject_reason
-                        FROM design_draft
-                        WHERE order_id = :orderId
-                        %s
-                        ORDER BY version_no, design_draft_id
-                        """.formatted(doctorFilter))
-                .param("orderId", orderId)
-                .query((rs, rowNum) -> mapDesignDraft(
-                        rs.getLong("design_draft_id"),
-                        rs.getLong("order_id"),
-                        rs.getInt("version_no"),
-                        rs.getObject("uploaded_by_user_id", Long.class),
-                        rs.getObject("file_id", Long.class),
-                        rs.getString("draft_status"),
-                        rs.getString("cs_reject_reason"),
-                        rs.getString("doctor_reject_reason")))
-                .list();
-    }
-
-    @Transactional
-    public DesignDraftResponse uploadDesignDraft(long orderId, DesignDraftRequest request, BootstrapIdentity identity) {
-        if (identity.role() == UserRole.DOCTOR) {
-            throw new ResponseStatusException(HttpStatus.FORBIDDEN, "doctor cannot upload design draft");
-        }
-        if (request.fileIds() == null || request.fileIds().isEmpty()) {
-            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "file_ids is required");
-        }
-        List<Long> fileIds = normalizeFileIds(request.fileIds());
-        if (fileIds.isEmpty()) {
-            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "file_ids is required");
-        }
-        OrderRow order = loadOrder(orderId, identity, "identity cannot access this order");
-        int nextVersion = jdbcClient.sql("""
-                        SELECT COALESCE(MAX(version_no), 0) + 1
-                        FROM design_draft
-                        WHERE order_id = :orderId
-                        """)
-                .param("orderId", orderId)
-                .query(Integer.class)
-                .single();
-        jdbcClient.sql("""
-                        INSERT INTO design_draft
-                            (order_id, file_id, version_no, draft_status, uploaded_by_user_id)
-                        VALUES
-                            (:orderId, :fileId, :versionNo, 'PENDING_CS_REVIEW', :uploadedByUserId)
-                        """)
-                .param("orderId", orderId)
-                .param("fileId", fileIds.get(0))
-                .param("versionNo", nextVersion)
-                .param("uploadedByUserId", identity.userId())
-                .update();
-        long draftId = lastInsertId();
-        insertDesignDraftFiles(draftId, fileIds);
-        emit(order, "DESIGN_DRAFT_UPLOADED", "CS", order.csUserId(), "设计稿待客服审核");
-        return loadDesignDraft(draftId);
-    }
-
-    @Transactional
-    public DesignDraftResponse reviewDesignDraft(
-            long orderId, long draftId, DesignDraftReviewRequest request, BootstrapIdentity identity) {
-        requireCsOrAdmin(identity);
-        DesignDraftRow draft = loadDesignDraftRow(orderId, draftId);
-        if (!"PENDING_CS_REVIEW".equals(draft.draftStatus())) {
-            throw new ResponseStatusException(HttpStatus.CONFLICT, "design draft is not waiting for CS review");
-        }
-        OrderRow order = loadOrder(orderId, identity, "identity cannot access this order");
-        String action = normalizeOrDefault(request.action(), "");
-        String targetStatus;
-        if ("APPROVE".equals(action)) {
-            targetStatus = "PENDING_DOCTOR_CONFIRM";
-        } else if ("REJECT".equals(action)) {
-            targetStatus = "CS_REJECTED";
-        } else {
-            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "unsupported design draft review action");
-        }
-        String rejectReason = "REJECT".equals(action) ? normalizeNullable(request.csRejectReason()) : null;
-        if ("REJECT".equals(action) && rejectReason == null) {
-            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "cs_reject_reason is required when rejecting a design draft");
-        }
-        jdbcClient.sql("""
-                        UPDATE design_draft
-                        SET draft_status = :targetStatus,
-                            cs_reject_reason = :rejectReason
-                        WHERE design_draft_id = :draftId
-                        """)
-                .param("targetStatus", targetStatus)
-                .param("rejectReason", rejectReason)
-                .param("draftId", draftId)
-                .update();
-        if ("PENDING_DOCTOR_CONFIRM".equals(targetStatus)) {
-            emit(order, "DESIGN_DRAFT_CS_APPROVED", "DOCTOR", order.doctorUserId(), "设计稿待医生确认");
-        } else {
-            emit(order, "DESIGN_DRAFT_CS_REJECTED", "WORKER", draft.uploadedByUserId(), "设计稿客服审核未通过：" + rejectReason);
-        }
-        return loadDesignDraft(draftId);
-    }
-
-    @Transactional
-    public DesignDraftResponse doctorConfirmDesignDraft(
-            long orderId, long draftId, DoctorDraftConfirmRequest request, BootstrapIdentity identity) {
-        if (!identity.isDoctor()) {
-            throw new ResponseStatusException(HttpStatus.FORBIDDEN, "only doctor can confirm design draft");
-        }
-        OrderRow order = loadOrder(orderId, identity, "identity cannot access this order");
-        identity.requireDoctorScope(order.doctorUserId(), order.clinicId());
-        DesignDraftRow draft = loadDesignDraftRow(orderId, draftId);
-        if (!"PENDING_DOCTOR_CONFIRM".equals(draft.draftStatus())) {
-            throw new ResponseStatusException(HttpStatus.CONFLICT, "design draft is not waiting for doctor confirmation");
-        }
-        String action = normalizeOrDefault(request.action(), "");
-        String targetStatus;
-        String eventType;
-        if ("CONFIRM".equals(action)) {
-            targetStatus = "DOCTOR_CONFIRMED";
-            eventType = "DESIGN_DRAFT_CONFIRMED";
-        } else if ("REJECT".equals(action)) {
-            targetStatus = "DOCTOR_REJECTED";
-            eventType = "DESIGN_DRAFT_REJECTED";
-        } else {
-            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "unsupported doctor confirmation action");
-        }
-        String rejectReason = "REJECT".equals(action) ? normalizeNullable(request.doctorRejectReason()) : null;
-        if ("REJECT".equals(action) && rejectReason == null) {
-            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "doctor_reject_reason is required when rejecting a design draft");
-        }
-        jdbcClient.sql("""
-                        UPDATE design_draft
-                        SET draft_status = :targetStatus,
-                            doctor_confirmed_at = CASE WHEN :targetStatus = 'DOCTOR_CONFIRMED' THEN CURRENT_TIMESTAMP(3) ELSE doctor_confirmed_at END,
-                            doctor_reject_reason = :rejectReason
-                        WHERE design_draft_id = :draftId
-                        """)
-                .param("targetStatus", targetStatus)
-                .param("rejectReason", rejectReason)
-                .param("draftId", draftId)
-                .update();
-        emit(order, eventType, "CS", order.csUserId(), "医生已处理设计稿" + (rejectReason == null ? "" : "：" + rejectReason));
-        return loadDesignDraft(draftId);
-    }
-
     public BillResponse getBill(long orderId, BootstrapIdentity identity) {
         OrderRow order = loadOrder(orderId, identity, "identity cannot access this order");
         requireDoctorScopeIfNeeded(order, identity);
@@ -1013,64 +864,6 @@ public class CollaborationService {
         }
     }
 
-    private DesignDraftResponse loadDesignDraft(long draftId) {
-        return jdbcClient.sql("""
-                        SELECT design_draft_id, order_id, version_no, uploaded_by_user_id, file_id, draft_status,
-                               cs_reject_reason, doctor_reject_reason
-                        FROM design_draft
-                        WHERE design_draft_id = :draftId
-                        """)
-                .param("draftId", draftId)
-                .query((rs, rowNum) -> mapDesignDraft(
-                        rs.getLong("design_draft_id"),
-                        rs.getLong("order_id"),
-                        rs.getInt("version_no"),
-                        rs.getObject("uploaded_by_user_id", Long.class),
-                        rs.getObject("file_id", Long.class),
-                        rs.getString("draft_status"),
-                        rs.getString("cs_reject_reason"),
-                        rs.getString("doctor_reject_reason")))
-                .single();
-    }
-
-    private DesignDraftResponse mapDesignDraft(
-            long draftId,
-            long orderId,
-            int version,
-            Long uploaderUserId,
-            Long primaryFileId,
-            String status,
-            String csRejectReason,
-            String doctorRejectReason) {
-        List<Long> fileIds = loadDesignDraftFileIds(draftId);
-        if (fileIds.isEmpty() && primaryFileId != null) {
-            fileIds = List.of(primaryFileId);
-        }
-        return new DesignDraftResponse(
-                draftId,
-                orderId,
-                version,
-                uploaderUserId,
-                primaryFileId,
-                fileIds,
-                fileIds.size(),
-                status,
-                csRejectReason,
-                doctorRejectReason);
-    }
-
-    private List<Long> loadDesignDraftFileIds(long draftId) {
-        return jdbcClient.sql("""
-                        SELECT file_id
-                        FROM design_draft_file
-                        WHERE design_draft_id = :draftId
-                        ORDER BY sort_order, design_draft_file_id
-                        """)
-                .param("draftId", draftId)
-                .query(Long.class)
-                .list();
-    }
-
     private List<Long> normalizeFileIds(List<Long> rawFileIds) {
         Set<Long> seen = new LinkedHashSet<>();
         for (Long fileId : rawFileIds) {
@@ -1079,40 +872,6 @@ public class CollaborationService {
             }
         }
         return new ArrayList<>(seen);
-    }
-
-    private void insertDesignDraftFiles(long draftId, List<Long> fileIds) {
-        for (int index = 0; index < fileIds.size(); index++) {
-            jdbcClient.sql("""
-                            INSERT INTO design_draft_file (design_draft_id, file_id, sort_order)
-                            VALUES (:draftId, :fileId, :sortOrder)
-                            """)
-                    .param("draftId", draftId)
-                    .param("fileId", fileIds.get(index))
-                    .param("sortOrder", index)
-                    .update();
-        }
-    }
-
-    private DesignDraftRow loadDesignDraftRow(long orderId, long draftId) {
-        try {
-            return jdbcClient.sql("""
-                            SELECT design_draft_id, order_id, uploaded_by_user_id, draft_status
-                            FROM design_draft
-                            WHERE order_id = :orderId
-                              AND design_draft_id = :draftId
-                            """)
-                    .param("orderId", orderId)
-                    .param("draftId", draftId)
-                    .query((rs, rowNum) -> new DesignDraftRow(
-                            rs.getLong("design_draft_id"),
-                            rs.getLong("order_id"),
-                            rs.getObject("uploaded_by_user_id", Long.class),
-                            rs.getString("draft_status")))
-                    .single();
-        } catch (EmptyResultDataAccessException ex) {
-            throw new ResponseStatusException(HttpStatus.NOT_FOUND, "design draft not found", ex);
-        }
     }
 
     private OrderRow loadOrder(long orderId, BootstrapIdentity identity, String forbiddenMessage) {
@@ -1264,9 +1023,6 @@ public class CollaborationService {
             String visibility,
             String reviewStatus,
             LocalDateTime createdAt) {
-    }
-
-    private record DesignDraftRow(long draftId, long orderId, Long uploadedByUserId, String draftStatus) {
     }
 
     private record NotificationPayload(String event, long orderId, String orderNo, String message) {

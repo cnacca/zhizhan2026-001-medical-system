@@ -495,6 +495,8 @@ class OrderStatusProjectionTests {
 
     @Test
     void csCanApprovePendingDoctorOrderIntoProductionReviewWithoutStartingProduction() throws Exception {
+        String confirmedProductionNote = "客服确认：" + "已核对订单资料与生产要求。".repeat(80);
+
         mockMvc.perform(post("/orders/{orderId}/review", orderId)
                         .header("X-Bootstrap-Role", "CS")
                         .header("X-Bootstrap-User-Id", 8002L)
@@ -502,14 +504,14 @@ class OrderStatusProjectionTests {
                         .content("""
                                 {
                                   "action": "APPROVE",
-                                  "production_note": "客服确认：资料完整，进入生产审核。"
+                                  "production_note": "%s"
                                 }
-                                """))
+                                """.formatted(confirmedProductionNote)))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.data.order_id").value(orderId))
                 .andExpect(jsonPath("$.data.internal_status").value("PENDING_PRODUCTION_REVIEW"))
                 .andExpect(jsonPath("$.data.external_status").value("PENDING_REVIEW"))
-                .andExpect(jsonPath("$.data.production_note").value("客服确认：资料完整，进入生产审核。"))
+                .andExpect(jsonPath("$.data.production_note").value(confirmedProductionNote))
                 .andExpect(jsonPath("$.data.reject_reason").value(nullValue()));
 
         long processInstanceCount = jdbcClient.sql("""
@@ -532,10 +534,22 @@ class OrderStatusProjectionTests {
                 .param("orderId", orderId)
                 .query(Long.class)
                 .single();
+        String historyReason = jdbcClient.sql("""
+                        SELECT reason
+                        FROM order_status_history
+                        WHERE order_id = :orderId
+                          AND event_type = 'CS_APPROVE_ORDER'
+                        ORDER BY history_id DESC
+                        LIMIT 1
+                        """)
+                .param("orderId", orderId)
+                .query(String.class)
+                .single();
         long doctorNotificationCount = notificationCount(orderId, "ORDER_APPROVED", "DOCTOR");
 
         org.assertj.core.api.Assertions.assertThat(processInstanceCount).isZero();
         org.assertj.core.api.Assertions.assertThat(historyCount).isEqualTo(1L);
+        org.assertj.core.api.Assertions.assertThat(historyReason).isEqualTo("客服初审通过，进入生产审核。");
         org.assertj.core.api.Assertions.assertThat(doctorNotificationCount).isEqualTo(1L);
     }
 

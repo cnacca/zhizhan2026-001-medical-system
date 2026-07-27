@@ -126,7 +126,7 @@ class BearerIdentityTests {
                         .content("{\"username\":\"admin\",\"password\":\"change-me-admin\",\"portal\":\"ADMIN\"}"))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.username").value("admin"))
-                .andExpect(jsonPath("$.userId").value(8001))
+                .andExpect(jsonPath("$.userId").value("8001"))
                 .andExpect(jsonPath("$.roles", hasItem("ADMIN")))
                 .andExpect(jsonPath("$.permissions", hasItem("workflow:assign")))
                 .andExpect(jsonPath("$.menus[*].menuCode", hasItem("system-rbac")))
@@ -141,12 +141,62 @@ class BearerIdentityTests {
                         .header("Authorization", "Bearer " + token))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.username").value("admin"))
-                .andExpect(jsonPath("$.userId").value(8001))
+                .andExpect(jsonPath("$.userId").value("8001"))
                 .andExpect(jsonPath("$.roles", hasItem("ADMIN")))
                 .andExpect(jsonPath("$.permissions", hasItem("workflow:assign")))
                 .andExpect(jsonPath("$.menus[*].menuCode", hasItem("system-rbac")))
                 .andExpect(jsonPath("$.menus[*].menuCode", hasItem("internal-orders")))
                 .andExpect(jsonPath("$.dataScope").value("ALL"));
+    }
+
+    @Test
+    void databaseBearerReloadsDirectUserPermissionsWithoutRelogin() throws Exception {
+        jdbcClient.sql("""
+                        DELETE FROM system_user_permission
+                        WHERE user_id = 9601
+                          AND permission_id = (
+                              SELECT permission_id
+                              FROM system_permission
+                              WHERE permission_code = 'design-draft:internal-review'
+                          )
+                        """)
+                .update();
+
+        MvcResult login = mockMvc.perform(post("/api/auth/login")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"username\":\"worker\",\"password\":\"change-me-worker\",\"portal\":\"PRODUCTION\"}"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.permissions", not(hasItem("design-draft:internal-review"))))
+                .andReturn();
+        String token = objectMapper.readTree(login.getResponse().getContentAsString())
+                .path("accessToken")
+                .asText();
+
+        try {
+            jdbcClient.sql("""
+                            INSERT INTO system_user_permission (user_id, permission_id)
+                            SELECT 9601, permission_id
+                            FROM system_permission
+                            WHERE permission_code = 'design-draft:internal-review'
+                            """)
+                    .update();
+
+            mockMvc.perform(get("/api/auth/me")
+                            .header("Authorization", "Bearer " + token))
+                    .andExpect(status().isOk())
+                    .andExpect(jsonPath("$.permissions", hasItem("design-draft:internal-review")));
+        } finally {
+            jdbcClient.sql("""
+                            DELETE FROM system_user_permission
+                            WHERE user_id = 9601
+                              AND permission_id = (
+                                  SELECT permission_id
+                                  FROM system_permission
+                                  WHERE permission_code = 'design-draft:internal-review'
+                              )
+                            """)
+                    .update();
+        }
     }
 
     @Test
@@ -171,7 +221,7 @@ class BearerIdentityTests {
                         .content("{\"username\":\"doctor\",\"password\":\"change-me-doctor\",\"portal\":\"DOCTOR\"}"))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.username").value("doctor"))
-                .andExpect(jsonPath("$.userId").value(DOCTOR_USER_ID))
+                .andExpect(jsonPath("$.userId").value(Long.toString(DOCTOR_USER_ID)))
                 .andExpect(jsonPath("$.roles", hasItem("DOCTOR")))
                 .andExpect(jsonPath("$.permissions", hasItem("order:read-doctor")))
                 .andExpect(jsonPath("$.menus[*].menuCode", hasItem("doctor-orders")))

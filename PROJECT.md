@@ -8,6 +8,8 @@
 
 ## 当前依据
 
+- 2026-07-26 二期设计协作第一批：`GOAL-025` / `TASK-026` 已完成。本阶段在一期事实表上增量实现设计任务自主领取、管理员有理由转派、多文件版本、个体组长内审、医生确认 / 驳回、文件隔离和生产门禁，并接通生产端、管理端与 Doctor Portal V2；目标测试、OpenAPI、前端构建和本地真实浏览器 smoke 通过。该结果不代表 M2 / M3 / M6、正式部署、客户确认或四份 PDF 手册完成，一期 Task 8 保持 `NOT_READY`。
+- 2026-07-24 RuoYi 核心源码基础：`GOAL-024` / `TASK-025` 已完成。官方 `master-jdk17` 固定到提交 `ec3f7cbf73e88514a70a6b59d365092ee470603d`，真实 dependencies/framework/infra/system/server 源码以隔离 reactor 引入并通过 21 模块构建；无关模块、硬编码示例凭据和完整 seed 数据未引入。角色权限分配暂缓，本批次未改变现有登录、Token、菜单、DataScope 或业务授权结果。
 - 2026-07-15 本地剩余项收口：GOAL-023 / TASK-024 已完成 Bearer 默认边界、质量日期趋势、设计稿驳回原因/三版本、种植产品动态表单基线和隔离种植 STL 12步 smoke。原 PRD 38项当前为30 PASS、1 PARTIAL、0 MISSING、7 EXTERNAL_ACCEPTANCE；标准工时业务数据与真实环境验收仍未完成，Task 8 保持 `NOT_READY`。
 - 2026-07-15 P0 本地代码收口：GOAL-022 / TASK-023 已关闭 workflow definition/实例内部读取边界、loopback 登录 CORS、产品类型自动选链、设计确认和 OUT/PASS 生产门禁以及 ADMIN 技工账号创建/编辑/登录闭环。原 PRD 38项当前为21 PASS、8 PARTIAL、1 MISSING、8 EXTERNAL_ACCEPTANCE；Task 8 仍保持 `NOT_READY`。
 - 2026-07-15 验收口径校正：GOAL-021 / TASK-022 以原始 PRD V2 和 2026-07-06 已确认范围为准，废止“CP-001 到 CP-009 全部逐项书面确认”的活动口径。当前只有动态表单最终字段、文件限制 2 项待客户 / PM 产品确认；AI-5 模板和标准工时属于输入资料，培训、真实环境和总体验收属于后置证据。PRD 明确逐功能签字为 0 项。38 项逐项状态见 `docs/acceptance/prd-v2-38-item-acceptance-audit-20260715.md`；Task 8 仍保持 `NOT_READY`。

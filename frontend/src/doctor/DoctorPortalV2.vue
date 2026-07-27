@@ -1,7 +1,11 @@
 <script setup lang="ts">
 import { ElMessage, ElMessageBox } from 'element-plus'
-import { computed, defineAsyncComponent, onBeforeUnmount, onMounted, reactive, ref } from 'vue'
-import { createDoctorGateway, resolveDoctorGatewayMode } from './services/doctorGateway'
+import { computed, defineAsyncComponent, onBeforeUnmount, onMounted, reactive, ref, watch } from 'vue'
+import {
+  createDoctorGateway,
+  isDoctorReviewSubmittedRefreshError,
+  resolveDoctorGatewayMode
+} from './services/doctorGateway'
 import DoctorDynamicFields from './DoctorDynamicFields.vue'
 import type {
   ClinicRole,
@@ -25,7 +29,7 @@ const StlViewerDialog = defineAsyncComponent(() => import('../components/StlView
 
 type CurrentUser = {
   username?: string
-  userId?: number | null
+  userId?: string | number | null
   clinicId?: number | null
   roles?: string[]
   permissions?: string[]
@@ -93,10 +97,14 @@ const reviewLabels: Record<ReviewType, string> = {
 
 const productTypeLabels: Record<string, string> = {
   FIXED_CROWN: '固定修复',
+  REGULAR_CROWN: '固定修复',
   FIXED_BRIDGE: '固定桥修复',
   IMPLANT_RESTORATION: '种植修复',
+  IMPLANT: '种植修复',
   REMOVABLE_DENTURE: '活动修复',
+  REMOVABLE: '活动修复',
   ORTHODONTIC: '正畸产品',
+  ORTHODONTICS: '正畸产品',
   CLEAR_ALIGNER: '隐形矫治',
   DIGITAL_DESIGN: '数字化设计'
 }
@@ -104,10 +112,10 @@ const productTypeLabels: Record<string, string> = {
 type WizardCategoryId = 'fixed' | 'implant' | 'removable' | 'ortho' | 'aligner' | 'design'
 
 const wizardCategories: Array<{ id: WizardCategoryId; icon: string; name: string; note: string; types: string[] }> = [
-  { id: 'fixed', icon: '👑', name: '固定修复', note: '牙冠、贴面、嵌体与固定桥', types: ['FIXED_CROWN', 'FIXED_BRIDGE'] },
-  { id: 'implant', icon: '🔩', name: '种植修复', note: '种植冠、桥与个性化基台', types: ['IMPLANT_RESTORATION'] },
-  { id: 'removable', icon: '🦷', name: '活动修复', note: '全口义齿与局部义齿', types: ['REMOVABLE_DENTURE'] },
-  { id: 'ortho', icon: '📐', name: '正畸产品', note: '保持器、扩弓器与功能矫治器', types: ['ORTHODONTIC'] },
+  { id: 'fixed', icon: '👑', name: '固定修复', note: '牙冠、贴面、嵌体与固定桥', types: ['FIXED_CROWN', 'REGULAR_CROWN', 'FIXED_BRIDGE'] },
+  { id: 'implant', icon: '🔩', name: '种植修复', note: '种植冠、桥与个性化基台', types: ['IMPLANT_RESTORATION', 'IMPLANT'] },
+  { id: 'removable', icon: '🦷', name: '活动修复', note: '全口义齿与局部义齿', types: ['REMOVABLE_DENTURE', 'REMOVABLE'] },
+  { id: 'ortho', icon: '📐', name: '正畸产品', note: '保持器、扩弓器与功能矫治器', types: ['ORTHODONTIC', 'ORTHODONTICS'] },
   { id: 'aligner', icon: '✨', name: '隐形矫治', note: '数字化隐形矫治方案', types: ['CLEAR_ALIGNER'] },
   { id: 'design', icon: '🎨', name: '数字化设计', note: '仅设计、排牙与导板服务', types: ['DIGITAL_DESIGN'] }
 ]
@@ -145,6 +153,14 @@ const doctorOrderDuplicateFieldKeys = new Set([
   'tooth_position', 'toothposition', 'tooth', 'teeth', 'tooth_no', 'tooth_number', '牙位',
   'product', 'product_type', 'product_name', '产品', '产品类型', '产品名称',
   'clinic', 'clinic_name', 'doctor', 'doctor_name', '诊所', '医生'
+])
+
+const doctorOrderPatientFieldKeys = new Set([
+  'patient_name', 'patientname', 'patient', '患者姓名'
+])
+
+const doctorOrderToothFieldKeys = new Set([
+  'tooth_position', 'toothposition', 'tooth', 'teeth', 'tooth_no', 'tooth_number', '牙位'
 ])
 
 const doctorOrderTechnicalFieldPattern = /(^|_)(demo|acceptance|marker|scenario|test|internal|debug|mock|fixture)(_|$)/i
@@ -207,6 +223,10 @@ const gateway = createDoctorGateway({
   clinicName: '当前诊所'
 })
 const dataMode = resolveDoctorGatewayMode()
+
+watch(() => props.token, (nextToken) => {
+  gateway.updateToken(nextToken)
+})
 
 const activeRole = ref<ClinicRole>('DOCTOR')
 const roleMenuOpen = ref(false)
@@ -282,11 +302,13 @@ const wizardSaving = ref(false)
 const wizardSubmitting = ref(false)
 const wizardUploading = ref(false)
 const wizardNotice = ref('')
+const wizardUploadedFileSignatures = ref<Record<string, string>>({})
 const wizardCategory = ref<WizardCategoryId>('fixed')
 const wizardSelectedTeeth = ref<number[]>([])
 const wizardToothMode = ref<'RESTORE' | 'MISSING'>('RESTORE')
 const wizardDragActive = ref(false)
 const wizard = reactive<OrderDraftInput>({
+  draftOrderId: undefined,
   patientId: '',
   productId: '',
   productType: '',
@@ -300,6 +322,8 @@ const viewerOpen = ref(false)
 const viewerFile = ref<DoctorFile | null>(null)
 const filePreviewOpen = ref(false)
 const filePreview = ref<DoctorFile | null>(null)
+const filePreviewLoading = ref(false)
+const reviewSubmitting = ref(false)
 
 const navGroups = computed(() => [
   {
@@ -427,10 +451,17 @@ const wizardPatientRows = computed(() => {
   const keyword = wizardPatientKeyword.value.trim().toLowerCase()
   return (dataset.value?.patients ?? []).filter((patient) => !keyword || [patient.patient_name, patient.patient_code, patient.doctor_name, ...patient.tags].join(' ').toLowerCase().includes(keyword))
 })
-const selectedProductFields = computed(() => selectedProduct.value?.form_fields ?? [])
-const selectedProductReviewOptions = computed(() => selectedProduct.value?.review_capabilities ?? [])
+const selectedProductFields = computed(() => (selectedProduct.value?.form_fields ?? []).filter((field) => {
+  const normalizedKey = normalizeDoctorOrderFieldKey(field.key)
+  return !doctorOrderPatientFieldKeys.has(normalizedKey) && !doctorOrderToothFieldKeys.has(normalizedKey)
+}))
 const wizardStlCount = computed(() => wizard.files.filter((candidate) => candidate.kind === 'STL').length)
-const wizardReviewSummary = computed(() => wizard.reviewOptions.length ? wizard.reviewOptions.map((candidate) => reviewLabel(candidate)).join('、') : '不启用额外确认')
+const wizardSubmitDisabled = computed(() =>
+  wizardSubmitting.value
+  || wizardSaving.value
+  || wizardUploading.value
+  || wizardMissingForStep(4).length > 0
+)
 const clinicRoleOptions = computed(() => (Object.entries(roleLabels) as Array<[ClinicRole, string]>).map(([value, name]) => ({ value, name })))
 const filePreviewName = computed(() => filePreview.value?.name ?? '')
 const selectedOrderToothText = computed(() => orderToothText(selectedOrder.value))
@@ -851,6 +882,17 @@ async function openOrder(orderId: string) {
     const detail = await gateway.loadOrderDetail(orderId)
     selectedOrder.value = detail
     if (dataset.value) {
+      const summary = dataset.value.orders.find((item) => item.order_id === orderId)
+      if (summary) {
+        Object.assign(summary, {
+          external_status: detail.external_status,
+          current_action: detail.current_action,
+          allowed_actions: detail.allowed_actions,
+          state_version: detail.state_version,
+          due_at: detail.due_at,
+          quote: detail.quote
+        })
+      }
       const threadIndex = dataset.value.threads.findIndex((thread) => thread.order_id === orderId)
       const latestMessage = detail.messages.at(-1)
       const thread: MessageThread = {
@@ -971,6 +1013,7 @@ function openWizard() {
   wizardDragActive.value = false
   wizardPatientKeyword.value = ''
   wizardNotice.value = ''
+  wizardUploadedFileSignatures.value = {}
   wizardOpen.value = true
   chooseWizardCategory('fixed')
 }
@@ -1008,13 +1051,29 @@ function wizardMissingForStep(step: number): string[] {
     if (!wizard.productId) missing.push('产品')
   }
   if (step >= 2 && !wizard.caseFields.tooth?.trim()) missing.push('牙位')
-  if (step >= 3 && selectedProduct.value) {
-    selectedProduct.value.form_fields.filter((field) => field.required).forEach((field) => {
+  if (step >= 3) {
+    selectedProductFields.value.filter((field) => field.required).forEach((field) => {
       if (!wizard.dynamicFields[field.key]?.trim()) missing.push(field.label)
     })
   }
   if (step >= 4 && !wizard.files.some((item) => item.kind === 'STL' && item.status === 'READY')) missing.push('STL 扫描文件')
   return missing
+}
+
+function wizardSubmissionDynamicFields(): Record<string, string> {
+  const patientName = selectedWizardPatient.value?.patient_name.trim() ?? ''
+  const toothPosition = wizard.caseFields.tooth.trim()
+  const fields: Record<string, string> = {
+    ...wizard.dynamicFields,
+    patient_name: patientName,
+    tooth_position: toothPosition
+  }
+  selectedProduct.value?.form_fields.forEach((field) => {
+    const normalizedKey = normalizeDoctorOrderFieldKey(field.key)
+    if (doctorOrderPatientFieldKeys.has(normalizedKey)) fields[field.key] = patientName
+    if (doctorOrderToothFieldKeys.has(normalizedKey)) fields[field.key] = toothPosition
+  })
+  return fields
 }
 
 async function saveWizardDraft(silent = false) {
@@ -1024,7 +1083,13 @@ async function saveWizardDraft(silent = false) {
   }
   wizardSaving.value = true
   try {
-    const result = await gateway.saveDraft({ ...wizard, files: [...wizard.files], reviewOptions: [...wizard.reviewOptions] })
+    const result = await gateway.saveDraft({
+      ...wizard,
+      draftOrderId: wizard.draftOrderId,
+      dynamicFields: wizardSubmissionDynamicFields(),
+      files: [...wizard.files],
+      reviewOptions: [...wizard.reviewOptions]
+    })
     wizard.draftOrderId = result.orderId
     wizardNotice.value = `草稿已保存 · ${new Date().toLocaleTimeString('zh-CN', { hour: '2-digit', minute: '2-digit' })}`
     if (!silent) ElMessage.success('草稿已保存')
@@ -1045,7 +1110,7 @@ async function nextWizardStep() {
   }
   const saved = await saveWizardDraft(true)
   if (!saved) return
-  wizardStep.value = Math.min(6, wizardStep.value + 1)
+  wizardStep.value = Math.min(5, wizardStep.value + 1)
 }
 
 async function addWizardFiles(event: Event) {
@@ -1060,22 +1125,54 @@ async function handleWizardDrop(event: DragEvent) {
   await uploadWizardFiles(Array.from(event.dataTransfer?.files ?? []))
 }
 
+function wizardFileSignature(file: File) {
+  return `${file.name}:${file.size}:${file.lastModified}`
+}
+
+function removeWizardFile(file: DoctorFile) {
+  wizard.files = wizard.files.filter((candidate) => candidate.file_id !== file.file_id)
+  wizardUploadedFileSignatures.value = Object.fromEntries(
+    Object.entries(wizardUploadedFileSignatures.value)
+      .filter(([, fileId]) => fileId !== file.file_id)
+  )
+}
+
 async function uploadWizardFiles(list: File[]) {
   const accepted = list.filter((item) => /\.(stl|jpg|jpeg|png|pdf)$/i.test(item.name))
   const rejected = list.length - accepted.length
   if (rejected) ElMessage.warning(`${rejected} 个文件格式不支持`)
-  if (!accepted.length) return
+  const knownSignatures = new Set(Object.keys(wizardUploadedFileSignatures.value))
+  const pending = accepted.filter((file) => {
+    const signature = wizardFileSignature(file)
+    if (knownSignatures.has(signature)) return false
+    knownSignatures.add(signature)
+    return true
+  })
+  const alreadyUploaded = accepted.length - pending.length
+  if (alreadyUploaded) ElMessage.info(`${alreadyUploaded} 个已完成文件已跳过，未重复上传`)
+  if (!pending.length) return
   if (!wizard.draftOrderId) {
     const saved = await saveWizardDraft(true)
     if (!saved || !wizard.draftOrderId) return
   }
   wizardUploading.value = true
+  let completedCount = 0
   try {
-    const uploaded = await gateway.uploadOrderFiles(wizard.draftOrderId, accepted)
-    wizard.files.push(...uploaded)
-    ElMessage.success(`${uploaded.length} 个文件已就绪`)
+    for (const file of pending) {
+      const uploaded = await gateway.uploadOrderFiles(wizard.draftOrderId, [file])
+      const completed = uploaded[0]
+      if (!completed) throw new Error(`文件 ${file.name} 上传完成后未返回文件记录`)
+      wizard.files.push(completed)
+      wizardUploadedFileSignatures.value = {
+        ...wizardUploadedFileSignatures.value,
+        [wizardFileSignature(file)]: completed.file_id
+      }
+      completedCount += 1
+    }
+    ElMessage.success(`${completedCount} 个文件已就绪`)
   } catch (cause) {
-    ElMessage.error(cause instanceof Error ? cause.message : '文件上传失败')
+    const prefix = completedCount ? `已有 ${completedCount} 个文件完成并已保留；` : ''
+    ElMessage.error(`${prefix}${cause instanceof Error ? cause.message : '文件上传失败'}`)
   } finally {
     wizardUploading.value = false
   }
@@ -1141,12 +1238,6 @@ function downloadInvoice(recordId: string) {
   ElMessage.success('PDF 记录已下载')
 }
 
-function toggleReviewOption(type: ReviewType, checked: boolean) {
-  wizard.reviewOptions = checked
-    ? Array.from(new Set([...wizard.reviewOptions, type]))
-    : wizard.reviewOptions.filter((item) => item !== type)
-}
-
 async function submitWizard() {
   const missing = wizardMissingForStep(4)
   if (missing.length) {
@@ -1156,7 +1247,13 @@ async function submitWizard() {
   }
   wizardSubmitting.value = true
   try {
-    const created = await gateway.submitOrder({ ...wizard, files: [...wizard.files], reviewOptions: [...wizard.reviewOptions] })
+    const created = await gateway.submitOrder({
+      ...wizard,
+      draftOrderId: wizard.draftOrderId,
+      dynamicFields: wizardSubmissionDynamicFields(),
+      files: [...wizard.files],
+      reviewOptions: [...wizard.reviewOptions]
+    })
     try {
       dataset.value = await gateway.loadDataset()
       activeThreadId.value = dataset.value.threads[0]?.thread_id ?? activeThreadId.value
@@ -1251,6 +1348,7 @@ async function sendOrderDrawerMessage() {
 }
 
 function startReviewDecision(orderId: string, review: OrderReview, decision: 'APPROVE' | 'REJECT') {
+  if (reviewSubmitting.value) return
   const action = decision === 'APPROVE' ? 'APPROVE_REVIEW' : 'REJECT_REVIEW'
   if (!canReview.value || review.status !== 'PENDING_REVIEW' || !review.allowed_actions.includes(action)) return
   reviewTarget.value = { orderId, review }
@@ -1264,51 +1362,136 @@ function startReviewDecision(orderId: string, review: OrderReview, decision: 'AP
   }).then(() => submitReviewDecision('APPROVE')).catch(() => undefined)
 }
 
+function applyRefreshedReviewOrder(orderId: string, refreshed: OrderDetail) {
+  if (selectedOrder.value?.order_id === orderId) selectedOrder.value = refreshed
+  const summary = dataset.value?.orders.find((order) => order.order_id === orderId)
+  if (summary) {
+    Object.assign(summary, {
+      external_status: refreshed.external_status,
+      current_action: refreshed.current_action,
+      allowed_actions: refreshed.allowed_actions,
+      state_version: refreshed.state_version,
+      due_at: refreshed.due_at,
+      quote: refreshed.quote
+    })
+  }
+  dataset.value?.threads.forEach((thread) => thread.messages.forEach((message) => {
+    const refreshedReview = refreshed.reviews.find((item) => item.review_id === message.review?.review_id)
+    if (message.review && refreshedReview) Object.assign(message.review, refreshedReview)
+  }))
+}
+
 async function submitReviewDecision(decision: 'APPROVE' | 'REJECT') {
   const target = reviewTarget.value
-  if (!target) return
+  if (!target || reviewSubmitting.value) return
   if (decision === 'REJECT' && !rejectReason.value.trim()) {
     ElMessage.warning('驳回时必须填写修改意见')
     return
   }
+  reviewSubmitting.value = true
   try {
-    const updated = await gateway.submitReview({
-      orderId: target.orderId,
-      reviewId: target.review.review_id,
-      decision,
-      comment: decision === 'REJECT' ? rejectReason.value.trim() : undefined,
-      stateVersion: target.review.state_version,
-      idempotencyKey: crypto.randomUUID()
-    })
-    Object.assign(target.review, updated)
+    let usedSubmittedFallback = false
+    let updated: OrderReview
+    try {
+      updated = await gateway.submitReview({
+        orderId: target.orderId,
+        reviewId: target.review.review_id,
+        decision,
+        comment: decision === 'REJECT' ? rejectReason.value.trim() : undefined,
+        stateVersion: target.review.state_version,
+        idempotencyKey: crypto.randomUUID()
+      })
+    } catch (cause) {
+      if (!isDoctorReviewSubmittedRefreshError(cause)) throw cause
+      usedSubmittedFallback = true
+      updated = cause.submittedReview
+    }
+    const mergeReview = (review: OrderReview) => {
+      if (!usedSubmittedFallback) {
+        Object.assign(review, updated)
+        return
+      }
+      review.status = updated.status
+      review.current_version = updated.current_version
+      review.allowed_actions = updated.allowed_actions
+      review.state_version = updated.state_version
+      const submittedVersion = updated.versions.find((item) => item.version === updated.current_version)
+      const existingVersion = review.versions.find((item) => item.version === updated.current_version)
+      if (submittedVersion && existingVersion) {
+        existingVersion.status = submittedVersion.status
+        existingVersion.doctor_comment = submittedVersion.doctor_comment
+      } else if (submittedVersion) {
+        review.versions.push(submittedVersion)
+      }
+    }
+    mergeReview(target.review)
     dataset.value?.threads.forEach((thread) => thread.messages.forEach((message) => {
-      if (message.review?.review_id === updated.review_id) Object.assign(message.review, updated)
+      if (message.review?.review_id === updated.review_id) mergeReview(message.review)
     }))
-    if (selectedOrder.value) {
+    if (selectedOrder.value?.order_id === target.orderId) {
       const orderReview = selectedOrder.value.reviews.find((item) => item.review_id === updated.review_id)
-      if (orderReview) Object.assign(orderReview, updated)
-      if (!selectedOrder.value.reviews.some((item) => item.status === 'PENDING_REVIEW') && selectedOrder.value.current_action.includes('REVIEW')) selectedOrder.value.current_action = 'NONE'
+      if (orderReview) mergeReview(orderReview)
+      if (!selectedOrder.value.reviews.some((item) => item.status === 'PENDING_REVIEW') && selectedOrder.value.current_action.includes('REVIEW')) {
+        selectedOrder.value.current_action = 'NONE'
+        selectedOrder.value.allowed_actions = selectedOrder.value.allowed_actions
+          .filter((action) => !['APPROVE_REVIEW', 'REJECT_REVIEW'].includes(action))
+      }
     }
     const summary = dataset.value?.orders.find((order) => order.order_id === target.orderId)
-    if (summary?.current_action.includes('REVIEW') && (!selectedOrder.value || !selectedOrder.value.reviews.some((item) => item.status === 'PENDING_REVIEW'))) summary.current_action = 'NONE'
+    if (summary?.current_action.includes('REVIEW') && target.review.status !== 'PENDING_REVIEW') {
+      summary.current_action = 'NONE'
+      summary.allowed_actions = summary.allowed_actions
+        .filter((action) => !['APPROVE_REVIEW', 'REJECT_REVIEW'].includes(action))
+    }
     rejectDialogOpen.value = false
+    try {
+      const refreshed = await gateway.loadOrderDetail(target.orderId)
+      applyRefreshedReviewOrder(target.orderId, refreshed)
+    } catch {
+      ElMessage.warning(usedSubmittedFallback
+        ? '确认已提交，但最新公开状态仍无法读取；页面已保留提交结果，请稍后刷新核对'
+        : '确认已提交，但订单最新公开状态读取失败，请稍后刷新')
+    }
     ElMessage.success(decision === 'APPROVE' ? '已同意当前版本，对方可以继续制作' : '已驳回并发送修改意见')
   } catch (cause) {
+    try {
+      const reconciled = await gateway.loadOrderDetail(target.orderId)
+      const reconciledReview = reconciled.reviews.find((review) => review.review_id === target.review.review_id)
+      const expectedStatus = decision === 'APPROVE' ? 'APPROVED' : 'REVISION_REQUESTED'
+      if (reconciledReview?.status === expectedStatus) {
+        applyRefreshedReviewOrder(target.orderId, reconciled)
+        rejectDialogOpen.value = false
+        ElMessage.success(decision === 'APPROVE'
+          ? '服务器已完成版本确认，页面状态已重新同步'
+          : '服务器已收到驳回意见，页面状态已重新同步')
+        return
+      }
+    } catch {
+      // 提交请求结果不明确且暂时无法回读时，保留原始错误供用户重试。
+    }
     ElMessage.error(cause instanceof Error ? cause.message : '确认操作失败')
+  } finally {
+    reviewSubmitting.value = false
   }
 }
 
-function previewFile(item: DoctorFile) {
-  if (item.kind === 'STL') {
-    viewerFile.value = item
-    if (item.preview_url) viewerOpen.value = true
-    else {
-      filePreview.value = item
+async function previewFile(item: DoctorFile) {
+  if (filePreviewLoading.value) return
+  filePreviewLoading.value = true
+  try {
+    const previewUrl = await gateway.getFilePreviewUrl(item.file_id)
+    const freshFile = { ...item, preview_url: previewUrl }
+    if (item.kind === 'STL') {
+      viewerFile.value = freshFile
+      viewerOpen.value = true
+    } else {
+      filePreview.value = freshFile
       filePreviewOpen.value = true
     }
-  } else {
-    filePreview.value = item
-    filePreviewOpen.value = true
+  } catch (cause) {
+    ElMessage.error(cause instanceof Error ? cause.message : '文件预览失败')
+  } finally {
+    filePreviewLoading.value = false
   }
 }
 
@@ -1787,7 +1970,7 @@ onBeforeUnmount(() => window.removeEventListener('keydown', handleGlobalShortcut
               <section v-if="activeThread" class="dv2-conversation">
                 <header><div><h2>{{ activeThread.patient_name }} · {{ activeThread.product_name }}</h2><p>{{ activeThread.order_no }} <span class="dv2-translation-chip">A/文 可翻译</span></p></div><button type="button" class="dv2-secondary-button" @click="openGlobalOrder(activeThread.order_id)">查看订单</button></header>
                 <div class="dv2-message-stream">
-                  <article v-for="message in activeThread.messages" :key="message.message_id" :class="{ self: message.sender === 'SELF' }"><span>{{ message.sender === 'SELF' ? (account?.display_name || '我').slice(0, 1) : '单' }}</span><div><small>{{ message.sender === 'SELF' ? '我' : '订单服务' }} · {{ message.sent_at }}</small><p>{{ message.content }}</p><section v-if="message.review" class="dv2-review-card"><header><div><strong>{{ reviewLabel(message.review.review_type) }}</strong><small>当前版本 V{{ message.review.current_version }}</small></div><span :class="`dv2-status is-${statusTone(message.review.status)}`">{{ label(message.review.status) }}</span></header><div class="dv2-version-list"><article v-for="version in [...message.review.versions].reverse()" :key="version.version"><div><strong>V{{ version.version }}</strong><span>{{ label(version.status) }}</span><small>{{ version.submitted_at }}</small></div><button v-for="attachment in version.files" :key="attachment.file_id" type="button" @click="previewFile(attachment)"><i>{{ attachment.kind }}</i><span>{{ attachment.name }}<small>{{ attachment.size_label }}</small></span><em>预览</em></button><p v-if="version.doctor_comment">医生意见：{{ version.doctor_comment }}</p></article></div><footer v-if="message.review.status === 'PENDING_REVIEW'"><template v-if="canReview && message.review.allowed_actions.some((action) => ['APPROVE_REVIEW', 'REJECT_REVIEW'].includes(action))"><button v-if="message.review.allowed_actions.includes('REJECT_REVIEW')" type="button" class="dv2-danger-button" @click="startReviewDecision(activeThread.order_id, message.review, 'REJECT')">驳回并留言</button><button v-if="message.review.allowed_actions.includes('APPROVE_REVIEW')" type="button" class="dv2-primary-button" @click="startReviewDecision(activeThread.order_id, message.review, 'APPROVE')">同意当前版本</button></template><p v-else>当前身份或订单权限不可执行确认。</p></footer></section></div></article>
+                  <article v-for="message in activeThread.messages" :key="message.message_id" :class="{ self: message.sender === 'SELF' }"><span>{{ message.sender === 'SELF' ? (account?.display_name || '我').slice(0, 1) : '单' }}</span><div><small>{{ message.sender === 'SELF' ? '我' : '订单服务' }} · {{ message.sent_at }}</small><p>{{ message.content }}</p><section v-if="message.review" class="dv2-review-card"><header><div><strong>{{ reviewLabel(message.review.review_type) }}</strong><small>当前版本 V{{ message.review.current_version }}</small></div><span :class="`dv2-status is-${statusTone(message.review.status)}`">{{ label(message.review.status) }}</span></header><div class="dv2-version-list"><article v-for="version in [...message.review.versions].reverse()" :key="version.version"><div><strong>V{{ version.version }}</strong><span>{{ label(version.status) }}</span><small>{{ version.submitted_at }}</small></div><button v-for="attachment in version.files" :key="attachment.file_id" type="button" @click="previewFile(attachment)"><i>{{ attachment.kind }}</i><span>{{ attachment.name }}<small>{{ attachment.size_label }}</small></span><em>预览</em></button><p v-if="version.doctor_comment">医生意见：{{ version.doctor_comment }}</p></article></div><footer v-if="message.review.status === 'PENDING_REVIEW'"><template v-if="canReview && message.review.allowed_actions.some((action) => ['APPROVE_REVIEW', 'REJECT_REVIEW'].includes(action))"><button v-if="message.review.allowed_actions.includes('REJECT_REVIEW')" type="button" class="dv2-danger-button" :disabled="reviewSubmitting" @click="startReviewDecision(activeThread.order_id, message.review, 'REJECT')">驳回并留言</button><button v-if="message.review.allowed_actions.includes('APPROVE_REVIEW')" type="button" class="dv2-primary-button" :disabled="reviewSubmitting" @click="startReviewDecision(activeThread.order_id, message.review, 'APPROVE')">同意当前版本</button></template><p v-else>当前身份或订单权限不可执行确认。</p></footer></section></div></article>
                 </div>
                 <div class="dv2-quick-replies"><span>快捷回复</span><button v-for="reply in ['收到，我会尽快确认。', '请补充一张更清晰的照片。', '请按当前版本继续。']" :key="reply" type="button" @click="messageDraft = reply">{{ reply }}</button></div>
                 <form class="dv2-message-composer" @submit.prevent="sendMessage"><textarea v-model="messageDraft" rows="2" placeholder="输入订单沟通内容…" @keydown.ctrl.enter.prevent="sendMessage" /><footer><span>Ctrl + Enter 发送</span><button type="submit" :disabled="sendingMessage || !messageDraft.trim()">发送</button></footer></form>
@@ -1934,8 +2117,8 @@ onBeforeUnmount(() => window.removeEventListener('keydown', handleGlobalShortcut
                 </div>
                 <footer v-if="review.status === 'PENDING_REVIEW'">
                   <template v-if="canReview && review.allowed_actions.some((action) => ['APPROVE_REVIEW', 'REJECT_REVIEW'].includes(action))">
-                    <button v-if="review.allowed_actions.includes('REJECT_REVIEW')" type="button" class="dv2-danger-button" @click="startReviewDecision(selectedOrder.order_id, review, 'REJECT')">驳回并留言</button>
-                    <button v-if="review.allowed_actions.includes('APPROVE_REVIEW')" type="button" class="dv2-primary-button" @click="startReviewDecision(selectedOrder.order_id, review, 'APPROVE')">同意当前版本</button>
+                    <button v-if="review.allowed_actions.includes('REJECT_REVIEW')" type="button" class="dv2-danger-button" :disabled="reviewSubmitting" @click="startReviewDecision(selectedOrder.order_id, review, 'REJECT')">驳回并留言</button>
+                    <button v-if="review.allowed_actions.includes('APPROVE_REVIEW')" type="button" class="dv2-primary-button" :disabled="reviewSubmitting" @click="startReviewDecision(selectedOrder.order_id, review, 'APPROVE')">同意当前版本</button>
                   </template>
                   <p v-else>当前身份或订单权限不可执行确认。</p>
                 </footer>
@@ -2006,12 +2189,12 @@ onBeforeUnmount(() => window.removeEventListener('keydown', handleGlobalShortcut
 
     <div v-if="wizardOpen" class="dv2-wizard" data-testid="doctor-order-wizard">
       <header><div><span class="dv2-brand-mark">P</span><div><strong>新建订单</strong><small>{{ wizardNotice || '填写过程中可随时保存草稿' }}</small></div></div><button type="button" @click="wizardOpen = false">关闭 ×</button></header>
-      <div class="dv2-wizard-steps"><button v-for="(step, index) in ['产品与患者', '牙位与病例', '产品配置', '上传资料', '确认选项', '复核提交']" :key="step" type="button" :class="{ active: wizardStep === index + 1, done: wizardStep > index + 1 }" :disabled="index + 1 > wizardStep" @click="wizardStep = index + 1"><span>{{ wizardStep > index + 1 ? '✓' : index + 1 }}</span><strong>{{ step }}</strong></button></div>
+      <div class="dv2-wizard-steps"><button v-for="(step, index) in ['产品与患者', '牙位与病例', '产品配置', '上传资料', '复核提交']" :key="step" type="button" :class="{ active: wizardStep === index + 1, done: wizardStep > index + 1 }" :disabled="index + 1 > wizardStep" @click="wizardStep = index + 1"><span>{{ wizardStep > index + 1 ? '✓' : index + 1 }}</span><strong>{{ step }}</strong></button></div>
       <main>
         <section v-if="wizardStep === 1" class="dv2-wizard-panel dv2-wizard-catalog">
           <aside class="dv2-product-categories"><header><small>产品目录</small><strong>选择修复类别</strong></header><button v-for="category in wizardCategories" :key="category.id" type="button" :class="{ active: wizardCategory === category.id, unavailable: !dataset?.products.some((item) => category.types.includes(item.product_type)) }" @click="chooseWizardCategory(category.id)"><span>{{ category.icon }}</span><div><strong>{{ category.name }}</strong><small>{{ category.note }}</small></div><i>{{ wizardCategory === category.id ? '✓' : '›' }}</i></button></aside>
           <div class="dv2-wizard-catalog-main">
-            <header><div><span>{{ selectedWizardCategory.icon }}</span><div><h1>{{ selectedWizardCategory.name }}</h1><p>{{ selectedWizardCategory.note }}</p></div></div><small>步骤 1 / 6</small></header>
+            <header><div><span>{{ selectedWizardCategory.icon }}</span><div><h1>{{ selectedWizardCategory.name }}</h1><p>{{ selectedWizardCategory.note }}</p></div></div><small>步骤 1 / 5</small></header>
             <div class="dv2-wizard-first-grid">
               <section><h3>1. 选择患者</h3><label class="dv2-field-search"><span>⌕</span><input v-model="wizardPatientKeyword" type="search" placeholder="搜索患者姓名或编号"></label><div class="dv2-choice-list"><button v-for="patient in wizardPatientRows" :key="patient.patient_id" type="button" :class="{ active: wizard.patientId === patient.patient_id }" @click="wizard.patientId = patient.patient_id"><span class="dv2-avatar">{{ patient.patient_name.slice(0, 1) }}</span><div><strong>{{ patient.patient_name }}</strong><small>{{ patient.patient_code }} · {{ patient.doctor_name }}</small></div><i>{{ wizard.patientId === patient.patient_id ? '✓' : '' }}</i></button></div></section>
               <section><h3>2. 选择具体产品</h3><div class="dv2-product-choice"><button v-for="product in wizardCategoryProducts" :key="product.product_id" type="button" :class="{ active: wizard.productId === product.product_id }" @click="chooseWizardProduct(product)"><span>{{ selectedWizardCategory.icon }}</span><div><strong>{{ product.product_name }}</strong><small>{{ product.material }}</small><p>{{ money(product.quote) }}</p></div><i>{{ wizard.productId === product.product_id ? '✓' : '' }}</i></button><div v-if="!wizardCategoryAvailable" class="dv2-inline-notice is-warning">当前真实产品目录尚未配置此类别，暂不能进入下一步。</div></div></section>
@@ -2019,28 +2202,22 @@ onBeforeUnmount(() => window.removeEventListener('keydown', handleGlobalShortcut
           </div>
         </section>
         <section v-else-if="wizardStep === 2" class="dv2-wizard-panel is-narrow"><header><h1>牙位与病例</h1><p>点击牙位图选择{{ wizardToothMode === 'MISSING' ? '缺失牙位' : '需要修复的牙位' }}</p></header><div class="dv2-tooth-mode"><button type="button" :class="{ active: wizardToothMode === 'RESTORE' }" @click="wizardToothMode = 'RESTORE'; wizard.caseFields.tooth_mode = 'RESTORE'">修复牙位</button><button type="button" :class="{ active: wizardToothMode === 'MISSING' }" @click="wizardToothMode = 'MISSING'; wizard.caseFields.tooth_mode = 'MISSING'">缺失牙位</button></div><div class="dv2-tooth-chart" role="group" aria-label="FDI 牙位选择图"><div class="dv2-arch-label">上颌</div><div class="dv2-tooth-row"><button v-for="tooth in wizardToothNumbers.slice(0, 16)" :key="tooth" type="button" :class="{ active: wizardSelectedTeeth.includes(tooth), missing: wizardToothMode === 'MISSING' && wizardSelectedTeeth.includes(tooth) }" :aria-label="`牙位 ${tooth}`" @click="toggleWizardTooth(tooth)"><svg viewBox="0 0 34 44" aria-hidden="true"><path d="M8 3C3 7 3 15 7 21c2 4 2 16 6 19 2 2 3-8 5-8s3 10 5 8c4-3 4-15 6-19 4-6 4-14-1-18-4-3-7 1-10 1S12 0 8 3Z" /></svg><span>{{ tooth }}</span></button></div><div class="dv2-tooth-midline" /><div class="dv2-tooth-row is-lower"><button v-for="tooth in wizardToothNumbers.slice(16)" :key="tooth" type="button" :class="{ active: wizardSelectedTeeth.includes(tooth), missing: wizardToothMode === 'MISSING' && wizardSelectedTeeth.includes(tooth) }" :aria-label="`牙位 ${tooth}`" @click="toggleWizardTooth(tooth)"><svg viewBox="0 0 34 44" aria-hidden="true"><path d="M8 3C3 7 3 15 7 21c2 4 2 16 6 19 2 2 3-8 5-8s3 10 5 8c4-3 4-15 6-19 4-6 4-14-1-18-4-3-7 1-10 1S12 0 8 3Z" /></svg><span>{{ tooth }}</span></button></div><div class="dv2-arch-label">下颌</div></div><div class="dv2-selected-teeth"><span>已选牙位</span><strong>{{ wizard.caseFields.tooth || '尚未选择' }}</strong></div><div class="dv2-form-stack"><label><span>病例说明</span><textarea v-model="wizard.caseFields.case_note" rows="5" placeholder="填写咬合、外形、色泽或其他临床制作要求"></textarea></label></div></section>
-        <section v-else-if="wizardStep === 3" class="dv2-wizard-panel is-narrow"><header><h1>产品配置</h1><p>以下字段来自后台的 {{ selectedProduct?.product_name || '产品' }} 配置</p></header><div v-if="selectedProduct" class="dv2-form-stack">
+        <section v-else-if="wizardStep === 3" class="dv2-wizard-panel is-narrow"><header><h1>产品配置</h1><p>患者和牙位已从前两步自动带入，只需填写本产品的制作要求</p></header><div class="dv2-wizard-context" aria-label="当前订单信息"><div><span>当前患者</span><strong>{{ selectedWizardPatient?.patient_name || '尚未选择' }}</strong><small>{{ selectedWizardPatient?.patient_code || '-' }}</small></div><div><span>修复牙位</span><strong>{{ wizard.caseFields.tooth || '尚未选择' }}</strong><small>{{ wizardToothMode === 'MISSING' ? '缺失牙位' : '修复牙位' }}</small></div><div><span>具体产品</span><strong>{{ selectedProduct?.product_name || '尚未选择' }}</strong><small>{{ selectedProduct?.material || '-' }}</small></div></div><div v-if="selectedProduct" class="dv2-form-stack">
 	  <DoctorDynamicFields
 	    :fields="selectedProductFields"
 	    :model-value="wizard.dynamicFields"
 	    @update:model-value="wizard.dynamicFields = $event"
 	  />
-</div></section><section v-else-if="wizardStep === 4" class="dv2-wizard-panel is-narrow"><header><h1>上传资料</h1><p>上传 STL 扫描文件及必要的照片或 PDF 资料</p></header><label class="dv2-upload-zone" :class="{ disabled: wizardUploading, dragging: wizardDragActive }" @dragenter.prevent="wizardDragActive = true" @dragover.prevent="wizardDragActive = true" @dragleave.prevent="wizardDragActive = false" @drop.prevent="handleWizardDrop"><input type="file" multiple accept=".stl,.jpg,.jpeg,.png,.pdf" :disabled="wizardUploading" @change="addWizardFiles"><span>⇧</span><strong>{{ wizardUploading ? '文件上传中…' : wizardDragActive ? '松开以上传文件' : '点击选择或拖放文件' }}</strong><small>支持 STL、JPG、PNG、PDF；至少需要一个 STL 文件</small></label><div class="dv2-upload-checklist"><span :class="{ done: wizardStlCount > 0 }">{{ wizardStlCount > 0 ? '✓' : '1' }} STL 扫描</span><span :class="{ done: wizard.files.some((item) => item.kind === 'IMAGE') }">{{ wizard.files.some((item) => item.kind === 'IMAGE') ? '✓' : '2' }} 病例照片</span><span class="optional">3 PDF 医嘱（可选）</span></div><div class="dv2-file-list">
+</div><div v-if="selectedProduct && !selectedProductFields.length" class="dv2-inline-notice">当前产品没有需要额外填写的制作参数，可以直接进入下一步。</div></section><section v-else-if="wizardStep === 4" class="dv2-wizard-panel is-narrow"><header><h1>上传资料</h1><p>上传 STL 扫描文件及必要的照片或 PDF 资料</p></header><label class="dv2-upload-zone" :class="{ disabled: wizardUploading, dragging: wizardDragActive }" @dragenter.prevent="wizardDragActive = true" @dragover.prevent="wizardDragActive = true" @dragleave.prevent="wizardDragActive = false" @drop.prevent="handleWizardDrop"><input type="file" multiple accept=".stl,.jpg,.jpeg,.png,.pdf" :disabled="wizardUploading" @change="addWizardFiles"><span>⇧</span><strong>{{ wizardUploading ? '文件上传中…' : wizardDragActive ? '松开以上传文件' : '点击选择或拖放文件' }}</strong><small>支持 STL、JPG、PNG、PDF；至少需要一个 STL 文件</small></label><div class="dv2-upload-checklist"><span :class="{ done: wizardStlCount > 0 }">{{ wizardStlCount > 0 ? '✓' : '1' }} STL 扫描</span><span :class="{ done: wizard.files.some((item) => item.kind === 'IMAGE') }">{{ wizard.files.some((item) => item.kind === 'IMAGE') ? '✓' : '2' }} 病例照片</span><span class="optional">3 PDF 医嘱（可选）</span></div><div class="dv2-file-list">
   <article v-for="fileItem in wizard.files" :key="fileItem.file_id"><i>{{ fileItem.kind }}</i>
     <div><strong>{{ fileItem.name }}</strong><small>{{ fileItem.size_label }} · 已就绪</small></div>
-    <button type="button" @click="wizard.files = wizard.files.filter((candidate) => candidate.file_id !== fileItem.file_id)">移除</button>
+    <button type="button" @click="removeWizardFile(fileItem)">移除</button>
   </article>
-</div></section><section v-else-if="wizardStep === 5" class="dv2-wizard-panel is-narrow"><header><h1>确认选项</h1><p>选中的每一项会在对应阶段暂停，等待医生确认后继续</p></header><div v-if="selectedProduct" class="dv2-review-options">
-  <label v-for="reviewType in selectedProductReviewOptions" :key="reviewType">
-    <input type="checkbox" :checked="wizard.reviewOptions.includes(reviewType)" @change="toggleReviewOption(reviewType, ($event.target as HTMLInputElement).checked)">
-    <span><strong>{{ reviewLabel(reviewType) }}</strong><small>启用后预计交付时间增加 1 个工作日</small></span>
-  </label>
-  <div v-if="!selectedProductReviewOptions.length" class="dv2-empty">当前产品未配置可选确认项</div>
-</div><div class="dv2-inline-notice">是否启用由后台产品配置决定；未被配置的确认项不会出现在订单中。</div></section><section v-else class="dv2-wizard-panel"><header><h1>复核并提交</h1><p>确认资料完整后提交，价格与预计日期由后台最终计算</p></header><div class="dv2-review-summary"><section><h3>患者与产品</h3><dl><div><dt>患者</dt><dd>{{ selectedWizardPatient?.patient_name }} · {{ selectedWizardPatient?.patient_code }}</dd></div><div><dt>产品</dt><dd>{{ selectedProduct?.product_name }} · {{ selectedProduct?.material }}</dd></div><div><dt>价格</dt><dd>由后台核价确认</dd></div></dl></section><section><h3>病例与配置</h3><dl><div><dt>牙位</dt><dd>{{ wizard.caseFields.tooth }}</dd></div><div v-for="summaryField in selectedProductFields" :key="summaryField.key">
+</div></section><section v-else class="dv2-wizard-panel"><header><h1>复核并提交</h1><p>确认资料完整后提交，价格与预计日期由后台最终计算</p></header><div class="dv2-inline-notice">订单进入设计阶段后，设计稿须先通过组长内审，再由医生在订单详情中确认或驳回；下单时无需预先选择确认节点。</div><div class="dv2-review-summary"><section><h3>患者与产品</h3><dl><div><dt>患者</dt><dd>{{ selectedWizardPatient?.patient_name }} · {{ selectedWizardPatient?.patient_code }}</dd></div><div><dt>产品</dt><dd>{{ selectedProduct?.product_name }} · {{ selectedProduct?.material }}</dd></div><div><dt>价格</dt><dd>由后台核价确认</dd></div></dl></section><section><h3>病例与配置</h3><dl><div><dt>牙位</dt><dd>{{ wizard.caseFields.tooth }}</dd></div><div v-for="summaryField in selectedProductFields" :key="summaryField.key">
   <dt>{{ summaryField.label }}</dt><dd>{{ wizard.dynamicFields[summaryField.key] || '-' }}</dd>
-</div></dl></section><section><h3>文件与确认</h3><dl><div><dt>文件</dt><dd>{{ wizard.files.length }} 个（STL {{ wizardStlCount }}）</dd></div><div><dt>确认项</dt><dd>{{ wizardReviewSummary }}</dd></div><div><dt>日期影响</dt><dd>{{ wizard.reviewOptions.length ? `预计增加 ${wizard.reviewOptions.length} 个工作日` : '无额外确认时间' }}</dd></div></dl></section></div><div v-if="wizardMissingForStep(4).length" class="dv2-inline-notice is-warning">智能完整性检查：还需补充 {{ wizardMissingForStep(4).join('、') }}</div><div v-else class="dv2-inline-notice is-success">智能完整性检查：必填资料已齐全，可以提交。</div></section></main><footer><button type="button" class="dv2-secondary-button" :disabled="wizardSaving" @click="saveWizardDraft(false)">{{ wizardSaving ? '保存中…' : '保存草稿' }}</button><div><button v-if="wizardStep > 1" type="button" class="dv2-secondary-button" @click="wizardStep--">上一步</button><button v-if="wizardStep < 6" type="button" class="dv2-primary-button" @click="nextWizardStep">下一步</button><button v-else type="button" class="dv2-primary-button" :disabled="wizardSubmitting" @click="submitWizard">{{ wizardSubmitting ? '提交中…' : '提交订单' }}</button></div></footer></div>
+</div></dl></section><section><h3>文件与后续确认</h3><dl><div><dt>文件</dt><dd>{{ wizard.files.length }} 个（STL {{ wizardStlCount }}）</dd></div><div><dt>设计稿确认</dt><dd>组长内审通过后由医生处理</dd></div></dl></section></div><div v-if="wizardMissingForStep(4).length" class="dv2-inline-notice is-warning">智能完整性检查：还需补充 {{ wizardMissingForStep(4).join('、') }}</div><div v-else class="dv2-inline-notice is-success">智能完整性检查：必填资料已齐全，可以提交。</div></section></main><footer><button type="button" class="dv2-secondary-button" :disabled="wizardSaving" @click="saveWizardDraft(false)">{{ wizardSaving ? '保存中…' : '保存草稿' }}</button><div><button v-if="wizardStep > 1" type="button" class="dv2-secondary-button" @click="wizardStep--">上一步</button><button v-if="wizardStep < 5" type="button" class="dv2-primary-button" @click="nextWizardStep">下一步</button><button v-else type="button" class="dv2-primary-button" :disabled="wizardSubmitDisabled" @click="submitWizard">{{ wizardSubmitting ? '提交中…' : '提交订单' }}</button></div></footer></div>
 
-    <el-dialog v-model="rejectDialogOpen" title="驳回并提交修改意见" width="520px" append-to-body><p class="dv2-dialog-note">说明需要调整的具体内容。对方提交新版本后，您可以再次确认。</p><el-input v-model="rejectReason" type="textarea" :rows="5" maxlength="500" show-word-limit placeholder="必填，请写明需要修改的位置和要求" /><template #footer><el-button @click="rejectDialogOpen = false">取消</el-button><el-button type="danger" :disabled="!rejectReason.trim()" @click="submitReviewDecision('REJECT')">确认驳回并发送</el-button></template></el-dialog>
+    <el-dialog v-model="rejectDialogOpen" title="驳回并提交修改意见" width="520px" append-to-body><p class="dv2-dialog-note">说明需要调整的具体内容。对方提交新版本后，您可以再次确认。</p><el-input v-model="rejectReason" type="textarea" :rows="5" maxlength="500" show-word-limit placeholder="必填，请写明需要修改的位置和要求" /><template #footer><el-button :disabled="reviewSubmitting" @click="rejectDialogOpen = false">取消</el-button><el-button type="danger" :disabled="reviewSubmitting || !rejectReason.trim()" @click="submitReviewDecision('REJECT')">{{ reviewSubmitting ? '提交中…' : '确认驳回并发送' }}</el-button></template></el-dialog>
 
     <el-dialog v-model="patientDialogOpen" class="dv2-patient-dialog" title="新建患者" width="720px" append-to-body destroy-on-close>
       <p class="dv2-patient-dialog-intro">建立患者档案后，可直接关联订单并持续查看治疗历史。</p>
@@ -2066,7 +2243,7 @@ onBeforeUnmount(() => window.removeEventListener('keydown', handleGlobalShortcut
   <option v-for="roleOption in clinicRoleOptions" :key="roleOption.value" :value="roleOption.value">{{ roleOption.name }}</option>
 </select></label><label><span>账单权限</span><select v-model="newMember.billing"><option value="NONE">无</option><option value="VIEW">查看</option><option value="FINANCIAL_ACTION">财务操作</option></select></label><label><span>物流权限</span><select v-model="newMember.logistics"><option value="NONE">无</option><option value="VIEW">查看</option><option value="RECEIPT">查看并确认收货</option></select></label></div><div class="dv2-inline-notice">诊所管理员只能分配诊所端角色，不能授予平台其他端权限。</div><template #footer><el-button @click="memberDialogOpen = false">取消</el-button><el-button type="primary" @click="addMember">发送邀请</el-button></template></el-dialog>
 
-    <el-dialog v-model="filePreviewOpen" :title="filePreview?.kind === 'STL' ? 'STL 3D 预览' : '文件预览'" width="760px" append-to-body><div class="dv2-preview-stage"><template v-if="filePreview?.kind === 'IMAGE'"><div class="dv2-preview-placeholder"><span>图</span><strong>{{ filePreviewName }}</strong><p>前端预览交互已就绪；后端提供短时效预览地址后显示真实图片。</p></div></template><template v-else-if="filePreview?.kind === 'PDF'"><div class="dv2-preview-placeholder"><span>PDF</span><strong>{{ filePreviewName }}</strong><p>前端 PDF 预览入口已就绪；后端提供短时效预览地址后加载文档。</p></div></template><template v-else><div class="dv2-mock-model"><div class="dv2-model-object"><i /><i /><i /></div><strong>{{ filePreviewName }}</strong><p>拖动旋转 · 滚轮缩放 · 仅查看</p><small>当前为二期前端预览模型；接入文件地址后将使用真实 Three.js STL 查看器。</small></div></template></div><template #footer><el-button @click="filePreviewOpen = false">关闭</el-button></template></el-dialog>
+    <el-dialog v-model="filePreviewOpen" title="文件预览" width="860px" append-to-body destroy-on-close><div class="dv2-preview-stage"><img v-if="filePreview?.kind === 'IMAGE' && filePreview.preview_url" class="dv2-preview-image" :src="filePreview.preview_url" :alt="filePreviewName"><iframe v-else-if="filePreview?.kind === 'PDF' && filePreview.preview_url" class="dv2-preview-frame" :src="filePreview.preview_url" :title="filePreviewName" /><div v-else-if="filePreview?.preview_url" class="dv2-preview-placeholder"><span>文件</span><strong>{{ filePreviewName }}</strong><p>该格式请在浏览器新窗口中查看。</p></div><div v-else class="dv2-preview-placeholder"><span>!</span><strong>{{ filePreviewName }}</strong><p>预览地址已失效，请关闭后重新打开。</p></div></div><template #footer><el-button v-if="filePreview?.preview_url" tag="a" :href="filePreview.preview_url" target="_blank" rel="noopener noreferrer">新窗口打开</el-button><el-button @click="filePreviewOpen = false">关闭</el-button></template></el-dialog>
 
     <StlViewerDialog v-if="viewerFile" v-model:visible="viewerOpen" :source-url="viewerFile.preview_url || ''" :filename="viewerFile.name" />
   </div>

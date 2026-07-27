@@ -4,6 +4,7 @@ import com.yuri.aiorder.common.BootstrapIdentity;
 import com.yuri.aiorder.common.DataResponse;
 import com.yuri.aiorder.common.UserRole;
 import com.yuri.aiorder.common.auth.RequirePermission;
+import com.yuri.aiorder.design.DesignTaskService;
 import java.util.List;
 import org.springframework.web.bind.annotation.CrossOrigin;
 import org.springframework.web.bind.annotation.GetMapping;
@@ -18,9 +19,13 @@ import org.springframework.web.bind.annotation.RestController;
 public class CollaborationController {
 
     private final CollaborationService collaborationService;
+    private final DesignTaskService designTaskService;
 
-    public CollaborationController(CollaborationService collaborationService) {
+    public CollaborationController(
+            CollaborationService collaborationService,
+            DesignTaskService designTaskService) {
         this.collaborationService = collaborationService;
+        this.designTaskService = designTaskService;
     }
 
     @GetMapping("/orders/{orderId}/messages")
@@ -84,31 +89,37 @@ public class CollaborationController {
     }
 
     @GetMapping("/orders/{orderId}/design-drafts")
-    @RequirePermission(value = {"message:manage", "order:read-doctor"}, roles = {
+    @RequirePermission(value = {
+            "design-task:operate-self",
+            "design-draft:internal-review",
+            "design-task:manage",
+            "design-task:read-progress",
+            "order:read-doctor"
+    }, roles = {
             UserRole.ADMIN, UserRole.CS, UserRole.WORKER, UserRole.DOCTOR})
     public DataResponse<List<DesignDraftResponse>> listDesignDrafts(
             @PathVariable long orderId,
             BootstrapIdentity identity) {
-        return new DataResponse<>(collaborationService.listDesignDrafts(orderId, identity));
+        return new DataResponse<>(designTaskService.listDrafts(orderId, identity));
     }
 
     @PostMapping("/orders/{orderId}/design-drafts")
-    @RequirePermission(value = "message:manage", roles = {UserRole.ADMIN, UserRole.CS, UserRole.WORKER})
+    @RequirePermission(value = "design-task:operate-self", roles = UserRole.WORKER)
     public DataResponse<DesignDraftResponse> uploadDesignDraft(
             @PathVariable long orderId,
             @RequestBody DesignDraftRequest request,
             BootstrapIdentity identity) {
-        return new DataResponse<>(collaborationService.uploadDesignDraft(orderId, request, identity));
+        return new DataResponse<>(designTaskService.uploadDraft(orderId, request, identity));
     }
 
     @PostMapping("/orders/{orderId}/design-drafts/{draftId}/cs-review")
-    @RequirePermission(value = "message:manage", roles = {UserRole.ADMIN, UserRole.CS})
+    @RequirePermission(value = "design-draft:internal-review", roles = UserRole.ADMIN)
     public DataResponse<DesignDraftResponse> reviewDesignDraft(
             @PathVariable long orderId,
             @PathVariable long draftId,
             @RequestBody DesignDraftReviewRequest request,
             BootstrapIdentity identity) {
-        return new DataResponse<>(collaborationService.reviewDesignDraft(orderId, draftId, request, identity));
+        return new DataResponse<>(designTaskService.internalReview(orderId, draftId, request, identity));
     }
 
     @PostMapping("/orders/{orderId}/design-drafts/{draftId}/doctor-confirm")
@@ -118,7 +129,7 @@ public class CollaborationController {
             @PathVariable long draftId,
             @RequestBody DoctorDraftConfirmRequest request,
             BootstrapIdentity identity) {
-        return new DataResponse<>(collaborationService.doctorConfirmDesignDraft(orderId, draftId, request, identity));
+        return new DataResponse<>(designTaskService.doctorConfirm(orderId, draftId, request, identity));
     }
 
     @GetMapping("/orders/{orderId}/bill")

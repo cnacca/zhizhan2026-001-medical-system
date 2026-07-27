@@ -1057,6 +1057,7 @@ class CheckWorklogPerformanceTests {
                 .path("data")
                 .path("instance_id")
                 .asLong();
+        markDesignGateConfirmed(orderId);
         long nodeId = jdbcClient.sql("""
                         SELECT node_instance_id
                         FROM order_process_node
@@ -1089,6 +1090,7 @@ class CheckWorklogPerformanceTests {
                 .path("data")
                 .path("instance_id")
                 .asLong();
+        markDesignGateConfirmed(targetOrderId);
         List<Long> nodeIds = jdbcClient.sql("""
                         SELECT node_instance_id
                         FROM order_process_node
@@ -1112,6 +1114,18 @@ class CheckWorklogPerformanceTests {
                                 """.formatted(assignments)))
                 .andExpect(status().isOk());
         return nodeIds;
+    }
+
+    private void markDesignGateConfirmed(long targetOrderId) {
+        // This test class verifies check/rework/worklog mechanics. The
+        // end-to-end phase-2 design gate is exercised separately.
+        jdbcClient.sql("""
+                        UPDATE design_task
+                        SET task_status = 'DOCTOR_CONFIRMED'
+                        WHERE order_id = :orderId
+                        """)
+                .param("orderId", targetOrderId)
+                .update();
     }
 
     private JsonNode submitCheck(long nodeId, int checkType, boolean isPass, Long reworkToNodeId) throws Exception {

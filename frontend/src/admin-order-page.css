@@ -13,7 +13,7 @@
 .portal-admin.admin-reference-mode .aor-head-actions{flex:0 0 auto;gap:7px}
 .portal-admin.admin-reference-mode .aor-button{height:29px;padding:0 11px;border:1.5px solid #cbd5e1;border-radius:7px;background:#fff;color:#475569;cursor:pointer;font-size:10px;font-weight:700;transition:border-color .16s ease,background .16s ease,color .16s ease}
 .portal-admin.admin-reference-mode .aor-button:hover,.portal-admin.admin-reference-mode .aor-button:focus-visible,.aor-drawer .aor-button:hover,.aor-drawer .aor-button:focus-visible{border-color:#60a5fa;outline:0;background:#eff6ff;color:#2563eb}
-.portal-admin.admin-reference-mode .aor-button.is-primary{border-color:#2563eb;background:#2563eb;box-shadow:0 2px 7px rgba(37,99,235,.2);color:#fff}
+.portal-admin.admin-reference-mode .aor-button.is-primary,.aor-drawer .aor-button.is-primary{border-color:#2563eb;background:#2563eb;box-shadow:0 2px 7px rgba(37,99,235,.2);color:#fff}
 .portal-admin.admin-reference-mode .aor-button:disabled,.aor-drawer .aor-button:disabled{cursor:not-allowed;opacity:.55}
 .portal-admin.admin-reference-mode .aor-filter-body{padding:13px 16px 12px}
 .portal-admin.admin-reference-mode .aor-filter-grid{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:10px 12px}
@@ -94,6 +94,7 @@
 .aor-drawer .aor-work-card{overflow:hidden;border:1.5px solid #fecdd3;border-radius:12px;background:#fff;box-shadow:0 1px 3px rgba(15,23,42,.06),0 1px 2px rgba(15,23,42,.04)}
 .aor-drawer .aor-work-head{display:flex;min-height:48px;align-items:center;justify-content:space-between;gap:10px;padding:8px 12px;border-bottom:1px solid #fecdd3;background:#fff1f2}
 .aor-drawer .aor-work-tags{display:flex;min-width:0;align-items:center;flex-wrap:wrap;gap:6px}
+.aor-drawer .aor-work-actions{display:flex;flex:0 0 auto;align-items:center;gap:7px}
 .aor-drawer .aor-button{flex:0 0 auto;height:29px;padding:0 11px;border:1.5px solid #cbd5e1;border-radius:7px;background:#fff;color:#475569;cursor:pointer;font-size:10px;font-weight:700}
 .aor-drawer .aor-work-body{padding:14px}
 .aor-drawer .aor-work-grid{display:grid;grid-template-columns:1fr 1fr;gap:16px;margin-bottom:13px}
@@ -399,5 +400,302 @@
 
   .portal-admin.admin-reference-mode .aor-date-note {
     display: none;
+  }
+}
+
+/* 生产审核 / 员工派工：统一使用全宽订单表，具体操作收进右侧抽屉。 */
+.portal-admin.admin-reference-mode .admin-flow-page {
+  margin-top: 8px;
+  padding: 0;
+  overflow: visible;
+  border: 0;
+  background: transparent;
+  box-shadow: none;
+}
+
+.portal-admin.admin-reference-mode .admin-flow-page .aor-workspace {
+  width: 100%;
+}
+
+.portal-admin.admin-reference-mode .admin-flow-table {
+  min-width: 900px;
+}
+
+.portal-admin.admin-reference-mode .admin-flow-col-order {
+  width: 180px;
+}
+
+.portal-admin.admin-reference-mode .admin-flow-col-customer {
+  width: 150px;
+}
+
+.portal-admin.admin-reference-mode .admin-flow-col-product {
+  width: 140px;
+}
+
+.portal-admin.admin-reference-mode .admin-flow-col-status {
+  width: 145px;
+}
+
+.portal-admin.admin-reference-mode .admin-flow-col-note {
+  width: auto;
+}
+
+.portal-admin.admin-reference-mode .admin-flow-col-action {
+  width: 72px;
+}
+
+.portal-admin.admin-reference-mode .admin-flow-guidance p {
+  min-width: 0;
+  margin: 0;
+  overflow: hidden;
+  color: #64748b;
+  font-size: 9px;
+  line-height: 1.55;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.admin-flow-drawer .admin-flow-drawer-body {
+  display: grid;
+  gap: 14px;
+}
+
+.admin-flow-drawer .admin-flow-summary {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 8px;
+}
+
+.admin-flow-drawer .admin-flow-summary > div {
+  min-width: 0;
+  padding: 11px 12px;
+  border: 1px solid #e2e8f0;
+  border-radius: 9px;
+  background: #ffffff;
+}
+
+.admin-flow-drawer .admin-flow-summary span,
+.admin-flow-drawer .admin-flow-summary strong {
+  display: block;
+}
+
+.admin-flow-drawer .admin-flow-summary span {
+  color: #94a3b8;
+  font-size: 9px;
+  font-weight: 700;
+}
+
+.admin-flow-drawer .admin-flow-summary strong {
+  margin-top: 5px;
+  overflow: hidden;
+  color: #0f172a;
+  font-size: 11px;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.admin-flow-drawer .admin-flow-section {
+  overflow: hidden;
+  border: 1px solid #e2e8f0;
+  border-radius: 11px;
+  background: #ffffff;
+}
+
+.admin-flow-drawer .admin-flow-section > header {
+  display: flex;
+  min-height: 50px;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 10px 14px;
+  border-bottom: 1px solid #edf2f7;
+  background: #fbfcfe;
+}
+
+.admin-flow-drawer .admin-flow-section > header strong,
+.admin-flow-drawer .admin-flow-section > header small {
+  display: block;
+}
+
+.admin-flow-drawer .admin-flow-section > header strong {
+  color: #0f172a;
+  font-size: 12px;
+}
+
+.admin-flow-drawer .admin-flow-section > header small,
+.admin-flow-drawer .admin-flow-section > header > span {
+  margin-top: 3px;
+  color: #94a3b8;
+  font-size: 9px;
+}
+
+.admin-flow-drawer .admin-flow-field-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 8px;
+  padding: 14px;
+}
+
+.admin-flow-drawer .admin-flow-field-grid .field-cell {
+  min-width: 0;
+  padding: 9px 10px;
+  border-radius: 8px;
+  background: #f7f9fc;
+}
+
+.admin-flow-drawer .admin-flow-field-grid .field-cell span,
+.admin-flow-drawer .admin-flow-field-grid .field-cell strong {
+  display: block;
+}
+
+.admin-flow-drawer .admin-flow-field-grid .field-cell span {
+  color: #94a3b8;
+  font-size: 9px;
+}
+
+.admin-flow-drawer .admin-flow-field-grid .field-cell strong {
+  margin-top: 4px;
+  overflow-wrap: anywhere;
+  color: #334155;
+  font-size: 10px;
+  line-height: 1.5;
+}
+
+.admin-flow-drawer .admin-flow-note {
+  margin: 0;
+  padding: 0 14px 14px;
+  color: #64748b;
+  font-size: 10px;
+  line-height: 1.6;
+}
+
+.admin-flow-drawer .review-form,
+.admin-flow-drawer .admin-flow-assignment-toolbar {
+  padding: 14px;
+}
+
+.admin-flow-drawer .admin-flow-assignment-toolbar .el-form-item {
+  margin-bottom: 12px;
+}
+
+.admin-flow-drawer .admin-flow-assignment-toolbar .el-select {
+  width: 100%;
+}
+
+.admin-flow-drawer .admin-flow-node-list {
+  display: grid;
+  max-height: 390px;
+  overflow-y: auto;
+}
+
+.admin-flow-drawer .admin-flow-node-row {
+  display: grid;
+  grid-template-columns: 34px minmax(0, 1fr) auto 92px;
+  align-items: center;
+  gap: 10px;
+  min-height: 58px;
+  padding: 8px 14px;
+  border: 0;
+  border-bottom: 1px solid #edf2f7;
+  background: #ffffff;
+  color: #475569;
+  cursor: pointer;
+  text-align: left;
+}
+
+.admin-flow-drawer .admin-flow-node-row:last-child {
+  border-bottom: 0;
+}
+
+.admin-flow-drawer .admin-flow-node-row:hover,
+.admin-flow-drawer .admin-flow-node-row:focus-visible {
+  outline: 0;
+  background: #f8fafc;
+}
+
+.admin-flow-drawer .admin-flow-node-row.active {
+  background: #eff6ff;
+  box-shadow: inset 3px 0 #2563eb;
+}
+
+.admin-flow-drawer .admin-flow-node-row .node-order {
+  display: grid;
+  width: 28px;
+  height: 28px;
+  place-items: center;
+  border-radius: 50%;
+  background: #eef2f8;
+  color: #64748b;
+  font-size: 9px;
+  font-weight: 800;
+}
+
+.admin-flow-drawer .admin-flow-node-row.active .node-order {
+  background: #2563eb;
+  color: #ffffff;
+}
+
+.admin-flow-drawer .admin-flow-node-copy {
+  min-width: 0;
+}
+
+.admin-flow-drawer .admin-flow-node-copy strong,
+.admin-flow-drawer .admin-flow-node-copy small {
+  display: block;
+}
+
+.admin-flow-drawer .admin-flow-node-copy strong {
+  overflow: hidden;
+  color: #0f172a;
+  font-size: 10px;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.admin-flow-drawer .admin-flow-node-copy small {
+  margin-top: 4px;
+  color: #94a3b8;
+  font-size: 8px;
+}
+
+.admin-flow-drawer .admin-flow-node-assignee {
+  overflow: hidden;
+  color: #64748b;
+  font-size: 9px;
+  text-align: right;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.admin-flow-drawer .admin-flow-actions {
+  position: sticky;
+  bottom: -20px;
+  z-index: 2;
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 8px;
+  margin: 0 -16px -20px;
+  padding: 13px 16px;
+  border-top: 1px solid #e2e8f0;
+  background: rgba(255, 255, 255, 0.96);
+  box-shadow: 0 -6px 18px rgba(15, 23, 42, 0.05);
+  backdrop-filter: blur(8px);
+}
+
+@media (max-width: 700px) {
+  .admin-flow-drawer .admin-flow-summary,
+  .admin-flow-drawer .admin-flow-field-grid {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  .admin-flow-drawer .admin-flow-node-row {
+    grid-template-columns: 30px minmax(0, 1fr) auto;
+  }
+
+  .admin-flow-drawer .admin-flow-node-assignee {
+    grid-column: 2 / 4;
+    text-align: left;
   }
 }

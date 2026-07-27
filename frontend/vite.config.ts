@@ -42,6 +42,7 @@ export default defineConfig({
       '/work-logs': backendProxy,
       '/performance': backendProxy,
       '/staff': backendProxy,
+      '/design-tasks': backendProxy,
       '/quality-records': backendProxy,
       '/doctor': backendProxy,
       '/production': backendProxy,

@@ -64,6 +64,29 @@ public class ProductCatalogService {
         return new OrderListResponse<>(rows, total, safePage, safeSize);
     }
 
+    public List<DoctorProductCatalogResponse> listDoctorProducts(BootstrapIdentity identity) {
+        accessControlService.requireAnyRole(
+                identity, Set.of(UserRole.DOCTOR), "doctor product catalog requires doctor role");
+        return jdbcClient.sql("""
+                        SELECT product_id, product_type, product_name, material_spec
+                        FROM product_catalog
+                        WHERE status = 'ACTIVE'
+                          AND EXISTS (
+                              SELECT 1
+                              FROM form_field_config form
+                              WHERE form.product_type = product_catalog.product_type
+                                AND form.status = 'ACTIVE'
+                          )
+                        ORDER BY product_name, product_id
+                        """)
+                .query((rs, rowNum) -> new DoctorProductCatalogResponse(
+                        rs.getLong("product_id"),
+                        rs.getString("product_type"),
+                        rs.getString("product_name"),
+                        rs.getString("material_spec")))
+                .list();
+    }
+
     @Transactional
     public ProductCatalogResponse createProduct(ProductCatalogRequest request, BootstrapIdentity identity) {
         requireProductManagement(identity);

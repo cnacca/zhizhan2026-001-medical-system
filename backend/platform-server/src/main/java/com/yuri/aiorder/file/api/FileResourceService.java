@@ -3,6 +3,7 @@ package com.yuri.aiorder.file.api;
 import com.google.common.collect.HashMultimap;
 import com.google.common.collect.Multimap;
 import com.yuri.aiorder.common.BootstrapIdentity;
+import com.yuri.aiorder.common.UserRole;
 import com.yuri.aiorder.common.auth.AccessControlService;
 import io.minio.BucketExistsArgs;
 import io.minio.GetPresignedObjectUrlArgs;
@@ -59,8 +60,11 @@ public class FileResourceService {
 
     public UploadTokenResponse createUploadToken(UploadTokenRequest request, BootstrapIdentity identity) {
         validateUploadLimits(request.orderId(), request.contentType(), request.fileSize());
-        OrderScope orderScope = loadOrderScope(request.orderId(), identity, "identity cannot upload to this order");
-        requireUploadScope(orderScope, normalizeVisibility(request.visibility()), identity);
+        OrderScope orderScope = loadOrderScope(
+                request.orderId(), identity, "identity cannot upload to this order", false);
+        String sourceType = normalizeCode(request.sourceType());
+        String visibility = normalizeVisibility(request.visibility());
+        requireUploadScope(orderScope, sourceType, visibility, identity);
         ensureBucket();
 
         String objectKey = buildObjectKey(request);
@@ -74,8 +78,8 @@ public class FileResourceService {
                         """)
                 .param("orderId", request.orderId())
                 .param("ownerUserId", identity.userId())
-                .param("sourceType", normalizeCode(request.sourceType()))
-                .param("visibility", normalizeVisibility(request.visibility()))
+                .param("sourceType", sourceType)
+                .param("visibility", visibility)
                 .param("bucketName", properties.bucket())
                 .param("objectKey", objectKey)
                 .param("originalFilename", request.originalFilename())
@@ -101,17 +105,108 @@ public class FileResourceService {
     }
 
     public List<OrderFileResponse> listOrderFiles(long orderId, BootstrapIdentity identity) {
-        loadOrderScope(orderId, identity, "identity cannot access this order's files");
+        loadOrderScope(orderId, identity, "identity cannot access this order's files", true);
+        String dataScope = accessControlService.effectiveDataScope(identity);
+        boolean clinicScoped = "CLINIC".equals(dataScope);
+        boolean selfScoped = "SELF".equals(dataScope);
+        boolean csScoped = identity.role() == UserRole.CS;
+        boolean designReviewer = identity.hasPermission("design-draft:internal-review");
         return jdbcClient.sql("""
                         SELECT file_id, source_type, visibility, original_filename, content_type,
                                file_size, upload_status, created_at
-                        FROM file_resource
-                        WHERE order_id = :orderId
-                          AND status = 'ACTIVE'
-                          AND upload_status = 'COMPLETED'
+                        FROM file_resource f
+                        WHERE f.order_id = :orderId
+                          AND f.status = 'ACTIVE'
+                          AND f.upload_status = 'COMPLETED'
+                          AND (
+                              :clinicScoped = 0
+                              OR (
+                                  f.visibility IN ('DOCTOR', 'DOCTOR_CS', 'ALL')
+                                  AND (
+                                      EXISTS (
+                                          SELECT 1
+                                          FROM design_draft_file visible_file
+                                          JOIN design_draft visible_draft
+                                            ON visible_draft.design_draft_id = visible_file.design_draft_id
+                                          WHERE visible_file.file_id = f.file_id
+                                            AND visible_draft.doctor_visible_at IS NOT NULL
+                                      )
+                                      OR (
+                                          f.source_type <> 'DESIGN_DRAFT'
+                                          AND NOT EXISTS (
+                                              SELECT 1
+                                              FROM design_draft_file internal_file
+                                              WHERE internal_file.file_id = f.file_id
+                                          )
+                                      )
+                                  )
+                              )
+                          )
+                          AND (
+                              :selfScoped = 0
+                              OR EXISTS (
+                                  SELECT 1
+                                  FROM orders self_order
+                                  WHERE self_order.order_id = f.order_id
+                                    AND (
+                                        self_order.doctor_user_id = :userId
+                                        OR self_order.cs_user_id = :userId
+                                        OR EXISTS (
+                                            SELECT 1
+                                            FROM order_process_instance self_instance
+                                            JOIN order_process_node self_node
+                                              ON self_node.instance_id = self_instance.instance_id
+                                            WHERE self_instance.order_id = self_order.order_id
+                                              AND self_node.assigned_user_id = :userId
+                                        )
+                                        OR EXISTS (
+                                            SELECT 1
+                                            FROM design_task self_design
+                                            WHERE self_design.order_id = self_order.order_id
+                                              AND self_design.assigned_user_id = :userId
+                                        )
+                                    )
+                              )
+                              OR (
+                                  :designReviewer = 1
+                                  AND EXISTS (
+                                      SELECT 1
+                                      FROM design_draft_file review_file
+                                      JOIN design_draft review_draft
+                                        ON review_draft.design_draft_id = review_file.design_draft_id
+                                      WHERE review_file.file_id = f.file_id
+                                        AND review_draft.order_id = f.order_id
+                                        AND review_draft.submitted_at IS NOT NULL
+                                  )
+                              )
+                          )
+                          AND (
+                              :csScoped = 0
+                              OR EXISTS (
+                                  SELECT 1
+                                  FROM design_draft_file visible_file
+                                  JOIN design_draft visible_draft
+                                    ON visible_draft.design_draft_id = visible_file.design_draft_id
+                                  WHERE visible_file.file_id = f.file_id
+                                    AND visible_draft.doctor_visible_at IS NOT NULL
+                              )
+                              OR (
+                                  f.source_type <> 'DESIGN_DRAFT'
+                                  AND NOT EXISTS (
+                                      SELECT 1
+                                      FROM design_draft_file internal_file
+                                      WHERE internal_file.file_id = f.file_id
+                                  )
+                              )
+                          )
                         ORDER BY created_at DESC, file_id DESC
                         """)
                 .param("orderId", orderId)
+                .param("clinicScoped", clinicScoped ? 1 : 0)
+                .param("selfScoped", selfScoped ? 1 : 0)
+                .param("csScoped", csScoped ? 1 : 0)
+                .param("designReviewer", designReviewer ? 1 : 0)
+                .param("userId", identity.userId())
                 .query((rs, rowNum) -> new OrderFileResponse(
                         rs.getLong("file_id"),
                         rs.getString("source_type"),
@@ -126,9 +221,11 @@ public class FileResourceService {
 
     public MultipartInitiateResponse initiateMultipartUpload(MultipartInitiateRequest request, BootstrapIdentity identity) {
         validateUploadLimits(request.orderId(), request.contentType(), request.fileSize());
-        OrderScope orderScope = loadOrderScope(request.orderId(), identity, "identity cannot upload to this order");
+        OrderScope orderScope = loadOrderScope(
+                request.orderId(), identity, "identity cannot upload to this order", false);
+        String sourceType = normalizeCode(request.sourceType());
         String visibility = normalizeVisibility(request.visibility());
-        requireUploadScope(orderScope, visibility, identity);
+        requireUploadScope(orderScope, sourceType, visibility, identity);
         ensureBucket();
 
         long partSize = Math.max(request.partSize() == null ? MIN_MULTIPART_PART_SIZE : request.partSize(), MIN_MULTIPART_PART_SIZE);
@@ -148,7 +245,7 @@ public class FileResourceService {
                         """)
                 .param("orderId", request.orderId())
                 .param("ownerUserId", identity.userId())
-                .param("sourceType", normalizeCode(request.sourceType()))
+                .param("sourceType", sourceType)
                 .param("visibility", visibility)
                 .param("bucketName", properties.bucket())
                 .param("objectKey", objectKey)
@@ -172,7 +269,7 @@ public class FileResourceService {
     }
 
     public MultipartPendingUploadsResponse listPendingMultipartUploads(long orderId, BootstrapIdentity identity) {
-        loadOrderScope(orderId, identity, "identity cannot list uploads for this order");
+        loadOrderScope(orderId, identity, "identity cannot list uploads for this order", false);
         List<MultipartPendingUploadsResponse.Item> items = jdbcClient.sql("""
                         SELECT
                             f.file_id,
@@ -191,15 +288,11 @@ public class FileResourceService {
                           AND f.upload_status = 'PENDING'
                           AND f.upload_mode = 'MULTIPART'
                           AND f.multipart_upload_id IS NOT NULL
-                          AND (:doctorScoped = 0
-                               OR (
-                                   f.owner_user_id = :userId
-                                   AND f.visibility IN ('DOCTOR', 'DOCTOR_CS', 'ALL')
-                               ))
+                          AND (:ownerScoped = 0 OR f.owner_user_id = :userId)
                         ORDER BY f.updated_at DESC, f.file_id DESC
                         """)
                 .param("orderId", orderId)
-                .param("doctorScoped", identity.isDoctor() ? 1 : 0)
+                .param("ownerScoped", identity.role() == UserRole.ADMIN ? 0 : 1)
                 .param("userId", identity.userId())
                 .query((rs, rowNum) -> new MultipartPendingUploadsResponse.Item(
                         rs.getLong("file_id"),
@@ -317,6 +410,7 @@ public class FileResourceService {
     public FileCompleteResponse completeUpload(long fileId, BootstrapIdentity identity) {
         FileRow file = loadFile(fileId, identity, "COMPLETE");
         requireFileActorScope(file, identity, "COMPLETE");
+        requireOwnedUploadMutation(file, identity, "COMPLETE");
         StatObjectResponse stat = statObject(file);
         if (stat.size() <= 0) {
             audit(file.fileId(), file.orderId(), identity.userId(), "COMPLETE", "DENIED", "empty object");
@@ -523,7 +617,31 @@ public class FileResourceService {
         }
     }
 
-    private void requireUploadScope(OrderScope orderScope, String visibility, BootstrapIdentity identity) {
+    private void requireUploadScope(
+            OrderScope orderScope,
+            String sourceType,
+            String visibility,
+            BootstrapIdentity identity) {
+        if ("DESIGN_DRAFT".equals(sourceType)) {
+            if (!"INTERNAL".equals(visibility)) {
+                throw new ResponseStatusException(
+                        HttpStatus.FORBIDDEN, "design draft files must remain internal before review");
+            }
+            if (identity.role() != UserRole.WORKER
+                    || identity.userId() == null
+                    || !isAssignedDesignWorker(orderScope.orderId(), identity.userId())) {
+                throw new ResponseStatusException(
+                        HttpStatus.FORBIDDEN, "only the assigned design worker can upload design draft files");
+            }
+            return;
+        }
+        if (identity.role() == UserRole.WORKER) {
+            if (!"INTERNAL".equals(visibility)) {
+                throw new ResponseStatusException(
+                        HttpStatus.FORBIDDEN, "worker uploads must remain internal");
+            }
+            return;
+        }
         if (!identity.isDoctor()) {
             return;
         }
@@ -533,6 +651,20 @@ public class FileResourceService {
         if (!accessControlService.doctorCanAccessOrder(identity, orderScope.doctorUserId(), orderScope.clinicId())) {
             throw new ResponseStatusException(HttpStatus.FORBIDDEN, "doctor cannot upload to this order");
         }
+    }
+
+    private boolean isAssignedDesignWorker(long orderId, long userId) {
+        return jdbcClient.sql("""
+                        SELECT COUNT(*)
+                        FROM design_task
+                        WHERE order_id = :orderId
+                          AND assigned_user_id = :userId
+                          AND task_status IN ('CLAIMED', 'INTERNAL_REJECTED', 'DOCTOR_REJECTED')
+                        """)
+                .param("orderId", orderId)
+                .param("userId", userId)
+                .query(Long.class)
+                .single() > 0;
     }
 
     private void validateUploadLimits(long orderId, String contentType, long fileSize) {
@@ -589,11 +721,16 @@ public class FileResourceService {
     }
 
     private void requireMultipartOwner(FileRow file, BootstrapIdentity identity, String action) {
-        if (!identity.isDoctor() || (file.ownerUserId() != null && file.ownerUserId().equals(identity.userId()))) {
+        requireOwnedUploadMutation(file, identity, action);
+    }
+
+    private void requireOwnedUploadMutation(FileRow file, BootstrapIdentity identity, String action) {
+        boolean ownerOnly = identity.role() != UserRole.ADMIN;
+        if (!ownerOnly || (file.ownerUserId() != null && file.ownerUserId().equals(identity.userId()))) {
             return;
         }
-        audit(file.fileId(), file.orderId(), identity.userId(), action, "DENIED", "doctor cannot mutate another uploader's multipart file");
-        throw new ResponseStatusException(HttpStatus.FORBIDDEN, "doctor cannot mutate another uploader's multipart file");
+        audit(file.fileId(), file.orderId(), identity.userId(), action, "DENIED", "actor cannot mutate another uploader's file");
+        throw new ResponseStatusException(HttpStatus.FORBIDDEN, "actor cannot mutate another uploader's file");
     }
 
     private void requireFileActorScope(FileRow file, BootstrapIdentity identity, String action) {
@@ -608,7 +745,11 @@ public class FileResourceService {
         }
     }
 
-    private OrderScope loadOrderScope(long orderId, BootstrapIdentity identity, String forbiddenMessage) {
+    private OrderScope loadOrderScope(
+            long orderId,
+            BootstrapIdentity identity,
+            String forbiddenMessage,
+            boolean allowDesignReviewScope) {
         String dataScope = accessControlService.effectiveDataScope(identity);
         accessControlService.requireScopedIdentity(identity, dataScope);
         try {
@@ -632,11 +773,29 @@ public class FileResourceService {
                                               WHERE scoped_i.order_id = orders.order_id
                                                 AND scoped_n.assigned_user_id = :userId
                                           )
+                                          OR EXISTS (
+                                              SELECT 1
+                                              FROM design_task scoped_design
+                                              WHERE scoped_design.order_id = orders.order_id
+                                                AND scoped_design.assigned_user_id = :userId
+                                          )
+                                          OR (
+                                              :designReviewer = 1
+                                              AND EXISTS (
+                                                  SELECT 1
+                                                  FROM design_draft review_draft
+                                                  WHERE review_draft.order_id = orders.order_id
+                                                    AND review_draft.submitted_at IS NOT NULL
+                                              )
+                                          )
                                       ))
                               )
                             """)
                     .param("orderId", orderId)
                     .param("dataScope", dataScope)
+                    .param(
+                            "designReviewer",
+                            allowDesignReviewScope && identity.hasPermission("design-draft:internal-review") ? 1 : 0)
                     .param("userId", identity.userId())
                     .param("clinicId", identity.clinicId())
                     .query((rs, rowNum) -> new OrderScope(
@@ -661,6 +820,7 @@ public class FileResourceService {
                                 f.file_id,
                                 f.order_id,
                                 f.owner_user_id,
+                                f.source_type,
                                 f.visibility,
                                 f.bucket_name,
                                 f.object_key,
@@ -682,7 +842,25 @@ public class FileResourceService {
                                   OR (:dataScope = 'CLINIC'
                                       AND f.order_id IS NOT NULL
                                       AND (o.clinic_id = :clinicId OR o.doctor_user_id = :userId)
-                                      AND f.visibility IN ('DOCTOR', 'DOCTOR_CS', 'ALL'))
+                                      AND f.visibility IN ('DOCTOR', 'DOCTOR_CS', 'ALL')
+                                      AND (
+                                          EXISTS (
+                                              SELECT 1
+                                              FROM design_draft_file visible_file
+                                              JOIN design_draft visible_draft
+                                                ON visible_draft.design_draft_id = visible_file.design_draft_id
+                                              WHERE visible_file.file_id = f.file_id
+                                                AND visible_draft.doctor_visible_at IS NOT NULL
+                                          )
+                                          OR (
+                                              f.source_type <> 'DESIGN_DRAFT'
+                                              AND NOT EXISTS (
+                                                  SELECT 1
+                                                  FROM design_draft_file internal_file
+                                                  WHERE internal_file.file_id = f.file_id
+                                              )
+                                          )
+                                      ))
                                   OR (:dataScope = 'SELF'
                                       AND (
                                           f.owner_user_id = :userId
@@ -697,17 +875,75 @@ public class FileResourceService {
                                                     AND scoped_n.assigned_user_id = :userId
                                               )
                                           )
+                                          OR (
+                                              f.order_id IS NOT NULL
+                                              AND EXISTS (
+                                                  SELECT 1
+                                                  FROM design_task scoped_design
+                                                  WHERE scoped_design.order_id = f.order_id
+                                                    AND scoped_design.assigned_user_id = :userId
+                                              )
+                                          )
+                                          OR (
+                                              :designReviewer = 1
+                                              AND f.order_id IS NOT NULL
+                                              AND EXISTS (
+                                                  SELECT 1
+                                                  FROM design_draft_file review_file
+                                                  JOIN design_draft review_draft
+                                                    ON review_draft.design_draft_id = review_file.design_draft_id
+                                                  WHERE review_file.file_id = f.file_id
+                                                    AND review_draft.order_id = f.order_id
+                                                    AND review_draft.submitted_at IS NOT NULL
+                                              )
+                                          )
                                       ))
+                              )
+                              AND (
+                                  :csActor = 0
+                                  OR (
+                                      :csDesignRead = 1
+                                      AND EXISTS (
+                                          SELECT 1
+                                          FROM design_draft_file visible_file
+                                          JOIN design_draft visible_draft
+                                            ON visible_draft.design_draft_id = visible_file.design_draft_id
+                                          WHERE visible_file.file_id = f.file_id
+                                            AND visible_draft.doctor_visible_at IS NOT NULL
+                                      )
+                                  )
+                                  OR (
+                                      f.source_type <> 'DESIGN_DRAFT'
+                                      AND NOT EXISTS (
+                                          SELECT 1
+                                          FROM design_draft_file internal_file
+                                          WHERE internal_file.file_id = f.file_id
+                                      )
+                                  )
                               )
                             """)
                     .param("fileId", fileId)
                     .param("dataScope", dataScope)
+                    .param(
+                            "designReviewer",
+                            ("PREVIEW".equals(action) || "DOWNLOAD".equals(action))
+                                            && identity.hasPermission("design-draft:internal-review")
+                                    ? 1
+                                    : 0)
+                    .param("csActor", identity.role() == UserRole.CS ? 1 : 0)
+                    .param(
+                            "csDesignRead",
+                            identity.role() == UserRole.CS
+                                            && ("PREVIEW".equals(action) || "DOWNLOAD".equals(action))
+                                    ? 1
+                                    : 0)
                     .param("userId", identity.userId())
                     .param("clinicId", identity.clinicId())
                     .query((rs, rowNum) -> new FileRow(
                             rs.getLong("file_id"),
                             rs.getObject("order_id", Long.class),
                             rs.getObject("owner_user_id", Long.class),
+                            rs.getString("source_type"),
                             rs.getString("visibility"),
                             rs.getString("bucket_name"),
                             rs.getString("object_key"),
@@ -806,6 +1042,7 @@ public class FileResourceService {
             long fileId,
             Long orderId,
             Long ownerUserId,
+            String sourceType,
             String visibility,
             String bucketName,
             String objectKey,

@@ -2,6 +2,8 @@ import type { DoctorGateway } from '../types/contracts'
 import { LegacyHttpDoctorGateway } from './httpDoctorGateway'
 import { MockDoctorGateway } from './mockDoctorGateway'
 
+export { isDoctorReviewSubmittedRefreshError } from './httpDoctorGateway'
+
 export type DoctorGatewayMode = 'mock' | 'api'
 
 export function resolveDoctorGatewayMode(): DoctorGatewayMode {

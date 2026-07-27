@@ -16,9 +16,11 @@ public class BearerIdentityFilter extends OncePerRequestFilter {
     private static final String BEARER_PREFIX = "Bearer ";
 
     private final BearerTokenService tokenService;
+    private final DatabaseAuthService databaseAuthService;
 
-    public BearerIdentityFilter(BearerTokenService tokenService) {
+    public BearerIdentityFilter(BearerTokenService tokenService, DatabaseAuthService databaseAuthService) {
         this.tokenService = tokenService;
+        this.databaseAuthService = databaseAuthService;
     }
 
     @Override
@@ -28,6 +30,9 @@ public class BearerIdentityFilter extends OncePerRequestFilter {
         try {
             if (authorization != null && authorization.startsWith(BEARER_PREFIX)) {
                 BootstrapIdentity identity = tokenService.parse(authorization.substring(BEARER_PREFIX.length()));
+                if (identity.userId() != null && identity.username() != null && !identity.username().isBlank()) {
+                    identity = databaseAuthService.loadAuthenticatedUser(identity.userId()).identity();
+                }
                 IdentityContext.set(identity);
             }
             filterChain.doFilter(request, response);

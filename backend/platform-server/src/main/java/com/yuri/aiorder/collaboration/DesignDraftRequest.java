@@ -5,5 +5,6 @@ import java.util.List;
 
 public record DesignDraftRequest(
         @JsonProperty("file_ids") List<Long> fileIds,
-        @JsonProperty("upload_note") String uploadNote) {
+        @JsonProperty("upload_note") String uploadNote,
+        @JsonProperty("submission_key") String submissionKey) {
 }

@@ -8,6 +8,7 @@ public record ProcessNodeResponse(
         @JsonProperty("node_code") String nodeCode,
         @JsonProperty("process_name") String processName,
         @JsonProperty("stage_name") String stageName,
+        @JsonProperty("node_category") String nodeCategory,
         @JsonProperty("step_order") int stepOrder,
         @JsonProperty("is_optional") int isOptional,
         @JsonProperty("branch_group") String branchGroup,

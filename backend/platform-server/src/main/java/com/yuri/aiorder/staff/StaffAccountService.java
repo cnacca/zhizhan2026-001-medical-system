@@ -3,6 +3,9 @@ package com.yuri.aiorder.staff;
 import com.yuri.aiorder.common.BootstrapIdentity;
 import com.yuri.aiorder.common.UserRole;
 import com.yuri.aiorder.common.auth.PasswordHashService;
+import java.util.LinkedHashSet;
+import java.util.List;
+import java.util.Set;
 import org.springframework.dao.DuplicateKeyException;
 import org.springframework.http.HttpStatus;
 import org.springframework.jdbc.core.simple.JdbcClient;
@@ -12,6 +15,9 @@ import org.springframework.web.server.ResponseStatusException;
 
 @Service
 public class StaffAccountService {
+
+    private static final Set<String> ASSIGNABLE_DIRECT_PERMISSION_CODES =
+            Set.of("design-draft:internal-review");
 
     private final JdbcClient jdbcClient;
     private final PasswordHashService passwordHashService;
@@ -62,6 +68,7 @@ public class StaffAccountService {
                 .param("userId", userId)
                 .param("postId", request.postId())
                 .update();
+        replaceDirectPermissions(userId, request.permissionCodes());
         return loadWorker(userId);
     }
 
@@ -76,6 +83,9 @@ public class StaffAccountService {
         requireActiveDepartment(deptId);
         requireActivePost(postId);
         String status = request.status() == null ? current.status() : normalizeStatus(request.status());
+        if ("ACTIVE".equals(current.status()) && !"ACTIVE".equals(status)) {
+            requireNoActiveDesignTasks(userId);
+        }
         String passwordHash = null;
         if (request.newPassword() != null) {
             String newPassword = requiredText(request.newPassword(), "new_password is required");
@@ -106,7 +116,27 @@ public class StaffAccountService {
                 .param("userId", userId)
                 .param("postId", postId)
                 .update();
+        if (request.permissionCodes() != null) {
+            replaceDirectPermissions(userId, request.permissionCodes());
+        }
         return loadWorker(userId);
+    }
+
+    private void requireNoActiveDesignTasks(long userId) {
+        long activeTaskCount = jdbcClient.sql("""
+                        SELECT COUNT(*)
+                        FROM design_task
+                        WHERE assigned_user_id = :userId
+                          AND task_status NOT IN ('DOCTOR_CONFIRMED', 'CANCELLED')
+                        """)
+                .param("userId", userId)
+                .query(Long.class)
+                .single();
+        if (activeTaskCount > 0) {
+            throw new ResponseStatusException(
+                    HttpStatus.CONFLICT,
+                    "worker still has active design tasks; transfer them before disabling the account");
+        }
     }
 
     public StaffAccountOptionsResponse getAccountOptions(BootstrapIdentity identity) {
@@ -119,13 +149,33 @@ public class StaffAccountService {
                 jdbcClient.sql("SELECT post_id, post_name FROM system_post WHERE status = 'ACTIVE' ORDER BY sort_order, post_id")
                         .query((rs, rowNum) -> new StaffAccountOptionsResponse.Option(
                                 rs.getLong("post_id"), rs.getString("post_name")))
+                        .list(),
+                jdbcClient.sql("""
+                                SELECT permission_code, permission_name
+                                FROM system_permission
+                                WHERE status = 'ACTIVE'
+                                  AND permission_code = 'design-draft:internal-review'
+                                ORDER BY permission_code
+                                """)
+                        .query((rs, rowNum) -> new StaffAccountOptionsResponse.PermissionOption(
+                                rs.getString("permission_code"), rs.getString("permission_name")))
                         .list());
     }
 
     private StaffAccountResponse loadWorker(long userId) {
         return jdbcClient.sql("""
                         SELECT u.user_id, u.username, u.display_name, u.dept_id, d.dept_name,
-                               p.post_id, p.post_name, u.status
+                               p.post_id, p.post_name, u.status,
+                               COALESCE((
+                                   SELECT GROUP_CONCAT(direct_permission.permission_code
+                                       ORDER BY direct_permission.permission_code SEPARATOR ',')
+                                   FROM system_user_permission user_permission
+                                   JOIN system_permission direct_permission
+                                     ON direct_permission.permission_id = user_permission.permission_id
+                                   WHERE user_permission.user_id = u.user_id
+                                     AND direct_permission.status = 'ACTIVE'
+                                     AND direct_permission.permission_code = 'design-draft:internal-review'
+                               ), '') AS permission_codes
                         FROM system_user u
                         JOIN system_dept d ON d.dept_id = u.dept_id
                         JOIN system_user_post up ON up.user_id = u.user_id
@@ -143,8 +193,61 @@ public class StaffAccountService {
                         rs.getLong("post_id"),
                         rs.getString("post_name"),
                         "WORKER",
-                        rs.getString("status")))
+                        rs.getString("status"),
+                        splitPermissionCodes(rs.getString("permission_codes"))))
                 .single();
+    }
+
+    private void replaceDirectPermissions(long userId, List<String> requestedCodes) {
+        List<String> permissionCodes = normalizeDirectPermissionCodes(requestedCodes);
+        jdbcClient.sql("""
+                        DELETE FROM system_user_permission
+                        WHERE user_id = :userId
+                          AND permission_id IN (
+                              SELECT permission_id
+                              FROM system_permission
+                              WHERE permission_code = 'design-draft:internal-review'
+                          )
+                        """)
+                .param("userId", userId)
+                .update();
+        for (String permissionCode : permissionCodes) {
+            int inserted = jdbcClient.sql("""
+                            INSERT INTO system_user_permission (user_id, permission_id)
+                            SELECT :userId, permission_id
+                            FROM system_permission
+                            WHERE permission_code = :permissionCode
+                              AND status = 'ACTIVE'
+                            """)
+                    .param("userId", userId)
+                    .param("permissionCode", permissionCode)
+                    .update();
+            if (inserted != 1) {
+                throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "permission_code is not active");
+            }
+        }
+    }
+
+    private List<String> normalizeDirectPermissionCodes(List<String> requestedCodes) {
+        if (requestedCodes == null) {
+            return List.of();
+        }
+        LinkedHashSet<String> normalized = new LinkedHashSet<>();
+        for (String requestedCode : requestedCodes) {
+            String permissionCode = requiredText(requestedCode, "permission_code is required");
+            if (!ASSIGNABLE_DIRECT_PERMISSION_CODES.contains(permissionCode)) {
+                throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "permission_code is not assignable");
+            }
+            normalized.add(permissionCode);
+        }
+        return List.copyOf(normalized);
+    }
+
+    private List<String> splitPermissionCodes(String permissionCodes) {
+        if (permissionCodes == null || permissionCodes.isBlank()) {
+            return List.of();
+        }
+        return List.of(permissionCodes.split(","));
     }
 
     private void requireActiveDepartment(Long deptId) {

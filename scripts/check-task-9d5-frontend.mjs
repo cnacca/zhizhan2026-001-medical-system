@@ -13,18 +13,26 @@ const requiredAppFragments = [
   'loadProcessInstanceOrders',
   'loadProcessInstanceDetail',
   'assignSelectedProcessNode',
+  'openProcessAssignmentDrawer',
+  'data-testid="admin-process-assignment-page"',
+  'data-testid="admin-process-assignment-drawer"',
+  'class="admin-flow-node-list"',
   'loadWorkerTasks',
   'operateWorkerTask',
   '/workflow/process-instance',
   '/workflow/assign',
+  "'/workflow/assign': 'admin-workflow'",
+  "'admin-workflow': [",
+  "{ label: '工序进度', routePath: '/workflow/process-instance' }",
+  "{ label: '员工派工', routePath: '/workflow/assign' }",
   '/tasks/mine',
   '/process-instance/nodes/',
-  '工序实例',
-  '派工转派',
+  '工序进度',
+  '员工派工',
   '我的任务',
-  '绑定员工',
-  '开始任务',
-  '完成任务'
+  '安排员工',
+  '开始工作',
+  '标记完成'
 ]
 
 const requiredProxyFragments = [

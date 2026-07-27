@@ -117,6 +117,7 @@ class WorkflowRuntimeTests {
                 .andExpect(jsonPath("$.data.instance_id").value(instanceId))
                 .andExpect(jsonPath("$.data.intake_branch_used").value("SCAN"))
                 .andExpect(jsonPath("$.data.nodes", hasSize(5)))
+                .andExpect(jsonPath("$.data.nodes[0].node_category").value("PRODUCTION"))
                 .andExpect(jsonPath("$.data.nodes[4].branch_key").value("X"))
                 .andExpect(content().string(not(org.hamcrest.Matchers.containsString("模板已改名"))));
 
@@ -154,6 +155,28 @@ class WorkflowRuntimeTests {
                 .andExpect(status().isConflict());
 
         assertThat(instanceCount(orderId)).isZero();
+    }
+
+    @Test
+    void csCannotPerformProductionReview() throws Exception {
+        mockMvc.perform(post("/orders/{orderId}/production-review", orderId)
+                        .header("X-Bootstrap-Role", "CS")
+                        .header("X-Bootstrap-User-Id", 8002L)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("""
+                                {
+                                  "action": "APPROVE",
+                                  "chain_id": %d,
+                                  "intake_branch": "SCAN"
+                                }
+                                """.formatted(chainId)))
+                .andExpect(status().isForbidden());
+
+        assertThat(instanceCount(orderId)).isZero();
+        assertThat(jdbcClient.sql("SELECT COUNT(*) FROM design_task WHERE order_id = :orderId")
+                .param("orderId", orderId)
+                .query(Long.class)
+                .single()).isZero();
     }
 
     @Test
@@ -298,6 +321,50 @@ class WorkflowRuntimeTests {
     }
 
     @Test
+    void myTasksReflectsDesignConfirmationGateBeforeProductionStart() throws Exception {
+        long instanceId = approveProductionAndGetInstanceId();
+        long start = nodeId(instanceId, "START");
+        assign(orderId, start, WORKER_USER_ID);
+        jdbcClient.sql("""
+                        UPDATE design_task
+                        SET task_status = 'OPEN'
+                        WHERE order_id = :orderId
+                        """)
+                .param("orderId", orderId)
+                .update();
+
+        mockMvc.perform(get("/tasks/mine")
+                        .header("X-Bootstrap-Role", "WORKER")
+                        .header("X-Bootstrap-User-Id", WORKER_USER_ID)
+                        .param("status", "READY"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data[0].node_instance_id").value(start))
+                .andExpect(jsonPath("$.data[0].can_start").value(false))
+                .andExpect(jsonPath("$.data[0].start_block_reason").value("DESIGN_CONFIRMATION_REQUIRED"));
+
+        mockMvc.perform(post("/process-instance/nodes/{nodeInstanceId}/start", start)
+                        .header("X-Bootstrap-Role", "WORKER")
+                        .header("X-Bootstrap-User-Id", WORKER_USER_ID))
+                .andExpect(status().isConflict());
+
+        jdbcClient.sql("""
+                        UPDATE design_task
+                        SET task_status = 'DOCTOR_CONFIRMED'
+                        WHERE order_id = :orderId
+                        """)
+                .param("orderId", orderId)
+                .update();
+
+        mockMvc.perform(get("/tasks/mine")
+                        .header("X-Bootstrap-Role", "WORKER")
+                        .header("X-Bootstrap-User-Id", WORKER_USER_ID)
+                        .param("status", "READY"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data[0].can_start").value(true))
+                .andExpect(jsonPath("$.data[0].start_block_reason").doesNotExist());
+    }
+
+    @Test
     void bearerWorkerCannotManageAssignmentsOrSkipOptionalNodes() throws Exception {
         long instanceId = approveProductionAndGetInstanceId();
         long start = nodeId(instanceId, "START");
@@ -393,11 +460,21 @@ class WorkflowRuntimeTests {
                         .content(body))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.data.order_id").value(orderId))
-                .andExpect(jsonPath("$.data.internal_status").value("PROCESS_INSTANCE_CREATED"))
-                .andExpect(jsonPath("$.data.external_status").value("PRODUCING"))
+                .andExpect(jsonPath("$.data.internal_status").value("IN_DESIGN"))
+                .andExpect(jsonPath("$.data.external_status").value("DESIGNING"))
                 .andExpect(jsonPath("$.data.instance_id").isNumber())
                 .andReturn();
         JsonNode root = objectMapper.readTree(result.getResponse().getContentAsString());
+        // These legacy tests focus on process DAG mechanics. Complete the new
+        // phase-2 design gate in the fixture; the real gate is covered by
+        // DesignTaskCollaborationTests.
+        jdbcClient.sql("""
+                        UPDATE design_task
+                        SET task_status = 'DOCTOR_CONFIRMED'
+                        WHERE order_id = :orderId
+                        """)
+                .param("orderId", orderId)
+                .update();
         return root.path("data").path("instance_id").asLong();
     }
 

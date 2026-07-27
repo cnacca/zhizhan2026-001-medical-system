@@ -379,6 +379,10 @@ function patientDetail(patient: PatientSummary): PatientDetail {
 export class MockDoctorGateway implements DoctorGateway {
   private activeRole: ClinicRole = 'DOCTOR'
 
+  updateToken(_token: string): void {
+    // Mock mode has no remote session.
+  }
+
   async loadDataset(): Promise<DoctorPortalDataset> {
     const snapshot = clone(dataset)
     if (this.activeRole !== 'DOCTOR') {
@@ -406,6 +410,21 @@ export class MockDoctorGateway implements DoctorGateway {
       result.reviews.forEach((item) => { item.allowed_actions = [] })
     }
     return result
+  }
+
+  async getFilePreviewUrl(fileId: string): Promise<string> {
+    const files = [...details.values()].flatMap((detail) => [
+      ...detail.files,
+      ...detail.reviews.flatMap((item) => item.versions.flatMap((version) => version.files))
+    ])
+    const file = files.find((item) => item.file_id === fileId)
+    if (!file) throw new Error('文件不存在或当前账号无权预览')
+    if (file.preview_url) return file.preview_url
+    if (file.kind === 'IMAGE') {
+      const label = encodeURIComponent(file.name)
+      return `data:image/svg+xml;charset=utf-8,%3Csvg xmlns='http://www.w3.org/2000/svg' width='960' height='600'%3E%3Crect width='100%25' height='100%25' fill='%23eef4ff'/%3E%3Ctext x='50%25' y='50%25' text-anchor='middle' fill='%231d4ed8' font-size='28'%3E${label}%3C/text%3E%3C/svg%3E`
+    }
+    return `data:text/plain;charset=utf-8,${encodeURIComponent(`模拟预览：${file.name}`)}`
   }
 
   async loadPatientDetail(patientId: string): Promise<PatientDetail> {

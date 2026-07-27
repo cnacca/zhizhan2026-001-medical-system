@@ -317,9 +317,11 @@ export type OrderDraftInput = {
 }
 
 export interface DoctorGateway {
+  updateToken(token: string): void
   loadDataset(): Promise<DoctorPortalDataset>
   switchRole(role: ClinicRole): Promise<DoctorPortalDataset>
   loadOrderDetail(orderId: string): Promise<OrderDetail>
+  getFilePreviewUrl(fileId: string): Promise<string>
   loadPatientDetail(patientId: string): Promise<PatientDetail>
   createPatient(input: PatientCreateInput): Promise<PatientSummary>
   updatePatient(input: PatientUpdateInput): Promise<PatientSummary>

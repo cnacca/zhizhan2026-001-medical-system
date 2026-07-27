@@ -125,6 +125,14 @@ public class StaffWorkloadService {
                         WHERE ur.user_id = u.user_id
                           AND r.status = 'ACTIVE'
                     ), '') AS role_codes,
+                    COALESCE((
+                        SELECT GROUP_CONCAT(p.permission_code ORDER BY p.permission_code SEPARATOR ',')
+                        FROM system_user_permission up
+                        JOIN system_permission p ON p.permission_id = up.permission_id
+                        WHERE up.user_id = u.user_id
+                          AND p.status = 'ACTIVE'
+                          AND p.permission_code = 'design-draft:internal-review'
+                    ), '') AS permission_codes,
                     (
                         SELECT COUNT(*)
                         FROM order_process_node n
@@ -177,6 +185,7 @@ public class StaffWorkloadService {
                 rs.getString("dept_name"),
                 splitCsv(rs.getString("post_names")),
                 splitCsv(rs.getString("role_codes")),
+                splitCsv(rs.getString("permission_codes")),
                 rs.getLong("assigned_node_count"),
                 rs.getLong("active_node_count"),
                 rs.getLong("completed_work_log_count"),

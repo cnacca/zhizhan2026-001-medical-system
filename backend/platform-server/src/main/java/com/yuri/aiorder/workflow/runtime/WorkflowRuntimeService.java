@@ -6,6 +6,7 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import com.yuri.aiorder.common.BootstrapIdentity;
 import com.yuri.aiorder.common.UserRole;
 import com.yuri.aiorder.common.auth.AccessControlService;
+import com.yuri.aiorder.design.DesignTaskService;
 import com.yuri.aiorder.order.status.ExternalOrderStatus;
 import com.yuri.aiorder.order.status.InternalOrderStatus;
 import com.yuri.aiorder.order.status.OrderStatusService;
@@ -33,6 +34,40 @@ public class WorkflowRuntimeService {
 
     private static final ZoneId BUSINESS_ZONE = ZoneId.of("Asia/Shanghai");
 
+    private static final String DESIGN_START_ALLOWED_SQL = """
+            (
+                EXISTS (
+                    SELECT 1
+                    FROM order_process_node started_node
+                    WHERE started_node.instance_id = n.instance_id
+                      AND started_node.started_at IS NOT NULL
+                )
+                OR EXISTS (
+                    SELECT 1
+                    FROM design_task confirmed_task
+                    WHERE confirmed_task.order_id = i.order_id
+                      AND confirmed_task.task_status = 'DOCTOR_CONFIRMED'
+                )
+                OR (
+                    NOT EXISTS (
+                        SELECT 1
+                        FROM design_task any_task
+                        WHERE any_task.order_id = i.order_id
+                    )
+                    AND COALESCE(
+                        (
+                            SELECT latest_draft.draft_status
+                            FROM design_draft latest_draft
+                            WHERE latest_draft.order_id = i.order_id
+                            ORDER BY latest_draft.version_no DESC, latest_draft.design_draft_id DESC
+                            LIMIT 1
+                        ),
+                        'DOCTOR_CONFIRMED'
+                    ) = 'DOCTOR_CONFIRMED'
+                )
+            )
+            """;
+
     private static final List<String> PRODUCTION_KANBAN_STAGES = List.of(
             "CAD审核/扫描", "石膏", "CAD设计", "CAM排版/染色/切削", "车瓷", "车金", "上瓷",
             "排牙", "蜡型", "充胶完成", "钢托打磨/就位", "胶托打磨/就位", "质检", "外发加工");
@@ -41,16 +76,19 @@ public class WorkflowRuntimeService {
     private final ObjectMapper objectMapper;
     private final OrderStatusService orderStatusService;
     private final AccessControlService accessControlService;
+    private final DesignTaskService designTaskService;
 
     public WorkflowRuntimeService(
             JdbcClient jdbcClient,
             ObjectMapper objectMapper,
             OrderStatusService orderStatusService,
-            AccessControlService accessControlService) {
+            AccessControlService accessControlService,
+            DesignTaskService designTaskService) {
         this.jdbcClient = jdbcClient;
         this.objectMapper = objectMapper;
         this.orderStatusService = orderStatusService;
         this.accessControlService = accessControlService;
+        this.designTaskService = designTaskService;
     }
 
     @Transactional
@@ -76,14 +114,15 @@ public class WorkflowRuntimeService {
             throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "unsupported production review action");
         }
         long instanceId = instantiateIfAbsent(orderId, request);
+        designTaskService.ensureTaskForOrder(orderId, identity);
         ExternalOrderStatus external = orderStatusService.updateOrderState(
                 orderId,
-                InternalOrderStatus.PROCESS_INSTANCE_CREATED,
+                InternalOrderStatus.IN_DESIGN,
                 "PRODUCTION_REVIEW_APPROVE",
                 identity.userId(),
-                "process instance created");
+                "process instance and design task created");
         return new ProductionReviewResponse(
-                orderId, instanceId, InternalOrderStatus.PROCESS_INSTANCE_CREATED.name(), external.name());
+                orderId, instanceId, InternalOrderStatus.IN_DESIGN.name(), external.name());
     }
 
     private void requirePendingProductionReview(long orderId) {
@@ -366,6 +405,7 @@ public class WorkflowRuntimeService {
                                            AND in_check.check_type = 'IN'
                                            AND in_check.result = 'PASS'
                                      ))
+                                     AND %s
                                 THEN TRUE
                                 ELSE FALSE
                             END AS can_start,
@@ -380,6 +420,9 @@ public class WorkflowRuntimeService {
                                            AND in_check.result = 'PASS'
                                      )
                                 THEN 'IN_CHECK_REQUIRED'
+                                WHEN n.node_status = 'READY'
+                                     AND NOT %s
+                                THEN 'DESIGN_CONFIRMATION_REQUIRED'
                                 ELSE NULL
                             END AS start_block_reason
                         FROM order_process_node n
@@ -389,7 +432,7 @@ public class WorkflowRuntimeService {
                           AND (:status IS NULL OR n.node_status = :status)
                         %s
                         ORDER BY n.updated_at DESC, n.node_instance_id DESC
-                        """.formatted(finalNodeClause))
+                        """.formatted(DESIGN_START_ALLOWED_SQL, DESIGN_START_ALLOWED_SQL, finalNodeClause))
                 .param("userId", identity.userId())
                 .param("status", normalizedStatus)
                 .query((rs, rowNum) -> new MyTaskResponse(
@@ -968,6 +1011,22 @@ public class WorkflowRuntimeService {
         if (startedNodeCount > 0) {
             return;
         }
+        String designTaskStatus = jdbcClient.sql("""
+                        SELECT task_status
+                        FROM design_task
+                        WHERE order_id = :orderId
+                        """)
+                .param("orderId", node.orderId())
+                .query(String.class)
+                .optional()
+                .orElse(null);
+        if (designTaskStatus != null) {
+            if (!"DOCTOR_CONFIRMED".equals(designTaskStatus)) {
+                throw new ResponseStatusException(
+                        HttpStatus.CONFLICT, "design task must be confirmed by doctor before production starts");
+            }
+            return;
+        }
         String latestDraftStatus = jdbcClient.sql("""
                         SELECT draft_status
                         FROM design_draft
@@ -1122,6 +1181,7 @@ public class WorkflowRuntimeService {
                             node_code,
                             process_name,
                             stage_name,
+                            node_category,
                             step_order,
                             is_optional,
                             branch_group,
@@ -1167,6 +1227,7 @@ public class WorkflowRuntimeService {
                         rs.getString("node_code"),
                         rs.getString("process_name"),
                         rs.getString("stage_name"),
+                        rs.getString("node_category"),
                         rs.getInt("step_order"),
                         rs.getInt("is_optional"),
                         rs.getString("branch_group"),

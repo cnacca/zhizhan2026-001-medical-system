@@ -52,6 +52,8 @@ type LegacyMessage = {
 
 type LegacyOrderFile = {
   file_id: number
+  source_type?: string
+  visibility?: string
   original_filename: string
   content_type: string | null
   file_size: number | null
@@ -59,12 +61,61 @@ type LegacyOrderFile = {
   created_at: string
 }
 
+type LegacyDesignDraft = {
+  draft_id: number
+  order_id: number
+  version: number
+  uploader_user_id: string | number | null
+  file_id: number | null
+  file_ids: number[]
+  file_count: number
+  status: string
+  upload_note?: string | null
+  submitted_at?: string | null
+  doctor_visible_at?: string | null
+  internal_reject_reason?: string | null
+  doctor_reject_reason?: string | null
+}
+
 type LegacyCreateOrderResponse = Pick<LegacyOrder, 'order_id' | 'order_no' | 'product_type' | 'external_status' | 'form_data'>
+
+type LegacyDoctorProduct = {
+  product_id: number
+  product_type: string
+  product_name: string
+  material_spec: string | null
+}
+
+type LegacyFormFieldConfig = {
+  product_type: string
+  field_key: string
+  field_label: string
+  field_type: string
+  is_required: boolean
+  options?: string[]
+}
 
 class DoctorApiError extends Error {
   constructor(message: string, readonly status: number) {
     super(message)
   }
+}
+
+export class DoctorReviewSubmittedRefreshError extends Error {
+  constructor(
+    message: string,
+    readonly submittedReview: OrderReview,
+    options?: ErrorOptions
+  ) {
+    super(message, options)
+    this.name = 'DoctorReviewSubmittedRefreshError'
+  }
+}
+
+export function isDoctorReviewSubmittedRefreshError(
+  cause: unknown
+): cause is DoctorReviewSubmittedRefreshError {
+  return cause instanceof DoctorReviewSubmittedRefreshError
 }
 
 type LegacyPatient = {
@@ -134,6 +185,44 @@ type MultipartInitiateResponse = {
 
 type MultipartPartUrlResponse = { upload_url: string }
 
+type MultipartPendingUpload = {
+  file_id: number
+  upload_id: string
+  order_id: number
+  source_type: string
+  visibility: string
+  original_filename: string
+  content_type: string | null
+  file_size: number
+  part_size: number
+  part_count: number
+}
+
+type MultipartPendingUploadsResponse = {
+  items: MultipartPendingUpload[]
+}
+
+type MultipartStatusResponse = {
+  file_id: number
+  upload_id: string
+  upload_status: string
+  part_size: number | null
+  part_count: number | null
+  completed_parts: Array<{
+    part_number: number
+    etag: string
+    size: number
+  }>
+}
+
+type MultipartUploadPlan = {
+  file_id: number
+  upload_id: string
+  part_size: number
+  part_count: number
+  completed_parts: Array<{ part_number: number; etag: string }>
+}
+
 const productLabels: Record<string, string> = {
   FIXED_CROWN: '常规牙冠',
   REGULAR_CROWN: '常规牙冠',
@@ -166,6 +255,14 @@ const publicProgressMilestones = [
   { key: 'shipped', label: '配送中', externalStatus: 'SHIPPED', rank: 5, note: '订单已发货，请在物流页面查看配送信息' },
   { key: 'completed', label: '已完成', externalStatus: 'COMPLETED', rank: 6, note: '订单已完成' }
 ] as const
+
+const doctorVisibleDraftStatuses = new Set([
+  'PENDING_DOCTOR',
+  'PENDING_DOCTOR_CONFIRM',
+  'PENDING_DOCTOR_REVIEW',
+  'DOCTOR_CONFIRMED',
+  'DOCTOR_REJECTED'
+])
 
 function fallbackPublicProgress(order: LegacyOrder): PublicProgressItem[] {
   const currentRank = order.external_status === 'DRAFT'
@@ -258,6 +355,24 @@ function fileKind(file: LegacyOrderFile): DoctorFile['kind'] {
   return 'OTHER'
 }
 
+function draftFileIds(draft: LegacyDesignDraft): number[] {
+  if (draft.file_ids?.length) return draft.file_ids
+  return draft.file_id ? [draft.file_id] : []
+}
+
+function reviewVersionStatus(status: string): OrderReview['versions'][number]['status'] {
+  if (status === 'DOCTOR_CONFIRMED') return 'APPROVED'
+  if (status === 'DOCTOR_REJECTED') return 'REJECTED'
+  return 'PENDING'
+}
+
+function orderReviewStatus(status: string): OrderReview['status'] {
+  if (status === 'DOCTOR_CONFIRMED') return 'APPROVED'
+  if (status === 'DOCTOR_REJECTED') return 'REVISION_REQUESTED'
+  if (['PENDING_DOCTOR', 'PENDING_DOCTOR_CONFIRM', 'PENDING_DOCTOR_REVIEW'].includes(status)) return 'PENDING_REVIEW'
+  return 'WAITING'
+}
+
 function notificationCategory(event: string): DoctorNotification['category'] {
   if (event.includes('DESIGN')) return 'REVIEW'
   if (event.includes('MESSAGE')) return 'MESSAGE'
@@ -280,10 +395,14 @@ export class LegacyHttpDoctorGateway implements DoctorGateway {
   private activeRole: ClinicRole = 'DOCTOR'
 
   constructor(
-    private readonly token: string,
+    private token: string,
     private readonly profile: { displayName: string; clinicName: string },
     private readonly baseUrl = ''
   ) {}
+
+  updateToken(token: string): void {
+    this.token = token
+  }
 
   private async request<T>(path: string, init: RequestInit = {}): Promise<T> {
     const response = await fetch(`${this.baseUrl}${path}`, {
@@ -335,6 +454,81 @@ export class LegacyHttpDoctorGateway implements DoctorGateway {
     }
   }
 
+  private mapDoctorFile(file: LegacyOrderFile, previewUrl?: string): DoctorFile {
+    return {
+      file_id: String(file.file_id),
+      name: file.original_filename,
+      kind: fileKind(file),
+      size_label: fileSizeLabel(file.file_size),
+      status: ['READY', 'COMPLETED'].includes(file.upload_status)
+        ? 'READY'
+        : file.upload_status === 'FAILED'
+          ? 'FAILED'
+          : 'PROCESSING',
+      preview_url: previewUrl,
+      uploaded_at: file.created_at
+    }
+  }
+
+  private async mapDesignReview(drafts: LegacyDesignDraft[], files: LegacyOrderFile[]): Promise<OrderReview | null> {
+    const visibleDrafts = drafts
+      .filter((draft) => doctorVisibleDraftStatuses.has(draft.status))
+      .sort((left, right) => left.version - right.version)
+    const latest = visibleDrafts.at(-1)
+    if (!latest) return null
+
+    const visibleFileIds = [...new Set(visibleDrafts.flatMap(draftFileIds))]
+    const previewResults = await Promise.allSettled(visibleFileIds.map(async (fileId) => {
+      const result = await this.request<{ preview_url: string }>(`/files/${fileId}/preview-url`)
+      return [fileId, result.preview_url] as const
+    }))
+    const previewUrls = new Map(previewResults.flatMap((result) =>
+      result.status === 'fulfilled' ? [result.value] : []))
+    const fileLookup = new Map(files.map((file) => [file.file_id, file]))
+
+    return {
+      review_id: String(latest.draft_id),
+      review_type: 'CAD_DESIGN',
+      status: orderReviewStatus(latest.status),
+      current_version: latest.version,
+      versions: visibleDrafts.map((draft) => ({
+        version: draft.version,
+        status: reviewVersionStatus(draft.status),
+        submitted_at: draft.doctor_visible_at || draft.submitted_at || '-',
+        doctor_comment: draft.doctor_reject_reason || undefined,
+        files: draftFileIds(draft).map((fileId): DoctorFile => {
+          const file = fileLookup.get(fileId)
+          if (file) return this.mapDoctorFile(file, previewUrls.get(fileId))
+          return {
+            file_id: String(fileId),
+            name: `设计文件 #${fileId}`,
+            kind: 'OTHER',
+            size_label: '大小未记录',
+            status: 'READY',
+            preview_url: previewUrls.get(fileId),
+            uploaded_at: draft.doctor_visible_at || draft.submitted_at || '-'
+          }
+        })
+      })),
+      allowed_actions: orderReviewStatus(latest.status) === 'PENDING_REVIEW'
+        ? ['APPROVE_REVIEW', 'REJECT_REVIEW']
+        : [],
+      state_version: latest.version
+    }
+  }
+
+  private async loadDesignReview(orderId: string, knownFiles?: LegacyOrderFile[]): Promise<OrderReview | null> {
+    const [draftsResult, filesResult] = await Promise.allSettled([
+      this.request<LegacyDesignDraft[]>(`/orders/${encodeURIComponent(orderId)}/design-drafts`),
+      knownFiles
+        ? Promise.resolve(knownFiles)
+        : this.request<LegacyOrderFile[]>(`/orders/${encodeURIComponent(orderId)}/files`)
+    ])
+    if (draftsResult.status !== 'fulfilled') throw draftsResult.reason
+    const files = filesResult.status === 'fulfilled' ? filesResult.value : []
+    return this.mapDesignReview(draftsResult.value, files)
+  }
+
   private mapPatient(patient: LegacyPatient, account: DoctorAccount): PatientSummary {
     return {
       patient_id: String(patient.patient_id),
@@ -380,21 +574,53 @@ export class LegacyHttpDoctorGateway implements DoctorGateway {
   }
 
   async loadDataset(): Promise<DoctorPortalDataset> {
-    const [ordersResult, patientsResult, notificationsResult, accountResult] = await Promise.allSettled([
+    const [ordersResult, patientsResult, notificationsResult, accountResult, productsResult, formConfigsResult] = await Promise.allSettled([
       this.request<LegacyList<LegacyOrder>>('/orders?page=1&size=100'),
       this.request<LegacyList<LegacyPatient>>('/patients?page=1&size=100'),
       this.request<LegacyNotification[]>('/notifications?limit=100'),
-      this.request<LegacyAccount>('/doctor/account/settings')
+      this.request<LegacyAccount>('/doctor/account/settings'),
+      this.request<LegacyDoctorProduct[]>('/doctor/products'),
+      this.request<LegacyFormFieldConfig[]>('/form-configs')
     ])
 
-    const authFailure = [ordersResult, patientsResult, notificationsResult, accountResult]
+    const authFailure = [ordersResult, patientsResult, notificationsResult, accountResult, productsResult, formConfigsResult]
       .find((result): result is PromiseRejectedResult => result.status === 'rejected' && result.reason instanceof DoctorApiError && [401, 403].includes(result.reason.status))
     if (authFailure) throw authFailure.reason
+    if (productsResult.status === 'rejected') throw productsResult.reason
+    if (formConfigsResult.status === 'rejected') throw formConfigsResult.reason
 
     if (ordersResult.status === 'fulfilled') assertSafeOrderPayload(ordersResult.value)
 
     const legacyOrders = ordersResult.status === 'fulfilled' ? ordersResult.value.items : []
     const mappedOrders = legacyOrders.map((order) => this.mapOrder(order))
+    const designActionResults = await Promise.allSettled(legacyOrders.map(async (order) => {
+      if (order.external_status !== 'DESIGNING') return false
+      const drafts = await this.request<LegacyDesignDraft[]>(
+        `/orders/${encodeURIComponent(order.order_id)}/design-drafts`
+      )
+      const latestVisible = drafts
+        .filter((draft) => doctorVisibleDraftStatuses.has(draft.status))
+        .sort((left, right) => left.version - right.version)
+        .at(-1)
+      return latestVisible != null && orderReviewStatus(latestVisible.status) === 'PENDING_REVIEW'
+    }))
+    const failedDesignActionIndex = designActionResults.findIndex((result) => result.status === 'rejected')
+    if (failedDesignActionIndex >= 0) {
+      const failure = designActionResults[failedDesignActionIndex] as PromiseRejectedResult
+      const order = legacyOrders[failedDesignActionIndex]
+      const detail = failure.reason instanceof Error ? failure.reason.message : '未知错误'
+      if (failure.reason instanceof DoctorApiError) {
+        throw new DoctorApiError(`订单 ${order.order_no} 的待确认状态加载失败：${detail}`, failure.reason.status)
+      }
+      throw new Error(`订单 ${order.order_no} 的待确认状态加载失败：${detail}`, { cause: failure.reason })
+    }
+    designActionResults.forEach((result, index) => {
+      if (result.status !== 'fulfilled' || !result.value) return
+      const summary = mappedOrders[index]
+      summary.current_action = 'REVIEW_CAD_DESIGN'
+      if (!summary.allowed_actions.includes('APPROVE_REVIEW')) summary.allowed_actions.push('APPROVE_REVIEW')
+      if (!summary.allowed_actions.includes('REJECT_REVIEW')) summary.allowed_actions.push('REJECT_REVIEW')
+    })
     const billResults = await Promise.allSettled(legacyOrders.map(async (order): Promise<BillRecord | null> => {
       const [billResult, paymentsResult] = await Promise.allSettled([
         this.request<LegacyBill>(`/orders/${order.order_id}/bill`),
@@ -470,6 +696,37 @@ export class LegacyHttpDoctorGateway implements DoctorGateway {
         })
       : []
 
+    const formConfigsByProduct = formConfigsResult.value.reduce<Map<string, LegacyFormFieldConfig[]>>(
+      (grouped, field) => {
+        const fields = grouped.get(field.product_type) ?? []
+        fields.push(field)
+        grouped.set(field.product_type, fields)
+        return grouped
+      },
+      new Map()
+    )
+    const products = productsResult.value.map((product) => ({
+      product_id: String(product.product_id),
+      product_type: product.product_type,
+      product_name: product.product_name,
+      material: product.material_spec || '材料规格待确认',
+      quote: null,
+      review_capabilities: [],
+      form_fields: (formConfigsByProduct.get(product.product_type) ?? []).map((field) => ({
+        key: field.field_key,
+        label: field.field_label,
+        type: field.field_type === 'textarea'
+          ? 'TEXTAREA' as const
+          : field.field_type === 'select' || field.field_type === 'multi-select'
+            ? 'SELECT' as const
+            : field.field_type === 'number'
+              ? 'NUMBER' as const
+              : 'TEXT' as const,
+        required: field.is_required,
+        ...(field.options?.length ? { options: field.options } : {})
+      }))
+    }))
+
     return {
       orders: mappedOrders,
       patients,
@@ -480,7 +737,7 @@ export class LegacyHttpDoctorGateway implements DoctorGateway {
       threads: [],
       notifications,
       account,
-      products: []
+      products
     }
   }
 
@@ -498,10 +755,18 @@ export class LegacyHttpDoctorGateway implements DoctorGateway {
   async loadOrderDetail(orderId: string): Promise<OrderDetail> {
     const legacy = await this.request<LegacyOrder>(`/orders/${encodeURIComponent(orderId)}`)
     assertSafeOrderPayload(legacy)
-    const [messagesResult, filesResult] = await Promise.allSettled([
+    const [messagesResult, filesResult, draftsResult] = await Promise.allSettled([
       this.request<LegacyMessage[]>(`/orders/${encodeURIComponent(orderId)}/messages`),
-      this.request<LegacyOrderFile[]>(`/orders/${encodeURIComponent(orderId)}/files`)
+      this.request<LegacyOrderFile[]>(`/orders/${encodeURIComponent(orderId)}/files`),
+      this.request<LegacyDesignDraft[]>(`/orders/${encodeURIComponent(orderId)}/design-drafts`)
     ])
+    if (draftsResult.status === 'rejected') {
+      const detail = draftsResult.reason instanceof Error ? draftsResult.reason.message : '未知错误'
+      if (draftsResult.reason instanceof DoctorApiError) {
+        throw new DoctorApiError(`订单设计确认状态加载失败：${detail}`, draftsResult.reason.status)
+      }
+      throw new Error(`订单设计确认状态加载失败：${detail}`, { cause: draftsResult.reason })
+    }
     const summary = this.mapOrder(legacy)
     const formSnapshot = safeFormSnapshot(legacy.form_data ?? {})
     const messages = messagesResult.status === 'fulfilled'
@@ -514,16 +779,20 @@ export class LegacyHttpDoctorGateway implements DoctorGateway {
           attachments: []
         }))
       : []
-    const files = filesResult.status === 'fulfilled'
-      ? filesResult.value.map((file) => ({
-          file_id: String(file.file_id),
-          name: file.original_filename,
-          kind: fileKind(file),
-          size_label: fileSizeLabel(file.file_size),
-          status: file.upload_status === 'READY' ? 'READY' as const : file.upload_status === 'FAILED' ? 'FAILED' as const : 'PROCESSING' as const,
-          uploaded_at: file.created_at
-        }))
-      : []
+    const legacyFiles = filesResult.status === 'fulfilled' ? filesResult.value : []
+    const designReview = draftsResult.status === 'fulfilled'
+      ? await this.mapDesignReview(draftsResult.value, legacyFiles)
+      : null
+    const files = legacyFiles
+      .filter((file) => file.source_type !== 'DESIGN_DRAFT')
+      .map((file) => this.mapDoctorFile(file))
+    if (designReview?.status === 'PENDING_REVIEW') {
+      summary.current_action = 'REVIEW_CAD_DESIGN'
+      if (!summary.allowed_actions.includes('APPROVE_REVIEW')) summary.allowed_actions.push('APPROVE_REVIEW')
+      if (!summary.allowed_actions.includes('REJECT_REVIEW')) summary.allowed_actions.push('REJECT_REVIEW')
+    }
+    const reviews = designReview ? [designReview] : []
+    const reviewOptions = designReview ? ['CAD_DESIGN' as const] : []
     return {
       ...summary,
       public_message: legacy.public_message || '暂无公开进度说明。',
@@ -537,12 +806,20 @@ export class LegacyHttpDoctorGateway implements DoctorGateway {
             note: item.note || undefined
           }))
         : fallbackPublicProgress(legacy),
-      review_options: [],
-      reviews: [],
+      review_options: reviewOptions,
+      reviews,
       files,
       messages,
       bill_summary: { bill_status: legacy.bill_status || 'UNKNOWN', payment_status: 'UNKNOWN', outstanding: null }
     }
+  }
+
+  async getFilePreviewUrl(fileId: string): Promise<string> {
+    const result = await this.request<{ preview_url: string }>(
+      `/files/${encodeURIComponent(fileId)}/preview-url`
+    )
+    if (!result.preview_url) throw new Error('文件预览地址未返回')
+    return result.preview_url
   }
 
   async loadPatientDetail(patientId: string): Promise<PatientDetail> {
@@ -607,26 +884,92 @@ export class LegacyHttpDoctorGateway implements DoctorGateway {
     return { orderId: String(result.order_id), stateVersion: 0 }
   }
 
+  private async findPendingOrderUpload(orderId: number, file: File): Promise<MultipartPendingUpload | null> {
+    const params = new URLSearchParams({ order_id: String(orderId) })
+    const response = await this.request<MultipartPendingUploadsResponse>(
+      `/files/multipart/pending?${params.toString()}`
+    )
+    const contentType = file.type || 'application/octet-stream'
+    return (response.items ?? []).find((candidate) =>
+      candidate.order_id === orderId
+      && candidate.source_type === 'ORDER_ATTACHMENT'
+      && candidate.visibility === 'DOCTOR'
+      && candidate.original_filename === file.name
+      && candidate.file_size === file.size
+      && (candidate.content_type || 'application/octet-stream') === contentType
+    ) ?? null
+  }
+
+  private async resumePendingOrderUpload(orderId: number, file: File): Promise<MultipartUploadPlan | null> {
+    const candidate = await this.findPendingOrderUpload(orderId, file)
+    if (!candidate) return null
+
+    const params = new URLSearchParams({ upload_id: candidate.upload_id })
+    const status = await this.request<MultipartStatusResponse>(
+      `/files/${candidate.file_id}/multipart/status?${params.toString()}`
+    )
+    if (
+      status.file_id !== candidate.file_id
+      || status.upload_id !== candidate.upload_id
+      || status.upload_status !== 'PENDING'
+    ) {
+      throw new Error(`文件 ${file.name} 的待续传记录状态不一致，请稍后重试`)
+    }
+
+    const partSize = status.part_size ?? candidate.part_size
+    const partCount = status.part_count ?? candidate.part_count
+    if (!Number.isSafeInteger(partSize) || partSize <= 0 || !Number.isSafeInteger(partCount) || partCount <= 0) {
+      throw new Error(`文件 ${file.name} 的待续传分片信息无效`)
+    }
+    const completedParts = (status.completed_parts ?? [])
+      .filter((part) =>
+        Number.isSafeInteger(part.part_number)
+        && part.part_number >= 1
+        && part.part_number <= partCount
+        && Boolean(part.etag?.trim()))
+      .map((part) => ({ part_number: part.part_number, etag: part.etag.trim() }))
+
+    return {
+      file_id: candidate.file_id,
+      upload_id: candidate.upload_id,
+      part_size: partSize,
+      part_count: partCount,
+      completed_parts: completedParts
+    }
+  }
+
   async uploadOrderFiles(orderId: string, files: File[]): Promise<DoctorFile[]> {
     const numericOrderId = Number(orderId)
     if (!Number.isSafeInteger(numericOrderId) || numericOrderId <= 0) throw new Error('请先保存有效草稿后再上传文件')
     const uploaded: DoctorFile[] = []
     for (const file of files) {
       if (file.size > 200 * 1024 * 1024) throw new Error(`文件 ${file.name} 超过 200MB 限制`)
-      const upload = await this.request<MultipartInitiateResponse>('/files/multipart/initiate', {
-        method: 'POST',
-        body: JSON.stringify({
-          order_id: numericOrderId,
-          source_type: 'ORDER_ATTACHMENT',
-          visibility: 'DOCTOR',
-          original_filename: file.name,
-          content_type: file.type || 'application/octet-stream',
-          file_size: file.size,
-          part_size: 5 * 1024 * 1024
-        })
-      })
+      const resumed = await this.resumePendingOrderUpload(numericOrderId, file)
+      const upload: MultipartUploadPlan = resumed ?? {
+        ...await this.request<MultipartInitiateResponse>('/files/multipart/initiate', {
+          method: 'POST',
+          body: JSON.stringify({
+            order_id: numericOrderId,
+            source_type: 'ORDER_ATTACHMENT',
+            visibility: 'DOCTOR',
+            original_filename: file.name,
+            content_type: file.type || 'application/octet-stream',
+            file_size: file.size,
+            part_size: 5 * 1024 * 1024
+          })
+        }),
+        completed_parts: []
+      }
+      const completedParts = new Map(
+        upload.completed_parts.map((part) => [part.part_number, part.etag])
+      )
       const parts: Array<{ part_number: number; etag: string }> = []
       for (let partNumber = 1; partNumber <= upload.part_count; partNumber += 1) {
+        const completedEtag = completedParts.get(partNumber)
+        if (completedEtag) {
+          parts.push({ part_number: partNumber, etag: completedEtag })
+          continue
+        }
         const part = await this.request<MultipartPartUrlResponse>(`/files/${upload.file_id}/multipart/part-url`, {
           method: 'POST',
           body: JSON.stringify({ upload_id: upload.upload_id, part_number: partNumber })
@@ -680,8 +1023,35 @@ export class LegacyHttpDoctorGateway implements DoctorGateway {
     })
   }
 
-  async submitReview(_input: ReviewDecisionInput): Promise<OrderReview> {
-    throw new Error('UNSUPPORTED_CAPABILITY：通用三类审核接口待后端接入')
+  async submitReview(input: ReviewDecisionInput): Promise<OrderReview> {
+    const orderId = encodeURIComponent(input.orderId)
+    const draftId = encodeURIComponent(input.reviewId)
+    const submittedDraft = await this.request<LegacyDesignDraft>(`/orders/${orderId}/design-drafts/${draftId}/doctor-confirm`, {
+      method: 'POST',
+      body: JSON.stringify({
+        action: input.decision === 'APPROVE' ? 'CONFIRM' : 'REJECT',
+        doctor_reject_reason: input.decision === 'REJECT' ? input.comment?.trim() || null : null
+      })
+    })
+    try {
+      const review = await this.loadDesignReview(input.orderId)
+      if (review) return review
+      const submittedReview = await this.mapDesignReview([submittedDraft], [])
+      if (!submittedReview) throw new Error('提交结果未包含医生可见版本')
+      throw new DoctorReviewSubmittedRefreshError(
+        '设计确认已提交，但未能重新读取医生可见版本',
+        submittedReview
+      )
+    } catch (cause) {
+      if (isDoctorReviewSubmittedRefreshError(cause)) throw cause
+      const submittedReview = await this.mapDesignReview([submittedDraft], [])
+      if (!submittedReview) throw cause
+      throw new DoctorReviewSubmittedRefreshError(
+        '设计确认已提交，但最新公开状态读取失败',
+        submittedReview,
+        { cause }
+      )
+    }
   }
 
   async sendMessage(threadId: string, content: string) {

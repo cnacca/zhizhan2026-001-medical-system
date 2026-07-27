@@ -7,6 +7,8 @@ import com.yuri.aiorder.common.auth.BearerTokenService;
 import com.yuri.aiorder.common.auth.DatabaseAuthService;
 import com.yuri.aiorder.common.auth.RefreshTokenService;
 import com.fasterxml.jackson.annotation.JsonProperty;
+import com.fasterxml.jackson.databind.annotation.JsonSerialize;
+import com.fasterxml.jackson.databind.ser.std.ToStringSerializer;
 import jakarta.validation.Valid;
 import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.NotNull;
@@ -95,6 +97,17 @@ public class BootstrapAuthController {
             throw new UnauthorizedException();
         }
         BootstrapIdentity identity = tokenService.parse(authorization.substring("Bearer ".length()));
+        if (identity.userId() != null && identity.username() != null && !identity.username().isBlank()) {
+            AuthenticatedUser authenticatedUser = databaseAuthService.loadAuthenticatedUser(identity.userId());
+            return new CurrentUserResponse(
+                    authenticatedUser.username(),
+                    authenticatedUser.userId(),
+                    authenticatedUser.clinicId(),
+                    authenticatedUser.roles(),
+                    authenticatedUser.permissions(),
+                    authenticatedUser.menus(),
+                    authenticatedUser.dataScope());
+        }
         return new CurrentUserResponse(
                 identity.username() == null ? identity.role().name() : identity.username(),
                 identity.userId(),
@@ -122,7 +135,7 @@ public class BootstrapAuthController {
             String accessToken,
             String refreshToken,
             String username,
-            Long userId,
+            @JsonSerialize(using = ToStringSerializer.class) Long userId,
             Long clinicId,
             List<String> roles,
             List<String> permissions,
@@ -134,7 +147,7 @@ public class BootstrapAuthController {
 
     public record CurrentUserResponse(
             String username,
-            Long userId,
+            @JsonSerialize(using = ToStringSerializer.class) Long userId,
             Long clinicId,
             List<String> roles,
             List<String> permissions,

@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import { computed, defineAsyncComponent, ref, watch } from 'vue'
 import CustomerManagementPage from './CustomerManagementPage.vue'
+import { productionProgressNodes } from '../utils/productionProgress'
 
 const StlViewerDialog = defineAsyncComponent(() => import('./StlViewerDialog.vue'))
 
@@ -13,7 +14,7 @@ type AuthMenu = {
 
 type LoginUser = {
   username: string
-  userId: number | null
+  userId: string | number | null
   clinicId: number | null
   roles: string[]
   permissions: string[]
@@ -70,12 +71,13 @@ type DesignDraft = {
   draft_id: number
   order_id: number
   version: number
-  uploader_user_id: number | null
+  uploader_user_id: string | number | null
   file_id: number | null
   file_ids: number[]
   file_count: number
   status: string
   cs_reject_reason: string | null
+  internal_reject_reason?: string | null
   doctor_reject_reason: string | null
 }
 
@@ -124,6 +126,7 @@ type ProcessNodeItem = {
   node_code: string
   process_name: string
   stage_name: string
+  node_category: string | null
   step_order: number
   is_optional: number
   assigned_user_id: number | null
@@ -339,7 +342,6 @@ const aiLoading = ref(false)
 const designOrderId = ref<number | null>(null)
 const designKeyword = ref('')
 const designDrafts = ref<DesignDraft[]>([])
-const designRejectReasons = ref<Record<number, string>>({})
 const designPreviewUrls = ref<Record<number, string>>({})
 const designDrawerVisible = ref(false)
 const designDetailState = ref<DetailLoadState>({ loading: false, error: '' })
@@ -501,7 +503,8 @@ function statusLabel(status?: string | null) {
     UNPAID: '待收款', UPLOADED: '已上传', SENT: '已发送', DELIVERED: '已签收',
     EXCEPTION: '配送异常', FOLLOWING_UP: '跟进中', RESOLVED: '已解决', DELAYED: '已延迟',
     RETURNED: '已返回', CANCELLED: '已取消', ACTIVE: '启用', INACTIVE: '停用', PENDING_CS_REVIEW_DESIGN: '待内部审核',
-    PENDING_DOCTOR_REVIEW: '待客户确认', DOCTOR_CONFIRMED: '客户已确认', DOCTOR_REJECTED: '客户要求修改',
+    PENDING_DOCTOR_REVIEW: '待客户确认', PENDING_DOCTOR: '待客户确认',
+    INTERNAL_REJECTED: '内审已退回', DOCTOR_CONFIRMED: '客户已确认', DOCTOR_REJECTED: '客户要求修改',
     READY: '待开工', IN_PROGRESS: '进行中', SKIPPED: '已跳过', DIRECT: '已发送',
     ISSUED: '已出账', PENDING_QUOTE: '待报价', UNKNOWN: '暂未记录', UNDER_REVIEW: '审核中',
     PENDING_REVIEW: '待审核', CS_REJECTED: '客服已退回', PRODUCTION_REJECTED: '生产已退回',
@@ -554,9 +557,27 @@ function registrationStatus(order: OrderItem) {
 }
 
 function informationStatus(order: OrderItem) {
-  if (businessProductionNote(order.production_note)) return '已完成人工确认'
-  if (order.internal_status === 'PENDING_CS_REVIEW') return '登记后待处理'
-  return '待信息审核/翻译'
+  if (order.internal_status === 'PENDING_CS_REVIEW') return '待客服初审'
+  if (order.internal_status === 'CS_REJECTED') return '客服初审已退回'
+  if (hasPassedCsReview(order)) return '客服初审已通过'
+  return '暂未进入客服初审'
+}
+
+function hasPassedCsReview(order: OrderItem) {
+  return [
+    'PENDING_PRODUCTION_REVIEW', 'PRODUCTION_REJECTED', 'PROCESS_INSTANCE_CREATED',
+    'ASSIGNED', 'IN_DESIGN', 'IN_PRODUCTION', 'IN_QC', 'QC_PASSED', 'SHIPPED', 'COMPLETED'
+  ].includes(order.internal_status)
+}
+
+function requiresTranslationReview(source: string) {
+  const text = source.trim()
+  if (!text) return false
+  return /[A-Za-z]{2,}|[\u3040-\u30ff\uac00-\ud7af]/u.test(text)
+}
+
+function hasHumanConfirmedProductionNote(value: string | null | undefined) {
+  return /AI-5 生产备注（人工确认）/.test(value || '')
 }
 
 function orderMayHaveProcess(order: OrderItem) {
@@ -679,6 +700,17 @@ function detailError(error: unknown, fallback: string) {
 
 function fileIds(draft: DesignDraft) {
   return draft.file_ids?.length ? draft.file_ids : draft.file_id ? [draft.file_id] : []
+}
+
+function doctorVisibleDrafts(drafts: DesignDraft[]) {
+  const visibleStatuses = new Set([
+    'PENDING_DOCTOR',
+    'PENDING_DOCTOR_CONFIRM',
+    'PENDING_DOCTOR_REVIEW',
+    'DOCTOR_CONFIRMED',
+    'DOCTOR_REJECTED'
+  ])
+  return drafts.filter((draft) => visibleStatuses.has(draft.status))
 }
 
 function fileTypeLabel(file: OrderFile) {
@@ -1038,7 +1070,7 @@ function mainProductionStageStatus(nodes: ProcessNodeItem[]) {
 }
 
 const mainProductionStages = computed<MainProductionStage[]>(() => MAIN_PRODUCTION_STAGES.flatMap((definition) => {
-  const nodes = sortedOrderProcessNodes.value.filter((node) => mainProductionStageKey(node) === definition.key)
+  const nodes = productionProgressNodes(sortedOrderProcessNodes.value).filter((node) => mainProductionStageKey(node) === definition.key)
   if (!nodes.length) return []
   const status = mainProductionStageStatus(nodes)
   const currentNode = nodes.find((node) => ACTIVE_PROCESS_NODE_STATUSES.has(node.node_status))
@@ -1190,7 +1222,7 @@ async function openOrder(order: OrderItem) {
       : Promise.resolve(null)
   ])
   orderMessages.value = messages
-  orderDrafts.value = drafts
+  orderDrafts.value = doctorVisibleDrafts(drafts)
   orderFiles.value = files
   orderBill.value = bill
   orderLogistics.value = logistics
@@ -1297,7 +1329,7 @@ async function selectTranslationOrder(order: OrderItem) {
 }
 
 async function checkMissingInfo() {
-  if (!translationOrderId.value) return
+  if (!translationOrderId.value) return false
   aiLoading.value = true
   pageError.value = ''
   try {
@@ -1306,8 +1338,10 @@ async function checkMissingInfo() {
     })
     missingInfoItems.value = payload.data.missing_items
     missingInfoChecked.value = true
+    return payload.data.is_complete
   } catch (error) {
     pageError.value = error instanceof Error ? error.message : '资料检查失败'
+    return false
   } finally {
     aiLoading.value = false
   }
@@ -1348,24 +1382,76 @@ async function generateProductionNote() {
 }
 
 async function confirmProductionNote() {
-  if (!translationOrderId.value || !productionNoteDraft.value.trim()) return
+  const orderId = translationOrderId.value
+  const order = selectedTranslationOrder.value
+  if (!orderId || !order || !productionNoteDraft.value.trim()) return
+  if (order.internal_status !== 'PENDING_CS_REVIEW') {
+    pageError.value = '该订单已不在待客服初审状态，请刷新队列后重试。'
+    return
+  }
+
+  const isComplete = await checkMissingInfo()
+  if (!isComplete) {
+    if (!pageError.value) {
+      pageError.value = missingInfoItems.value.length
+        ? '订单资料仍有缺失，不能通过客服初审；请先通过问单沟通补齐资料。'
+        : '资料完整性检查未通过，请稍后重试。'
+    }
+    translationTab.value = 'INFO'
+    return
+  }
+
+  const existingConfirmedNote = businessProductionNote(order.production_note)
+  const translationAlreadyConfirmed = hasHumanConfirmedProductionNote(existingConfirmedNote)
+    && /客服确认译文：/.test(existingConfirmedNote)
+  if (requiresTranslationReview(translationSource.value) && !translationDraft.value.trim() && !translationAlreadyConfirmed) {
+    pageError.value = '检测到外文客户指示，请先生成或填写翻译稿并人工核对。'
+    return
+  }
+
   aiLoading.value = true
   pageError.value = ''
   try {
-    const payload = await apiFetch<ProductionNoteConfirmResponse>('/ai/production-note/confirm', {
+    const translatedText = translationDraft.value.trim()
+    const translatedBlock = translatedText ? `客服确认译文：${translatedText}` : ''
+    const reviewedDraft = requiresTranslationReview(translationSource.value) && translatedBlock
+      && !productionNoteDraft.value.includes(translatedBlock)
+      ? `${productionNoteDraft.value.trim()}\n\n客服确认译文：${translatedText}`
+      : productionNoteDraft.value.trim()
+    let confirmedProductionNote = reviewedDraft
+
+    if (hasHumanConfirmedProductionNote(existingConfirmedNote)) {
+      confirmedProductionNote = reviewedDraft
+    } else {
+      const confirmation = await apiFetch<ProductionNoteConfirmResponse>('/ai/production-note/confirm', {
+        method: 'POST',
+        body: JSON.stringify({
+          order_id: orderId,
+          draft_note: reviewedDraft,
+          confirmation_note: productionNoteConfirmation.value.trim() || '客服已核对订单资料、翻译内容和生产信息'
+        })
+      })
+      confirmedProductionNote = confirmation.data.production_note
+      productionNoteDraft.value = confirmedProductionNote
+      order.production_note = confirmedProductionNote
+    }
+
+    const reviewedOrder = await apiFetch<OrderItem>(`/orders/${orderId}/review`, {
       method: 'POST',
       body: JSON.stringify({
-        order_id: translationOrderId.value,
-        draft_note: productionNoteDraft.value.trim(),
-        confirmation_note: productionNoteConfirmation.value.trim() || null
+        action: 'APPROVE',
+        production_note: confirmedProductionNote,
+        reject_reason: null
       })
     })
-    productionNoteDraft.value = payload.data.production_note
-    const order = orders.value.find((item) => item.order_id === translationOrderId.value)
-    if (order) order.production_note = payload.data.production_note
-    pageResult.value = '翻译人员人工确认稿已保存。'
+    orders.value = orders.value.map((item) => item.order_id === orderId ? reviewedOrder.data : item)
+    productionNoteDraft.value = businessProductionNote(reviewedOrder.data.production_note)
+    productionNoteConfirmation.value = ''
+    translationTab.value = 'HISTORY'
+    pageResult.value = '客服初审已通过，订单已进入生产审核。'
+    emit('refreshNotifications')
   } catch (error) {
-    pageError.value = error instanceof Error ? error.message : '人工确认稿保存失败'
+    pageError.value = error instanceof Error ? error.message : '客服初审处理失败'
   } finally {
     aiLoading.value = false
   }
@@ -1377,34 +1463,12 @@ async function selectDesignOrder(orderId: number) {
   designPreviewUrls.value = {}
   designDetailState.value = { loading: true, error: '' }
   try {
-    designDrafts.value = (await apiFetch<DesignDraft[]>(`/orders/${orderId}/design-drafts`)).data
+    designDrafts.value = doctorVisibleDrafts((await apiFetch<DesignDraft[]>(`/orders/${orderId}/design-drafts`)).data)
   } catch (error) {
     designDrafts.value = []
     designDetailState.value.error = detailError(error, '设计稿版本加载失败')
   } finally {
     designDetailState.value.loading = false
-  }
-}
-
-async function reviewDesignDraft(draft: DesignDraft, action: 'APPROVE' | 'REJECT') {
-  if (!designOrderId.value) return
-  const reason = designRejectReasons.value[draft.draft_id]?.trim() || ''
-  if (action === 'REJECT' && !reason) {
-    pageError.value = '退回设计稿前请填写修改原因。'
-    return
-  }
-  pageLoading.value = true
-  pageError.value = ''
-  try {
-    await apiFetch<DesignDraft>(`/orders/${designOrderId.value}/design-drafts/${draft.draft_id}/cs-review`, {
-      method: 'POST', body: JSON.stringify({ action, cs_reject_reason: action === 'REJECT' ? reason : null })
-    })
-    await selectDesignOrder(designOrderId.value)
-    pageResult.value = action === 'APPROVE' ? '设计稿已通过内部审核，并进入客户确认流程。' : '设计稿已退回并保留修改原因。'
-  } catch (error) {
-    pageError.value = error instanceof Error ? error.message : '设计稿审核失败'
-  } finally {
-    pageLoading.value = false
   }
 }
 
@@ -1824,10 +1888,6 @@ const deliveryCanRegister = computed(() => Boolean(
 ))
 const deliveryAlreadyShipped = computed(() => Boolean(selectedDelivery.value && selectedDelivery.value.logistics_status !== 'PENDING'))
 
-function designCanReview(draft: DesignDraft) {
-  return ['PENDING_CS_REVIEW', 'PENDING_CS_REVIEW_DESIGN'].includes(draft.status)
-}
-
 function productEmoji(type?: string | null) {
   if (/IMPLANT/.test(type || '')) return '🦷'
   if (/BRIDGE/.test(type || '')) return '🌉'
@@ -1851,12 +1911,12 @@ const conversationOrders = computed(() => {
 const filteredTranslationOrders = computed(() => {
   const keyword = translationKeyword.value.trim().toLowerCase()
   return orders.value.filter((order) => {
-    if (translationFilter.value === 'PENDING' && businessProductionNote(order.production_note)) return false
-    if (translationFilter.value === 'CONFIRMED' && !businessProductionNote(order.production_note)) return false
+    if (translationFilter.value === 'PENDING' && order.internal_status !== 'PENDING_CS_REVIEW') return false
+    if (translationFilter.value === 'CONFIRMED' && !hasPassedCsReview(order)) return false
     return !keyword || [order.order_no, order.clinic_name, productLabel(order.product_type)]
       .some((value) => value.toLowerCase().includes(keyword))
   }).sort((left, right) => {
-    const confirmationOrder = Number(Boolean(businessProductionNote(left.production_note))) - Number(Boolean(businessProductionNote(right.production_note)))
+    const confirmationOrder = Number(hasPassedCsReview(left)) - Number(hasPassedCsReview(right))
     if (confirmationOrder !== 0) return confirmationOrder
     return new Date(left.created_at || 0).getTime() - new Date(right.created_at || 0).getTime()
   })
@@ -1926,8 +1986,8 @@ const translationReviewChecklist = computed(() => {
 
 const translationFilterCounts = computed(() => ({
   ALL: orders.value.length,
-  PENDING: orders.value.filter((order) => !businessProductionNote(order.production_note)).length,
-  CONFIRMED: orders.value.filter((order) => Boolean(businessProductionNote(order.production_note))).length
+  PENDING: orders.value.filter((order) => order.internal_status === 'PENDING_CS_REVIEW').length,
+  CONFIRMED: orders.value.filter((order) => hasPassedCsReview(order)).length
 }))
 
 const filteredClinics = computed(() => {
@@ -2188,7 +2248,7 @@ watch(billingTab, (tab) => {
               <button v-if="sortedOrderFiles.length > 3" class="cs-r-order-panel-toggle" type="button" @click="orderDrawerShowAllFiles = !orderDrawerShowAllFiles">{{ orderDrawerShowAllFiles ? '收起文件' : '查看全部文件' }}</button>
               <div class="cs-r-order-panel-designs">
                 <header><div><span>设计资料</span><h3>最近设计稿</h3></div><b>{{ orderDrafts.length }} 个版本</b></header>
-                <div v-if="displayedOrderDrafts.length" class="cs-r-order-drafts"><article v-for="draft in displayedOrderDrafts" :key="draft.draft_id"><header><strong>设计稿第 {{ draft.version }} 版</strong><span>{{ statusLabel(draft.status) }}</span></header><p>上传人 {{ draft.uploader_user_id ? `#${draft.uploader_user_id}` : '未记录' }} · {{ draft.file_count || fileIds(draft).length }} 个文件</p><small v-if="draft.cs_reject_reason">客服退回：{{ draft.cs_reject_reason }}</small><small v-if="draft.doctor_reject_reason">客户反馈：{{ draft.doctor_reject_reason }}</small><button v-if="fileIds(draft).length" type="button" @click="previewDesignDraft(draft)">预览当前版本</button></article></div>
+                <div v-if="displayedOrderDrafts.length" class="cs-r-order-drafts"><article v-for="draft in displayedOrderDrafts" :key="draft.draft_id"><header><strong>设计稿第 {{ draft.version }} 版</strong><span>{{ statusLabel(draft.status) }}</span></header><p>{{ draft.file_count || fileIds(draft).length }} 个医生可见文件</p><small v-if="draft.doctor_reject_reason">客户反馈：{{ draft.doctor_reject_reason }}</small><button v-if="fileIds(draft).length" type="button" @click="previewDesignDraft(draft)">预览当前版本</button></article></div>
                 <div v-else class="cs-r-state">当前订单暂无设计稿版本</div>
                 <button class="cs-r-order-panel-route" type="button" @click="navigateFromOrderDrawer('/cs/designs')">进入设计稿管理</button>
               </div>
@@ -2222,9 +2282,9 @@ watch(billingTab, (tab) => {
     </template>
 
     <template v-else-if="activeRoute === '/cs/information-translation'">
-      <header class="cs-r-heading"><div><h1>信息审核/翻译</h1><p>由翻译人员审核客户文字、确认翻译稿并整理订单级生产信息。</p></div><span class="cs-r-count">{{ orders.length }} 项任务</span></header>
+      <header class="cs-r-heading"><div><h1>信息审核/翻译</h1><p>在现有页面完成资料核对、翻译确认和客服初审；通过后进入生产审核。</p></div><span class="cs-r-count">{{ orders.length }} 项任务</span></header>
       <div class="cs-r-workspace is-translation">
-        <aside class="cs-r-side-list"><header><strong>处理队列</strong><span>{{ filteredTranslationOrders.length }}</span></header><label class="cs-r-search"><span>⌕</span><input v-model="translationKeyword" type="search" placeholder="搜索订单、客户或产品" aria-label="搜索信息审核任务"></label><div class="cs-r-conversation-tabs"><button type="button" :class="{active:translationFilter==='ALL'}" @click="translationFilter='ALL'">全部 {{ translationFilterCounts.ALL }}</button><button type="button" :class="{active:translationFilter==='PENDING'}" @click="translationFilter='PENDING'">待处理 {{ translationFilterCounts.PENDING }}</button><button type="button" :class="{active:translationFilter==='CONFIRMED'}" @click="translationFilter='CONFIRMED'">已确认 {{ translationFilterCounts.CONFIRMED }}</button></div><button v-for="order in filteredTranslationOrders" :key="order.order_id" type="button" :class="{ active: translationOrderId === order.order_id }" @click="selectTranslationOrder(order)"><strong>{{ order.order_no }}</strong><span>{{ order.clinic_name }} · {{ productLabel(order.product_type) }}</span><small>{{ informationStatus(order) }}</small></button><div v-if="filteredTranslationOrders.length === 0" class="cs-r-state">当前筛选下暂无任务</div></aside>
+        <aside class="cs-r-side-list"><header><strong>处理队列</strong><span>{{ filteredTranslationOrders.length }}</span></header><label class="cs-r-search"><span>⌕</span><input v-model="translationKeyword" type="search" placeholder="搜索订单、客户或产品" aria-label="搜索信息审核任务"></label><div class="cs-r-conversation-tabs"><button type="button" :class="{active:translationFilter==='ALL'}" @click="translationFilter='ALL'">全部 {{ translationFilterCounts.ALL }}</button><button type="button" :class="{active:translationFilter==='PENDING'}" @click="translationFilter='PENDING'">待初审 {{ translationFilterCounts.PENDING }}</button><button type="button" :class="{active:translationFilter==='CONFIRMED'}" @click="translationFilter='CONFIRMED'">已初审 {{ translationFilterCounts.CONFIRMED }}</button></div><button v-for="order in filteredTranslationOrders" :key="order.order_id" type="button" :class="{ active: translationOrderId === order.order_id }" @click="selectTranslationOrder(order)"><strong>{{ order.order_no }}</strong><span>{{ order.clinic_name }} · {{ productLabel(order.product_type) }}</span><small>{{ informationStatus(order) }}</small></button><div v-if="filteredTranslationOrders.length === 0" class="cs-r-state">当前筛选下暂无任务</div></aside>
         <section v-if="selectedTranslationOrder" class="cs-r-work-content">
           <header class="cs-r-work-head"><div><h2>{{ selectedTranslationOrder.order_no }}</h2><p>{{ selectedTranslationOrder.clinic_name }} · {{ productLabel(selectedTranslationOrder.product_type) }}</p></div><span class="cs-r-badge is-amber">{{ informationStatus(selectedTranslationOrder) }}</span></header>
           <div class="cs-r-tab-strip"><button type="button" :class="{active:translationTab==='INFO'}" @click="translationTab='INFO'">信息审核</button><button type="button" :class="{active:translationTab==='TRANSLATION'}" @click="translationTab='TRANSLATION'">翻译整理</button><button type="button" :class="{active:translationTab==='FILES'}" @click="translationTab='FILES'">附件 {{ translationFiles.length }}</button><button type="button" :class="{active:translationTab==='HISTORY'}" @click="translationTab='HISTORY'">处理记录</button></div>
@@ -2264,16 +2324,16 @@ watch(billingTab, (tab) => {
               </footer>
             </section>
           </template>
-          <template v-else-if="translationTab==='TRANSLATION'"><section class="cs-r-readonly-note"><strong>需要翻译的客户文字</strong><p class="cs-r-preserve-text">{{ translationSource || '该订单未单独填写外文指示，可直接整理生产执行信息。' }}</p></section><section class="cs-r-editor-card"><header><div><h3>AI 翻译草稿</h3><p>AI 内容不会自动发送或写入生产。</p></div><button type="button" :disabled="aiLoading || !translationSource.trim()" @click="generateTranslation">生成翻译草稿</button></header><textarea v-model="translationDraft" rows="5" placeholder="生成后由翻译人员逐项校对" aria-label="翻译草稿"></textarea></section><section class="cs-r-editor-card"><header><div><h3>人工确认的生产信息</h3><p>保存后供生产审核读取，保留修改人与时间。</p></div><button type="button" :disabled="aiLoading" @click="generateProductionNote">生成生产信息建议</button></header><textarea v-model="productionNoteDraft" rows="6" placeholder="整理颜色、材料、牙位及客户全部指示" aria-label="生产信息确认稿"></textarea><input v-model="productionNoteConfirmation" placeholder="填写本次人工确认说明（可选）" aria-label="人工确认说明"><footer><button type="button" @click="openInquiryForOrder(selectedTranslationOrder.order_id)">发现疑点，创建问单</button><button class="is-primary" type="button" :disabled="aiLoading || !productionNoteDraft.trim()" @click="confirmProductionNote">翻译人员人工确认</button></footer></section></template>
+          <template v-else-if="translationTab==='TRANSLATION'"><section class="cs-r-readonly-note"><strong>需要翻译的客户文字</strong><p class="cs-r-preserve-text">{{ translationSource || '该订单未单独填写外文指示，可跳过翻译并直接确认生产信息。' }}</p></section><section class="cs-r-editor-card"><header><div><h3>翻译确认稿</h3><p>检测到外文时必须生成或填写并人工核对；中文订单可跳过。</p></div><button type="button" :disabled="aiLoading || !translationSource.trim()" @click="generateTranslation">生成翻译草稿</button></header><textarea v-model="translationDraft" rows="5" placeholder="生成后由翻译人员逐项校对" aria-label="翻译草稿"></textarea></section><section class="cs-r-editor-card"><header><div><h3>客服初审生产信息</h3><p>通过时写入确认稿并进入生产审核，保留修改人与时间。</p></div><button type="button" :disabled="aiLoading" @click="generateProductionNote">生成生产信息建议</button></header><textarea v-model="productionNoteDraft" rows="6" placeholder="整理颜色、材料、牙位及客户全部指示" aria-label="生产信息确认稿"></textarea><input v-model="productionNoteConfirmation" placeholder="填写本次初审确认说明（可选）" aria-label="初审确认说明"><footer><button type="button" @click="openInquiryForOrder(selectedTranslationOrder.order_id)">发现疑点，创建问单</button><button class="is-primary" type="button" :disabled="aiLoading || !productionNoteDraft.trim() || selectedTranslationOrder.internal_status !== 'PENDING_CS_REVIEW'" @click="confirmProductionNote">{{ selectedTranslationOrder.internal_status === 'PENDING_CS_REVIEW' ? '确认并通过客服初审' : '客服初审已完成' }}</button></footer></section></template>
           <section v-else-if="translationTab==='FILES'" class="cs-r-editor-card"><header><div><h3>订单附件</h3><p>只显示当前账号可访问的真实文件记录。</p></div><span>{{ translationFiles.length }} 个</span></header><div v-if="translationFiles.length" class="cs-r-record-list"><article v-for="file in translationFiles" :key="file.file_id"><div><strong>{{ file.original_filename }}</strong><span>{{ file.content_type || '类型未记录' }} · {{ file.file_size == null ? '大小未记录' : `${file.file_size} B` }}</span></div><span class="cs-r-badge">{{ statusLabel(file.upload_status) }}</span></article></div><div v-else class="cs-r-state">当前订单没有可查看附件</div></section>
-          <section v-else class="cs-r-editor-card"><header><div><h3>处理记录</h3><p>显示当前订单已有的真实时间和确认结果。</p></div></header><div class="cs-r-record-list"><article><div><strong>订单建立</strong><span>{{ compactDateTime(selectedTranslationOrder.created_at) }}</span></div><span class="cs-r-badge">{{ statusLabel(selectedTranslationOrder.internal_status) }}</span></article><article><div><strong>最近更新</strong><span>{{ compactDateTime(selectedTranslationOrder.updated_at) }}</span></div><span class="cs-r-badge" :class="businessProductionNote(selectedTranslationOrder.production_note) ? 'is-green':'is-amber'">{{ businessProductionNote(selectedTranslationOrder.production_note) ? '已有人工确认稿':'尚未人工确认' }}</span></article></div><section class="cs-r-readonly-note"><strong>已确认制作要求</strong><p>{{ businessProductionNote(selectedTranslationOrder.production_note) || '尚未保存翻译人员确认的制作要求。' }}</p></section></section>
+          <section v-else class="cs-r-editor-card"><header><div><h3>处理记录</h3><p>显示当前订单已有的真实时间和客服初审结果。</p></div></header><div class="cs-r-record-list"><article><div><strong>订单建立</strong><span>{{ compactDateTime(selectedTranslationOrder.created_at) }}</span></div><span class="cs-r-badge">{{ statusLabel(selectedTranslationOrder.internal_status) }}</span></article><article><div><strong>最近更新</strong><span>{{ compactDateTime(selectedTranslationOrder.updated_at) }}</span></div><span class="cs-r-badge" :class="hasPassedCsReview(selectedTranslationOrder) ? 'is-green':'is-amber'">{{ informationStatus(selectedTranslationOrder) }}</span></article></div><section class="cs-r-readonly-note"><strong>客服初审确认的制作要求</strong><p>{{ businessProductionNote(selectedTranslationOrder.production_note) || '尚未形成客服初审确认的制作要求。' }}</p></section></section>
         </section>
         <div v-else class="cs-r-state">请选择左侧任务</div>
       </div>
     </template>
 
     <template v-else-if="activeRoute === '/cs/designs'">
-      <header class="cs-r-heading"><div><h1>设计稿管理</h1><p>审核设计文件版本、核对执行信息，并通过问单发起客户设计确认。</p></div><span class="cs-r-count">{{ designDrafts.length }} 个版本</span></header>
+      <header class="cs-r-heading"><div><h1>设计稿进度</h1><p>只读查看已提交医生的设计版本和客户确认结果；技术设计内审由生产负责人处理。</p></div><span class="cs-r-count">{{ designDrafts.length }} 个医生可见版本</span></header>
       <section class="cs-r-table-card">
         <header class="cs-r-table-toolbar"><div><h3>设计订单</h3><span>{{ filteredDesignOrders.length }} / {{ orders.length }} 个订单</span></div><label class="cs-r-search"><span>⌕</span><input v-model="designKeyword" type="search" placeholder="搜索订单、客户或产品" aria-label="搜索设计订单"></label></header>
         <table v-if="filteredDesignOrders.length">
@@ -2288,8 +2348,8 @@ watch(billingTab, (tab) => {
           <template v-else>
             <section v-if="designDetailState.error" class="cs-r-detail-alert is-danger"><span>!</span><div><strong>设计版本加载失败</strong><p>{{ designDetailState.error }}</p></div><button type="button" @click="selectDesignOrder(selectedDesignOrder.order_id)">重试</button></section>
             <section class="cs-r-info-band"><div><span>产品</span><strong>{{ productLabel(selectedDesignOrder.product_type) }}</strong></div><div><span>颜色</span><strong>{{ orderFormValue(selectedDesignOrder,['shade','color']) || '待确认' }}</strong></div><div><span>牙位</span><strong>{{ orderFormValue(selectedDesignOrder,['tooth_position','tooth','teeth']) || '待确认' }}</strong></div><div><span>诊所</span><strong>{{ selectedDesignOrder.clinic_name }}</strong></div></section>
-            <section><div class="cs-r-section-title"><div><span class="cs-r-section-emoji">🗂️</span><div><h3>版本与审核记录</h3><p>操作权限严格跟随当前版本状态</p></div></div><span>{{ designDrafts.length }} 个</span></div>
-              <div v-if="designDrafts.length" class="cs-r-version-list"><article v-for="draft in designDrafts" :key="draft.draft_id" :class="{'is-reviewable':designCanReview(draft)}"><header><div class="cs-r-version-mark"><span>📐</span><div><strong>设计稿 V{{ draft.version }}</strong><small>{{ draft.file_count || fileIds(draft).length }} 个文件 · 上传人 #{{ draft.uploader_user_id || '未记录' }}</small></div></div><span class="cs-r-badge" :class="draft.status.includes('REJECT') ? 'is-red' : draft.status.includes('CONFIRM') ? 'is-green' : 'is-amber'">{{ statusLabel(draft.status) }}</span></header><div v-if="draft.cs_reject_reason || draft.doctor_reject_reason" class="cs-r-version-reason"><strong>退回原因</strong><p>{{ draft.cs_reject_reason || draft.doctor_reject_reason }}</p></div><div v-else class="cs-r-version-body"><div><span>文件状态</span><p>{{ fileIds(draft).length ? '已有可关联文件' : '版本尚未关联文件' }}</p></div><div><span>客户确认</span><p>{{ draft.status.includes('CONFIRM') ? '客户已明确确认' : '尚未形成客户确认结果' }}</p></div></div><label v-if="designCanReview(draft)"><span>退回修改原因</span><input v-model="designRejectReasons[draft.draft_id]" placeholder="退回时必填，审核通过可留空"></label><footer><button type="button" :disabled="fileIds(draft).length === 0" @click="previewDesignDraft(draft)">👁 预览文件</button><template v-if="designCanReview(draft)"><button type="button" @click="reviewDesignDraft(draft,'REJECT')">退回修改</button><button class="is-primary" type="button" @click="reviewDesignDraft(draft,'APPROVE')">审核通过</button></template><button v-else-if="['PENDING_DOCTOR_REVIEW','PENDING_DOCTOR_CONFIRM'].includes(draft.status)" class="is-primary" type="button" @click="openInquiryForOrder(selectedDesignOrder.order_id)">进入客户确认问单</button><span v-else class="cs-r-action-state">当前状态仅支持查看</span></footer></article></div>
+            <section><div class="cs-r-section-title"><div><span class="cs-r-section-emoji">🗂️</span><div><h3>医生可见版本与确认记录</h3><p>客服仅跟进进度和沟通，不执行技术设计审核</p></div></div><span>{{ designDrafts.length }} 个</span></div>
+              <div v-if="designDrafts.length" class="cs-r-version-list"><article v-for="draft in designDrafts" :key="draft.draft_id"><header><div class="cs-r-version-mark"><span>📐</span><div><strong>设计稿 V{{ draft.version }}</strong><small>{{ draft.file_count || fileIds(draft).length }} 个医生可见文件</small></div></div><span class="cs-r-badge" :class="draft.status.includes('REJECT') ? 'is-red' : draft.status.includes('CONFIRM') ? 'is-green' : 'is-amber'">{{ statusLabel(draft.status) }}</span></header><div v-if="draft.doctor_reject_reason" class="cs-r-version-reason"><strong>客户修改意见</strong><p>{{ draft.doctor_reject_reason }}</p></div><div v-else class="cs-r-version-body"><div><span>文件状态</span><p>{{ fileIds(draft).length ? '已对医生开放' : '版本尚未关联文件' }}</p></div><div><span>客户确认</span><p>{{ draft.status.includes('CONFIRM') ? '客户已明确确认' : '等待客户确认' }}</p></div></div><footer><button type="button" :disabled="fileIds(draft).length === 0" @click="previewDesignDraft(draft)">👁 预览文件</button><button v-if="['PENDING_DOCTOR','PENDING_DOCTOR_REVIEW','PENDING_DOCTOR_CONFIRM'].includes(draft.status)" class="is-primary" type="button" @click="openInquiryForOrder(selectedDesignOrder.order_id)">进入客户确认问单</button><span v-else class="cs-r-action-state">只读进度</span></footer></article></div>
               <div v-else-if="!designDetailState.error" class="cs-r-state"><strong>当前订单还没有设计稿版本</strong><span>设计文件由生产端上传后在这里出现。</span></div>
             </section>
           </template>

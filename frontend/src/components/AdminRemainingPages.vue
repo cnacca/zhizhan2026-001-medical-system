@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import { computed, onBeforeUnmount, onMounted, ref, watch } from 'vue'
+import { productionProgressNodes, productionProgressSummary } from '../utils/productionProgress'
 
 type ApiResponse<T> = { code: number; msg: string; data: T }
 type Row = Record<string, any>
@@ -419,15 +420,13 @@ function costAmount(value: number | null | undefined) {
   return new Intl.NumberFormat('zh-CN', { maximumFractionDigits: 2 }).format(value)
 }
 
-function processCurrent(row: Row) {
-  const nodes = row.instance?.nodes ?? []
-  return nodes.find((node: Row) => node.node_status === 'IN_PROGRESS') ?? nodes.find((node: Row) => node.node_status === 'READY') ?? nodes.at(-1) ?? null
+function processCurrent(row: Row): Row {
+  const nodes = productionProgressNodes(row.instance?.nodes ?? []) as Row[]
+  return nodes.find((node: Row) => node.node_status === 'IN_PROGRESS') ?? nodes.find((node: Row) => node.node_status === 'READY') ?? nodes.at(-1) ?? {}
 }
 
 function processProgress(row: Row) {
-  const nodes = row.instance?.nodes ?? []
-  if (!nodes.length) return 0
-  return Math.round(nodes.filter((node: Row) => node.node_status === 'COMPLETED').length / nodes.length * 100)
+  return productionProgressSummary(row.instance?.nodes ?? []).percent
 }
 
 async function openClient(row: Row) {
@@ -467,7 +466,10 @@ async function openDelivery(row: Row) {
 }
 
 async function openProcess(row: Row) {
-  openDrawer('订单工序详情', 'process', row)
+  const instance = row.instance
+    ? { ...row.instance, nodes: productionProgressNodes(row.instance.nodes ?? []) }
+    : null
+  openDrawer('订单工序详情', 'process', { ...row, instance })
 }
 
 async function openPerformance(row: Row) {
@@ -752,7 +754,7 @@ defineExpose({ refresh, openQualitySettings })
     </template>
 
     <template v-else-if="activeRoute === '/workflow/process-instance'">
-      <div class="arp-table-card arp-fill-card"><div class="arp-toolbar"><label class="arp-search"><span>⌕</span><input v-model="keyword" placeholder="搜索订单、客户或产品"></label><select v-model="statusFilter"><option value="ALL">全部状态</option><option value="UNASSIGNED">待派工</option><option value="PRODUCING">生产中</option><option value="NO_PROCESS">尚未生成工序</option></select><button @click="clearFilters">清空</button><em>共 {{ filteredProcesses.length }} 单</em></div><div class="arp-table-scroll"><table class="arp-wide"><thead><tr><th>订单</th><th>客户 / 产品</th><th>当前工序</th><th>节点进度</th><th>当前执行人</th><th>时限</th><th>异常</th><th>操作</th></tr></thead><tbody><tr v-for="row in pagedRows" :key="row.order.order_id" @click="openProcess(row)"><td><strong>{{ row.order.order_no }}</strong><small>编号 {{ row.order.order_id }}</small></td><td><strong>{{ row.order.clinic_name || '客户暂未记录' }}</strong><small>{{ productLabel(row.order.product_type) }}</small></td><td>{{ processCurrent(row)?.process_name || (row.failed ? '暂时无法查看' : '尚未生成工序') }}</td><td><div class="arp-progress"><i :style="{ width: `${processProgress(row)}%` }" /></div><small>{{ row.instance?.nodes?.filter((node: Row) => node.node_status === 'COMPLETED').length ?? 0 }}/{{ row.instance?.nodes?.length ?? 0 }} · {{ processProgress(row) }}%</small></td><td>{{ processCurrent(row)?.assigned_user_id ? `员工 ${processCurrent(row).assigned_user_id}` : '待派工' }}</td><td>{{ compactDate(processCurrent(row)?.deadline_at) }}</td><td><i v-if="processCurrent(row)?.deadline_at && new Date(processCurrent(row).deadline_at) < new Date()" class="arp-badge danger">已超时</i><span v-else>无</span></td><td><button @click.stop="openProcess(row)">查看</button></td></tr></tbody></table></div><footer class="arp-pagination"><span>共 {{ currentRows.length }} 单</span><div><button :disabled="page <= 1" @click="page--">上一页</button><b>{{ page }}</b><button :disabled="page >= pageCount" @click="page++">下一页</button></div></footer></div>
+      <div class="arp-table-card arp-fill-card"><div class="arp-toolbar"><label class="arp-search"><span>⌕</span><input v-model="keyword" placeholder="搜索订单、客户或产品"></label><select v-model="statusFilter"><option value="ALL">全部状态</option><option value="UNASSIGNED">待派工</option><option value="PRODUCING">生产中</option><option value="NO_PROCESS">尚未生成工序</option></select><button @click="clearFilters">清空</button><em>共 {{ filteredProcesses.length }} 单</em></div><div class="arp-table-scroll"><table class="arp-wide"><thead><tr><th>订单</th><th>客户 / 产品</th><th>当前生产工序</th><th>生产进度</th><th>当前执行人</th><th>时限</th><th>异常</th><th>操作</th></tr></thead><tbody><tr v-for="row in pagedRows" :key="row.order.order_id" @click="openProcess(row)"><td><strong>{{ row.order.order_no }}</strong><small>编号 {{ row.order.order_id }}</small></td><td><strong>{{ row.order.clinic_name || '客户暂未记录' }}</strong><small>{{ productLabel(row.order.product_type) }}</small></td><td>{{ processCurrent(row)?.process_name || (row.failed ? '暂时无法查看' : '尚未进入生产') }}</td><td><div class="arp-progress"><i :style="{ width: `${processProgress(row)}%` }" /></div><small>{{ productionProgressSummary(row.instance?.nodes ?? []).completed }}/{{ productionProgressSummary(row.instance?.nodes ?? []).total }} · {{ processProgress(row) }}%</small></td><td>{{ processCurrent(row)?.assigned_user_id ? `员工 ${processCurrent(row).assigned_user_id}` : '待派工' }}</td><td>{{ compactDate(processCurrent(row)?.deadline_at) }}</td><td><i v-if="processCurrent(row)?.deadline_at && new Date(processCurrent(row).deadline_at) < new Date()" class="arp-badge danger">已超时</i><span v-else>无</span></td><td><button @click.stop="openProcess(row)">查看</button></td></tr></tbody></table></div><footer class="arp-pagination"><span>共 {{ currentRows.length }} 单</span><div><button :disabled="page <= 1" @click="page--">上一页</button><b>{{ page }}</b><button :disabled="page >= pageCount" @click="page++">下一页</button></div></footer></div>
     </template>
 
     <template v-else-if="activeRoute === '/production/quality'">

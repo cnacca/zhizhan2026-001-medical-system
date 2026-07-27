@@ -63,13 +63,14 @@ class MessageDesignBillNotificationTests {
                 .update();
         orderId = jdbcClient.sql("SELECT LAST_INSERT_ID()").query(Long.class).single();
         assignWorkerToOrder(suffix);
+        createClaimedDesignTask();
 
         jdbcClient.sql("""
                         INSERT INTO file_resource
                             (order_id, owner_user_id, source_type, visibility, bucket_name,
                              object_key, original_filename, content_type, file_size, upload_status)
                         VALUES
-                            (:orderId, :ownerUserId, 'DESIGN_DRAFT', 'DOCTOR_CS', 'ai-order-private',
+                            (:orderId, :ownerUserId, 'DESIGN_DRAFT', 'INTERNAL', 'ai-order-private',
                              :objectKey, 'draft.pdf', 'application/pdf', 1024, 'COMPLETED')
                         """)
                 .param("orderId", orderId)
@@ -345,32 +346,40 @@ class MessageDesignBillNotificationTests {
     }
 
     @Test
-    void designDraftReviewAndDoctorConfirmUseNotificationFactSource() throws Exception {
+    void designDraftSubmissionInternalReviewAndDoctorConfirmUseNotificationFactSource() throws Exception {
         MvcResult uploadResult = mockMvc.perform(post("/orders/{orderId}/design-drafts", orderId)
                         .header("X-Bootstrap-Role", "WORKER")
                         .header("X-Bootstrap-User-Id", WORKER_USER_ID)
                         .contentType(MediaType.APPLICATION_JSON)
-                        .content("{\"file_ids\":[" + fileId + "],\"upload_note\":\"新版设计稿\"}"))
+                        .content("{\"file_ids\":[" + fileId
+                                + "],\"upload_note\":\"新版设计稿\",\"submission_key\":\"notification-v1\"}"))
                 .andExpect(status().isOk())
-                .andExpect(jsonPath("$.data.status").value("PENDING_CS_REVIEW"))
+                .andExpect(jsonPath("$.data.status").value("PENDING_REVIEW"))
+                .andExpect(jsonPath("$.data.submitted_at").doesNotExist())
                 .andReturn();
         long draftId = extractId(uploadResult, "draft_id");
-        assertThat(notificationCount("DESIGN_DRAFT_UPLOADED", "CS")).isEqualTo(1L);
 
         mockMvc.perform(get("/orders/{orderId}/design-drafts", orderId)
                         .header("X-Bootstrap-Role", "DOCTOR")
                         .header("X-Bootstrap-User-Id", DOCTOR_USER_ID)
                         .header("X-Bootstrap-Clinic-Id", clinicId))
                 .andExpect(status().isOk())
-                .andExpect(content().string(not(containsString("PENDING_CS_REVIEW"))));
+                .andExpect(jsonPath("$.data").isEmpty());
 
-        mockMvc.perform(post("/orders/{orderId}/design-drafts/{draftId}/cs-review", orderId, draftId)
-                        .header("X-Bootstrap-Role", "CS")
-                        .header("X-Bootstrap-User-Id", CS_USER_ID)
+        mockMvc.perform(post("/orders/{orderId}/design-drafts/{draftId}/submit", orderId, draftId)
+                        .header("X-Bootstrap-Role", "WORKER")
+                        .header("X-Bootstrap-User-Id", WORKER_USER_ID))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.submitted_at").isString());
+        assertThat(notificationCount("DESIGN_DRAFT_SUBMITTED", "WORKER")).isEqualTo(1L);
+
+        mockMvc.perform(post("/orders/{orderId}/design-drafts/{draftId}/internal-review", orderId, draftId)
+                        .header("X-Bootstrap-Role", "ADMIN")
+                        .header("X-Bootstrap-User-Id", 8001L)
                         .contentType(MediaType.APPLICATION_JSON)
                         .content("{\"action\":\"APPROVE\"}"))
                 .andExpect(status().isOk())
-                .andExpect(jsonPath("$.data.status").value("PENDING_DOCTOR_CONFIRM"));
+                .andExpect(jsonPath("$.data.status").value("PENDING_DOCTOR"));
 
         mockMvc.perform(get("/orders/{orderId}/design-drafts", orderId)
                         .header("X-Bootstrap-Role", "DOCTOR")
@@ -378,7 +387,7 @@ class MessageDesignBillNotificationTests {
                         .header("X-Bootstrap-Clinic-Id", clinicId))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.data[0].draft_id").value(draftId))
-                .andExpect(jsonPath("$.data[0].status").value("PENDING_DOCTOR_CONFIRM"));
+                .andExpect(jsonPath("$.data[0].status").value("PENDING_DOCTOR"));
 
         mockMvc.perform(post("/orders/{orderId}/design-drafts/{draftId}/doctor-confirm", orderId, draftId)
                         .header("X-Bootstrap-Role", "DOCTOR")
@@ -389,21 +398,22 @@ class MessageDesignBillNotificationTests {
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.data.status").value("DOCTOR_CONFIRMED"));
 
-        assertThat(notificationCount("DESIGN_DRAFT_CS_APPROVED", "DOCTOR")).isEqualTo(1L);
-        assertThat(notificationCount("DESIGN_DRAFT_CONFIRMED", "CS")).isEqualTo(1L);
+        assertThat(notificationCount("DESIGN_DRAFT_INTERNAL_APPROVED", "DOCTOR")).isEqualTo(1L);
+        assertThat(notificationCount("DESIGN_DRAFT_DOCTOR_CONFIRMED", "INTERNAL")).isEqualTo(1L);
         assertThat(userNotificationCount(DOCTOR_USER_ID)).isEqualTo(1L);
-        assertThat(userNotificationCount(CS_USER_ID)).isEqualTo(2L);
+        assertThat(userNotificationCount(WORKER_USER_ID)).isEqualTo(1L);
     }
 
     @Test
-    void designDraftUploadKeepsMultipleFilesPerVersionAndIncrementsVersions() throws Exception {
+    void designDraftUploadKeepsMultipleFilesInOneIdempotentVersion() throws Exception {
         long secondFileId = createDesignDraftFile("supplement.stl", "application/sla", 2048);
 
         MvcResult firstUpload = mockMvc.perform(post("/orders/{orderId}/design-drafts", orderId)
                         .header("X-Bootstrap-Role", "WORKER")
                         .header("X-Bootstrap-User-Id", WORKER_USER_ID)
                         .contentType(MediaType.APPLICATION_JSON)
-                        .content("{\"file_ids\":[" + fileId + "," + secondFileId + "],\"upload_note\":\"V1 多文件\"}"))
+                        .content("{\"file_ids\":[" + fileId + "," + secondFileId
+                                + "],\"upload_note\":\"V1 多文件\",\"submission_key\":\"multi-v1\"}"))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.data.version").value(1))
                 .andExpect(jsonPath("$.data.file_id").value(fileId))
@@ -413,35 +423,25 @@ class MessageDesignBillNotificationTests {
                 .andReturn();
         long firstDraftId = extractId(firstUpload, "draft_id");
 
-        long thirdFileId = createDesignDraftFile("version-two.pdf", "application/pdf", 3072);
         mockMvc.perform(post("/orders/{orderId}/design-drafts", orderId)
                         .header("X-Bootstrap-Role", "WORKER")
                         .header("X-Bootstrap-User-Id", WORKER_USER_ID)
                         .contentType(MediaType.APPLICATION_JSON)
-                        .content("{\"file_ids\":[" + thirdFileId + "],\"upload_note\":\"V2\"}"))
+                        .content("{\"file_ids\":[" + fileId + "," + secondFileId
+                                + "],\"upload_note\":\"V1 多文件\",\"submission_key\":\"multi-v1\"}"))
                 .andExpect(status().isOk())
-                .andExpect(jsonPath("$.data.version").value(2))
-                .andExpect(jsonPath("$.data.file_ids[0]").value(thirdFileId))
-                .andExpect(jsonPath("$.data.file_count").value(1));
+                .andExpect(jsonPath("$.data.draft_id").value(firstDraftId))
+                .andExpect(jsonPath("$.data.version").value(1))
+                .andExpect(jsonPath("$.data.file_count").value(2));
 
-        mockMvc.perform(post("/orders/{orderId}/design-drafts/{draftId}/cs-review", orderId, firstDraftId)
-                        .header("X-Bootstrap-Role", "CS")
-                        .header("X-Bootstrap-User-Id", CS_USER_ID)
-                        .contentType(MediaType.APPLICATION_JSON)
-                        .content("{\"action\":\"APPROVE\"}"))
-                .andExpect(status().isOk());
-
-        mockMvc.perform(get("/orders/{orderId}/design-drafts", orderId)
-                        .header("X-Bootstrap-Role", "DOCTOR")
-                        .header("X-Bootstrap-User-Id", DOCTOR_USER_ID)
-                        .header("X-Bootstrap-Clinic-Id", clinicId))
-                .andExpect(status().isOk())
-                .andExpect(jsonPath("$.data[0].draft_id").value(firstDraftId))
-                .andExpect(jsonPath("$.data[0].version").value(1))
-                .andExpect(jsonPath("$.data[0].file_ids[0]").value(fileId))
-                .andExpect(jsonPath("$.data[0].file_ids[1]").value(secondFileId))
-                .andExpect(jsonPath("$.data[0].file_count").value(2))
-                .andExpect(content().string(not(containsString("内部协同备注"))));
+        assertThat(jdbcClient.sql("""
+                        SELECT COUNT(*)
+                        FROM design_draft
+                        WHERE order_id = :orderId
+                        """)
+                .param("orderId", orderId)
+                .query(Long.class)
+                .single()).isEqualTo(1L);
     }
 
     @Test
@@ -702,6 +702,15 @@ class MessageDesignBillNotificationTests {
                 .param("displayName", username)
                 .param("userType", userType)
                 .update();
+        jdbcClient.sql("""
+                        INSERT IGNORE INTO system_user_role (user_id, role_id)
+                        SELECT :userId, role_id
+                        FROM system_role
+                        WHERE role_code = :roleCode
+                        """)
+                .param("userId", userId)
+                .param("roleCode", userType)
+                .update();
     }
 
     private String latestNotificationPayload(String eventType, String audienceRole) {
@@ -736,27 +745,32 @@ class MessageDesignBillNotificationTests {
     }
 
     @Test
-    void designDraftRejectReasonsArePersistedNotifiedAndVersionedWithoutDoctorCsRejectVisibility() throws Exception {
-        long firstFileId = createDesignDraftFile("cs-reject.stl", "application/sla", 1024);
+    void designDraftRejectReasonsArePersistedAndRevisionHistoryKeepsVisibilityBoundary() throws Exception {
+        long firstFileId = createDesignDraftFile("internal-reject.stl", "application/sla", 1024);
         MvcResult firstUpload = mockMvc.perform(post("/orders/{orderId}/design-drafts", orderId)
                         .header("X-Bootstrap-Role", "WORKER")
                         .header("X-Bootstrap-User-Id", WORKER_USER_ID)
                         .contentType(MediaType.APPLICATION_JSON)
-                        .content("{\"file_ids\":[" + firstFileId + "]}"))
+                        .content("{\"file_ids\":[" + firstFileId
+                                + "],\"submission_key\":\"reject-v1\"}"))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.data.version").value(1))
                 .andReturn();
         long firstDraftId = extractId(firstUpload, "draft_id");
 
-        mockMvc.perform(post("/orders/{orderId}/design-drafts/{draftId}/cs-review", orderId, firstDraftId)
-                        .header("X-Bootstrap-Role", "CS")
-                        .header("X-Bootstrap-User-Id", CS_USER_ID)
+        mockMvc.perform(post("/orders/{orderId}/design-drafts/{draftId}/submit", orderId, firstDraftId)
+                        .header("X-Bootstrap-Role", "WORKER")
+                        .header("X-Bootstrap-User-Id", WORKER_USER_ID))
+                .andExpect(status().isOk());
+        mockMvc.perform(post("/orders/{orderId}/design-drafts/{draftId}/internal-review", orderId, firstDraftId)
+                        .header("X-Bootstrap-Role", "ADMIN")
+                        .header("X-Bootstrap-User-Id", 8001L)
                         .contentType(MediaType.APPLICATION_JSON)
-                        .content("{\"action\":\"REJECT\",\"cs_reject_reason\":\"边缘不清晰，请重新设计\"}"))
+                        .content("{\"action\":\"REJECT\",\"internal_reject_reason\":\"边缘不清晰，请重新设计\"}"))
                 .andExpect(status().isOk())
-                .andExpect(jsonPath("$.data.status").value("CS_REJECTED"))
-                .andExpect(jsonPath("$.data.cs_reject_reason").value("边缘不清晰，请重新设计"));
-        assertThat(notificationCount("DESIGN_DRAFT_CS_REJECTED", "WORKER")).isEqualTo(1L);
+                .andExpect(jsonPath("$.data.status").value("INTERNAL_REJECTED"))
+                .andExpect(jsonPath("$.data.internal_reject_reason").value("边缘不清晰，请重新设计"));
+        assertThat(notificationCount("DESIGN_DRAFT_INTERNAL_REJECTED", "WORKER")).isEqualTo(1L);
 
         mockMvc.perform(get("/orders/{orderId}/design-drafts", orderId)
                         .header("X-Bootstrap-Role", "DOCTOR")
@@ -770,14 +784,19 @@ class MessageDesignBillNotificationTests {
                         .header("X-Bootstrap-Role", "WORKER")
                         .header("X-Bootstrap-User-Id", WORKER_USER_ID)
                         .contentType(MediaType.APPLICATION_JSON)
-                        .content("{\"file_ids\":[" + secondFileId + "]}"))
+                        .content("{\"file_ids\":[" + secondFileId
+                                + "],\"submission_key\":\"reject-v2\"}"))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.data.version").value(2))
                 .andReturn();
         long secondDraftId = extractId(secondUpload, "draft_id");
-        mockMvc.perform(post("/orders/{orderId}/design-drafts/{draftId}/cs-review", orderId, secondDraftId)
-                        .header("X-Bootstrap-Role", "CS")
-                        .header("X-Bootstrap-User-Id", CS_USER_ID)
+        mockMvc.perform(post("/orders/{orderId}/design-drafts/{draftId}/submit", orderId, secondDraftId)
+                        .header("X-Bootstrap-Role", "WORKER")
+                        .header("X-Bootstrap-User-Id", WORKER_USER_ID))
+                .andExpect(status().isOk());
+        mockMvc.perform(post("/orders/{orderId}/design-drafts/{draftId}/internal-review", orderId, secondDraftId)
+                        .header("X-Bootstrap-Role", "ADMIN")
+                        .header("X-Bootstrap-User-Id", 8001L)
                         .contentType(MediaType.APPLICATION_JSON)
                         .content("{\"action\":\"APPROVE\"}"))
                 .andExpect(status().isOk());
@@ -790,14 +809,15 @@ class MessageDesignBillNotificationTests {
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.data.status").value("DOCTOR_REJECTED"))
                 .andExpect(jsonPath("$.data.doctor_reject_reason").value("咬合面需要调整"));
-        assertThat(notificationCount("DESIGN_DRAFT_REJECTED", "CS")).isEqualTo(1L);
+        assertThat(notificationCount("DESIGN_DRAFT_DOCTOR_REJECTED", "INTERNAL")).isEqualTo(1L);
 
         long thirdFileId = createDesignDraftFile("version-three.stl", "application/sla", 3072);
         mockMvc.perform(post("/orders/{orderId}/design-drafts", orderId)
                         .header("X-Bootstrap-Role", "WORKER")
                         .header("X-Bootstrap-User-Id", WORKER_USER_ID)
                         .contentType(MediaType.APPLICATION_JSON)
-                        .content("{\"file_ids\":[" + thirdFileId + "]}"))
+                        .content("{\"file_ids\":[" + thirdFileId
+                                + "],\"submission_key\":\"reject-v3\"}"))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.data.version").value(3));
     }
@@ -808,7 +828,7 @@ class MessageDesignBillNotificationTests {
                             (order_id, owner_user_id, source_type, visibility, bucket_name,
                              object_key, original_filename, content_type, file_size, upload_status)
                         VALUES
-                            (:orderId, :ownerUserId, 'DESIGN_DRAFT', 'DOCTOR_CS', 'ai-order-private',
+                            (:orderId, :ownerUserId, 'DESIGN_DRAFT', 'INTERNAL', 'ai-order-private',
                              :objectKey, :filename, :contentType, :fileSize, 'COMPLETED')
                         """)
                 .param("orderId", orderId)
@@ -819,6 +839,18 @@ class MessageDesignBillNotificationTests {
                 .param("fileSize", fileSize)
                 .update();
         return jdbcClient.sql("SELECT LAST_INSERT_ID()").query(Long.class).single();
+    }
+
+    private void createClaimedDesignTask() {
+        jdbcClient.sql("""
+                        INSERT INTO design_task
+                            (order_id, task_status, assigned_user_id, claimed_at)
+                        VALUES
+                            (:orderId, 'CLAIMED', :workerUserId, CURRENT_TIMESTAMP(3))
+                        """)
+                .param("orderId", orderId)
+                .param("workerUserId", WORKER_USER_ID)
+                .update();
     }
 
     private void markFinalOutCheckPassed() {

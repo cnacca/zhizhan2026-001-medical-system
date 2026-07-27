@@ -2895,6 +2895,8 @@
 
 .dv2-dialog-note { margin: 0 0 12px; color: #64748b; font-size: 11px; line-height: 1.55; }
 .dv2-preview-stage { min-height: 460px; border: 1px solid var(--dv2-border); border-radius: 11px; background: #f8fafc; }
+.dv2-preview-image { display: block; width: 100%; max-height: 68vh; min-height: 460px; object-fit: contain; border-radius: 11px; }
+.dv2-preview-frame { display: block; width: 100%; height: 68vh; min-height: 460px; border: 0; border-radius: 11px; background: #fff; }
 .dv2-preview-placeholder,
 .dv2-mock-model { display: grid; min-height: 460px; place-items: center; align-content: center; gap: 10px; text-align: center; }
 .dv2-preview-placeholder > span { display: grid; width: 62px; height: 62px; place-items: center; border-radius: 14px; color: #1d4ed8; font-weight: 700; background: #dbeafe; }
@@ -2934,6 +2936,7 @@
   .dv2-dashboard-reference-columns,
   .dv2-reference-trend-summary,
   .dv2-wizard-two,
+  .dv2-wizard-context,
   .dv2-review-summary,
   .dv2-account-layout { grid-template-columns: 1fr; }
   .dv2-message-layout { grid-template-columns: 1fr; }
@@ -3328,6 +3331,11 @@
 .dv2-selected-teeth { display: flex; align-items: center; justify-content: space-between; margin: 12px 0; padding: 10px 13px; border-radius: 9px; color: #475569; background: #eff6ff; }
 .dv2-selected-teeth span { font-size: 10px; }
 .dv2-selected-teeth strong { color: #1d4ed8; font-size: 11px; }
+.dv2-wizard-context { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 10px; margin-bottom: 18px; }
+.dv2-wizard-context > div { display: grid; gap: 4px; padding: 12px 14px; border: 1px solid #dbe7f6; border-radius: 10px; background: #f8fbff; }
+.dv2-wizard-context span { color: #64748b; font-size: 9px; }
+.dv2-wizard-context strong { overflow: hidden; color: #0f172a; font-size: 12px; text-overflow: ellipsis; white-space: nowrap; }
+.dv2-wizard-context small { overflow: hidden; color: #94a3b8; font-size: 8px; text-overflow: ellipsis; white-space: nowrap; }
 .dv2-upload-zone.dragging { border-color: #2563eb; background: #dbeafe; box-shadow: 0 0 0 4px rgba(37, 99, 235, .1); }
 .dv2-upload-checklist { display: flex; gap: 8px; margin: 12px 0; }
 .dv2-upload-checklist span { padding: 6px 9px; border-radius: 7px; color: #64748b; font-size: 9px; background: #f1f5f9; }

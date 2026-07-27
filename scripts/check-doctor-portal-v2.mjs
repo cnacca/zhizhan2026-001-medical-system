@@ -58,23 +58,39 @@ for (const text of ['搜索订单、患者或消息', "key: 'UNREAD'", "key: 'RE
 rejectText(messagePage, /(AI翻译|技师姓名|内部工序)/, 'messages business boundary')
 
 for (const text of [
-  "['产品与患者', '牙位与病例', '产品配置', '上传资料', '确认选项', '复核提交']",
+  "['产品与患者', '牙位与病例', '产品配置', '上传资料', '复核提交']",
   'wizardCategories',
   'wizardToothNumbers',
+  'doctorOrderPatientFieldKeys',
+  'doctorOrderToothFieldKeys',
+  'wizardSubmissionDynamicFields',
+  'patient_name: patientName',
+  'tooth_position: toothPosition',
+  '患者和牙位已从前两步自动带入',
+  '当前产品没有需要额外填写的制作参数',
   'handleWizardDrop',
   'dv2-tooth-chart',
-  'selectedProductReviewOptions',
+  '下单时无需预先选择确认节点',
   'CAD_DESIGN',
   'POST_MILLING_PHOTOS',
   'POST_GLAZING_PHOTOS',
   'gateway.uploadOrderFiles',
+  'wizardUploadedFileSignatures',
+  'wizard.files.push(completed)',
+  'draftOrderId: wizard.draftOrderId',
+  'wizardSubmitDisabled',
+  ':disabled="wizardSubmitDisabled"',
+  "ElMessage.success('草稿已保存')",
   'gateway.switchRole',
   "review.allowed_actions.includes('APPROVE_REVIEW')",
   "review.allowed_actions.includes('REJECT_REVIEW')"
 ]) requireText(portal, text, 'wizard roles and reviews')
+rejectText(portal, /<h1>确认选项<\/h1>/, 'wizard must follow PRD five-step order entry')
+requireText(css, '.dv2-wizard-context', 'wizard derived context summary')
 
 for (const text of ['productId: string', 'reviewOptions: ReviewType[]', 'switchRole(role: ClinicRole)', 'uploadOrderFiles(orderId: string, files: File[])', 'markThreadRead(threadId: string)', 'updatePatient(input: PatientUpdateInput)']) requireText(contracts, text, 'doctor gateway contract')
-for (const text of ['X-Clinic-Role', 'product_id: input.productId', 'review_options: input.reviewOptions', '/files/multipart/initiate', 'assertSafeOrderPayload', 'unsafeDoctorContent']) requireText(httpGateway, text, 'http doctor gateway')
+for (const text of ['X-Clinic-Role', 'product_id: input.productId', 'review_options: input.reviewOptions', '/files/multipart/initiate', '/files/multipart/pending', '/multipart/status', 'resumePendingOrderUpload', 'failedDesignActionIndex', 'DoctorReviewSubmittedRefreshError', '订单设计确认状态加载失败', 'assertSafeOrderPayload', 'unsafeDoctorContent']) requireText(httpGateway, text, 'http doctor gateway')
+for (const text of ['isDoctorReviewSubmittedRefreshError', 'usedSubmittedFallback', '页面已保留提交结果']) requireText(portal, text, 'doctor review reconciliation')
 for (const text of ['orders.unshift(created)', 'details.set(created.order_id, detail)', 'async switchRole', 'async uploadOrderFiles', 'async createPatient', 'async updatePatient', 'hasPendingReview']) requireText(mockGateway, text, 'mock doctor closed loops')
 
 rejectText(portal, /(internal_status|work_log|worker_user_id|responsibility_type|performance_score)/, 'doctor rendered internal fields')

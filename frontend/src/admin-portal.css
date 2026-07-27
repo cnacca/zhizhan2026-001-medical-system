@@ -4147,6 +4147,43 @@
   margin: 0;
 }
 
+.admin-personnel-drawer .apm-permission-check {
+  display: flex;
+  align-items: flex-start;
+  gap: 10px;
+  margin-top: 12px;
+  padding: 11px;
+  border: 1px solid #bfdbfe;
+  border-radius: 9px;
+  background: #eff6ff;
+  color: #1e3a5f;
+  cursor: pointer;
+}
+
+.admin-personnel-drawer .apm-permission-check input {
+  width: 14px;
+  height: 14px;
+  margin: 2px 0 0;
+  accent-color: #2563eb;
+}
+
+.admin-personnel-drawer .apm-permission-check span,
+.admin-personnel-drawer .apm-permission-check strong,
+.admin-personnel-drawer .apm-permission-check small {
+  display: block;
+}
+
+.admin-personnel-drawer .apm-permission-check strong {
+  font-size: 9px;
+}
+
+.admin-personnel-drawer .apm-permission-check small {
+  margin-top: 3px;
+  color: #64748b;
+  font-size: 8px;
+  line-height: 1.5;
+}
+
 .admin-personnel-drawer .apm-drawer-note {
   display: flex;
   align-items: flex-start;

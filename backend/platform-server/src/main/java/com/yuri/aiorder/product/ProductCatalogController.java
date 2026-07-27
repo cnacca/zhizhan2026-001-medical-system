@@ -6,6 +6,7 @@ import com.yuri.aiorder.common.UserRole;
 import com.yuri.aiorder.common.auth.RequirePermission;
 import com.yuri.aiorder.order.api.OrderProjectionQueryService.OrderListResponse;
 import jakarta.validation.Valid;
+import java.util.List;
 import org.springframework.web.bind.annotation.CrossOrigin;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
@@ -34,6 +35,12 @@ public class ProductCatalogController {
             @RequestParam(defaultValue = "20") int size,
             BootstrapIdentity identity) {
         return new DataResponse<>(productCatalogService.listProducts(identity, keyword, status, page, size));
+    }
+
+    @GetMapping("/doctor/products")
+    @RequirePermission(value = "order:read-doctor", roles = UserRole.DOCTOR)
+    public DataResponse<List<DoctorProductCatalogResponse>> listDoctorProducts(BootstrapIdentity identity) {
+        return new DataResponse<>(productCatalogService.listDoctorProducts(identity));
     }
 
     @PostMapping("/products")

@@ -2,6 +2,7 @@ package com.yuri.aiorder.file;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.hamcrest.Matchers.not;
+import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.Matchers.startsWith;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
@@ -11,11 +12,15 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
+import com.yuri.aiorder.common.BootstrapIdentity;
+import com.yuri.aiorder.common.UserRole;
+import com.yuri.aiorder.common.auth.BearerTokenService;
 import java.net.URI;
 import java.net.http.HttpClient;
 import java.net.http.HttpRequest;
 import java.net.http.HttpResponse;
 import java.nio.charset.StandardCharsets;
+import java.util.Set;
 import java.util.UUID;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -45,6 +50,9 @@ class FileAccessTests {
 
     @Autowired
     private ObjectMapper objectMapper;
+
+    @Autowired
+    private BearerTokenService tokenService;
 
     private long clinicId;
     private long orderId;
@@ -318,6 +326,257 @@ class FileAccessTests {
         assertThat(auditCount(otherClinicFileId, "PREVIEW", "DENIED")).isEqualTo(1L);
     }
 
+    @Test
+    void designDraftRequiresDoctorVisibleTimestampForListPreviewAndDownload() throws Exception {
+        long designFileId = insertCompletedFile(orderId, "DOCTOR_CS", "DESIGN_DRAFT");
+        jdbcClient.sql("""
+                        INSERT INTO design_task (order_id, task_status, assigned_user_id, claimed_at)
+                        VALUES (:orderId, 'INTERNAL_REVIEW', 9601, CURRENT_TIMESTAMP(3))
+                        """)
+                .param("orderId", orderId)
+                .update();
+        long designTaskId = jdbcClient.sql("""
+                        SELECT design_task_id
+                        FROM design_task
+                        WHERE order_id = :orderId
+                        """)
+                .param("orderId", orderId)
+                .query(Long.class)
+                .single();
+        jdbcClient.sql("""
+                        INSERT INTO design_draft
+                            (design_task_id, order_id, file_id, version_no, draft_status,
+                             uploaded_by_user_id, submitted_at)
+                        VALUES
+                            (:designTaskId, :orderId, :fileId, 1, 'PENDING_REVIEW',
+                             9601, CURRENT_TIMESTAMP(3))
+                        """)
+                .param("designTaskId", designTaskId)
+                .param("orderId", orderId)
+                .param("fileId", designFileId)
+                .update();
+        long designDraftId = jdbcClient.sql("""
+                        SELECT design_draft_id
+                        FROM design_draft
+                        WHERE design_task_id = :designTaskId
+                          AND version_no = 1
+                        """)
+                .param("designTaskId", designTaskId)
+                .query(Long.class)
+                .single();
+        jdbcClient.sql("""
+                        INSERT INTO design_draft_file (design_draft_id, file_id, sort_order)
+                        VALUES (:designDraftId, :fileId, 0)
+                        """)
+                .param("designDraftId", designDraftId)
+                .param("fileId", designFileId)
+                .update();
+
+        MvcResult hiddenList = mockMvc.perform(get("/orders/{orderId}/files", orderId)
+                        .header("X-Bootstrap-Role", "DOCTOR")
+                        .header("X-Bootstrap-User-Id", DOCTOR_USER_ID)
+                        .header("X-Bootstrap-Clinic-Id", clinicId))
+                .andExpect(status().isOk())
+                .andReturn();
+        assertThat(objectMapper.readTree(hiddenList.getResponse().getContentAsString()).path("data"))
+                .noneMatch(item -> item.path("file_id").asLong() == designFileId);
+
+        mockMvc.perform(get("/files/{fileId}/preview-url", designFileId)
+                        .header("X-Bootstrap-Role", "DOCTOR")
+                        .header("X-Bootstrap-User-Id", DOCTOR_USER_ID)
+                        .header("X-Bootstrap-Clinic-Id", clinicId))
+                .andExpect(status().isForbidden());
+        mockMvc.perform(get("/files/{fileId}/download-url", designFileId)
+                        .header("X-Bootstrap-Role", "DOCTOR")
+                        .header("X-Bootstrap-User-Id", DOCTOR_USER_ID)
+                        .header("X-Bootstrap-Clinic-Id", clinicId))
+                .andExpect(status().isForbidden());
+        mockMvc.perform(get("/orders/{orderId}/files", orderId)
+                        .header("X-Bootstrap-Role", "CS"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data", hasSize(0)));
+        mockMvc.perform(get("/files/{fileId}/preview-url", designFileId)
+                        .header("X-Bootstrap-Role", "CS"))
+                .andExpect(status().isForbidden());
+        mockMvc.perform(get("/files/{fileId}/download-url", designFileId)
+                        .header("X-Bootstrap-Role", "CS"))
+                .andExpect(status().isForbidden());
+        mockMvc.perform(get("/orders/{orderId}/files", orderId)
+                        .header("X-Bootstrap-Role", "ADMIN"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data[0].file_id").value(designFileId));
+        mockMvc.perform(get("/files/{fileId}/preview-url", designFileId)
+                        .header("X-Bootstrap-Role", "ADMIN"))
+                .andExpect(status().isOk());
+
+        jdbcClient.sql("""
+                        UPDATE design_draft
+                        SET draft_status = 'PENDING_DOCTOR',
+                            doctor_visible_at = CURRENT_TIMESTAMP(3)
+                        WHERE design_draft_id = :designDraftId
+                        """)
+                .param("designDraftId", designDraftId)
+                .update();
+
+        MvcResult visibleList = mockMvc.perform(get("/orders/{orderId}/files", orderId)
+                        .header("X-Bootstrap-Role", "DOCTOR")
+                        .header("X-Bootstrap-User-Id", DOCTOR_USER_ID)
+                        .header("X-Bootstrap-Clinic-Id", clinicId))
+                .andExpect(status().isOk())
+                .andReturn();
+        assertThat(objectMapper.readTree(visibleList.getResponse().getContentAsString()).path("data"))
+                .anyMatch(item -> item.path("file_id").asLong() == designFileId);
+
+        mockMvc.perform(get("/files/{fileId}/preview-url", designFileId)
+                        .header("X-Bootstrap-Role", "DOCTOR")
+                        .header("X-Bootstrap-User-Id", DOCTOR_USER_ID)
+                        .header("X-Bootstrap-Clinic-Id", clinicId))
+                .andExpect(status().isOk());
+        mockMvc.perform(get("/files/{fileId}/download-url", designFileId)
+                        .header("X-Bootstrap-Role", "DOCTOR")
+                        .header("X-Bootstrap-User-Id", DOCTOR_USER_ID)
+                        .header("X-Bootstrap-Clinic-Id", clinicId))
+                .andExpect(status().isOk());
+        mockMvc.perform(get("/orders/{orderId}/files", orderId)
+                        .header("X-Bootstrap-Role", "CS"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data[0].file_id").value(designFileId));
+        mockMvc.perform(get("/files/{fileId}/preview-url", designFileId)
+                        .header("X-Bootstrap-Role", "CS"))
+                .andExpect(status().isOk());
+        mockMvc.perform(get("/files/{fileId}/download-url", designFileId)
+                        .header("X-Bootstrap-Role", "CS"))
+                .andExpect(status().isOk());
+        mockMvc.perform(post("/files/{fileId}/complete", designFileId)
+                        .header("X-Bootstrap-Role", "CS"))
+                .andExpect(status().isForbidden());
+    }
+
+    @Test
+    void claimedDesignWorkerSelfScopeCanAccessOrderFiles() throws Exception {
+        long workerUserId = 9911L;
+        long fileId = insertCompletedFile(orderId, "INTERNAL");
+        jdbcClient.sql("""
+                        INSERT INTO design_task (order_id, task_status, assigned_user_id, claimed_at)
+                        VALUES (:orderId, 'CLAIMED', :workerUserId, CURRENT_TIMESTAMP(3))
+                        """)
+                .param("orderId", orderId)
+                .param("workerUserId", workerUserId)
+                .update();
+
+        mockMvc.perform(get("/orders/{orderId}/files", orderId)
+                        .header("X-Bootstrap-Role", "WORKER")
+                        .header("X-Bootstrap-User-Id", workerUserId))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data[0].file_id").value(fileId));
+    }
+
+    @Test
+    void designLeaderCanReadOnlySubmittedReviewFilesAcrossOrders() throws Exception {
+        long reviewerUserId = 9912L;
+        long assignedDesignerUserId = 9913L;
+        long designFileId = insertCompletedFile(orderId, "INTERNAL", "DESIGN_DRAFT");
+        long unrelatedFileId = insertCompletedFile(orderId, "INTERNAL");
+        jdbcClient.sql("""
+                        INSERT INTO design_task (order_id, task_status, assigned_user_id, claimed_at)
+                        VALUES (:orderId, 'INTERNAL_REVIEW', :assignedUserId, CURRENT_TIMESTAMP(3))
+                        """)
+                .param("orderId", orderId)
+                .param("assignedUserId", assignedDesignerUserId)
+                .update();
+        long designTaskId = jdbcClient.sql("""
+                        SELECT design_task_id
+                        FROM design_task
+                        WHERE order_id = :orderId
+                        """)
+                .param("orderId", orderId)
+                .query(Long.class)
+                .single();
+        jdbcClient.sql("""
+                        INSERT INTO design_draft
+                            (design_task_id, order_id, file_id, version_no, draft_status, uploaded_by_user_id)
+                        VALUES
+                            (:designTaskId, :orderId, :fileId, 1, 'PENDING_REVIEW', :assignedUserId)
+                        """)
+                .param("designTaskId", designTaskId)
+                .param("orderId", orderId)
+                .param("fileId", designFileId)
+                .param("assignedUserId", assignedDesignerUserId)
+                .update();
+        long designDraftId = jdbcClient.sql("""
+                        SELECT design_draft_id
+                        FROM design_draft
+                        WHERE design_task_id = :designTaskId
+                          AND version_no = 1
+                        """)
+                .param("designTaskId", designTaskId)
+                .query(Long.class)
+                .single();
+        jdbcClient.sql("""
+                        INSERT INTO design_draft_file (design_draft_id, file_id, sort_order)
+                        VALUES (:designDraftId, :fileId, 0)
+                        """)
+                .param("designDraftId", designDraftId)
+                .param("fileId", designFileId)
+                .update();
+
+        String reviewToken = tokenService.issue(new BootstrapIdentity(
+                UserRole.WORKER,
+                reviewerUserId,
+                null,
+                null,
+                Set.of("design-draft:internal-review"),
+                "SELF"));
+
+        mockMvc.perform(get("/orders/{orderId}/files", orderId)
+                        .header("Authorization", "Bearer " + reviewToken))
+                .andExpect(status().isForbidden());
+        mockMvc.perform(get("/files/{fileId}/preview-url", designFileId)
+                        .header("Authorization", "Bearer " + reviewToken))
+                .andExpect(status().isForbidden());
+
+        jdbcClient.sql("""
+                        UPDATE design_draft
+                        SET submitted_at = CURRENT_TIMESTAMP(3)
+                        WHERE design_draft_id = :designDraftId
+                        """)
+                .param("designDraftId", designDraftId)
+                .update();
+
+        mockMvc.perform(get("/orders/{orderId}/files", orderId)
+                        .header("Authorization", "Bearer " + reviewToken))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data", hasSize(1)))
+                .andExpect(jsonPath("$.data[0].file_id").value(designFileId));
+        mockMvc.perform(get("/files/{fileId}/preview-url", designFileId)
+                        .header("Authorization", "Bearer " + reviewToken))
+                .andExpect(status().isOk());
+        mockMvc.perform(get("/files/{fileId}/download-url", designFileId)
+                        .header("Authorization", "Bearer " + reviewToken))
+                .andExpect(status().isOk());
+        mockMvc.perform(post("/files/{fileId}/complete", designFileId)
+                        .header("Authorization", "Bearer " + reviewToken))
+                .andExpect(status().isForbidden());
+        mockMvc.perform(get("/files/{fileId}/preview-url", unrelatedFileId)
+                        .header("Authorization", "Bearer " + reviewToken))
+                .andExpect(status().isForbidden());
+
+        mockMvc.perform(post("/files/upload-token")
+                        .header("Authorization", "Bearer " + reviewToken)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("""
+                                {
+                                  "order_id": %d,
+                                  "source_type": "DESIGN_DRAFT",
+                                  "visibility": "INTERNAL",
+                                  "original_filename": "leader-cannot-upload.pdf",
+                                  "content_type": "application/pdf",
+                                  "file_size": 16
+                                }
+                                """.formatted(orderId)))
+                .andExpect(status().isForbidden());
+    }
+
     private UploadToken requestUploadToken(long fileSize) throws Exception {
         String body = uploadTokenBody("case.pdf", "application/pdf", fileSize);
         MvcResult result = mockMvc.perform(post("/files/upload-token")
@@ -470,17 +729,22 @@ class FileAccessTests {
     }
 
     private long insertCompletedFile(long targetOrderId, String visibility) {
+        return insertCompletedFile(targetOrderId, visibility, "ORDER_ATTACHMENT");
+    }
+
+    private long insertCompletedFile(long targetOrderId, String visibility, String sourceType) {
         String key = "test/" + UUID.randomUUID() + "/file.pdf";
         jdbcClient.sql("""
                         INSERT INTO file_resource
                             (order_id, owner_user_id, source_type, visibility, bucket_name, object_key,
                              original_filename, content_type, file_size, upload_status, status)
                         VALUES
-                            (:orderId, :ownerUserId, 'ORDER_ATTACHMENT', :visibility, 'ai-order-private', :objectKey,
+                            (:orderId, :ownerUserId, :sourceType, :visibility, 'ai-order-private', :objectKey,
                              'file.pdf', 'application/pdf', 9, 'COMPLETED', 'ACTIVE')
                         """)
                 .param("orderId", targetOrderId)
                 .param("ownerUserId", DOCTOR_USER_ID)
+                .param("sourceType", sourceType)
                 .param("visibility", visibility)
                 .param("objectKey", key)
                 .update();

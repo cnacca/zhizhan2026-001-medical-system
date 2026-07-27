@@ -106,6 +106,21 @@ class ProductCatalogTests {
     }
 
     @Test
+    void doctorCanReadActiveOrderProductsWithoutInternalPrices() throws Exception {
+        mockMvc.perform(get("/doctor/products")
+                        .header("X-Bootstrap-Role", "DOCTOR")
+                        .header("X-Bootstrap-User-Id", 7001L)
+                        .header("X-Bootstrap-Clinic-Id", 1001L))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data[0].product_id").exists())
+                .andExpect(jsonPath("$.data[0].product_type").isString())
+                .andExpect(jsonPath("$.data[0].product_name").isString())
+                .andExpect(jsonPath("$.data[0].base_price_cents").doesNotExist())
+                .andExpect(jsonPath("$.data[0].price_note").doesNotExist())
+                .andExpect(jsonPath("$.data[0].currency").doesNotExist());
+    }
+
+    @Test
     void rejectsInvalidBasePrice() throws Exception {
         String productType = "INVALID_PRICE_" + UUID.randomUUID().toString().replace("-", "").substring(0, 8);
         String createRequest = """

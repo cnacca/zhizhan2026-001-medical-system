@@ -84,12 +84,28 @@ public class DatabaseAuthService {
                             FROM system_user u
                             JOIN system_user_role ur ON ur.user_id = u.user_id
                             JOIN system_role r ON r.role_id = ur.role_id
-                            LEFT JOIN system_role_permission rp ON rp.role_id = r.role_id
-                            LEFT JOIN system_permission p ON p.permission_id = rp.permission_id
+                            LEFT JOIN (
+                                SELECT permission_user.user_id, permission_user.permission_id
+                                FROM (
+                                    SELECT role_user.user_id, role_permission.permission_id
+                                    FROM system_user_role role_user
+                                    JOIN system_role active_role
+                                      ON active_role.role_id = role_user.role_id
+                                     AND active_role.status = 'ACTIVE'
+                                    JOIN system_role_permission role_permission
+                                      ON role_permission.role_id = active_role.role_id
+                                    UNION
+                                    SELECT direct_permission.user_id, direct_permission.permission_id
+                                    FROM system_user_permission direct_permission
+                                ) permission_user
+                            ) effective_permission
+                              ON effective_permission.user_id = u.user_id
+                            LEFT JOIN system_permission p
+                              ON p.permission_id = effective_permission.permission_id
+                             AND p.status = 'ACTIVE'
                             WHERE u.username = :username
                               AND u.status = 'ACTIVE'
                               AND r.status = 'ACTIVE'
-                              AND (p.permission_id IS NULL OR p.status = 'ACTIVE')
                             GROUP BY u.user_id, u.username, u.password_hash, u.clinic_id
                             """)
                     .param("username", username)
@@ -121,12 +137,28 @@ public class DatabaseAuthService {
                             FROM system_user u
                             JOIN system_user_role ur ON ur.user_id = u.user_id
                             JOIN system_role r ON r.role_id = ur.role_id
-                            LEFT JOIN system_role_permission rp ON rp.role_id = r.role_id
-                            LEFT JOIN system_permission p ON p.permission_id = rp.permission_id
+                            LEFT JOIN (
+                                SELECT permission_user.user_id, permission_user.permission_id
+                                FROM (
+                                    SELECT role_user.user_id, role_permission.permission_id
+                                    FROM system_user_role role_user
+                                    JOIN system_role active_role
+                                      ON active_role.role_id = role_user.role_id
+                                     AND active_role.status = 'ACTIVE'
+                                    JOIN system_role_permission role_permission
+                                      ON role_permission.role_id = active_role.role_id
+                                    UNION
+                                    SELECT direct_permission.user_id, direct_permission.permission_id
+                                    FROM system_user_permission direct_permission
+                                ) permission_user
+                            ) effective_permission
+                              ON effective_permission.user_id = u.user_id
+                            LEFT JOIN system_permission p
+                              ON p.permission_id = effective_permission.permission_id
+                             AND p.status = 'ACTIVE'
                             WHERE u.user_id = :userId
                               AND u.status = 'ACTIVE'
                               AND r.status = 'ACTIVE'
-                              AND (p.permission_id IS NULL OR p.status = 'ACTIVE')
                             GROUP BY u.user_id, u.username, u.password_hash, u.clinic_id
                             """)
                     .param("userId", userId)

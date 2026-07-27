@@ -66,7 +66,7 @@ public class OrderReviewService {
                 InternalOrderStatus.PENDING_PRODUCTION_REVIEW,
                 "CS_APPROVE_ORDER",
                 identity.userId(),
-                blankToNull(request.productionNote()));
+                "客服初审通过，进入生产审核。");
         emit(order, "ORDER_APPROVED", "DOCTOR", order.doctorUserId(), "客服审核通过，等待生产审核。");
     }
 

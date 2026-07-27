@@ -14,8 +14,8 @@ import org.springframework.web.server.ResponseStatusException;
 public class AccessControlService {
 
     private static final Set<UserRole> INTERNAL_ROLES = EnumSet.of(UserRole.ADMIN, UserRole.CS, UserRole.WORKER);
-    private static final Set<UserRole> PRODUCTION_REVIEW_ROLES = EnumSet.of(UserRole.ADMIN, UserRole.CS);
-    private static final Set<UserRole> PROCESS_MANAGEMENT_ROLES = EnumSet.of(UserRole.ADMIN, UserRole.CS);
+    private static final Set<UserRole> PRODUCTION_REVIEW_ROLES = EnumSet.of(UserRole.ADMIN);
+    private static final Set<UserRole> PROCESS_MANAGEMENT_ROLES = EnumSet.of(UserRole.ADMIN);
 
     public void requireAnyRole(BootstrapIdentity identity, Set<UserRole> allowedRoles, String message) {
         if (!allowedRoles.contains(identity.role())) {
@@ -32,19 +32,11 @@ public class AccessControlService {
     }
 
     public void requireProductionReview(BootstrapIdentity identity) {
-        requirePermissionOrRole(
-                identity,
-                "workflow:review-production",
-                PRODUCTION_REVIEW_ROLES,
-                "production review requires CS or ADMIN role");
+        requireAnyRole(identity, PRODUCTION_REVIEW_ROLES, "production review requires ADMIN role");
     }
 
     public void requireProcessManagement(BootstrapIdentity identity) {
-        requirePermissionOrRole(
-                identity,
-                "workflow:assign",
-                PROCESS_MANAGEMENT_ROLES,
-                "process assignment requires CS or ADMIN role");
+        requireAnyRole(identity, PROCESS_MANAGEMENT_ROLES, "process assignment requires ADMIN role");
     }
 
     public void requireCheckRecordRead(BootstrapIdentity identity) {
