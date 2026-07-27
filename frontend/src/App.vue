@@ -4289,6 +4289,7 @@ const statusLabelMap: Record<string, string> = {
   PENDING_CS_REVIEW: '待客服初审',
   PENDING_PRODUCTION_REVIEW: '待生产审核',
   PROCESS_INSTANCE_CREATED: '已生成工序',
+  IN_DESIGN: '设计中',
   PRODUCING: '生产中',
   IN_PRODUCTION: '生产中',
   'IN PRODUCTION': '生产中',
@@ -4296,6 +4297,8 @@ const statusLabelMap: Record<string, string> = {
   PRODUCTION_REJECTED: '生产驳回',
   SHIPPED: '已发货',
   DELIVERED: '已签收',
+  PENDING_SHIP: '待发货',
+  RECEIVED: '已收货',
   EXCEPTION: '物流异常',
   FOLLOWING: '跟进中',
   RESOLVED: '已解决',
@@ -8716,25 +8719,38 @@ async function loadProcessInstanceOrders() {
   try {
     const params = new URLSearchParams({
       page: '1',
-      size: '20',
-      internal_status: 'PROCESS_INSTANCE_CREATED'
+      size: '100'
     })
     if (processInstanceKeyword.value.trim()) {
       params.set('keyword', processInstanceKeyword.value.trim())
     }
     const payload = await apiFetch<InternalOrderListResponse>(`/orders?${params.toString()}`)
-    processInstanceOrders.value = payload.data.items
+    const assignableStatuses = new Set(['PROCESS_INSTANCE_CREATED', 'PRODUCING', 'IN_PRODUCTION'])
+    const candidateOrders = payload.data.items.filter((item) => assignableStatuses.has(item.internal_status))
+    const assignableOrders = (await Promise.all(candidateOrders.map(async (item) => {
+      try {
+        const instancePayload = await apiFetch<ProcessInstanceDetail>(`/orders/${item.order_id}/process-instance`)
+        const hasUnassignedProductionNode = productionProgressNodes(instancePayload.data.nodes)
+          .some((node) => ['PENDING', 'READY', 'IN_PROGRESS'].includes(node.node_status) && !node.assigned_user_id)
+        return hasUnassignedProductionNode ? item : null
+      } catch {
+        return null
+      }
+    })))
+      .filter((item): item is InternalOrderItem => item !== null)
+      .sort((left, right) => right.order_id - left.order_id)
+    processInstanceOrders.value = assignableOrders
     const selectedStillVisible = selectedProcessInstanceOrder.value
-      ? payload.data.items.some((item) => item.order_id === selectedProcessInstanceOrder.value?.order_id)
+      ? assignableOrders.some((item) => item.order_id === selectedProcessInstanceOrder.value?.order_id)
       : false
-    if (payload.data.items.length === 0) {
+    if (assignableOrders.length === 0) {
       selectedProcessInstanceOrder.value = null
       selectedProcessInstance.value = null
       selectedProcessNodeId.value = null
       return
     }
     if (!selectedStillVisible) {
-      await selectProcessInstanceOrder(payload.data.items[0])
+      await selectProcessInstanceOrder(assignableOrders[0])
     } else if (selectedProcessInstanceOrder.value) {
       await loadProcessInstanceDetail(selectedProcessInstanceOrder.value.order_id)
     }
@@ -12008,7 +12024,7 @@ onBeforeUnmount(() => {
                 <button class="aor-reset-button" type="button" :disabled="processInstanceLoading" @click="loadProcessInstanceOrders">
                   {{ processInstanceLoading ? '查询中' : '查询' }}
                 </button>
-                <span class="aor-filter-meta">可派工 <strong>{{ processInstanceOrders.length }}</strong> 单</span>
+                <span class="aor-filter-meta">可派工 / 调整 <strong>{{ processInstanceOrders.length }}</strong> 单</span>
               </div>
               <div class="aor-filter-secondary admin-flow-guidance">
                 <span class="aor-quick-label">操作说明</span>
@@ -12019,7 +12035,7 @@ onBeforeUnmount(() => {
             <div v-if="processInstanceError && !processAssignmentDrawerVisible" class="aor-state is-error" role="alert">{{ processInstanceError }}</div>
             <div v-else-if="processInstanceLoading" class="aor-state">正在加载可派工订单…</div>
             <div v-else-if="processInstanceOrders.length === 0" class="aor-state">
-              <strong>暂无已生成工序的订单</strong><span>订单通过生产审核并满足设计确认门禁后会进入这里。</span>
+              <strong>暂无可派工或调整的订单</strong><span>订单通过生产审核后会进入这里，生产中订单仍可继续安排后续工序。</span>
             </div>
             <div v-else class="aor-table-wrap">
               <div class="aor-table-scroll">
@@ -12051,7 +12067,7 @@ onBeforeUnmount(() => {
                   </tbody>
                 </table>
               </div>
-              <footer class="aor-table-footer"><span>共 {{ processInstanceOrders.length }} 单可处理</span><strong>点击订单从右侧派工</strong></footer>
+              <footer class="aor-table-footer"><span>共 {{ processInstanceOrders.length }} 单可处理</span><strong>点击订单从右侧派工或调整</strong></footer>
             </div>
           </section>
 
@@ -12119,14 +12135,14 @@ onBeforeUnmount(() => {
                 <header><div><strong>生产工序</strong><small>仅展示并统计实际生产节点，不包含客服、审核和账单业务节点</small></div><span>{{ productionProgressNodes(selectedProcessInstance.nodes).length }} 道</span></header>
                 <div class="admin-flow-node-list">
                   <button
-                    v-for="node in productionProgressNodes(selectedProcessInstance.nodes)"
+                    v-for="(node, index) in productionProgressNodes(selectedProcessInstance.nodes)"
                     :key="node.node_instance_id"
                     class="admin-flow-node-row"
                     :class="{ active: selectedProcessNodeId === node.node_instance_id }"
                     type="button"
                     @click="selectProcessNode(node)"
                   >
-                    <span class="node-order">{{ node.step_order }}</span>
+                    <span class="node-order">{{ index + 1 }}</span>
                     <span class="admin-flow-node-copy"><strong>{{ node.process_name }}</strong><small>{{ node.stage_name || '生产工序' }} · 标准 {{ node.standard_duration ?? '未设置' }} 分钟</small></span>
                     <em class="aor-badge" :class="adminOrderStatusClass(node.node_status)">{{ statusLabel(node.node_status) }}</em>
                     <span class="admin-flow-node-assignee">{{ node.assigned_user_id ? (staffWorkloadItems.find((staff) => String(staff.user_id) === String(node.assigned_user_id))?.display_name ?? `员工 ${node.assigned_user_id}`) : '尚未安排' }}</span>

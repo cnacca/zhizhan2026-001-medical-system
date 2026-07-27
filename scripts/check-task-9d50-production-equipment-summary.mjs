@@ -24,7 +24,7 @@ const checks = [
   [files.frontend, 'App.vue', 'type ProductionEquipmentSummaryResponse'],
   [files.frontend, 'App.vue', 'loadProductionEquipmentSummary'],
   [files.frontend, 'App.vue', '/production/equipment/summary'],
-  [files.frontend, 'App.vue', '真实设备汇总'],
+  [files.frontend, 'App.vue', "title: '设备管理'"],
   [files.frontend, 'App.vue', '设备稼动率'],
   [files.frontend, 'App.vue', '故障报修'],
   [files.openapi, 'openapi.yaml', 'ProductionEquipmentSummary'],

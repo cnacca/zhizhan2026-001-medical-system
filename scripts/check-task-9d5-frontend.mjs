@@ -1,6 +1,7 @@
 import fs from 'node:fs'
 
 const app = fs.readFileSync('frontend/src/App.vue', 'utf8')
+const remainingPages = fs.readFileSync('frontend/src/components/AdminRemainingPages.vue', 'utf8')
 const viteConfig = fs.readFileSync('frontend/vite.config.ts', 'utf8')
 
 const requiredAppFragments = [
@@ -14,6 +15,10 @@ const requiredAppFragments = [
   'loadProcessInstanceDetail',
   'assignSelectedProcessNode',
   'openProcessAssignmentDrawer',
+  "const assignableStatuses = new Set(['PROCESS_INSTANCE_CREATED', 'PRODUCING', 'IN_PRODUCTION'])",
+  "size: '100'",
+  "['PENDING', 'READY', 'IN_PROGRESS'].includes(node.node_status) && !node.assigned_user_id",
+  '可派工 / 调整',
   'data-testid="admin-process-assignment-page"',
   'data-testid="admin-process-assignment-drawer"',
   'class="admin-flow-node-list"',
@@ -41,8 +46,23 @@ const requiredProxyFragments = [
   "'/process-instance'"
 ]
 
+const requiredProcessProgressFragments = [
+  "statusFilter.value = props.activeRoute === '/workflow/process-instance' ? 'HAS_PROCESS' : 'ALL'",
+  "request<Row>('/orders?page=1&size=100')",
+  "type ProcessDisplayStatus = 'UNASSIGNED' | 'PRODUCING' | 'COMPLETED' | 'NO_PROCESS'",
+  "statusFilter.value === 'HAS_PROCESS' && status !== 'NO_PROCESS'",
+  'UNASSIGNED: 0',
+  'PRODUCING: 1',
+  'unfinishedNodes.some((node) => !node.assigned_user_id)',
+  'function processAnomalyText(row: Row)',
+  '<option value="HAS_PROCESS">已生成工序</option>',
+  '<option value="NO_PROCESS">尚未生成工序</option>',
+  "return summary.total ? `${summary.completed}/${summary.total} · ${summary.percent}%` : '未开始'"
+]
+
 const missing = [
   ...requiredAppFragments.filter((fragment) => !app.includes(fragment)).map((fragment) => `frontend/src/App.vue -> ${fragment}`),
+  ...requiredProcessProgressFragments.filter((fragment) => !remainingPages.includes(fragment)).map((fragment) => `frontend/src/components/AdminRemainingPages.vue -> ${fragment}`),
   ...requiredProxyFragments.filter((fragment) => !viteConfig.includes(fragment)).map((fragment) => `frontend/vite.config.ts -> ${fragment}`)
 ]
 

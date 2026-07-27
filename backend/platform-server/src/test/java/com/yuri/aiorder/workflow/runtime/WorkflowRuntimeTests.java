@@ -128,6 +128,39 @@ class WorkflowRuntimeTests {
     }
 
     @Test
+    void productionReviewBridgesAcrossAnUnselectedBranchNode() throws Exception {
+        jdbcClient.sql("DELETE FROM workflow_edge WHERE chain_id = :chainId")
+                .param("chainId", chainId)
+                .update();
+        jdbcClient.sql("""
+                        DELETE FROM workflow_node
+                        WHERE chain_id = :chainId
+                          AND node_code NOT IN ('START', 'ROUTE_Y')
+                        """)
+                .param("chainId", chainId)
+                .update();
+        jdbcClient.sql("""
+                        UPDATE workflow_node
+                        SET step_order = 20
+                        WHERE chain_id = :chainId
+                          AND node_code = 'ROUTE_Y'
+                        """)
+                .param("chainId", chainId)
+                .update();
+        insertNode(chainId, "SHARED_AFTER_BRANCH", "分支后公共节点", 30, false, null, null);
+        insertEdge(chainId, "START", "ROUTE_Y");
+        insertEdge(chainId, "ROUTE_Y", "SHARED_AFTER_BRANCH");
+
+        long instanceId = approveProductionAndGetInstanceId();
+
+        assertThat(nodeCount(instanceId)).isEqualTo(2L);
+        assertThat(edgeCount(instanceId)).isEqualTo(1L);
+        assertThat(nodeStatusOrNull(instanceId, "ROUTE_Y")).isNull();
+        assertThat(nodeStatus(instanceId, "START")).isEqualTo("READY");
+        assertThat(nodeStatus(instanceId, "SHARED_AFTER_BRANCH")).isEqualTo("PENDING");
+    }
+
+    @Test
     void productionReviewRejectsOrdersThatHaveNotPassedCsReview() throws Exception {
         jdbcClient.sql("""
                         UPDATE orders
@@ -203,6 +236,36 @@ class WorkflowRuntimeTests {
                 .query(Long.class)
                 .single();
         assertThat(actualChainId).isEqualTo(expectedChainId);
+        long instanceId = jdbcClient.sql("SELECT instance_id FROM order_process_instance WHERE order_id = :orderId")
+                .param("orderId", orderId)
+                .query(Long.class)
+                .single();
+        assertThat(nodeStatusOrNull(instanceId, "REGULAR_CROWN_0090")).isNull();
+        assertThat(nodeStatus(instanceId, "REGULAR_CROWN_0010")).isEqualTo("READY");
+        assertThat(nodeStatus(instanceId, "REGULAR_CROWN_0030")).isEqualTo("PENDING");
+        assertThat(nodeStatus(instanceId, "REGULAR_CROWN_0100")).isEqualTo("PENDING");
+
+        jdbcClient.sql("""
+                        INSERT INTO order_process_node
+                            (instance_id, source_node_id, node_code, process_name, stage_name,
+                             step_order, is_optional, branch_group, branch_key, node_category,
+                             need_in_check, need_out_check, node_status)
+                        SELECT
+                            :instanceId, node_id, node_code, process_name, stage_name,
+                            step_order, is_optional, branch_group, branch_key, node_category,
+                            need_in_check, need_out_check, 'SKIPPED'
+                        FROM workflow_node
+                        WHERE chain_id = :chainId
+                          AND node_code = 'REGULAR_CROWN_0090'
+                        """)
+                .param("instanceId", instanceId)
+                .param("chainId", expectedChainId)
+                .update();
+
+        mockMvc.perform(get("/orders/{orderId}/process-instance", orderId)
+                        .header("X-Bootstrap-Role", "ADMIN"))
+                .andExpect(status().isOk())
+                .andExpect(content().string(not(org.hamcrest.Matchers.containsString("收发出货"))));
     }
 
     @Test

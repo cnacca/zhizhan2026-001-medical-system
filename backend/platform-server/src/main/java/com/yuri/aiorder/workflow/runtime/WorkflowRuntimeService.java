@@ -553,27 +553,76 @@ public class WorkflowRuntimeService {
     }
 
     private void copyEdges(long instanceId, long chainId) {
+        Map<Long, Long> instanceNodeBySourceId = new LinkedHashMap<>();
         jdbcClient.sql("""
-                        INSERT INTO order_process_edge
-                            (instance_id, from_node_instance_id, to_node_instance_id, edge_type, condition_key)
-                        SELECT
-                            :instanceId,
-                            from_node.node_instance_id,
-                            to_node.node_instance_id,
-                            e.edge_type,
-                            e.condition_key
-                        FROM workflow_edge e
-                        JOIN order_process_node from_node
-                          ON from_node.instance_id = :instanceId
-                         AND from_node.source_node_id = e.from_node_id
-                        JOIN order_process_node to_node
-                          ON to_node.instance_id = :instanceId
-                         AND to_node.source_node_id = e.to_node_id
-                        WHERE e.chain_id = :chainId
+                        SELECT source_node_id, node_instance_id
+                        FROM order_process_node
+                        WHERE instance_id = :instanceId
+                        ORDER BY step_order, node_instance_id
                         """)
                 .param("instanceId", instanceId)
+                .query((rs, rowNum) -> new InstanceNode(
+                        rs.getLong("source_node_id"),
+                        rs.getLong("node_instance_id")))
+                .list()
+                .forEach(node -> instanceNodeBySourceId.put(node.sourceNodeId(), node.nodeInstanceId()));
+
+        Map<Long, List<DefinitionEdge>> outgoingEdges = new LinkedHashMap<>();
+        jdbcClient.sql("""
+                        SELECT from_node_id, to_node_id, edge_type, condition_key
+                        FROM workflow_edge
+                        WHERE chain_id = :chainId
+                        ORDER BY edge_id
+                        """)
                 .param("chainId", chainId)
-                .update();
+                .query((rs, rowNum) -> new DefinitionEdge(
+                        rs.getLong("from_node_id"),
+                        rs.getLong("to_node_id"),
+                        rs.getString("edge_type"),
+                        rs.getString("condition_key")))
+                .list()
+                .forEach(edge -> outgoingEdges
+                        .computeIfAbsent(edge.fromNodeId(), ignored -> new ArrayList<>())
+                        .add(edge));
+
+        Map<String, ProjectedEdge> projectedEdges = new LinkedHashMap<>();
+        for (Map.Entry<Long, Long> selectedSource : instanceNodeBySourceId.entrySet()) {
+            List<Long> traversal = new ArrayList<>();
+            traversal.add(selectedSource.getKey());
+            Set<Long> visitedOmittedNodes = new LinkedHashSet<>();
+            for (int cursor = 0; cursor < traversal.size(); cursor++) {
+                for (DefinitionEdge edge : outgoingEdges.getOrDefault(traversal.get(cursor), List.of())) {
+                    Long targetInstanceId = instanceNodeBySourceId.get(edge.toNodeId());
+                    if (targetInstanceId != null) {
+                        if (!targetInstanceId.equals(selectedSource.getValue())) {
+                            String key = selectedSource.getValue() + ":" + targetInstanceId + ":" + edge.edgeType();
+                            projectedEdges.putIfAbsent(key, new ProjectedEdge(
+                                    selectedSource.getValue(),
+                                    targetInstanceId,
+                                    edge.edgeType(),
+                                    edge.conditionKey()));
+                        }
+                    } else if (visitedOmittedNodes.add(edge.toNodeId())) {
+                        traversal.add(edge.toNodeId());
+                    }
+                }
+            }
+        }
+
+        for (ProjectedEdge edge : projectedEdges.values()) {
+            jdbcClient.sql("""
+                            INSERT INTO order_process_edge
+                                (instance_id, from_node_instance_id, to_node_instance_id, edge_type, condition_key)
+                            VALUES
+                                (:instanceId, :fromNodeInstanceId, :toNodeInstanceId, :edgeType, :conditionKey)
+                            """)
+                    .param("instanceId", instanceId)
+                    .param("fromNodeInstanceId", edge.fromNodeInstanceId())
+                    .param("toNodeInstanceId", edge.toNodeInstanceId())
+                    .param("edgeType", edge.edgeType())
+                    .param("conditionKey", edge.conditionKey())
+                    .update();
+        }
     }
 
     private void activateReadyNodes(long instanceId) {
@@ -1218,7 +1267,14 @@ public class WorkflowRuntimeService {
                                 ELSE NULL
                             END AS start_block_reason
                         FROM order_process_node
-                        WHERE instance_id = :instanceId
+                        JOIN order_process_instance instance
+                          ON instance.instance_id = order_process_node.instance_id
+                        WHERE order_process_node.instance_id = :instanceId
+                          AND (
+                              order_process_node.branch_group IS NULL
+                              OR order_process_node.branch_group <> 'intake'
+                              OR order_process_node.branch_key = instance.intake_branch_used
+                          )
                         ORDER BY step_order, node_instance_id
                         """)
                 .param("instanceId", instanceId)
@@ -1333,5 +1389,22 @@ public class WorkflowRuntimeService {
             String nodeCategory,
             int needInCheck,
             int needOutCheck) {
+    }
+
+    private record InstanceNode(long sourceNodeId, long nodeInstanceId) {
+    }
+
+    private record DefinitionEdge(
+            long fromNodeId,
+            long toNodeId,
+            String edgeType,
+            String conditionKey) {
+    }
+
+    private record ProjectedEdge(
+            long fromNodeInstanceId,
+            long toNodeInstanceId,
+            String edgeType,
+            String conditionKey) {
     }
 }

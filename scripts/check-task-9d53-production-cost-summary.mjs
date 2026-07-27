@@ -26,7 +26,7 @@ const checks = [
   [files.frontend, 'App.vue', 'type ProductionCostSummaryResponse'],
   [files.frontend, 'App.vue', 'loadProductionCostSummary'],
   [files.frontend, 'App.vue', '/production/cost-management/summary'],
-  [files.frontend, 'App.vue', '真实成本汇总'],
+  [files.frontend, 'App.vue', "title: '成本管控'"],
   [files.frontend, 'App.vue', '工序成本'],
   [files.frontend, 'App.vue', '材料成本'],
   [files.frontend, 'App.vue', '人工成本'],

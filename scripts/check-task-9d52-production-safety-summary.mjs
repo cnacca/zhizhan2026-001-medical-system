@@ -26,7 +26,7 @@ const checks = [
   [files.frontend, 'App.vue', 'type ProductionSafetyEnvironmentSummaryResponse'],
   [files.frontend, 'App.vue', 'loadProductionSafetyEnvironmentSummary'],
   [files.frontend, 'App.vue', '/production/safety-environment/summary'],
-  [files.frontend, 'App.vue', '真实安环汇总'],
+  [files.frontend, 'App.vue', "title: '安环管理'"],
   [files.frontend, 'App.vue', '安全巡检'],
   [files.frontend, 'App.vue', '隐患整改'],
   [files.frontend, 'App.vue', '环境记录'],

@@ -45,7 +45,6 @@ const drawerData = ref<Row>({})
 const drawerLoading = ref(false)
 
 const clientTab = ref<'directory' | 'contribution'>('directory')
-const deliveryRegion = ref<'domestic' | 'overseas'>('domestic')
 const deliveryTab = ref<'billing' | 'tracking'>('billing')
 const equipmentTab = ref<'list' | 'approval'>('list')
 const safetyTab = ref<'supervision' | 'rules'>('supervision')
@@ -120,7 +119,7 @@ async function poolMap<T, R>(items: T[], limit: number, task: (item: T) => Promi
 
 function resetViewState() {
   keyword.value = ''
-  statusFilter.value = 'ALL'
+  statusFilter.value = props.activeRoute === '/workflow/process-instance' ? 'HAS_PROCESS' : 'ALL'
   page.value = 1
   drawerVisible.value = false
   actionBusy.value = null
@@ -145,8 +144,8 @@ async function loadDelivery() {
 }
 
 async function loadProcesses() {
-  const orderList = await request<Row>('/orders?page=1&size=30')
-  const orders = (orderList.items ?? []).slice(0, 15)
+  const orderList = await request<Row>('/orders?page=1&size=100')
+  const orders = orderList.items ?? []
   processRows.value = await poolMap<Row, Row>(orders, 3, async (order) => {
     try {
       const instance = await request<Row>(`/orders/${order.order_id}/process-instance`)
@@ -299,13 +298,37 @@ const filteredProducts = computed(() => products.value.filter((item) => {
   return (!keyword.value || text.includes(keyword.value.toLowerCase())) && (statusFilter.value === 'ALL' || item.status === statusFilter.value)
 }))
 
+type ProcessDisplayStatus = 'UNASSIGNED' | 'PRODUCING' | 'COMPLETED' | 'NO_PROCESS'
+
+function processNodes(row: Row): Row[] {
+  return productionProgressNodes(row.instance?.nodes ?? []) as Row[]
+}
+
+function processDisplayStatus(row: Row): ProcessDisplayStatus {
+  const nodes = processNodes(row)
+  if (!nodes.length) return 'NO_PROCESS'
+  if (nodes.every((node) => ['COMPLETED', 'SKIPPED'].includes(node.node_status))) return 'COMPLETED'
+  const unfinishedNodes = nodes.filter((node) => !['COMPLETED', 'SKIPPED'].includes(node.node_status))
+  return unfinishedNodes.some((node) => !node.assigned_user_id) ? 'UNASSIGNED' : 'PRODUCING'
+}
+
 const filteredProcesses = computed(() => processRows.value.filter((row) => {
   const order = row.order ?? {}
-  const nodes = row.instance?.nodes ?? []
-  const current = nodes.find((node: Row) => node.node_status === 'IN_PROGRESS') ?? nodes.find((node: Row) => node.node_status === 'READY')
   const text = `${order.order_no} ${order.clinic_name ?? ''} ${order.product_type ?? ''}`.toLowerCase()
-  const status = current?.assigned_user_id ? 'PRODUCING' : nodes.length ? 'UNASSIGNED' : 'NO_PROCESS'
-  return (!keyword.value || text.includes(keyword.value.toLowerCase())) && (statusFilter.value === 'ALL' || statusFilter.value === status)
+  const status = processDisplayStatus(row)
+  const statusMatch = statusFilter.value === 'ALL'
+    || (statusFilter.value === 'HAS_PROCESS' && status !== 'NO_PROCESS')
+    || statusFilter.value === status
+  return (!keyword.value || text.includes(keyword.value.toLowerCase())) && statusMatch
+}).sort((left, right) => {
+  const priority: Record<ProcessDisplayStatus, number> = {
+    UNASSIGNED: 0,
+    PRODUCING: 1,
+    COMPLETED: 2,
+    NO_PROCESS: 3
+  }
+  return priority[processDisplayStatus(left)] - priority[processDisplayStatus(right)]
+    || Number(right.order?.order_id ?? 0) - Number(left.order?.order_id ?? 0)
 }))
 
 const filteredQuality = computed(() => qualityRows.value.filter((item) => {
@@ -318,6 +341,36 @@ const filteredPerformance = computed(() => performanceRows.value.filter((row) =>
   return !keyword.value || `${staff.display_name ?? ''} ${staff.username ?? ''} ${staff.department_name ?? ''}`.toLowerCase().includes(keyword.value.toLowerCase())
 }))
 
+type FilterOption = { value: string; label: string }
+
+const deliveryStatusOptions = computed<FilterOption[]>(() => deliveryTab.value === 'billing'
+  ? [
+      { value: 'ALL', label: '全部状态' },
+      { value: 'PENDING', label: '账单待上传' },
+      { value: 'UPLOADED', label: '账单已上传' },
+      { value: 'PENDING_PAYMENT', label: '待付款' },
+      { value: 'PARTIALLY_PAID', label: '部分付款' },
+      { value: 'PAID', label: '已付款' },
+      { value: 'NOT_REQUIRED', label: '无需付款' }
+    ]
+  : [
+      { value: 'ALL', label: '全部状态' },
+      { value: 'PENDING', label: '待发货' },
+      { value: 'SHIPPED', label: '已发货' },
+      { value: 'EXCEPTION', label: '配送异常' },
+      { value: 'FOLLOWING', label: '跟进中' },
+      { value: 'RESOLVED', label: '已解决' }
+    ])
+
+const filteredDeliveryOrders = computed(() => deliveryOrders.value.filter((item) => {
+  const text = `${item.order_no} ${item.tracking_no ?? ''}`.toLowerCase()
+  if (keyword.value && !text.includes(keyword.value.toLowerCase())) return false
+  if (statusFilter.value === 'ALL') return true
+  return deliveryTab.value === 'billing'
+    ? item.bill_status === statusFilter.value || item.payment_status === statusFilter.value
+    : item.logistics_status === statusFilter.value || item.external_status === statusFilter.value
+}))
+
 const visibleSupportRows = computed<Row[]>(() => {
   if (props.activeRoute === '/production/devices') {
     return equipmentTab.value === 'approval' ? equipmentApprovals.value : supportRows.value
@@ -326,6 +379,24 @@ const visibleSupportRows = computed<Row[]>(() => {
     return safetyRules.value
   }
   return supportRows.value
+})
+
+const supportStatusOptions = computed<FilterOption[]>(() => {
+  const all = { value: 'ALL', label: '全部状态' }
+  if (props.activeRoute === '/production/devices') {
+    return equipmentTab.value === 'approval'
+      ? [all, { value: 'PENDING', label: '待处理' }, { value: 'IN_PROGRESS', label: '处理中' }, { value: 'DONE', label: '已完成' }, { value: 'APPROVED', label: '已通过' }, { value: 'REJECTED', label: '已驳回' }]
+      : [all, { value: 'RUNNING', label: '运行' }, { value: 'IDLE', label: '待机' }, { value: 'MAINTENANCE', label: '维护' }, { value: 'FAULT', label: '故障' }, { value: 'SCRAPPED', label: '已报废' }]
+  }
+  if (props.activeRoute === '/production/material-exceptions') {
+    return [all, { value: 'PENDING', label: '待处理' }, { value: 'IN_PROGRESS', label: '处理中' }, { value: 'CLOSED', label: '已关闭' }]
+  }
+  if (props.activeRoute === '/production/safety-environment') {
+    return safetyTab.value === 'rules'
+      ? [all, { value: 'ACTIVE', label: '启用' }, { value: 'INACTIVE', label: '停用' }]
+      : [all, { value: 'PENDING', label: '待处理' }, { value: 'IN_PROGRESS', label: '整改中' }, { value: 'CLOSED', label: '已关闭' }]
+  }
+  return [all, { value: 'NORMAL', label: '正常' }, { value: 'WARNING', label: '异常提醒' }, { value: 'CONFIRMED', label: '已确认' }]
 })
 
 const filteredSupport = computed(() => visibleSupportRows.value.filter((item) => {
@@ -358,7 +429,7 @@ const pagedRows = computed(() => currentRows.value.slice((page.value - 1) * page
 
 function clearFilters() {
   keyword.value = ''
-  statusFilter.value = 'ALL'
+  statusFilter.value = props.activeRoute === '/workflow/process-instance' ? 'HAS_PROCESS' : 'ALL'
   page.value = 1
 }
 
@@ -374,6 +445,7 @@ function statusLabel(value: string | null | undefined) {
     PENDING: '待处理', IN_PROGRESS: '处理中', CLOSED: '已关闭', COMPLETED: '已完成', READY: '待开始',
     SHIPPED: '已发货', DELIVERED: '已送达', EXCEPTION: '异常', FOLLOWING: '跟进中', RESOLVED: '已解决',
     NORMAL: '正常', WARNING: '异常提醒', CONFIRMED: '已确认', PAID: '已付款', PENDING_PAYMENT: '待付款',
+    UPLOADED: '已上传', PARTIALLY_PAID: '部分付款', NOT_REQUIRED: '无需付款',
     APPROVED: '已通过', REJECTED: '已驳回', DONE: '已完成', SENT: '已发出', DELAYED: '已延迟', RETURNED: '已返回'
   }
   return labels[value ?? ''] ?? value ?? '暂未记录'
@@ -393,7 +465,12 @@ function supportTypeLabel(value: string | null | undefined) {
 
 function productLabel(value: string | null | undefined) {
   const labels: Record<string, string> = {
-    REGULAR_CROWN: '常规冠修复', IMPLANT: '种植修复', ORTHODONTICS: '正畸产品', REMOVABLE: '活动修复'
+    REGULAR_CROWN: '常规冠修复', FIXED_CROWN: '常规冠修复', PFM_BRIDGE: '烤瓷桥',
+    BRIDGE: '桥体', FIXED_BRIDGE: '固定桥', VENEER: '贴面', VENEER_SET: '贴面套装',
+    IMPLANT: '种植修复', IMPLANT_CROWN: '种植牙冠', IMPLANT_RESTORATION: '种植修复',
+    DENTURE: '活动义齿', REMOVABLE_DENTURE: '活动修复', REMOVABLE: '活动修复',
+    ORTHODONTIC: '正畸产品', ORTHODONTICS: '正畸产品', CLEAR_ALIGNER: '隐形矫治',
+    NIGHT_GUARD: '夜磨牙垫'
   }
   return labels[value ?? ''] ?? value ?? '产品未标注'
 }
@@ -421,12 +498,41 @@ function costAmount(value: number | null | undefined) {
 }
 
 function processCurrent(row: Row): Row {
-  const nodes = productionProgressNodes(row.instance?.nodes ?? []) as Row[]
-  return nodes.find((node: Row) => node.node_status === 'IN_PROGRESS') ?? nodes.find((node: Row) => node.node_status === 'READY') ?? nodes.at(-1) ?? {}
+  const nodes = processNodes(row)
+  return nodes.find((node: Row) => node.node_status === 'IN_PROGRESS')
+    ?? nodes.find((node: Row) => node.node_status === 'READY')
+    ?? nodes.find((node: Row) => node.node_status === 'PENDING')
+    ?? nodes.at(-1)
+    ?? {}
 }
 
 function processProgress(row: Row) {
   return productionProgressSummary(row.instance?.nodes ?? []).percent
+}
+
+function processProgressText(row: Row) {
+  const summary = productionProgressSummary(row.instance?.nodes ?? [])
+  return summary.total ? `${summary.completed}/${summary.total} · ${summary.percent}%` : '未开始'
+}
+
+function processExecutorText(row: Row) {
+  const status = processDisplayStatus(row)
+  if (status === 'NO_PROCESS') return '未开始'
+  if (status === 'COMPLETED') return '已完成'
+  const current = processCurrent(row)
+  return current.assigned_user_id ? `员工 ${current.assigned_user_id}` : '待派工'
+}
+
+function processAnomalyText(row: Row) {
+  const nodes = processNodes(row)
+  const completedLate = nodes.some((node) => node.node_status === 'COMPLETED'
+    && node.deadline_at
+    && node.completed_at
+    && new Date(node.completed_at) > new Date(node.deadline_at))
+  if (completedLate) return '逾期完成'
+  if (processDisplayStatus(row) === 'COMPLETED') return '无'
+  const current = processCurrent(row)
+  return current.deadline_at && new Date(current.deadline_at) < new Date() ? '已超时' : '无'
 }
 
 async function openClient(row: Row) {
@@ -706,6 +812,7 @@ watch(() => [props.activeRoute, props.token], () => {
 }, { immediate: true })
 
 watch([keyword, statusFilter], () => { page.value = 1 })
+watch(deliveryTab, () => { page.value = 1; keyword.value = ''; statusFilter.value = 'ALL' })
 watch([equipmentTab, safetyTab], () => { page.value = 1; keyword.value = ''; statusFilter.value = 'ALL' })
 watch(dictionaryType, () => { if (drawerKind.value === 'dictionary') void loadDictionaryItems() })
 
@@ -743,10 +850,9 @@ defineExpose({ refresh, openQualitySettings })
     </template>
 
     <template v-else-if="activeRoute === '/delivery'">
-      <nav class="arp-primary-tabs"><button :class="{ active: deliveryRegion === 'domestic' }" @click="deliveryRegion = 'domestic'">国内业务</button><button :class="{ active: deliveryRegion === 'overseas' }" @click="deliveryRegion = 'overseas'">国外业务</button></nav>
       <nav class="arp-secondary-tabs"><button :class="{ active: deliveryTab === 'billing' }" @click="deliveryTab = 'billing'">账单与收款</button><button :class="{ active: deliveryTab === 'tracking' }" @click="deliveryTab = 'tracking'">配送跟踪</button></nav>
       <div class="arp-business-note">⚠️ 订单尚未维护配送地区，暂时无法归入国内或国外业务</div>
-      <div class="arp-table-card arp-delivery-card"><div class="arp-toolbar"><label class="arp-search"><span>⌕</span><input v-model="keyword" placeholder="搜索订单号或运单号"></label><select v-model="statusFilter"><option value="ALL">全部状态</option><option value="SHIPPED">已发货</option><option value="EXCEPTION">配送异常</option><option value="FOLLOWING">跟进中</option><option value="RESOLVED">已解决</option></select><button @click="refresh">刷新</button><em>待归类记录 {{ deliveryOrders.length }} 条</em></div><div class="arp-table-scroll"><table class="arp-wide"><thead><tr v-if="deliveryTab === 'billing'"><th>订单</th><th>产品</th><th>账单状态</th><th>付款状态</th><th>账单金额</th><th>配送地区</th><th>操作</th></tr><tr v-else><th>订单</th><th>产品</th><th>承运商</th><th>运单号</th><th>发货状态</th><th>配送状态</th><th>最近跟进</th><th>操作</th></tr></thead><tbody><tr v-for="row in deliveryOrders.filter(item => (!keyword || `${item.order_no} ${item.tracking_no || ''}`.toLowerCase().includes(keyword.toLowerCase())) && (statusFilter === 'ALL' || item.logistics_status === statusFilter || item.external_status === statusFilter))" :key="row.order_id" @click="openDelivery(row)"><template v-if="deliveryTab === 'billing'"><td><strong>{{ row.order_no }}</strong><small>订单编号 {{ row.order_id }}</small></td><td>{{ productLabel(row.product_type) }}</td><td><i class="arp-badge">{{ statusLabel(row.bill_status) }}</i></td><td><i class="arp-badge">{{ statusLabel(row.payment_status) }}</i></td><td>查看详情</td><td>尚未维护</td><td><button @click.stop="openDelivery(row)">查看</button></td></template><template v-else><td><strong>{{ row.order_no }}</strong></td><td>{{ productLabel(row.product_type) }}</td><td>{{ row.carrier || '暂未记录' }}</td><td>{{ row.tracking_no || '暂未记录' }}</td><td>{{ statusLabel(row.external_status) }}</td><td><i class="arp-badge" :class="row.logistics_status === 'EXCEPTION' ? 'danger' : 'ok'">{{ statusLabel(row.logistics_status) }}</i></td><td>{{ row.last_follow_up_note || '暂无跟进记录' }}</td><td><button @click.stop="openDelivery(row)">查看</button></td></template></tr></tbody></table></div><div v-if="deliveryOrders.length === 0" class="arp-empty">当前还没有可查看的账单或配送记录</div></div>
+      <div class="arp-table-card arp-delivery-card"><div class="arp-toolbar"><label class="arp-search"><span>⌕</span><input v-model="keyword" placeholder="搜索订单号或运单号"></label><select v-model="statusFilter"><option v-for="option in deliveryStatusOptions" :key="option.value" :value="option.value">{{ option.label }}</option></select><button @click="refresh">刷新</button><em>当前结果 {{ filteredDeliveryOrders.length }} 条</em></div><div class="arp-table-scroll"><table class="arp-wide"><thead><tr v-if="deliveryTab === 'billing'"><th>订单</th><th>产品</th><th>账单状态</th><th>付款状态</th><th>账单金额</th><th>配送地区</th><th>操作</th></tr><tr v-else><th>订单</th><th>产品</th><th>承运商</th><th>运单号</th><th>发货状态</th><th>配送状态</th><th>最近跟进</th><th>操作</th></tr></thead><tbody><tr v-for="row in filteredDeliveryOrders" :key="row.order_id" @click="openDelivery(row)"><template v-if="deliveryTab === 'billing'"><td><strong>{{ row.order_no }}</strong><small>订单编号 {{ row.order_id }}</small></td><td>{{ productLabel(row.product_type) }}</td><td><i class="arp-badge">{{ statusLabel(row.bill_status) }}</i></td><td><i class="arp-badge">{{ statusLabel(row.payment_status) }}</i></td><td>查看详情</td><td>尚未维护</td><td><button @click.stop="openDelivery(row)">查看</button></td></template><template v-else><td><strong>{{ row.order_no }}</strong></td><td>{{ productLabel(row.product_type) }}</td><td>{{ row.carrier || '暂未记录' }}</td><td>{{ row.tracking_no || '暂未记录' }}</td><td>{{ statusLabel(row.external_status) }}</td><td><i class="arp-badge" :class="row.logistics_status === 'EXCEPTION' ? 'danger' : 'ok'">{{ statusLabel(row.logistics_status) }}</i></td><td>{{ row.last_follow_up_note || '暂无跟进记录' }}</td><td><button @click.stop="openDelivery(row)">查看</button></td></template></tr></tbody></table></div><div v-if="filteredDeliveryOrders.length === 0" class="arp-empty">当前筛选下没有账单或配送记录</div></div>
     </template>
 
     <template v-else-if="activeRoute === '/admin/outsourcing'">
@@ -754,7 +860,7 @@ defineExpose({ refresh, openQualitySettings })
     </template>
 
     <template v-else-if="activeRoute === '/workflow/process-instance'">
-      <div class="arp-table-card arp-fill-card"><div class="arp-toolbar"><label class="arp-search"><span>⌕</span><input v-model="keyword" placeholder="搜索订单、客户或产品"></label><select v-model="statusFilter"><option value="ALL">全部状态</option><option value="UNASSIGNED">待派工</option><option value="PRODUCING">生产中</option><option value="NO_PROCESS">尚未生成工序</option></select><button @click="clearFilters">清空</button><em>共 {{ filteredProcesses.length }} 单</em></div><div class="arp-table-scroll"><table class="arp-wide"><thead><tr><th>订单</th><th>客户 / 产品</th><th>当前生产工序</th><th>生产进度</th><th>当前执行人</th><th>时限</th><th>异常</th><th>操作</th></tr></thead><tbody><tr v-for="row in pagedRows" :key="row.order.order_id" @click="openProcess(row)"><td><strong>{{ row.order.order_no }}</strong><small>编号 {{ row.order.order_id }}</small></td><td><strong>{{ row.order.clinic_name || '客户暂未记录' }}</strong><small>{{ productLabel(row.order.product_type) }}</small></td><td>{{ processCurrent(row)?.process_name || (row.failed ? '暂时无法查看' : '尚未进入生产') }}</td><td><div class="arp-progress"><i :style="{ width: `${processProgress(row)}%` }" /></div><small>{{ productionProgressSummary(row.instance?.nodes ?? []).completed }}/{{ productionProgressSummary(row.instance?.nodes ?? []).total }} · {{ processProgress(row) }}%</small></td><td>{{ processCurrent(row)?.assigned_user_id ? `员工 ${processCurrent(row).assigned_user_id}` : '待派工' }}</td><td>{{ compactDate(processCurrent(row)?.deadline_at) }}</td><td><i v-if="processCurrent(row)?.deadline_at && new Date(processCurrent(row).deadline_at) < new Date()" class="arp-badge danger">已超时</i><span v-else>无</span></td><td><button @click.stop="openProcess(row)">查看</button></td></tr></tbody></table></div><footer class="arp-pagination"><span>共 {{ currentRows.length }} 单</span><div><button :disabled="page <= 1" @click="page--">上一页</button><b>{{ page }}</b><button :disabled="page >= pageCount" @click="page++">下一页</button></div></footer></div>
+      <div class="arp-table-card arp-fill-card"><div class="arp-toolbar"><label class="arp-search"><span>⌕</span><input v-model="keyword" placeholder="搜索订单、客户或产品"></label><select v-model="statusFilter"><option value="HAS_PROCESS">已生成工序</option><option value="UNASSIGNED">待派工</option><option value="PRODUCING">生产中</option><option value="COMPLETED">已完成</option><option value="NO_PROCESS">尚未生成工序</option><option value="ALL">全部订单</option></select><button @click="clearFilters">清空</button><em>共 {{ filteredProcesses.length }} 单</em></div><div class="arp-table-scroll"><table class="arp-wide"><thead><tr><th>订单</th><th>客户 / 产品</th><th>当前生产工序</th><th>生产进度</th><th>当前执行人</th><th>时限</th><th>异常</th><th>操作</th></tr></thead><tbody><tr v-for="row in pagedRows" :key="row.order.order_id" @click="openProcess(row)"><td><strong>{{ row.order.order_no }}</strong><small>编号 {{ row.order.order_id }}</small></td><td><strong>{{ row.order.clinic_name || '客户暂未记录' }}</strong><small>{{ productLabel(row.order.product_type) }}</small></td><td>{{ processCurrent(row).process_name || (row.failed ? '暂时无法查看' : '未开始') }}</td><td><div class="arp-progress"><i :style="{ width: `${processProgress(row)}%` }" /></div><small>{{ processProgressText(row) }}</small></td><td>{{ processExecutorText(row) }}</td><td>{{ compactDate(processCurrent(row).deadline_at) }}</td><td><i v-if="processAnomalyText(row) !== '无'" class="arp-badge danger">{{ processAnomalyText(row) }}</i><span v-else>无</span></td><td><button @click.stop="openProcess(row)">查看</button></td></tr></tbody></table><div v-if="filteredProcesses.length === 0" class="arp-empty">当前筛选下没有工序订单</div></div><footer class="arp-pagination"><span>共 {{ currentRows.length }} 单</span><div><button :disabled="page <= 1" @click="page--">上一页</button><b>{{ page }}</b><button :disabled="page >= pageCount" @click="page++">下一页</button></div></footer></div>
     </template>
 
     <template v-else-if="activeRoute === '/production/quality'">
@@ -770,7 +876,7 @@ defineExpose({ refresh, openQualitySettings })
       <nav v-if="activeRoute === '/production/devices'" class="arp-primary-tabs"><button :class="{ active: equipmentTab === 'list' }" @click="equipmentTab = 'list'">设备清单</button><button :class="{ active: equipmentTab === 'approval' }" @click="equipmentTab = 'approval'">审批事项</button></nav>
       <nav v-if="activeRoute === '/production/safety-environment'" class="arp-primary-tabs"><button :class="{ active: safetyTab === 'supervision' }" @click="safetyTab = 'supervision'">检查监督</button><button :class="{ active: safetyTab === 'rules' }" @click="safetyTab = 'rules'">检查规则</button></nav>
       <div class="arp-metric-band"><article v-for="card in supportCards" :key="card[0]"><span>{{ card[0] }}</span><strong>{{ card[1] ?? 0 }}</strong></article></div>
-      <div class="arp-table-card arp-metric-table"><div class="arp-toolbar"><label class="arp-search"><span>⌕</span><input v-model="keyword" :placeholder="activeRoute === '/production/devices' ? '搜索设备编号或名称' : activeRoute === '/production/material-exceptions' ? '搜索异常编号或物料' : activeRoute === '/production/safety-environment' ? '搜索部门、事项或检查规则' : '搜索成本或订单编号'"></label><select v-model="statusFilter"><option value="ALL">全部状态</option><option value="PENDING">待处理</option><option value="IN_PROGRESS">处理中</option><option value="CLOSED">已关闭</option><option value="WARNING">异常提醒</option><option value="CONFIRMED">已确认</option><option value="APPROVED">已通过</option><option value="REJECTED">已驳回</option></select><button @click="clearFilters">清空</button><button @click="refresh">刷新</button><em>{{ actionMessage || `共 ${filteredSupport.length} 条 · 更新于 ${compactDate(supportSummary?.generated_at)}` }}</em></div>
+      <div class="arp-table-card arp-metric-table"><div class="arp-toolbar"><label class="arp-search"><span>⌕</span><input v-model="keyword" :placeholder="activeRoute === '/production/devices' ? '搜索设备编号或名称' : activeRoute === '/production/material-exceptions' ? '搜索异常编号或物料' : activeRoute === '/production/safety-environment' ? '搜索部门、事项或检查规则' : '搜索成本或订单编号'"></label><select v-model="statusFilter"><option v-for="option in supportStatusOptions" :key="option.value" :value="option.value">{{ option.label }}</option></select><button @click="clearFilters">清空</button><button @click="refresh">刷新</button><em>{{ actionMessage || `共 ${filteredSupport.length} 条 · 更新于 ${compactDate(supportSummary?.generated_at)}` }}</em></div>
         <div class="arp-table-scroll">
           <table v-if="activeRoute === '/production/devices' && equipmentTab === 'list'" class="arp-wide"><thead><tr><th>设备</th><th>类型 / 部门</th><th>状态</th><th>负责人</th><th>稼动率</th><th>上次维护</th><th>下次维护</th><th>最近更新</th><th>操作</th></tr></thead><tbody><tr v-for="row in pagedRows" :key="row.equipment_id" @click="openSupport(row)"><td><strong>{{ row.equipment_name }}</strong><small>{{ row.equipment_code }}</small></td><td><strong>{{ row.equipment_type }}</strong><small>{{ row.department_name || '部门暂未记录' }}</small></td><td><i class="arp-badge" :class="row.status === 'FAULT' ? 'danger' : row.status === 'RUNNING' ? 'ok' : 'warning'">{{ statusLabel(row.status) }}</i></td><td>{{ row.owner_user_id ? `员工 ${row.owner_user_id}` : '暂未指定' }}</td><td><div class="arp-progress"><i :style="{ width: `${row.utilization_rate}%` }" /></div><small>{{ row.utilization_rate }}%</small></td><td>{{ compactDate(row.last_maintenance_at) }}</td><td>{{ compactDate(row.next_maintenance_at) }}</td><td>{{ compactDate(row.updated_at) }}</td><td><button @click.stop="openSupport(row)">查看</button></td></tr></tbody></table>
           <table v-else-if="activeRoute === '/production/devices'" class="arp-wide"><thead><tr><th>审批事项</th><th>设备编号</th><th>申请人</th><th>停机影响</th><th>申请说明</th><th>审批状态</th><th>申请时间</th><th>操作</th></tr></thead><tbody><tr v-for="row in pagedRows" :key="row.event_id"><td><strong>{{ supportTypeLabel(row.event_type) }}</strong></td><td>{{ row.equipment_code }}</td><td>{{ row.requested_by_user_id ? `员工 ${row.requested_by_user_id}` : '暂未记录' }}</td><td>{{ row.downtime_minutes }} 分钟</td><td>{{ row.description || '暂无说明' }}</td><td><i class="arp-badge" :class="row.status === 'PENDING' ? 'warning' : row.status === 'APPROVED' ? 'ok' : 'danger'">{{ statusLabel(row.status) }}</i></td><td>{{ compactDate(row.created_at) }}</td><td><div v-if="row.status === 'PENDING'" class="arp-row-actions"><button :disabled="actionBusy === row.event_id" @click="decideEquipmentApproval(row, 'APPROVED')">通过</button><button class="danger" :disabled="actionBusy === row.event_id" @click="decideEquipmentApproval(row, 'REJECTED')">驳回</button></div><span v-else>{{ row.decision_note || '已完成审批' }}</span></td></tr></tbody></table>
@@ -878,7 +984,7 @@ defineExpose({ refresh, openQualitySettings })
 
     <template v-if="!['equipment', 'material', 'safety', 'safety-rule', 'cost', 'outsourcing'].includes(drawerKind)">
 
-    <div v-if="drawerVisible" class="arp-drawer-layer" @click.self="closeDrawer"><aside class="arp-drawer" role="dialog" aria-modal="true" :aria-label="drawerTitle"><header><div><span>只读业务详情</span><h2>{{ drawerTitle }}</h2></div><button aria-label="关闭" @click="closeDrawer">×</button></header><div class="arp-drawer-body"><div v-if="drawerLoading" class="arp-state"><span class="arp-spinner" />正在加载详情…</div><template v-else-if="drawerKind === 'client' && drawerData"><section class="arp-profile-banner"><i>🏥</i><div><strong>{{ drawerData.clinic_name }}</strong><span>客户编号 {{ drawerData.clinic_id }} · {{ statusLabel(drawerData.status) }}</span></div></section><section class="arp-detail-section"><header><span>01</span><div><h3>客户档案</h3><small>由客服端维护</small></div></header><dl><div><dt>联系人</dt><dd>{{ drawerData.contact_name || '暂未维护' }}</dd></div><div><dt>联系电话</dt><dd>{{ drawerData.contact_phone || '暂未维护' }}</dd></div><div><dt>建档时间</dt><dd>{{ compactDate(drawerData.created_at) }}</dd></div><div><dt>最近维护</dt><dd>{{ compactDate(drawerData.updated_at) }}</dd></div></dl></section><section class="arp-detail-section"><header><span>02</span><div><h3>客户贡献</h3><small>本月真实统计</small></div></header><dl><div><dt>排名</dt><dd>{{ drawerData.ranking ? `第 ${clientSummary?.top_customers?.findIndex((item: Row) => item.clinic_id === drawerData.clinic_id) + 1} 名` : '暂未进入排名' }}</dd></div><div><dt>订单 / 件数</dt><dd>{{ drawerData.ranking?.order_count ?? '暂未统计' }} / {{ drawerData.ranking?.item_count ?? '暂未统计' }}</dd></div><div><dt>接单金额</dt><dd>暂未统计</dd></div><div><dt>出货金额</dt><dd>暂未统计</dd></div></dl></section><section class="arp-detail-section"><header><span>03</span><div><h3>制作偏好</h3><small>全部只读</small></div></header><dl><div v-for="(value, key) in drawerData.preference?.preferences ?? {}" :key="key"><dt>{{ key }}</dt><dd>{{ value || '暂未维护' }}</dd></div></dl><p v-if="!Object.keys(drawerData.preference?.preferences ?? {}).length" class="arp-detail-note">当前客户暂未维护制作偏好</p></section><p class="arp-readonly-note">客户资料由客服端维护，管理端仅用于经营与服务关系分析。</p></template><template v-else-if="drawerKind === 'delivery' && drawerData"><section class="arp-profile-banner"><i>📦</i><div><strong>{{ drawerData.order_no }}</strong><span>{{ productLabel(drawerData.product_type) }} · {{ statusLabel(drawerData.external_status) }}</span></div></section><section class="arp-detail-section"><header><span>01</span><div><h3>账单信息</h3><small>真实账单状态</small></div></header><dl><div><dt>账单状态</dt><dd>{{ statusLabel(drawerData.bill?.bill_status || drawerData.bill_status) }}</dd></div><div><dt>付款状态</dt><dd>{{ statusLabel(drawerData.bill?.payment_status || drawerData.payment_status) }}</dd></div><div><dt>账单金额</dt><dd>{{ amount(drawerData.bill?.amount_cents, drawerData.bill?.currency || 'CNY') }}</dd></div><div><dt>收款记录</dt><dd>{{ drawerData.payments?.length ?? 0 }} 条</dd></div></dl></section><section class="arp-detail-section"><header><span>02</span><div><h3>配送信息</h3><small>系统人工维护状态</small></div></header><dl><div><dt>承运商</dt><dd>{{ drawerData.logistics?.carrier || drawerData.carrier || '暂未记录' }}</dd></div><div><dt>运单号</dt><dd>{{ drawerData.logistics?.tracking_no || drawerData.tracking_no || '暂未记录' }}</dd></div><div><dt>配送状态</dt><dd>{{ statusLabel(drawerData.logistics?.logistics_status || drawerData.logistics_status) }}</dd></div><div><dt>配送地区</dt><dd>尚未维护</dd></div></dl></section></template><template v-else-if="drawerKind === 'process' && drawerData"><section class="arp-profile-banner"><i>⚙️</i><div><strong>{{ drawerData.order.order_no }}</strong><span>{{ productLabel(drawerData.order.product_type) }} · 进度 {{ processProgress(drawerData) }}%</span></div></section><p v-if="!drawerData.instance" class="arp-detail-note">当前订单尚未生成可查看的工序记录</p><section v-else class="arp-timeline"><article v-for="node in drawerData.instance.nodes" :key="node.node_instance_id"><i :class="node.node_status.toLowerCase()">{{ node.node_status === 'COMPLETED' ? '✓' : node.step_order }}</i><div><header><strong>{{ node.process_name }}</strong><span>{{ statusLabel(node.node_status) }}</span></header><p>执行人：{{ node.assigned_user_id ? `员工 ${node.assigned_user_id}` : '待派工' }}</p><small>开始 {{ compactDate(node.started_at) }} · 完成 {{ compactDate(node.completed_at) }} · 时限 {{ compactDate(node.deadline_at) }}</small></div></article></section><p class="arp-readonly-note">工序和派工信息由生产端维护，管理端仅查看生产进度并监督异常。</p></template><template v-else-if="drawerKind === 'quality' && drawerData"><section class="arp-profile-banner"><i>🔍</i><div><strong>{{ drawerData.order_no || `订单 ${drawerData.order_id}` }}</strong><span>{{ drawerData.issue_type }} · {{ statusLabel(drawerData.status) }}</span></div></section><section class="arp-detail-section"><header><span>01</span><div><h3>问题事实</h3><small>{{ drawerData.source }}</small></div></header><dl><div><dt>问题原因</dt><dd>{{ drawerData.reason_detail || drawerData.reason_category || '暂未记录' }}</dd></div><div><dt>发生时间</dt><dd>{{ compactDate(drawerData.created_at) }}</dd></div><div><dt>目标工序</dt><dd>{{ drawerData.target_process_name || '暂未记录' }}</dd></div><div><dt>影响节点</dt><dd>{{ drawerData.impacted_node_count ?? '暂未统计' }}</dd></div></dl></section><section class="arp-detail-section"><header><span>02</span><div><h3>责任与处理</h3><small>管理监督依据</small></div></header><dl><div><dt>责任依据</dt><dd>{{ drawerData.issue_type === '外返' ? '当前责任信息以客服登记结果为准' : statusLabel(drawerData.responsibility_type) }}</dd></div><div><dt>处理状态</dt><dd>{{ statusLabel(drawerData.status) }}</dd></div><div><dt>关闭说明</dt><dd>{{ drawerData.close_note || drawerData.status_note || '暂未记录' }}</dd></div><div><dt>最近更新</dt><dd>{{ compactDate(drawerData.updated_at || drawerData.status_updated_at) }}</dd></div></dl></section></template><template v-else-if="drawerKind === 'performance' && drawerData"><section class="arp-profile-banner"><i>{{ (drawerData.staff.display_name || drawerData.staff.username || '员').slice(0, 1) }}</i><div><strong>{{ drawerData.staff.display_name || drawerData.staff.username }}</strong><span>{{ drawerData.staff.department_name || '部门暂未记录' }} · 绩效参考分 {{ drawerData.stats?.performance_score ?? '暂未统计' }}</span></div></section><section class="arp-detail-section"><header><span>01</span><div><h3>绩效依据</h3><small>仅供绩效分析，不作为工资结算结果</small></div></header><dl><div><dt>完成工序</dt><dd>{{ drawerData.stats?.completed_count ?? '暂未统计' }}</dd></div><div><dt>有效 / 标准工时</dt><dd>{{ drawerData.stats?.effective_duration ?? '—' }} / {{ drawerData.stats?.standard_duration ?? '—' }} 分钟</dd></div><div><dt>准时 / 通过率</dt><dd>{{ drawerData.stats?.on_time_rate ?? '—' }}% / {{ drawerData.stats?.pass_rate ?? '—' }}%</dd></div><div><dt>公式版本</dt><dd>{{ drawerData.stats?.performance_formula_version || '暂未记录' }}</dd></div></dl></section><section class="arp-detail-section"><header><span>02</span><div><h3>工时明细</h3><small>{{ drawerData.details?.length ?? 0 }} 条</small></div></header><div class="arp-detail-list"><article v-for="item in drawerData.details ?? []" :key="item.work_log_id"><strong>{{ item.order_no }} · {{ item.node_name }}</strong><span>有效 {{ item.effective_duration ?? '—' }} / 标准 {{ item.standard_duration ?? '—' }} 分钟</span><small>{{ compactDate(item.started_at) }} – {{ compactDate(item.completed_at) }}</small></article><p v-if="!(drawerData.details?.length)" class="arp-detail-note">当前没有可查看的工时明细</p></div></section></template><template v-else-if="drawerKind === 'product' && drawerData"><section class="arp-profile-banner"><i>🦷</i><div><strong>{{ drawerData.product_name }}</strong><span>{{ productLabel(drawerData.product_type) }} · {{ statusLabel(drawerData.status) }}</span></div></section><section class="arp-detail-section"><header><span>01</span><div><h3>产品资料</h3><small>客服端维护结果</small></div></header><dl><div><dt>材料规格</dt><dd>{{ drawerData.material_spec || '暂未维护' }}</dd></div><div><dt>基础价格</dt><dd>{{ drawerData.base_price_cents <= 1 ? '价格待确认' : amount(drawerData.base_price_cents, drawerData.currency) }}</dd></div><div><dt>币种</dt><dd>{{ drawerData.currency }}</dd></div><div><dt>价格备注</dt><dd>{{ drawerData.price_note || '暂无备注' }}</dd></div><div><dt>创建时间</dt><dd>{{ compactDate(drawerData.created_at) }}</dd></div><div><dt>最近更新</dt><dd>{{ compactDate(drawerData.updated_at) }}</dd></div></dl></section><p class="arp-readonly-note">管理端只读查看产品资料，不提供产品配置或下单模板设置。</p></template><template v-else-if="drawerKind === 'dictionary'"><div class="arp-dictionary-tabs"><button :class="{ active: dictionaryType === 'REASON_CATEGORY' }" @click="dictionaryType = 'REASON_CATEGORY'">返工原因</button><button :class="{ active: dictionaryType === 'RESPONSIBILITY_TYPE' }" @click="dictionaryType = 'RESPONSIBILITY_TYPE'">责任类型</button></div><div v-if="dictionaryLoading" class="arp-state">正在加载设置…</div><div v-else-if="dictionaryError" class="arp-state arp-state-error">{{ businessFailure }}</div><div v-else class="arp-dictionary-layout"><div class="arp-dictionary-list"><button v-for="item in dictionaryItems" :key="item.item_id" :class="{ active: selectedDictionaryId === item.item_id }" @click="selectDictionary(item)"><span>{{ item.label }}</span><i class="arp-badge" :class="item.status === 'ACTIVE' ? 'ok' : 'muted'">{{ statusLabel(item.status) }}</i></button></div><div class="arp-dictionary-form"><label><span>业务名称</span><input v-model="dictionaryLabel"></label><label><span>显示顺序</span><input v-model.number="dictionarySort" type="number"></label><p>生产端和客服端只读取启用设置，管理端修改会保留真实业务记录。</p><button :disabled="dictionarySaving || !selectedDictionaryId" @click="saveDictionary">{{ dictionarySaving ? '保存中…' : '保存设置' }}</button><small v-if="dictionaryMessage">{{ dictionaryMessage }}</small></div></div></template></div><footer><span>按 Esc、点击遮罩或关闭按钮均可退出</span><button @click="closeDrawer">关闭</button></footer></aside></div>
+    <div v-if="drawerVisible" class="arp-drawer-layer" @click.self="closeDrawer"><aside class="arp-drawer" role="dialog" aria-modal="true" :aria-label="drawerTitle"><header><div><span>只读业务详情</span><h2>{{ drawerTitle }}</h2></div><button aria-label="关闭" @click="closeDrawer">×</button></header><div class="arp-drawer-body"><div v-if="drawerLoading" class="arp-state"><span class="arp-spinner" />正在加载详情…</div><template v-else-if="drawerKind === 'client' && drawerData"><section class="arp-profile-banner"><i>🏥</i><div><strong>{{ drawerData.clinic_name }}</strong><span>客户编号 {{ drawerData.clinic_id }} · {{ statusLabel(drawerData.status) }}</span></div></section><section class="arp-detail-section"><header><span>01</span><div><h3>客户档案</h3><small>由客服端维护</small></div></header><dl><div><dt>联系人</dt><dd>{{ drawerData.contact_name || '暂未维护' }}</dd></div><div><dt>联系电话</dt><dd>{{ drawerData.contact_phone || '暂未维护' }}</dd></div><div><dt>建档时间</dt><dd>{{ compactDate(drawerData.created_at) }}</dd></div><div><dt>最近维护</dt><dd>{{ compactDate(drawerData.updated_at) }}</dd></div></dl></section><section class="arp-detail-section"><header><span>02</span><div><h3>客户贡献</h3><small>本月真实统计</small></div></header><dl><div><dt>排名</dt><dd>{{ drawerData.ranking ? `第 ${clientSummary?.top_customers?.findIndex((item: Row) => item.clinic_id === drawerData.clinic_id) + 1} 名` : '暂未进入排名' }}</dd></div><div><dt>订单 / 件数</dt><dd>{{ drawerData.ranking?.order_count ?? '暂未统计' }} / {{ drawerData.ranking?.item_count ?? '暂未统计' }}</dd></div><div><dt>接单金额</dt><dd>暂未统计</dd></div><div><dt>出货金额</dt><dd>暂未统计</dd></div></dl></section><section class="arp-detail-section"><header><span>03</span><div><h3>制作偏好</h3><small>全部只读</small></div></header><dl><div v-for="(value, key) in drawerData.preference?.preferences ?? {}" :key="key"><dt>{{ key }}</dt><dd>{{ value || '暂未维护' }}</dd></div></dl><p v-if="!Object.keys(drawerData.preference?.preferences ?? []).length" class="arp-detail-note">当前客户暂未维护制作偏好</p></section><p class="arp-readonly-note">客户资料由客服端维护，管理端仅用于经营与服务关系分析。</p></template><template v-else-if="drawerKind === 'delivery' && drawerData"><section class="arp-profile-banner"><i>📦</i><div><strong>{{ drawerData.order_no }}</strong><span>{{ productLabel(drawerData.product_type) }} · {{ statusLabel(drawerData.external_status) }}</span></div></section><section class="arp-detail-section"><header><span>01</span><div><h3>账单信息</h3><small>真实账单状态</small></div></header><dl><div><dt>账单状态</dt><dd>{{ statusLabel(drawerData.bill?.bill_status || drawerData.bill_status) }}</dd></div><div><dt>付款状态</dt><dd>{{ statusLabel(drawerData.bill?.payment_status || drawerData.payment_status) }}</dd></div><div><dt>账单金额</dt><dd>{{ amount(drawerData.bill?.amount_cents, drawerData.bill?.currency || 'CNY') }}</dd></div><div><dt>收款记录</dt><dd>{{ drawerData.payments?.length ?? 0 }} 条</dd></div></dl></section><section class="arp-detail-section"><header><span>02</span><div><h3>配送信息</h3><small>系统人工维护状态</small></div></header><dl><div><dt>承运商</dt><dd>{{ drawerData.logistics?.carrier || drawerData.carrier || '暂未记录' }}</dd></div><div><dt>运单号</dt><dd>{{ drawerData.logistics?.tracking_no || drawerData.tracking_no || '暂未记录' }}</dd></div><div><dt>配送状态</dt><dd>{{ statusLabel(drawerData.logistics?.logistics_status || drawerData.logistics_status) }}</dd></div><div><dt>配送地区</dt><dd>尚未维护</dd></div></dl></section></template><template v-else-if="drawerKind === 'process' && drawerData"><section class="arp-profile-banner"><i>⚙️</i><div><strong>{{ drawerData.order.order_no }}</strong><span>{{ productLabel(drawerData.order.product_type) }} · 进度 {{ processProgress(drawerData) }}%</span></div></section><p v-if="!drawerData.instance" class="arp-detail-note">当前订单尚未生成可查看的工序记录</p><section v-else class="arp-timeline"><article v-for="(node, index) in drawerData.instance.nodes" :key="node.node_instance_id"><i :class="node.node_status.toLowerCase()">{{ node.node_status === 'COMPLETED' ? '✓' : Number(index) + 1 }}</i><div><header><strong>{{ node.process_name }}</strong><span>{{ statusLabel(node.node_status) }}</span></header><p>执行人：{{ node.assigned_user_id ? `员工 ${node.assigned_user_id}` : '待派工' }}</p><small>开始 {{ compactDate(node.started_at) }} · 完成 {{ compactDate(node.completed_at) }} · 时限 {{ compactDate(node.deadline_at) }}</small></div></article></section><p class="arp-readonly-note">工序和派工信息由生产端维护，管理端仅查看生产进度并监督异常。</p></template><template v-else-if="drawerKind === 'quality' && drawerData"><section class="arp-profile-banner"><i>🔍</i><div><strong>{{ drawerData.order_no || `订单 ${drawerData.order_id}` }}</strong><span>{{ drawerData.issue_type }} · {{ statusLabel(drawerData.status) }}</span></div></section><section class="arp-detail-section"><header><span>01</span><div><h3>问题事实</h3><small>{{ drawerData.source }}</small></div></header><dl><div><dt>问题原因</dt><dd>{{ drawerData.reason_detail || drawerData.reason_category || '暂未记录' }}</dd></div><div><dt>发生时间</dt><dd>{{ compactDate(drawerData.created_at) }}</dd></div><div><dt>目标工序</dt><dd>{{ drawerData.target_process_name || '暂未记录' }}</dd></div><div><dt>影响节点</dt><dd>{{ drawerData.impacted_node_count ?? '暂未统计' }}</dd></div></dl></section><section class="arp-detail-section"><header><span>02</span><div><h3>责任与处理</h3><small>管理监督依据</small></div></header><dl><div><dt>责任依据</dt><dd>{{ drawerData.issue_type === '外返' ? '当前责任信息以客服登记结果为准' : statusLabel(drawerData.responsibility_type) }}</dd></div><div><dt>处理状态</dt><dd>{{ statusLabel(drawerData.status) }}</dd></div><div><dt>关闭说明</dt><dd>{{ drawerData.close_note || drawerData.status_note || '暂未记录' }}</dd></div><div><dt>最近更新</dt><dd>{{ compactDate(drawerData.updated_at || drawerData.status_updated_at) }}</dd></div></dl></section></template><template v-else-if="drawerKind === 'performance' && drawerData"><section class="arp-profile-banner"><i>{{ (drawerData.staff.display_name || drawerData.staff.username || '员').slice(0, 1) }}</i><div><strong>{{ drawerData.staff.display_name || drawerData.staff.username }}</strong><span>{{ drawerData.staff.department_name || '部门暂未记录' }} · 绩效参考分 {{ drawerData.stats?.performance_score ?? '暂未统计' }}</span></div></section><section class="arp-detail-section"><header><span>01</span><div><h3>绩效依据</h3><small>仅供绩效分析，不作为工资结算结果</small></div></header><dl><div><dt>完成工序</dt><dd>{{ drawerData.stats?.completed_count ?? '暂未统计' }}</dd></div><div><dt>有效 / 标准工时</dt><dd>{{ drawerData.stats?.effective_duration ?? '—' }} / {{ drawerData.stats?.standard_duration ?? '—' }} 分钟</dd></div><div><dt>准时 / 通过率</dt><dd>{{ drawerData.stats?.on_time_rate ?? '—' }}% / {{ drawerData.stats?.pass_rate ?? '—' }}%</dd></div><div><dt>公式版本</dt><dd>{{ drawerData.stats?.performance_formula_version || '暂未记录' }}</dd></div></dl></section><section class="arp-detail-section"><header><span>02</span><div><h3>工时明细</h3><small>{{ drawerData.details?.length ?? 0 }} 条</small></div></header><div class="arp-detail-list"><article v-for="item in drawerData.details ?? []" :key="item.work_log_id"><strong>{{ item.order_no }} · {{ item.node_name }}</strong><span>有效 {{ item.effective_duration ?? '—' }} / 标准 {{ item.standard_duration ?? '—' }} 分钟</span><small>{{ compactDate(item.started_at) }} – {{ compactDate(item.completed_at) }}</small></article><p v-if="!(drawerData.details?.length)" class="arp-detail-note">当前没有可查看的工时明细</p></div></section></template><template v-else-if="drawerKind === 'product' && drawerData"><section class="arp-profile-banner"><i>🦷</i><div><strong>{{ drawerData.product_name }}</strong><span>{{ productLabel(drawerData.product_type) }} · {{ statusLabel(drawerData.status) }}</span></div></section><section class="arp-detail-section"><header><span>01</span><div><h3>产品资料</h3><small>客服端维护结果</small></div></header><dl><div><dt>材料规格</dt><dd>{{ drawerData.material_spec || '暂未维护' }}</dd></div><div><dt>基础价格</dt><dd>{{ drawerData.base_price_cents <= 1 ? '价格待确认' : amount(drawerData.base_price_cents, drawerData.currency) }}</dd></div><div><dt>币种</dt><dd>{{ drawerData.currency }}</dd></div><div><dt>价格备注</dt><dd>{{ drawerData.price_note || '暂无备注' }}</dd></div><div><dt>创建时间</dt><dd>{{ compactDate(drawerData.created_at) }}</dd></div><div><dt>最近更新</dt><dd>{{ compactDate(drawerData.updated_at) }}</dd></div></dl></section><p class="arp-readonly-note">管理端只读查看产品资料，不提供产品配置或下单模板设置。</p></template><template v-else-if="drawerKind === 'dictionary'"><div class="arp-dictionary-tabs"><button :class="{ active: dictionaryType === 'REASON_CATEGORY' }" @click="dictionaryType = 'REASON_CATEGORY'">返工原因</button><button :class="{ active: dictionaryType === 'RESPONSIBILITY_TYPE' }" @click="dictionaryType = 'RESPONSIBILITY_TYPE'">责任类型</button></div><div v-if="dictionaryLoading" class="arp-state">正在加载设置…</div><div v-else-if="dictionaryError" class="arp-state arp-state-error">{{ businessFailure }}</div><div v-else class="arp-dictionary-layout"><div class="arp-dictionary-list"><button v-for="item in dictionaryItems" :key="item.item_id" :class="{ active: selectedDictionaryId === item.item_id }" @click="selectDictionary(item)"><span>{{ item.label }}</span><i class="arp-badge" :class="item.status === 'ACTIVE' ? 'ok' : 'muted'">{{ statusLabel(item.status) }}</i></button></div><div class="arp-dictionary-form"><label><span>业务名称</span><input v-model="dictionaryLabel"></label><label><span>显示顺序</span><input v-model.number="dictionarySort" type="number"></label><p>生产端和客服端只读取启用设置，管理端修改会保留真实业务记录。</p><button :disabled="dictionarySaving || !selectedDictionaryId" @click="saveDictionary">{{ dictionarySaving ? '保存中…' : '保存设置' }}</button><small v-if="dictionaryMessage">{{ dictionaryMessage }}</small></div></div></template></div><footer><span>按 Esc、点击遮罩或关闭按钮均可退出</span><button @click="closeDrawer">关闭</button></footer></aside></div>
     </template>
     <div v-if="drawerVisible && ['equipment', 'material', 'safety', 'safety-rule', 'cost', 'outsourcing'].includes(drawerKind)" class="arp-drawer-layer arp-support-drawer-layer" @click.self="closeDrawer">
       <aside class="arp-drawer" role="dialog" aria-modal="true" :aria-label="drawerTitle">

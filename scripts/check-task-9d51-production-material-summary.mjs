@@ -26,7 +26,7 @@ const checks = [
   [files.frontend, 'App.vue', 'type ProductionMaterialExceptionSummaryResponse'],
   [files.frontend, 'App.vue', 'loadProductionMaterialExceptionSummary'],
   [files.frontend, 'App.vue', '/production/material-exceptions/summary'],
-  [files.frontend, 'App.vue', '真实物料异常汇总'],
+  [files.frontend, 'App.vue', "title: '物料异常'"],
   [files.frontend, 'App.vue', '缺料'],
   [files.frontend, 'App.vue', '错料'],
   [files.frontend, 'App.vue', '批次异常'],
