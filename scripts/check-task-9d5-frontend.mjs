@@ -60,9 +60,24 @@ const requiredProcessProgressFragments = [
   "return summary.total ? `${summary.completed}/${summary.total} · ${summary.percent}%` : '未开始'"
 ]
 
+const requiredDeliveryRegionFragments = [
+  "type DeliveryRegionFilter = 'DOMESTIC' | 'INTERNATIONAL' | 'UNCLASSIFIED'",
+  "const deliveryRegion = ref<DeliveryRegionFilter>('DOMESTIC')",
+  'function deliveryRegionOf(item: Row): DeliveryRegionFilter',
+  'const deliveryRegionCounts = computed<Record<DeliveryRegionFilter, number>>',
+  "if (deliveryRegionOf(item) !== deliveryRegion.value) return false",
+  'data-testid="delivery-region-domestic"',
+  'data-testid="delivery-region-international"',
+  'data-testid="delivery-region-unclassified"',
+  '国内业务',
+  '国外业务',
+  '待归类'
+]
+
 const missing = [
   ...requiredAppFragments.filter((fragment) => !app.includes(fragment)).map((fragment) => `frontend/src/App.vue -> ${fragment}`),
   ...requiredProcessProgressFragments.filter((fragment) => !remainingPages.includes(fragment)).map((fragment) => `frontend/src/components/AdminRemainingPages.vue -> ${fragment}`),
+  ...requiredDeliveryRegionFragments.filter((fragment) => !remainingPages.includes(fragment)).map((fragment) => `frontend/src/components/AdminRemainingPages.vue -> ${fragment}`),
   ...requiredProxyFragments.filter((fragment) => !viteConfig.includes(fragment)).map((fragment) => `frontend/vite.config.ts -> ${fragment}`)
 ]
 

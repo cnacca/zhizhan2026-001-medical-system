@@ -4,6 +4,7 @@ import { productionProgressNodes, productionProgressSummary } from '../utils/pro
 
 type ApiResponse<T> = { code: number; msg: string; data: T }
 type Row = Record<string, any>
+type DeliveryRegionFilter = 'DOMESTIC' | 'INTERNATIONAL' | 'UNCLASSIFIED'
 type Notice = {
   notification_id: number
   event: string
@@ -45,6 +46,7 @@ const drawerData = ref<Row>({})
 const drawerLoading = ref(false)
 
 const clientTab = ref<'directory' | 'contribution'>('directory')
+const deliveryRegion = ref<DeliveryRegionFilter>('DOMESTIC')
 const deliveryTab = ref<'billing' | 'tracking'>('billing')
 const equipmentTab = ref<'list' | 'approval'>('list')
 const safetyTab = ref<'supervision' | 'rules'>('supervision')
@@ -120,6 +122,7 @@ async function poolMap<T, R>(items: T[], limit: number, task: (item: T) => Promi
 function resetViewState() {
   keyword.value = ''
   statusFilter.value = props.activeRoute === '/workflow/process-instance' ? 'HAS_PROCESS' : 'ALL'
+  if (props.activeRoute === '/delivery') deliveryRegion.value = 'DOMESTIC'
   page.value = 1
   drawerVisible.value = false
   actionBusy.value = null
@@ -362,8 +365,44 @@ const deliveryStatusOptions = computed<FilterOption[]>(() => deliveryTab.value =
       { value: 'RESOLVED', label: '已解决' }
     ])
 
+function deliveryRegionOf(item: Row): DeliveryRegionFilter {
+  const value = String(item.delivery_region ?? '').toUpperCase()
+  if (value === 'DOMESTIC' || value === 'INTERNATIONAL') return value
+  return 'UNCLASSIFIED'
+}
+
+function deliveryRegionLabel(item: Row) {
+  const region = deliveryRegionOf(item)
+  if (region === 'DOMESTIC') return '国内'
+  if (region === 'INTERNATIONAL') return '国外'
+  return '待归类'
+}
+
+const deliveryRegionCounts = computed<Record<DeliveryRegionFilter, number>>(() => {
+  const counts: Record<DeliveryRegionFilter, number> = { DOMESTIC: 0, INTERNATIONAL: 0, UNCLASSIFIED: 0 }
+  for (const item of deliveryOrders.value) counts[deliveryRegionOf(item)] += 1
+  return counts
+})
+
+const deliveryRegionNotice = computed(() => {
+  const count = deliveryRegionCounts.value.UNCLASSIFIED
+  if (deliveryRegion.value === 'UNCLASSIFIED') {
+    return count > 0
+      ? `当前有 ${count} 单尚未维护最终配送地区，未归入国内或国外业务`
+      : '当前没有待归类订单'
+  }
+  return count > 0 ? `另有 ${count} 单尚未维护最终配送地区，请在业务数据补齐后归类` : ''
+})
+
+const deliveryEmptyText = computed(() => {
+  if (deliveryRegion.value === 'DOMESTIC') return '当前筛选下没有国内业务订单'
+  if (deliveryRegion.value === 'INTERNATIONAL') return '当前筛选下没有国外业务订单'
+  return '当前筛选下没有待归类订单'
+})
+
 const filteredDeliveryOrders = computed(() => deliveryOrders.value.filter((item) => {
-  const text = `${item.order_no} ${item.tracking_no ?? ''}`.toLowerCase()
+  if (deliveryRegionOf(item) !== deliveryRegion.value) return false
+  const text = `${item.order_no} ${item.tracking_no ?? ''} ${item.destination_country ?? ''}`.toLowerCase()
   if (keyword.value && !text.includes(keyword.value.toLowerCase())) return false
   if (statusFilter.value === 'ALL') return true
   return deliveryTab.value === 'billing'
@@ -812,7 +851,7 @@ watch(() => [props.activeRoute, props.token], () => {
 }, { immediate: true })
 
 watch([keyword, statusFilter], () => { page.value = 1 })
-watch(deliveryTab, () => { page.value = 1; keyword.value = ''; statusFilter.value = 'ALL' })
+watch([deliveryRegion, deliveryTab], () => { page.value = 1; keyword.value = ''; statusFilter.value = 'ALL' })
 watch([equipmentTab, safetyTab], () => { page.value = 1; keyword.value = ''; statusFilter.value = 'ALL' })
 watch(dictionaryType, () => { if (drawerKind.value === 'dictionary') void loadDictionaryItems() })
 
@@ -850,9 +889,18 @@ defineExpose({ refresh, openQualitySettings })
     </template>
 
     <template v-else-if="activeRoute === '/delivery'">
+      <nav class="arp-primary-tabs arp-delivery-region-tabs" aria-label="配送地区">
+        <button data-testid="delivery-region-domestic" :class="{ active: deliveryRegion === 'DOMESTIC' }" @click="deliveryRegion = 'DOMESTIC'">国内业务 <span>{{ deliveryRegionCounts.DOMESTIC }}</span></button>
+        <button data-testid="delivery-region-international" :class="{ active: deliveryRegion === 'INTERNATIONAL' }" @click="deliveryRegion = 'INTERNATIONAL'">国外业务 <span>{{ deliveryRegionCounts.INTERNATIONAL }}</span></button>
+        <button data-testid="delivery-region-unclassified" :class="{ active: deliveryRegion === 'UNCLASSIFIED' }" @click="deliveryRegion = 'UNCLASSIFIED'">待归类 <span>{{ deliveryRegionCounts.UNCLASSIFIED }}</span></button>
+      </nav>
       <nav class="arp-secondary-tabs"><button :class="{ active: deliveryTab === 'billing' }" @click="deliveryTab = 'billing'">账单与收款</button><button :class="{ active: deliveryTab === 'tracking' }" @click="deliveryTab = 'tracking'">配送跟踪</button></nav>
-      <div class="arp-business-note">⚠️ 订单尚未维护配送地区，暂时无法归入国内或国外业务</div>
-      <div class="arp-table-card arp-delivery-card"><div class="arp-toolbar"><label class="arp-search"><span>⌕</span><input v-model="keyword" placeholder="搜索订单号或运单号"></label><select v-model="statusFilter"><option v-for="option in deliveryStatusOptions" :key="option.value" :value="option.value">{{ option.label }}</option></select><button @click="refresh">刷新</button><em>当前结果 {{ filteredDeliveryOrders.length }} 条</em></div><div class="arp-table-scroll"><table class="arp-wide"><thead><tr v-if="deliveryTab === 'billing'"><th>订单</th><th>产品</th><th>账单状态</th><th>付款状态</th><th>账单金额</th><th>配送地区</th><th>操作</th></tr><tr v-else><th>订单</th><th>产品</th><th>承运商</th><th>运单号</th><th>发货状态</th><th>配送状态</th><th>最近跟进</th><th>操作</th></tr></thead><tbody><tr v-for="row in filteredDeliveryOrders" :key="row.order_id" @click="openDelivery(row)"><template v-if="deliveryTab === 'billing'"><td><strong>{{ row.order_no }}</strong><small>订单编号 {{ row.order_id }}</small></td><td>{{ productLabel(row.product_type) }}</td><td><i class="arp-badge">{{ statusLabel(row.bill_status) }}</i></td><td><i class="arp-badge">{{ statusLabel(row.payment_status) }}</i></td><td>查看详情</td><td>尚未维护</td><td><button @click.stop="openDelivery(row)">查看</button></td></template><template v-else><td><strong>{{ row.order_no }}</strong></td><td>{{ productLabel(row.product_type) }}</td><td>{{ row.carrier || '暂未记录' }}</td><td>{{ row.tracking_no || '暂未记录' }}</td><td>{{ statusLabel(row.external_status) }}</td><td><i class="arp-badge" :class="row.logistics_status === 'EXCEPTION' ? 'danger' : 'ok'">{{ statusLabel(row.logistics_status) }}</i></td><td>{{ row.last_follow_up_note || '暂无跟进记录' }}</td><td><button @click.stop="openDelivery(row)">查看</button></td></template></tr></tbody></table></div><div v-if="filteredDeliveryOrders.length === 0" class="arp-empty">当前筛选下没有账单或配送记录</div></div>
+      <div v-if="deliveryRegionNotice" class="arp-business-note">⚠️ {{ deliveryRegionNotice }}</div>
+      <div class="arp-table-card arp-delivery-card">
+        <div class="arp-toolbar"><label class="arp-search"><span>⌕</span><input v-model="keyword" placeholder="搜索订单号、运单号或目的国家"></label><select v-model="statusFilter"><option v-for="option in deliveryStatusOptions" :key="option.value" :value="option.value">{{ option.label }}</option></select><button @click="refresh">刷新</button><em>当前结果 {{ filteredDeliveryOrders.length }} 条</em></div>
+        <div class="arp-table-scroll"><table class="arp-wide"><thead><tr v-if="deliveryTab === 'billing'"><th>订单</th><th>产品</th><th>账单状态</th><th>付款状态</th><th>账单金额</th><th>配送地区</th><th>操作</th></tr><tr v-else><th>订单</th><th>产品</th><th>配送地区</th><th>承运商</th><th>运单号</th><th>发货状态</th><th>配送状态</th><th>最近跟进</th><th>操作</th></tr></thead><tbody><tr v-for="row in filteredDeliveryOrders" :key="row.order_id" @click="openDelivery(row)"><template v-if="deliveryTab === 'billing'"><td><strong>{{ row.order_no }}</strong><small>订单编号 {{ row.order_id }}</small></td><td>{{ productLabel(row.product_type) }}</td><td><i class="arp-badge">{{ statusLabel(row.bill_status) }}</i></td><td><i class="arp-badge">{{ statusLabel(row.payment_status) }}</i></td><td>查看详情</td><td><i class="arp-badge" :class="deliveryRegionOf(row) === 'UNCLASSIFIED' ? 'muted' : 'info'">{{ deliveryRegionLabel(row) }}</i></td><td><button @click.stop="openDelivery(row)">查看</button></td></template><template v-else><td><strong>{{ row.order_no }}</strong></td><td>{{ productLabel(row.product_type) }}</td><td><i class="arp-badge" :class="deliveryRegionOf(row) === 'UNCLASSIFIED' ? 'muted' : 'info'">{{ deliveryRegionLabel(row) }}</i></td><td>{{ row.carrier || '暂未记录' }}</td><td>{{ row.tracking_no || '暂未记录' }}</td><td>{{ statusLabel(row.external_status) }}</td><td><i class="arp-badge" :class="row.logistics_status === 'EXCEPTION' ? 'danger' : 'ok'">{{ statusLabel(row.logistics_status) }}</i></td><td>{{ row.last_follow_up_note || '暂无跟进记录' }}</td><td><button @click.stop="openDelivery(row)">查看</button></td></template></tr></tbody></table></div>
+        <div v-if="filteredDeliveryOrders.length === 0" class="arp-empty">{{ deliveryEmptyText }}</div>
+      </div>
     </template>
 
     <template v-else-if="activeRoute === '/admin/outsourcing'">
@@ -1026,3 +1074,29 @@ defineExpose({ refresh, openQualitySettings })
 <style scoped src="../admin-remaining-pages.css"></style>
 <style scoped src="../admin-ai-polish.css"></style>
 <style scoped src="../admin-support-pages.css"></style>
+<style scoped>
+.arp-delivery-region-tabs button {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+}
+
+.arp-delivery-region-tabs button span {
+  min-width: 20px;
+  height: 20px;
+  padding: 0 6px;
+  border-radius: 10px;
+  background: #f1f5f9;
+  color: #64748b;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  box-sizing: border-box;
+  font-size: 10px;
+}
+
+.arp-delivery-region-tabs button.active span {
+  background: #dbeafe;
+  color: #1d4ed8;
+}
+</style>
