@@ -271,6 +271,8 @@ const props = defineProps<{
   token: string
   user: LoginUser | null
   searchKeyword: string
+  focusOrderId: number | null
+  focusTask: 'ORDER_REVIEW' | 'MESSAGE_REVIEW' | null
 }>()
 
 const emit = defineEmits<{
@@ -1716,7 +1718,8 @@ async function loadRoute(route: string) {
     if (route === '/cs/orders') await Promise.all([loadOrders(), loadOrderAttention()])
     if (route === '/cs/information-translation') {
       await loadOrders()
-      const first = orders.value.find((item) => item.order_id === translationOrderId.value)
+      const first = orders.value.find((item) => item.order_id === props.focusOrderId)
+        || orders.value.find((item) => item.order_id === translationOrderId.value)
         || filteredTranslationOrders.value[0]
         || orders.value[0]
       if (first) await selectTranslationOrder(first)
@@ -1725,7 +1728,12 @@ async function loadRoute(route: string) {
       await loadOrders()
       designDrawerVisible.value = false
     }
-    if (route === '/cs/inquiries') await loadInquiryBase()
+    if (route === '/cs/inquiries') {
+      await loadInquiryBase()
+      if (props.focusTask === 'MESSAGE_REVIEW') inquiryTab.value = 'REVIEW'
+      const focusOrder = orders.value.find((item) => item.order_id === props.focusOrderId)
+      if (focusOrder) await loadInquiryMessages(focusOrder.order_id)
+    }
     if (route === '/cs/customers') {
       await Promise.all([loadClinics(), loadOrders()])
       customerDrawerVisible.value = false
@@ -2097,6 +2105,11 @@ async function openSearchResult(result: { type: string; route: string; id: numbe
 
 watch(() => props.searchKeyword, (value) => { searchInput.value = value })
 watch([() => props.activeRoute, () => props.token], ([route]) => { void loadRoute(route) }, { immediate: true })
+watch([() => props.focusOrderId, () => props.focusTask], () => {
+  if (props.activeRoute === '/cs/information-translation' || props.activeRoute === '/cs/inquiries') {
+    void loadRoute(props.activeRoute)
+  }
+})
 watch([orderFilter, orderKeyword], () => {
   if (selectedOrder.value && !filteredOrders.value.some((item) => item.order_id === selectedOrder.value?.order_id)) {
     orderDrawerVisible.value = false

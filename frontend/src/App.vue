@@ -294,6 +294,21 @@ type MessageAttentionItem = {
   demo?: boolean
 }
 
+type CsDashboardAttentionKind = 'ORDER_REVIEW' | 'MESSAGE_REVIEW' | 'MESSAGE_MENTION'
+
+type CsDashboardAttentionItem = {
+  key: string
+  kind: CsDashboardAttentionKind
+  orderId: number
+  orderNo: string
+  title: string
+  detail: string
+  meta: string
+  tone: PrototypeTone
+  actionLabel: string
+  mention?: MessageAttentionItem
+}
+
 type DesignDraftItem = {
   draft_id: number
   order_id: number
@@ -1698,6 +1713,8 @@ const customerCollaborationResult = ref('')
 const customerAttentionItems = ref<MessageAttentionItem[]>([])
 const customerAttentionLoading = ref(false)
 const customerAttentionExpanded = ref(false)
+const csPortalFocusOrderId = ref<number | null>(null)
+const csPortalFocusTask = ref<'ORDER_REVIEW' | 'MESSAGE_REVIEW' | null>(null)
 const customerCollaborationMentionableUsers = ref<MentionableUser[]>([])
 const customerCollaborationMentionUserIds = ref<number[]>([])
 const customerCollaborationDraft = ref('')
@@ -2233,6 +2250,7 @@ const displayNavigationConfig: Record<PortalTone, NavigationGroup[]> = {
         { id: 'production-dashboard', title: '工作台', description: '集中查看本人任务、异常提醒和生产待办。', icon: 'dashboard', routePath: '/dashboard' },
         { id: 'production-orders', title: '生产订单', description: '查看待生产、生产异常和待发货订单。', icon: 'order', routePath: '/production/board' },
         { id: 'production-board', title: '生产看板', description: '跨状态查看生产订单、节点进度和终检发货门禁。', icon: 'dashboard', routePath: '/production/board' },
+        { id: 'production-review', title: '生产审核', description: '审核客服初审通过的订单并生成生产工序。', icon: 'audit', routePath: '/workflow/review' },
         { id: 'production-design-pool', title: '设计任务池', description: '领取尚未分配的设计任务。', icon: 'design', routePath: '/production/design-tasks/pool' },
         { id: 'production-design-mine', title: '我的设计任务', description: '上传版本并提交设计内审。', icon: 'design', routePath: '/production/design-tasks/mine' },
         { id: 'production-design-reviews', title: '设计内审', description: '由具备内审权限的负责人审核设计版本。', icon: 'audit', routePath: '/production/design-reviews' },
@@ -3544,9 +3562,71 @@ const isCustomerCollaborationRoute = computed(() => activeRoute.value === '/coll
 const isAdminCommunicationManagementRoute = computed(() => portalTone.value === 'admin' && activeRoute.value === '/admin/communication-management')
 const isAdminOutsourcingRoute = computed(() => portalTone.value === 'admin' && activeRoute.value === '/admin/outsourcing')
 const canReviewCustomerCollaboration = computed(() => currentUser.value?.roles.some((role) => ['CS', 'ADMIN'].includes(role)) ?? false)
+function csDashboardTranslationSource(order: InternalOrderItem) {
+  return productionBoardFormValue(order, [
+    'instruction',
+    'customer_instruction',
+    'description',
+    'notes',
+    'special_requirements',
+    'doctor_note'
+  ])
+}
+
+function csDashboardRequiresTranslation(order: InternalOrderItem) {
+  return /[A-Za-z]{2,}|[\u3040-\u30ff\uac00-\ud7af]/u.test(csDashboardTranslationSource(order))
+}
+
+const csDashboardAttentionItems = computed<CsDashboardAttentionItem[]>(() => {
+  const orderReviews = phaseOneAbDashboardOrders.value
+    .filter((order) => order.internal_status === 'PENDING_CS_REVIEW')
+    .sort((left, right) => left.order_id - right.order_id)
+    .map((order) => {
+      const requiresTranslation = csDashboardRequiresTranslation(order)
+      return {
+        key: `order-review-${order.order_id}`,
+        kind: 'ORDER_REVIEW' as const,
+        orderId: order.order_id,
+        orderNo: order.order_no,
+        title: requiresTranslation ? '待翻译并完成客服初审' : '待客服初审',
+        detail: `${order.clinic_name || '客户待确认'} · ${productTypeLabel(order.product_type)}`,
+        meta: requiresTranslation ? '客户文字待翻译核对' : '订单资料待核对',
+        tone: requiresTranslation ? 'amber' as const : 'violet' as const,
+        actionLabel: requiresTranslation ? '去翻译' : '去初审'
+      }
+    })
+
+  const messageReviews = phaseOneAbDashboardPendingMessages.value.map((message) => ({
+    key: `message-review-${message.msg_id}`,
+    kind: 'MESSAGE_REVIEW' as const,
+    orderId: message.order_id,
+    orderNo: message.order_no,
+    title: '翻译 / 消息待审核',
+    detail: message.content,
+    meta: roleLabel(message.sender_role),
+    tone: 'amber' as const,
+    actionLabel: '去审核'
+  }))
+
+  const mentions = customerAttentionItems.value.map((item) => ({
+    key: `message-mention-${item.message_id}`,
+    kind: 'MESSAGE_MENTION' as const,
+    orderId: item.order_id,
+    orderNo: item.order_no,
+    title: '沟通待确认',
+    detail: item.content,
+    meta: `${roleLabel(item.sender_role)} · ${item.created_at}`,
+    tone: 'rose' as const,
+    actionLabel: '去沟通',
+    mention: item
+  }))
+
+  return [...orderReviews, ...messageReviews, ...mentions]
+})
+const csDashboardAttentionLoading = computed(() => customerAttentionLoading.value || phaseOneAbDashboardDataLoading.value)
 const visibleCustomerAttentionItems = computed(() => customerAttentionExpanded.value
-  ? customerAttentionItems.value
-  : customerAttentionItems.value.slice(0, 3))
+  ? csDashboardAttentionItems.value
+  : csDashboardAttentionItems.value.slice(0, 5))
 const isCsAiQueryRoute = computed(() => activeRoute.value === '/ai/cs')
 const csRebuiltRoutePaths = new Set([
   '/cs/orders',
@@ -4823,6 +4903,15 @@ function openProductionBoardOrder(order: InternalOrderItem) {
   void selectProductionBoardOrder(order)
 }
 
+function openProductionReviewFromBoard() {
+  if (!selectedProductionBoardOrder.value || selectedProductionBoardOrder.value.internal_status !== 'PENDING_PRODUCTION_REVIEW') {
+    return
+  }
+  selectProductionReviewOrder(selectedProductionBoardOrder.value)
+  productionBoardDrawerVisible.value = false
+  navigateToRoute('/workflow/review')
+}
+
 function printSelectedProductionOrders() {
   if (productionOrdersSelectedIds.value.length === 0) {
     return
@@ -4890,6 +4979,8 @@ function productionBoardCardTimeLabel(card: ProductionKanbanCard) {
 }
 
 const productionBoardStageDefinitions: Array<Omit<ProductionKanbanColumn, 'cards'>> = [
+  { key: 'queue-production-review', title: '待生产审核', subtitle: '客服初审已通过', tone: 'amber', stepOrder: -20, auxiliary: true },
+  { key: 'queue-dispatch', title: '待派工', subtitle: '已生成工序', tone: 'sky', stepOrder: -10, auxiliary: true },
   { key: 'category-cad-review-scan', title: 'CAD审核/扫描', subtitle: '审核 / 扫描', tone: 'sky', stepOrder: 10 },
   { key: 'category-plaster', title: '石膏', subtitle: '石膏模型', tone: 'slate', stepOrder: 20 },
   { key: 'category-cad-design', title: 'CAD设计', subtitle: '数字化设计', tone: 'violet', stepOrder: 30 },
@@ -4908,11 +4999,18 @@ const productionBoardStageDefinitions: Array<Omit<ProductionKanbanColumn, 'cards
 
 const productionBoardStageKeys = new Map(productionBoardStageDefinitions.map((stage) => [stage.title, stage.key]))
 
-function productionBoardStageName(order: InternalOrderItem, node: ProcessNodeItem | null) {
+function productionBoardStageName(
+  order: InternalOrderItem,
+  node: ProcessNodeItem | null,
+  instance: ProcessInstanceDetail | null,
+  syncState: ProductionKanbanSyncState
+) {
   const processName = node?.process_name ?? ''
   const stageName = node?.stage_name ?? ''
   const status = order.internal_status
 
+  if (status === 'PENDING_PRODUCTION_REVIEW') return '待生产审核'
+  if (isProductionBoardWaitingDispatchState(order, node, instance, syncState)) return '待派工'
   if (/外发/.test(`${processName}${stageName}`)) return '外发加工'
   if (/质检/.test(processName) || ['COMPLETED', 'PENDING_DOCTOR_CONFIRM'].includes(status)) return '质检'
   if (/排牙/.test(processName)) return '排牙'
@@ -4924,7 +5022,7 @@ function productionBoardStageName(order: InternalOrderItem, node: ProcessNodeIte
   if (/车瓷/.test(`${processName}${stageName}`)) return '车瓷'
   if (/车金|焊接/.test(`${processName}${stageName}`)) return '车金'
   if (/上瓷/.test(`${processName}${stageName}`)) return '上瓷'
-  if (/审核|扫描|口扫|下单|收发|取模|检验/.test(processName) || ['PENDING_PRODUCTION_REVIEW', 'PROCESS_INSTANCE_CREATED'].includes(status)) return 'CAD审核/扫描'
+  if (/审核|扫描|口扫|下单|收发|取模|检验/.test(processName)) return 'CAD审核/扫描'
   if (/排版|染色|切削|烧结|打印/.test(processName)) return 'CAM排版/染色/切削'
   if (/打磨|抛光|就位/.test(processName)) return '胶托打磨/就位'
   if (/设计/.test(processName) || /CAD|种植|基台|内冠|外冠|焊接|贴面|隐形|正畸/.test(stageName)) return 'CAD设计'
@@ -4957,11 +5055,17 @@ function buildProductionKanbanCard(order: InternalOrderItem): ProductionKanbanCa
     productLabel: productTypeLabel(order.product_type),
     clinicLabel: order.clinic_name || `诊所 ${order.clinic_id}`,
     toothLabel: productionBoardToothLabel(order),
-    stageName: productionBoardStageName(order, node),
+    stageName: productionBoardStageName(order, node, instance, syncState),
     currentProcess: node?.process_name ?? fallbackProcess,
     currentNodeCode: node?.node_code ?? statusLabel(order.internal_status),
     currentNodeStatus: node?.node_status ?? order.internal_status,
-    assignedUserLabel: node?.assigned_user_id ? `员工 ${node.assigned_user_id}` : '负责人待同步',
+    assignedUserLabel: order.internal_status === 'PENDING_PRODUCTION_REVIEW'
+      ? '等待生产审核'
+      : node?.assigned_user_id
+        ? `员工 ${node.assigned_user_id}`
+        : isProductionBoardWaitingDispatchState(order, node, instance, syncState)
+          ? '尚未派工'
+          : '负责人待同步',
     slaLabel: node?.standard_duration ? `标准 ${node.standard_duration} 分钟` : '标准时长待配置',
     elapsedLabel: node?.started_at ? `开始 ${compactDateTime(node.started_at)}` : '尚未开始',
     startedAt: node?.started_at ?? null,
@@ -4989,6 +5093,26 @@ const productionBoardKanbanCards = computed<ProductionKanbanCard[]>(() => {
     .sort((a, b) => b.sortScore - a.sortScore || a.orderNo.localeCompare(b.orderNo))
 })
 
+function isProductionBoardWaitingDispatchState(
+  order: InternalOrderItem,
+  node: ProcessNodeItem | null,
+  instance: ProcessInstanceDetail | null,
+  syncState: ProductionKanbanSyncState
+) {
+  if (syncState !== 'synced' || instance?.instance_status !== 'ACTIVE') {
+    return false
+  }
+  if (!node) {
+    return order.internal_status === 'PROCESS_INSTANCE_CREATED'
+  }
+  return node.assigned_user_id === null
+    && ['READY', 'PENDING'].includes(node.node_status)
+}
+
+function isProductionBoardWaitingDispatch(card: ProductionKanbanCard) {
+  return isProductionBoardWaitingDispatchState(card.order, card.node, card.instance, card.syncState)
+}
+
 function matchesProductionBoardActionSummary(card: ProductionKanbanCard, key: ProductionBoardActionSummaryKey) {
   if (key === 'all') {
     return true
@@ -4997,10 +5121,11 @@ function matchesProductionBoardActionSummary(card: ProductionKanbanCard, key: Pr
     return card.order.internal_status === 'PENDING_PRODUCTION_REVIEW'
   }
   if (key === 'dispatch') {
-    return card.order.internal_status === 'PROCESS_INSTANCE_CREATED' && card.syncState === 'synced' && !card.node
+    return isProductionBoardWaitingDispatch(card)
   }
   if (key === 'producing') {
-    return card.order.internal_status === 'PRODUCING'
+    return card.node?.node_status === 'IN_PROGRESS'
+      || ['PRODUCING', 'IN_PRODUCTION'].includes(card.order.internal_status)
   }
   if (key === 'confirm') {
     return card.risk === 'confirm' || card.order.internal_status === 'PENDING_DOCTOR_CONFIRM'
@@ -8259,6 +8384,18 @@ async function openCustomerAttentionConversation(item: MessageAttentionItem) {
   await loadCustomerCollaborationOrderMessages()
 }
 
+function openCsDashboardAttentionItem(item: CsDashboardAttentionItem) {
+  if (item.kind === 'MESSAGE_MENTION') {
+    if (item.mention) {
+      void openCustomerAttentionConversation(item.mention)
+    }
+    return
+  }
+  csPortalFocusOrderId.value = item.orderId
+  csPortalFocusTask.value = item.kind
+  navigateToRoute(item.kind === 'ORDER_REVIEW' ? '/cs/information-translation' : '/cs/inquiries')
+}
+
 async function resolveCustomerAttentionItem(item: MessageAttentionItem) {
   customerAttentionLoading.value = true
   try {
@@ -11196,6 +11333,8 @@ onBeforeUnmount(() => {
             :token="token"
             :user="currentUser"
             :search-keyword="csPortalGlobalSearch"
+            :focus-order-id="csPortalFocusOrderId"
+            :focus-task="csPortalFocusTask"
             @navigate="navigateFromCsPage"
             @refresh-notifications="loadNotifications"
           />
@@ -13306,7 +13445,9 @@ onBeforeUnmount(() => {
                     </td>
                     <td>{{ productionOrderOwnerLabel(order) }}</td>
                     <td>{{ productionOrderTargetDateLabel(order) }}</td>
-                    <td class="factory-order-note">{{ productionOrderNoteLabel(order) }}</td>
+                    <td class="factory-order-note">
+                      <span class="factory-order-note-text">{{ productionOrderNoteLabel(order) }}</span>
+                    </td>
                   </tr>
                 </tbody>
                 <tbody v-else>
@@ -13369,7 +13510,10 @@ onBeforeUnmount(() => {
                 <p v-else class="factory-file-empty">暂无工序记录</p>
 
                 <div class="factory-drawer-work-actions">
-                  <template v-if="productionBoardSelectedCard?.node?.node_status === 'READY'">
+                  <template v-if="selectedProductionBoardOrder.internal_status === 'PENDING_PRODUCTION_REVIEW'">
+                    <button type="button" class="factory-action-primary" @click="openProductionReviewFromBoard">去生产审核</button>
+                  </template>
+                  <template v-else-if="productionBoardSelectedCard?.node?.node_status === 'READY'">
                     <button type="button" class="factory-action-primary" :disabled="productionBoardSelectedCard?.node ? !canStartTask(productionBoardSelectedCard.node) : true" @click="startProductionBoardNode">
                       {{ productionBoardSelectedCard?.node?.start_block_reason === 'IN_CHECK_REQUIRED' ? '需先入检' : '开始工作' }}
                     </button>
@@ -13488,6 +13632,7 @@ onBeforeUnmount(() => {
                 v-for="column in productionBoardKanbanColumns"
                 :key="column.key"
                 class="factory-kanban-column"
+                :class="{ auxiliary: column.auxiliary }"
                 :data-production-column="column.key"
               >
                 <header
@@ -16105,24 +16250,24 @@ onBeforeUnmount(() => {
               <div>
                 <h3>需要关注</h3>
               </div>
-              <span class="prototype-badge tone-rose">{{ customerAttentionItems.length }} 项</span>
+              <span class="prototype-badge tone-rose">{{ csDashboardAttentionItems.length }} 项</span>
             </div>
-            <div v-if="customerAttentionLoading" class="empty-state">正在同步待办事项…</div>
+            <div v-if="csDashboardAttentionLoading" class="empty-state">正在同步待办事项…</div>
             <div v-else-if="visibleCustomerAttentionItems.length === 0" class="empty-state">暂无需要关注的事项</div>
-            <article v-for="item in visibleCustomerAttentionItems" :key="item.message_id" class="customer-attention-item" data-testid="customer-attention-item" @click="openCustomerAttentionConversation(item)">
-              <span class="attention-dot tone-rose" />
+            <article v-for="item in visibleCustomerAttentionItems" :key="item.key" class="customer-attention-item" data-testid="customer-attention-item" @click="openCsDashboardAttentionItem(item)">
+              <span class="attention-dot" :class="`tone-${item.tone}`" />
               <div>
-                <strong>沟通待确认</strong>
-                <p>{{ item.content }}</p>
-                <small>{{ item.order_no }} / {{ roleLabel(item.sender_role) }} / {{ item.created_at }}</small>
+                <strong>{{ item.title }}</strong>
+                <p>{{ item.detail }}</p>
+                <small>{{ item.orderNo }} · {{ item.meta }}</small>
               </div>
               <div class="inline-actions compact-actions">
-                <el-button size="small" @click.stop="openCustomerAttentionConversation(item)">去沟通</el-button>
-                <el-button size="small" type="primary" :loading="customerAttentionLoading" @click.stop="resolveCustomerAttentionItem(item)">处理完成</el-button>
+                <el-button size="small" type="primary" @click.stop="openCsDashboardAttentionItem(item)">{{ item.actionLabel }}</el-button>
+                <el-button v-if="item.kind === 'MESSAGE_MENTION' && item.mention" size="small" :loading="customerAttentionLoading" @click.stop="resolveCustomerAttentionItem(item.mention)">处理完成</el-button>
               </div>
             </article>
             <el-button
-              v-if="customerAttentionItems.length > 3"
+              v-if="csDashboardAttentionItems.length > 5"
               text
               type="primary"
               class="customer-attention-toggle"

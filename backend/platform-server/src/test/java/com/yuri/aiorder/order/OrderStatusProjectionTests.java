@@ -2,6 +2,7 @@ package com.yuri.aiorder.order;
 
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.greaterThanOrEqualTo;
+import static org.hamcrest.Matchers.hasItem;
 import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.not;
@@ -15,6 +16,11 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 
 import com.yuri.aiorder.order.status.InternalOrderStatus;
 import com.yuri.aiorder.order.status.OrderStatusService;
+import com.yuri.aiorder.common.BootstrapIdentity;
+import com.yuri.aiorder.common.UserRole;
+import com.yuri.aiorder.common.auth.BearerTokenService;
+import java.time.LocalDate;
+import java.util.Set;
 import java.util.UUID;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -40,6 +46,9 @@ class OrderStatusProjectionTests {
 
     @Autowired
     private OrderStatusService statusService;
+
+    @Autowired
+    private BearerTokenService tokenService;
 
     private long clinicId;
     private long orderId;
@@ -551,6 +560,44 @@ class OrderStatusProjectionTests {
         org.assertj.core.api.Assertions.assertThat(historyCount).isEqualTo(1L);
         org.assertj.core.api.Assertions.assertThat(historyReason).isEqualTo("客服初审通过，进入生产审核。");
         org.assertj.core.api.Assertions.assertThat(doctorNotificationCount).isEqualTo(1L);
+    }
+
+    @Test
+    void productionReviewerCanSeePendingProductionReviewInOrderListAndKanbanBeforeProcessCreation() throws Exception {
+        statusService.updateOrderState(
+                orderId,
+                InternalOrderStatus.PENDING_PRODUCTION_REVIEW,
+                "TEST_PENDING_PRODUCTION_REVIEW",
+                8002L,
+                "ready for production review");
+        String token = tokenService.issue(new BootstrapIdentity(
+                UserRole.WORKER,
+                9601L,
+                null,
+                "production-reviewer",
+                Set.of("order:read-internal", "workflow:read-internal", "workflow:review-production"),
+                "SELF"));
+
+        mockMvc.perform(get("/orders")
+                        .header("Authorization", "Bearer " + token)
+                        .param("internal_status", "PENDING_PRODUCTION_REVIEW")
+                        .param("keyword", orderNo))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.total").value(1))
+                .andExpect(jsonPath("$.data.items[0].order_id").value(orderId));
+
+        mockMvc.perform(get("/production/kanban")
+                        .header("Authorization", "Bearer " + token)
+                        .param("date", LocalDate.now().toString()))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.visible_order_ids", hasItem((int) orderId)));
+
+        mockMvc.perform(post("/orders/{orderId}/production-review", orderId)
+                        .header("Authorization", "Bearer " + token)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"action\":\"REJECT\",\"reject_reason\":\"test production review permission\"}"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.internal_status").value("PRODUCTION_REJECTED"));
     }
 
     @Test

@@ -924,6 +924,13 @@ body {
   color: var(--text-muted);
 }
 
+.customer-attention-item p {
+  display: -webkit-box;
+  overflow: hidden;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 2;
+}
+
 .customer-attention-toggle {
   justify-self: start;
   padding-left: 0;
@@ -4724,6 +4731,11 @@ p {
   background: #f7f9fc;
 }
 
+.factory-kanban-column.auxiliary {
+  border-style: dashed;
+  background: #fffbeb;
+}
+
 .factory-kanban-column-head {
   display: flex;
   align-items: center;
@@ -5536,6 +5548,7 @@ p {
 }
 
 .portal-production .factory-data-table tbody tr:not(.factory-table-empty-row) {
+  height: 64px;
   cursor: pointer;
   transition: background .13s ease;
 }
@@ -5583,9 +5596,20 @@ p {
 }
 
 .portal-production .factory-order-note {
+  width: 220px;
   max-width: 220px;
   color: #64748b !important;
+}
+
+.portal-production .factory-order-note-text {
+  display: -webkit-box;
+  max-height: 2.9em;
+  overflow: hidden;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 2;
+  color: inherit;
   line-height: 1.45;
+  overflow-wrap: anywhere;
 }
 
 .portal-production .factory-orders-alert {

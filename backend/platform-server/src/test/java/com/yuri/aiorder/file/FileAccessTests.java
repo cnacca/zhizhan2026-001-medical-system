@@ -472,6 +472,93 @@ class FileAccessTests {
     }
 
     @Test
+    void productionReviewerCanReadUnassignedReadyOrderFilesButCannotMutateOrCrossAssignment() throws Exception {
+        long reviewerUserId = 9914L;
+        long otherWorkerUserId = 9915L;
+        long chainId = jdbcClient.sql(
+                        "SELECT chain_id FROM workflow_chain WHERE status = 1 ORDER BY chain_id LIMIT 1")
+                .query(Long.class)
+                .single();
+        int chainVersion = jdbcClient.sql("SELECT version FROM workflow_chain WHERE chain_id = :chainId")
+                .param("chainId", chainId)
+                .query(Integer.class)
+                .single();
+        long sourceNodeId = jdbcClient.sql("""
+                        SELECT node_id
+                        FROM workflow_node
+                        WHERE chain_id = :chainId
+                        ORDER BY step_order, node_id
+                        LIMIT 1
+                        """)
+                .param("chainId", chainId)
+                .query(Long.class)
+                .single();
+        jdbcClient.sql("""
+                        INSERT INTO order_process_instance
+                            (order_id, chain_id, chain_version, intake_branch_used, branch_params, instance_status)
+                        VALUES
+                            (:orderId, :chainId, :chainVersion, 'SCAN', JSON_OBJECT(), 'ACTIVE')
+                        """)
+                .param("orderId", orderId)
+                .param("chainId", chainId)
+                .param("chainVersion", chainVersion)
+                .update();
+        long instanceId = jdbcClient.sql("SELECT LAST_INSERT_ID()").query(Long.class).single();
+        jdbcClient.sql("""
+                        INSERT INTO order_process_node
+                            (instance_id, source_node_id, node_code, process_name, step_order,
+                             is_optional, node_category, need_in_check, need_out_check, node_status)
+                        VALUES
+                            (:instanceId, :sourceNodeId, :nodeCode, '文件审核节点', 1,
+                             0, 'PRODUCTION', 1, 1, 'READY')
+                        """)
+                .param("instanceId", instanceId)
+                .param("sourceNodeId", sourceNodeId)
+                .param("nodeCode", "file-review-" + orderId)
+                .update();
+        long nodeInstanceId = jdbcClient.sql("SELECT LAST_INSERT_ID()").query(Long.class).single();
+        long fileId = insertCompletedFile(orderId, "DOCTOR");
+        String reviewToken = tokenService.issue(new BootstrapIdentity(
+                UserRole.WORKER,
+                reviewerUserId,
+                null,
+                null,
+                Set.of("workflow:review-production"),
+                "SELF"));
+
+        mockMvc.perform(get("/orders/{orderId}/files", orderId)
+                        .header("Authorization", "Bearer " + reviewToken))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data", hasSize(1)))
+                .andExpect(jsonPath("$.data[0].file_id").value(fileId));
+        mockMvc.perform(get("/files/{fileId}/preview-url", fileId)
+                        .header("Authorization", "Bearer " + reviewToken))
+                .andExpect(status().isOk());
+        mockMvc.perform(get("/files/{fileId}/download-url", fileId)
+                        .header("Authorization", "Bearer " + reviewToken))
+                .andExpect(status().isOk());
+        mockMvc.perform(post("/files/{fileId}/complete", fileId)
+                        .header("Authorization", "Bearer " + reviewToken))
+                .andExpect(status().isForbidden());
+
+        jdbcClient.sql("""
+                        UPDATE order_process_node
+                        SET assigned_user_id = :otherWorkerUserId
+                        WHERE node_instance_id = :nodeInstanceId
+                        """)
+                .param("otherWorkerUserId", otherWorkerUserId)
+                .param("nodeInstanceId", nodeInstanceId)
+                .update();
+
+        mockMvc.perform(get("/orders/{orderId}/files", orderId)
+                        .header("Authorization", "Bearer " + reviewToken))
+                .andExpect(status().isForbidden());
+        mockMvc.perform(get("/files/{fileId}/download-url", fileId)
+                        .header("Authorization", "Bearer " + reviewToken))
+                .andExpect(status().isForbidden());
+    }
+
+    @Test
     void designLeaderCanReadOnlySubmittedReviewFilesAcrossOrders() throws Exception {
         long reviewerUserId = 9912L;
         long assignedDesignerUserId = 9913L;

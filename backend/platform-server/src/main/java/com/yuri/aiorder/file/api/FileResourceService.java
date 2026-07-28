@@ -111,6 +111,7 @@ public class FileResourceService {
         boolean selfScoped = "SELF".equals(dataScope);
         boolean csScoped = identity.role() == UserRole.CS;
         boolean designReviewer = identity.hasPermission("design-draft:internal-review");
+        boolean productionReviewer = accessControlService.canReviewProduction(identity);
         return jdbcClient.sql("""
                         SELECT file_id, source_type, visibility, original_filename, content_type,
                                file_size, upload_status, created_at
@@ -165,6 +166,19 @@ public class FileResourceService {
                                             WHERE self_design.order_id = self_order.order_id
                                               AND self_design.assigned_user_id = :userId
                                         )
+                                        OR (
+                                            :productionReviewer = 1
+                                            AND EXISTS (
+                                                SELECT 1
+                                                FROM order_process_instance review_instance
+                                                JOIN order_process_node review_node
+                                                  ON review_node.instance_id = review_instance.instance_id
+                                                WHERE review_instance.order_id = self_order.order_id
+                                                  AND review_instance.instance_status = 'ACTIVE'
+                                                  AND review_node.node_status = 'READY'
+                                                  AND review_node.assigned_user_id IS NULL
+                                            )
+                                        )
                                     )
                               )
                               OR (
@@ -206,6 +220,7 @@ public class FileResourceService {
                 .param("selfScoped", selfScoped ? 1 : 0)
                 .param("csScoped", csScoped ? 1 : 0)
                 .param("designReviewer", designReviewer ? 1 : 0)
+                .param("productionReviewer", productionReviewer ? 1 : 0)
                 .param("userId", identity.userId())
                 .query((rs, rowNum) -> new OrderFileResponse(
                         rs.getLong("file_id"),
@@ -780,6 +795,19 @@ public class FileResourceService {
                                                 AND scoped_design.assigned_user_id = :userId
                                           )
                                           OR (
+                                              :productionReviewer = 1
+                                              AND EXISTS (
+                                                  SELECT 1
+                                                  FROM order_process_instance review_instance
+                                                  JOIN order_process_node review_node
+                                                    ON review_node.instance_id = review_instance.instance_id
+                                                  WHERE review_instance.order_id = orders.order_id
+                                                    AND review_instance.instance_status = 'ACTIVE'
+                                                    AND review_node.node_status = 'READY'
+                                                    AND review_node.assigned_user_id IS NULL
+                                              )
+                                          )
+                                          OR (
                                               :designReviewer = 1
                                               AND EXISTS (
                                                   SELECT 1
@@ -796,6 +824,9 @@ public class FileResourceService {
                     .param(
                             "designReviewer",
                             allowDesignReviewScope && identity.hasPermission("design-draft:internal-review") ? 1 : 0)
+                    .param(
+                            "productionReviewer",
+                            allowDesignReviewScope && accessControlService.canReviewProduction(identity) ? 1 : 0)
                     .param("userId", identity.userId())
                     .param("clinicId", identity.clinicId())
                     .query((rs, rowNum) -> new OrderScope(
@@ -897,6 +928,20 @@ public class FileResourceService {
                                                     AND review_draft.submitted_at IS NOT NULL
                                               )
                                           )
+                                          OR (
+                                              :productionReviewer = 1
+                                              AND f.order_id IS NOT NULL
+                                              AND EXISTS (
+                                                  SELECT 1
+                                                  FROM order_process_instance review_instance
+                                                  JOIN order_process_node review_node
+                                                    ON review_node.instance_id = review_instance.instance_id
+                                                  WHERE review_instance.order_id = f.order_id
+                                                    AND review_instance.instance_status = 'ACTIVE'
+                                                    AND review_node.node_status = 'READY'
+                                                    AND review_node.assigned_user_id IS NULL
+                                              )
+                                          )
                                       ))
                               )
                               AND (
@@ -928,6 +973,12 @@ public class FileResourceService {
                             "designReviewer",
                             ("PREVIEW".equals(action) || "DOWNLOAD".equals(action))
                                             && identity.hasPermission("design-draft:internal-review")
+                                    ? 1
+                                    : 0)
+                    .param(
+                            "productionReviewer",
+                            ("PREVIEW".equals(action) || "DOWNLOAD".equals(action))
+                                            && accessControlService.canReviewProduction(identity)
                                     ? 1
                                     : 0)
                     .param("csActor", identity.role() == UserRole.CS ? 1 : 0)

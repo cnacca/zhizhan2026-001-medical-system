@@ -178,7 +178,16 @@ public class WorkflowRuntimeService {
             stages.put(stage, new StageMetricAccumulator());
         }
         Set<Long> visibleOrderIds = new LinkedHashSet<>();
-        loadNodeKanbanMetrics(stages, visibleOrderIds, startAt, endExclusive, asOf, identity, dataScope);
+        loadNodeKanbanMetrics(
+                stages,
+                visibleOrderIds,
+                startAt,
+                endExclusive,
+                asOf,
+                identity,
+                dataScope,
+                accessControlService.canReviewProduction(identity));
+        loadPendingProductionReviewKanbanVisibility(visibleOrderIds, identity);
         loadQuestionKanbanMetrics(stages, endExclusive, asOf, identity, dataScope);
         loadReworkKanbanMetrics(stages, endExclusive, asOf, identity, dataScope);
         List<ProductionKanbanStageSummaryResponse> result = new ArrayList<>();
@@ -189,6 +198,21 @@ public class WorkflowRuntimeService {
                     metric.pendingQuestions, metric.internalReworks));
         }
         return new ProductionKanbanSummaryResponse(date, visibleOrderIds.stream().toList(), result);
+    }
+
+    private void loadPendingProductionReviewKanbanVisibility(
+            Set<Long> visibleOrderIds, BootstrapIdentity identity) {
+        if (!accessControlService.canReviewProduction(identity)) {
+            return;
+        }
+        jdbcClient.sql("""
+                        SELECT order_id
+                        FROM orders
+                        WHERE internal_status = 'PENDING_PRODUCTION_REVIEW'
+                        """)
+                .query(Long.class)
+                .list()
+                .forEach(visibleOrderIds::add);
     }
 
     private LocalDateTime currentDatabaseTime() {
@@ -718,7 +742,8 @@ public class WorkflowRuntimeService {
             LocalDateTime endExclusive,
             LocalDateTime asOf,
             BootstrapIdentity identity,
-            String dataScope) {
+            String dataScope,
+            boolean canReviewProduction) {
         jdbcClient.sql("""
                         WITH unfinished_candidates AS (
                             SELECT
@@ -755,7 +780,14 @@ public class WorkflowRuntimeService {
                               AND o.internal_status NOT IN ('COMPLETED', 'SHIPPED', 'RECEIVED')
                               AND (
                                   :dataScope = 'ALL'
-                                  OR (:dataScope = 'SELF' AND n.assigned_user_id = :userId)
+                                  OR (:dataScope = 'SELF' AND (
+                                      n.assigned_user_id = :userId
+                                      OR (
+                                          :canReviewProduction = TRUE
+                                          AND n.node_status = 'READY'
+                                          AND n.assigned_user_id IS NULL
+                                      )
+                                  ))
                               )
                         )
                         SELECT order_id, stage_name, process_name, internal_status, in_progress, overdue
@@ -765,6 +797,7 @@ public class WorkflowRuntimeService {
                 .param("asOf", asOf)
                 .param("dataScope", dataScope)
                 .param("userId", identity.userId())
+                .param("canReviewProduction", canReviewProduction)
                 .query((rs, rowNum) -> new UnfinishedOrderMetricRow(
                         rs.getLong("order_id"),
                         rs.getString("stage_name"),
@@ -774,11 +807,11 @@ public class WorkflowRuntimeService {
                         rs.getInt("overdue") == 1))
                 .list()
                 .forEach(row -> {
+                    visibleOrderIds.add(row.orderId());
                     String stageName = resolveProductionKanbanStage(
                             row.stageName(), row.processName(), row.internalStatus());
                     StageMetricAccumulator metric = stages.get(stageName);
                     if (metric != null) {
-                        visibleOrderIds.add(row.orderId());
                         metric.unfinished += 1;
                         if (row.inProgress()) {
                             metric.inProgress += 1;
@@ -831,11 +864,11 @@ public class WorkflowRuntimeService {
                         rs.getString("internal_status")))
                 .list()
                 .forEach(row -> {
+                    visibleOrderIds.add(row.orderId());
                     String stageName = resolveProductionKanbanStage(
                             row.stageName(), row.processName(), row.internalStatus());
                     StageMetricAccumulator metric = stages.get(stageName);
                     if (metric != null) {
-                        visibleOrderIds.add(row.orderId());
                         metric.completed += 1;
                     }
                 });
@@ -1145,11 +1178,24 @@ public class WorkflowRuntimeService {
                                   OR (:dataScope = 'CLINIC'
                                       AND (o.clinic_id = :clinicId OR o.doctor_user_id = :userId))
                                   OR (:dataScope = 'SELF'
-                                      AND EXISTS (
-                                          SELECT 1
-                                          FROM order_process_node scoped_n
-                                          WHERE scoped_n.instance_id = i.instance_id
-                                            AND scoped_n.assigned_user_id = :userId
+                                      AND (
+                                          EXISTS (
+                                              SELECT 1
+                                              FROM order_process_node scoped_n
+                                              WHERE scoped_n.instance_id = i.instance_id
+                                                AND scoped_n.assigned_user_id = :userId
+                                          )
+                                          OR (
+                                              :canReviewProduction = TRUE
+                                              AND i.instance_status = 'ACTIVE'
+                                              AND EXISTS (
+                                                  SELECT 1
+                                                  FROM order_process_node unassigned_n
+                                                  WHERE unassigned_n.instance_id = i.instance_id
+                                                    AND unassigned_n.node_status = 'READY'
+                                                    AND unassigned_n.assigned_user_id IS NULL
+                                              )
+                                          )
                                       ))
                               )
                             """)
@@ -1157,6 +1203,7 @@ public class WorkflowRuntimeService {
                     .param("dataScope", dataScope)
                     .param("userId", identity.userId())
                     .param("clinicId", identity.clinicId())
+                    .param("canReviewProduction", accessControlService.canReviewProduction(identity))
                     .query((rs, rowNum) -> new InstanceRow(
                             rs.getLong("instance_id"),
                             rs.getLong("order_id"),

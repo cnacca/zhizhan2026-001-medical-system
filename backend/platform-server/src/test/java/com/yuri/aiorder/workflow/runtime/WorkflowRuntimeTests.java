@@ -17,6 +17,7 @@ import com.yuri.aiorder.common.UserRole;
 import com.yuri.aiorder.common.auth.BearerTokenService;
 import java.time.LocalDate;
 import java.time.LocalDateTime;
+import java.util.Set;
 import java.util.UUID;
 import java.util.stream.StreamSupport;
 import org.junit.jupiter.api.BeforeEach;
@@ -53,12 +54,13 @@ class WorkflowRuntimeTests {
 
     private long orderId;
     private long chainId;
+    private String orderNo;
 
     @BeforeEach
     void setUp() {
         String suffix = UUID.randomUUID().toString().replace("-", "");
         String clinicName = "工序运行诊所-" + suffix;
-        String orderNo = "WR" + suffix.substring(0, 12);
+        orderNo = "WR" + suffix.substring(0, 12);
 
         jdbcClient.sql("INSERT INTO clinic (clinic_name) VALUES (:clinicName)")
                 .param("clinicName", clinicName)
@@ -125,6 +127,59 @@ class WorkflowRuntimeTests {
                         .header("X-Bootstrap-Role", "DOCTOR")
                         .header("X-Bootstrap-User-Id", DOCTOR_USER_ID))
                 .andExpect(status().isForbidden());
+    }
+
+    @Test
+    void productionReviewerCanSeeUnassignedReadyOrderAfterReviewWithoutBroadeningSelfScope() throws Exception {
+        long instanceId = approveProductionAndGetInstanceId();
+        long start = nodeId(instanceId, "START");
+        String reviewerToken = tokenService.issue(new BootstrapIdentity(
+                UserRole.WORKER,
+                WORKER_USER_ID,
+                null,
+                "production-reviewer",
+                Set.of("order:read-internal", "workflow:read-internal", "workflow:review-production"),
+                "SELF"));
+
+        mockMvc.perform(get("/orders")
+                        .header("Authorization", "Bearer " + reviewerToken)
+                        .param("keyword", orderNo))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.total").value(1))
+                .andExpect(jsonPath("$.data.items[0].order_id").value(orderId));
+
+        mockMvc.perform(get("/orders/{orderId}/process-instance", orderId)
+                        .header("Authorization", "Bearer " + reviewerToken))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.instance_id").value(instanceId));
+
+        MvcResult unassignedKanbanResult = mockMvc.perform(get("/production/kanban")
+                        .header("Authorization", "Bearer " + reviewerToken)
+                        .param("date", LocalDate.now().toString()))
+                .andExpect(status().isOk())
+                .andReturn();
+        JsonNode unassignedKanban = objectMapper.readTree(
+                unassignedKanbanResult.getResponse().getContentAsString()).path("data");
+        assertThat(visibleOrderIds(unassignedKanban)).contains(orderId);
+
+        assign(orderId, start, OTHER_WORKER_USER_ID);
+
+        mockMvc.perform(get("/orders/{orderId}", orderId)
+                        .header("Authorization", "Bearer " + reviewerToken))
+                .andExpect(status().isForbidden());
+
+        mockMvc.perform(get("/orders/{orderId}/process-instance", orderId)
+                        .header("Authorization", "Bearer " + reviewerToken))
+                .andExpect(status().isForbidden());
+
+        MvcResult assignedKanbanResult = mockMvc.perform(get("/production/kanban")
+                        .header("Authorization", "Bearer " + reviewerToken)
+                        .param("date", LocalDate.now().toString()))
+                .andExpect(status().isOk())
+                .andReturn();
+        JsonNode assignedKanban = objectMapper.readTree(
+                assignedKanbanResult.getResponse().getContentAsString()).path("data");
+        assertThat(visibleOrderIds(assignedKanban)).doesNotContain(orderId);
     }
 
     @Test

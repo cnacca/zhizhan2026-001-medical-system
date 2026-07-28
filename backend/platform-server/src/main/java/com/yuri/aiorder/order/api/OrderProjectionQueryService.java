@@ -136,6 +136,19 @@ public class OrderProjectionQueryService {
                                   AND scoped_n.assigned_user_id = :userId
                             )
                         ))
+                    OR (:canReviewProduction = TRUE
+                        AND o.internal_status = 'PENDING_PRODUCTION_REVIEW')
+                    OR (:canReviewProduction = TRUE
+                        AND EXISTS (
+                            SELECT 1
+                            FROM order_process_instance unassigned_i
+                            JOIN order_process_node unassigned_n
+                              ON unassigned_n.instance_id = unassigned_i.instance_id
+                            WHERE unassigned_i.order_id = o.order_id
+                              AND unassigned_i.instance_status = 'ACTIVE'
+                              AND unassigned_n.node_status = 'READY'
+                              AND unassigned_n.assigned_user_id IS NULL
+                        ))
                 )
                 """;
     }
@@ -166,7 +179,8 @@ public class OrderProjectionQueryService {
             String keyword) {
         spec = spec.param("dataScope", dataScope)
                 .param("userId", identity.userId())
-                .param("clinicId", identity.clinicId());
+                .param("clinicId", identity.clinicId())
+                .param("canReviewProduction", accessControlService.canReviewProduction(identity));
         if (externalStatus != null && !externalStatus.isBlank()) {
             spec = spec.param("externalStatus", externalStatus);
         }
@@ -200,7 +214,8 @@ public class OrderProjectionQueryService {
         if (identity != null) {
             spec = spec.param("dataScope", dataScope)
                     .param("userId", identity.userId())
-                    .param("clinicId", identity.clinicId());
+                    .param("clinicId", identity.clinicId())
+                    .param("canReviewProduction", accessControlService.canReviewProduction(identity));
         }
         return spec.query(this::mapOrder).single();
     }

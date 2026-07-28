@@ -11,6 +11,8 @@ const files = {
 const required = [
   [files.app, 'App.vue', 'stage_name: string | null'],
   [files.app, 'App.vue', 'const productionBoardStageDefinitions'],
+  [files.app, 'App.vue', "title: '待生产审核'"],
+  [files.app, 'App.vue', "title: '待派工'"],
   [files.app, 'App.vue', "title: 'CAD审核/扫描'"],
   [files.app, 'App.vue', "title: '石膏'"],
   [files.app, 'App.vue', "title: 'CAD设计'"],
@@ -26,6 +28,7 @@ const required = [
   [files.app, 'App.vue', "title: '质检'"],
   [files.app, 'App.vue', "title: '外发加工'"],
   [files.app, 'App.vue', 'factory-kanban-grid'],
+  [files.app, 'App.vue', ':class="{ auxiliary: column.auxiliary }"'],
   [files.app, 'App.vue', 'factory-kanban-card'],
   [files.app, 'App.vue', 'factory-kanban-drawer'],
   [files.app, 'App.vue', 'factory-drawer-timeline'],
@@ -36,6 +39,12 @@ const required = [
   [files.app, 'App.vue', 'visible_order_ids: number[]'],
   [files.app, 'App.vue', 'unfinished_count: number'],
   [files.app, 'App.vue', 'productionBoardVisibleOrderIds'],
+  [files.app, 'App.vue', 'function isProductionBoardWaitingDispatch(card: ProductionKanbanCard)'],
+  [files.app, 'App.vue', 'return isProductionBoardWaitingDispatch(card)'],
+  [files.app, 'App.vue', "if (status === 'PENDING_PRODUCTION_REVIEW') return '待生产审核'"],
+  [files.app, 'App.vue', "? '等待生产审核'"],
+  [files.app, 'App.vue', "? '尚未派工'"],
+  [files.app, 'App.vue', 'factory-order-note-text'],
   [files.app, 'App.vue', "timeZone: 'Asia/Shanghai'"],
   [files.app, 'App.vue', 'function productionBoardToday()'],
   [files.app, 'App.vue', '<span>未完成 <b>{{ summary.unfinishedCount }}</b></span>'],
@@ -50,8 +59,12 @@ const required = [
   [files.app, 'App.vue', '打印工单'],
   [files.app, 'App.vue', 'download-url'],
   [files.styles, 'styles.css', '.factory-kanban-card {'],
+  [files.styles, 'styles.css', '.factory-kanban-column.auxiliary {'],
   [files.styles, 'styles.css', '.factory-drawer-timeline {'],
   [files.styles, 'styles.css', '.factory-stage-summary-metrics {'],
+  [files.styles, 'styles.css', 'height: 64px;'],
+  [files.styles, 'styles.css', '.factory-order-note-text {'],
+  [files.styles, 'styles.css', '-webkit-line-clamp: 2;'],
   [files.styles, 'styles.css', '.factory-drawer-files {'],
   [files.styles, 'styles.css', '.factory-drawer-work-actions {'],
   [files.styles, 'styles.css', '.factory-cad-actions {'],
@@ -73,6 +86,10 @@ if (files.app.includes('productionBoardColumnKeyForProcess')) {
 
 if (files.app.includes("title: '工序待同步'") || files.app.includes("title: '工序待映射'")) {
   failures.push('App.vue still renders technical flow status as a Kanban column')
+}
+
+if (files.app.includes("['PENDING_PRODUCTION_REVIEW', 'PROCESS_INSTANCE_CREATED'].includes(status)) return 'CAD审核/扫描'")) {
+  failures.push('App.vue still places pre-production queues in the CAD审核/扫描 column')
 }
 
 const activeNodeMarkerCondition = "productionBoardSelectedCard?.node?.node_instance_id === node.node_instance_id && node.node_status === 'IN_PROGRESS'"

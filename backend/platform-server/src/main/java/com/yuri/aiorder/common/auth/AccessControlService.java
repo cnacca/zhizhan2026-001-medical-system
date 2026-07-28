@@ -32,7 +32,12 @@ public class AccessControlService {
     }
 
     public void requireProductionReview(BootstrapIdentity identity) {
-        requireAnyRole(identity, PRODUCTION_REVIEW_ROLES, "production review requires ADMIN role");
+        requirePermissionOrRole(identity, "workflow:review-production", PRODUCTION_REVIEW_ROLES,
+                "production review requires production review permission");
+    }
+
+    public boolean canReviewProduction(BootstrapIdentity identity) {
+        return identity.role() == UserRole.ADMIN || identity.hasPermission("workflow:review-production");
     }
 
     public void requireProcessManagement(BootstrapIdentity identity) {

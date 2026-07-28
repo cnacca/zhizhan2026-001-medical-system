@@ -173,6 +173,7 @@
     "check:production-kanban-redesign": "node scripts/check-production-kanban-redesign.mjs",
     "check:production-board-action-summary": "node scripts/check-production-board-action-summary.mjs",
     "check:production-board-reference-clone": "node scripts/check-production-board-reference-clone.mjs",
+    "check:customer-dashboard-attention": "node scripts/check-customer-dashboard-attention.mjs",
     "check:local-runtime": "node scripts/check-local-runtime.mjs",
     "check:environment-runtime": "node scripts/check-environment-runtime.mjs",
     "env:start": "bash scripts/environment-runtime.sh start",
