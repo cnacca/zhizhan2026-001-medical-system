@@ -29,7 +29,7 @@ public class CollaborationController {
     }
 
     @GetMapping("/orders/{orderId}/messages")
-    @RequirePermission(value = {"message:manage", "order:read-doctor"}, roles = {
+    @RequirePermission(value = {"message:manage", "message:operate-production", "order:read-doctor"}, roles = {
             UserRole.ADMIN, UserRole.CS, UserRole.WORKER, UserRole.DOCTOR})
     public DataResponse<List<MessageResponse>> listMessages(
             @PathVariable long orderId,
@@ -38,7 +38,7 @@ public class CollaborationController {
     }
 
     @PostMapping("/orders/{orderId}/messages")
-    @RequirePermission(value = {"message:manage", "order:read-doctor"}, roles = {
+    @RequirePermission(value = {"message:manage", "message:operate-production", "order:read-doctor"}, roles = {
             UserRole.ADMIN, UserRole.CS, UserRole.WORKER, UserRole.DOCTOR})
     public DataResponse<MessageResponse> sendMessage(
             @PathVariable long orderId,
@@ -48,7 +48,7 @@ public class CollaborationController {
     }
 
     @GetMapping("/orders/{orderId}/message-mentionable-users")
-    @RequirePermission(value = {"message:manage", "order:read-doctor"}, roles = {
+    @RequirePermission(value = {"message:manage", "message:operate-production", "order:read-doctor"}, roles = {
             UserRole.ADMIN, UserRole.CS, UserRole.WORKER, UserRole.DOCTOR})
     public DataResponse<List<MentionableUserResponse>> listMentionableUsers(
             @PathVariable long orderId,
@@ -57,14 +57,14 @@ public class CollaborationController {
     }
 
     @GetMapping("/messages/attention-items")
-    @RequirePermission(value = {"message:manage", "order:read-doctor"}, roles = {
+    @RequirePermission(value = {"message:manage", "message:operate-production", "order:read-doctor"}, roles = {
             UserRole.ADMIN, UserRole.CS, UserRole.WORKER, UserRole.DOCTOR})
     public DataResponse<List<MessageAttentionItemResponse>> listAttentionItems(BootstrapIdentity identity) {
         return new DataResponse<>(collaborationService.listAttentionItems(identity));
     }
 
     @PostMapping("/messages/attention-items/{messageId}/resolve")
-    @RequirePermission(value = {"message:manage", "order:read-doctor"}, roles = {
+    @RequirePermission(value = {"message:manage", "message:operate-production", "order:read-doctor"}, roles = {
             UserRole.ADMIN, UserRole.CS, UserRole.WORKER, UserRole.DOCTOR})
     public DataResponse<MessageAttentionItemResponse> resolveAttentionItem(
             @PathVariable long messageId,

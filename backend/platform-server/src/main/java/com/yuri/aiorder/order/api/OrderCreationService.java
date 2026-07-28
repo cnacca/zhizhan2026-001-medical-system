@@ -134,7 +134,7 @@ public class OrderCreationService {
                 .param("submit", submit)
                 .param("orderId", orderId)
                 .update();
-        bindFilesToOrder(orderId, fileIds);
+        synchronizeDoctorOrderFiles(orderId, fileIds, identity.userId());
 
         String externalStatus = order.externalStatus();
         if (submit) {
@@ -320,6 +320,66 @@ public class OrderCreationService {
                     .param("fileId", fileId)
                     .update();
         }
+    }
+
+    private void synchronizeDoctorOrderFiles(long orderId, List<Long> selectedFileIds, Long actorUserId) {
+        List<Long> removedFileIds;
+        if (selectedFileIds.isEmpty()) {
+            removedFileIds = jdbcClient.sql("""
+                            SELECT file_id
+                            FROM file_resource
+                            WHERE order_id = :orderId
+                              AND owner_user_id = :actorUserId
+                              AND source_type = 'ORDER_ATTACHMENT'
+                              AND status = 'ACTIVE'
+                            """)
+                    .param("orderId", orderId)
+                    .param("actorUserId", actorUserId)
+                    .query(Long.class)
+                    .list();
+        } else {
+            removedFileIds = jdbcClient.sql("""
+                            SELECT file_id
+                            FROM file_resource
+                            WHERE order_id = :orderId
+                              AND owner_user_id = :actorUserId
+                              AND source_type = 'ORDER_ATTACHMENT'
+                              AND status = 'ACTIVE'
+                              AND file_id NOT IN (:selectedFileIds)
+                            """)
+                    .param("orderId", orderId)
+                    .param("actorUserId", actorUserId)
+                    .param("selectedFileIds", selectedFileIds)
+                    .query(Long.class)
+                    .list();
+        }
+        for (Long fileId : removedFileIds) {
+            jdbcClient.sql("""
+                            UPDATE file_resource
+                            SET status = 'DELETED'
+                            WHERE file_id = :fileId
+                              AND order_id = :orderId
+                              AND owner_user_id = :actorUserId
+                              AND source_type = 'ORDER_ATTACHMENT'
+                              AND status = 'ACTIVE'
+                            """)
+                    .param("fileId", fileId)
+                    .param("orderId", orderId)
+                    .param("actorUserId", actorUserId)
+                    .update();
+            jdbcClient.sql("""
+                            INSERT INTO file_access_audit
+                                (file_id, order_id, actor_user_id, action, access_result, reason)
+                            VALUES
+                                (:fileId, :orderId, :actorUserId, 'DELETE', 'ALLOWED',
+                                 'doctor removed file from editable order')
+                            """)
+                    .param("fileId", fileId)
+                    .param("orderId", orderId)
+                    .param("actorUserId", actorUserId)
+                    .update();
+        }
+        bindFilesToOrder(orderId, selectedFileIds);
     }
 
     private DoctorEditableOrder loadDoctorEditableOrder(long orderId, BootstrapIdentity identity) {

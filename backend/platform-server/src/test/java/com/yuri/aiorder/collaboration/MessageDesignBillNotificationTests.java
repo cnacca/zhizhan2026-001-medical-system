@@ -9,6 +9,10 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
+import com.yuri.aiorder.common.BootstrapIdentity;
+import com.yuri.aiorder.common.UserRole;
+import com.yuri.aiorder.common.auth.BearerTokenService;
+import java.util.Set;
 import java.util.UUID;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -34,6 +38,9 @@ class MessageDesignBillNotificationTests {
 
     @Autowired
     private MockMvc mockMvc;
+
+    @Autowired
+    private BearerTokenService bearerTokenService;
 
     private long clinicId;
     private long orderId;
@@ -301,6 +308,69 @@ class MessageDesignBillNotificationTests {
         assertThat(payload).contains("请医生确认最终颜色");
         assertThat(payload).doesNotContain("内部协同备注");
         assertThat(userNotificationCount(DOCTOR_USER_ID)).isEqualTo(1L);
+    }
+
+    @Test
+    void productionReviewerCanSendForUnassignedReadyOrderButNotAfterAnotherWorkerIsAssigned() throws Exception {
+        jdbcClient.sql("""
+                        UPDATE order_process_node node
+                        JOIN order_process_instance instance ON instance.instance_id = node.instance_id
+                        SET node.assigned_user_id = NULL
+                        WHERE instance.order_id = :orderId
+                          AND node.node_status = 'READY'
+                        """)
+                .param("orderId", orderId)
+                .update();
+        long workerPermissionCount = jdbcClient.sql("""
+                        SELECT COUNT(*)
+                        FROM system_role role
+                        JOIN system_role_permission role_permission ON role_permission.role_id = role.role_id
+                        JOIN system_permission permission ON permission.permission_id = role_permission.permission_id
+                        WHERE role.role_code = 'WORKER'
+                          AND permission.permission_code = 'message:operate-production'
+                        """)
+                .query(Long.class)
+                .single();
+        assertThat(workerPermissionCount).isEqualTo(1L);
+
+        String token = bearerTokenService.issue(new BootstrapIdentity(
+                UserRole.WORKER,
+                WORKER_USER_ID,
+                null,
+                "collab-worker",
+                Set.of(
+                        "message:operate-production",
+                        "workflow:review-production"),
+                "SELF"));
+        mockMvc.perform(post("/orders/{orderId}/messages", orderId)
+                        .header("Authorization", "Bearer " + token)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"content\":\"生产审核员请求医生补充资料\"}"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.review_status").value("PENDING_REVIEW"));
+
+        jdbcClient.sql("""
+                        UPDATE order_process_node node
+                        JOIN order_process_instance instance ON instance.instance_id = node.instance_id
+                        SET node.assigned_user_id = 9601
+                        WHERE instance.order_id = :orderId
+                          AND node.node_status = 'READY'
+                        """)
+                .param("orderId", orderId)
+                .update();
+        jdbcClient.sql("""
+                        UPDATE orders
+                        SET internal_status = 'IN_PRODUCTION',
+                            external_status = 'PRODUCING'
+                        WHERE order_id = :orderId
+                        """)
+                .param("orderId", orderId)
+                .update();
+        mockMvc.perform(post("/orders/{orderId}/messages", orderId)
+                        .header("Authorization", "Bearer " + token)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"content\":\"不应越权发送\"}"))
+                .andExpect(status().isForbidden());
     }
 
     @Test

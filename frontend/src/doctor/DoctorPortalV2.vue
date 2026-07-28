@@ -1129,12 +1129,20 @@ function wizardFileSignature(file: File) {
   return `${file.name}:${file.size}:${file.lastModified}`
 }
 
-function removeWizardFile(file: DoctorFile) {
+async function removeWizardFile(file: DoctorFile) {
+  const previousFiles = [...wizard.files]
+  const previousSignatures = { ...wizardUploadedFileSignatures.value }
   wizard.files = wizard.files.filter((candidate) => candidate.file_id !== file.file_id)
   wizardUploadedFileSignatures.value = Object.fromEntries(
     Object.entries(wizardUploadedFileSignatures.value)
       .filter(([, fileId]) => fileId !== file.file_id)
   )
+  if (wizard.draftOrderId && !(await saveWizardDraft(true))) {
+    wizard.files = previousFiles
+    wizardUploadedFileSignatures.value = previousSignatures
+    return
+  }
+  ElMessage.success(`已从订单中移除 ${file.name}`)
 }
 
 async function uploadWizardFiles(list: File[]) {
@@ -2211,7 +2219,7 @@ onBeforeUnmount(() => window.removeEventListener('keydown', handleGlobalShortcut
 </div><div v-if="selectedProduct && !selectedProductFields.length" class="dv2-inline-notice">当前产品没有需要额外填写的制作参数，可以直接进入下一步。</div></section><section v-else-if="wizardStep === 4" class="dv2-wizard-panel is-narrow"><header><h1>上传资料</h1><p>上传 STL 扫描文件及必要的照片或 PDF 资料</p></header><label class="dv2-upload-zone" :class="{ disabled: wizardUploading, dragging: wizardDragActive }" @dragenter.prevent="wizardDragActive = true" @dragover.prevent="wizardDragActive = true" @dragleave.prevent="wizardDragActive = false" @drop.prevent="handleWizardDrop"><input type="file" multiple accept=".stl,.jpg,.jpeg,.png,.pdf" :disabled="wizardUploading" @change="addWizardFiles"><span>⇧</span><strong>{{ wizardUploading ? '文件上传中…' : wizardDragActive ? '松开以上传文件' : '点击选择或拖放文件' }}</strong><small>支持 STL、JPG、PNG、PDF；至少需要一个 STL 文件</small></label><div class="dv2-upload-checklist"><span :class="{ done: wizardStlCount > 0 }">{{ wizardStlCount > 0 ? '✓' : '1' }} STL 扫描</span><span :class="{ done: wizard.files.some((item) => item.kind === 'IMAGE') }">{{ wizard.files.some((item) => item.kind === 'IMAGE') ? '✓' : '2' }} 病例照片</span><span class="optional">3 PDF 医嘱（可选）</span></div><div class="dv2-file-list">
   <article v-for="fileItem in wizard.files" :key="fileItem.file_id"><i>{{ fileItem.kind }}</i>
     <div><strong>{{ fileItem.name }}</strong><small>{{ fileItem.size_label }} · 已就绪</small></div>
-    <button type="button" @click="removeWizardFile(fileItem)">移除</button>
+    <button type="button" :disabled="wizardSaving || wizardUploading" @click="removeWizardFile(fileItem)">移除</button>
   </article>
 </div></section><section v-else class="dv2-wizard-panel"><header><h1>复核并提交</h1><p>确认资料完整后提交，价格与预计日期由后台最终计算</p></header><div class="dv2-inline-notice">订单进入设计阶段后，设计稿须先通过组长内审，再由医生在订单详情中确认或驳回；下单时无需预先选择确认节点。</div><div class="dv2-review-summary"><section><h3>患者与产品</h3><dl><div><dt>患者</dt><dd>{{ selectedWizardPatient?.patient_name }} · {{ selectedWizardPatient?.patient_code }}</dd></div><div><dt>产品</dt><dd>{{ selectedProduct?.product_name }} · {{ selectedProduct?.material }}</dd></div><div><dt>价格</dt><dd>由后台核价确认</dd></div></dl></section><section><h3>病例与配置</h3><dl><div><dt>牙位</dt><dd>{{ wizard.caseFields.tooth }}</dd></div><div v-for="summaryField in selectedProductFields" :key="summaryField.key">
   <dt>{{ summaryField.label }}</dt><dd>{{ wizard.dynamicFields[summaryField.key] || '-' }}</dd>

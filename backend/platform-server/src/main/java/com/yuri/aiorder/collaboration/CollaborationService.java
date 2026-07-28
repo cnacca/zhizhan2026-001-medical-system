@@ -877,6 +877,7 @@ public class CollaborationService {
     private OrderRow loadOrder(long orderId, BootstrapIdentity identity, String forbiddenMessage) {
         String dataScope = accessControlService.effectiveDataScope(identity);
         accessControlService.requireScopedIdentity(identity, dataScope);
+        boolean canReviewProduction = accessControlService.canReviewProduction(identity);
         try {
             return jdbcClient.sql("""
                             SELECT order_id, order_no, clinic_id, doctor_user_id, cs_user_id
@@ -899,12 +900,30 @@ public class CollaborationService {
                                                 AND scoped_n.assigned_user_id = :userId
                                           )
                                       ))
+                                  OR (
+                                      :canReviewProduction = TRUE
+                                      AND orders.internal_status = 'PENDING_PRODUCTION_REVIEW'
+                                  )
+                                  OR (
+                                      :canReviewProduction = TRUE
+                                      AND EXISTS (
+                                          SELECT 1
+                                          FROM order_process_instance review_i
+                                          JOIN order_process_node review_n
+                                            ON review_n.instance_id = review_i.instance_id
+                                          WHERE review_i.order_id = orders.order_id
+                                            AND review_i.instance_status = 'ACTIVE'
+                                            AND review_n.node_status = 'READY'
+                                            AND review_n.assigned_user_id IS NULL
+                                      )
+                                  )
                               )
                             """)
                     .param("orderId", orderId)
                     .param("dataScope", dataScope)
                     .param("userId", identity.userId())
                     .param("clinicId", identity.clinicId())
+                    .param("canReviewProduction", canReviewProduction)
                     .query((rs, rowNum) -> new OrderRow(
                             rs.getLong("order_id"),
                             rs.getString("order_no"),

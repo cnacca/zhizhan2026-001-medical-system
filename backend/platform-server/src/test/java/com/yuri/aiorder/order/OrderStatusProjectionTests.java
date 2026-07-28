@@ -322,6 +322,79 @@ class OrderStatusProjectionTests {
     }
 
     @Test
+    void doctorRemovingUploadedDraftFileDeletesItFromLaterOrderStages() throws Exception {
+        long completedFileId = insertFileResource(
+                null,
+                DOCTOR_USER_ID,
+                "ORDER_ATTACHMENT",
+                "DOCTOR",
+                "COMPLETED");
+        String draftResponse = mockMvc.perform(post("/orders")
+                        .header("X-Bootstrap-Role", "DOCTOR")
+                        .header("X-Bootstrap-User-Id", DOCTOR_USER_ID)
+                        .header("X-Bootstrap-Clinic-Id", clinicId)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("""
+                                {
+                                  "product_type": "REGULAR_CROWN",
+                                  "form_data": {"patient_name": "附件删除草稿"},
+                                  "file_ids": [%d],
+                                  "is_draft": true
+                                }
+                                """.formatted(completedFileId)))
+                .andExpect(status().isOk())
+                .andReturn()
+                .getResponse()
+                .getContentAsString();
+        long draftOrderId = ((Number) com.jayway.jsonpath.JsonPath.read(
+                draftResponse, "$.data.order_id")).longValue();
+
+        mockMvc.perform(put("/orders/{orderId}", draftOrderId)
+                        .header("X-Bootstrap-Role", "DOCTOR")
+                        .header("X-Bootstrap-User-Id", DOCTOR_USER_ID)
+                        .header("X-Bootstrap-Clinic-Id", clinicId)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("""
+                                {
+                                  "product_type": "REGULAR_CROWN",
+                                  "form_data": {"patient_name": "附件删除草稿"},
+                                  "file_ids": [],
+                                  "submit": false
+                                }
+                                """))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.order_id").value(draftOrderId));
+
+        mockMvc.perform(get("/orders/{orderId}/files", draftOrderId)
+                        .header("X-Bootstrap-Role", "DOCTOR")
+                        .header("X-Bootstrap-User-Id", DOCTOR_USER_ID)
+                        .header("X-Bootstrap-Clinic-Id", clinicId))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data").isEmpty());
+
+        String fileStatus = jdbcClient.sql("SELECT status FROM file_resource WHERE file_id = :fileId")
+                .param("fileId", completedFileId)
+                .query(String.class)
+                .single();
+        long deleteAuditCount = jdbcClient.sql("""
+                        SELECT COUNT(*)
+                        FROM file_access_audit
+                        WHERE file_id = :fileId
+                          AND order_id = :orderId
+                          AND actor_user_id = :actorUserId
+                          AND action = 'DELETE'
+                          AND access_result = 'ALLOWED'
+                        """)
+                .param("fileId", completedFileId)
+                .param("orderId", draftOrderId)
+                .param("actorUserId", DOCTOR_USER_ID)
+                .query(Long.class)
+                .single();
+        org.assertj.core.api.Assertions.assertThat(fileStatus).isEqualTo("DELETED");
+        org.assertj.core.api.Assertions.assertThat(deleteAuditCount).isEqualTo(1L);
+    }
+
+    @Test
     void doctorCanSubmitOwnDraftWithCompletedFiles() throws Exception {
         String draftResponse = mockMvc.perform(post("/orders")
                         .header("X-Bootstrap-Role", "DOCTOR")

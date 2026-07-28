@@ -271,11 +271,13 @@ type MessageItem = {
 type AdminCommunicationThread = {
   orderId: number
   orderNo: string
+  clinicName: string
   productType: string
+  internalStatus: string
   senderRole: string
   preview: string
   pendingCount: number
-  latestMessage: MessageItem
+  latestMessage: MessageItem | null
 }
 
 type MentionableUser = {
@@ -3771,6 +3773,21 @@ const productionReviewConfigurationReady = computed(() => Boolean(
   && productionReviewIntakeBranch.value
   && (!selectedProductionReviewBranchConfig.value || productionReviewBranchChoice.value)
 ))
+const filteredProductionReviewOrders = computed(() => {
+  const keyword = productionReviewKeyword.value.trim().toLowerCase()
+  if (!keyword) return productionReviewOrders.value
+  return productionReviewOrders.value.filter((order) => [
+    order.order_no,
+    String(order.order_id),
+    order.clinic_name,
+    String(order.clinic_id),
+    order.product_type,
+    productTypeLabel(order.product_type),
+    order.production_note,
+    order.reject_reason,
+    ...Object.values(order.form_data ?? {})
+  ].some((value) => String(value ?? '').toLowerCase().includes(keyword)))
+})
 const selectedProcessNode = computed(() => selectedProcessInstance.value?.nodes.find((node) => node.node_instance_id === selectedProcessNodeId.value) ?? null)
 const fixedWorkflowChainNames = [
   '常规冠修复',
@@ -3919,27 +3936,48 @@ const adminPersonnelCanSave = computed(() => canManageStaffAccounts.value
   && adminPersonnelSelectedLevel.value === '普通员工'
   && (!adminPersonnelSelectedRow.value
     || adminPersonnelSelectedRow.value.source?.user_type === 'WORKER'))
-const adminCommunicationOrderCount = computed(() => new Set(customerCollaborationPendingMessages.value.map((item) => item.order_id)).size)
 const adminCommunicationThreads = computed<AdminCommunicationThread[]>(() => {
   const threads = new Map<number, AdminCommunicationThread>()
+  adminOrderOptions.value
+    .filter((order) => !['COMPLETED', 'SHIPPED', 'RECEIVED'].includes(order.internal_status))
+    .forEach((order) => {
+      threads.set(order.order_id, {
+        orderId: order.order_id,
+        orderNo: order.order_no,
+        clinicName: order.clinic_name || '诊所未设置',
+        productType: order.product_type,
+        internalStatus: order.internal_status,
+        senderRole: 'ORDER',
+        preview: `当前状态：${statusLabel(order.internal_status)}`,
+        pendingCount: 0,
+        latestMessage: null
+      })
+    })
   customerCollaborationPendingMessages.value.forEach((message) => {
     const current = threads.get(message.order_id)
     if (current) {
       current.pendingCount += 1
+      current.senderRole = message.sender_role
+      current.preview = message.content
+      current.latestMessage = message
       return
     }
     threads.set(message.order_id, {
       orderId: message.order_id,
       orderNo: message.order_no || `订单 ${message.order_id}`,
+      clinicName: adminOrderOptions.value.find((order) => order.order_id === message.order_id)?.clinic_name || '诊所未设置',
       productType: message.product_type,
+      internalStatus: adminOrderOptions.value.find((order) => order.order_id === message.order_id)?.internal_status || 'PENDING',
       senderRole: message.sender_role,
       preview: message.content,
       pendingCount: 1,
       latestMessage: message
     })
   })
-  return [...threads.values()]
+  return [...threads.values()].sort((left, right) =>
+    right.pendingCount - left.pendingCount || right.orderId - left.orderId)
 })
+const adminCommunicationOrderCount = computed(() => adminCommunicationThreads.value.length)
 const adminCommunicationRoleCounts = computed(() => ({
   ALL: adminCommunicationThreads.value.length,
   DOCTOR: adminCommunicationThreads.value.filter((thread) => thread.senderRole === 'DOCTOR').length,
@@ -3950,7 +3988,17 @@ const filteredAdminCommunicationThreads = computed(() => {
   return adminCommunicationThreads.value.filter((thread) => {
     const matchesRole = adminCommunicationSenderRole.value === 'ALL'
       || thread.senderRole === adminCommunicationSenderRole.value
-    const searchable = [thread.orderNo, thread.productType, thread.senderRole, thread.preview].join(' ').toLowerCase()
+    const searchable = [
+      thread.orderNo,
+      thread.clinicName,
+      thread.productType,
+      productTypeLabel(thread.productType),
+      thread.internalStatus,
+      statusLabel(thread.internalStatus),
+      thread.senderRole,
+      roleLabel(thread.senderRole),
+      thread.preview
+    ].join(' ').toLowerCase()
     return matchesRole && (!keyword || searchable.includes(keyword))
   })
 })
@@ -4325,7 +4373,8 @@ const roleLabelMap: Record<string, string> = {
   ADMIN: '管理员',
   DOCTOR: '医生',
   CS: '客服',
-  WORKER: '生产人员'
+  WORKER: '生产人员',
+  ORDER: '订单流转'
 }
 const dataScopeLabelMap: Record<string, string> = {
   ALL: '全部数据',
@@ -5642,7 +5691,7 @@ async function loadActiveRouteData() {
   } else if (activeRoute.value === '/collaboration' || activeRoute.value === '/admin/communication-management') {
     if (portalTone.value === 'doctor') {
       await loadDoctorCollaboration()
-    } else if (portalTone.value === 'production') {
+    } else if (['production', 'admin'].includes(portalTone.value)) {
       await Promise.all([loadCustomerCollaborationPage(), loadInternalOrders()])
     } else {
       await loadCustomerCollaborationPage()
@@ -5838,7 +5887,7 @@ function navigateToRoute(routePath: string) {
   } else if (routePath === '/collaboration' || routePath === '/admin/communication-management') {
     if (portalTone.value === 'doctor') {
       void loadDoctorCollaboration()
-    } else if (portalTone.value === 'production') {
+    } else if (['production', 'admin'].includes(portalTone.value)) {
       void Promise.all([loadCustomerCollaborationPage(), loadInternalOrders()])
     } else {
       void loadCustomerCollaborationPage()
@@ -6262,7 +6311,13 @@ function openAdminCommunicationOrderFromContext() {
 }
 
 async function selectAdminCommunicationThread(thread: AdminCommunicationThread) {
-  await selectCustomerCollaborationMessage(thread.latestMessage)
+  if (thread.latestMessage) {
+    await selectCustomerCollaborationMessage(thread.latestMessage)
+    return
+  }
+  selectedCustomerCollaborationMessage.value = null
+  customerCollaborationOrderId.value = String(thread.orderId)
+  await loadCustomerCollaborationOrderMessages()
 }
 
 function applyAdminCommunicationQuickReply(content: string) {
@@ -7982,11 +8037,13 @@ async function loadInternalOrders() {
   internalOrderError.value = ''
   try {
     const isAdminRequest = portalTone.value === 'admin'
+    const isProductionCollaborationRequest =
+      portalTone.value === 'production' && activeRoute.value === '/collaboration'
     const params = new URLSearchParams({
       page: '1',
-      size: isAdminRequest ? '100' : '20'
+      size: isAdminRequest || isProductionCollaborationRequest ? '100' : '20'
     })
-    if (!isAdminRequest && internalOrderStatus.value !== 'ALL') {
+    if (!isAdminRequest && !isProductionCollaborationRequest && internalOrderStatus.value !== 'ALL') {
       params.set('internal_status', internalOrderStatus.value)
     }
     if (!isAdminRequest && internalOrderKeyword.value.trim()) {
@@ -8700,9 +8757,6 @@ async function loadProductionReviewOrders() {
     })
     if (productionReviewStatus.value !== 'ALL') {
       params.set('internal_status', productionReviewStatus.value)
-    }
-    if (productionReviewKeyword.value.trim()) {
-      params.set('keyword', productionReviewKeyword.value.trim())
     }
     const payload = await apiFetch<InternalOrderListResponse>(`/orders?${params.toString()}`)
     productionReviewOrders.value = sortProductionReviewOrders(payload.data.items)
@@ -11976,13 +12030,12 @@ onBeforeUnmount(() => {
                     v-model="productionReviewKeyword"
                     type="search"
                     placeholder="搜索订单号、诊所或产品"
-                    @keyup.enter="loadProductionReviewOrders"
                   >
                 </label>
-                <button class="aor-reset-button" type="button" :disabled="productionReviewLoading" @click="loadProductionReviewOrders">
-                  {{ productionReviewLoading ? '查询中' : '查询' }}
+                <button class="aor-reset-button" type="button" :disabled="productionReviewLoading || !productionReviewKeyword" @click="productionReviewKeyword = ''">
+                  {{ productionReviewLoading ? '加载中' : '清空' }}
                 </button>
-                <span class="aor-filter-meta">待审核 <strong>{{ productionReviewOrders.length }}</strong> 单</span>
+                <span class="aor-filter-meta">匹配 <strong>{{ filteredProductionReviewOrders.length }}</strong> 单</span>
               </div>
               <div class="aor-filter-secondary">
                 <span class="aor-quick-label">审核队列</span>
@@ -12010,8 +12063,8 @@ onBeforeUnmount(() => {
             />
             <div v-if="productionReviewError" class="aor-state is-error" role="alert">{{ productionReviewError }}</div>
             <div v-else-if="productionReviewLoading" class="aor-state">正在加载待生产审核订单…</div>
-            <div v-else-if="productionReviewOrders.length === 0" class="aor-state">
-              <strong>暂无待生产审核订单</strong><span>新订单通过客服初审后会进入这里。</span>
+            <div v-else-if="filteredProductionReviewOrders.length === 0" class="aor-state">
+              <strong>{{ productionReviewOrders.length ? '没有匹配的生产审核订单' : '暂无待生产审核订单' }}</strong><span>{{ productionReviewOrders.length ? '可尝试搜索订单号、诊所、患者或产品名称。' : '新订单通过客服初审后会进入这里。' }}</span>
             </div>
             <div v-else class="aor-table-wrap">
               <div class="aor-table-scroll">
@@ -12027,7 +12080,7 @@ onBeforeUnmount(() => {
                   <thead><tr><th>订单编号</th><th>客户</th><th>产品</th><th>审核状态</th><th>生产备注</th><th>操作</th></tr></thead>
                   <tbody>
                     <tr
-                      v-for="order in productionReviewOrders"
+                      v-for="order in filteredProductionReviewOrders"
                       :key="order.order_id"
                       tabindex="0"
                       @click="openProductionReviewDrawer(order)"
@@ -12043,7 +12096,7 @@ onBeforeUnmount(() => {
                   </tbody>
                 </table>
               </div>
-              <footer class="aor-table-footer"><span>共 {{ productionReviewOrders.length }} 单待处理</span><strong>点击订单从右侧审核</strong></footer>
+              <footer class="aor-table-footer"><span>当前显示 {{ filteredProductionReviewOrders.length }} 单</span><strong>点击订单从右侧审核</strong></footer>
             </div>
           </section>
 
@@ -15576,13 +15629,13 @@ onBeforeUnmount(() => {
                   <div><span>会话列表</span><strong>待处理订单</strong></div>
                   <el-tag type="warning" round>{{ adminCommunicationOrderCount }}</el-tag>
                 </div>
-                <el-input v-model="adminCommunicationKeyword" clearable placeholder="搜索订单、产品或发送方">
+                <el-input v-model="adminCommunicationKeyword" clearable placeholder="搜索订单、诊所、产品或发送方">
                   <template #prefix>
                     <svg class="admin-comms-search-icon" viewBox="0 0 24 24" fill="none" aria-hidden="true"><circle cx="11" cy="11" r="6.5"/><path d="m16 16 4 4"/></svg>
                   </template>
                 </el-input>
                 <div class="admin-comms-thread-filters" aria-label="会话筛选">
-                  <button type="button" :class="{ active: adminCommunicationSenderRole === 'ALL' }" @click="adminCommunicationSenderRole = 'ALL'">全部待审 <span>{{ adminCommunicationRoleCounts.ALL }}</span></button>
+                  <button type="button" :class="{ active: adminCommunicationSenderRole === 'ALL' }" @click="adminCommunicationSenderRole = 'ALL'">全部待处理 <span>{{ adminCommunicationRoleCounts.ALL }}</span></button>
                   <button type="button" :class="{ active: adminCommunicationSenderRole === 'DOCTOR' }" @click="adminCommunicationSenderRole = 'DOCTOR'">医生回复 <span>{{ adminCommunicationRoleCounts.DOCTOR }}</span></button>
                   <button type="button" :class="{ active: adminCommunicationSenderRole === 'WORKER' }" @click="adminCommunicationSenderRole = 'WORKER'">生产待审 <span>{{ adminCommunicationRoleCounts.WORKER }}</span></button>
                 </div>
@@ -15599,9 +15652,9 @@ onBeforeUnmount(() => {
                 >
                   <span class="admin-comms-thread-top">
                     <span class="admin-comms-thread-id"><i aria-label="待处理" /><strong>{{ thread.orderNo }}</strong></span>
-                    <em>{{ thread.pendingCount }} 条待处理</em>
+                    <em>{{ thread.pendingCount ? `${thread.pendingCount} 条待审核` : statusLabel(thread.internalStatus) }}</em>
                   </span>
-                  <span class="admin-comms-thread-product">{{ productTypeLabel(thread.productType) }} · {{ roleLabel(thread.senderRole) }}</span>
+                  <span class="admin-comms-thread-product">{{ productTypeLabel(thread.productType) }} · {{ thread.clinicName }}</span>
                   <span class="admin-comms-thread-preview">{{ thread.preview }}</span>
                   <span class="admin-comms-thread-time">时间暂未提供</span>
                 </button>
