@@ -14,7 +14,6 @@ import org.springframework.web.server.ResponseStatusException;
 public class AccessControlService {
 
     private static final Set<UserRole> INTERNAL_ROLES = EnumSet.of(UserRole.ADMIN, UserRole.CS, UserRole.WORKER);
-    private static final Set<UserRole> PRODUCTION_REVIEW_ROLES = EnumSet.of(UserRole.ADMIN);
     private static final Set<UserRole> PROCESS_MANAGEMENT_ROLES = EnumSet.of(UserRole.ADMIN);
 
     public void requireAnyRole(BootstrapIdentity identity, Set<UserRole> allowedRoles, String message) {
@@ -32,12 +31,18 @@ public class AccessControlService {
     }
 
     public void requireProductionReview(BootstrapIdentity identity) {
-        requirePermissionOrRole(identity, "workflow:review-production", PRODUCTION_REVIEW_ROLES,
-                "production review requires production review permission");
+        if (identity.role() == UserRole.ADMIN
+                || (identity.role() == UserRole.WORKER
+                        && identity.hasPermission("workflow:review-production"))) {
+            return;
+        }
+        throw forbidden("production review requires ADMIN or an authorized WORKER");
     }
 
     public boolean canReviewProduction(BootstrapIdentity identity) {
-        return identity.role() == UserRole.ADMIN || identity.hasPermission("workflow:review-production");
+        return identity.role() == UserRole.ADMIN
+                || (identity.role() == UserRole.WORKER
+                        && identity.hasPermission("workflow:review-production"));
     }
 
     public void requireProcessManagement(BootstrapIdentity identity) {

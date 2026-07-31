@@ -1,0 +1,121 @@
+{
+  "document": {
+    "name": "AI智能下单平台录屏阻塞缺陷修复验收",
+    "date": "2026-07-29",
+    "result": "READY_FOR_RECORDING_WITHIN_FIX_SCOPE"
+  },
+  "version": {
+    "base_sha": "8f90c47e0fa912db621b5afaafc44814151f1613",
+    "patch_state": "WORKTREE_UNCOMMITTED",
+    "source_change": true,
+    "git_commit_created": false
+  },
+  "environment": {
+    "repository_path": "/Users/yuri/Documents/AI智能下单平台",
+    "frontend": "http://127.0.0.1:15177",
+    "backend": "http://127.0.0.1:18084",
+    "database": "ai_order_platform_bugfix_20260729",
+    "minio_bucket": "ai-order-bugfix-20260729-private",
+    "isolated_database": true,
+    "existing_environments_untouched": true
+  },
+  "test_data": {
+    "patient_id": 1,
+    "patient_name": "修复验收患者0729",
+    "tag": "BUGFIX-0729",
+    "triple_click_draft_order_no": "ORD20260729-8DA6781EC7",
+    "main_order_id": 2,
+    "main_order_no": "ORD20260729-940F23D973",
+    "tooth": "26",
+    "material": "氧化锆",
+    "shade": "A2-MAT-0729",
+    "material_reference": "ZR-0729-A2",
+    "stl_filename": "REG0729_keep.stl",
+    "stl_sha256": "cca83ad3dfbe1de3d64b14e47d00c99a39721a272a2bacf248de1086203cadda",
+    "message_id": 1
+  },
+  "focus_results": [
+    {
+      "id": "SYNC-001",
+      "name": "生产端订单可见时点",
+      "result": "PASS",
+      "evidence": [
+        "screenshots/07-before-admin-worker-sees-zero-orders.png",
+        "screenshots/09-admin-production-review-approved.png",
+        "screenshots/10-after-admin-worker-sees-order.png"
+      ]
+    },
+    {
+      "id": "BUG-012",
+      "name": "无 STL 前后端提交门禁",
+      "result": "PASS",
+      "evidence": [
+        "screenshots/03-BUG012-ui-blocked-no-stl.png",
+        "screenshots/04-STL-upload-ready.png",
+        "logs/api-bug012-regression.txt"
+      ]
+    },
+    {
+      "id": "BUG-013",
+      "name": "连续点击只生成单一草稿",
+      "result": "PASS",
+      "evidence": [
+        "screenshots/01-BUG013-triple-click-single-draft-saved.png",
+        "screenshots/02-BUG013-only-one-draft-row.png",
+        "database/final-database-evidence.txt"
+      ]
+    },
+    {
+      "id": "MSG-DOCTOR",
+      "name": "医生消息页面展示已批准消息",
+      "result": "PASS",
+      "evidence": [
+        "screenshots/11-production-message-pending-review.png",
+        "screenshots/13-admin-message-approved-pending-zero.png",
+        "screenshots/14-doctor-approved-message-visible.png"
+      ]
+    },
+    {
+      "id": "MSG-SEARCH",
+      "name": "管理端患者搜索",
+      "result": "PASS",
+      "evidence": [
+        "screenshots/12-admin-message-patient-search-count-accurate.png"
+      ]
+    },
+    {
+      "id": "MSG-COUNT",
+      "name": "管理端真实待审计数",
+      "result": "PASS",
+      "evidence": [
+        "screenshots/12-admin-message-patient-search-count-accurate.png",
+        "screenshots/13-admin-message-approved-pending-zero.png"
+      ]
+    }
+  ],
+  "counts": {
+    "PASS": 6,
+    "FAIL": 0,
+    "PARTIAL": 0,
+    "BLOCKED": 0
+  },
+  "verification": {
+    "backend_target_tests": {
+      "tests": 59,
+      "failures": 0,
+      "errors": 0,
+      "skipped": 0
+    },
+    "doctor_portal_check": "PASS",
+    "frontend_build": "PASS",
+    "diff_check": "PASS",
+    "real_browser_screenshots": 14
+  },
+  "delivery": {
+    "zip_name": "AI智能下单平台_2026-07-29_录屏阻塞Bug修复验收证明.zip",
+    "checksum_file": "AI智能下单平台_2026-07-29_录屏阻塞Bug修复验收证明.zip.sha256.txt",
+    "validation_file": "AI智能下单平台_2026-07-29_录屏阻塞Bug修复验收证明.zip.validation.txt"
+  },
+  "test_data_cleaned": false,
+  "secrets_in_evidence": false
+}

@@ -60,7 +60,7 @@ for (const [id, status] of [
 }
 
 requireText('AGENTS.md', [
-  'RepoFrame 接手后的 handoff worktree',
+  '本项目保留 RepoFrame 文档作为协作证据',
   '不使用 Yuri workflow/SOP 作为默认流程',
   '不重跑 `initialize_repo.py`',
   'goals/GOAL-003-repoframe-doc-hydration-20260707.md',

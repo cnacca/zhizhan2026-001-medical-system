@@ -107,9 +107,10 @@ class PatientManagementTests {
                   "form_data": {
                     "patient_name": "林一舟",
                     "tooth_position": "36"
-                  }
+                  },
+                  "file_ids": [%d]
                 }
-                """.formatted(patientId);
+                """.formatted(patientId, insertCompletedStl(DOCTOR_USER_ID));
 
         String orderResponse = mockMvc.perform(post("/orders")
                         .header("X-Bootstrap-Role", "DOCTOR")
@@ -178,6 +179,25 @@ class PatientManagementTests {
                                 }
                                 """))
                 .andExpect(status().isForbidden());
+    }
+
+    private long insertCompletedStl(long ownerUserId) {
+        String objectKey = "patient-management/" + UUID.randomUUID() + ".stl";
+        jdbcClient.sql("""
+                        INSERT INTO file_resource
+                            (owner_user_id, source_type, visibility, bucket_name, object_key,
+                             original_filename, content_type, file_size, upload_status, status)
+                        VALUES
+                            (:ownerUserId, 'ORDER_ATTACHMENT', 'DOCTOR', 'test-bucket', :objectKey,
+                             'patient-case.stl', 'model/stl', 128, 'COMPLETED', 'ACTIVE')
+                        """)
+                .param("ownerUserId", ownerUserId)
+                .param("objectKey", objectKey)
+                .update();
+        return jdbcClient.sql("SELECT file_id FROM file_resource WHERE object_key = :objectKey")
+                .param("objectKey", objectKey)
+                .query(Long.class)
+                .single();
     }
 
     private long createPatient(long doctorUserId, String patientName) throws Exception {

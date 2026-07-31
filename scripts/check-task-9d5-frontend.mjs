@@ -23,6 +23,7 @@ const requiredAppFragments = [
   'data-testid="admin-process-assignment-drawer"',
   'class="admin-flow-node-list"',
   'loadWorkerTasks',
+  'workerTasks.value = productionProgressNodes(payload.data)',
   'operateWorkerTask',
   '/workflow/process-instance',
   '/workflow/assign',

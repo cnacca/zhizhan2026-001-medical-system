@@ -1,4 +1,7 @@
 package com.yuri.aiorder.workflow.runtime;
 
-public record SkipNodeRequest(String reason) {
+import jakarta.validation.constraints.NotBlank;
+import jakarta.validation.constraints.Size;
+
+public record SkipNodeRequest(@NotBlank @Size(max = 255) String reason) {
 }

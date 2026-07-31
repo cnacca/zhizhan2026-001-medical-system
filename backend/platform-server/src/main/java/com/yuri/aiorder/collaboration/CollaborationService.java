@@ -7,6 +7,7 @@ import com.yuri.aiorder.common.UserRole;
 import com.yuri.aiorder.common.auth.AccessControlService;
 import com.yuri.aiorder.notification.NotificationPushService;
 import com.yuri.aiorder.order.status.InternalOrderStatus;
+import com.yuri.aiorder.order.status.ExternalOrderStatus;
 import com.yuri.aiorder.order.status.OrderStatusService;
 import java.sql.Types;
 import java.time.LocalDateTime;
@@ -290,6 +291,38 @@ public class CollaborationService {
         }
         String currency = normalizeOrDefault(request.currency(), "CNY");
         LocalDateTime receivedAt = request.receivedAt() == null ? LocalDateTime.now() : request.receivedAt();
+        BillLedgerRow bill = jdbcClient.sql("""
+                        SELECT amount_cent, currency
+                        FROM order_bill
+                        WHERE order_id = :orderId
+                          AND bill_status = 'UPLOADED'
+                          AND file_id IS NOT NULL
+                        FOR UPDATE
+                        """)
+                .param("orderId", orderId)
+                .query((rs, rowNum) -> new BillLedgerRow(
+                        rs.getObject("amount_cent", Long.class),
+                        rs.getString("currency")))
+                .optional()
+                .orElseThrow(() -> new ResponseStatusException(
+                        HttpStatus.CONFLICT, "an uploaded bill is required before recording payment"));
+        if (bill.amountCents() == null) {
+            throw new ResponseStatusException(HttpStatus.CONFLICT, "bill amount is required before recording payment");
+        }
+        if (!bill.currency().equalsIgnoreCase(currency)) {
+            throw new ResponseStatusException(HttpStatus.CONFLICT, "payment currency must match bill currency");
+        }
+        long receivedBefore = jdbcClient.sql("""
+                        SELECT COALESCE(SUM(amount_cents), 0)
+                        FROM order_payment_record
+                        WHERE order_id = :orderId
+                        """)
+                .param("orderId", orderId)
+                .query(Long.class)
+                .single();
+        if (receivedBefore + amountCents > bill.amountCents()) {
+            throw new ResponseStatusException(HttpStatus.CONFLICT, "payment amount exceeds the bill outstanding amount");
+        }
 
         jdbcClient.sql("""
                         INSERT INTO order_payment_record
@@ -306,6 +339,16 @@ public class CollaborationService {
                 .param("createdByUserId", identity.userId())
                 .update();
         long paymentId = lastInsertId();
+        String paymentStatus = receivedBefore + amountCents == bill.amountCents() ? "PAID" : "PARTIALLY_PAID";
+        jdbcClient.sql("""
+                        UPDATE order_bill
+                        SET payment_status = :paymentStatus,
+                            updated_at = CURRENT_TIMESTAMP(3)
+                        WHERE order_id = :orderId
+                        """)
+                .param("paymentStatus", paymentStatus)
+                .param("orderId", orderId)
+                .update();
         emit(order, "PAYMENT_RECORD_CREATED", "DOCTOR", order.doctorUserId(), "收款记录已更新");
         return loadPaymentRecord(paymentId);
     }
@@ -321,6 +364,28 @@ public class CollaborationService {
         }
         String currency = normalizeOrDefault(request.currency(), "CNY").toUpperCase(Locale.ROOT);
         OrderRow order = loadOrder(orderId, identity, "identity cannot access this order");
+        long eligibleBillFileCount = jdbcClient.sql("""
+                        SELECT COUNT(*)
+                        FROM file_resource
+                        WHERE file_id = :fileId
+                          AND order_id = :orderId
+                          AND source_type = 'BILL'
+                          AND visibility = 'DOCTOR_CS'
+                          AND upload_status = 'COMPLETED'
+                          AND status = 'ACTIVE'
+                          AND (
+                              LOWER(COALESCE(content_type, '')) = 'application/pdf'
+                              OR LOWER(original_filename) LIKE '%.pdf'
+                          )
+                        """)
+                .param("fileId", request.fileId())
+                .param("orderId", orderId)
+                .query(Long.class)
+                .single();
+        if (eligibleBillFileCount == 0) {
+            throw new ResponseStatusException(
+                    HttpStatus.CONFLICT, "bill file must be a completed doctor-visible PDF for this order");
+        }
         jdbcClient.sql("""
                         INSERT INTO order_bill (order_id, amount_cent, currency, bill_status, file_id)
                         VALUES (:orderId, :amountCents, :currency, 'UPLOADED', :fileId)
@@ -407,6 +472,46 @@ public class CollaborationService {
                                 identity)))
                 .optional()
                 .orElse(new LogisticsResponse(null, orderId, null, null, "PENDING"));
+    }
+
+    @Transactional
+    public ExternalOrderStatus confirmReceipt(long orderId, BootstrapIdentity identity) {
+        OrderRow order = loadOrder(orderId, identity, "identity cannot access this order");
+        requireDoctorScopeIfNeeded(order, identity);
+        String logisticsStatus;
+        try {
+            logisticsStatus = jdbcClient.sql("""
+                            SELECT logistics_status
+                            FROM order_logistics
+                            WHERE order_id = :orderId
+                            FOR UPDATE
+                            """)
+                    .param("orderId", orderId)
+                    .query(String.class)
+                    .single();
+        } catch (EmptyResultDataAccessException ex) {
+            throw new ResponseStatusException(HttpStatus.CONFLICT, "receipt confirmation requires shipped logistics", ex);
+        }
+        if (!Set.of("SHIPPED", "DELIVERED_PENDING_CONFIRMATION").contains(logisticsStatus)) {
+            throw new ResponseStatusException(HttpStatus.CONFLICT, "receipt confirmation requires shipped logistics");
+        }
+        jdbcClient.sql("""
+                        UPDATE order_logistics
+                        SET logistics_status = 'DELIVERED',
+                            delivered_at = CURRENT_TIMESTAMP(3),
+                            updated_at = CURRENT_TIMESTAMP(3)
+                        WHERE order_id = :orderId
+                        """)
+                .param("orderId", orderId)
+                .update();
+        ExternalOrderStatus status = orderStatusService.updateOrderState(
+                orderId,
+                InternalOrderStatus.COMPLETED,
+                "DOCTOR_CONFIRM_RECEIPT",
+                identity.userId(),
+                "doctor confirmed receipt");
+        emit(order, "ORDER_RECEIVED", "CS", order.csUserId(), "医生已确认收货");
+        return status;
     }
 
     public List<DeliveryOrderResponse> listDeliveryOrders(
@@ -519,6 +624,7 @@ public class CollaborationService {
         }
         OrderRow order = loadOrder(orderId, identity, "identity cannot access this order");
         requireFinalOutCheckPass(orderId);
+        requirePaymentReady(orderId);
         jdbcClient.sql("""
                         INSERT INTO order_logistics
                             (order_id, carrier_name, tracking_no, logistics_status, shipped_at)
@@ -620,6 +726,22 @@ public class CollaborationService {
                 .single();
         if (missingPassCount > 0) {
             throw new ResponseStatusException(HttpStatus.CONFLICT, "final out-check pass is required before shipment");
+        }
+    }
+
+    private void requirePaymentReady(long orderId) {
+        long readyCount = jdbcClient.sql("""
+                        SELECT COUNT(*)
+                        FROM order_bill
+                        WHERE order_id = :orderId
+                          AND payment_status IN ('PAID', 'NOT_REQUIRED')
+                        """)
+                .param("orderId", orderId)
+                .query(Long.class)
+                .single();
+        if (readyCount == 0) {
+            throw new ResponseStatusException(
+                    HttpStatus.CONFLICT, "payment must be paid or marked not required before shipment");
         }
     }
 
@@ -899,23 +1021,17 @@ public class CollaborationService {
                                               WHERE scoped_i.order_id = orders.order_id
                                                 AND scoped_n.assigned_user_id = :userId
                                           )
+                                          OR EXISTS (
+                                              SELECT 1
+                                              FROM design_task scoped_design
+                                              WHERE scoped_design.order_id = orders.order_id
+                                                AND scoped_design.assigned_user_id = :userId
+                                                AND scoped_design.task_status <> 'CANCELLED'
+                                          )
                                       ))
                                   OR (
                                       :canReviewProduction = TRUE
                                       AND orders.internal_status = 'PENDING_PRODUCTION_REVIEW'
-                                  )
-                                  OR (
-                                      :canReviewProduction = TRUE
-                                      AND EXISTS (
-                                          SELECT 1
-                                          FROM order_process_instance review_i
-                                          JOIN order_process_node review_n
-                                            ON review_n.instance_id = review_i.instance_id
-                                          WHERE review_i.order_id = orders.order_id
-                                            AND review_i.instance_status = 'ACTIVE'
-                                            AND review_n.node_status = 'READY'
-                                            AND review_n.assigned_user_id IS NULL
-                                      )
                                   )
                               )
                             """)
@@ -1028,6 +1144,9 @@ public class CollaborationService {
     }
 
     private record OrderRow(long orderId, String orderNo, long clinicId, Long doctorUserId, Long csUserId) {
+    }
+
+    private record BillLedgerRow(Long amountCents, String currency) {
     }
 
     private record MessageRow(

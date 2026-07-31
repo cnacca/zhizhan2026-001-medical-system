@@ -4,8 +4,11 @@ import type {
   DoctorAccount,
   DoctorFile,
   DoctorGateway,
+  Message,
+  MessageThread,
   DoctorNotification,
   DoctorPortalDataset,
+  LogisticsRecord,
   OrderDetail,
   OrderDraftInput,
   OrderReview,
@@ -29,6 +32,7 @@ type LegacyPublicProgressItem = {
 type LegacyOrder = {
   order_id: number
   order_no: string
+  group_id?: number | null
   patient_id: number | null
   product_type: string
   external_status: string
@@ -172,6 +176,14 @@ type LegacyPayment = {
   amount_cents: number
   currency: string
   received_at: string
+}
+
+type LegacyLogistics = {
+  logistics_id: number | null
+  order_id: number
+  carrier: string | null
+  tracking_no: string | null
+  logistics_status: string
 }
 
 type LegacyList<T> = { items: T[]; total: number; page: number; size: number }
@@ -431,25 +443,38 @@ export class LegacyHttpDoctorGateway implements DoctorGateway {
     const form = order.form_data ?? {}
     const editable = Boolean(order.editable)
     const isDraft = order.external_status === 'DRAFT'
+    const patientName = asText(form.patient_name)
+    const receiptPending = order.external_status === 'SHIPPED'
+    const allowedActions: OrderSummary['allowed_actions'] = isDraft
+      ? ['VIEW_ORDER', 'SUBMIT_ORDER']
+      : editable
+        ? ['VIEW_ORDER', 'SUPPLEMENT_ORDER', 'SEND_MESSAGE']
+        : ['VIEW_ORDER', 'SEND_MESSAGE']
+    if (receiptPending) allowedActions.push('CONFIRM_RECEIPT')
     return {
       order_id: String(order.order_id),
       order_no: order.order_no,
+      group_id: order.group_id ?? null,
       doctor_name: this.profile.displayName,
       patient_id: order.patient_id == null ? '' : String(order.patient_id),
       patient_code: order.patient_id == null ? '-' : `P-${order.patient_id}`,
-      patient_name: order.patient_id == null ? '未关联' : `患者 ${order.patient_id}`,
+      patient_name: patientName || (order.patient_id == null ? '未关联' : `患者 ${order.patient_id}`),
       clinic_name: this.profile.clinicName,
       product_type: order.product_type,
       product_name: productLabels[order.product_type] ?? order.product_type,
       tags: [],
       external_status: statusMap[order.external_status] ?? order.external_status,
-      current_action: isDraft ? 'NONE' : editable ? 'SUPPLEMENT_REQUIRED' : 'NONE',
+      current_action: receiptPending
+        ? 'RECEIPT_CONFIRMATION_REQUIRED'
+        : isDraft
+          ? 'NONE'
+          : editable
+            ? 'SUPPLEMENT_REQUIRED'
+            : 'NONE',
       created_at: asText(order.created_at) || asText(form.created_at) || '-',
       due_at: asText(form.due_date) || asText(form.delivery_date) || '-',
       quote: null,
-      allowed_actions: isDraft
-        ? ['VIEW_ORDER', 'SUBMIT_ORDER']
-        : editable ? ['VIEW_ORDER', 'SUPPLEMENT_ORDER', 'SEND_MESSAGE'] : ['VIEW_ORDER', 'SEND_MESSAGE'],
+      allowed_actions: allowedActions,
       state_version: 0
     }
   }
@@ -592,7 +617,17 @@ export class LegacyHttpDoctorGateway implements DoctorGateway {
     if (ordersResult.status === 'fulfilled') assertSafeOrderPayload(ordersResult.value)
 
     const legacyOrders = ordersResult.status === 'fulfilled' ? ordersResult.value.items : []
-    const mappedOrders = legacyOrders.map((order) => this.mapOrder(order))
+    const legacyPatients = patientsResult.status === 'fulfilled' ? patientsResult.value.items : []
+    const patientLookup = new Map(legacyPatients.map((patient) => [patient.patient_id, patient]))
+    const mappedOrders = legacyOrders.map((order) => {
+      const mapped = this.mapOrder(order)
+      const patient = order.patient_id == null ? null : patientLookup.get(order.patient_id)
+      if (patient) {
+        mapped.patient_name = patient.patient_name
+        mapped.patient_code = patient.patient_code || `P-${patient.patient_id}`
+      }
+      return mapped
+    })
     const designActionResults = await Promise.allSettled(legacyOrders.map(async (order) => {
       if (order.external_status !== 'DESIGNING') return false
       const drafts = await this.request<LegacyDesignDraft[]>(
@@ -621,6 +656,34 @@ export class LegacyHttpDoctorGateway implements DoctorGateway {
       if (!summary.allowed_actions.includes('APPROVE_REVIEW')) summary.allowed_actions.push('APPROVE_REVIEW')
       if (!summary.allowed_actions.includes('REJECT_REVIEW')) summary.allowed_actions.push('REJECT_REVIEW')
     })
+    const logisticsCandidates = legacyOrders.filter((order) =>
+      order.external_status === 'SHIPPED'
+      || Boolean(order.tracking_no)
+      || Boolean(order.logistics_status && order.logistics_status !== 'PENDING'))
+    const logisticsResults = await Promise.allSettled(logisticsCandidates.map(async (order): Promise<LogisticsRecord | null> => {
+      const logistics = await this.request<LegacyLogistics>(`/orders/${order.order_id}/logistics`)
+      if (logistics.logistics_id == null) return null
+      const status = logistics.logistics_status || order.logistics_status || 'PENDING'
+      const canConfirmReceipt = order.external_status === 'SHIPPED'
+        && ['SHIPPED', 'DELIVERED_PENDING_CONFIRMATION'].includes(status)
+      return {
+        logistics_id: String(logistics.logistics_id),
+        order_id: String(order.order_id),
+        order_no: order.order_no,
+        product_name: productLabels[order.product_type] ?? order.product_type,
+        carrier: logistics.carrier || '承运商待补充',
+        tracking_no: logistics.tracking_no || '运单号待补充',
+        status,
+        updated_at: order.updated_at || order.created_at || '时间未记录',
+        can_confirm_receipt: canConfirmReceipt,
+        events: [{
+          label: status === 'DELIVERED' ? '医生已确认收货' : status === 'SHIPPED' ? '订单已发货' : '配送状态已更新',
+          time: order.updated_at || order.created_at || '时间未记录'
+        }]
+      }
+    }))
+    const logistics = logisticsResults.flatMap((result) =>
+      result.status === 'fulfilled' && result.value ? [result.value] : [])
     const billResults = await Promise.allSettled(legacyOrders.map(async (order): Promise<BillRecord | null> => {
       const [billResult, paymentsResult] = await Promise.allSettled([
         this.request<LegacyBill>(`/orders/${order.order_id}/bill`),
@@ -661,6 +724,36 @@ export class LegacyHttpDoctorGateway implements DoctorGateway {
       }
     }))
     const bills = billResults.flatMap((result) => result.status === 'fulfilled' && result.value ? [result.value] : [])
+    const messageResults = await Promise.allSettled(legacyOrders.map((order) =>
+      this.request<LegacyMessage[]>(`/orders/${encodeURIComponent(order.order_id)}/messages`)
+    ))
+    const threads = messageResults.flatMap((result, index): MessageThread[] => {
+      if (result.status !== 'fulfilled' || result.value.length === 0) return []
+      const order = mappedOrders[index]
+      if (!order) return []
+      const messages: Message[] = result.value.map((message) => ({
+        message_id: String(message.msg_id),
+        sender: message.sender_role === 'DOCTOR' ? 'SELF' : 'ORDER_SERVICE',
+        content: message.content,
+        sent_at: message.created_at || '时间未记录',
+        status: 'SENT',
+        attachments: []
+      }))
+      const latestMessage = messages.at(-1)
+      return [{
+        thread_id: `TH-${order.order_id}`,
+        order_id: order.order_id,
+        order_no: order.order_no,
+        patient_name: order.patient_name,
+        product_name: order.product_name,
+        unread: false,
+        latest_message: latestMessage?.content || '',
+        latest_at: latestMessage?.sent_at || order.created_at,
+        messages
+      }]
+    }).sort((left, right) =>
+      new Date(right.latest_at).getTime() - new Date(left.latest_at).getTime()
+    )
 
     const accountValue = accountResult.status === 'fulfilled' ? accountResult.value : null
     const account: DoctorAccount = {
@@ -673,9 +766,7 @@ export class LegacyHttpDoctorGateway implements DoctorGateway {
       members: []
     }
 
-    const patients: PatientSummary[] = patientsResult.status === 'fulfilled'
-      ? patientsResult.value.items.map((patient) => this.mapPatient(patient, account))
-      : []
+    const patients: PatientSummary[] = legacyPatients.map((patient) => this.mapPatient(patient, account))
 
     const notifications: DoctorNotification[] = notificationsResult.status === 'fulfilled'
       ? notificationsResult.value.flatMap((item) => {
@@ -733,8 +824,8 @@ export class LegacyHttpDoctorGateway implements DoctorGateway {
       bills,
       statements: [],
       invoiceRefunds: [],
-      logistics: [],
-      threads: [],
+      logistics,
+      threads,
       notifications,
       account,
       products
@@ -868,7 +959,7 @@ export class LegacyHttpDoctorGateway implements DoctorGateway {
     return this.mapPatient(patient, account)
   }
 
-  async saveDraft(input: OrderDraftInput): Promise<{ orderId: string; stateVersion: number }> {
+  async saveDraft(input: OrderDraftInput): Promise<OrderSummary> {
     const payload = {
       product_id: input.productId,
       product_type: input.productType,
@@ -881,7 +972,12 @@ export class LegacyHttpDoctorGateway implements DoctorGateway {
     const result = input.draftOrderId
       ? await this.request<LegacyCreateOrderResponse>(`/orders/${encodeURIComponent(input.draftOrderId)}`, { method: 'PUT', body: JSON.stringify(payload) })
       : await this.request<LegacyCreateOrderResponse>('/orders', { method: 'POST', body: JSON.stringify(payload) })
-    return { orderId: String(result.order_id), stateVersion: 0 }
+    return this.mapOrder({
+      ...result,
+      patient_id: Number(input.patientId),
+      editable: true,
+      created_at: new Date().toISOString()
+    })
   }
 
   private async findPendingOrderUpload(orderId: number, file: File): Promise<MultipartPendingUpload | null> {
@@ -943,7 +1039,7 @@ export class LegacyHttpDoctorGateway implements DoctorGateway {
     if (!Number.isSafeInteger(numericOrderId) || numericOrderId <= 0) throw new Error('请先保存有效草稿后再上传文件')
     const uploaded: DoctorFile[] = []
     for (const file of files) {
-      if (file.size > 200 * 1024 * 1024) throw new Error(`文件 ${file.name} 超过 200MB 限制`)
+      if (file.size > 500 * 1024 * 1024) throw new Error(`文件 ${file.name} 超过 500MB 限制`)
       const resumed = await this.resumePendingOrderUpload(numericOrderId, file)
       const upload: MultipartUploadPlan = resumed ?? {
         ...await this.request<MultipartInitiateResponse>('/files/multipart/initiate', {
@@ -1076,8 +1172,8 @@ export class LegacyHttpDoctorGateway implements DoctorGateway {
     await this.request('/notifications/read-all', { method: 'POST' })
   }
 
-  async confirmReceipt(_orderId: string, _stateVersion: number): Promise<void> {
-    throw new Error('UNSUPPORTED_CAPABILITY：状态版本与授权收货门禁待后端接入')
+  async confirmReceipt(orderId: string, _stateVersion: number): Promise<void> {
+    await this.request(`/orders/${encodeURIComponent(orderId)}/confirm-receipt`, { method: 'POST' })
   }
 
   async askAssistant(question: string, orderId?: string): Promise<{ answer: string; orderIds: string[] }> {

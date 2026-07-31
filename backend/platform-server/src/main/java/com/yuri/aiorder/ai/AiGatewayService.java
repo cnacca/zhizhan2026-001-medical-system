@@ -226,9 +226,13 @@ public class AiGatewayService {
         accessControlService.requireAnyRole(identity, CHECK_MISSING_ROLES, "AI-4 is DOCTOR/CS/ADMIN only");
         OrderAiContext context = loadOrderContext(orderId, identity, "doctor cannot access this order");
 
-        JsonNode formData = readFormData(context.formData());
-        List<MissingInfoResponse.MissingItem> missingItems = requiredFields(context.productType()).stream()
-                .filter(field -> isMissing(formData.get(field.fieldKey())))
+        JsonNode formData = orderProjectionQueryService.getNormalizedFormData(orderId, identity);
+        JsonNode formValues = formData.path("form_values").isObject()
+                ? formData.path("form_values")
+                : formData;
+        List<MissingInfoResponse.MissingItem> missingItems = requiredFields(orderId, context.productType()).stream()
+                .filter(field -> field.visible(formValues))
+                .filter(field -> isMissing(formValues.get(field.fieldKey())))
                 .map(field -> new MissingInfoResponse.MissingItem(
                         field.fieldKey(),
                         field.fieldLabel(),
@@ -243,6 +247,7 @@ public class AiGatewayService {
     public ProductionNoteDraftResult productionNote(long orderId, BootstrapIdentity identity) {
         accessControlService.requireAnyRole(identity, PRODUCTION_NOTE_ROLES, "AI-5 is CS/WORKER/ADMIN only");
         OrderAiContext context = loadOrderContext(orderId, identity, "identity cannot access this order");
+        JsonNode normalizedFormData = orderProjectionQueryService.getNormalizedFormData(orderId, identity);
         List<String> knowledgeContextNotes = buildProductionNoteKnowledgeContextNotes(context);
         enforceAiRateLimit(orderId, identity, "AI_PRODUCTION_NOTE", "PRODUCTION_NOTE_DRAFT",
                 "production-note:" + orderId);
@@ -251,7 +256,7 @@ public class AiGatewayService {
                         + "客户正式模板尚未确认，必须使用默认一期模板并提示人工确认。",
                 "订单号：" + context.orderNo()
                         + "\n产品类型：" + context.productType()
-                        + "\n表单数据：" + nullToBlank(context.formData())
+                        + "\n表单数据：" + normalizedFormData
                         + "\n已有生产备注：" + nullToBlank(context.productionNote())
                         + "\n模板版本：" + PRODUCTION_NOTE_TEMPLATE_VERSION
                         + "\n知识上下文：\n" + String.join("\n", knowledgeContextNotes)
@@ -911,7 +916,7 @@ public class AiGatewayService {
         List<String> notes = new ArrayList<>();
         notes.add("默认模板：PHASE_ONE_DEFAULT_V1；客户模板未确认，不能声明为真实客户模板");
         notes.add("订单基础：orders.order_no、product_type、external_status、internal_status");
-        notes.add("表单数据：orders.form_data，用于整理医生/客户需求和资料完整性");
+        notes.add("表单数据：orders.form_data 与订单提交快照的兼容投影，用于整理医生/客户需求和资料完整性");
         notes.add("已有生产备注：orders.production_note，仅作为内部增量上下文，不覆盖历史备注");
         notes.add(messageReferenceNote(context.orderId()));
         notes.add(fileReferenceNote(context.orderId()));
@@ -990,8 +995,14 @@ public class AiGatewayService {
     private String fileReferenceNote(long orderId) {
         Long count = jdbcClient.sql("""
                         SELECT COUNT(*)
-                        FROM file_resource
-                        WHERE order_id = :orderId
+                        FROM orders o
+                        JOIN file_resource f
+                          ON f.order_id = o.order_id
+                          OR (
+                              f.attachment_scope = 'SHARED'
+                              AND f.case_group_id = o.group_id
+                          )
+                        WHERE o.order_id = :orderId
                         """)
                 .param("orderId", orderId)
                 .query(Long.class)
@@ -1000,10 +1011,16 @@ public class AiGatewayService {
             return "附件：file_resource 未找到当前订单附件";
         }
         List<String> samples = jdbcClient.sql("""
-                        SELECT source_type, visibility, status
-                        FROM file_resource
-                        WHERE order_id = :orderId
-                        ORDER BY created_at DESC, file_id DESC
+                        SELECT f.source_type, f.visibility, f.status
+                        FROM orders o
+                        JOIN file_resource f
+                          ON f.order_id = o.order_id
+                          OR (
+                              f.attachment_scope = 'SHARED'
+                              AND f.case_group_id = o.group_id
+                          )
+                        WHERE o.order_id = :orderId
+                        ORDER BY f.created_at DESC, f.file_id DESC
                         LIMIT 3
                         """)
                 .param("orderId", orderId)
@@ -1133,7 +1150,42 @@ public class AiGatewayService {
                 .single() > 0;
     }
 
-    private List<RequiredField> requiredFields(String productType) {
+    private List<RequiredField> requiredFields(long orderId, String productType) {
+        CatalogFormSchemaSnapshot snapshot = jdbcClient.sql("""
+                        SELECT form_schema_snapshot
+                        FROM order_catalog_snapshot
+                        WHERE order_id = :orderId
+                        """)
+                .param("orderId", orderId)
+                .query((rs, rowNum) -> new CatalogFormSchemaSnapshot(rs.getString("form_schema_snapshot")))
+                .optional()
+                .orElse(null);
+        if (snapshot != null && snapshot.json() != null) {
+            JsonNode rules = readFormData(snapshot.json());
+            List<RequiredField> fields = new ArrayList<>();
+            if (rules.isArray()) {
+                for (JsonNode rule : rules) {
+                    if (!"FORM_SCHEMA".equals(rule.path("rule_type").asText())) {
+                        continue;
+                    }
+                    JsonNode schemaFields = rule.path("schema").path("fields");
+                    if (!schemaFields.isArray()) {
+                        continue;
+                    }
+                    for (JsonNode field : schemaFields) {
+                        String key = field.path("key").asText("").trim();
+                        if (field.path("required").asBoolean(false) && !key.isBlank()) {
+                            String label = field.path("label").asText(key).trim();
+                            JsonNode visibleWhen = field.path("visible_when").isObject()
+                                    ? field.path("visible_when").deepCopy()
+                                    : null;
+                            fields.add(new RequiredField(key, label.isBlank() ? key : label, visibleWhen));
+                        }
+                    }
+                }
+            }
+            return fields;
+        }
         return jdbcClient.sql("""
                         SELECT field_key, field_label
                         FROM form_field_config
@@ -1145,8 +1197,12 @@ public class AiGatewayService {
                 .param("productType", productType)
                 .query((rs, rowNum) -> new RequiredField(
                         rs.getString("field_key"),
-                        rs.getString("field_label")))
+                        rs.getString("field_label"),
+                        null))
                 .list();
+    }
+
+    private record CatalogFormSchemaSnapshot(String json) {
     }
 
     private JsonNode readFormData(String formData) {
@@ -1576,7 +1632,18 @@ public class AiGatewayService {
             String productionNote) {
     }
 
-    private record RequiredField(String fieldKey, String fieldLabel) {
+    private record RequiredField(String fieldKey, String fieldLabel, JsonNode visibleWhen) {
+
+        private boolean visible(JsonNode values) {
+            if (visibleWhen == null || !visibleWhen.isObject()) {
+                return true;
+            }
+            String controllingField = visibleWhen.path("field").asText("");
+            JsonNode expected = visibleWhen.get("equals");
+            return controllingField.isBlank()
+                    || expected == null
+                    || expected.equals(values.get(controllingField));
+        }
     }
 
     private record FileContextRow(

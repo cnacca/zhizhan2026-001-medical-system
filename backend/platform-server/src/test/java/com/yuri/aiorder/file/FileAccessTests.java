@@ -472,7 +472,7 @@ class FileAccessTests {
     }
 
     @Test
-    void productionReviewerCanReadUnassignedReadyOrderFilesButCannotMutateOrCrossAssignment() throws Exception {
+    void productionReviewPermissionDoesNotExposeUnassignedReadyOrderFiles() throws Exception {
         long reviewerUserId = 9914L;
         long otherWorkerUserId = 9915L;
         long chainId = jdbcClient.sql(
@@ -528,15 +528,13 @@ class FileAccessTests {
 
         mockMvc.perform(get("/orders/{orderId}/files", orderId)
                         .header("Authorization", "Bearer " + reviewToken))
-                .andExpect(status().isOk())
-                .andExpect(jsonPath("$.data", hasSize(1)))
-                .andExpect(jsonPath("$.data[0].file_id").value(fileId));
+                .andExpect(status().isForbidden());
         mockMvc.perform(get("/files/{fileId}/preview-url", fileId)
                         .header("Authorization", "Bearer " + reviewToken))
-                .andExpect(status().isOk());
+                .andExpect(status().isForbidden());
         mockMvc.perform(get("/files/{fileId}/download-url", fileId)
                         .header("Authorization", "Bearer " + reviewToken))
-                .andExpect(status().isOk());
+                .andExpect(status().isForbidden());
         mockMvc.perform(post("/files/{fileId}/complete", fileId)
                         .header("Authorization", "Bearer " + reviewToken))
                 .andExpect(status().isForbidden());

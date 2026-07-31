@@ -966,6 +966,7 @@ class DesignTaskCollaborationTests {
                         JOIN order_process_instance instance
                           ON instance.instance_id = node.instance_id
                         WHERE instance.order_id = :orderId
+                          AND node.node_category <> 'DESIGN_GATE'
                         ORDER BY node.step_order, node.node_instance_id
                         LIMIT 1
                         """)

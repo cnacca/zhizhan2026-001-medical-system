@@ -12,6 +12,7 @@ import java.time.format.DateTimeFormatter;
 import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Locale;
+import java.util.Objects;
 import java.util.Set;
 import java.util.UUID;
 import org.springframework.dao.EmptyResultDataAccessException;
@@ -54,19 +55,29 @@ public class OrderCreationService {
         validateFormData(productType, request.formData(), !draft);
         validateOwnedPatient(request.patientId(), identity);
         List<Long> fileIds = normalizedFileIds(request.fileIds());
-        fileIds.forEach((fileId) -> validateBindableDoctorFile(fileId, identity, null));
+        List<BindableFile> files = fileIds.stream()
+                .map((fileId) -> validateBindableDoctorFile(fileId, identity, null))
+                .toList();
+        if (!draft) {
+            requireSubmittedStl(files);
+        }
 
         String orderNo = nextOrderNo();
+        long groupId = createLegacySingleProductGroup(
+                orderNo, identity, request.patientId(), draft ? "DRAFT" : "SUBMITTED");
         jdbcClient.sql("""
                         INSERT INTO orders
-                            (order_no, clinic_id, doctor_user_id, patient_id, product_type,
+                            (group_id, line_no, relationship_type, order_no,
+                             clinic_id, doctor_user_id, patient_id, product_type,
                              quoted_price_cents, quoted_price_currency, pricing_source, form_data,
                              internal_status, external_status)
                         VALUES
-                            (:orderNo, :clinicId, :doctorUserId, :patientId, :productType,
+                            (:groupId, 1, 'PRIMARY', :orderNo,
+                             :clinicId, :doctorUserId, :patientId, :productType,
                              :quotedPriceCents, :quotedPriceCurrency, :pricingSource, CAST(:formData AS JSON),
                              'DRAFT', 'DRAFT')
                         """)
+                .param("groupId", groupId)
                 .param("orderNo", orderNo)
                 .param("clinicId", identity.clinicId())
                 .param("doctorUserId", identity.userId())
@@ -112,7 +123,12 @@ public class OrderCreationService {
         validateFormData(productType, request.formData(), submit);
         validateOwnedPatient(request.patientId(), identity);
         List<Long> fileIds = normalizedFileIds(request.fileIds());
-        fileIds.forEach((fileId) -> validateBindableDoctorFile(fileId, identity, orderId));
+        List<BindableFile> files = fileIds.stream()
+                .map((fileId) -> validateBindableDoctorFile(fileId, identity, orderId))
+                .toList();
+        if (submit) {
+            requireSubmittedStl(files);
+        }
 
         jdbcClient.sql("""
                         UPDATE orders
@@ -148,6 +164,7 @@ public class OrderCreationService {
                             identity.userId(),
                             "doctor submitted order")
                     .name();
+            markGroupSubmitted(order.groupId());
         }
         return new CreateOrderResponse(orderId, order.orderNo(), productType, externalStatus, request.formData());
     }
@@ -252,10 +269,11 @@ public class OrderCreationService {
         return new LinkedHashSet<>(fileIds).stream().toList();
     }
 
-    private void validateBindableDoctorFile(long fileId, BootstrapIdentity identity, Long targetOrderId) {
+    private BindableFile validateBindableDoctorFile(long fileId, BootstrapIdentity identity, Long targetOrderId) {
         try {
             BindableFile file = jdbcClient.sql("""
-                            SELECT file_id, order_id, owner_user_id, visibility, upload_status, status
+                            SELECT file_id, order_id, owner_user_id, original_filename,
+                                   visibility, upload_status, status
                             FROM file_resource
                             WHERE file_id = :fileId
                             """)
@@ -264,6 +282,7 @@ public class OrderCreationService {
                             rs.getLong("file_id"),
                             rs.getObject("order_id", Long.class),
                             rs.getObject("owner_user_id", Long.class),
+                            rs.getString("original_filename"),
                             rs.getString("visibility"),
                             rs.getString("upload_status"),
                             rs.getString("status")))
@@ -281,8 +300,22 @@ public class OrderCreationService {
             if (!"COMPLETED".equals(file.uploadStatus())) {
                 throw new ResponseStatusException(HttpStatus.CONFLICT, "file upload is not completed");
             }
+            return file;
         } catch (EmptyResultDataAccessException ex) {
             throw new ResponseStatusException(HttpStatus.NOT_FOUND, "file not found", ex);
+        }
+    }
+
+    private void requireSubmittedStl(List<BindableFile> files) {
+        boolean hasStl = files.stream()
+                .map(BindableFile::originalFilename)
+                .filter(Objects::nonNull)
+                .map((filename) -> filename.trim().toLowerCase(Locale.ROOT))
+                .anyMatch((filename) -> filename.endsWith(".stl"));
+        if (!hasStl) {
+            throw new ResponseStatusException(
+                    HttpStatus.BAD_REQUEST,
+                    "at least one completed STL file is required");
         }
     }
 
@@ -385,7 +418,8 @@ public class OrderCreationService {
     private DoctorEditableOrder loadDoctorEditableOrder(long orderId, BootstrapIdentity identity) {
         try {
             return jdbcClient.sql("""
-                            SELECT order_id, order_no, doctor_user_id, internal_status, external_status
+                            SELECT order_id, group_id, order_no, doctor_user_id,
+                                   internal_status, external_status
                             FROM orders
                             WHERE order_id = :orderId
                               AND doctor_user_id = :doctorUserId
@@ -397,6 +431,7 @@ public class OrderCreationService {
                     .param("clinicId", identity.clinicId())
                     .query((rs, rowNum) -> new DoctorEditableOrder(
                             rs.getLong("order_id"),
+                            rs.getObject("group_id", Long.class),
                             rs.getString("order_no"),
                             rs.getObject("doctor_user_id", Long.class),
                             rs.getString("internal_status"),
@@ -436,6 +471,54 @@ public class OrderCreationService {
         return "ORD" + date + "-" + suffix;
     }
 
+    private long createLegacySingleProductGroup(
+            String orderNo,
+            BootstrapIdentity identity,
+            Long patientId,
+            String lifecycleStatus) {
+        String groupNo = "CG-" + orderNo;
+        jdbcClient.sql("""
+                        INSERT INTO order_case_group
+                            (group_no, clinic_id, doctor_user_id, patient_id,
+                             lifecycle_status, submitted_at)
+                        VALUES
+                            (:groupNo, :clinicId, :doctorUserId, :patientId,
+                             :lifecycleStatus,
+                             CASE WHEN :lifecycleStatus = 'SUBMITTED'
+                                  THEN CURRENT_TIMESTAMP(3) ELSE NULL END)
+                        """)
+                .param("groupNo", groupNo)
+                .param("clinicId", identity.clinicId())
+                .param("doctorUserId", identity.userId())
+                .param("patientId", patientId)
+                .param("lifecycleStatus", lifecycleStatus)
+                .update();
+        return jdbcClient.sql("""
+                        SELECT group_id
+                        FROM order_case_group
+                        WHERE group_no = :groupNo
+                        """)
+                .param("groupNo", groupNo)
+                .query(Long.class)
+                .single();
+    }
+
+    private void markGroupSubmitted(Long groupId) {
+        if (groupId == null) {
+            return;
+        }
+        jdbcClient.sql("""
+                        UPDATE order_case_group
+                        SET lifecycle_status = 'SUBMITTED',
+                            submitted_at = COALESCE(submitted_at, CURRENT_TIMESTAMP(3)),
+                            draft_version = draft_version + 1
+                        WHERE group_id = :groupId
+                          AND lifecycle_status = 'DRAFT'
+                        """)
+                .param("groupId", groupId)
+                .update();
+    }
+
     private String normalizeProductType(String productType) {
         return productType.trim().toUpperCase(Locale.ROOT);
     }
@@ -455,6 +538,7 @@ public class OrderCreationService {
             long fileId,
             Long orderId,
             Long ownerUserId,
+            String originalFilename,
             String visibility,
             String uploadStatus,
             String status) {
@@ -462,6 +546,7 @@ public class OrderCreationService {
 
     private record DoctorEditableOrder(
             long orderId,
+            Long groupId,
             String orderNo,
             Long doctorUserId,
             String internalStatus,

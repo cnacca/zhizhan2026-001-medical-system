@@ -45,6 +45,7 @@ class MessageDesignBillNotificationTests {
     private long clinicId;
     private long orderId;
     private long fileId;
+    private long billFileId;
 
     @BeforeEach
     void setUp() {
@@ -85,6 +86,19 @@ class MessageDesignBillNotificationTests {
                 .param("objectKey", "test/collab/" + suffix + ".pdf")
                 .update();
         fileId = jdbcClient.sql("SELECT LAST_INSERT_ID()").query(Long.class).single();
+        jdbcClient.sql("""
+                        INSERT INTO file_resource
+                            (order_id, owner_user_id, source_type, visibility, bucket_name,
+                             object_key, original_filename, content_type, file_size, upload_status)
+                        VALUES
+                            (:orderId, :ownerUserId, 'BILL', 'DOCTOR_CS', 'ai-order-private',
+                             :objectKey, 'bill.pdf', 'application/pdf', 1024, 'COMPLETED')
+                        """)
+                .param("orderId", orderId)
+                .param("ownerUserId", CS_USER_ID)
+                .param("objectKey", "test/collab/" + suffix + "-bill.pdf")
+                .update();
+        billFileId = jdbcClient.sql("SELECT LAST_INSERT_ID()").query(Long.class).single();
     }
 
     @Test
@@ -311,7 +325,7 @@ class MessageDesignBillNotificationTests {
     }
 
     @Test
-    void productionReviewerCanSendForUnassignedReadyOrderButNotAfterAnotherWorkerIsAssigned() throws Exception {
+    void claimedDesignWorkerCanSendButLosesAccessAfterDesignTaskTransfer() throws Exception {
         jdbcClient.sql("""
                         UPDATE order_process_node node
                         JOIN order_process_instance instance ON instance.instance_id = node.instance_id
@@ -338,9 +352,7 @@ class MessageDesignBillNotificationTests {
                 WORKER_USER_ID,
                 null,
                 "collab-worker",
-                Set.of(
-                        "message:operate-production",
-                        "workflow:review-production"),
+                Set.of("message:operate-production"),
                 "SELF"));
         mockMvc.perform(post("/orders/{orderId}/messages", orderId)
                         .header("Authorization", "Bearer " + token)
@@ -350,11 +362,9 @@ class MessageDesignBillNotificationTests {
                 .andExpect(jsonPath("$.data.review_status").value("PENDING_REVIEW"));
 
         jdbcClient.sql("""
-                        UPDATE order_process_node node
-                        JOIN order_process_instance instance ON instance.instance_id = node.instance_id
-                        SET node.assigned_user_id = 9601
-                        WHERE instance.order_id = :orderId
-                          AND node.node_status = 'READY'
+                        UPDATE design_task
+                        SET assigned_user_id = 9601
+                        WHERE order_id = :orderId
                         """)
                 .param("orderId", orderId)
                 .update();
@@ -521,8 +531,16 @@ class MessageDesignBillNotificationTests {
                         .header("X-Bootstrap-User-Id", CS_USER_ID)
                         .contentType(MediaType.APPLICATION_JSON)
                         .content("{\"file_id\":" + fileId + "}"))
+                .andExpect(status().isConflict());
+
+        mockMvc.perform(post("/orders/{orderId}/bill", orderId)
+                        .header("X-Bootstrap-Role", "CS")
+                        .header("X-Bootstrap-User-Id", CS_USER_ID)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"file_id\":" + billFileId + "}"))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.data.bill_status").value("UPLOADED"));
+        markPaymentNotRequired();
 
         mockMvc.perform(get("/orders/{orderId}/bill", orderId)
                         .header("X-Bootstrap-Role", "DOCTOR")
@@ -569,7 +587,7 @@ class MessageDesignBillNotificationTests {
                         .header("X-Bootstrap-Role", "CS")
                         .header("X-Bootstrap-User-Id", CS_USER_ID)
                         .contentType(MediaType.APPLICATION_JSON)
-                        .content("{\"file_id\":" + fileId + ",\"amount_cents\":128800,\"currency\":\"CNY\"}"))
+                        .content("{\"file_id\":" + billFileId + ",\"amount_cents\":128800,\"currency\":\"CNY\"}"))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.data.bill_status").value("UPLOADED"))
                 .andExpect(jsonPath("$.data.payment_status").value("PENDING_PAYMENT"))
@@ -616,6 +634,19 @@ class MessageDesignBillNotificationTests {
                         .header("X-Bootstrap-Role", "CS")
                         .header("X-Bootstrap-User-Id", CS_USER_ID)
                         .contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"amount_cents\":128800,\"currency\":\"CNY\",\"payment_method\":\"BANK_TRANSFER\"}"))
+                .andExpect(status().isConflict());
+        mockMvc.perform(post("/orders/{orderId}/bill", orderId)
+                        .header("X-Bootstrap-Role", "CS")
+                        .header("X-Bootstrap-User-Id", CS_USER_ID)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"file_id\":" + billFileId + ",\"amount_cents\":128800,\"currency\":\"CNY\"}"))
+                .andExpect(status().isOk());
+
+        mockMvc.perform(post("/orders/{orderId}/payments", orderId)
+                        .header("X-Bootstrap-Role", "CS")
+                        .header("X-Bootstrap-User-Id", CS_USER_ID)
+                        .contentType(MediaType.APPLICATION_JSON)
                         .content("""
                                 {
                                   "amount_cents": 128800,
@@ -628,6 +659,11 @@ class MessageDesignBillNotificationTests {
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.data.amount_cents").value(128800))
                 .andExpect(jsonPath("$.data.payment_method").value("BANK_TRANSFER"));
+        mockMvc.perform(get("/orders/{orderId}/bill", orderId)
+                        .header("X-Bootstrap-Role", "CS")
+                        .header("X-Bootstrap-User-Id", CS_USER_ID))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.payment_status").value("PAID"));
 
         mockMvc.perform(get("/orders/{orderId}/payments", orderId)
                         .header("X-Bootstrap-Role", "DOCTOR")
@@ -672,6 +708,15 @@ class MessageDesignBillNotificationTests {
                         .header("X-Bootstrap-Role", "CS")
                         .header("X-Bootstrap-User-Id", CS_USER_ID)
                         .contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"carrier\":\"顺丰速运\",\"tracking_no\":\"SF-PAYMENT-BLOCKED\"}"))
+                .andExpect(status().isConflict())
+                .andExpect(status().reason(containsString("payment must be paid or marked not required before shipment")));
+
+        markPaymentNotRequired();
+        mockMvc.perform(post("/orders/{orderId}/logistics", orderId)
+                        .header("X-Bootstrap-Role", "CS")
+                        .header("X-Bootstrap-User-Id", CS_USER_ID)
+                        .contentType(MediaType.APPLICATION_JSON)
                         .content("{\"carrier\":\"顺丰速运\",\"tracking_no\":\"SF-READY\"}"))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.data.logistics_status").value("SHIPPED"))
@@ -687,6 +732,7 @@ class MessageDesignBillNotificationTests {
 
     @Test
     void csCanTrackLogisticsExceptionsWithoutLeakingInternalFollowUpToDoctor() throws Exception {
+        markPaymentNotRequired();
         markFinalOutCheckPassed();
 
         mockMvc.perform(post("/orders/{orderId}/logistics", orderId)
@@ -914,9 +960,24 @@ class MessageDesignBillNotificationTests {
     private void createClaimedDesignTask() {
         jdbcClient.sql("""
                         INSERT INTO design_task
-                            (order_id, task_status, assigned_user_id, claimed_at)
+                            (order_id, node_instance_id, task_status, assigned_user_id, claimed_at)
                         VALUES
-                            (:orderId, 'CLAIMED', :workerUserId, CURRENT_TIMESTAMP(3))
+                            (
+                                :orderId,
+                                (
+                                    SELECT node.node_instance_id
+                                    FROM order_process_node node
+                                    JOIN order_process_instance instance
+                                      ON instance.instance_id = node.instance_id
+                                    WHERE instance.order_id = :orderId
+                                      AND node.node_category = 'DESIGN_GATE'
+                                    ORDER BY node.node_instance_id
+                                    LIMIT 1
+                                ),
+                                'CLAIMED',
+                                :workerUserId,
+                                CURRENT_TIMESTAMP(3)
+                            )
                         """)
                 .param("orderId", orderId)
                 .param("workerUserId", WORKER_USER_ID)
@@ -941,6 +1002,16 @@ class MessageDesignBillNotificationTests {
                 .param("orderId", orderId)
                 .param("nodeInstanceId", finalNodeId)
                 .param("checkerUserId", WORKER_USER_ID)
+                .update();
+    }
+
+    private void markPaymentNotRequired() {
+        jdbcClient.sql("""
+                        INSERT INTO order_bill (order_id, bill_status, payment_status)
+                        VALUES (:orderId, 'PENDING', 'NOT_REQUIRED')
+                        ON DUPLICATE KEY UPDATE payment_status = 'NOT_REQUIRED'
+                        """)
+                .param("orderId", orderId)
                 .update();
     }
 
@@ -999,6 +1070,18 @@ class MessageDesignBillNotificationTests {
                 .param("sourceNodeId", sourceNodeId)
                 .param("nodeCode", "collab-datascope-" + suffix.substring(0, 12))
                 .param("workerUserId", WORKER_USER_ID)
+                .update();
+        jdbcClient.sql("""
+                        INSERT INTO order_process_node
+                            (instance_id, source_node_id, node_code, process_name, stage_name, step_order,
+                             is_optional, node_category, need_in_check, need_out_check, node_status)
+                        VALUES
+                            (:instanceId, :sourceNodeId, :nodeCode, '设计稿确认', '设计审核', -10,
+                             0, 'DESIGN_GATE', 0, 0, 'READY')
+                        """)
+                .param("instanceId", instanceId)
+                .param("sourceNodeId", sourceNodeId)
+                .param("nodeCode", "collab-design-gate-" + suffix.substring(0, 12))
                 .update();
     }
 

@@ -103,10 +103,17 @@ class SalesDashboardTests {
     @Test
     void csCanReadInboundAndOutboundSalesWithPreviousYearComparison() throws Exception {
         int currentMonthIndex = LocalDate.now().getMonthValue() - 1;
+        int comparisonDayCount = Math.min(
+                LocalDate.now().getDayOfMonth(),
+                LocalDate.now().minusMonths(1).lengthOfMonth());
+        boolean todayIsIncludedInMatchedDayComparison =
+                LocalDate.now().getDayOfMonth() <= comparisonDayCount;
         long expectedInboundCurrent = baselineInboundCurrent + 200_000 + 110_000;
         long expectedInboundPrevious = baselineInboundPrevious + 150_000;
         long expectedOutboundCurrent = baselineOutboundCurrent + 80_000 + 40_000;
         long expectedOutboundPrevious = baselineOutboundPrevious + 50_000;
+        long currentComparisonInboundDelta = todayIsIncludedInMatchedDayComparison ? 200_000 : 0;
+        long currentComparisonOutboundDelta = todayIsIncludedInMatchedDayComparison ? 80_000 : 0;
 
         mockMvc.perform(get("/dashboards/sales")
                         .header("X-Bootstrap-Role", "CS")
@@ -131,11 +138,11 @@ class SalesDashboardTests {
                 .andExpect(jsonPath("$.data.monthly_trend[" + currentMonthIndex + "].previous_year_outbound_amount_cents")
                         .value(baselineMonthOutboundPrevious + 50_000))
                 .andExpect(jsonPath("$.data.month_comparison.inbound.current_amount_cents")
-                        .value(baselineComparisonInboundCurrent + 200_000))
+                        .value(baselineComparisonInboundCurrent + currentComparisonInboundDelta))
                 .andExpect(jsonPath("$.data.month_comparison.inbound.previous_month_amount_cents")
                         .value(baselineComparisonInboundPrevious + 110_000))
                 .andExpect(jsonPath("$.data.month_comparison.outbound.current_amount_cents")
-                        .value(baselineComparisonOutboundCurrent + 80_000))
+                        .value(baselineComparisonOutboundCurrent + currentComparisonOutboundDelta))
                 .andExpect(jsonPath("$.data.month_comparison.outbound.previous_month_amount_cents")
                         .value(baselineComparisonOutboundPrevious + 40_000))
                 .andExpect(jsonPath("$.data.month_comparison.daily_trend",

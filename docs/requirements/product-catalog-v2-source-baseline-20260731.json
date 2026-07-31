@@ -1,0 +1,1535 @@
+{
+  "schema_version": "2026-07-31.1",
+  "status": "SOURCE_NORMALIZED_NOT_YET_SEEDED",
+  "decision_ids": [
+    "D-174",
+    "D-175"
+  ],
+  "source_priority": [
+    {
+      "name": "APPROVED_DECISIONS",
+      "priority": 1
+    },
+    {
+      "name": "动态下单表最终版.docx",
+      "sha256": "147810af568da193d7acd10f7963283ff8e0e74f5f272415aefda7bb6b1daef5",
+      "priority": 2
+    },
+    {
+      "name": "产品内容.doc",
+      "sha256": "d40a767e0ae7151d8c6a63960bb312d7661471780c95f50068210d02d3ded525",
+      "priority": 3
+    }
+  ],
+  "defaults": {
+    "pricing_status": "PENDING_QUOTE",
+    "publication_status": "DRAFT",
+    "physical_delete_policy": "ONLY_NEVER_PUBLISHED_AND_UNREFERENCED_DRAFT",
+    "single_file_limit_bytes": 524288000,
+    "workflow_structure_editable": false
+  },
+  "categories": [
+    {
+      "code": "FIXED_RESTORATION",
+      "display_name": "固定义齿",
+      "sort_order": 10
+    },
+    {
+      "code": "REMOVABLE_PROSTHETICS",
+      "display_name": "活动义齿",
+      "sort_order": 20
+    },
+    {
+      "code": "IMPLANT_RESTORATION",
+      "display_name": "种植修复",
+      "sort_order": 30
+    },
+    {
+      "code": "CONVENTIONAL_ORTHODONTICS",
+      "display_name": "常规正畸",
+      "sort_order": 40
+    },
+    {
+      "code": "CLEAR_ALIGNER",
+      "display_name": "隐形正畸",
+      "sort_order": 50
+    },
+    {
+      "code": "DESIGN_SERVICE",
+      "display_name": "设计服务",
+      "sort_order": 60
+    }
+  ],
+  "products": [
+    {
+      "code": "FIXED_PRINTED_ZIRCONIA_CROWN",
+      "display_name": "打印氧化锆冠",
+      "category_code": "FIXED_RESTORATION",
+      "workflow_product_type": "REGULAR_CROWN",
+      "tooth_rule_code": "TOOTH_FIXED",
+      "status": "ACTIVE_CANDIDATE"
+    },
+    {
+      "code": "FIXED_ALL_CERAMIC_CROWN",
+      "display_name": "全瓷冠",
+      "category_code": "FIXED_RESTORATION",
+      "workflow_product_type": "REGULAR_CROWN",
+      "tooth_rule_code": "TOOTH_FIXED",
+      "status": "ACTIVE_CANDIDATE"
+    },
+    {
+      "code": "FIXED_LAYERED_CERAMIC_CROWN",
+      "display_name": "全瓷上瓷冠",
+      "category_code": "FIXED_RESTORATION",
+      "workflow_product_type": "REGULAR_CROWN",
+      "tooth_rule_code": "TOOTH_FIXED",
+      "status": "ACTIVE_CANDIDATE"
+    },
+    {
+      "code": "FIXED_PFM_CROWN",
+      "display_name": "烤瓷冠",
+      "category_code": "FIXED_RESTORATION",
+      "workflow_product_type": "REGULAR_CROWN",
+      "tooth_rule_code": "TOOTH_FIXED",
+      "status": "ACTIVE_CANDIDATE"
+    },
+    {
+      "code": "FIXED_INLAY",
+      "display_name": "嵌体",
+      "category_code": "FIXED_RESTORATION",
+      "workflow_product_type": "REGULAR_CROWN",
+      "tooth_rule_code": "TOOTH_FIXED",
+      "status": "ACTIVE_CANDIDATE"
+    },
+    {
+      "code": "FIXED_VENEER",
+      "display_name": "贴面",
+      "category_code": "FIXED_RESTORATION",
+      "workflow_product_type": "VENEER_RESTORATION",
+      "tooth_rule_code": "TOOTH_FIXED",
+      "status": "ACTIVE_CANDIDATE"
+    },
+    {
+      "code": "FIXED_TEMPORARY_CROWN",
+      "display_name": "临时冠",
+      "category_code": "FIXED_RESTORATION",
+      "workflow_product_type": "REGULAR_CROWN",
+      "tooth_rule_code": "TOOTH_FIXED",
+      "status": "ACTIVE_CANDIDATE"
+    },
+    {
+      "code": "FIXED_POST_CORE",
+      "display_name": "桩核",
+      "category_code": "FIXED_RESTORATION",
+      "workflow_product_type": "REGULAR_CROWN",
+      "tooth_rule_code": "TOOTH_FIXED",
+      "status": "ACTIVE_CANDIDATE"
+    },
+    {
+      "code": "FIXED_FULL_METAL_CROWN",
+      "display_name": "全金属冠",
+      "category_code": "FIXED_RESTORATION",
+      "workflow_product_type": "REGULAR_CROWN",
+      "tooth_rule_code": "TOOTH_FIXED",
+      "status": "ACTIVE_CANDIDATE"
+    },
+    {
+      "code": "FIXED_MARYLAND_BRIDGE",
+      "display_name": "马里兰桥",
+      "category_code": "FIXED_RESTORATION",
+      "workflow_product_type": "REGULAR_CROWN",
+      "tooth_rule_code": "TOOTH_FIXED",
+      "status": "ACTIVE_CANDIDATE",
+      "constraints": {
+        "missing_units": 1,
+        "wing_units": 1
+      }
+    },
+    {
+      "code": "FIXED_DIAGNOSTIC_WAXUP",
+      "display_name": "美学蜡型",
+      "category_code": "FIXED_RESTORATION",
+      "workflow_product_type": "REGULAR_CROWN",
+      "tooth_rule_code": "TOOTH_FIXED",
+      "status": "ACTIVE_CANDIDATE"
+    },
+    {
+      "code": "FIXED_TELESCOPIC_CROWN",
+      "display_name": "双重冠",
+      "category_code": "FIXED_RESTORATION",
+      "workflow_product_type": "TELESCOPIC_CROWN",
+      "tooth_rule_code": "TOOTH_FIXED",
+      "status": "ACTIVE_CANDIDATE"
+    },
+    {
+      "code": "FIXED_COMPOSITE_CROWN",
+      "display_name": "聚合瓷冠",
+      "category_code": "FIXED_RESTORATION",
+      "workflow_product_type": "REGULAR_CROWN",
+      "tooth_rule_code": "TOOTH_FIXED",
+      "status": "DRAFT",
+      "reason": "详细材料段出现但未列入D02主产品清单"
+    },
+    {
+      "code": "REMOVABLE_FRAMEWORK_DENTURE",
+      "display_name": "支架义齿",
+      "category_code": "REMOVABLE_PROSTHETICS",
+      "workflow_product_type": "REMOVABLE_STEEL",
+      "tooth_rule_code": "TOOTH_REMOVABLE",
+      "status": "ACTIVE_CANDIDATE"
+    },
+    {
+      "code": "REMOVABLE_ACRYLIC_DENTURE",
+      "display_name": "树脂活动义齿",
+      "category_code": "REMOVABLE_PROSTHETICS",
+      "workflow_product_type": "REMOVABLE_ACRYLIC",
+      "tooth_rule_code": "TOOTH_REMOVABLE",
+      "status": "ACTIVE_CANDIDATE"
+    },
+    {
+      "code": "REMOVABLE_FLEXIBLE_DENTURE",
+      "display_name": "弹性义齿",
+      "category_code": "REMOVABLE_PROSTHETICS",
+      "workflow_product_type": "REMOVABLE_INVISIBLE",
+      "tooth_rule_code": "TOOTH_REMOVABLE",
+      "status": "ACTIVE_CANDIDATE"
+    },
+    {
+      "code": "REMOVABLE_SNAP_ON_SMILE",
+      "display_name": "微笑牙套",
+      "category_code": "REMOVABLE_PROSTHETICS",
+      "workflow_product_type": "REMOVABLE_INVISIBLE",
+      "tooth_rule_code": "TOOTH_REMOVABLE",
+      "status": "ACTIVE_CANDIDATE"
+    },
+    {
+      "code": "REMOVABLE_TEMPORARY_DENTURE",
+      "display_name": "临时活动义齿",
+      "category_code": "REMOVABLE_PROSTHETICS",
+      "workflow_product_type": "REMOVABLE_ACRYLIC",
+      "tooth_rule_code": "TOOTH_REMOVABLE",
+      "status": "ACTIVE_CANDIDATE"
+    },
+    {
+      "code": "REMOVABLE_REPAIR",
+      "display_name": "活动义齿修理",
+      "category_code": "REMOVABLE_PROSTHETICS",
+      "workflow_product_type": "REMOVABLE_ACRYLIC",
+      "tooth_rule_code": "TOOTH_REMOVABLE",
+      "status": "ACTIVE_CANDIDATE",
+      "default_relation_type": "AFTER_SALES"
+    },
+    {
+      "code": "REMOVABLE_CUSTOM_TRAY_WAX_RIM",
+      "display_name": "个性化托盘/蜡堤",
+      "category_code": "REMOVABLE_PROSTHETICS",
+      "workflow_product_type": "REMOVABLE_ACRYLIC",
+      "tooth_rule_code": "TOOTH_REMOVABLE",
+      "status": "ACTIVE_CANDIDATE"
+    },
+    {
+      "code": "REMOVABLE_ACRYLIC_COMPLETION",
+      "display_name": "充胶完成",
+      "category_code": "REMOVABLE_PROSTHETICS",
+      "workflow_product_type": "REMOVABLE_ACRYLIC",
+      "tooth_rule_code": "TOOTH_REMOVABLE",
+      "status": "ACTIVE_CANDIDATE"
+    },
+    {
+      "code": "REMOVABLE_COMPLETE_DENTURE",
+      "display_name": "全口义齿",
+      "category_code": "REMOVABLE_PROSTHETICS",
+      "workflow_product_type": "REMOVABLE_ACRYLIC",
+      "tooth_rule_code": "TOOTH_REMOVABLE",
+      "status": "ACTIVE_CANDIDATE"
+    },
+    {
+      "code": "REMOVABLE_BLEACHING_TRAY",
+      "display_name": "漂白牙套",
+      "category_code": "REMOVABLE_PROSTHETICS",
+      "workflow_product_type": "REMOVABLE_INVISIBLE",
+      "tooth_rule_code": "TOOTH_REMOVABLE",
+      "status": "ACTIVE_CANDIDATE"
+    },
+    {
+      "code": "IMPLANT_ZIRCONIA_CROWN",
+      "display_name": "种植氧化锆冠",
+      "category_code": "IMPLANT_RESTORATION",
+      "workflow_product_type": "IMPLANT_RESTORATION",
+      "tooth_rule_code": "TOOTH_IMPLANT",
+      "status": "ACTIVE_CANDIDATE"
+    },
+    {
+      "code": "IMPLANT_CUSTOM_ABUTMENT",
+      "display_name": "种植个性化基台",
+      "category_code": "IMPLANT_RESTORATION",
+      "workflow_product_type": "IMPLANT_RESTORATION",
+      "tooth_rule_code": "TOOTH_IMPLANT",
+      "status": "ACTIVE_CANDIDATE"
+    },
+    {
+      "code": "IMPLANT_MONOLITHIC_CROWN",
+      "display_name": "种植一体冠",
+      "category_code": "IMPLANT_RESTORATION",
+      "workflow_product_type": "IMPLANT_RESTORATION",
+      "tooth_rule_code": "TOOTH_IMPLANT",
+      "status": "ACTIVE_CANDIDATE"
+    },
+    {
+      "code": "IMPLANT_SURGICAL_GUIDE",
+      "display_name": "种植导板",
+      "category_code": "IMPLANT_RESTORATION",
+      "workflow_product_type": "IMPLANT_RESTORATION",
+      "tooth_rule_code": "TOOTH_IMPLANT",
+      "status": "ACTIVE_CANDIDATE"
+    },
+    {
+      "code": "IMPLANT_FRAMEWORK",
+      "display_name": "种植桥架",
+      "category_code": "IMPLANT_RESTORATION",
+      "workflow_product_type": "IMPLANT_RESTORATION",
+      "tooth_rule_code": "TOOTH_IMPLANT",
+      "status": "ACTIVE_CANDIDATE"
+    },
+    {
+      "code": "IMPLANT_FULL_ARCH",
+      "display_name": "全口种植产品",
+      "category_code": "IMPLANT_RESTORATION",
+      "workflow_product_type": "IMPLANT_RESTORATION",
+      "tooth_rule_code": "TOOTH_IMPLANT",
+      "status": "ACTIVE_CANDIDATE"
+    },
+    {
+      "code": "IMPLANT_SUPRASTRUCTURE_DENTURE",
+      "display_name": "种植上部义齿",
+      "category_code": "IMPLANT_RESTORATION",
+      "workflow_product_type": "IMPLANT_RESTORATION",
+      "tooth_rule_code": "TOOTH_IMPLANT",
+      "status": "ACTIVE_CANDIDATE"
+    },
+    {
+      "code": "ORTHO_NIGHT_GUARD_HARD",
+      "display_name": "夜磨牙颌垫（硬）",
+      "category_code": "CONVENTIONAL_ORTHODONTICS",
+      "product_group_code": "ORTHO_OCCLUSAL_APPLIANCE",
+      "workflow_product_type": "ORTHODONTICS",
+      "tooth_rule_code": "TOOTH_ORTHO",
+      "status": "ACTIVE_CANDIDATE"
+    },
+    {
+      "code": "ORTHO_NIGHT_GUARD_SOFT",
+      "display_name": "夜磨牙颌垫（软）",
+      "category_code": "CONVENTIONAL_ORTHODONTICS",
+      "product_group_code": "ORTHO_OCCLUSAL_APPLIANCE",
+      "workflow_product_type": "ORTHODONTICS",
+      "tooth_rule_code": "TOOTH_ORTHO",
+      "status": "ACTIVE_CANDIDATE"
+    },
+    {
+      "code": "ORTHO_NIGHT_GUARD_DUAL",
+      "display_name": "夜磨牙颌垫（内软外硬）",
+      "category_code": "CONVENTIONAL_ORTHODONTICS",
+      "product_group_code": "ORTHO_OCCLUSAL_APPLIANCE",
+      "workflow_product_type": "ORTHODONTICS",
+      "tooth_rule_code": "TOOTH_ORTHO",
+      "status": "ACTIVE_CANDIDATE"
+    },
+    {
+      "code": "ORTHO_PRINTED_NIGHT_GUARD",
+      "display_name": "打印夜磨牙颌垫",
+      "category_code": "CONVENTIONAL_ORTHODONTICS",
+      "product_group_code": "ORTHO_OCCLUSAL_APPLIANCE",
+      "workflow_product_type": "ORTHODONTICS",
+      "tooth_rule_code": "TOOTH_ORTHO",
+      "status": "ACTIVE_CANDIDATE"
+    },
+    {
+      "code": "ORTHO_SPORT_MOUTH_GUARD",
+      "display_name": "运动牙套",
+      "category_code": "CONVENTIONAL_ORTHODONTICS",
+      "product_group_code": "ORTHO_OCCLUSAL_APPLIANCE",
+      "workflow_product_type": "ORTHODONTICS",
+      "tooth_rule_code": "TOOTH_ORTHO",
+      "status": "ACTIVE_CANDIDATE"
+    },
+    {
+      "code": "ORTHO_NANCE_PALATAL_ARCH",
+      "display_name": "兰丝腭弓+腭杆",
+      "category_code": "CONVENTIONAL_ORTHODONTICS",
+      "product_group_code": "ORTHO_RETAINER",
+      "workflow_product_type": "ORTHODONTICS",
+      "tooth_rule_code": "TOOTH_ORTHO",
+      "status": "ACTIVE_CANDIDATE"
+    },
+    {
+      "code": "ORTHO_HAWLEY_RETAINER",
+      "display_name": "哈利式保持器",
+      "category_code": "CONVENTIONAL_ORTHODONTICS",
+      "product_group_code": "ORTHO_RETAINER",
+      "workflow_product_type": "ORTHODONTICS",
+      "tooth_rule_code": "TOOTH_ORTHO",
+      "status": "ACTIVE_CANDIDATE"
+    },
+    {
+      "code": "ORTHO_TRANSPALATAL_ARCH",
+      "display_name": "横腭杆 TPA",
+      "category_code": "CONVENTIONAL_ORTHODONTICS",
+      "product_group_code": "ORTHO_RETAINER",
+      "workflow_product_type": "ORTHODONTICS",
+      "tooth_rule_code": "TOOTH_ORTHO",
+      "status": "ACTIVE_CANDIDATE"
+    },
+    {
+      "code": "ORTHO_BEGER_RETAINER",
+      "display_name": "比格保持器",
+      "category_code": "CONVENTIONAL_ORTHODONTICS",
+      "product_group_code": "ORTHO_RETAINER",
+      "workflow_product_type": "ORTHODONTICS",
+      "tooth_rule_code": "TOOTH_ORTHO",
+      "status": "ACTIVE_CANDIDATE",
+      "normalization_note": "中文商品名保留，英文规范名待业务确认"
+    },
+    {
+      "code": "ORTHO_WELDED_HAWLEY_RETAINER",
+      "display_name": "焊接哈利式保持器",
+      "category_code": "CONVENTIONAL_ORTHODONTICS",
+      "product_group_code": "ORTHO_RETAINER",
+      "workflow_product_type": "ORTHODONTICS",
+      "tooth_rule_code": "TOOTH_ORTHO",
+      "status": "ACTIVE_CANDIDATE"
+    },
+    {
+      "code": "ORTHO_FIXED_RETAINER",
+      "display_name": "舌侧固定保持器",
+      "category_code": "CONVENTIONAL_ORTHODONTICS",
+      "product_group_code": "ORTHO_RETAINER",
+      "workflow_product_type": "ORTHODONTICS",
+      "tooth_rule_code": "TOOTH_ORTHO",
+      "status": "ACTIVE_CANDIDATE"
+    },
+    {
+      "code": "ORTHO_LINGUAL_ARCH",
+      "display_name": "舌弓",
+      "category_code": "CONVENTIONAL_ORTHODONTICS",
+      "product_group_code": "ORTHO_RETAINER",
+      "workflow_product_type": "ORTHODONTICS",
+      "tooth_rule_code": "TOOTH_ORTHO",
+      "status": "ACTIVE_CANDIDATE"
+    },
+    {
+      "code": "ORTHO_TONGUE_HABIT_APPLIANCE",
+      "display_name": "舌棚/舌刺/舌栅",
+      "category_code": "CONVENTIONAL_ORTHODONTICS",
+      "product_group_code": "ORTHO_RETAINER",
+      "workflow_product_type": "ORTHODONTICS",
+      "tooth_rule_code": "TOOTH_ORTHO",
+      "status": "ACTIVE_CANDIDATE"
+    },
+    {
+      "code": "ORTHO_CLEAR_RETAINER",
+      "display_name": "透明保持器",
+      "category_code": "CONVENTIONAL_ORTHODONTICS",
+      "product_group_code": "ORTHO_RETAINER",
+      "workflow_product_type": "ORTHODONTICS",
+      "tooth_rule_code": "TOOTH_ORTHO",
+      "status": "ACTIVE_CANDIDATE"
+    },
+    {
+      "code": "ORTHO_SPACE_MAINTAINER",
+      "display_name": "间隙保持器",
+      "category_code": "CONVENTIONAL_ORTHODONTICS",
+      "product_group_code": "ORTHO_RETAINER",
+      "workflow_product_type": "ORTHODONTICS",
+      "tooth_rule_code": "TOOTH_ORTHO",
+      "status": "ACTIVE_CANDIDATE"
+    },
+    {
+      "code": "ORTHO_ERUPTION_BLOCKER",
+      "display_name": "阻萌器",
+      "category_code": "CONVENTIONAL_ORTHODONTICS",
+      "product_group_code": "ORTHO_RETAINER",
+      "workflow_product_type": "ORTHODONTICS",
+      "tooth_rule_code": "TOOTH_ORTHO",
+      "status": "ACTIVE_CANDIDATE"
+    },
+    {
+      "code": "ORTHO_MANDIBULAR_INCLINED_PLANE",
+      "display_name": "下颌斜面导板",
+      "category_code": "CONVENTIONAL_ORTHODONTICS",
+      "product_group_code": "ORTHO_FUNCTIONAL_APPLIANCE",
+      "workflow_product_type": "ORTHODONTICS",
+      "tooth_rule_code": "TOOTH_ORTHO",
+      "status": "ACTIVE_CANDIDATE"
+    },
+    {
+      "code": "ORTHO_CUSTOM_APPLIANCE",
+      "display_name": "个性化矫正器",
+      "category_code": "CONVENTIONAL_ORTHODONTICS",
+      "product_group_code": "ORTHO_FUNCTIONAL_APPLIANCE",
+      "workflow_product_type": "ORTHODONTICS",
+      "tooth_rule_code": "TOOTH_ORTHO",
+      "status": "ACTIVE_CANDIDATE"
+    },
+    {
+      "code": "ORTHO_SIDE_GUIDE_PLANE",
+      "display_name": "侧面导板",
+      "category_code": "CONVENTIONAL_ORTHODONTICS",
+      "product_group_code": "ORTHO_FUNCTIONAL_APPLIANCE",
+      "workflow_product_type": "ORTHODONTICS",
+      "tooth_rule_code": "TOOTH_ORTHO",
+      "status": "ACTIVE_CANDIDATE"
+    },
+    {
+      "code": "ORTHO_VESTIBULAR_SHIELD",
+      "display_name": "前庭盾",
+      "category_code": "CONVENTIONAL_ORTHODONTICS",
+      "product_group_code": "ORTHO_FUNCTIONAL_APPLIANCE",
+      "workflow_product_type": "ORTHODONTICS",
+      "tooth_rule_code": "TOOTH_ORTHO",
+      "status": "ACTIVE_CANDIDATE"
+    },
+    {
+      "code": "ORTHO_REVERSE_PULL_HEADGEAR",
+      "display_name": "前方牵引器",
+      "category_code": "CONVENTIONAL_ORTHODONTICS",
+      "product_group_code": "ORTHO_FUNCTIONAL_APPLIANCE",
+      "workflow_product_type": "ORTHODONTICS",
+      "tooth_rule_code": "TOOTH_ORTHO",
+      "status": "ACTIVE_CANDIDATE"
+    },
+    {
+      "code": "ORTHO_ORAL_MUSCLE_ACTIVATOR",
+      "display_name": "口外肌激动器",
+      "category_code": "CONVENTIONAL_ORTHODONTICS",
+      "product_group_code": "ORTHO_FUNCTIONAL_APPLIANCE",
+      "workflow_product_type": "ORTHODONTICS",
+      "tooth_rule_code": "TOOTH_ORTHO",
+      "status": "ACTIVE_CANDIDATE"
+    },
+    {
+      "code": "ORTHO_LIP_BUMPER",
+      "display_name": "唇档",
+      "category_code": "CONVENTIONAL_ORTHODONTICS",
+      "product_group_code": "ORTHO_FUNCTIONAL_APPLIANCE",
+      "workflow_product_type": "ORTHODONTICS",
+      "tooth_rule_code": "TOOTH_ORTHO",
+      "status": "ACTIVE_CANDIDATE"
+    },
+    {
+      "code": "ORTHO_FLAT_BITE_PLANE",
+      "display_name": "平面导板",
+      "category_code": "CONVENTIONAL_ORTHODONTICS",
+      "product_group_code": "ORTHO_FUNCTIONAL_APPLIANCE",
+      "workflow_product_type": "ORTHODONTICS",
+      "tooth_rule_code": "TOOTH_ORTHO",
+      "status": "ACTIVE_CANDIDATE"
+    },
+    {
+      "code": "ORTHO_SPRING_APPLIANCE",
+      "display_name": "弹簧矫正器",
+      "category_code": "CONVENTIONAL_ORTHODONTICS",
+      "product_group_code": "ORTHO_FUNCTIONAL_APPLIANCE",
+      "workflow_product_type": "ORTHODONTICS",
+      "tooth_rule_code": "TOOTH_ORTHO",
+      "status": "ACTIVE_CANDIDATE"
+    },
+    {
+      "code": "ORTHO_FRANKEL_II",
+      "display_name": "法兰克尔 II",
+      "category_code": "CONVENTIONAL_ORTHODONTICS",
+      "product_group_code": "ORTHO_FUNCTIONAL_APPLIANCE",
+      "workflow_product_type": "ORTHODONTICS",
+      "tooth_rule_code": "TOOTH_ORTHO",
+      "status": "ACTIVE_CANDIDATE"
+    },
+    {
+      "code": "ORTHO_FRANKEL_III",
+      "display_name": "法兰克尔 III",
+      "category_code": "CONVENTIONAL_ORTHODONTICS",
+      "product_group_code": "ORTHO_FUNCTIONAL_APPLIANCE",
+      "workflow_product_type": "ORTHODONTICS",
+      "tooth_rule_code": "TOOTH_ORTHO",
+      "status": "ACTIVE_CANDIDATE"
+    },
+    {
+      "code": "ORTHO_PERIODONTAL_SPLINT",
+      "display_name": "牙周夹板",
+      "category_code": "CONVENTIONAL_ORTHODONTICS",
+      "product_group_code": "ORTHO_FUNCTIONAL_APPLIANCE",
+      "workflow_product_type": "ORTHODONTICS",
+      "tooth_rule_code": "TOOTH_ORTHO",
+      "status": "ACTIVE_CANDIDATE"
+    },
+    {
+      "code": "ORTHO_ROBERTS_RETRACTOR",
+      "display_name": "罗拔式牵引器",
+      "category_code": "CONVENTIONAL_ORTHODONTICS",
+      "product_group_code": "ORTHO_FUNCTIONAL_APPLIANCE",
+      "workflow_product_type": "ORTHODONTICS",
+      "tooth_rule_code": "TOOTH_ORTHO",
+      "status": "ACTIVE_CANDIDATE"
+    },
+    {
+      "code": "ORTHO_CROZAT_LOWER_EXPANDER",
+      "display_name": "Crozat 扩弓器（下颌）",
+      "category_code": "CONVENTIONAL_ORTHODONTICS",
+      "product_group_code": "ORTHO_EXPANDER",
+      "workflow_product_type": "ORTHODONTICS",
+      "tooth_rule_code": "TOOTH_ORTHO",
+      "status": "ACTIVE_CANDIDATE"
+    },
+    {
+      "code": "ORTHO_THREE_WAY_DIAMOND_EXPANDER",
+      "display_name": "三方向菱形扩弓器",
+      "category_code": "CONVENTIONAL_ORTHODONTICS",
+      "product_group_code": "ORTHO_EXPANDER",
+      "workflow_product_type": "ORTHODONTICS",
+      "tooth_rule_code": "TOOTH_ORTHO",
+      "status": "ACTIVE_CANDIDATE"
+    },
+    {
+      "code": "ORTHO_THREE_DIMENSIONAL_EXPANDER",
+      "display_name": "三维扩弓器（螺旋式）",
+      "category_code": "CONVENTIONAL_ORTHODONTICS",
+      "product_group_code": "ORTHO_EXPANDER",
+      "workflow_product_type": "ORTHODONTICS",
+      "tooth_rule_code": "TOOTH_ORTHO",
+      "status": "ACTIVE_CANDIDATE"
+    },
+    {
+      "code": "ORTHO_OMNIDIRECTIONAL_SCREW_EXPANDER",
+      "display_name": "全方位螺旋调节器",
+      "category_code": "CONVENTIONAL_ORTHODONTICS",
+      "product_group_code": "ORTHO_EXPANDER",
+      "workflow_product_type": "ORTHODONTICS",
+      "tooth_rule_code": "TOOTH_ORTHO",
+      "status": "ACTIVE_CANDIDATE"
+    },
+    {
+      "code": "ORTHO_TWIN_BLOCK",
+      "display_name": "双导面功能矫治器",
+      "category_code": "CONVENTIONAL_ORTHODONTICS",
+      "product_group_code": "ORTHO_EXPANDER",
+      "workflow_product_type": "ORTHODONTICS",
+      "tooth_rule_code": "TOOTH_ORTHO",
+      "status": "ACTIVE_CANDIDATE"
+    },
+    {
+      "code": "ORTHO_QUAD_HELIX_WELDED",
+      "display_name": "四眼圈簧扩弓器（焊接式）",
+      "category_code": "CONVENTIONAL_ORTHODONTICS",
+      "product_group_code": "ORTHO_EXPANDER",
+      "workflow_product_type": "ORTHODONTICS",
+      "tooth_rule_code": "TOOTH_ORTHO",
+      "status": "ACTIVE_CANDIDATE"
+    },
+    {
+      "code": "ORTHO_QUAD_HELIX_LINGUAL",
+      "display_name": "四眼簧扩弓器（舌侧焊接）",
+      "category_code": "CONVENTIONAL_ORTHODONTICS",
+      "product_group_code": "ORTHO_EXPANDER",
+      "workflow_product_type": "ORTHODONTICS",
+      "tooth_rule_code": "TOOTH_ORTHO",
+      "status": "ACTIVE_CANDIDATE"
+    },
+    {
+      "code": "ORTHO_RAPID_EXPANDER_LOWER",
+      "display_name": "快速扩弓器（下颌）",
+      "category_code": "CONVENTIONAL_ORTHODONTICS",
+      "product_group_code": "ORTHO_EXPANDER",
+      "workflow_product_type": "ORTHODONTICS",
+      "tooth_rule_code": "TOOTH_ORTHO",
+      "status": "ACTIVE_CANDIDATE"
+    },
+    {
+      "code": "ORTHO_FAN_EXPANDER_INTEGRATED",
+      "display_name": "扇形扩弓器（一体式）",
+      "category_code": "CONVENTIONAL_ORTHODONTICS",
+      "product_group_code": "ORTHO_EXPANDER",
+      "workflow_product_type": "ORTHODONTICS",
+      "tooth_rule_code": "TOOTH_ORTHO",
+      "status": "ACTIVE_CANDIDATE"
+    },
+    {
+      "code": "ORTHO_FAN_EXPANDER_SEPARATE",
+      "display_name": "扇形扩弓器（分离式）",
+      "category_code": "CONVENTIONAL_ORTHODONTICS",
+      "product_group_code": "ORTHO_EXPANDER",
+      "workflow_product_type": "ORTHODONTICS",
+      "tooth_rule_code": "TOOTH_ORTHO",
+      "status": "ACTIVE_CANDIDATE"
+    },
+    {
+      "code": "ORTHO_MEMORY_EXPANDER",
+      "display_name": "横向记忆扩弓器",
+      "category_code": "CONVENTIONAL_ORTHODONTICS",
+      "product_group_code": "ORTHO_EXPANDER",
+      "workflow_product_type": "ORTHODONTICS",
+      "tooth_rule_code": "TOOTH_ORTHO",
+      "status": "ACTIVE_CANDIDATE"
+    },
+    {
+      "code": "ORTHO_BIONATOR",
+      "display_name": "比纳特",
+      "category_code": "CONVENTIONAL_ORTHODONTICS",
+      "product_group_code": "ORTHO_EXPANDER",
+      "workflow_product_type": "ORTHODONTICS",
+      "tooth_rule_code": "TOOTH_ORTHO",
+      "status": "ACTIVE_CANDIDATE"
+    },
+    {
+      "code": "ORTHO_SCREW_EXPANDER",
+      "display_name": "螺旋扩弓器",
+      "category_code": "CONVENTIONAL_ORTHODONTICS",
+      "product_group_code": "ORTHO_EXPANDER",
+      "workflow_product_type": "ORTHODONTICS",
+      "tooth_rule_code": "TOOTH_ORTHO",
+      "status": "ACTIVE_CANDIDATE",
+      "variants": [
+        "SINGLE_DIRECTION",
+        "DOUBLE_DIRECTION"
+      ]
+    },
+    {
+      "code": "ORTHO_UNIVERSAL_EXPANDER",
+      "display_name": "通用型扩弓器",
+      "category_code": "CONVENTIONAL_ORTHODONTICS",
+      "product_group_code": "ORTHO_EXPANDER",
+      "workflow_product_type": "ORTHODONTICS",
+      "tooth_rule_code": "TOOTH_ORTHO",
+      "status": "ACTIVE_CANDIDATE",
+      "variants": [
+        "STANDARD",
+        "ELEVEN_MM"
+      ]
+    },
+    {
+      "code": "ORTHO_PENDULUM_APPLIANCE",
+      "display_name": "钟摆矫治器",
+      "category_code": "CONVENTIONAL_ORTHODONTICS",
+      "product_group_code": "ORTHO_EXPANDER",
+      "workflow_product_type": "ORTHODONTICS",
+      "tooth_rule_code": "TOOTH_ORTHO",
+      "status": "ACTIVE_CANDIDATE"
+    },
+    {
+      "code": "ORTHO_CAST_RAPID_EXPANDER",
+      "display_name": "铸造快速扩弓器",
+      "category_code": "CONVENTIONAL_ORTHODONTICS",
+      "product_group_code": "ORTHO_EXPANDER",
+      "workflow_product_type": "ORTHODONTICS",
+      "tooth_rule_code": "TOOTH_ORTHO",
+      "status": "ACTIVE_CANDIDATE"
+    },
+    {
+      "code": "ORTHO_SHARK_SNORE_GUARD",
+      "display_name": "鲨鱼阻鼾器",
+      "category_code": "CONVENTIONAL_ORTHODONTICS",
+      "product_group_code": "ORTHO_SNORE_APPLIANCE",
+      "workflow_product_type": "ORTHODONTICS",
+      "tooth_rule_code": "TOOTH_ORTHO",
+      "status": "ACTIVE_CANDIDATE"
+    },
+    {
+      "code": "ORTHO_PLASTIC_ROD_SNORE_APPLIANCE",
+      "display_name": "塑料拉杆式阻鼾器",
+      "category_code": "CONVENTIONAL_ORTHODONTICS",
+      "product_group_code": "ORTHO_SNORE_APPLIANCE",
+      "workflow_product_type": "ORTHODONTICS",
+      "tooth_rule_code": "TOOTH_ORTHO",
+      "status": "ACTIVE_CANDIDATE"
+    },
+    {
+      "code": "ORTHO_METAL_ROD_SNORE_APPLIANCE",
+      "display_name": "金属拉杆式阻鼾器",
+      "category_code": "CONVENTIONAL_ORTHODONTICS",
+      "product_group_code": "ORTHO_SNORE_APPLIANCE",
+      "workflow_product_type": "ORTHODONTICS",
+      "tooth_rule_code": "TOOTH_ORTHO",
+      "status": "ACTIVE_CANDIDATE"
+    },
+    {
+      "code": "CLEAR_ALIGNER_TYPE_A",
+      "display_name": "隐形正畸 A 型",
+      "category_code": "CLEAR_ALIGNER",
+      "workflow_product_type": "ORTHODONTICS",
+      "tooth_rule_code": "TOOTH_CLEAR_ALIGNER",
+      "status": "ACTIVE_CANDIDATE",
+      "enabled_by_configuration": true
+    },
+    {
+      "code": "DESIGN_FULL_CROWN",
+      "display_name": "全冠设计",
+      "category_code": "DESIGN_SERVICE",
+      "workflow_product_type": null,
+      "execution_mode": "DESIGN_ONLY",
+      "status": "DRAFT"
+    },
+    {
+      "code": "DESIGN_VENEER",
+      "display_name": "贴面设计",
+      "category_code": "DESIGN_SERVICE",
+      "workflow_product_type": null,
+      "execution_mode": "DESIGN_ONLY",
+      "status": "DRAFT"
+    },
+    {
+      "code": "DESIGN_INLAY",
+      "display_name": "嵌体设计",
+      "category_code": "DESIGN_SERVICE",
+      "workflow_product_type": null,
+      "execution_mode": "DESIGN_ONLY",
+      "status": "DRAFT"
+    },
+    {
+      "code": "DESIGN_MARYLAND_BRIDGE",
+      "display_name": "马里兰桥设计",
+      "category_code": "DESIGN_SERVICE",
+      "workflow_product_type": null,
+      "execution_mode": "DESIGN_ONLY",
+      "status": "DRAFT"
+    },
+    {
+      "code": "DESIGN_CUSTOM_ABUTMENT",
+      "display_name": "个性化基台设计",
+      "category_code": "DESIGN_SERVICE",
+      "workflow_product_type": null,
+      "execution_mode": "DESIGN_ONLY",
+      "status": "DRAFT"
+    },
+    {
+      "code": "DESIGN_MONOLITHIC_IMPLANT_CROWN",
+      "display_name": "一体冠设计",
+      "category_code": "DESIGN_SERVICE",
+      "workflow_product_type": null,
+      "execution_mode": "DESIGN_ONLY",
+      "status": "DRAFT"
+    },
+    {
+      "code": "DESIGN_FULL_ARCH_IMPLANT_FRAMEWORK",
+      "display_name": "全口种植桥架设计",
+      "category_code": "DESIGN_SERVICE",
+      "workflow_product_type": null,
+      "execution_mode": "DESIGN_ONLY",
+      "status": "DRAFT"
+    },
+    {
+      "code": "DESIGN_IMPLANT_GUIDE",
+      "display_name": "种植导板设计",
+      "category_code": "DESIGN_SERVICE",
+      "workflow_product_type": null,
+      "execution_mode": "DESIGN_ONLY",
+      "status": "DRAFT"
+    },
+    {
+      "code": "DESIGN_IMPLANT_SUPRASTRUCTURE",
+      "display_name": "种植上部义齿设计",
+      "category_code": "DESIGN_SERVICE",
+      "workflow_product_type": null,
+      "execution_mode": "DESIGN_ONLY",
+      "status": "DRAFT"
+    },
+    {
+      "code": "DESIGN_COMPLETE_DENTURE",
+      "display_name": "全口义齿设计",
+      "category_code": "DESIGN_SERVICE",
+      "workflow_product_type": null,
+      "execution_mode": "DESIGN_ONLY",
+      "status": "DRAFT"
+    },
+    {
+      "code": "DESIGN_REMOVABLE_FRAMEWORK",
+      "display_name": "支架设计",
+      "category_code": "DESIGN_SERVICE",
+      "workflow_product_type": null,
+      "execution_mode": "DESIGN_ONLY",
+      "status": "DRAFT"
+    },
+    {
+      "code": "DESIGN_ACRYLIC_DENTURE",
+      "display_name": "树脂义齿设计",
+      "category_code": "DESIGN_SERVICE",
+      "workflow_product_type": null,
+      "execution_mode": "DESIGN_ONLY",
+      "status": "DRAFT"
+    },
+    {
+      "code": "DESIGN_FLEXIBLE_DENTURE",
+      "display_name": "弹性义齿设计",
+      "category_code": "DESIGN_SERVICE",
+      "workflow_product_type": null,
+      "execution_mode": "DESIGN_ONLY",
+      "status": "DRAFT"
+    },
+    {
+      "code": "DESIGN_DIAGNOSTIC_WAXUP",
+      "display_name": "美学蜡型设计",
+      "category_code": "DESIGN_SERVICE",
+      "workflow_product_type": null,
+      "execution_mode": "DESIGN_ONLY",
+      "status": "DRAFT"
+    },
+    {
+      "code": "DESIGN_INNER_CROWN",
+      "display_name": "内冠设计",
+      "category_code": "DESIGN_SERVICE",
+      "workflow_product_type": null,
+      "execution_mode": "DESIGN_ONLY",
+      "status": "DRAFT"
+    },
+    {
+      "code": "DESIGN_TELESCOPIC_CROWN",
+      "display_name": "双重冠设计",
+      "category_code": "DESIGN_SERVICE",
+      "workflow_product_type": null,
+      "execution_mode": "DESIGN_ONLY",
+      "status": "DRAFT"
+    },
+    {
+      "code": "DESIGN_CUSTOM_TRAY",
+      "display_name": "个性化托盘设计",
+      "category_code": "DESIGN_SERVICE",
+      "workflow_product_type": null,
+      "execution_mode": "DESIGN_ONLY",
+      "status": "DRAFT"
+    }
+  ],
+  "materials": [
+    {
+      "code": "MATERIAL_ZIRCONIA_PRINTED",
+      "display_name": "打印氧化锆",
+      "material_family": "ZIRCONIA",
+      "status": "ACTIVE_CANDIDATE"
+    },
+    {
+      "code": "MATERIAL_E_MAX",
+      "display_name": "E-max 铸瓷",
+      "material_family": "CERAMIC",
+      "status": "ACTIVE_CANDIDATE"
+    },
+    {
+      "code": "MATERIAL_3M_LAVA_ZIRCONIA",
+      "display_name": "3M LAVA 氧化锆",
+      "material_family": "ZIRCONIA",
+      "status": "ACTIVE_CANDIDATE"
+    },
+    {
+      "code": "MATERIAL_AIDITE_3D_ZIRCONIA",
+      "display_name": "爱迪特绚彩 3D 氧化锆",
+      "material_family": "ZIRCONIA",
+      "status": "ACTIVE_CANDIDATE"
+    },
+    {
+      "code": "MATERIAL_AIDITE_ZIRCONIA",
+      "display_name": "爱迪特氧化锆",
+      "material_family": "ZIRCONIA",
+      "status": "ACTIVE_CANDIDATE"
+    },
+    {
+      "code": "MATERIAL_WIELAND_ZIRCONIA",
+      "display_name": "威兰德氧化锆",
+      "material_family": "ZIRCONIA",
+      "status": "ACTIVE_CANDIDATE"
+    },
+    {
+      "code": "MATERIAL_CERCON_ZIRCONIA",
+      "display_name": "泽康氧化锆",
+      "material_family": "ZIRCONIA",
+      "status": "ACTIVE_CANDIDATE"
+    },
+    {
+      "code": "MATERIAL_JIAHONG_CRYSTAL_ZIRCONIA",
+      "display_name": "家红水晶氧化锆",
+      "material_family": "ZIRCONIA",
+      "status": "ACTIVE_CANDIDATE"
+    },
+    {
+      "code": "MATERIAL_COBALT_CHROMIUM",
+      "display_name": "钴铬合金",
+      "material_family": "METAL",
+      "status": "ACTIVE_CANDIDATE"
+    },
+    {
+      "code": "MATERIAL_BEGO_COBALT_CHROMIUM",
+      "display_name": "Bego 钴铬合金",
+      "material_family": "METAL",
+      "status": "ACTIVE_CANDIDATE"
+    },
+    {
+      "code": "MATERIAL_PURE_TITANIUM",
+      "display_name": "纯钛",
+      "material_family": "METAL",
+      "status": "ACTIVE_CANDIDATE"
+    },
+    {
+      "code": "MATERIAL_PRECIOUS_METAL",
+      "display_name": "贵金属",
+      "material_family": "METAL",
+      "status": "ACTIVE_CANDIDATE"
+    },
+    {
+      "code": "MATERIAL_PEEK_HPP",
+      "display_name": "PEEK / Bio HPP",
+      "material_family": "POLYMER",
+      "status": "ACTIVE_CANDIDATE"
+    },
+    {
+      "code": "MATERIAL_VITALLIUM_2000",
+      "display_name": "Vitallium 2000",
+      "material_family": "METAL",
+      "status": "ACTIVE_CANDIDATE"
+    },
+    {
+      "code": "MATERIAL_LUCITONE_199_ACRYLIC",
+      "display_name": "Lucitone 199 丙烯酸树脂",
+      "material_family": "ACRYLIC",
+      "status": "ACTIVE_CANDIDATE",
+      "is_product": false
+    },
+    {
+      "code": "MATERIAL_VALPLAST_FLEXIBLE",
+      "display_name": "Valplast 弹性材料",
+      "material_family": "FLEXIBLE_RESIN",
+      "status": "ACTIVE_CANDIDATE"
+    },
+    {
+      "code": "MATERIAL_TCS_FLEXIBLE",
+      "display_name": "TCS 弹性材料",
+      "material_family": "FLEXIBLE_RESIN",
+      "status": "ACTIVE_CANDIDATE"
+    }
+  ],
+  "accessories": [
+    {
+      "code": "ACCESSORY_PRECISION_BREDENT_BALL",
+      "display_name": "Bredent 球状精密附着体",
+      "quantity_supported": true
+    },
+    {
+      "code": "ACCESSORY_PRECISION_BREDENT_LOCK",
+      "display_name": "Bredent 锁式精密附着体",
+      "quantity_supported": true
+    },
+    {
+      "code": "ACCESSORY_PRECISION_BREDENT_KEYWAY",
+      "display_name": "Bredent 键槽精密附着体",
+      "quantity_supported": true
+    },
+    {
+      "code": "ACCESSORY_PRECISION_MK1_LOCK",
+      "display_name": "MK1 锁式精密附着体",
+      "quantity_supported": true
+    },
+    {
+      "code": "ACCESSORY_REMOVABLE_SOFT_LINER",
+      "display_name": "加软衬",
+      "quantity_supported": true
+    },
+    {
+      "code": "ACCESSORY_REMOVABLE_CAST_REST_CLASP",
+      "display_name": "加铸造支托/卡环",
+      "quantity_supported": true
+    },
+    {
+      "code": "ACCESSORY_REMOVABLE_CLEAR_CLASP",
+      "display_name": "加白胶钩/透明卡环/隐形卡环",
+      "quantity_supported": true
+    },
+    {
+      "code": "ACCESSORY_REMOVABLE_MESH",
+      "display_name": "加成品钢网",
+      "quantity_supported": true
+    },
+    {
+      "code": "ACCESSORY_ORTHO_CHARACTER_COLOR_BLOCK",
+      "display_name": "加公仔图/色块",
+      "quantity_supported": true
+    },
+    {
+      "code": "ACCESSORY_ORTHO_CLASP",
+      "display_name": "加卡环",
+      "quantity_supported": true
+    },
+    {
+      "code": "ACCESSORY_ORTHO_LABIAL_BOW",
+      "display_name": "加唇弓",
+      "quantity_supported": true
+    },
+    {
+      "code": "ACCESSORY_ORTHO_BAND",
+      "display_name": "加带环",
+      "quantity_supported": true
+    },
+    {
+      "code": "ACCESSORY_ORTHO_SPRING",
+      "display_name": "加弹簧",
+      "quantity_supported": true
+    },
+    {
+      "code": "ACCESSORY_ORTHO_EXPANSION_SCREW",
+      "display_name": "加扩弓螺丝",
+      "quantity_supported": true
+    },
+    {
+      "code": "ACCESSORY_ORTHO_TRACTION_HOOK",
+      "display_name": "加牵引钩",
+      "quantity_supported": true
+    },
+    {
+      "code": "ACCESSORY_ORTHO_BUCCAL_TUBE",
+      "display_name": "加颊面管",
+      "quantity_supported": true
+    },
+    {
+      "code": "ACCESSORY_ORTHO_OCCLUSAL_PAD",
+      "display_name": "加颌垫",
+      "quantity_supported": true
+    }
+  ],
+  "aliases": [
+    {
+      "alias": "Full Denture",
+      "canonical_type": "PRODUCT",
+      "canonical_code": "REMOVABLE_COMPLETE_DENTURE"
+    },
+    {
+      "alias": "Complete Denture",
+      "canonical_type": "PRODUCT",
+      "canonical_code": "REMOVABLE_COMPLETE_DENTURE"
+    },
+    {
+      "alias": "Luciton 199 Acrylic",
+      "canonical_type": "MATERIAL",
+      "canonical_code": "MATERIAL_LUCITONE_199_ACRYLIC"
+    },
+    {
+      "alias": "Twin Block Appliances",
+      "canonical_type": "PRODUCT",
+      "canonical_code": "ORTHO_TWIN_BLOCK"
+    },
+    {
+      "alias": "Standard Twin Block",
+      "canonical_type": "PRODUCT_VARIANT",
+      "canonical_code": "ORTHO_TWIN_BLOCK:STANDARD"
+    },
+    {
+      "alias": "Fixed Retention Retainer",
+      "canonical_type": "PRODUCT",
+      "canonical_code": "ORTHO_FIXED_RETAINER"
+    },
+    {
+      "alias": "Permanent Retainer",
+      "canonical_type": "PRODUCT",
+      "canonical_code": "ORTHO_FIXED_RETAINER"
+    },
+    {
+      "alias": "Fixed Space Maintainer",
+      "canonical_type": "PRODUCT_VARIANT",
+      "canonical_code": "ORTHO_SPACE_MAINTAINER:FIXED"
+    },
+    {
+      "alias": "Space Maintainer",
+      "canonical_type": "PRODUCT",
+      "canonical_code": "ORTHO_SPACE_MAINTAINER"
+    },
+    {
+      "alias": "Bleaching Trays",
+      "canonical_type": "PRODUCT",
+      "canonical_code": "REMOVABLE_BLEACHING_TRAY"
+    },
+    {
+      "alias": "Sport Mount guards",
+      "canonical_type": "PRODUCT",
+      "canonical_code": "ORTHO_SPORT_MOUTH_GUARD"
+    }
+  ],
+  "supplemental_orthodontic_terms": [
+    {
+      "code": "SUPP_ORTHO_LINGUAL_ARCH",
+      "source_term": "Lingual Arch",
+      "classification": "ALIAS",
+      "canonical_code": "ORTHO_LINGUAL_ARCH"
+    },
+    {
+      "code": "SUPP_ORTHO_FIXED_RETENTION_RETAINER",
+      "source_term": "Fixed Retention Retainer",
+      "classification": "ALIAS",
+      "canonical_code": "ORTHO_FIXED_RETAINER"
+    },
+    {
+      "code": "SUPP_ORTHO_FIXED_EXPANDERS",
+      "source_term": "Fixed Expanders",
+      "classification": "DRAFT_PRODUCT",
+      "canonical_code": null
+    },
+    {
+      "code": "SUPP_ORTHO_TWIN_BLOCK_APPLIANCES",
+      "source_term": "Twin Block Appliances",
+      "classification": "ALIAS",
+      "canonical_code": "ORTHO_TWIN_BLOCK"
+    },
+    {
+      "code": "SUPP_ORTHO_STANDARD_TWIN_BLOCK",
+      "source_term": "Standard Twin Block",
+      "classification": "VARIANT_ALIAS",
+      "canonical_code": "ORTHO_TWIN_BLOCK:STANDARD"
+    },
+    {
+      "code": "SUPP_ORTHO_TRANSPALATAL_ARCH",
+      "source_term": "Transpalatal Arch",
+      "classification": "ALIAS",
+      "canonical_code": "ORTHO_TRANSPALATAL_ARCH"
+    },
+    {
+      "code": "SUPP_ORTHO_TONGUE_HABIT",
+      "source_term": "Tongue Habit/Spiked Thumb Habit",
+      "classification": "ALIAS",
+      "canonical_code": "ORTHO_TONGUE_HABIT_APPLIANCE"
+    },
+    {
+      "code": "SUPP_ORTHO_LIP_BUMPER_ACRYLIC",
+      "source_term": "Lip bumper with Acrylic",
+      "classification": "VARIANT_ALIAS",
+      "canonical_code": "ORTHO_LIP_BUMPER:ACRYLIC"
+    },
+    {
+      "code": "SUPP_ORTHO_THREE_WAY_SCHWARTZ",
+      "source_term": "Three-way Arch Development-Schwartz",
+      "classification": "DRAFT_PRODUCT",
+      "canonical_code": null
+    },
+    {
+      "code": "SUPP_ORTHO_THREE_SCREW_SAGITTAL",
+      "source_term": "3-Screw Sagittal",
+      "classification": "DRAFT_PRODUCT",
+      "canonical_code": null
+    },
+    {
+      "code": "SUPP_ORTHO_BITE_PLANE_STAGE_II",
+      "source_term": "Bite Plane Stage II",
+      "classification": "DRAFT_PRODUCT",
+      "canonical_code": null
+    },
+    {
+      "code": "SUPP_ORTHO_SPRING_RETAINER",
+      "source_term": "Spring Retainer",
+      "classification": "DRAFT_PRODUCT",
+      "canonical_code": null
+    },
+    {
+      "code": "SUPP_ORTHO_SNORE_APPLIANCE",
+      "source_term": "Snore Appliance",
+      "classification": "PRODUCT_GROUP_ALIAS",
+      "canonical_code": "ORTHO_SNORE_APPLIANCE"
+    },
+    {
+      "code": "SUPP_ORTHO_SHARK_SNORE_GUARD",
+      "source_term": "Shark Snore guard (OSS)",
+      "classification": "ALIAS",
+      "canonical_code": "ORTHO_SHARK_SNORE_GUARD"
+    },
+    {
+      "code": "SUPP_ORTHO_SILENSOR",
+      "source_term": "Silensor Erkodent Anti Snoring Guard",
+      "classification": "DRAFT_PRODUCT",
+      "canonical_code": null
+    },
+    {
+      "code": "SUPP_ORTHO_PENDULUM",
+      "source_term": "Pendulum Appliance",
+      "classification": "ALIAS",
+      "canonical_code": "ORTHO_PENDULUM_APPLIANCE"
+    },
+    {
+      "code": "SUPP_ORTHO_FROQ",
+      "source_term": "Froq Appliance",
+      "classification": "DRAFT_PRODUCT",
+      "canonical_code": null
+    },
+    {
+      "code": "SUPP_ORTHO_SKELETAL_EXPANDER",
+      "source_term": "Skeletal Expander",
+      "classification": "DRAFT_PRODUCT",
+      "canonical_code": null
+    },
+    {
+      "code": "SUPP_ORTHO_RPE_BAND",
+      "source_term": "RPE Appliance with Band",
+      "classification": "DRAFT_PRODUCT",
+      "canonical_code": null
+    },
+    {
+      "code": "SUPP_ORTHO_REMOVABLE_SCHWARTZ",
+      "source_term": "Removable Schwartz",
+      "classification": "DRAFT_PRODUCT",
+      "canonical_code": null
+    },
+    {
+      "code": "SUPP_ORTHO_ANTERIOR_SAGITTAL",
+      "source_term": "Anterior Sagittal",
+      "classification": "DRAFT_PRODUCT",
+      "canonical_code": null
+    },
+    {
+      "code": "SUPP_ORTHO_WRAP_AROUND_RETAINER",
+      "source_term": "Wrap around Retainer",
+      "classification": "DRAFT_PRODUCT",
+      "canonical_code": null
+    },
+    {
+      "code": "SUPP_ORTHO_RICK_A_NATOR",
+      "source_term": "Bite Plane +Rick-A-Nator II",
+      "classification": "DRAFT_PRODUCT",
+      "canonical_code": null
+    },
+    {
+      "code": "SUPP_ORTHO_QUAD_HELIX",
+      "source_term": "Quad-Helix",
+      "classification": "PRODUCT_GROUP_ALIAS",
+      "canonical_code": "ORTHO_QUAD_HELIX_WELDED"
+    },
+    {
+      "code": "SUPP_ORTHO_PULL_FORWARD",
+      "source_term": "Pull Forward",
+      "classification": "ALIAS",
+      "canonical_code": "ORTHO_REVERSE_PULL_HEADGEAR"
+    },
+    {
+      "code": "SUPP_ORTHO_NITI_EXPANDER",
+      "source_term": "NiTi Expander",
+      "classification": "DRAFT_PRODUCT",
+      "canonical_code": null
+    },
+    {
+      "code": "SUPP_ORTHO_FIXED_HABIT",
+      "source_term": "Fixed Habit Appliances",
+      "classification": "VARIANT_ALIAS",
+      "canonical_code": "ORTHO_TONGUE_HABIT_APPLIANCE:FIXED"
+    },
+    {
+      "code": "SUPP_ORTHO_NANCE",
+      "source_term": "Nance",
+      "classification": "ALIAS",
+      "canonical_code": "ORTHO_NANCE_PALATAL_ARCH"
+    },
+    {
+      "code": "SUPP_ORTHO_HAWLEY",
+      "source_term": "Hawley Retainer",
+      "classification": "ALIAS",
+      "canonical_code": "ORTHO_HAWLEY_RETAINER"
+    },
+    {
+      "code": "SUPP_ORTHO_MODIFIED_SPLINT",
+      "source_term": "Modified Splint +Lingual bar",
+      "classification": "DRAFT_PRODUCT",
+      "canonical_code": null
+    },
+    {
+      "code": "SUPP_ORTHO_REPOSITIONING_SPLINT",
+      "source_term": "Repositionig Splint",
+      "classification": "DRAFT_PRODUCT",
+      "canonical_code": null,
+      "normalized_spelling": "Repositioning Splint"
+    },
+    {
+      "code": "SUPP_ORTHO_ORTHOPEDIC_CORRECTOR",
+      "source_term": "Orthopedic Corrector",
+      "classification": "DRAFT_PRODUCT",
+      "canonical_code": null
+    },
+    {
+      "code": "SUPP_ORTHO_MARA_HERBST",
+      "source_term": "Mara Appliance Herbst",
+      "classification": "DRAFT_PRODUCT",
+      "canonical_code": null
+    },
+    {
+      "code": "SUPP_ORTHO_HANK_MINISCOPE_HERBST",
+      "source_term": "Hank's Mini-Scope Herbst",
+      "classification": "DRAFT_PRODUCT",
+      "canonical_code": null
+    },
+    {
+      "code": "SUPP_ORTHO_CANTILEVER_HERBST",
+      "source_term": "Cantilever Expansion +Herbst Appliances",
+      "classification": "DRAFT_PRODUCT",
+      "canonical_code": null
+    },
+    {
+      "code": "SUPP_ORTHO_INVISIBLE_RETAINER",
+      "source_term": "Invisible Retainer",
+      "classification": "ALIAS",
+      "canonical_code": "ORTHO_CLEAR_RETAINER"
+    },
+    {
+      "code": "SUPP_ORTHO_FRANKEL_II",
+      "source_term": "Frankel II",
+      "classification": "ALIAS",
+      "canonical_code": "ORTHO_FRANKEL_II"
+    },
+    {
+      "code": "SUPP_ORTHO_FRANKEL_III",
+      "source_term": "Frankel III",
+      "classification": "ALIAS",
+      "canonical_code": "ORTHO_FRANKEL_III"
+    },
+    {
+      "code": "SUPP_ORTHO_FAN_EXPANDER",
+      "source_term": "Fan Expander",
+      "classification": "PRODUCT_GROUP_ALIAS",
+      "canonical_code": "ORTHO_FAN_EXPANDER_INTEGRATED"
+    },
+    {
+      "code": "SUPP_ORTHO_ANTERIOR_SPLINTS",
+      "source_term": "Anterior Splints",
+      "classification": "DRAFT_PRODUCT",
+      "canonical_code": null
+    },
+    {
+      "code": "SUPP_ORTHO_TOOTH_POSITIONER",
+      "source_term": "Tooth Positioner",
+      "classification": "DRAFT_PRODUCT",
+      "canonical_code": null
+    },
+    {
+      "code": "SUPP_ORTHO_STUDY_MODEL",
+      "source_term": "Study Model",
+      "classification": "DRAFT_SERVICE",
+      "canonical_code": null
+    },
+    {
+      "code": "SUPP_ORTHO_FIXED_SPACE_MAINTAINER",
+      "source_term": "Fixed Space Maintainer",
+      "classification": "VARIANT_ALIAS",
+      "canonical_code": "ORTHO_SPACE_MAINTAINER:FIXED"
+    },
+    {
+      "code": "SUPP_ORTHO_SPACE_MAINTAINER",
+      "source_term": "Space Maintainer",
+      "classification": "ALIAS",
+      "canonical_code": "ORTHO_SPACE_MAINTAINER"
+    },
+    {
+      "code": "SUPP_ORTHO_NIGHT_GUARD_HARD",
+      "source_term": "Night Guard Hard",
+      "classification": "ALIAS",
+      "canonical_code": "ORTHO_NIGHT_GUARD_HARD"
+    },
+    {
+      "code": "SUPP_ORTHO_PERMANENT_RETAINER",
+      "source_term": "Permanent Retainer",
+      "classification": "ALIAS",
+      "canonical_code": "ORTHO_FIXED_RETAINER"
+    },
+    {
+      "code": "SUPP_ORTHO_VESTIBULAR_SHIELD",
+      "source_term": "Vestibular shield",
+      "classification": "ALIAS",
+      "canonical_code": "ORTHO_VESTIBULAR_SHIELD"
+    },
+    {
+      "code": "SUPP_ORTHO_BLEACHING_TRAYS",
+      "source_term": "Bleaching Trays",
+      "classification": "CROSS_CATEGORY_ALIAS",
+      "canonical_code": "REMOVABLE_BLEACHING_TRAY"
+    },
+    {
+      "code": "SUPP_ORTHO_SPORT_MOUTH_GUARD",
+      "source_term": "Sport Mount guards",
+      "classification": "ALIAS",
+      "canonical_code": "ORTHO_SPORT_MOUTH_GUARD"
+    },
+    {
+      "code": "SUPP_ORTHO_SPRING_APPLIANCE",
+      "source_term": "Spring Appliance (1spring+2Adams clasp)",
+      "classification": "VARIANT_ALIAS",
+      "canonical_code": "ORTHO_SPRING_APPLIANCE:ONE_SPRING_TWO_ADAMS"
+    },
+    {
+      "code": "SUPP_ORTHO_HYRAX",
+      "source_term": "Hyrax",
+      "classification": "DRAFT_PRODUCT",
+      "canonical_code": null
+    },
+    {
+      "code": "SUPP_ORTHO_T_APPLIANCE",
+      "source_term": "T-appliance",
+      "classification": "DRAFT_PRODUCT",
+      "canonical_code": null
+    },
+    {
+      "code": "SUPP_ORTHO_ADDITIONAL_LABIAL_BOW",
+      "source_term": "additional Labial Bow",
+      "classification": "ACCESSORY_ALIAS",
+      "canonical_code": "ACCESSORY_ORTHO_LABIAL_BOW"
+    },
+    {
+      "code": "SUPP_ORTHO_ADDITIONAL_LABIAL_ACRYLIC",
+      "source_term": "additional Labial Acrylic",
+      "classification": "DRAFT_ACCESSORY",
+      "canonical_code": null
+    },
+    {
+      "code": "SUPP_ORTHO_ADDITIONAL_SCREW",
+      "source_term": "additional Screw(standard)",
+      "classification": "ACCESSORY_ALIAS",
+      "canonical_code": "ACCESSORY_ORTHO_EXPANSION_SCREW"
+    },
+    {
+      "code": "SUPP_ORTHO_ADDITIONAL_SPRING",
+      "source_term": "additional Spring",
+      "classification": "ACCESSORY_ALIAS",
+      "canonical_code": "ACCESSORY_ORTHO_SPRING"
+    },
+    {
+      "code": "SUPP_ORTHO_ADDITIONAL_CLASP",
+      "source_term": "additional Clasp",
+      "classification": "ACCESSORY_ALIAS",
+      "canonical_code": "ACCESSORY_ORTHO_CLASP"
+    },
+    {
+      "code": "SUPP_ORTHO_TEETH_SET_UP",
+      "source_term": "teeth set up",
+      "classification": "DRAFT_ACCESSORY",
+      "canonical_code": null
+    },
+    {
+      "code": "SUPP_ORTHO_ADDITIONAL_SOLDERED",
+      "source_term": "additional Soldered",
+      "classification": "DRAFT_ACCESSORY",
+      "canonical_code": null
+    },
+    {
+      "code": "SUPP_ORTHO_CANINE_GUIDANCE",
+      "source_term": "additional Canine Guidance",
+      "classification": "DRAFT_ACCESSORY",
+      "canonical_code": null
+    },
+    {
+      "code": "SUPP_ORTHO_ANTERIOR_BITE_PLANE",
+      "source_term": "additional Anterior bite plane",
+      "classification": "DRAFT_ACCESSORY",
+      "canonical_code": null
+    },
+    {
+      "code": "SUPP_ORTHO_POSTERIOR_BITE_PLANE",
+      "source_term": "additional Posterior bite plane",
+      "classification": "DRAFT_ACCESSORY",
+      "canonical_code": null
+    }
+  ],
+  "semantic_color_sets": [
+    "TOOTH_SHADE",
+    "GINGIVAL_SHADE",
+    "DENTURE_BASE_SHADE",
+    "ALIGNER_COLOR"
+  ],
+  "unresolved": [
+    "正式价格、币种和生效时间",
+    "各产品标准交期及加急资格",
+    "订单组总容量、文件总数和更细格式白名单",
+    "设计服务DESIGN_ONLY执行模式与账单/物流边界",
+    "仅补充英文清单出现且无法可靠映射的正畸条目",
+    "未提供的工序标准分钟"
+  ]
+}

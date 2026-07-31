@@ -4,8 +4,7 @@ import com.yuri.aiorder.common.BootstrapIdentity;
 import com.yuri.aiorder.common.DataResponse;
 import com.yuri.aiorder.common.UserRole;
 import com.yuri.aiorder.common.auth.RequirePermission;
-import com.yuri.aiorder.order.status.InternalOrderStatus;
-import com.yuri.aiorder.order.status.OrderStatusService;
+import com.yuri.aiorder.collaboration.CollaborationService;
 import jakarta.validation.Valid;
 import org.springframework.web.bind.annotation.CrossOrigin;
 import org.springframework.web.bind.annotation.GetMapping;
@@ -21,17 +20,17 @@ import org.springframework.web.bind.annotation.RestController;
 public class OrderController {
 
     private final OrderProjectionQueryService queryService;
-    private final OrderStatusService statusService;
+    private final CollaborationService collaborationService;
     private final OrderCreationService creationService;
     private final OrderReviewService reviewService;
 
     public OrderController(
             OrderProjectionQueryService queryService,
-            OrderStatusService statusService,
+            CollaborationService collaborationService,
             OrderCreationService creationService,
             OrderReviewService reviewService) {
         this.queryService = queryService;
-        this.statusService = statusService;
+        this.collaborationService = collaborationService;
         this.creationService = creationService;
         this.reviewService = reviewService;
     }
@@ -88,20 +87,12 @@ public class OrderController {
     }
 
     @PostMapping("/orders/{orderId}/confirm-receipt")
-    @RequirePermission(value = "order:read-doctor", roles = {UserRole.ADMIN, UserRole.DOCTOR})
+    @RequirePermission(value = "order:read-doctor", roles = {UserRole.DOCTOR})
     public DataResponse<ConfirmReceiptResponse> confirmReceipt(
             @PathVariable long orderId,
             BootstrapIdentity identity) {
-        if (identity.isDoctor()) {
-            queryService.getDoctorOrder(orderId, identity);
-        }
-        String externalStatus = statusService.updateOrderState(
-                        orderId,
-                        InternalOrderStatus.COMPLETED,
-                        "DOCTOR_CONFIRM_RECEIPT",
-                        identity.userId(),
-                        "doctor confirmed receipt")
-                .name();
+        queryService.getDoctorOrder(orderId, identity);
+        String externalStatus = collaborationService.confirmReceipt(orderId, identity).name();
         return new DataResponse<>(new ConfirmReceiptResponse(orderId, externalStatus));
     }
 

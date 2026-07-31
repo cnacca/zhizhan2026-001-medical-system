@@ -6,6 +6,7 @@ APP_CORS_ALLOWED_ORIGIN=https://replace-with-phase-one-domain.example
 APP_AUTH_TOKEN_SECRET=replace-with-external-secret
 APP_AUTH_ALLOW_BOOTSTRAP_HEADERS=false
 APP_AUTH_ALLOW_ROLE_FALLBACK=false
+WORKFLOW_STANDARD_TIME_FORMAL_ENABLED=false
 
 MYSQL_DATABASE=ai_order_platform_prod_example
 MYSQL_USER=ai_order_prod_example

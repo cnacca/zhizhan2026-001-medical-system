@@ -38,6 +38,7 @@ type OrderItem = {
   external_status: string
   production_note: string | null
   reject_reason: string | null
+  form_schema_snapshot?: unknown
   form_data: Record<string, unknown>
   created_at?: string
   updated_at?: string
@@ -100,6 +101,20 @@ type BillInfo = {
   amount_cents: number | null
   currency: string
   file_id: number | null
+}
+
+type UploadTokenResponse = {
+  file_id: number
+  upload_url: string
+  expires_in_seconds: number
+}
+
+type FileCompleteResponse = {
+  file_id: number
+  upload_status: string
+  file_size: number
+  content_type: string | null
+  checksum: string | null
 }
 
 type PaymentItem = {
@@ -310,6 +325,9 @@ const orderDrawerShowAllFiles = ref(false)
 const orderDrawerShowAllDetails = ref(false)
 const orderDrawerShowAllHistory = ref(false)
 const expandedProductionStageKeys = ref<string[]>([])
+const businessGateNote = ref('')
+const businessGateLoading = ref(false)
+const businessGateError = ref('')
 const orderFilePreviewVisible = ref(false)
 const orderFilePreviewLoading = ref(false)
 const orderFilePreviewUrl = ref('')
@@ -326,10 +344,12 @@ const inquiryKeyword = ref('')
 const inquiryTab = ref<'ALL' | 'WAITING' | 'REVIEW'>('ALL')
 const inquiryDraft = ref('')
 const inquirySending = ref(false)
+const inquiryReviewLoadingId = ref<number | null>(null)
+const inquiryReviewNotes = ref<Record<number, string>>({})
 
 const translationOrderId = ref<number | null>(null)
 const translationKeyword = ref('')
-const translationFilter = ref<'ALL' | 'PENDING' | 'CONFIRMED'>('ALL')
+const translationFilter = ref<'ALL' | 'NOT_STARTED' | 'PENDING' | 'CONFIRMED' | 'REJECTED'>('ALL')
 const translationTab = ref<'INFO' | 'TRANSLATION' | 'FILES' | 'HISTORY'>('INFO')
 const translationSource = ref('')
 const translationDraft = ref('')
@@ -373,6 +393,10 @@ const billingTab = ref<'ORDER' | 'MONTHLY'>('ORDER')
 const selectedBillingOrderId = ref<number | null>(null)
 const selectedBill = ref<BillInfo | null>(null)
 const selectedPayments = ref<PaymentItem[]>([])
+const billDocument = ref<File | null>(null)
+const billAmountYuan = ref<number | null>(null)
+const billCreateLoading = ref(false)
+const billCreateError = ref('')
 const paymentAmountYuan = ref<number | null>(null)
 const paymentMethod = ref('BANK_TRANSFER')
 const paymentNote = ref('')
@@ -570,6 +594,13 @@ function hasPassedCsReview(order: OrderItem) {
     'PENDING_PRODUCTION_REVIEW', 'PRODUCTION_REJECTED', 'PROCESS_INSTANCE_CREATED',
     'ASSIGNED', 'IN_DESIGN', 'IN_PRODUCTION', 'IN_QC', 'QC_PASSED', 'SHIPPED', 'COMPLETED'
   ].includes(order.internal_status)
+}
+
+function translationReviewBucket(order: OrderItem): 'NOT_STARTED' | 'PENDING' | 'CONFIRMED' | 'REJECTED' {
+  if (order.internal_status === 'PENDING_CS_REVIEW') return 'PENDING'
+  if (order.internal_status === 'CS_REJECTED') return 'REJECTED'
+  if (hasPassedCsReview(order)) return 'CONFIRMED'
+  return 'NOT_STARTED'
 }
 
 function requiresTranslationReview(source: string) {
@@ -919,6 +950,18 @@ const orderedDrawerMessages = computed(() => [...orderMessages.value].sort((a, b
 
 const sortedOrderProcessNodes = computed(() => [...(orderProcess.value?.nodes || [])].sort((a, b) => a.step_order - b.step_order))
 
+const CS_BUSINESS_GATE_LABELS = new Map([
+  ['客服定基台', '确认基台信息已核对，可进入后续种植制作'],
+  ['客服核对订单信息及账单', '确认订单资料与账单已核对，可进入最终发货']
+])
+
+const actionableBusinessGate = computed(() => sortedOrderProcessNodes.value.find((node) =>
+  node.node_status === 'READY'
+  && CS_BUSINESS_GATE_LABELS.has(node.process_name)) || null)
+const billingBusinessGateBlocked = computed(() =>
+  actionableBusinessGate.value?.process_name === '客服核对订单信息及账单'
+  && !orderBill.value?.bill_id)
+
 type ProcessNodeVisual = {
   icon: string
   label: string
@@ -1204,11 +1247,47 @@ async function sendInquiryMessage() {
   }
 }
 
+async function reviewInquiryMessage(message: MessageItem, action: 'APPROVE' | 'REJECT') {
+  const reviewNote = (inquiryReviewNotes.value[message.msg_id] || '').trim()
+  if (action === 'REJECT' && !reviewNote) {
+    pageError.value = '退回修改时请填写需要调整的内容。'
+    return
+  }
+  inquiryReviewLoadingId.value = message.msg_id
+  pageError.value = ''
+  pageResult.value = ''
+  try {
+    await apiFetch<MessageItem>(`/messages/${message.msg_id}/review`, {
+      method: 'POST',
+      body: JSON.stringify({ action, review_note: reviewNote || null })
+    })
+    delete inquiryReviewNotes.value[message.msg_id]
+    pendingMessages.value = await safeData<MessageItem[]>('/messages/pending-review', [])
+    const selectedOrderId = inquiryOrderId.value
+    const selectedOrderStillVisible = selectedOrderId !== null
+      && conversationOrders.value.some((order) => order.order_id === selectedOrderId)
+    if (selectedOrderId !== null && selectedOrderStillVisible) {
+      await loadInquiryMessages(selectedOrderId)
+    } else if (inquiryTab.value === 'REVIEW') {
+      inquiryOrderId.value = null
+      inquiryMessages.value = []
+    }
+    pageResult.value = action === 'APPROVE' ? '消息已审核通过并按可见范围发送。' : '消息已退回生产人员修改。'
+    emit('refreshNotifications')
+  } catch (error) {
+    pageError.value = error instanceof Error ? error.message : '消息审核失败'
+  } finally {
+    inquiryReviewLoadingId.value = null
+  }
+}
+
 async function openOrder(order: OrderItem) {
   resetOrderDrawerLayout()
   if (selectedOrder.value?.order_id !== order.order_id) {
     orderDrawerMessageDraft.value = ''
     orderDrawerMessageError.value = ''
+    businessGateNote.value = ''
+    businessGateError.value = ''
   }
   resetOrderPreview()
   selectedOrder.value = order
@@ -1229,6 +1308,38 @@ async function openOrder(order: OrderItem) {
   orderBill.value = bill
   orderLogistics.value = logistics
   orderProcess.value = process
+}
+
+async function completeBusinessGate() {
+  const order = selectedOrder.value
+  const gate = actionableBusinessGate.value
+  const note = businessGateNote.value.trim()
+  if (!order || !gate || businessGateLoading.value) return
+  if (billingBusinessGateBlocked.value) {
+    businessGateError.value = '请先在账单管理上传 PDF 并建立该订单的真实账单。'
+    return
+  }
+  if (!note) {
+    businessGateError.value = '请填写本次核对结论，便于后续审计追溯。'
+    return
+  }
+  businessGateLoading.value = true
+  businessGateError.value = ''
+  try {
+    await apiFetch(`/orders/${order.order_id}/process-instance/nodes/${gate.node_instance_id}/complete-business-gate`, {
+      method: 'POST',
+      body: JSON.stringify({ note })
+    })
+    orderProcess.value = (await apiFetch<ProcessInstanceInfo>(
+      `/orders/${order.order_id}/process-instance`
+    )).data
+    businessGateNote.value = ''
+    pageResult.value = `${gate.process_name}已完成，后续节点已按流程门禁重新计算。`
+  } catch (error) {
+    businessGateError.value = error instanceof Error ? error.message : '客服业务门禁处理失败，请刷新后重试。'
+  } finally {
+    businessGateLoading.value = false
+  }
 }
 
 async function sendOrderDrawerMessage() {
@@ -1319,15 +1430,53 @@ async function selectTranslationOrder(order: OrderItem) {
   translationDraft.value = ''
   translationFiles.value = []
   translationRequirements.value = []
+  const frozenRequirements = frozenFormRequirements(order)
   const [files, requirements] = await Promise.all([
     safeData<OrderFile[]>(`/orders/${order.order_id}/files`, []),
-    safeData<FormRequirement[]>(`/form-configs?product_type=${encodeURIComponent(order.product_type)}`, [])
+    frozenRequirements == null
+      ? safeData<FormRequirement[]>(`/form-configs?product_type=${encodeURIComponent(order.product_type)}`, [])
+      : Promise.resolve(frozenRequirements)
   ])
   if (translationOrderId.value !== order.order_id) return
   translationFiles.value = files
   translationRequirements.value = requirements.filter((item) => item.status === 'ACTIVE')
   missingInfoItems.value = []
   missingInfoChecked.value = false
+}
+
+function frozenFormRequirements(order: OrderItem): FormRequirement[] | null {
+  if (!Array.isArray(order.form_schema_snapshot)) return null
+  let fieldId = -1
+  return order.form_schema_snapshot.flatMap((rule) => {
+    if (!rule || typeof rule !== 'object') return []
+    const entry = rule as Record<string, unknown>
+    if (entry.rule_type !== 'FORM_SCHEMA') return []
+    const schema = entry.schema
+    if (!schema || typeof schema !== 'object') return []
+    const fields = (schema as Record<string, unknown>).fields
+    if (!Array.isArray(fields)) return []
+    return fields.flatMap((field) => {
+      if (!field || typeof field !== 'object') return []
+      const definition = field as Record<string, unknown>
+      const key = String(definition.key ?? '').trim()
+      if (!key) return []
+      return [{
+        field_id: fieldId--,
+        product_type: order.product_type,
+        field_key: key,
+        field_label: String(definition.label ?? key),
+        field_type: String(definition.type ?? 'text'),
+        is_required: Boolean(definition.required),
+        options: Array.isArray(definition.options)
+          ? definition.options.map((option) => typeof option === 'object' && option
+            ? String((option as Record<string, unknown>).value ?? '')
+            : String(option)).filter(Boolean)
+          : [],
+        sort_order: Number(definition.sort_order ?? Math.abs(fieldId)),
+        status: 'ACTIVE'
+      }]
+    })
+  })
 }
 
 async function checkMissingInfo() {
@@ -1590,6 +1739,9 @@ async function selectBillingOrder(orderId: number) {
   billingDetailErrors.value = []
   selectedBill.value = null
   selectedPayments.value = []
+  billDocument.value = null
+  billAmountYuan.value = null
+  billCreateError.value = ''
   const [bill, payments] = await Promise.allSettled([
     apiFetch<BillInfo>(`/orders/${orderId}/bill`),
     apiFetch<PaymentItem[]>(`/orders/${orderId}/payments`)
@@ -1600,6 +1752,65 @@ async function selectBillingOrder(orderId: number) {
   if (payments.status === 'fulfilled') selectedPayments.value = payments.value.data
   else billingDetailErrors.value.push('收款记录')
   billingDetailState.value = { loading: false, error: billingDetailErrors.value.length === 2 ? '账单与收款资料暂时无法加载' : '' }
+}
+
+function selectBillDocument(event: Event) {
+  billDocument.value = (event.target as HTMLInputElement).files?.[0] || null
+  billCreateError.value = ''
+}
+
+async function createBillForSelectedOrder() {
+  const orderId = selectedBillingOrderId.value
+  const file = billDocument.value
+  const amountYuan = billAmountYuan.value
+  if (!orderId || !file || amountYuan == null || amountYuan <= 0 || billCreateLoading.value) return
+  if (!file.name.toLowerCase().endsWith('.pdf') && file.type !== 'application/pdf') {
+    billCreateError.value = '账单文件只接受 PDF。'
+    return
+  }
+  if (file.size <= 0 || file.size > 500 * 1024 * 1024) {
+    billCreateError.value = '账单 PDF 必须大于 0 且不超过 500MB。'
+    return
+  }
+  billCreateLoading.value = true
+  billCreateError.value = ''
+  try {
+    const uploadToken = await apiFetch<UploadTokenResponse>('/files/upload-token', {
+      method: 'POST',
+      body: JSON.stringify({
+        order_id: orderId,
+        source_type: 'BILL',
+        visibility: 'DOCTOR_CS',
+        original_filename: file.name,
+        content_type: 'application/pdf',
+        file_size: file.size
+      })
+    })
+    const uploadResponse = await fetch(uploadToken.data.upload_url, {
+      method: 'PUT',
+      headers: { 'Content-Type': 'application/pdf' },
+      body: file
+    })
+    if (!uploadResponse.ok) {
+      throw new Error(`账单文件上传失败：${uploadResponse.status}`)
+    }
+    await apiFetch<FileCompleteResponse>(`/files/${uploadToken.data.file_id}/complete`, { method: 'POST' })
+    await apiFetch<BillInfo>(`/orders/${orderId}/bill`, {
+      method: 'POST',
+      body: JSON.stringify({
+        file_id: uploadToken.data.file_id,
+        amount_cents: Math.round(amountYuan * 100),
+        currency: 'CNY'
+      })
+    })
+    await loadDelivery()
+    await selectBillingOrder(orderId)
+    pageResult.value = '账单 PDF 已上传并与订单关联。'
+  } catch (error) {
+    billCreateError.value = error instanceof Error ? error.message : '账单建立失败'
+  } finally {
+    billCreateLoading.value = false
+  }
 }
 
 function selectDeliveryOrder(item: DeliveryItem) {
@@ -1888,7 +2099,7 @@ const carrierOptions = [
   { name: 'EMS', mark: 'EMS', icon: '✉️' },
   { name: '其他承运商', mark: '＋', icon: '🛣️' }
 ]
-const deliveryPaymentReady = computed(() => ['PAID', 'NO_PAYMENT_REQUIRED'].includes(selectedDelivery.value?.payment_status || ''))
+const deliveryPaymentReady = computed(() => ['PAID', 'NOT_REQUIRED'].includes(selectedDelivery.value?.payment_status || ''))
 const deliveryCanRegister = computed(() => Boolean(
   selectedDelivery.value
   && selectedDelivery.value.logistics_status === 'PENDING'
@@ -1919,8 +2130,7 @@ const conversationOrders = computed(() => {
 const filteredTranslationOrders = computed(() => {
   const keyword = translationKeyword.value.trim().toLowerCase()
   return orders.value.filter((order) => {
-    if (translationFilter.value === 'PENDING' && order.internal_status !== 'PENDING_CS_REVIEW') return false
-    if (translationFilter.value === 'CONFIRMED' && !hasPassedCsReview(order)) return false
+    if (translationFilter.value !== 'ALL' && translationReviewBucket(order) !== translationFilter.value) return false
     return !keyword || [order.order_no, order.clinic_name, productLabel(order.product_type)]
       .some((value) => value.toLowerCase().includes(keyword))
   }).sort((left, right) => {
@@ -1937,10 +2147,13 @@ const translationReviewFields = computed<ReviewDisplayField[]>(() => {
   const result: ReviewDisplayField[] = []
   const usedKeys = new Set<string>()
   const activeRequirements = [...translationRequirements.value].sort((left, right) => left.sort_order - right.sort_order)
+  const frozenValues = order.form_data?.form_values && typeof order.form_data.form_values === 'object'
+    ? order.form_data.form_values as Record<string, unknown>
+    : {}
 
   for (const requirement of activeRequirements) {
     if (isInternalReviewField(requirement.field_key)) continue
-    const value = reviewFieldValue(order.form_data?.[requirement.field_key])
+    const value = reviewFieldValue(order.form_data?.[requirement.field_key] ?? frozenValues[requirement.field_key])
     result.push({
       key: requirement.field_key,
       label: requirement.field_label || reviewFieldLabels[requirement.field_key] || '订单信息',
@@ -1976,17 +2189,26 @@ const translationRequiredMissingCount = computed(() => translationReviewFields.v
 const translationReviewChecklist = computed(() => {
   const order = selectedTranslationOrder.value
   if (!order) return []
-  const hasManufacturingParameters = Boolean(
-    orderFormValue(order, ['tooth_position', 'tooth', 'teeth'])
-    && (orderFormValue(order, ['material']) || orderFormValue(order, ['shade', 'color']))
-  )
+  const hasFrozenConfiguration = Array.isArray(order.form_schema_snapshot)
+  const hasManufacturingParameters = hasFrozenConfiguration
+    ? translationRequiredMissingCount.value === 0
+    : Boolean(
+      orderFormValue(order, ['tooth_position', 'tooth', 'teeth'])
+      && (orderFormValue(order, ['material']) || orderFormValue(order, ['shade', 'color']))
+    )
   return [
     {
       label: '必填资料',
       value: translationRequiredMissingCount.value ? `${translationRequiredMissingCount.value} 项待补充` : '已填写完整',
       ok: translationRequiredMissingCount.value === 0
     },
-    { label: '制作参数', value: hasManufacturingParameters ? '已填写关键参数' : '关键参数待核对', ok: hasManufacturingParameters },
+    {
+      label: '制作参数',
+      value: hasFrozenConfiguration
+        ? (hasManufacturingParameters ? '已按提交快照核对' : '提交快照仍有必填项缺失')
+        : (hasManufacturingParameters ? '已填写关键参数' : '关键参数待核对'),
+      ok: hasManufacturingParameters
+    },
     { label: '客户文字', value: translationSource.value.trim() ? '有内容需要翻译' : '未单独填写外文指示', ok: true },
     { label: '关联附件', value: translationFiles.value.length ? `${translationFiles.value.length} 个附件` : '未上传附件', ok: translationFiles.value.length > 0 }
   ]
@@ -1994,8 +2216,10 @@ const translationReviewChecklist = computed(() => {
 
 const translationFilterCounts = computed(() => ({
   ALL: orders.value.length,
-  PENDING: orders.value.filter((order) => order.internal_status === 'PENDING_CS_REVIEW').length,
-  CONFIRMED: orders.value.filter((order) => hasPassedCsReview(order)).length
+  NOT_STARTED: orders.value.filter((order) => translationReviewBucket(order) === 'NOT_STARTED').length,
+  PENDING: orders.value.filter((order) => translationReviewBucket(order) === 'PENDING').length,
+  CONFIRMED: orders.value.filter((order) => translationReviewBucket(order) === 'CONFIRMED').length,
+  REJECTED: orders.value.filter((order) => translationReviewBucket(order) === 'REJECTED').length
 }))
 
 const filteredClinics = computed(() => {
@@ -2130,6 +2354,17 @@ watch([translationKeyword, translationFilter], () => {
     translationOrderId.value = null
   }
 })
+watch([inquiryTab, pendingMessages], () => {
+  const currentVisible = conversationOrders.value.some((item) => item.order_id === inquiryOrderId.value)
+  if (currentVisible) return
+  const first = conversationOrders.value[0]
+  if (first) {
+    void loadInquiryMessages(first.order_id)
+  } else if (inquiryTab.value === 'REVIEW') {
+    inquiryOrderId.value = null
+    inquiryMessages.value = []
+  }
+})
 watch([customerKeyword, customerFilter], () => {
   if (selectedClinicId.value && !filteredClinics.value.some((item) => item.clinic_id === selectedClinicId.value)) {
     customerDrawerVisible.value = false
@@ -2198,6 +2433,47 @@ watch(billingTab, (tab) => {
             <section v-if="orderDrawerAlert" class="cs-r-order-alert" :class="`is-${orderDrawerAlert.tone}`">
               <span aria-hidden="true">{{ orderDrawerAlert.tone === 'success' ? '✓' : orderDrawerAlert.tone === 'danger' ? '!' : 'i' }}</span>
               <div><strong>{{ orderDrawerAlert.title }}</strong><p>{{ orderDrawerAlert.text }}</p></div>
+            </section>
+
+            <section
+              v-if="actionableBusinessGate"
+              class="cs-r-order-section cs-r-business-gate"
+              data-testid="cs-business-gate-card"
+            >
+              <div class="cs-r-order-section-title">
+                <div><span>客服业务门禁</span><h3>{{ actionableBusinessGate.process_name }}</h3></div>
+                <b>{{ statusLabel(actionableBusinessGate.node_status) }}</b>
+              </div>
+              <p>{{ CS_BUSINESS_GATE_LABELS.get(actionableBusinessGate.process_name) }}</p>
+              <button
+                v-if="actionableBusinessGate.process_name === '客服核对订单信息及账单'"
+                class="cs-r-order-panel-route"
+                type="button"
+                @click="navigateFromOrderDrawer('/cs/billing')"
+              >
+                先前往账单管理核对
+              </button>
+              <p v-if="billingBusinessGateBlocked" class="cs-r-order-inline-error">
+                当前订单尚未建立 PDF 账单，服务端会阻止该门禁放行。
+              </p>
+              <label>
+                <span>核对结论</span>
+                <textarea
+                  v-model="businessGateNote"
+                  rows="3"
+                  maxlength="500"
+                  placeholder="填写已核对的业务事实，不使用演示值代替正式资料"
+                ></textarea>
+              </label>
+              <p v-if="businessGateError" class="cs-r-order-inline-error">{{ businessGateError }}</p>
+              <button
+                class="cs-r-primary"
+                type="button"
+                :disabled="businessGateLoading || billingBusinessGateBlocked || !businessGateNote.trim()"
+                @click="completeBusinessGate"
+              >
+                {{ businessGateLoading ? '提交中…' : `确认完成${actionableBusinessGate.process_name}` }}
+              </button>
             </section>
 
             <section class="cs-r-order-section cs-r-order-production-timeline" data-testid="cs-order-production-timeline">
@@ -2297,7 +2573,7 @@ watch(billingTab, (tab) => {
     <template v-else-if="activeRoute === '/cs/information-translation'">
       <header class="cs-r-heading"><div><h1>信息审核/翻译</h1><p>在现有页面完成资料核对、翻译确认和客服初审；通过后进入生产审核。</p></div><span class="cs-r-count">{{ orders.length }} 项任务</span></header>
       <div class="cs-r-workspace is-translation">
-        <aside class="cs-r-side-list"><header><strong>处理队列</strong><span>{{ filteredTranslationOrders.length }}</span></header><label class="cs-r-search"><span>⌕</span><input v-model="translationKeyword" type="search" placeholder="搜索订单、客户或产品" aria-label="搜索信息审核任务"></label><div class="cs-r-conversation-tabs"><button type="button" :class="{active:translationFilter==='ALL'}" @click="translationFilter='ALL'">全部 {{ translationFilterCounts.ALL }}</button><button type="button" :class="{active:translationFilter==='PENDING'}" @click="translationFilter='PENDING'">待初审 {{ translationFilterCounts.PENDING }}</button><button type="button" :class="{active:translationFilter==='CONFIRMED'}" @click="translationFilter='CONFIRMED'">已初审 {{ translationFilterCounts.CONFIRMED }}</button></div><button v-for="order in filteredTranslationOrders" :key="order.order_id" type="button" :class="{ active: translationOrderId === order.order_id }" @click="selectTranslationOrder(order)"><strong>{{ order.order_no }}</strong><span>{{ order.clinic_name }} · {{ productLabel(order.product_type) }}</span><small>{{ informationStatus(order) }}</small></button><div v-if="filteredTranslationOrders.length === 0" class="cs-r-state">当前筛选下暂无任务</div></aside>
+        <aside class="cs-r-side-list"><header><strong>处理队列</strong><span>{{ filteredTranslationOrders.length }}</span></header><label class="cs-r-search"><span>⌕</span><input v-model="translationKeyword" type="search" placeholder="搜索订单、客户或产品" aria-label="搜索信息审核任务"></label><div class="cs-r-conversation-tabs"><button type="button" :class="{active:translationFilter==='ALL'}" @click="translationFilter='ALL'">全部 {{ translationFilterCounts.ALL }}</button><button type="button" :class="{active:translationFilter==='NOT_STARTED'}" @click="translationFilter='NOT_STARTED'">未进入 {{ translationFilterCounts.NOT_STARTED }}</button><button type="button" :class="{active:translationFilter==='PENDING'}" @click="translationFilter='PENDING'">待初审 {{ translationFilterCounts.PENDING }}</button><button type="button" :class="{active:translationFilter==='CONFIRMED'}" @click="translationFilter='CONFIRMED'">已初审 {{ translationFilterCounts.CONFIRMED }}</button><button type="button" :class="{active:translationFilter==='REJECTED'}" @click="translationFilter='REJECTED'">已退回 {{ translationFilterCounts.REJECTED }}</button></div><button v-for="order in filteredTranslationOrders" :key="order.order_id" type="button" :class="{ active: translationOrderId === order.order_id }" @click="selectTranslationOrder(order)"><strong>{{ order.order_no }}</strong><span>{{ order.clinic_name }} · {{ productLabel(order.product_type) }}</span><small>{{ informationStatus(order) }}</small></button><div v-if="filteredTranslationOrders.length === 0" class="cs-r-state">当前筛选下暂无任务</div></aside>
         <section v-if="selectedTranslationOrder" class="cs-r-work-content">
           <header class="cs-r-work-head"><div><h2>{{ selectedTranslationOrder.order_no }}</h2><p>{{ selectedTranslationOrder.clinic_name }} · {{ productLabel(selectedTranslationOrder.product_type) }}</p></div><span class="cs-r-badge is-amber">{{ informationStatus(selectedTranslationOrder) }}</span></header>
           <div class="cs-r-tab-strip"><button type="button" :class="{active:translationTab==='INFO'}" @click="translationTab='INFO'">信息审核</button><button type="button" :class="{active:translationTab==='TRANSLATION'}" @click="translationTab='TRANSLATION'">翻译整理</button><button type="button" :class="{active:translationTab==='FILES'}" @click="translationTab='FILES'">附件 {{ translationFiles.length }}</button><button type="button" :class="{active:translationTab==='HISTORY'}" @click="translationTab='HISTORY'">处理记录</button></div>
@@ -2374,7 +2650,30 @@ watch(billingTab, (tab) => {
       <header class="cs-r-heading"><div><h1>问单沟通</h1><p>围绕订单事项与客户自由沟通；设计确认和翻译疑点都在这里形成完整记录。</p></div><span class="cs-r-count">{{ attentionItems.length }} 项待关注</span></header>
       <div class="cs-r-chat-layout">
         <aside class="cs-r-conversations"><label class="cs-r-search"><span>⌕</span><input v-model="inquiryKeyword" type="search" placeholder="搜索订单或客户" aria-label="搜索会话"></label><div class="cs-r-conversation-tabs"><button type="button" :class="{active:inquiryTab==='ALL'}" @click="inquiryTab='ALL'">全部会话</button><button type="button" :class="{active:inquiryTab==='WAITING'}" @click="inquiryTab='WAITING'">待回复 {{ attentionItems.length }}</button><button type="button" :class="{active:inquiryTab==='REVIEW'}" @click="inquiryTab='REVIEW'">待审核 {{ pendingMessages.length }}</button></div><button v-for="order in conversationOrders" :key="order.order_id" type="button" :class="{ active: inquiryOrderId === order.order_id }" @click="loadInquiryMessages(order.order_id)"><span class="cs-r-avatar">{{ order.clinic_name.slice(0,1) }}</span><div><strong>{{ order.clinic_name }}</strong><span>{{ order.order_no }} · {{ productLabel(order.product_type) }}</span><small>{{ attentionItems.some(item => item.order_id === order.order_id) ? '有待处理问单事项' : '查看完整会话' }}</small></div><i v-if="attentionItems.some(item => item.order_id === order.order_id)" /></button><div v-if="conversationOrders.length===0" class="cs-r-state">当前口径下没有会话</div></aside>
-        <section class="cs-r-chat-panel"><header><div><h2>{{ orders.find(item => item.order_id === inquiryOrderId)?.clinic_name || '请选择会话' }}</h2><p>{{ orders.find(item => item.order_id === inquiryOrderId)?.order_no || '从左侧选择订单' }}</p></div><span class="cs-r-badge is-green">平台内沟通</span></header><div class="cs-r-message-timeline"><div v-if="inquiryMessages.length === 0" class="cs-r-state">当前订单暂无沟通记录</div><article v-for="message in inquiryMessages" :key="message.msg_id" :class="message.sender_role === 'CS' ? 'is-self' : ''"><span class="cs-r-avatar">{{ senderLabel(message.sender_role).slice(0,1) }}</span><div><header><strong>{{ senderLabel(message.sender_role) }}</strong><small>{{ compactDateTime(message.created_at) }}</small></header><p>{{ message.content }}</p><small v-if="message.review_status !== 'APPROVED'">{{ statusLabel(message.review_status) }}</small></div></article></div><div class="cs-r-quick-replies"><button type="button" @click="inquiryDraft = '您好，我们正在核对您提交的资料，请稍候。'">资料核对中</button><button type="button" @click="inquiryDraft = '请确认当前设计版本是否可以进入后续制作。'">设计确认</button><button type="button" @click="inquiryDraft = '请补充缺少的信息，我们收到后会继续处理。'">补充资料</button></div><footer class="cs-r-composer"><textarea v-model="inquiryDraft" rows="3" placeholder="输入要发送给客户的内容；快捷回复只会填入，不会自动发送" aria-label="问单消息"></textarea><div><span>仅对客消息会显示给医生/客户</span><button class="is-primary" type="button" :disabled="inquirySending || !inquiryDraft.trim() || !inquiryOrderId" @click="sendInquiryMessage">{{ inquirySending ? '发送中…' : '发送消息' }}</button></div></footer></section>
+        <section class="cs-r-chat-panel">
+          <header><div><h2>{{ orders.find(item => item.order_id === inquiryOrderId)?.clinic_name || '请选择会话' }}</h2><p>{{ orders.find(item => item.order_id === inquiryOrderId)?.order_no || '从左侧选择订单' }}</p></div><span class="cs-r-badge is-green">平台内沟通</span></header>
+          <div class="cs-r-message-timeline">
+            <div v-if="inquiryMessages.length === 0" class="cs-r-state">当前订单暂无沟通记录</div>
+            <article v-for="message in inquiryMessages" :key="message.msg_id" :class="{ 'is-self': message.sender_role === 'CS', 'is-reviewable': message.review_status === 'PENDING_REVIEW' }">
+              <span class="cs-r-avatar">{{ senderLabel(message.sender_role).slice(0,1) }}</span>
+              <div>
+                <header><strong>{{ senderLabel(message.sender_role) }}</strong><small>{{ compactDateTime(message.created_at) }}</small></header>
+                <p>{{ message.content }}</p>
+                <small v-if="message.review_status !== 'APPROVED'">{{ statusLabel(message.review_status) }}</small>
+                <section v-if="message.review_status === 'PENDING_REVIEW'" class="cs-r-message-review">
+                  <label :for="`message-review-note-${message.msg_id}`">审核意见</label>
+                  <textarea :id="`message-review-note-${message.msg_id}`" v-model="inquiryReviewNotes[message.msg_id]" rows="2" :aria-label="`消息 ${message.msg_id} 审核意见`" placeholder="通过可选填；退回修改时必填"></textarea>
+                  <div>
+                    <button class="is-approve" type="button" :disabled="inquiryReviewLoadingId === message.msg_id" @click="reviewInquiryMessage(message, 'APPROVE')">审核通过</button>
+                    <button class="is-reject" type="button" :disabled="inquiryReviewLoadingId === message.msg_id || !inquiryReviewNotes[message.msg_id]?.trim()" @click="reviewInquiryMessage(message, 'REJECT')">退回修改</button>
+                  </div>
+                </section>
+              </div>
+            </article>
+          </div>
+          <div class="cs-r-quick-replies"><button type="button" @click="inquiryDraft = '您好，我们正在核对您提交的资料，请稍候。'">资料核对中</button><button type="button" @click="inquiryDraft = '请确认当前设计版本是否可以进入后续制作。'">设计确认</button><button type="button" @click="inquiryDraft = '请补充缺少的信息，我们收到后会继续处理。'">补充资料</button></div>
+          <footer class="cs-r-composer"><textarea v-model="inquiryDraft" rows="3" placeholder="输入要发送给客户的内容；快捷回复只会填入，不会自动发送" aria-label="问单消息"></textarea><div><span>仅对客消息会显示给医生/客户</span><button class="is-primary" type="button" :disabled="inquirySending || !inquiryDraft.trim() || !inquiryOrderId" @click="sendInquiryMessage">{{ inquirySending ? '发送中…' : '发送消息' }}</button></div></footer>
+        </section>
       </div>
     </template>
 
@@ -2434,6 +2733,17 @@ watch(billingTab, (tab) => {
           <section v-else-if="billingDetailErrors.length" class="cs-r-detail-alert is-warning"><span>⚠️</span><div><strong>部分账务资料未加载</strong><p>{{ billingDetailErrors.join('、') }}暂时不可用。</p></div><button v-if="selectedBillingOrderId" type="button" @click="selectBillingOrder(selectedBillingOrderId)">重试</button></section>
           <section v-if="billingContradiction" class="cs-r-detail-alert is-danger"><span>!</span><div><strong>账务状态存在矛盾</strong><p>{{ billingContradiction }}</p></div></section>
           <section class="cs-r-money-hero" :class="selectedBill?.payment_status==='PAID'?'is-paid':'is-pending'"><div><span>💰</span><div><small>账单金额</small><strong>{{ money(selectedBill?.amount_cents,selectedBill?.currency) }}</strong><p>{{ selectedBill?.bill_id ? `账单 #${selectedBill.bill_id}` : '该订单尚未建立账单' }}</p></div></div><span class="cs-r-badge" :class="selectedBill?.payment_status==='PAID'?'is-green':'is-amber'">{{ statusLabel(selectedBill?.payment_status) }}</span></section><section class="cs-r-summary-grid"><div><span>账单状态</span><strong>{{ statusLabel(selectedBill?.bill_status) }}</strong></div><div><span>账单文件</span><strong>{{ selectedBill?.file_id ? `文件 #${selectedBill.file_id}` : '未上传' }}</strong></div><div><span>累计收款</span><strong>{{ money(receivedAmountCents,selectedBill?.currency) }}</strong></div><div><span>剩余应收</span><strong>{{ money(outstandingAmountCents,selectedBill?.currency) }}</strong></div></section><section v-if="selectedBill?.payment_status==='PAID' && !billingContradiction" class="cs-r-detail-alert is-success"><span>✓</span><div><strong>当前账单已完成收款</strong><p>真实收款记录仍可在下方继续追溯。</p></div></section><section v-else-if="!selectedBill" class="cs-r-capability-empty is-compact"><span>🧾</span><strong>该订单尚未建立真实账单</strong><p>未建立账单前不能登记收款。</p></section>
+          <section v-if="!selectedBill?.bill_id" class="cs-r-payment-form cs-r-bill-create-form">
+            <header><span>＋</span><div><strong>上传并建立订单账单</strong><small>仅接受本订单 PDF；单文件不超过 500MB</small></div></header>
+            <div class="cs-r-form-grid">
+              <label class="is-wide"><span>账单 PDF</span><input type="file" accept="application/pdf,.pdf" @change="selectBillDocument"></label>
+              <label><span>应收金额（元）</span><input v-model.number="billAmountYuan" type="number" min="0.01" step="0.01" placeholder="0.00"></label>
+              <label><span>币种</span><input value="人民币（CNY）" disabled></label>
+            </div>
+            <p v-if="billDocument" class="cs-r-file-selection">已选择：{{ billDocument.name }}</p>
+            <p v-if="billCreateError" class="cs-r-order-inline-error">{{ billCreateError }}</p>
+            <button class="cs-r-primary" type="button" :disabled="billCreateLoading || !billDocument || !billAmountYuan || billAmountYuan<=0" @click="createBillForSelectedOrder">{{ billCreateLoading ? '上传并建立中…' : '上传并建立账单' }}</button>
+          </section>
           <section><div class="cs-r-section-title"><div><span class="cs-r-section-emoji">🦷</span><div><h3>关联订单</h3><p>金额明细接口未拆分时只显示真实订单资料</p></div></div></div><div v-if="selectedBillingOrder" class="cs-r-detail-field-grid"><article><span>订单编号</span><strong>{{ selectedBillingOrder.order_no }}</strong></article><article><span>诊所</span><strong>{{ selectedBillingOrder.clinic_name }}</strong></article><article><span>产品</span><strong>{{ productLabel(selectedBillingOrder.product_type) }}</strong></article><article><span>订单阶段</span><strong>{{ statusLabel(selectedBillingOrder.internal_status) }}</strong></article><article><span>颜色</span><strong>{{ orderFormValue(selectedBillingOrder,['shade','color']) || '未记录' }}</strong></article><article><span>牙位</span><strong>{{ orderFormValue(selectedBillingOrder,['tooth_position','tooth','teeth']) || '未记录' }}</strong></article></div></section>
           <section><div class="cs-r-section-title"><div><span class="cs-r-section-emoji">💵</span><div><h3>人工收款记录</h3><p>每笔记录独立保存并保持可追溯</p></div></div><span>{{ selectedPayments.length }} 笔</span></div><div v-if="selectedPayments.length" class="cs-r-payment-list"><article v-for="payment in selectedPayments" :key="payment.payment_id"><span>¥</span><div><strong>{{ money(payment.amount_cents,payment.currency) }}</strong><small>{{ paymentMethodLabel(payment.payment_method) }} · {{ compactDateTime(payment.received_at) }}</small><p>{{ payment.payment_note || '本笔收款无备注' }}</p></div><b>#{{ payment.payment_id }}</b></article></div><div v-else class="cs-r-state"><strong>暂无收款记录</strong><span>这表示当前账本中没有真实人工收款。</span></div><div v-if="canRecordPayment" class="cs-r-payment-form"><header><span>＋</span><div><strong>登记一笔真实收款</strong><small>剩余应收 {{ money(outstandingAmountCents,selectedBill?.currency) }}</small></div></header><div class="cs-r-form-grid"><label><span>收款金额（元）</span><input v-model.number="paymentAmountYuan" type="number" min="0.01" :max="outstandingAmountCents/100" step="0.01" placeholder="0.00"></label><label><span>收款方式</span><select v-model="paymentMethod"><option value="BANK_TRANSFER">银行转账</option><option value="CASH">现金</option><option value="OTHER">其他方式</option></select></label><label class="is-wide"><span>收款备注</span><input v-model="paymentNote" placeholder="填写凭据编号或业务说明"></label></div><button class="cs-r-primary" type="button" :disabled="pageLoading || !paymentAmountYuan || paymentAmountYuan<=0 || paymentAmountYuan*100>outstandingAmountCents" @click="createPaymentRecord">{{ pageLoading ? '保存中…' : '确认登记收款' }}</button></div><div v-else-if="!selectedBill?.bill_id" class="cs-r-capability-empty is-compact"><span>🧾</span><strong>尚未建立真实账单</strong><p>请先由有权限的岗位建立账单，再登记人工收款。</p></div><div v-else class="cs-r-detail-alert" :class="billingContradiction?'is-danger':'is-success'"><span>{{ billingContradiction ? '!' : '✓' }}</span><div><strong>{{ billingContradiction ? '暂不能登记新收款' : '当前没有待登记金额' }}</strong><p>{{ billingContradiction || '账单已收清或剩余应收为零。' }}</p></div></div></section>
           <section><div class="cs-r-section-title"><div><span class="cs-r-section-emoji">🧾</span><div><h3>操作记录</h3><p>仅列出当前接口返回的真实事实</p></div></div></div><div class="cs-r-record-list"><article><div><strong>订单建立</strong><span>{{ compactDateTime(selectedBillingOrder?.created_at) }}</span></div><span class="cs-r-badge is-violet">订单记录</span></article><article v-for="payment in selectedPayments" :key="payment.payment_id"><div><strong>登记收款 {{ money(payment.amount_cents,payment.currency) }}</strong><span>{{ compactDateTime(payment.created_at) }} · {{ paymentMethodLabel(payment.payment_method) }}</span></div><span class="cs-r-badge is-green">已保存</span></article></div><div class="cs-r-capability-empty is-compact"><span>🧾</span><strong>账单状态审计明细尚未接入</strong><p>这里仅列出当前接口返回的真实订单时间与收款记录。</p></div></section>

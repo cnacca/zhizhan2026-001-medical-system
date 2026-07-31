@@ -131,12 +131,14 @@ for (const forbidden of [
   }
 }
 
-const acceptance = JSON.parse(fs.readFileSync(path.join(root, 'acceptance.json'), 'utf8'))
-if (acceptance.active_goal !== 'GOAL-024') {
-  throw new Error(`Expected active_goal GOAL-024, got ${acceptance.active_goal}`)
-}
-if (acceptance.active_task_file !== 'tasks/TASK-025-ruoyi-core-foundation-20260724.md') {
-  throw new Error(`Unexpected active_task_file: ${acceptance.active_task_file}`)
+for (const file of [
+  'goals/GOAL-024-ruoyi-core-foundation-20260724.md',
+  'tasks/TASK-025-ruoyi-core-foundation-20260724.md',
+]) {
+  const content = fs.readFileSync(path.join(root, file), 'utf8')
+  if (!content.includes('Status: `completed`')) {
+    throw new Error(`Expected completed GOAL-024 foundation evidence in ${file}`)
+  }
 }
 
 const boundary = fs.readFileSync(
@@ -144,10 +146,10 @@ const boundary = fs.readFileSync(
   'utf8',
 )
 for (const expected of [
-  '角色权限分配暂缓',
-  '不改变现有业务权限结果',
+  '没有改变现有业务权限结果',
   '生产审核与派工不能授予客服',
-  '账号创建权限待确认',
+  '账号创建权限已确认由超级管理员承担',
+  '逐段桥接 RuoYi 的权限、DataScope、审计和管理能力',
   '标准工时业务数据',
 ]) {
   if (!boundary.includes(expected)) {

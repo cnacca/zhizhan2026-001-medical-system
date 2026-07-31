@@ -62,6 +62,10 @@ class CheckWorklogPerformanceTests {
         workerUserId = 990200000L + userSeed;
         otherWorkerUserId = 990300000L + userSeed;
         clinicId = createClinic("执行测试诊所-" + suffix);
+        ensureUser(doctorUserId, "execution-doctor-" + suffix, "DOCTOR", clinicId);
+        ensureUser(csUserId, "execution-cs-" + suffix, "CS", null);
+        ensureUser(workerUserId, "execution-worker-" + suffix, "WORKER", null);
+        ensureUser(otherWorkerUserId, "execution-worker-alt-" + suffix, "WORKER", null);
         orderId = createOrder("EX" + suffix.substring(0, 12), clinicId);
         chainId = createOneNodeChain(suffix);
         nodeInstanceId = instantiateAndAssign();
@@ -81,8 +85,9 @@ class CheckWorklogPerformanceTests {
         mockMvc.perform(get("/orders/{orderId}/process-instance", orderId)
                         .header("X-Bootstrap-Role", "ADMIN"))
                 .andExpect(status().isOk())
-                .andExpect(jsonPath("$.data.nodes[0].can_start").value(false))
-                .andExpect(jsonPath("$.data.nodes[0].start_block_reason").value("IN_CHECK_REQUIRED"));
+                .andExpect(jsonPath("$.data.nodes[1].node_instance_id").value(nodeInstanceId))
+                .andExpect(jsonPath("$.data.nodes[1].can_start").value(false))
+                .andExpect(jsonPath("$.data.nodes[1].start_block_reason").value("IN_CHECK_REQUIRED"));
 
         mockMvc.perform(post("/process-instance/nodes/{nodeInstanceId}/start", nodeInstanceId)
                         .header("X-Bootstrap-Role", "WORKER")
@@ -102,8 +107,9 @@ class CheckWorklogPerformanceTests {
         mockMvc.perform(get("/orders/{orderId}/process-instance", orderId)
                         .header("X-Bootstrap-Role", "ADMIN"))
                 .andExpect(status().isOk())
-                .andExpect(jsonPath("$.data.nodes[0].can_start").value(true))
-                .andExpect(jsonPath("$.data.nodes[0].start_block_reason").doesNotExist());
+                .andExpect(jsonPath("$.data.nodes[1].node_instance_id").value(nodeInstanceId))
+                .andExpect(jsonPath("$.data.nodes[1].can_start").value(true))
+                .andExpect(jsonPath("$.data.nodes[1].start_block_reason").doesNotExist());
 
         mockMvc.perform(post("/process-instance/nodes/{nodeInstanceId}/start", nodeInstanceId)
                         .header("X-Bootstrap-Role", "WORKER")
@@ -946,6 +952,29 @@ class CheckWorklogPerformanceTests {
                 .single();
     }
 
+    private void ensureUser(long userId, String username, String roleCode, Long userClinicId) {
+        jdbcClient.sql("""
+                        INSERT INTO system_user
+                            (user_id, username, password_hash, display_name, clinic_id, user_type, status)
+                        VALUES
+                            (:userId, :username, 'test-only', :username, :clinicId, :roleCode, 'ACTIVE')
+                        """)
+                .param("userId", userId)
+                .param("username", username)
+                .param("clinicId", userClinicId)
+                .param("roleCode", roleCode)
+                .update();
+        jdbcClient.sql("""
+                        INSERT INTO system_user_role (user_id, role_id)
+                        SELECT :userId, role_id
+                        FROM system_role
+                        WHERE role_code = :roleCode
+                        """)
+                .param("userId", userId)
+                .param("roleCode", roleCode)
+                .update();
+    }
+
     private long createOrder(String orderNo, long clinicId) {
         return createOrder(orderNo, clinicId, "EXECUTION_TEST");
     }
@@ -993,7 +1022,7 @@ class CheckWorklogPerformanceTests {
                              standard_duration, node_category, need_in_check, need_out_check)
                         VALUES
                             (:chainId, 'EXEC_NODE', '执行测试节点', 10, 0,
-                             600, 'PRODUCTION', 1, 1)
+                             10, 'PRODUCTION', 1, 1)
                         """)
                 .param("chainId", id)
                 .update();
@@ -1021,9 +1050,9 @@ class CheckWorklogPerformanceTests {
                              standard_duration, node_category, need_in_check, need_out_check)
                         VALUES
                             (:chainId, 'RW_IMPACT_A', '返工影响前道', 10, 0,
-                             600, 'PRODUCTION', 1, 1),
+                             10, 'PRODUCTION', 1, 1),
                             (:chainId, 'RW_IMPACT_B', '返工影响后道', 20, 0,
-                             600, 'PRODUCTION', 1, 1)
+                             10, 'PRODUCTION', 1, 1)
                         """)
                 .param("chainId", id)
                 .update();
@@ -1049,7 +1078,7 @@ class CheckWorklogPerformanceTests {
                         .header("X-Bootstrap-User-Id", 8001L)
                         .contentType(MediaType.APPLICATION_JSON)
                         .content("""
-                                {"action":"APPROVE","chain_id":%d}
+                                {"action":"APPROVE","chain_id":%d,"intake_branch":"SCAN"}
                                 """.formatted(chainId)))
                 .andExpect(status().isOk())
                 .andReturn();
@@ -1062,6 +1091,7 @@ class CheckWorklogPerformanceTests {
                         SELECT node_instance_id
                         FROM order_process_node
                         WHERE instance_id = :instanceId
+                          AND node_category = 'PRODUCTION'
                         """)
                 .param("instanceId", instanceId)
                 .query(Long.class)
@@ -1082,7 +1112,7 @@ class CheckWorklogPerformanceTests {
                         .header("X-Bootstrap-User-Id", 8001L)
                         .contentType(MediaType.APPLICATION_JSON)
                         .content("""
-                                {"action":"APPROVE","chain_id":%d}
+                                {"action":"APPROVE","chain_id":%d,"intake_branch":"SCAN"}
                                 """.formatted(targetChainId)))
                 .andExpect(status().isOk())
                 .andReturn();
@@ -1095,6 +1125,7 @@ class CheckWorklogPerformanceTests {
                         SELECT node_instance_id
                         FROM order_process_node
                         WHERE instance_id = :instanceId
+                          AND node_category = 'PRODUCTION'
                         ORDER BY step_order
                         """)
                 .param("instanceId", instanceId)
@@ -1123,6 +1154,46 @@ class CheckWorklogPerformanceTests {
                         UPDATE design_task
                         SET task_status = 'DOCTOR_CONFIRMED'
                         WHERE order_id = :orderId
+                        """)
+                .param("orderId", targetOrderId)
+                .update();
+        jdbcClient.sql("""
+                        UPDATE order_process_node gate_node
+                        JOIN design_task task ON task.node_instance_id = gate_node.node_instance_id
+                        SET gate_node.node_status = 'COMPLETED',
+                            gate_node.started_at = COALESCE(gate_node.started_at, CURRENT_TIMESTAMP(3)),
+                            gate_node.completed_at = CURRENT_TIMESTAMP(3)
+                        WHERE task.order_id = :orderId
+                          AND gate_node.node_category = 'DESIGN_GATE'
+                          AND gate_node.node_status IN ('PENDING', 'READY', 'IN_PROGRESS')
+                        """)
+                .param("orderId", targetOrderId)
+                .update();
+        jdbcClient.sql("""
+                        UPDATE order_process_node target
+                        JOIN (
+                            SELECT ready_nodes.node_instance_id
+                            FROM (
+                                SELECT candidate.node_instance_id
+                                FROM order_process_node candidate
+                                JOIN design_task selected_task
+                                  ON selected_task.order_id = :orderId
+                                JOIN order_process_node selected_gate
+                                  ON selected_gate.node_instance_id = selected_task.node_instance_id
+                                WHERE candidate.instance_id = selected_gate.instance_id
+                                  AND candidate.node_status = 'PENDING'
+                                  AND NOT EXISTS (
+                                      SELECT 1
+                                      FROM order_process_edge incoming
+                                      JOIN order_process_node predecessor
+                                        ON predecessor.node_instance_id = incoming.from_node_instance_id
+                                      WHERE incoming.instance_id = candidate.instance_id
+                                        AND incoming.to_node_instance_id = candidate.node_instance_id
+                                        AND predecessor.node_status NOT IN ('COMPLETED', 'SKIPPED')
+                                  )
+                            ) ready_nodes
+                        ) selected ON selected.node_instance_id = target.node_instance_id
+                        SET target.node_status = 'READY'
                         """)
                 .param("orderId", targetOrderId)
                 .update();

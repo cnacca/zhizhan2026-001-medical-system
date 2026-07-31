@@ -7,9 +7,11 @@ import com.yuri.aiorder.common.BootstrapIdentity;
 import com.yuri.aiorder.common.UserRole;
 import com.yuri.aiorder.common.auth.AccessControlService;
 import com.yuri.aiorder.design.DesignTaskService;
+import com.yuri.aiorder.notification.NotificationPushService;
 import com.yuri.aiorder.order.status.ExternalOrderStatus;
 import com.yuri.aiorder.order.status.InternalOrderStatus;
 import com.yuri.aiorder.order.status.OrderStatusService;
+import com.yuri.aiorder.workflow.standardtime.WorkflowStandardTimeProperties;
 import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.time.ZoneId;
@@ -72,23 +74,33 @@ public class WorkflowRuntimeService {
             "CAD审核/扫描", "石膏", "CAD设计", "CAM排版/染色/切削", "车瓷", "车金", "上瓷",
             "排牙", "蜡型", "充胶完成", "钢托打磨/就位", "胶托打磨/就位", "质检", "外发加工");
 
+    private static final Map<String, String> CS_BUSINESS_GATE_CATEGORIES = Map.of(
+            "客服定基台", "REVIEW",
+            "客服核对订单信息及账单", "BILLING");
+
     private final JdbcClient jdbcClient;
     private final ObjectMapper objectMapper;
     private final OrderStatusService orderStatusService;
     private final AccessControlService accessControlService;
     private final DesignTaskService designTaskService;
+    private final NotificationPushService notificationPushService;
+    private final WorkflowStandardTimeProperties standardTimeProperties;
 
     public WorkflowRuntimeService(
             JdbcClient jdbcClient,
             ObjectMapper objectMapper,
             OrderStatusService orderStatusService,
             AccessControlService accessControlService,
-            DesignTaskService designTaskService) {
+            DesignTaskService designTaskService,
+            NotificationPushService notificationPushService,
+            WorkflowStandardTimeProperties standardTimeProperties) {
         this.jdbcClient = jdbcClient;
         this.objectMapper = objectMapper;
         this.orderStatusService = orderStatusService;
         this.accessControlService = accessControlService;
         this.designTaskService = designTaskService;
+        this.notificationPushService = notificationPushService;
+        this.standardTimeProperties = standardTimeProperties;
     }
 
     @Transactional
@@ -96,25 +108,34 @@ public class WorkflowRuntimeService {
             long orderId, ProductionReviewRequest request, BootstrapIdentity identity) {
         accessControlService.requireProductionReview(identity);
         requirePendingProductionReview(orderId);
+        if (request == null) {
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "production review request is required");
+        }
         String action = normalize(request.action());
         if ("REJECT".equals(action)) {
+            String rejectReason = normalizeText(request.rejectReason());
+            if (rejectReason == null) {
+                throw new ResponseStatusException(
+                        HttpStatus.BAD_REQUEST, "reject_reason is required when rejecting production review");
+            }
             jdbcClient.sql("""
                             UPDATE orders
                             SET reject_reason = :rejectReason
                             WHERE order_id = :orderId
                             """)
-                    .param("rejectReason", request.rejectReason())
+                    .param("rejectReason", rejectReason)
                     .param("orderId", orderId)
                     .update();
             ExternalOrderStatus external = orderStatusService.updateOrderState(
-                    orderId, InternalOrderStatus.PRODUCTION_REJECTED, "PRODUCTION_REJECT", identity.userId(), request.rejectReason());
+                    orderId, InternalOrderStatus.PRODUCTION_REJECTED, "PRODUCTION_REJECT", identity.userId(), rejectReason);
             return new ProductionReviewResponse(orderId, null, InternalOrderStatus.PRODUCTION_REJECTED.name(), external.name());
         }
         if (!"APPROVE".equals(action)) {
             throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "unsupported production review action");
         }
-        long instanceId = instantiateIfAbsent(orderId, request);
-        designTaskService.ensureTaskForOrder(orderId, identity);
+        ProductionReviewRequest normalizedRequest = normalizeApprovalRequest(orderId, request);
+        long instanceId = instantiateIfAbsent(orderId, normalizedRequest);
+        designTaskService.ensureTaskForOrder(orderId, designGateNodeId(instanceId), identity);
         ExternalOrderStatus external = orderStatusService.updateOrderState(
                 orderId,
                 InternalOrderStatus.IN_DESIGN,
@@ -185,9 +206,7 @@ public class WorkflowRuntimeService {
                 endExclusive,
                 asOf,
                 identity,
-                dataScope,
-                accessControlService.canReviewProduction(identity));
-        loadPendingProductionReviewKanbanVisibility(visibleOrderIds, identity);
+                dataScope);
         loadQuestionKanbanMetrics(stages, endExclusive, asOf, identity, dataScope);
         loadReworkKanbanMetrics(stages, endExclusive, asOf, identity, dataScope);
         List<ProductionKanbanStageSummaryResponse> result = new ArrayList<>();
@@ -198,21 +217,6 @@ public class WorkflowRuntimeService {
                     metric.pendingQuestions, metric.internalReworks));
         }
         return new ProductionKanbanSummaryResponse(date, visibleOrderIds.stream().toList(), result);
-    }
-
-    private void loadPendingProductionReviewKanbanVisibility(
-            Set<Long> visibleOrderIds, BootstrapIdentity identity) {
-        if (!accessControlService.canReviewProduction(identity)) {
-            return;
-        }
-        jdbcClient.sql("""
-                        SELECT order_id
-                        FROM orders
-                        WHERE internal_status = 'PENDING_PRODUCTION_REVIEW'
-                        """)
-                .query(Long.class)
-                .list()
-                .forEach(visibleOrderIds::add);
     }
 
     private LocalDateTime currentDatabaseTime() {
@@ -269,6 +273,13 @@ public class WorkflowRuntimeService {
             throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "assignments is required");
         }
         for (AssignmentRequest.AssignmentItem item : request.assignments()) {
+            NodeRow node = lockNode(item.nodeInstanceId());
+            requireAssignableNode(orderId, node);
+            if (node.assignedUserId() != null) {
+                throw new ResponseStatusException(
+                        HttpStatus.CONFLICT, "assigned node must use the reassign endpoint");
+            }
+            requireActiveWorker(item.userId());
             int updated = jdbcClient.sql("""
                             UPDATE order_process_node n
                             JOIN order_process_instance i ON i.instance_id = n.instance_id
@@ -276,6 +287,7 @@ public class WorkflowRuntimeService {
                             WHERE i.order_id = :orderId
                               AND n.node_instance_id = :nodeInstanceId
                               AND n.node_status IN ('PENDING', 'READY', 'IN_PROGRESS')
+                              AND n.assigned_user_id IS NULL
                             """)
                     .param("userId", item.userId())
                     .param("orderId", orderId)
@@ -284,6 +296,8 @@ public class WorkflowRuntimeService {
             if (updated == 0) {
                 throw new ResponseStatusException(HttpStatus.CONFLICT, "node cannot be assigned");
             }
+            recordAssignmentEvent(orderId, node, "ASSIGNED", item.userId(), null, identity);
+            emitAssignmentNotification(orderId, node, item.userId(), "TASK_ASSIGNED", "你有新的生产工序任务");
         }
     }
 
@@ -291,6 +305,19 @@ public class WorkflowRuntimeService {
     public void reassign(long orderId, long nodeInstanceId, ReassignRequest request, BootstrapIdentity identity) {
         accessControlService.requireProcessManagement(identity);
         ensureInstanceForOrder(orderId);
+        NodeRow node = lockNode(nodeInstanceId);
+        requireAssignableNode(orderId, node);
+        requireActiveWorker(request.newUserId());
+        String reason = normalizeText(request.reason());
+        if (reason == null) {
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "reason is required when reassigning a node");
+        }
+        if (node.assignedUserId() == null) {
+            throw new ResponseStatusException(HttpStatus.CONFLICT, "unassigned node must use the assign endpoint");
+        }
+        if (node.assignedUserId() == request.newUserId()) {
+            throw new ResponseStatusException(HttpStatus.CONFLICT, "new worker must differ from current worker");
+        }
         int updated = jdbcClient.sql("""
                         UPDATE order_process_node n
                         JOIN order_process_instance i ON i.instance_id = n.instance_id
@@ -306,6 +333,8 @@ public class WorkflowRuntimeService {
         if (updated == 0) {
             throw new ResponseStatusException(HttpStatus.CONFLICT, "node cannot be reassigned");
         }
+        recordAssignmentEvent(orderId, node, "REASSIGNED", request.newUserId(), reason, identity);
+        emitAssignmentNotification(orderId, node, request.newUserId(), "TASK_REASSIGNED", "生产工序任务已转派给你");
     }
 
     @Transactional
@@ -323,12 +352,17 @@ public class WorkflowRuntimeService {
                         UPDATE order_process_node
                         SET node_status = 'IN_PROGRESS',
                             started_at = COALESCE(started_at, CURRENT_TIMESTAMP(3)),
-                            deadline_at = COALESCE(
-                                deadline_at,
-                                DATE_ADD(CURRENT_TIMESTAMP(3), INTERVAL COALESCE(standard_duration, 0) MINUTE)
-                            )
+                            deadline_at = CASE
+                                WHEN :formalStandardTimeEnabled
+                                THEN COALESCE(
+                                    deadline_at,
+                                    DATE_ADD(CURRENT_TIMESTAMP(3), INTERVAL standard_duration MINUTE)
+                                )
+                                ELSE NULL
+                            END
                         WHERE node_instance_id = :nodeInstanceId
                         """)
+                .param("formalStandardTimeEnabled", standardTimeProperties.formalEnabled())
                 .param("nodeInstanceId", nodeInstanceId)
                 .update();
         orderStatusService.updateOrderState(
@@ -359,6 +393,86 @@ public class WorkflowRuntimeService {
     }
 
     @Transactional
+    public NodeActionResponse completeBusinessGate(
+            long orderId,
+            long nodeInstanceId,
+            BusinessGateActionRequest request,
+            BootstrapIdentity identity) {
+        accessControlService.requireAnyRole(
+                identity,
+                EnumSet.of(UserRole.ADMIN, UserRole.CS),
+                "business gate completion requires CS or ADMIN role");
+        NodeRow node = lockNode(nodeInstanceId);
+        if (node.orderId() != orderId) {
+            throw new ResponseStatusException(HttpStatus.NOT_FOUND, "process node does not belong to this order");
+        }
+        String expectedCategory = CS_BUSINESS_GATE_CATEGORIES.get(node.processName());
+        if (expectedCategory == null || !expectedCategory.equalsIgnoreCase(node.nodeCategory())) {
+            throw new ResponseStatusException(
+                    HttpStatus.CONFLICT, "only an approved CS business gate can use this action");
+        }
+        if (!"READY".equals(node.nodeStatus())) {
+            throw new ResponseStatusException(HttpStatus.CONFLICT, "business gate is not ready");
+        }
+        if ("客服核对订单信息及账单".equals(node.processName()) && !hasUploadedBill(orderId)) {
+            throw new ResponseStatusException(
+                    HttpStatus.CONFLICT, "an uploaded bill is required before completing the billing business gate");
+        }
+        String note = normalizeText(request.note());
+        if (note == null) {
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "business gate note is required");
+        }
+        int updated = jdbcClient.sql("""
+                        UPDATE order_process_node
+                        SET node_status = 'COMPLETED',
+                            need_in_check = 0,
+                            need_out_check = 0,
+                            started_at = COALESCE(started_at, CURRENT_TIMESTAMP(3)),
+                            completed_at = CURRENT_TIMESTAMP(3)
+                        WHERE node_instance_id = :nodeInstanceId
+                          AND node_status = 'READY'
+                        """)
+                .param("nodeInstanceId", nodeInstanceId)
+                .update();
+        if (updated == 0) {
+            throw new ResponseStatusException(HttpStatus.CONFLICT, "business gate status changed, please refresh");
+        }
+        jdbcClient.sql("""
+                        INSERT INTO workflow_business_gate_audit
+                            (order_id, node_instance_id, process_name, node_category, action_type,
+                             action_note, actor_user_id, actor_role, before_status, after_status)
+                        VALUES
+                            (:orderId, :nodeInstanceId, :processName, :nodeCategory, 'COMPLETE',
+                             :actionNote, :actorUserId, :actorRole, :beforeStatus, 'COMPLETED')
+                        """)
+                .param("orderId", orderId)
+                .param("nodeInstanceId", nodeInstanceId)
+                .param("processName", node.processName())
+                .param("nodeCategory", node.nodeCategory())
+                .param("actionNote", note)
+                .param("actorUserId", identity.userId())
+                .param("actorRole", identity.role().name())
+                .param("beforeStatus", node.nodeStatus())
+                .update();
+        activateReadyNodes(node.instanceId());
+        completeInstanceIfDone(node.instanceId());
+        return new NodeActionResponse(nodeInstanceId, "COMPLETED");
+    }
+
+    private boolean hasUploadedBill(long orderId) {
+        return jdbcClient.sql("""
+                        SELECT COUNT(*)
+                        FROM order_bill
+                        WHERE order_id = :orderId
+                          AND bill_status = 'UPLOADED'
+                          AND file_id IS NOT NULL
+                        """)
+                .param("orderId", orderId)
+                .query(Long.class)
+                .single() > 0;
+    }
+
+    @Transactional
     public void activateAfterPassedOutCheck(long nodeInstanceId) {
         NodeRow node = lockNode(nodeInstanceId);
         if (node.needOutCheck() != 1 || !hasPassedCheck(nodeInstanceId, "OUT")) {
@@ -370,8 +484,10 @@ public class WorkflowRuntimeService {
 
     @Transactional
     public NodeActionResponse skipNode(long nodeInstanceId, SkipNodeRequest request, BootstrapIdentity identity) {
-        accessControlService.requireProcessManagement(identity);
         NodeRow node = lockNode(nodeInstanceId);
+        if (identity.role() != UserRole.ADMIN) {
+            throw new ResponseStatusException(HttpStatus.FORBIDDEN, "only ADMIN can skip an optional node");
+        }
         if (node.isOptional() != 1) {
             throw new ResponseStatusException(HttpStatus.CONFLICT, "only optional nodes can be skipped");
         }
@@ -385,7 +501,7 @@ public class WorkflowRuntimeService {
                             skip_reason = :reason
                         WHERE node_instance_id = :nodeInstanceId
                         """)
-                .param("reason", request == null ? null : request.reason())
+                .param("reason", request.reason().trim())
                 .param("nodeInstanceId", nodeInstanceId)
                 .update();
         activateReadyNodes(node.instanceId());
@@ -419,7 +535,10 @@ public class WorkflowRuntimeService {
                             o.order_no,
                             n.process_name,
                             n.node_status,
-                            n.standard_duration,
+                            CASE
+                                WHEN :formalStandardTimeEnabled THEN n.standard_duration
+                                ELSE NULL
+                            END AS standard_duration,
                             CASE
                                 WHEN n.node_status = 'READY'
                                      AND (n.need_in_check = 0 OR EXISTS (
@@ -459,6 +578,7 @@ public class WorkflowRuntimeService {
                         """.formatted(DESIGN_START_ALLOWED_SQL, DESIGN_START_ALLOWED_SQL, finalNodeClause))
                 .param("userId", identity.userId())
                 .param("status", normalizedStatus)
+                .param("formalStandardTimeEnabled", standardTimeProperties.formalEnabled())
                 .query((rs, rowNum) -> new MyTaskResponse(
                         rs.getLong("node_instance_id"),
                         rs.getLong("order_id"),
@@ -502,10 +622,45 @@ public class WorkflowRuntimeService {
                 .param("orderId", orderId)
                 .query(Long.class)
                 .single();
+        ensureDesignGateDefinition(chain.chainId());
         copyNodes(instanceId, chain.chainId(), request);
         copyEdges(instanceId, chain.chainId());
+        connectDesignGateToRouteRoots(instanceId);
         activateReadyNodes(instanceId);
         return instanceId;
+    }
+
+    private void ensureDesignGateDefinition(long chainId) {
+        jdbcClient.sql("""
+                        INSERT INTO workflow_node
+                            (chain_id, node_code, process_name, stage_name, step_order, is_optional,
+                             branch_group, branch_key, standard_duration, default_role, node_category,
+                             need_in_check, need_out_check)
+                        SELECT
+                            chain.chain_id,
+                            CONCAT(chain.chain_code, '_DESIGN_CONFIRMATION_GATE'),
+                            '设计稿确认',
+                            '设计审核',
+                            -10,
+                            0,
+                            NULL,
+                            NULL,
+                            NULL,
+                            'WORKER',
+                            'DESIGN_GATE',
+                            0,
+                            0
+                        FROM workflow_chain chain
+                        WHERE chain.chain_id = :chainId
+                          AND NOT EXISTS (
+                              SELECT 1
+                              FROM workflow_node existing
+                              WHERE existing.chain_id = chain.chain_id
+                                AND existing.node_category = 'DESIGN_GATE'
+                          )
+                        """)
+                .param("chainId", chainId)
+                .update();
     }
 
     private void copyNodes(long instanceId, long chainId, ProductionReviewRequest request) {
@@ -519,7 +674,27 @@ public class WorkflowRuntimeService {
                             is_optional,
                             branch_group,
                             branch_key,
-                            standard_duration,
+                            CASE
+                                WHEN :formalStandardTimeEnabled
+                                THEN COALESCE(
+                                    (
+                                        SELECT standard_item.standard_duration_minutes
+                                        FROM workflow_standard_time_item standard_item
+                                        JOIN workflow_standard_time_version standard_version
+                                          ON standard_version.standard_time_version_id =
+                                             standard_item.standard_time_version_id
+                                        WHERE standard_item.node_id = workflow_node.node_id
+                                          AND standard_item.status = 'ACTIVE'
+                                          AND standard_version.publication_status = 'ACTIVE'
+                                          AND standard_version.effective_at <= CURRENT_TIMESTAMP(3)
+                                        ORDER BY standard_version.effective_at DESC,
+                                                 standard_version.version_no DESC
+                                        LIMIT 1
+                                    ),
+                                    workflow_node.standard_duration
+                                )
+                                ELSE NULL
+                            END AS standard_duration,
                             default_role,
                             node_category,
                             need_in_check,
@@ -529,6 +704,7 @@ public class WorkflowRuntimeService {
                         ORDER BY step_order, node_id
                         """)
                 .param("chainId", chainId)
+                .param("formalStandardTimeEnabled", standardTimeProperties.formalEnabled())
                 .query((rs, rowNum) -> new DefinitionNode(
                         rs.getLong("node_id"),
                         rs.getString("node_code"),
@@ -546,6 +722,11 @@ public class WorkflowRuntimeService {
                 .list();
         for (DefinitionNode node : nodes) {
             if (!branchMatches(node.branchGroup(), node.branchKey(), request)) {
+                continue;
+            }
+            if ("ORDER_INTAKE".equalsIgnoreCase(node.nodeCategory())
+                    || ("REVIEW".equalsIgnoreCase(node.nodeCategory())
+                            && "下单入厂".equals(node.stageName()))) {
                 continue;
             }
             jdbcClient.sql("""
@@ -574,6 +755,52 @@ public class WorkflowRuntimeService {
                     .param("needOutCheck", node.needOutCheck())
                     .update();
         }
+    }
+
+    private void connectDesignGateToRouteRoots(long instanceId) {
+        long gateNodeId = designGateNodeId(instanceId);
+        int inserted = jdbcClient.sql("""
+                        INSERT INTO order_process_edge
+                            (instance_id, from_node_instance_id, to_node_instance_id, edge_type, condition_key)
+                        SELECT
+                            :instanceId,
+                            :gateNodeId,
+                            candidate.node_instance_id,
+                            'SEQUENCE',
+                            'DESIGN_DOCTOR_CONFIRMED'
+                        FROM order_process_node candidate
+                        WHERE candidate.instance_id = :instanceId
+                          AND candidate.node_instance_id <> :gateNodeId
+                          AND NOT EXISTS (
+                              SELECT 1
+                              FROM order_process_edge incoming
+                              WHERE incoming.instance_id = candidate.instance_id
+                                AND incoming.to_node_instance_id = candidate.node_instance_id
+                          )
+                        """)
+                .param("instanceId", instanceId)
+                .param("gateNodeId", gateNodeId)
+                .update();
+        if (inserted == 0) {
+            throw new ResponseStatusException(
+                    HttpStatus.CONFLICT, "workflow route has no executable node after design confirmation");
+        }
+    }
+
+    private long designGateNodeId(long instanceId) {
+        return jdbcClient.sql("""
+                        SELECT node_instance_id
+                        FROM order_process_node
+                        WHERE instance_id = :instanceId
+                          AND node_category = 'DESIGN_GATE'
+                        ORDER BY step_order, node_instance_id
+                        LIMIT 1
+                        """)
+                .param("instanceId", instanceId)
+                .query(Long.class)
+                .optional()
+                .orElseThrow(() -> new ResponseStatusException(
+                        HttpStatus.CONFLICT, "workflow chain is missing the design confirmation gate"));
     }
 
     private void copyEdges(long instanceId, long chainId) {
@@ -735,6 +962,78 @@ public class WorkflowRuntimeService {
         return branchKey.equalsIgnoreCase(params.path(branchGroup).asText());
     }
 
+    private ProductionReviewRequest normalizeApprovalRequest(long orderId, ProductionReviewRequest request) {
+        ChainRow chain = resolveChainForOrder(orderId, request.chainId());
+        String configuredIntake = normalize(chain.intakeBranch());
+        String requestedIntake = normalizeText(request.intakeBranch());
+        if (requestedIntake != null) {
+            requestedIntake = normalize(requestedIntake);
+        }
+        String effectiveIntake;
+        if ("BOTH".equals(configuredIntake)) {
+            if (requestedIntake == null || !Set.of("SCAN", "IMPRESSION").contains(requestedIntake)) {
+                throw new ResponseStatusException(
+                        HttpStatus.BAD_REQUEST,
+                        "intake_branch must be SCAN or IMPRESSION for a dual-intake workflow");
+            }
+            effectiveIntake = requestedIntake;
+        } else if ("NONE".equals(configuredIntake)) {
+            if (requestedIntake != null) {
+                throw new ResponseStatusException(
+                        HttpStatus.BAD_REQUEST,
+                        "intake_branch must be omitted for a workflow without an intake choice");
+            }
+            effectiveIntake = null;
+        } else {
+            if (configuredIntake == null || !Set.of("SCAN", "IMPRESSION").contains(configuredIntake)) {
+                throw new ResponseStatusException(HttpStatus.CONFLICT, "workflow chain has an invalid intake_branch");
+            }
+            if (requestedIntake != null && !configuredIntake.equals(requestedIntake)) {
+                throw new ResponseStatusException(
+                        HttpStatus.BAD_REQUEST, "intake_branch does not match the selected workflow chain");
+            }
+            effectiveIntake = configuredIntake;
+        }
+
+        JsonNode branchParams = request.branchParams();
+        if (branchParams != null && !branchParams.isNull() && !branchParams.isObject()) {
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "branch_params must be an object");
+        }
+        Map<String, Set<String>> optionsByGroup = new LinkedHashMap<>();
+        jdbcClient.sql("""
+                        SELECT branch_group, branch_key
+                        FROM workflow_node
+                        WHERE chain_id = :chainId
+                          AND branch_group IS NOT NULL
+                          AND branch_group <> ''
+                          AND branch_key IS NOT NULL
+                          AND branch_key <> ''
+                          AND LOWER(branch_group) <> 'intake'
+                        ORDER BY step_order, node_id
+                        """)
+                .param("chainId", chain.chainId())
+                .query((rs, rowNum) -> Map.entry(
+                        rs.getString("branch_group"),
+                        normalize(rs.getString("branch_key"))))
+                .list()
+                .forEach(option -> optionsByGroup
+                        .computeIfAbsent(option.getKey(), ignored -> new LinkedHashSet<>())
+                        .add(option.getValue()));
+        for (Map.Entry<String, Set<String>> group : optionsByGroup.entrySet()) {
+            String selected = branchParams == null || !branchParams.hasNonNull(group.getKey())
+                    ? null
+                    : normalizeText(branchParams.path(group.getKey()).asText());
+            String normalizedSelection = selected == null ? null : normalize(selected);
+            if (normalizedSelection == null || !group.getValue().contains(normalizedSelection)) {
+                throw new ResponseStatusException(
+                        HttpStatus.BAD_REQUEST,
+                        "branch_params." + group.getKey() + " must select one of " + group.getValue());
+            }
+        }
+        return new ProductionReviewRequest(
+                "APPROVE", chain.chainId(), effectiveIntake, branchParams, null);
+    }
+
     private void loadNodeKanbanMetrics(
             Map<String, StageMetricAccumulator> stages,
             Set<Long> visibleOrderIds,
@@ -742,8 +1041,7 @@ public class WorkflowRuntimeService {
             LocalDateTime endExclusive,
             LocalDateTime asOf,
             BootstrapIdentity identity,
-            String dataScope,
-            boolean canReviewProduction) {
+            String dataScope) {
         jdbcClient.sql("""
                         WITH unfinished_candidates AS (
                             SELECT
@@ -756,7 +1054,9 @@ public class WorkflowRuntimeService {
                                     ELSE 0
                                 END AS in_progress,
                                 CASE
-                                    WHEN n.deadline_at IS NOT NULL AND n.deadline_at < :asOf THEN 1
+                                    WHEN :formalStandardTimeEnabled
+                                         AND n.deadline_at IS NOT NULL
+                                         AND n.deadline_at < :asOf THEN 1
                                     ELSE 0
                                 END AS overdue,
                                 ROW_NUMBER() OVER (
@@ -777,17 +1077,15 @@ public class WorkflowRuntimeService {
                               AND (n.completed_at IS NULL OR n.completed_at > :asOf)
                               AND (n.skipped_at IS NULL OR n.skipped_at > :asOf)
                               AND n.process_name <> 'DataScope节点'
+                              AND (
+                                  n.branch_group IS NULL
+                                  OR n.branch_group <> 'intake'
+                                  OR n.branch_key = i.intake_branch_used
+                              )
                               AND o.internal_status NOT IN ('COMPLETED', 'SHIPPED', 'RECEIVED')
                               AND (
                                   :dataScope = 'ALL'
-                                  OR (:dataScope = 'SELF' AND (
-                                      n.assigned_user_id = :userId
-                                      OR (
-                                          :canReviewProduction = TRUE
-                                          AND n.node_status = 'READY'
-                                          AND n.assigned_user_id IS NULL
-                                      )
-                                  ))
+                                  OR (:dataScope = 'SELF' AND n.assigned_user_id = :userId)
                               )
                         )
                         SELECT order_id, stage_name, process_name, internal_status, in_progress, overdue
@@ -795,9 +1093,9 @@ public class WorkflowRuntimeService {
                         WHERE row_num = 1
                         """)
                 .param("asOf", asOf)
+                .param("formalStandardTimeEnabled", standardTimeProperties.formalEnabled())
                 .param("dataScope", dataScope)
                 .param("userId", identity.userId())
-                .param("canReviewProduction", canReviewProduction)
                 .query((rs, rowNum) -> new UnfinishedOrderMetricRow(
                         rs.getLong("order_id"),
                         rs.getString("stage_name"),
@@ -838,6 +1136,11 @@ public class WorkflowRuntimeService {
                             JOIN orders o ON o.order_id = i.order_id
                             WHERE i.instance_status = 'COMPLETED'
                               AND n.process_name <> 'DataScope节点'
+                              AND (
+                                  n.branch_group IS NULL
+                                  OR n.branch_group <> 'intake'
+                                  OR n.branch_key = i.intake_branch_used
+                              )
                               AND i.updated_at >= :startAt
                               AND i.updated_at < :endExclusive
                               AND i.updated_at <= :asOf
@@ -893,7 +1196,7 @@ public class WorkflowRuntimeService {
         if (combined.contains("车金") || combined.contains("焊接")) return "车金";
         if (combined.contains("上瓷")) return "上瓷";
         if (containsAny(process, "审核", "扫描", "口扫", "下单", "收发", "取模", "检验")
-                || List.of("PENDING_PRODUCTION_REVIEW", "PROCESS_INSTANCE_CREATED").contains(internalStatus)) {
+                || "PROCESS_INSTANCE_CREATED".equals(internalStatus)) {
             return "CAD审核/扫描";
         }
         if (containsAny(process, "排版", "染色", "切削", "烧结", "打印")) return "CAM排版/染色/切削";
@@ -1036,6 +1339,101 @@ public class WorkflowRuntimeService {
         accessControlService.requireAssignedWorkerOrAdmin(identity, node.assignedUserId(), "worker cannot operate this node");
     }
 
+    private void requireAssignableNode(long orderId, NodeRow node) {
+        if (node.orderId() != orderId) {
+            throw new ResponseStatusException(HttpStatus.NOT_FOUND, "process node does not belong to this order");
+        }
+        if ("DESIGN_GATE".equals(node.nodeCategory())) {
+            throw new ResponseStatusException(
+                    HttpStatus.CONFLICT, "design confirmation gate is completed by the doctor confirmation flow");
+        }
+        if (!Set.of("PENDING", "READY", "IN_PROGRESS").contains(node.nodeStatus())) {
+            throw new ResponseStatusException(HttpStatus.CONFLICT, "node cannot be assigned in current status");
+        }
+    }
+
+    private void requireActiveWorker(long userId) {
+        long activeWorkerCount = jdbcClient.sql("""
+                        SELECT COUNT(DISTINCT user_account.user_id)
+                        FROM system_user user_account
+                        JOIN system_user_role user_role ON user_role.user_id = user_account.user_id
+                        JOIN system_role role ON role.role_id = user_role.role_id
+                        WHERE user_account.user_id = :userId
+                          AND user_account.status = 'ACTIVE'
+                          AND user_account.user_type = 'WORKER'
+                          AND role.status = 'ACTIVE'
+                          AND role.role_code = 'WORKER'
+                        """)
+                .param("userId", userId)
+                .query(Long.class)
+                .single();
+        if (activeWorkerCount == 0) {
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "target user must be an active WORKER");
+        }
+    }
+
+    private void recordAssignmentEvent(
+            long orderId,
+            NodeRow node,
+            String eventType,
+            long toUserId,
+            String reason,
+            BootstrapIdentity identity) {
+        jdbcClient.sql("""
+                        INSERT INTO workflow_assignment_event
+                            (order_id, node_instance_id, event_type, from_user_id, to_user_id, reason, actor_user_id)
+                        VALUES
+                            (:orderId, :nodeInstanceId, :eventType, :fromUserId, :toUserId, :reason, :actorUserId)
+                        """)
+                .param("orderId", orderId)
+                .param("nodeInstanceId", node.nodeInstanceId())
+                .param("eventType", eventType)
+                .param("fromUserId", node.assignedUserId())
+                .param("toUserId", toUserId)
+                .param("reason", reason)
+                .param("actorUserId", identity.userId())
+                .update();
+    }
+
+    private void emitAssignmentNotification(
+            long orderId,
+            NodeRow node,
+            long recipientUserId,
+            String eventType,
+            String message) {
+        String payload;
+        try {
+            payload = objectMapper.writeValueAsString(Map.of(
+                    "event_type", eventType,
+                    "order_id", orderId,
+                    "node_instance_id", node.nodeInstanceId(),
+                    "process_name", node.processName(),
+                    "message", message));
+        } catch (JsonProcessingException ex) {
+            throw new ResponseStatusException(
+                    HttpStatus.INTERNAL_SERVER_ERROR, "failed to build assignment notification", ex);
+        }
+        jdbcClient.sql("""
+                        INSERT INTO notification_event
+                            (order_id, event_type, audience_role, payload, delivery_status)
+                        VALUES
+                            (:orderId, :eventType, 'WORKER', CAST(:payload AS JSON), 'PENDING')
+                        """)
+                .param("orderId", orderId)
+                .param("eventType", eventType)
+                .param("payload", payload)
+                .update();
+        long eventId = lastInsertId();
+        jdbcClient.sql("""
+                        INSERT IGNORE INTO user_notification (event_id, user_id)
+                        VALUES (:eventId, :userId)
+                        """)
+                .param("eventId", eventId)
+                .param("userId", recipientUserId)
+                .update();
+        notificationPushService.pushToUser(recipientUserId, eventId, payload);
+    }
+
     private boolean hasPassedCheck(long nodeInstanceId, String checkType) {
         return jdbcClient.sql("""
                         SELECT COUNT(*)
@@ -1057,7 +1455,7 @@ public class WorkflowRuntimeService {
                 .optional()
                 .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "order not found"));
         ChainRow matched = jdbcClient.sql("""
-                        SELECT chain_id, version
+                        SELECT chain_id, version, intake_branch
                         FROM workflow_chain
                         WHERE product_type = :productType
                           AND status = 1
@@ -1065,7 +1463,10 @@ public class WorkflowRuntimeService {
                         LIMIT 1
                         """)
                 .param("productType", productType)
-                .query((rs, rowNum) -> new ChainRow(rs.getLong("chain_id"), rs.getInt("version")))
+                .query((rs, rowNum) -> new ChainRow(
+                        rs.getLong("chain_id"),
+                        rs.getInt("version"),
+                        rs.getString("intake_branch")))
                 .optional()
                 .orElse(null);
         if (matched != null) {
@@ -1129,13 +1530,16 @@ public class WorkflowRuntimeService {
     private ChainRow loadChain(long chainId) {
         try {
             return jdbcClient.sql("""
-                            SELECT chain_id, version
+                            SELECT chain_id, version, intake_branch
                             FROM workflow_chain
                             WHERE chain_id = :chainId
                               AND status = 1
                             """)
                     .param("chainId", chainId)
-                    .query((rs, rowNum) -> new ChainRow(rs.getLong("chain_id"), rs.getInt("version")))
+                    .query((rs, rowNum) -> new ChainRow(
+                            rs.getLong("chain_id"),
+                            rs.getInt("version"),
+                            rs.getString("intake_branch")))
                     .single();
         } catch (EmptyResultDataAccessException ex) {
             throw new ResponseStatusException(HttpStatus.NOT_FOUND, "workflow chain not found", ex);
@@ -1185,16 +1589,12 @@ public class WorkflowRuntimeService {
                                               WHERE scoped_n.instance_id = i.instance_id
                                                 AND scoped_n.assigned_user_id = :userId
                                           )
-                                          OR (
-                                              :canReviewProduction = TRUE
-                                              AND i.instance_status = 'ACTIVE'
-                                              AND EXISTS (
-                                                  SELECT 1
-                                                  FROM order_process_node unassigned_n
-                                                  WHERE unassigned_n.instance_id = i.instance_id
-                                                    AND unassigned_n.node_status = 'READY'
-                                                    AND unassigned_n.assigned_user_id IS NULL
-                                              )
+                                          OR EXISTS (
+                                              SELECT 1
+                                              FROM design_task scoped_design
+                                              WHERE scoped_design.order_id = i.order_id
+                                                AND scoped_design.assigned_user_id = :userId
+                                                AND scoped_design.task_status <> 'CANCELLED'
                                           )
                                       ))
                               )
@@ -1203,7 +1603,6 @@ public class WorkflowRuntimeService {
                     .param("dataScope", dataScope)
                     .param("userId", identity.userId())
                     .param("clinicId", identity.clinicId())
-                    .param("canReviewProduction", accessControlService.canReviewProduction(identity))
                     .query((rs, rowNum) -> new InstanceRow(
                             rs.getLong("instance_id"),
                             rs.getLong("order_id"),
@@ -1243,6 +1642,7 @@ public class WorkflowRuntimeService {
                                 n.instance_id,
                                 i.order_id,
                                 n.process_name,
+                                n.node_category,
                                 n.is_optional,
                                 n.need_in_check,
                                 n.need_out_check,
@@ -1259,6 +1659,7 @@ public class WorkflowRuntimeService {
                             rs.getLong("instance_id"),
                             rs.getLong("order_id"),
                             rs.getString("process_name"),
+                            rs.getString("node_category"),
                             rs.getInt("is_optional"),
                             rs.getInt("need_in_check"),
                             rs.getInt("need_out_check"),
@@ -1284,9 +1685,15 @@ public class WorkflowRuntimeService {
                             branch_key,
                             assigned_user_id,
                             node_status,
-                            standard_duration,
+                            CASE
+                                WHEN :formalStandardTimeEnabled THEN standard_duration
+                                ELSE NULL
+                            END AS standard_duration,
                             started_at,
-                            deadline_at,
+                            CASE
+                                WHEN :formalStandardTimeEnabled THEN deadline_at
+                                ELSE NULL
+                            END AS deadline_at,
                             completed_at,
                             CASE
                                 WHEN node_status = 'READY'
@@ -1325,6 +1732,7 @@ public class WorkflowRuntimeService {
                         ORDER BY step_order, node_instance_id
                         """)
                 .param("instanceId", instanceId)
+                .param("formalStandardTimeEnabled", standardTimeProperties.formalEnabled())
                 .query((rs, rowNum) -> new ProcessNodeResponse(
                         rs.getLong("node_instance_id"),
                         rs.getString("node_code"),
@@ -1370,7 +1778,14 @@ public class WorkflowRuntimeService {
         return value == null ? "" : value.trim().toUpperCase(Locale.ROOT);
     }
 
-    private record ChainRow(long chainId, int version) {
+    private String normalizeText(String value) {
+        if (value == null || value.isBlank()) {
+            return null;
+        }
+        return value.trim();
+    }
+
+    private record ChainRow(long chainId, int version, String intakeBranch) {
     }
 
     private record InstanceRow(
@@ -1387,6 +1802,7 @@ public class WorkflowRuntimeService {
             long instanceId,
             long orderId,
             String processName,
+            String nodeCategory,
             int isOptional,
             int needInCheck,
             int needOutCheck,

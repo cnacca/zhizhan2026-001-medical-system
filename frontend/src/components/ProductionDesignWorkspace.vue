@@ -363,7 +363,7 @@ async function transferTask(task: DesignTask) {
 }
 
 async function uploadOne(orderId: number, file: File): Promise<number> {
-  if (file.size > 200 * 1024 * 1024) throw new Error(`文件 ${file.name} 超过 200MB 限制`)
+  if (file.size > 500 * 1024 * 1024) throw new Error(`文件 ${file.name} 超过 500MB 限制`)
   const upload = await apiFetch<MultipartInitiateResponse>('/files/multipart/initiate', {
     method: 'POST',
     body: JSON.stringify({

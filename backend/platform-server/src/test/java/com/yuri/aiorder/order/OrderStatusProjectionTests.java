@@ -51,15 +51,25 @@ class OrderStatusProjectionTests {
     private BearerTokenService tokenService;
 
     private long clinicId;
+    private String clinicName;
+    private long patientId;
     private long orderId;
     private String orderNo;
 
     @BeforeEach
     void setUp() {
         String suffix = UUID.randomUUID().toString().replace("-", "");
-        String clinicName = "测试诊所-" + suffix;
+        clinicName = "测试诊所-" + suffix;
         orderNo = "T" + suffix.substring(0, 12);
 
+        jdbcClient.sql("""
+                        DELETE sup
+                        FROM system_user_permission sup
+                        JOIN system_permission permission ON permission.permission_id = sup.permission_id
+                        WHERE sup.user_id = 9601
+                          AND permission.permission_code = 'workflow:review-production'
+                        """)
+                .update();
         jdbcClient.sql("INSERT INTO clinic (clinic_name) VALUES (:clinicName)")
                 .param("clinicName", clinicName)
                 .update();
@@ -69,17 +79,52 @@ class OrderStatusProjectionTests {
                 .single();
 
         jdbcClient.sql("""
+                        INSERT INTO system_user
+                            (user_id, username, password_hash, display_name, clinic_id, user_type, status)
+                        VALUES
+                            (:userId, 'order-projection-doctor', 'test-only', '订单测试医生',
+                             :clinicId, 'DOCTOR', 'ACTIVE')
+                        ON DUPLICATE KEY UPDATE display_name = VALUES(display_name)
+                        """)
+                .param("userId", DOCTOR_USER_ID)
+                .param("clinicId", clinicId)
+                .update();
+        jdbcClient.sql("""
+                        INSERT INTO patient_record
+                            (clinic_id, doctor_user_id, patient_name)
+                        VALUES
+                            (:clinicId, :doctorUserId, '张三')
+                        """)
+                .param("clinicId", clinicId)
+                .param("doctorUserId", DOCTOR_USER_ID)
+                .update();
+        patientId = jdbcClient.sql("""
+                        SELECT patient_id
+                        FROM patient_record
+                        WHERE clinic_id = :clinicId
+                          AND doctor_user_id = :doctorUserId
+                          AND patient_name = '张三'
+                        ORDER BY patient_id DESC
+                        LIMIT 1
+                        """)
+                .param("clinicId", clinicId)
+                .param("doctorUserId", DOCTOR_USER_ID)
+                .query(Long.class)
+                .single();
+
+        jdbcClient.sql("""
                         INSERT INTO orders
-                            (order_no, clinic_id, doctor_user_id, cs_user_id, product_type,
+                            (order_no, clinic_id, doctor_user_id, patient_id, cs_user_id, product_type,
                              form_data, internal_status, external_status, production_note)
                         VALUES
-                            (:orderNo, :clinicId, :doctorUserId, 8001, 'REGULAR_CROWN',
+                            (:orderNo, :clinicId, :doctorUserId, :patientId, 8001, 'REGULAR_CROWN',
                              JSON_OBJECT('patient_name', '张三', 'tooth_position', '11'),
                              'PENDING_CS_REVIEW', 'PENDING_REVIEW', '内部生产备注')
                         """)
                 .param("orderNo", orderNo)
                 .param("clinicId", clinicId)
                 .param("doctorUserId", DOCTOR_USER_ID)
+                .param("patientId", patientId)
                 .update();
         orderId = jdbcClient.sql("SELECT order_id FROM orders WHERE order_no = :orderNo")
                 .param("orderNo", orderNo)
@@ -149,8 +194,81 @@ class OrderStatusProjectionTests {
                         .header("X-Bootstrap-Role", "ADMIN"))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.data.internal_status").value("IN_PRODUCTION"))
+                .andExpect(jsonPath("$.data.clinic_name").value(clinicName))
+                .andExpect(jsonPath("$.data.patient_name").value("张三"))
+                .andExpect(jsonPath("$.data.doctor_name").value("订单测试医生"))
                 .andExpect(jsonPath("$.data.production_note").value("内部生产备注"))
                 .andExpect(jsonPath("$.data.cs_user_id").value(8001));
+    }
+
+    @Test
+    void receiptConfirmationRequiresShipmentAndFreezesDeliveredLogisticsFact() throws Exception {
+        mockMvc.perform(post("/orders/{orderId}/confirm-receipt", orderId)
+                        .header("X-Bootstrap-Role", "DOCTOR")
+                        .header("X-Bootstrap-User-Id", DOCTOR_USER_ID)
+                        .header("X-Bootstrap-Clinic-Id", clinicId))
+                .andExpect(status().isConflict());
+
+        statusService.updateOrderState(orderId, InternalOrderStatus.SHIPPED, "TEST_ORDER_SHIPPED", 8001L, "SF-TEST");
+        jdbcClient.sql("""
+                        INSERT INTO order_logistics
+                            (order_id, carrier_name, tracking_no, logistics_status, shipped_at)
+                        VALUES
+                            (:orderId, '顺丰速运', 'SF-TEST', 'SHIPPED', CURRENT_TIMESTAMP(3))
+                        """)
+                .param("orderId", orderId)
+                .update();
+
+        mockMvc.perform(post("/orders/{orderId}/confirm-receipt", orderId)
+                        .header("X-Bootstrap-Role", "ADMIN")
+                        .header("X-Bootstrap-User-Id", 8001L))
+                .andExpect(status().isForbidden());
+
+        mockMvc.perform(post("/orders/{orderId}/confirm-receipt", orderId)
+                        .header("X-Bootstrap-Role", "DOCTOR")
+                        .header("X-Bootstrap-User-Id", DOCTOR_USER_ID)
+                        .header("X-Bootstrap-Clinic-Id", clinicId))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.orderId").value(orderId))
+                .andExpect(jsonPath("$.data.externalStatus").value("COMPLETED"));
+
+        String logisticsStatus = jdbcClient.sql("""
+                        SELECT logistics_status
+                        FROM order_logistics
+                        WHERE order_id = :orderId
+                        """)
+                .param("orderId", orderId)
+                .query(String.class)
+                .single();
+        long deliveredCount = jdbcClient.sql("""
+                        SELECT COUNT(*)
+                        FROM order_logistics
+                        WHERE order_id = :orderId
+                          AND delivered_at IS NOT NULL
+                        """)
+                .param("orderId", orderId)
+                .query(Long.class)
+                .single();
+        long receiptHistoryCount = jdbcClient.sql("""
+                        SELECT COUNT(*)
+                        FROM order_status_history
+                        WHERE order_id = :orderId
+                          AND event_type = 'DOCTOR_CONFIRM_RECEIPT'
+                          AND to_internal_status = 'COMPLETED'
+                        """)
+                .param("orderId", orderId)
+                .query(Long.class)
+                .single();
+
+        org.assertj.core.api.Assertions.assertThat(logisticsStatus).isEqualTo("DELIVERED");
+        org.assertj.core.api.Assertions.assertThat(deliveredCount).isEqualTo(1L);
+        org.assertj.core.api.Assertions.assertThat(receiptHistoryCount).isEqualTo(1L);
+
+        mockMvc.perform(post("/orders/{orderId}/confirm-receipt", orderId)
+                        .header("X-Bootstrap-Role", "DOCTOR")
+                        .header("X-Bootstrap-User-Id", DOCTOR_USER_ID)
+                        .header("X-Bootstrap-Clinic-Id", clinicId))
+                .andExpect(status().isConflict());
     }
 
     @Test
@@ -319,6 +437,104 @@ class OrderStatusProjectionTests {
                         .header("X-Bootstrap-User-Id", OTHER_DOCTOR_USER_ID)
                         .header("X-Bootstrap-Clinic-Id", clinicId))
                 .andExpect(status().isForbidden());
+    }
+
+    @Test
+    void doctorCannotSubmitOrderWithoutCompletedStl() throws Exception {
+        long submittedOrderCountBefore = jdbcClient.sql("""
+                        SELECT COUNT(*)
+                        FROM orders
+                        WHERE JSON_UNQUOTE(JSON_EXTRACT(form_data, '$.patient_name')) = '无附件提交'
+                        """)
+                .query(Long.class)
+                .single();
+
+        mockMvc.perform(post("/orders")
+                        .header("X-Bootstrap-Role", "DOCTOR")
+                        .header("X-Bootstrap-User-Id", DOCTOR_USER_ID)
+                        .header("X-Bootstrap-Clinic-Id", clinicId)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("""
+                                {
+                                  "product_type": "REGULAR_CROWN",
+                                  "form_data": {
+                                    "patient_name": "无附件提交",
+                                    "tooth_position": "36"
+                                  },
+                                  "file_ids": []
+                                }
+                                """))
+                .andExpect(status().isBadRequest())
+                .andExpect(result -> org.assertj.core.api.Assertions.assertThat(
+                                result.getResponse().getErrorMessage())
+                        .contains("at least one completed STL file is required"));
+
+        long submittedOrderCountAfter = jdbcClient.sql("""
+                        SELECT COUNT(*)
+                        FROM orders
+                        WHERE JSON_UNQUOTE(JSON_EXTRACT(form_data, '$.patient_name')) = '无附件提交'
+                        """)
+                .query(Long.class)
+                .single();
+        org.assertj.core.api.Assertions.assertThat(submittedOrderCountAfter).isEqualTo(submittedOrderCountBefore);
+
+        long pdfFileId = insertFileResource(
+                null,
+                DOCTOR_USER_ID,
+                "ORDER_ATTACHMENT",
+                "DOCTOR",
+                "COMPLETED",
+                "case.pdf");
+        assertCreateOrderWithFileRejected(pdfFileId, is(400));
+    }
+
+    @Test
+    void doctorCannotSubmitExistingDraftAfterRemovingAllStlFiles() throws Exception {
+        String draftResponse = mockMvc.perform(post("/orders")
+                        .header("X-Bootstrap-Role", "DOCTOR")
+                        .header("X-Bootstrap-User-Id", DOCTOR_USER_ID)
+                        .header("X-Bootstrap-Clinic-Id", clinicId)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("""
+                                {
+                                  "product_type": "REGULAR_CROWN",
+                                  "form_data": {"patient_name": "空附件草稿"},
+                                  "is_draft": true
+                                }
+                                """))
+                .andExpect(status().isOk())
+                .andReturn()
+                .getResponse()
+                .getContentAsString();
+        long draftOrderId = ((Number) com.jayway.jsonpath.JsonPath.read(
+                draftResponse, "$.data.order_id")).longValue();
+
+        mockMvc.perform(put("/orders/{orderId}", draftOrderId)
+                        .header("X-Bootstrap-Role", "DOCTOR")
+                        .header("X-Bootstrap-User-Id", DOCTOR_USER_ID)
+                        .header("X-Bootstrap-Clinic-Id", clinicId)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("""
+                                {
+                                  "product_type": "REGULAR_CROWN",
+                                  "form_data": {
+                                    "patient_name": "空附件草稿",
+                                    "tooth_position": "36"
+                                  },
+                                  "file_ids": [],
+                                  "submit": true
+                                }
+                                """))
+                .andExpect(status().isBadRequest())
+                .andExpect(result -> org.assertj.core.api.Assertions.assertThat(
+                                result.getResponse().getErrorMessage())
+                        .contains("at least one completed STL file is required"));
+
+        String internalStatus = jdbcClient.sql("SELECT internal_status FROM orders WHERE order_id = :orderId")
+                .param("orderId", draftOrderId)
+                .query(String.class)
+                .single();
+        org.assertj.core.api.Assertions.assertThat(internalStatus).isEqualTo("DRAFT");
     }
 
     @Test
@@ -636,18 +852,25 @@ class OrderStatusProjectionTests {
     }
 
     @Test
-    void productionReviewerCanSeePendingProductionReviewInOrderListAndKanbanBeforeProcessCreation() throws Exception {
+    void authorizedProductionReviewerCanReadAndReviewPendingQueue() throws Exception {
         statusService.updateOrderState(
                 orderId,
                 InternalOrderStatus.PENDING_PRODUCTION_REVIEW,
                 "TEST_PENDING_PRODUCTION_REVIEW",
                 8002L,
                 "ready for production review");
+        jdbcClient.sql("""
+                        INSERT INTO system_user_permission (user_id, permission_id)
+                        SELECT 9601, permission_id
+                        FROM system_permission
+                        WHERE permission_code = 'workflow:review-production'
+                        """)
+                .update();
         String token = tokenService.issue(new BootstrapIdentity(
                 UserRole.WORKER,
                 9601L,
                 null,
-                "production-reviewer",
+                "production-worker",
                 Set.of("order:read-internal", "workflow:read-internal", "workflow:review-production"),
                 "SELF"));
 
@@ -659,11 +882,23 @@ class OrderStatusProjectionTests {
                 .andExpect(jsonPath("$.data.total").value(1))
                 .andExpect(jsonPath("$.data.items[0].order_id").value(orderId));
 
+        mockMvc.perform(get("/orders/{orderId}", orderId)
+                        .header("Authorization", "Bearer " + token))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.order_id").value(orderId));
+
         mockMvc.perform(get("/production/kanban")
-                        .header("Authorization", "Bearer " + token)
+                .header("Authorization", "Bearer " + token)
+                .param("date", LocalDate.now().toString()))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.visible_order_ids", not(hasItem((int) orderId))));
+
+        mockMvc.perform(get("/production/kanban")
+                        .header("X-Bootstrap-Role", "ADMIN")
+                        .header("X-Bootstrap-User-Id", 8001L)
                         .param("date", LocalDate.now().toString()))
                 .andExpect(status().isOk())
-                .andExpect(jsonPath("$.data.visible_order_ids", hasItem((int) orderId)));
+                .andExpect(jsonPath("$.data.visible_order_ids", not(hasItem((int) orderId))));
 
         mockMvc.perform(post("/orders/{orderId}/production-review", orderId)
                         .header("Authorization", "Bearer " + token)
@@ -671,6 +906,41 @@ class OrderStatusProjectionTests {
                         .content("{\"action\":\"REJECT\",\"reject_reason\":\"test production review permission\"}"))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.data.internal_status").value("PRODUCTION_REJECTED"));
+    }
+
+    @Test
+    void ordinaryWorkerCannotReadOrReviewPendingProductionQueue() throws Exception {
+        statusService.updateOrderState(
+                orderId,
+                InternalOrderStatus.PENDING_PRODUCTION_REVIEW,
+                "TEST_PENDING_PRODUCTION_REVIEW",
+                8002L,
+                "ready for production review");
+        String token = tokenService.issue(new BootstrapIdentity(
+                UserRole.WORKER,
+                9601L,
+                null,
+                "ordinary-production-worker",
+                Set.of("order:read-internal", "workflow:read-internal"),
+                "SELF"));
+
+        mockMvc.perform(get("/orders")
+                        .header("Authorization", "Bearer " + token)
+                        .param("internal_status", "PENDING_PRODUCTION_REVIEW")
+                        .param("keyword", orderNo))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.total").value(0))
+                .andExpect(jsonPath("$.data.items", hasSize(0)));
+
+        mockMvc.perform(get("/orders/{orderId}", orderId)
+                        .header("Authorization", "Bearer " + token))
+                .andExpect(status().isForbidden());
+
+        mockMvc.perform(post("/orders/{orderId}/production-review", orderId)
+                        .header("Authorization", "Bearer " + token)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"action\":\"REJECT\",\"reject_reason\":\"must remain forbidden\"}"))
+                .andExpect(status().isForbidden());
     }
 
     @Test
@@ -829,6 +1099,16 @@ class OrderStatusProjectionTests {
             String sourceType,
             String visibility,
             String uploadStatus) {
+        return insertFileResource(fileOrderId, ownerUserId, sourceType, visibility, uploadStatus, "case.stl");
+    }
+
+    private long insertFileResource(
+            Long fileOrderId,
+            long ownerUserId,
+            String sourceType,
+            String visibility,
+            String uploadStatus,
+            String originalFilename) {
         String objectKey = "task-9d2/" + UUID.randomUUID() + ".stl";
         jdbcClient.sql("""
                         INSERT INTO file_resource
@@ -836,13 +1116,14 @@ class OrderStatusProjectionTests {
                              original_filename, content_type, file_size, upload_status, status)
                         VALUES
                             (:orderId, :ownerUserId, :sourceType, :visibility, 'test-bucket', :objectKey,
-                             'case.stl', 'model/stl', 128, :uploadStatus, 'ACTIVE')
+                             :originalFilename, 'model/stl', 128, :uploadStatus, 'ACTIVE')
                         """)
                 .param("orderId", fileOrderId)
                 .param("ownerUserId", ownerUserId)
                 .param("sourceType", sourceType)
                 .param("visibility", visibility)
                 .param("objectKey", objectKey)
+                .param("originalFilename", originalFilename)
                 .param("uploadStatus", uploadStatus)
                 .update();
         return jdbcClient.sql("SELECT file_id FROM file_resource WHERE object_key = :objectKey")

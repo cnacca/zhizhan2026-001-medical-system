@@ -3,6 +3,7 @@ package com.yuri.aiorder.order.api;
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
+import com.fasterxml.jackson.databind.node.ObjectNode;
 import com.yuri.aiorder.common.BootstrapIdentity;
 import com.yuri.aiorder.common.auth.AccessControlService;
 import java.time.LocalDateTime;
@@ -49,6 +50,11 @@ public class OrderProjectionQueryService {
         return toInternalOrder(row);
     }
 
+    public JsonNode getNormalizedFormData(long orderId, BootstrapIdentity identity) {
+        OrderReadRow row = loadOrder(orderId, identity, "identity cannot access this order");
+        return internalFormData(row);
+    }
+
     public OrderListResponse<?> listOrders(
             BootstrapIdentity identity, String externalStatus, String internalStatus, String keyword, int page, int size) {
         int safePage = Math.max(page, 1);
@@ -66,7 +72,13 @@ public class OrderProjectionQueryService {
             filters.add("o.internal_status = :internalStatus");
         }
         if (keyword != null && !keyword.isBlank()) {
-            filters.add("(o.order_no LIKE :keyword OR JSON_UNQUOTE(JSON_EXTRACT(o.form_data, '$.patient_name')) LIKE :keyword)");
+            filters.add("""
+                    (o.order_no LIKE :keyword
+                     OR c.clinic_name LIKE :keyword
+                     OR doctor.display_name LIKE :keyword
+                     OR patient.patient_name LIKE :keyword
+                     OR JSON_UNQUOTE(JSON_EXTRACT(o.form_data, '$.patient_name')) LIKE :keyword)
+                    """);
         }
         String whereClause = "WHERE " + String.join(" AND ", filters);
 
@@ -135,20 +147,16 @@ public class OrderProjectionQueryService {
                                 WHERE scoped_i.order_id = o.order_id
                                   AND scoped_n.assigned_user_id = :userId
                             )
+                            OR EXISTS (
+                                SELECT 1
+                                FROM design_task scoped_design
+                                WHERE scoped_design.order_id = o.order_id
+                                  AND scoped_design.assigned_user_id = :userId
+                                  AND scoped_design.task_status <> 'CANCELLED'
+                            )
                         ))
                     OR (:canReviewProduction = TRUE
                         AND o.internal_status = 'PENDING_PRODUCTION_REVIEW')
-                    OR (:canReviewProduction = TRUE
-                        AND EXISTS (
-                            SELECT 1
-                            FROM order_process_instance unassigned_i
-                            JOIN order_process_node unassigned_n
-                              ON unassigned_n.instance_id = unassigned_i.instance_id
-                            WHERE unassigned_i.order_id = o.order_id
-                              AND unassigned_i.instance_status = 'ACTIVE'
-                              AND unassigned_n.node_status = 'READY'
-                              AND unassigned_n.assigned_user_id IS NULL
-                        ))
                 )
                 """;
     }
@@ -166,6 +174,9 @@ public class OrderProjectionQueryService {
         return jdbcClient.sql("""
                         SELECT COUNT(*)
                         FROM orders o
+                        JOIN clinic c ON c.clinic_id = o.clinic_id
+                        LEFT JOIN system_user doctor ON doctor.user_id = o.doctor_user_id
+                        LEFT JOIN patient_record patient ON patient.patient_id = o.patient_id
                         %s
                         """.formatted(whereClause));
     }
@@ -225,10 +236,16 @@ public class OrderProjectionQueryService {
                 SELECT
                     o.order_id,
                     o.order_no,
+                    o.group_id,
                     o.clinic_id,
                     c.clinic_name,
                     o.doctor_user_id,
+                    doctor.display_name AS doctor_name,
                     o.patient_id,
+                    COALESCE(
+                        patient.patient_name,
+                        JSON_UNQUOTE(JSON_EXTRACT(o.form_data, '$.patient_name'))
+                    ) AS patient_name,
                     o.cs_user_id,
                     o.product_type,
                     o.internal_status,
@@ -236,6 +253,9 @@ public class OrderProjectionQueryService {
                     o.production_note,
                     o.reject_reason,
                     o.form_data,
+                    snapshot.product_snapshot AS catalog_product_snapshot,
+                    snapshot.form_schema_snapshot,
+                    snapshot.normalized_form_values,
                     o.created_at,
                     o.updated_at,
                     p.public_message,
@@ -244,7 +264,10 @@ public class OrderProjectionQueryService {
                     l.tracking_no
                 FROM orders o
                 JOIN clinic c ON c.clinic_id = o.clinic_id
+                LEFT JOIN system_user doctor ON doctor.user_id = o.doctor_user_id
+                LEFT JOIN patient_record patient ON patient.patient_id = o.patient_id
                 LEFT JOIN order_external_projection p ON p.order_id = o.order_id
+                LEFT JOIN order_catalog_snapshot snapshot ON snapshot.order_id = o.order_id
                 LEFT JOIN order_bill b ON b.order_id = o.order_id
                 LEFT JOIN order_logistics l ON l.order_id = o.order_id
                 """;
@@ -254,10 +277,13 @@ public class OrderProjectionQueryService {
         return new OrderReadRow(
                 rs.getLong("order_id"),
                 rs.getString("order_no"),
+                rs.getObject("group_id", Long.class),
                 rs.getLong("clinic_id"),
                 rs.getString("clinic_name"),
                 rs.getObject("doctor_user_id", Long.class),
+                rs.getString("doctor_name"),
                 rs.getObject("patient_id", Long.class),
+                rs.getString("patient_name"),
                 rs.getObject("cs_user_id", Long.class),
                 rs.getString("product_type"),
                 rs.getString("internal_status"),
@@ -265,6 +291,9 @@ public class OrderProjectionQueryService {
                 rs.getString("production_note"),
                 rs.getString("reject_reason"),
                 rs.getString("form_data"),
+                rs.getString("catalog_product_snapshot"),
+                rs.getString("form_schema_snapshot"),
+                rs.getString("normalized_form_values"),
                 rs.getObject("created_at", LocalDateTime.class),
                 rs.getObject("updated_at", LocalDateTime.class),
                 rs.getString("public_message"),
@@ -277,11 +306,12 @@ public class OrderProjectionQueryService {
         return new DoctorOrderVO(
                 row.orderId(),
                 row.orderNo(),
+                row.groupId(),
                 row.patientId(),
                 row.productType(),
                 row.externalStatus(),
                 isDoctorEditable(row.internalStatus()),
-                readJson(row.formData()),
+                internalFormData(row),
                 row.publicMessage(),
                 row.billStatus(),
                 row.logisticsStatus(),
@@ -366,16 +396,80 @@ public class OrderProjectionQueryService {
                 row.clinicId(),
                 row.clinicName(),
                 row.doctorUserId(),
+                row.doctorName(),
                 row.patientId(),
+                row.patientName(),
                 row.csUserId(),
                 row.productType(),
                 row.internalStatus(),
                 row.externalStatus(),
                 row.productionNote(),
                 row.rejectReason(),
-                readJson(row.formData()),
+                row.formSchemaSnapshot() == null ? null : readJson(row.formSchemaSnapshot()),
+                internalFormData(row),
                 row.createdAt(),
                 row.updatedAt());
+    }
+
+    private JsonNode internalFormData(OrderReadRow row) {
+        JsonNode parsed = readJson(row.formData());
+        if (!(parsed instanceof ObjectNode)) {
+            return parsed;
+        }
+        ObjectNode result = ((ObjectNode) parsed).deepCopy();
+
+        if (!result.hasNonNull("patient_name") && row.patientName() != null && !row.patientName().isBlank()) {
+            result.put("patient_name", row.patientName());
+        }
+
+        JsonNode normalizedValues = readJson(row.normalizedFormValues());
+        copyCompatibilityValue(result, "tooth_position", normalizedValues, "tooth_position", "tooth_positions");
+        copyCompatibilityValue(result, "doctor_note", normalizedValues, "doctor_note", "case_note");
+
+        JsonNode productSnapshot = readJson(row.catalogProductSnapshot());
+        if (!result.hasNonNull("material") && productSnapshot.path("materials").isArray()) {
+            List<String> materials = new ArrayList<>();
+            for (JsonNode material : productSnapshot.path("materials")) {
+                String name = material.path("display_name").asText("").trim();
+                int quantity = material.path("quantity").asInt(1);
+                if (!name.isBlank()) {
+                    materials.add(quantity > 1 ? name + " × " + quantity : name);
+                }
+            }
+            if (!materials.isEmpty()) {
+                result.put("material", String.join("、", materials));
+            }
+        }
+        if (!result.hasNonNull("accessories") && productSnapshot.path("accessories").isArray()) {
+            List<String> accessories = new ArrayList<>();
+            for (JsonNode accessory : productSnapshot.path("accessories")) {
+                String name = accessory.path("display_name").asText("").trim();
+                int quantity = accessory.path("quantity").asInt(1);
+                if (!name.isBlank()) {
+                    accessories.add(quantity > 1 ? name + " × " + quantity : name);
+                }
+            }
+            if (!accessories.isEmpty()) {
+                result.put("accessories", String.join("、", accessories));
+            }
+        }
+        return result;
+    }
+
+    private void copyCompatibilityValue(
+            ObjectNode target, String targetKey, JsonNode source, String... sourceKeys) {
+        if (target.hasNonNull(targetKey) || source == null || !source.isObject()) {
+            return;
+        }
+        for (String sourceKey : sourceKeys) {
+            JsonNode value = source.get(sourceKey);
+            if (value != null && !value.isNull()
+                    && !(value.isTextual() && value.asText().isBlank())
+                    && !(value.isArray() && value.isEmpty())) {
+                target.set(targetKey, value.deepCopy());
+                return;
+            }
+        }
     }
 
     private boolean orderExists(long orderId) {
@@ -420,10 +514,13 @@ public class OrderProjectionQueryService {
     private record OrderReadRow(
             long orderId,
             String orderNo,
+            Long groupId,
             long clinicId,
             String clinicName,
             Long doctorUserId,
+            String doctorName,
             Long patientId,
+            String patientName,
             Long csUserId,
             String productType,
             String internalStatus,
@@ -431,6 +528,9 @@ public class OrderProjectionQueryService {
             String productionNote,
             String rejectReason,
             String formData,
+            String catalogProductSnapshot,
+            String formSchemaSnapshot,
+            String normalizedFormValues,
             LocalDateTime createdAt,
             LocalDateTime updatedAt,
             String publicMessage,

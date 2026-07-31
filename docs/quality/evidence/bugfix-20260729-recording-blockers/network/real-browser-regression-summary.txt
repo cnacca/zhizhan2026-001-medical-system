@@ -1,0 +1,24 @@
+Real browser regression summary
+===============================
+
+Browser: in-app Chromium
+Frontend: http://127.0.0.1:15177
+Backend: http://127.0.0.1:18084
+
+1. Doctor selected patient 修复验收患者0729 and real product 常规牙冠.
+2. Concurrent triple click on 下一步 created one draft only: ORD20260729-8DA6781EC7.
+3. Doctor selected tooth 26, material 氧化锆, shade A2-MAT-0729 and reference ZR-0729-A2.
+4. Without STL, wizard stayed on upload step.
+5. REG0729_keep.stl uploaded and became 已就绪.
+6. Main order ORD20260729-940F23D973 submitted.
+7. CS reviewed data and approved initial review.
+8. Before admin production review, worker production orders count was 0 and production-review menu was absent.
+9. Admin searched the exact order number and approved production review with 口扫 route.
+10. After admin review, worker production orders count was 1 and the target order was visible.
+11. Worker sent a doctor-visible message; status became 待审核.
+12. Admin communication center showed exactly 1 pending order.
+13. Patient search 修复验收患者0729 returned the target thread.
+14. After approval, admin pending count became 0.
+15. Doctor message center displayed the real patient name, order number and approved message.
+
+All steps used the real browser UI except the explicit BUG-012 direct API bypass check.

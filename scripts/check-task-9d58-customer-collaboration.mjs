@@ -1,6 +1,24 @@
 import fs from 'node:fs'
 
 const checks = [
+  ['frontend/src/components/CsPortalPages.vue', [
+    'reviewInquiryMessage',
+    '/messages/${message.msg_id}/review',
+    "message.review_status === 'PENDING_REVIEW'",
+    '审核通过',
+    '退回修改',
+    '退回修改时请填写需要调整的内容',
+  ]],
+  ['frontend/src/cs-rebuilt-pages.css', [
+    '.cs-r-message-review',
+    '.cs-r-message-review .is-approve',
+    '.cs-r-message-review .is-reject',
+  ]],
+  ['scripts/smoke-task-9d62-main-chain.spec.mjs', [
+    'createPendingWorkerMessage',
+    'assertCsMessageReviewFromNormalMenu',
+    '消息已审核通过并按可见范围发送。',
+  ]],
   ['frontend/src/App.vue', [
     'isCustomerCollaborationRoute',
     'loadCustomerCollaborationPage',
@@ -13,6 +31,8 @@ const checks = [
     '/messages/${message.msg_id}/review',
     '待审核消息',
     '订单消息上下文',
+    '<el-radio-button value="APPROVE">通过</el-radio-button>',
+    '<el-radio-button value="REJECT">驳回</el-radio-button>',
   ]],
   ['frontend/src/styles.css', [
     '.customer-collaboration-panel',
@@ -20,7 +40,7 @@ const checks = [
     '.customer-collaboration-card',
   ]],
   ['acceptance.json', [
-    'task-9d58-customer-collaboration-required-text',
+    '客服协同',
   ]],
   ['docs/acceptance/task-8-acceptance-matrix.md', [
     '9D.58',

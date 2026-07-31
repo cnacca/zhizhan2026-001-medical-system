@@ -30,6 +30,10 @@
   padding-left: 248px;
 }
 
+.production-compact-navigation {
+  display: none;
+}
+
 .portal-production .portal-brand {
   display: block;
   min-height: 0;
@@ -288,22 +292,60 @@
   }
 
   .portal-production .nav-panel {
-    position: relative;
-    width: auto;
-    height: auto;
-    margin: 16px;
-    border-radius: 8px;
+    display: none;
   }
 
-  .portal-production .route-menu {
-    max-height: 430px;
+  .portal-production .content-grid.with-nav > .health-panel,
+  .portal-production .content-grid.with-nav > .route-panel {
+    grid-column: 1 !important;
+  }
+
+  .portal-production .production-compact-navigation {
+    display: grid;
+    flex: 1;
+    grid-template-columns: auto minmax(180px, 320px);
+    gap: 8px;
+    align-items: center;
+    justify-content: end;
+    color: #64748b;
+    font-size: 11px;
+  }
+
+  .portal-production .production-compact-navigation select {
+    width: 100%;
+    height: 34px;
+    padding: 0 34px 0 10px;
+    border: 1px solid #cbd5e1;
+    border-radius: 8px;
+    outline: none;
+    background: #fff;
+    color: #17324d;
+    font: inherit;
+    font-weight: 700;
+  }
+
+  .portal-production .production-compact-navigation select:focus-visible {
+    border-color: #0d9488;
+    box-shadow: 0 0 0 3px rgba(13, 148, 136, 0.14);
   }
 }
 
 @media (max-width: 480px) {
-  .portal-production .nav-panel {
-    margin-right: 10px;
-    margin-left: 10px;
+  .portal-production .status-bar {
+    flex-wrap: wrap;
+    padding-top: 8px;
+    padding-bottom: 8px;
+  }
+
+  .portal-production .production-compact-navigation {
+    flex-basis: 100%;
+    grid-template-columns: minmax(0, 1fr);
+    justify-content: stretch;
+  }
+
+  .portal-production .production-compact-navigation > span,
+  .portal-production .status-actions {
+    display: none;
   }
 }
 
@@ -552,6 +594,443 @@
   height: 280px;
   color: #8b99aa;
   font-size: 13px;
+}
+
+/* Production review: the page shares data structures with the admin monitor,
+   but keeps an independent production-scoped layout and visual language. */
+.portal-production .production-review-panel {
+  padding: 0;
+  border: 0;
+  background: transparent;
+  box-shadow: none;
+}
+
+.portal-production .production-review-panel .aor-workspace {
+  display: grid;
+  min-width: 0;
+  gap: 14px;
+  color: var(--factory-ink);
+}
+
+.portal-production .production-review-panel .aor-filter-panel,
+.portal-production .production-review-panel .aor-table-wrap {
+  min-width: 0;
+  overflow: hidden;
+  border: 1px solid var(--factory-line);
+  border-radius: 12px;
+  background: var(--factory-card);
+  box-shadow: 0 8px 24px rgba(24, 44, 72, 0.045);
+}
+
+.portal-production .production-review-panel .aor-filter-main {
+  display: flex;
+  min-width: 0;
+  align-items: center;
+  gap: 10px;
+  padding: 14px 16px;
+  border-bottom: 1px solid var(--factory-soft-line);
+  background: linear-gradient(180deg, #ffffff, #fbfcfd);
+}
+
+.portal-production .production-review-panel .aor-filter-search {
+  display: flex;
+  min-width: 260px;
+  max-width: 520px;
+  height: 38px;
+  flex: 1 1 420px;
+  align-items: center;
+  gap: 9px;
+  padding: 0 12px;
+  border: 1px solid #cfd9e3;
+  border-radius: 9px;
+  background: #f8fafc;
+  color: #718196;
+  transition: border-color 140ms ease, background-color 140ms ease, box-shadow 140ms ease;
+}
+
+.portal-production .production-review-panel .aor-filter-search:focus-within {
+  border-color: #62cfc4;
+  background: #ffffff;
+  box-shadow: 0 0 0 3px rgba(15, 159, 145, 0.1);
+}
+
+.portal-production .production-review-panel .aor-filter-search .admin-menu-icon {
+  display: grid;
+  width: 16px;
+  height: 16px;
+  flex: 0 0 16px;
+  place-items: center;
+  color: var(--factory-teal);
+}
+
+.portal-production .production-review-panel .aor-filter-search .admin-menu-icon svg {
+  width: 100%;
+  height: 100%;
+}
+
+.portal-production .production-review-panel .aor-filter-search input {
+  width: 100%;
+  min-width: 0;
+  height: 100%;
+  padding: 0;
+  border: 0;
+  outline: 0;
+  background: transparent;
+  color: #27364d;
+  font: inherit;
+  font-size: 12px;
+}
+
+.portal-production .production-review-panel .aor-filter-search input::placeholder {
+  color: #94a1b2;
+}
+
+.portal-production .production-review-panel .aor-reset-button,
+.portal-production .production-review-panel .aor-quick,
+.portal-production .production-review-panel .aor-view-button {
+  font: inherit;
+  cursor: pointer;
+  transition: border-color 140ms ease, background-color 140ms ease, color 140ms ease, box-shadow 140ms ease, transform 140ms ease;
+}
+
+.portal-production .production-review-panel .aor-reset-button {
+  height: 36px;
+  padding: 0 13px;
+  border: 1px solid #d5dee7;
+  border-radius: 8px;
+  background: #ffffff;
+  color: #56667b;
+  font-size: 11px;
+  font-weight: 700;
+}
+
+.portal-production .production-review-panel .aor-reset-button:not(:disabled):hover,
+.portal-production .production-review-panel .aor-reset-button:not(:disabled):focus-visible {
+  border-color: #78d4ca;
+  outline: 0;
+  background: var(--factory-teal-soft);
+  color: var(--factory-teal-dark);
+}
+
+.portal-production .production-review-panel .aor-reset-button:disabled {
+  cursor: not-allowed;
+  opacity: 0.48;
+}
+
+.portal-production .production-review-panel .aor-filter-meta {
+  margin-left: auto;
+  color: #738297;
+  font-size: 11px;
+  white-space: nowrap;
+}
+
+.portal-production .production-review-panel .aor-filter-meta strong {
+  color: var(--factory-teal-dark);
+  font-size: 13px;
+}
+
+.portal-production .production-review-panel .aor-filter-secondary {
+  display: flex;
+  min-width: 0;
+  align-items: center;
+  gap: 16px;
+  padding: 11px 16px 13px;
+}
+
+.portal-production .production-review-panel .aor-quick-label {
+  flex: 0 0 auto;
+  color: #68788e;
+  font-size: 10px;
+  font-weight: 800;
+  letter-spacing: 0.45px;
+}
+
+.portal-production .production-review-panel .aor-quick-row {
+  display: flex;
+  min-width: 0;
+  flex-wrap: wrap;
+  gap: 7px;
+}
+
+.portal-production .production-review-panel .aor-quick {
+  display: inline-flex;
+  min-height: 30px;
+  align-items: center;
+  gap: 6px;
+  padding: 0 11px;
+  border: 1px solid #dce4ec;
+  border-radius: 999px;
+  background: #f8fafc;
+  color: #59697e;
+  font-size: 10px;
+  font-weight: 750;
+}
+
+.portal-production .production-review-panel .aor-quick i {
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: currentColor;
+}
+
+.portal-production .production-review-panel .aor-quick b {
+  font-size: 9px;
+}
+
+.portal-production .production-review-panel .aor-quick:hover,
+.portal-production .production-review-panel .aor-quick:focus-visible,
+.portal-production .production-review-panel .aor-quick.active {
+  border-color: #78d4ca;
+  outline: 0;
+  background: var(--factory-teal-soft);
+  box-shadow: inset 0 0 0 1px rgba(15, 159, 145, 0.06);
+  color: var(--factory-teal-dark);
+}
+
+.portal-production .production-review-panel .el-alert {
+  margin: 0;
+  border-radius: 10px;
+}
+
+.portal-production .production-review-panel .aor-state {
+  display: grid;
+  min-height: 180px;
+  place-content: center;
+  gap: 5px;
+  border: 1px dashed #ced9e2;
+  border-radius: 12px;
+  background: linear-gradient(135deg, #ffffff, #f1faf8);
+  color: #7a899c;
+  font-size: 12px;
+  text-align: center;
+}
+
+.portal-production .production-review-panel .aor-state strong {
+  color: #26364c;
+  font-size: 14px;
+}
+
+.portal-production .production-review-panel .aor-state.is-error {
+  border-color: #efbeca;
+  background: #fff3f5;
+  color: #b92f50;
+}
+
+.portal-production .production-review-panel .aor-table-scroll {
+  width: 100%;
+  overflow-x: auto;
+}
+
+.portal-production .production-review-panel .admin-flow-table {
+  width: 100%;
+  min-width: 920px;
+  border-collapse: collapse;
+  table-layout: fixed;
+}
+
+.portal-production .production-review-panel .admin-flow-col-order {
+  width: 190px;
+}
+
+.portal-production .production-review-panel .admin-flow-col-customer {
+  width: 150px;
+}
+
+.portal-production .production-review-panel .admin-flow-col-product {
+  width: 130px;
+}
+
+.portal-production .production-review-panel .admin-flow-col-status {
+  width: 140px;
+}
+
+.portal-production .production-review-panel .admin-flow-col-note {
+  width: auto;
+}
+
+.portal-production .production-review-panel .admin-flow-col-action {
+  width: 76px;
+}
+
+.portal-production .production-review-panel .admin-flow-table th {
+  height: 42px;
+  padding: 0 12px;
+  border-bottom: 1px solid var(--factory-line);
+  background: #f8fafc;
+  color: #748398;
+  font-size: 10px;
+  font-weight: 800;
+  letter-spacing: 0.4px;
+  text-align: left;
+  white-space: nowrap;
+}
+
+.portal-production .production-review-panel .admin-flow-table td {
+  height: 72px;
+  padding: 10px 12px;
+  border-bottom: 1px solid var(--factory-soft-line);
+  color: #4f5f75;
+  font-size: 11px;
+  line-height: 1.45;
+  vertical-align: middle;
+}
+
+.portal-production .production-review-panel .admin-flow-table tbody tr {
+  cursor: pointer;
+  transition: background-color 140ms ease;
+}
+
+.portal-production .production-review-panel .admin-flow-table tbody tr:last-child td {
+  border-bottom: 0;
+}
+
+.portal-production .production-review-panel .admin-flow-table tbody tr:hover td,
+.portal-production .production-review-panel .admin-flow-table tbody tr:focus td,
+.portal-production .production-review-panel .admin-flow-table tbody tr:focus-within td {
+  outline: 0;
+  background: #f1fbf9;
+}
+
+.portal-production .production-review-panel .aor-cell-main,
+.portal-production .production-review-panel .aor-cell-sub {
+  display: block;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.portal-production .production-review-panel .aor-cell-main {
+  color: #27364c;
+  font-weight: 750;
+  white-space: nowrap;
+}
+
+.portal-production .production-review-panel .aor-order-no {
+  color: #087b73;
+}
+
+.portal-production .production-review-panel .aor-cell-sub {
+  margin-top: 4px;
+  color: #8a97a8;
+  font-size: 9px;
+  white-space: nowrap;
+}
+
+.portal-production .production-review-panel .aor-note-cell {
+  min-width: 0;
+}
+
+.portal-production .production-review-panel .aor-production-note {
+  display: -webkit-box;
+  max-height: 34px;
+  overflow: hidden;
+  line-height: 17px;
+  white-space: normal;
+  overflow-wrap: anywhere;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 2;
+}
+
+.portal-production .production-review-panel .aor-badge {
+  display: inline-flex;
+  max-width: 100%;
+  align-items: center;
+  gap: 5px;
+  padding: 4px 8px;
+  border: 1px solid #f2d391;
+  border-radius: 999px;
+  background: #fff8e9;
+  color: #b76c10;
+  font-size: 9px;
+  font-style: normal;
+  font-weight: 800;
+  white-space: nowrap;
+}
+
+.portal-production .production-review-panel .aor-badge::before {
+  width: 5px;
+  height: 5px;
+  flex: 0 0 5px;
+  border-radius: 50%;
+  background: currentColor;
+  content: "";
+}
+
+.portal-production .production-review-panel .aor-badge.is-progress,
+.portal-production .production-review-panel .aor-badge.is-pending {
+  border-color: #b7e4de;
+  background: var(--factory-teal-soft);
+  color: var(--factory-teal-dark);
+}
+
+.portal-production .production-review-panel .aor-badge.is-success {
+  border-color: #b9e2c6;
+  background: #eef9f1;
+  color: #2f8252;
+}
+
+.portal-production .production-review-panel .aor-badge.is-danger {
+  border-color: #efc0cb;
+  background: #fff2f5;
+  color: #c23556;
+}
+
+.portal-production .production-review-panel .aor-view-button {
+  min-width: 52px;
+  height: 32px;
+  padding: 0 10px;
+  border: 1px solid #68cfc5;
+  border-radius: 8px;
+  background: var(--factory-teal);
+  box-shadow: 0 5px 12px rgba(15, 159, 145, 0.16);
+  color: #ffffff;
+  font-size: 10px;
+  font-weight: 800;
+}
+
+.portal-production .production-review-panel .aor-view-button:hover,
+.portal-production .production-review-panel .aor-view-button:focus-visible {
+  border-color: var(--factory-teal-dark);
+  outline: 0;
+  background: var(--factory-teal-dark);
+  transform: translateY(-1px);
+}
+
+.portal-production .production-review-panel .aor-table-footer {
+  display: flex;
+  min-height: 44px;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 8px 13px;
+  border-top: 1px solid var(--factory-soft-line);
+  background: #f8fafc;
+  color: #7d8a9c;
+  font-size: 10px;
+}
+
+.portal-production .production-review-panel .aor-table-footer strong {
+  color: var(--factory-teal-dark);
+}
+
+@media (max-width: 1100px) {
+  .portal-production .production-review-panel .aor-filter-main,
+  .portal-production .production-review-panel .aor-filter-secondary {
+    align-items: flex-start;
+    flex-wrap: wrap;
+  }
+
+  .portal-production .production-review-panel .aor-filter-meta {
+    margin-left: 0;
+  }
+
+  .portal-production .production-review-panel .aor-filter-secondary {
+    gap: 8px 12px;
+  }
+
+  .portal-production .production-review-panel .aor-quick-label {
+    width: 100%;
+  }
 }
 
 /* Kanban: action summary first, detailed production queues second. */

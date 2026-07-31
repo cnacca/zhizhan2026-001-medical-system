@@ -68,6 +68,7 @@ export type OrderReview = {
 export type OrderSummary = {
   order_id: string
   order_no: string
+  group_id?: number | null
   doctor_name: string
   patient_id: string
   patient_code: string
@@ -325,7 +326,7 @@ export interface DoctorGateway {
   loadPatientDetail(patientId: string): Promise<PatientDetail>
   createPatient(input: PatientCreateInput): Promise<PatientSummary>
   updatePatient(input: PatientUpdateInput): Promise<PatientSummary>
-  saveDraft(input: OrderDraftInput): Promise<{ orderId: string; stateVersion: number }>
+  saveDraft(input: OrderDraftInput): Promise<OrderSummary>
   uploadOrderFiles(orderId: string, files: File[]): Promise<DoctorFile[]>
   submitOrder(input: OrderDraftInput): Promise<OrderSummary>
   submitReview(input: ReviewDecisionInput): Promise<OrderReview>

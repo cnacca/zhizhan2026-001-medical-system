@@ -17,6 +17,7 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.UUID;
 import org.junit.jupiter.api.AfterAll;
+import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -58,6 +59,22 @@ class AiGatewayDeepSeekTests {
     @AfterAll
     static void stopDeepSeekStub() {
         deepSeekServer.stop();
+    }
+
+    @AfterEach
+    void closePendingExternalAlertsForCurrentOrder() {
+        if (orderId <= 0) {
+            return;
+        }
+        jdbcClient.sql("""
+                        UPDATE ai_external_alert_outbox
+                        SET send_status = 'SENT',
+                            last_error = NULL
+                        WHERE order_id = :orderId
+                          AND send_status IN ('PENDING', 'SENDING')
+                        """)
+                .param("orderId", orderId)
+                .update();
     }
 
     @Autowired

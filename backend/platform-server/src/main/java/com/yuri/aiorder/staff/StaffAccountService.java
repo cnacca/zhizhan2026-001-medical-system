@@ -17,7 +17,10 @@ import org.springframework.web.server.ResponseStatusException;
 public class StaffAccountService {
 
     private static final Set<String> ASSIGNABLE_DIRECT_PERMISSION_CODES =
-            Set.of("design-draft:internal-review");
+            Set.of(
+                    "design-draft:internal-review",
+                    "workflow:review-production",
+                    "final-inspection:manage");
 
     private final JdbcClient jdbcClient;
     private final PasswordHashService passwordHashService;
@@ -154,7 +157,11 @@ public class StaffAccountService {
                                 SELECT permission_code, permission_name
                                 FROM system_permission
                                 WHERE status = 'ACTIVE'
-                                  AND permission_code = 'design-draft:internal-review'
+                                  AND permission_code IN (
+                                      'design-draft:internal-review',
+                                      'workflow:review-production',
+                                      'final-inspection:manage'
+                                  )
                                 ORDER BY permission_code
                                 """)
                         .query((rs, rowNum) -> new StaffAccountOptionsResponse.PermissionOption(
@@ -174,7 +181,11 @@ public class StaffAccountService {
                                      ON direct_permission.permission_id = user_permission.permission_id
                                    WHERE user_permission.user_id = u.user_id
                                      AND direct_permission.status = 'ACTIVE'
-                                     AND direct_permission.permission_code = 'design-draft:internal-review'
+                                     AND direct_permission.permission_code IN (
+                                         'design-draft:internal-review',
+                                         'workflow:review-production',
+                                         'final-inspection:manage'
+                                     )
                                ), '') AS permission_codes
                         FROM system_user u
                         JOIN system_dept d ON d.dept_id = u.dept_id
@@ -206,7 +217,11 @@ public class StaffAccountService {
                           AND permission_id IN (
                               SELECT permission_id
                               FROM system_permission
-                              WHERE permission_code = 'design-draft:internal-review'
+                              WHERE permission_code IN (
+                                  'design-draft:internal-review',
+                                  'workflow:review-production',
+                                  'final-inspection:manage'
+                              )
                           )
                         """)
                 .param("userId", userId)

@@ -200,6 +200,58 @@ class BearerIdentityTests {
     }
 
     @Test
+    void productionReviewMenuRequiresDirectWorkerPermissionAndReloadsWithoutRelogin() throws Exception {
+        jdbcClient.sql("""
+                        DELETE FROM system_user_permission
+                        WHERE user_id = 9601
+                          AND permission_id = (
+                              SELECT permission_id
+                              FROM system_permission
+                              WHERE permission_code = 'workflow:review-production'
+                          )
+                        """)
+                .update();
+
+        MvcResult login = mockMvc.perform(post("/api/auth/login")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"username\":\"worker\",\"password\":\"change-me-worker\",\"portal\":\"PRODUCTION\"}"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.permissions", not(hasItem("workflow:review-production"))))
+                .andExpect(jsonPath("$.menus[*].menuCode", not(hasItem("production-review"))))
+                .andReturn();
+        String token = objectMapper.readTree(login.getResponse().getContentAsString())
+                .path("accessToken")
+                .asText();
+
+        try {
+            jdbcClient.sql("""
+                            INSERT INTO system_user_permission (user_id, permission_id)
+                            SELECT 9601, permission_id
+                            FROM system_permission
+                            WHERE permission_code = 'workflow:review-production'
+                            """)
+                    .update();
+
+            mockMvc.perform(get("/api/auth/me")
+                            .header("Authorization", "Bearer " + token))
+                    .andExpect(status().isOk())
+                    .andExpect(jsonPath("$.permissions", hasItem("workflow:review-production")))
+                    .andExpect(jsonPath("$.menus[*].menuCode", hasItem("production-review")));
+        } finally {
+            jdbcClient.sql("""
+                            DELETE FROM system_user_permission
+                            WHERE user_id = 9601
+                              AND permission_id = (
+                                  SELECT permission_id
+                                  FROM system_permission
+                                  WHERE permission_code = 'workflow:review-production'
+                              )
+                            """)
+                    .update();
+        }
+    }
+
+    @Test
     void databaseLoginAllowsLocalhostAndLoopbackViteOrigins() throws Exception {
         mockMvc.perform(post("/api/auth/login")
                         .header("Origin", "http://localhost:5173")

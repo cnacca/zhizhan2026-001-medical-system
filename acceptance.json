@@ -1,8 +1,9 @@
 {
   "version": 1,
   "managed_by": "RepoFrame",
-  "active_goal": "GOAL-025",
-  "active_goal_file": "goals/GOAL-025-phase-two-design-collaboration-20260726.md",
+  "active_goal": "GOAL-031",
+  "active_goal_file": "goals/GOAL-031-product-ordering-v2-case-group-20260731.md",
+  "phase_two_milestone_gaps": "docs/acceptance/phase-two-milestone-gap-matrix-20260728.md",
   "linter": "repo-init/scripts/lint_acceptance.py",
   "task8_readiness_gaps": [
     {
@@ -2847,11 +2848,42 @@
             "docs/acceptance/phase-two-scope-baseline-20260726.md",
             "backend/platform-server/src/main/resources/db/migration/V49__phase_two_design_collaboration_foundation.sql",
             "backend/platform-server/src/main/resources/db/migration/V50__phase_two_design_legacy_compatibility.sql",
+            "backend/platform-server/src/main/resources/db/migration/V56__prd_production_review_and_workflow_alignment.sql",
+            "backend/platform-server/src/main/resources/db/migration/V57__prd_admin_only_optional_node_skip.sql",
+            "backend/platform-server/src/main/resources/db/migration/V58__rename_admin_optional_node_skip_permission.sql",
             "backend/platform-server/src/main/java/com/yuri/aiorder/design/DesignTaskController.java",
             "backend/platform-server/src/main/java/com/yuri/aiorder/design/DesignTaskService.java",
             "frontend/src/components/ProductionDesignWorkspace.vue",
             "frontend/src/doctor/DoctorPortalV2.vue",
             "scripts/check-phase-two-design-collaboration.mjs"
+          ]
+        },
+        {
+          "id": "prd-production-review-workflow-alignment",
+          "type": "required_text",
+          "paths": [
+            "backend/platform-server/src/main/java/com/yuri/aiorder/common/auth/AccessControlService.java",
+            "backend/platform-server/src/main/java/com/yuri/aiorder/common/auth/DatabaseAuthService.java",
+            "backend/platform-server/src/main/java/com/yuri/aiorder/workflow/runtime/WorkflowRuntimeController.java",
+            "backend/platform-server/src/main/java/com/yuri/aiorder/workflow/runtime/WorkflowRuntimeService.java",
+            "backend/platform-server/src/main/resources/db/migration/V56__prd_production_review_and_workflow_alignment.sql",
+            "backend/platform-server/src/main/resources/db/migration/V57__prd_admin_only_optional_node_skip.sql",
+            "backend/platform-server/src/main/resources/db/migration/V58__rename_admin_optional_node_skip_permission.sql",
+            "frontend/src/App.vue",
+            "docs/api/openapi.yaml",
+            "docs/operations/phase-one-role-operation-manual.md",
+            "scripts/smoke-task-9d62-main-chain.spec.mjs"
+          ],
+          "patterns": [
+            "workflow:review-production",
+            "production-review",
+            "DESIGN_GATE",
+            "workflow_assignment_event",
+            "only ADMIN can skip an optional node",
+            "生产审核监控",
+            "grantProductionReviewPermission",
+            "assertProductionReviewMenuIsolation",
+            "claimDesignTask"
           ]
         },
         {
@@ -2919,9 +2951,179 @@
           ]
         }
       ]
+    },
+    {
+      "id": "GOAL-026",
+      "file": "goals/GOAL-026-phase-two-m2-ruoyi-runtime-bridge-20260728.md",
+      "status": "completed",
+      "checks": [
+        {
+          "id": "phase-two-m2-ruoyi-runtime-bridge-files",
+          "type": "files_exist",
+          "paths": [
+            "goals/GOAL-026-phase-two-m2-ruoyi-runtime-bridge-20260728.md",
+            "tasks/TASK-027-phase-two-m2-ruoyi-runtime-bridge-20260728.md",
+            "docs/acceptance/phase-two-milestone-gap-matrix-20260728.md",
+            "docs/development/phase-two-m2-ruoyi-runtime-bridge-plan-20260728.md",
+            "backend/ruoyi-runtime-bridge/pom.xml",
+            "backend/ruoyi-runtime-bridge/src/main/java/com/yuri/aiorder/ruoyi/RuoyiRuntimeBridge.java",
+            "backend/platform-server/src/main/java/com/yuri/aiorder/ruoyi/RuoyiRuntimeBridgeInfoContributor.java",
+            "backend/platform-server/src/test/java/com/yuri/aiorder/RuoyiRuntimeBridgeTests.java",
+            "scripts/check-phase-two-m2-ruoyi-runtime-bridge.mjs"
+          ]
+        },
+        {
+          "id": "phase-two-m2-ruoyi-runtime-bridge-contract",
+          "type": "required_text",
+          "paths": [
+            "backend/pom.xml",
+            "backend/ruoyi-runtime-bridge/pom.xml",
+            "backend/platform-server/pom.xml",
+            "backend/platform-server/src/main/java/com/yuri/aiorder/common/auth/BearerIdentityFilter.java",
+            "backend/platform-server/src/main/java/com/yuri/aiorder/ruoyi/RuoyiRuntimeBridgeInfoContributor.java",
+            "DECISIONS.md"
+          ],
+          "patterns": [
+            "ruoyi-runtime-bridge",
+            "WebFilterOrderEnum.java",
+            "RuoyiRuntimeBridge.BEARER_FILTER_ORDER",
+            "ruoyiRuntimeBridge",
+            "## D-171"
+          ]
+        },
+        {
+          "id": "phase-two-m2-ruoyi-runtime-bridge-no-fake-ready",
+          "type": "forbidden_text",
+          "paths": [
+            "goals/GOAL-026-phase-two-m2-ruoyi-runtime-bridge-20260728.md",
+            "tasks/TASK-027-phase-two-m2-ruoyi-runtime-bridge-20260728.md",
+            "docs/development/phase-two-m2-ruoyi-runtime-bridge-plan-20260728.md"
+          ],
+          "patterns": [
+            "Task 8 状态：READY",
+            "M2 状态：READY",
+            "真实环境验收已完成",
+            "客户签字已完成"
+          ]
+        }
+      ]
+    },
+    {
+      "id": "GOAL-031",
+      "file": "goals/GOAL-031-product-ordering-v2-case-group-20260731.md",
+      "status": "in_progress",
+      "checks": [
+        {
+          "id": "product-ordering-v2-stage-files",
+          "type": "files_exist",
+          "paths": [
+            "goals/GOAL-031-product-ordering-v2-case-group-20260731.md",
+            "tasks/TASK-032-product-ordering-v2-case-group-20260731.md",
+            "docs/development/product-ordering-v2-implementation-plan-20260731.md"
+          ]
+        },
+        {
+          "id": "product-ordering-v2-approved-baseline",
+          "type": "required_text",
+          "paths": [
+            "goals/GOAL-031-product-ordering-v2-case-group-20260731.md",
+            "tasks/TASK-032-product-ordering-v2-case-group-20260731.md",
+            "docs/development/product-ordering-v2-implementation-plan-20260731.md",
+            "DECISIONS.md",
+            "STATUS.md",
+            "PROJECT.md",
+            "README.md",
+            "tasks/README.md"
+          ],
+          "patterns": [
+            "GOAL-031",
+            "TASK-032",
+            "病例订单组",
+            "产品子订单",
+            "D-174",
+            "Task 8",
+            "NOT_READY"
+          ]
+        },
+        {
+          "id": "product-ordering-v2-maintainable-catalog-and-standard-time",
+          "type": "required_text",
+          "paths": [
+            "goals/GOAL-031-product-ordering-v2-case-group-20260731.md",
+            "tasks/TASK-032-product-ordering-v2-case-group-20260731.md",
+            "docs/development/product-ordering-v2-implementation-plan-20260731.md",
+            "DECISIONS.md"
+          ],
+          "patterns": [
+            "产品配置中心",
+            "标准工时",
+            "D-175",
+            "D-176",
+            "菜单隐藏",
+            "INACTIVE",
+            "不开放"
+          ]
+        },
+        {
+          "id": "product-ordering-v2-unconfirmed-standard-time-boundary",
+          "type": "required_text",
+          "paths": [
+            "goals/GOAL-031-product-ordering-v2-case-group-20260731.md",
+            "tasks/TASK-032-product-ordering-v2-case-group-20260731.md",
+            "docs/development/product-ordering-v2-implementation-plan-20260731.md",
+            "DECISIONS.md",
+            "STATUS.md",
+            "docs/operations/phase-one-role-operation-manual.md"
+          ],
+          "patterns": [
+            "客户尚未提供正式标准工时",
+            "WORKFLOW_STANDARD_TIME_FORMAL_ENABLED",
+            "17/19",
+            "Task 8",
+            "NOT_READY"
+          ]
+        },
+        {
+          "id": "product-ordering-v2-runtime-and-browser-evidence",
+          "type": "required_text",
+          "paths": [
+            "goals/GOAL-031-product-ordering-v2-case-group-20260731.md",
+            "tasks/TASK-032-product-ordering-v2-case-group-20260731.md",
+            "STATUS.md",
+            "tasks/README.md"
+          ],
+          "patterns": [
+            "V60～V73",
+            "CASE20260731-6CE2B613B8",
+            "ORD20260731-6622BC4A2A",
+            "253",
+            "159 paths / 183 operations",
+            "STANDARD_TIME_PENDING",
+            "确认收货",
+            "952px",
+            "NOT_READY"
+          ]
+        },
+        {
+          "id": "product-ordering-v2-no-fake-ready",
+          "type": "forbidden_text",
+          "paths": [
+            "goals/GOAL-031-product-ordering-v2-case-group-20260731.md",
+            "tasks/TASK-032-product-ordering-v2-case-group-20260731.md",
+            "docs/development/product-ordering-v2-implementation-plan-20260731.md"
+          ],
+          "patterns": [
+            "Task 8 状态：READY",
+            "Task 8 已 READY",
+            "正式价格已确认",
+            "真实环境验收已完成",
+            "客户签字已完成"
+          ]
+        }
+      ]
     }
   ],
-  "active_task_file": "tasks/TASK-026-phase-two-design-collaboration-20260726.md",
+  "active_task_file": "tasks/TASK-032-product-ordering-v2-case-group-20260731.md",
   "legacy_check_ids": [
     "task-deployment-env-readiness-required-text",
     "npm run check:task9d951",

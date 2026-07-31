@@ -21,6 +21,11 @@
         </dependency>
         <dependency>
             <groupId>com.yuri.aiorder</groupId>
+            <artifactId>ruoyi-runtime-bridge</artifactId>
+            <version>${project.version}</version>
+        </dependency>
+        <dependency>
+            <groupId>com.yuri.aiorder</groupId>
             <artifactId>system-auth</artifactId>
             <version>${project.version}</version>
         </dependency>

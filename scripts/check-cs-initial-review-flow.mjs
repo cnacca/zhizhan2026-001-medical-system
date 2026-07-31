@@ -14,13 +14,24 @@ const requiredPatterns = [
   "action: 'APPROVE'",
   "pageResult.value = '客服初审已通过，订单已进入生产审核。'",
   '确认并通过客服初审',
+  "translationReviewBucket(order)",
+  "translationFilter==='NOT_STARTED'",
   '待初审 {{ translationFilterCounts.PENDING }}',
-  '已初审 {{ translationFilterCounts.CONFIRMED }}'
+  '已初审 {{ translationFilterCounts.CONFIRMED }}',
+  "translationFilter==='REJECTED'",
+  '已退回 {{ translationFilterCounts.REJECTED }}'
 ]
 
 for (const pattern of requiredPatterns) {
   if (!source.includes(pattern)) {
     console.error(`客服初审闭环缺少关键实现：${pattern}`)
+    process.exit(1)
+  }
+}
+
+for (const bucket of ['NOT_STARTED', 'PENDING', 'CONFIRMED', 'REJECTED']) {
+  if (!source.includes(`translationReviewBucket(order) === '${bucket}'`)) {
+    console.error(`客服初审分类缺少互斥桶：${bucket}`)
     process.exit(1)
   }
 }

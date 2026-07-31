@@ -483,8 +483,45 @@ export class MockDoctorGateway implements DoctorGateway {
     return clone(patient)
   }
 
-  async saveDraft(input: OrderDraftInput): Promise<{ orderId: string; stateVersion: number }> {
-    return { orderId: input.draftOrderId ?? `DRAFT-${Date.now()}`, stateVersion: 1 }
+  async saveDraft(input: OrderDraftInput): Promise<OrderSummary> {
+    const patient = patients.find((item) => item.patient_id === input.patientId) ?? patients[0]
+    const product = products.find((item) => item.product_id === input.productId) ?? products[0]
+    const existing = input.draftOrderId
+      ? orders.find((item) => item.order_id === input.draftOrderId)
+      : undefined
+    const saved: OrderSummary = {
+      order_id: existing?.order_id ?? `DRAFT-${Date.now()}`,
+      order_no: existing?.order_no ?? `DRAFT-${now.slice(0, 10).replaceAll('-', '')}-${String(Date.now()).slice(-4)}`,
+      doctor_name: account.display_name,
+      patient_id: patient.patient_id,
+      patient_code: patient.patient_code,
+      patient_name: patient.patient_name,
+      clinic_name: account.clinic_name,
+      product_type: product.product_type,
+      product_name: product.product_name,
+      tags: ['草稿'],
+      external_status: 'DRAFT',
+      current_action: 'NONE',
+      created_at: existing?.created_at ?? now,
+      due_at: '-',
+      quote: null,
+      allowed_actions: ['VIEW_ORDER', 'SUBMIT_ORDER'],
+      state_version: (existing?.state_version ?? 0) + 1
+    }
+    if (existing) Object.assign(existing, saved)
+    else orders.unshift(saved)
+    details.set(saved.order_id, {
+      ...clone(saved),
+      public_message: '订单仍为草稿，提交后进入资料审核。',
+      form_snapshot: { ...clone(input.caseFields), ...clone(input.dynamicFields) },
+      progress: publicProgressFor(saved),
+      review_options: [...input.reviewOptions],
+      reviews: [],
+      files: clone(input.files),
+      messages: [],
+      bill_summary: { bill_status: 'PENDING_QUOTE', payment_status: 'UNPAID', outstanding: null }
+    })
+    return clone(saved)
   }
 
   async uploadOrderFiles(_orderId: string, files: File[]): Promise<DoctorFile[]> {
@@ -504,9 +541,12 @@ export class MockDoctorGateway implements DoctorGateway {
   async submitOrder(input: OrderDraftInput): Promise<OrderSummary> {
     const patient = patients.find((item) => item.patient_id === input.patientId) ?? patients[0]
     const product = products.find((item) => item.product_id === input.productId) ?? products[0]
+    const existingDraft = input.draftOrderId
+      ? orders.find((item) => item.order_id === input.draftOrderId)
+      : undefined
     const created: OrderSummary = {
-      order_id: `MOCK-${Date.now()}`,
-      order_no: `ORD${now.slice(0, 10).replaceAll('-', '')}-${String(Date.now()).slice(-4)}`,
+      order_id: existingDraft?.order_id ?? `MOCK-${Date.now()}`,
+      order_no: existingDraft?.order_no.replace(/^DRAFT-/, 'ORD') ?? `ORD${now.slice(0, 10).replaceAll('-', '')}-${String(Date.now()).slice(-4)}`,
       doctor_name: account.display_name,
       patient_id: patient.patient_id,
       patient_code: patient.patient_code,
@@ -517,11 +557,11 @@ export class MockDoctorGateway implements DoctorGateway {
       tags: [],
       external_status: 'SUBMITTED',
       current_action: 'NONE',
-      created_at: now,
+      created_at: existingDraft?.created_at ?? now,
       due_at: '后端计算中',
       quote: product.quote,
       allowed_actions: ['VIEW_ORDER', 'SEND_MESSAGE'],
-      state_version: 1
+      state_version: (existingDraft?.state_version ?? 0) + 1
     }
     const createdReviews = input.reviewOptions.map((type, index) => review(`RV-${created.order_id}-${index + 1}`, type, 'WAITING', []))
     const detail: OrderDetail = {
@@ -535,7 +575,8 @@ export class MockDoctorGateway implements DoctorGateway {
       messages: [],
       bill_summary: { bill_status: 'PENDING_QUOTE', payment_status: 'UNPAID', outstanding: null }
     }
-    orders.unshift(created)
+    if (existingDraft) Object.assign(existingDraft, created)
+    else orders.unshift(created)
     details.set(created.order_id, detail)
     const patientRecord = patients.find((item) => item.patient_id === created.patient_id)
     if (patientRecord) {

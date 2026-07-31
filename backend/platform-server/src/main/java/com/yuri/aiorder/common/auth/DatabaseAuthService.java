@@ -225,6 +225,35 @@ public class DatabaseAuthService {
                         WHERE ur.user_id = :userId
                           AND r.status = 'ACTIVE'
                           AND m.status = 'ACTIVE'
+                          AND (
+                              m.permission_code IS NULL
+                              OR m.permission_code = ''
+                              OR EXISTS (
+                                  SELECT 1
+                                  FROM system_permission effective_permission
+                                  WHERE effective_permission.permission_code = m.permission_code
+                                    AND effective_permission.status = 'ACTIVE'
+                                    AND (
+                                        EXISTS (
+                                            SELECT 1
+                                            FROM system_user_role permission_user_role
+                                            JOIN system_role permission_role
+                                              ON permission_role.role_id = permission_user_role.role_id
+                                             AND permission_role.status = 'ACTIVE'
+                                            JOIN system_role_permission role_permission
+                                              ON role_permission.role_id = permission_role.role_id
+                                            WHERE permission_user_role.user_id = ur.user_id
+                                              AND role_permission.permission_id = effective_permission.permission_id
+                                        )
+                                        OR EXISTS (
+                                            SELECT 1
+                                            FROM system_user_permission user_permission
+                                            WHERE user_permission.user_id = ur.user_id
+                                              AND user_permission.permission_id = effective_permission.permission_id
+                                        )
+                                    )
+                              )
+                          )
                         ORDER BY m.sort_order, m.menu_code
                         """)
                 .param("userId", userId)

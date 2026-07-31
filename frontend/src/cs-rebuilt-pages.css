@@ -3882,6 +3882,11 @@
   flex-direction: row-reverse;
 }
 
+.cs-r-message-timeline > article.is-reviewable {
+  width: min(620px, 88%);
+  max-width: 88%;
+}
+
 .cs-r-message-timeline > article > div {
   padding: 9px 13px;
   border: 1.5px solid var(--csr-line);
@@ -3908,6 +3913,66 @@
 .cs-r-message-timeline > article.is-self > div p,
 .cs-r-message-timeline > article.is-self > div strong,
 .cs-r-message-timeline > article.is-self > div small { color: #fff; }
+
+.cs-r-message-review {
+  display: grid;
+  gap: 7px;
+  margin-top: 9px;
+  padding-top: 9px;
+  border-top: 1px solid var(--csr-line);
+}
+
+.cs-r-message-review label {
+  color: var(--csr-muted);
+  font-size: 10px;
+  font-weight: 700;
+}
+
+.cs-r-message-review textarea {
+  width: 100%;
+  min-height: 54px;
+  resize: vertical;
+  padding: 8px 10px;
+  border: 1px solid var(--csr-line);
+  border-radius: 7px;
+  background: #fff;
+  color: var(--csr-ink);
+  font: inherit;
+  line-height: 1.5;
+}
+
+.cs-r-message-review > div {
+  display: flex;
+  justify-content: flex-end;
+  gap: 7px;
+}
+
+.cs-r-message-review button {
+  min-height: 30px;
+  padding: 5px 13px;
+  border: 1px solid transparent;
+  border-radius: 7px;
+  cursor: pointer;
+  font-size: 11px;
+  font-weight: 700;
+}
+
+.cs-r-message-review button:disabled {
+  cursor: not-allowed;
+  opacity: .48;
+}
+
+.cs-r-message-review .is-approve {
+  border-color: #8bd9c4;
+  background: #eafaf5;
+  color: #087c63;
+}
+
+.cs-r-message-review .is-reject {
+  border-color: #f0b4b9;
+  background: #fff1f2;
+  color: #b4232c;
+}
 
 .cs-r-quick-replies {
   display: flex;
@@ -5044,6 +5109,20 @@
 .cs-r-payment-form > header strong { font-size: 10.5px; }
 .cs-r-payment-form > header small { margin-top: 2px; color: #7c6da8; font-size: 8px; }
 .cs-r-payment-form > button { margin-top: 10px; }
+.cs-r-bill-create-form {
+  border-color: #99d5c8;
+  background: #f3fffb;
+}
+.cs-r-bill-create-form > header > span {
+  background: #dff8f1;
+  color: #087f6f;
+}
+.cs-r-file-selection {
+  margin: 9px 0 0;
+  overflow-wrap: anywhere;
+  color: #087f6f;
+  font-size: 9px;
+}
 
 .cs-r-gate-grid { display: grid; gap: 7px; margin-top: 11px; }
 .cs-r-gate-grid article { display: grid; grid-template-columns: 29px minmax(0, 1fr) auto; gap: 9px; align-items: center; padding: 9px 10px; border: 1px solid #e5e7eb; border-radius: 8px; background: #fafbfc; }
@@ -5290,4 +5369,45 @@
   .cs-r-order-panel-timeline > article::after {
     left: 81px;
   }
+}
+.cs-r-business-gate {
+  display: grid;
+  gap: 14px;
+  border-color: #99d5c8;
+  background: linear-gradient(145deg, #f3fffb 0%, #fff 65%);
+}
+
+.cs-r-business-gate > p {
+  margin: 0;
+  color: #526278;
+  line-height: 1.65;
+}
+
+.cs-r-business-gate > label {
+  display: grid;
+  gap: 7px;
+}
+
+.cs-r-business-gate > label > span {
+  color: #27374d;
+  font-size: 13px;
+  font-weight: 700;
+}
+
+.cs-r-business-gate textarea {
+  width: 100%;
+  min-height: 82px;
+  padding: 11px 12px;
+  resize: vertical;
+  border: 1px solid #ced9e6;
+  border-radius: 10px;
+  background: #fff;
+  color: #1f2b3d;
+  font: inherit;
+  line-height: 1.5;
+}
+
+.cs-r-business-gate textarea:focus {
+  border-color: #16a085;
+  outline: 3px solid rgb(22 160 133 / 12%);
 }

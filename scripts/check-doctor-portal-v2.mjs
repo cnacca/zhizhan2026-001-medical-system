@@ -70,7 +70,7 @@ for (const text of [
   '当前产品没有需要额外填写的制作参数',
   'handleWizardDrop',
   'dv2-tooth-chart',
-  '下单时无需预先选择确认节点',
+  '如制作过程中需要确认设计稿，订单服务会在订单详情中通知您',
   'CAD_DESIGN',
   'POST_MILLING_PHOTOS',
   'POST_GLAZING_PHOTOS',
@@ -78,6 +78,14 @@ for (const text of [
   'wizardUploadedFileSignatures',
   'wizard.files.push(completed)',
   'draftOrderId: wizard.draftOrderId',
+  'withWizardOrderContext',
+  'upsertOrderSummary(saved)',
+  'if (wasNewDraft) resetOrderFilters()',
+  'upsertOrderSummary(created)',
+  'applyRefreshedDataset(await gateway.loadDataset(), created)',
+  'parseDoctorDateTime',
+  'doctorLocalDateKey',
+  'compactDoctorDateTime(order.created_at)',
   'wizardSubmitDisabled',
   ':disabled="wizardSubmitDisabled"',
   "ElMessage.success('草稿已保存')",
@@ -86,10 +94,31 @@ for (const text of [
   "review.allowed_actions.includes('REJECT_REVIEW')"
 ]) requireText(portal, text, 'wizard roles and reviews')
 rejectText(portal, /<h1>确认选项<\/h1>/, 'wizard must follow PRD five-step order entry')
+rejectText(portal, /(下单时无需预先选择确认节点|由后台|真实产品目录|组长内审|智能完整性检查)/, 'doctor-facing wording boundary')
+rejectText(portal, /<span>\{\{ order\.created_at \}\}<\/span>/, 'doctor order time must use local timezone formatting')
 requireText(css, '.dv2-wizard-context', 'wizard derived context summary')
 
 for (const text of ['productId: string', 'reviewOptions: ReviewType[]', 'switchRole(role: ClinicRole)', 'uploadOrderFiles(orderId: string, files: File[])', 'markThreadRead(threadId: string)', 'updatePatient(input: PatientUpdateInput)']) requireText(contracts, text, 'doctor gateway contract')
-for (const text of ['X-Clinic-Role', 'product_id: input.productId', 'review_options: input.reviewOptions', '/files/multipart/initiate', '/files/multipart/pending', '/multipart/status', 'resumePendingOrderUpload', 'failedDesignActionIndex', 'DoctorReviewSubmittedRefreshError', '订单设计确认状态加载失败', 'assertSafeOrderPayload', 'unsafeDoctorContent']) requireText(httpGateway, text, 'http doctor gateway')
+for (const text of [
+  'X-Clinic-Role',
+  'product_id: input.productId',
+  'review_options: input.reviewOptions',
+  '/files/multipart/initiate',
+  '/files/multipart/pending',
+  '/multipart/status',
+  'resumePendingOrderUpload',
+  'failedDesignActionIndex',
+  'DoctorReviewSubmittedRefreshError',
+  '订单设计确认状态加载失败',
+  'assertSafeOrderPayload',
+  'unsafeDoctorContent',
+  'const logisticsCandidates = legacyOrders.filter',
+  '`/orders/${order.order_id}/logistics`',
+  "['SHIPPED', 'DELIVERED_PENDING_CONFIRMATION'].includes(status)",
+  'logistics,',
+  '`/orders/${encodeURIComponent(orderId)}/confirm-receipt`'
+]) requireText(httpGateway, text, 'http doctor gateway')
+rejectText(httpGateway, /确认收货.*暂未接入/, 'doctor receipt must use real API')
 for (const text of ['isDoctorReviewSubmittedRefreshError', 'usedSubmittedFallback', '页面已保留提交结果']) requireText(portal, text, 'doctor review reconciliation')
 for (const text of ['orders.unshift(created)', 'details.set(created.order_id, detail)', 'async switchRole', 'async uploadOrderFiles', 'async createPatient', 'async updatePatient', 'hasPendingReview']) requireText(mockGateway, text, 'mock doctor closed loops')
 

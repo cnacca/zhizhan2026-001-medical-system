@@ -1,6 +1,7 @@
 package com.yuri.aiorder.auth;
 
 import static org.hamcrest.Matchers.containsString;
+import static org.hamcrest.Matchers.hasItem;
 import static org.hamcrest.Matchers.not;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
@@ -20,7 +21,7 @@ import org.springframework.jdbc.core.simple.JdbcClient;
 import org.springframework.test.web.servlet.MockMvc;
 import org.springframework.transaction.annotation.Transactional;
 
-@SpringBootTest
+@SpringBootTest(properties = "app.auth.allow-role-fallback=false")
 @AutoConfigureMockMvc
 @Transactional
 class PermissionInterceptorTests {
@@ -96,6 +97,11 @@ class PermissionInterceptorTests {
     void databaseDoctorPermissionCanReadDoctorOrderButCannotUseCsAiEndpoint() throws Exception {
         String doctorToken = login("doctor", "change-me-doctor");
 
+        mockMvc.perform(get("/api/auth/me")
+                        .header("Authorization", "Bearer " + doctorToken))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.permissions", hasItem("order:write-doctor")));
+
         mockMvc.perform(get("/orders/{orderId}", orderId)
                         .header("Authorization", "Bearer " + doctorToken))
                 .andExpect(status().isOk())
@@ -109,6 +115,32 @@ class PermissionInterceptorTests {
                         .content("""
                                 {"order_id":%d,"question":"内部状态？"}
                                 """.formatted(orderId)))
+                .andExpect(status().isForbidden());
+    }
+
+    @Test
+    void doctorReadPermissionDoesNotGrantCaseGroupWrite() throws Exception {
+        jdbcClient.sql("""
+                        DELETE role_permission
+                        FROM system_role_permission role_permission
+                        JOIN system_role role ON role.role_id = role_permission.role_id
+                        JOIN system_permission permission ON permission.permission_id = role_permission.permission_id
+                        WHERE role.role_code = 'DOCTOR'
+                          AND permission.permission_code = 'order:write-doctor'
+                        """)
+                .update();
+        String doctorToken = login("doctor", "change-me-doctor");
+
+        mockMvc.perform(get("/api/auth/me")
+                        .header("Authorization", "Bearer " + doctorToken))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.permissions", hasItem("order:read-doctor")))
+                .andExpect(jsonPath("$.permissions", not(hasItem("order:write-doctor"))));
+
+        mockMvc.perform(post("/order-case-groups")
+                        .header("Authorization", "Bearer " + doctorToken)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{}"))
                 .andExpect(status().isForbidden());
     }
 

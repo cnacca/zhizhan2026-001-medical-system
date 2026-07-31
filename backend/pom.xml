@@ -21,6 +21,7 @@
 
     <modules>
         <module>platform-common</module>
+        <module>ruoyi-runtime-bridge</module>
         <module>system-auth</module>
         <module>clinic-user</module>
         <module>order-form</module>

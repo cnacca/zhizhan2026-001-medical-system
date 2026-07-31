@@ -216,6 +216,50 @@ class AiGatewayTests {
     }
 
     @Test
+    void productionNoteIncludesSharedCaseGroupAttachmentWithoutLeakingSiblingFiles() throws Exception {
+        String suffix = UUID.randomUUID().toString().replace("-", "");
+        jdbcClient.sql("""
+                        INSERT INTO order_case_group
+                            (group_no, clinic_id, doctor_user_id, lifecycle_status)
+                        VALUES
+                            (:groupNo, :clinicId, :doctorUserId, 'SUBMITTED')
+                        """)
+                .param("groupNo", "CASE-AI-" + suffix.substring(0, 12))
+                .param("clinicId", clinicId)
+                .param("doctorUserId", DOCTOR_USER_ID)
+                .update();
+        long groupId = jdbcClient.sql("SELECT LAST_INSERT_ID()").query(Long.class).single();
+        jdbcClient.sql("UPDATE orders SET group_id = :groupId WHERE order_id = :orderId")
+                .param("groupId", groupId)
+                .param("orderId", orderId)
+                .update();
+        jdbcClient.sql("""
+                        INSERT INTO file_resource
+                            (case_group_id, attachment_scope, owner_user_id, source_type, visibility,
+                             bucket_name, object_key, original_filename, content_type, file_size,
+                             upload_status, status)
+                        VALUES
+                            (:groupId, 'SHARED', :ownerUserId, 'CASE_GROUP_ATTACHMENT', 'DOCTOR',
+                             'ai-order-private', :objectKey, 'shared-case.stl', 'model/stl', 128,
+                             'COMPLETED', 'ACTIVE')
+                        """)
+                .param("groupId", groupId)
+                .param("ownerUserId", DOCTOR_USER_ID)
+                .param("objectKey", "test/ai-shared/" + suffix + "/shared-case.stl")
+                .update();
+
+        mockMvc.perform(post("/ai/production-note")
+                        .header("X-Bootstrap-Role", "WORKER")
+                        .header("X-Bootstrap-User-Id", WORKER_USER_ID)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"order_id\":" + orderId + "}"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.knowledge_context_notes")
+                        .value(hasItem(containsString("CASE_GROUP_ATTACHMENT"))))
+                .andExpect(content().string(not(containsString("未找到当前订单附件"))));
+    }
+
+    @Test
     void productionNoteRejectsDoctorAndUnassignedWorkerConfirmation() throws Exception {
         mockMvc.perform(post("/ai/production-note")
                         .header("X-Bootstrap-Role", "DOCTOR")
@@ -388,6 +432,35 @@ class AiGatewayTests {
                         .contentType(MediaType.APPLICATION_JSON)
                         .content("{\"order_id\":" + orderId + "}"))
                 .andExpect(status().isForbidden());
+    }
+
+    @Test
+    void missingInfoAgentUsesFrozenCatalogSchemaInsteadOfLaterLegacyRequirements() throws Exception {
+        jdbcClient.sql("""
+                        INSERT INTO form_field_config
+                            (product_type, field_key, field_label, field_type, required_flag, sort_order)
+                        VALUES
+                            (:productType, 'legacy_required', '旧必填字段', 'TEXT', 1, 10)
+                        """)
+                .param("productType", productType)
+                .update();
+        jdbcClient.sql("""
+                        INSERT INTO order_catalog_snapshot
+                            (order_id, product_snapshot, form_schema_snapshot, normalized_form_values)
+                        VALUES
+                            (:orderId, JSON_OBJECT(), JSON_ARRAY(), JSON_OBJECT())
+                        """)
+                .param("orderId", orderId)
+                .update();
+
+        mockMvc.perform(post("/ai/check-missing")
+                        .header("X-Bootstrap-Role", "CS")
+                        .header("X-Bootstrap-User-Id", CS_USER_ID)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"order_id\":" + orderId + "}"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.is_complete").value(true))
+                .andExpect(jsonPath("$.data.missing_items").isEmpty());
     }
 
     @Test

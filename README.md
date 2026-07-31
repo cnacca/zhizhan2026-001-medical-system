@@ -1,16 +1,28 @@
 # AI 智能下单与生产协同平台
 
-牙科定制工厂一期系统：医生在线下单，客服审核协同，工厂按预定义工艺流生产，逐道工序入检/出检/记工时，客户只能查看外部简化进度。
+牙科定制工厂下单与生产协同平台：一期业务基础已形成，当前按二期 M2 / M3 / M6 增量推进；客户只能查看外部简化进度。
 
 ## 当前仓库状态
 
+2026-07-31 最新收口：产品材料运行期新增/绑定/停用/历史快照/409 与同一新订单 `ORD20260731-9A5DE848E7` 的生产到收货真实浏览器链路已完成；动态表单 V2 的多选/object/类型边界/条件必填/AI 缺失检查、FORM_SCHEMA 发布校验及订单组 `order:write-doctor` 严格写权限已补齐。V73 只发布客户资料中可确认的产品名称与工作流映射，价格保持 `PENDING_QUOTE`、隐形 A 型保持 INACTIVE；正式材料/配件绑定、价格、交期、文件规则和标准工时仍待客户/PM 补齐。D-176 隐藏标准工时菜单并默认关闭正式运行时；17/19 分钟验收版本转为 INACTIVE，不进入交期、产能或绩效，后端/数据库底座保留。后端 253 项、前端正式构建、OpenAPI 159 paths / 183 operations 和阶段专项检查通过；Task 8 保持 `NOT_READY`。
+
+2026-07-31 `goals/GOAL-031-product-ordering-v2-case-group-20260731.md` / `tasks/TASK-032-product-ordering-v2-case-group-20260731.md` 已完成 A～G 本地实现和当前可用配置下的 H 核心浏览器闭环：按 D-174/D-175 采用“病例订单组 + 产品子订单”，落地可持续维护的产品配置中心、动态表单/价格/文件快照、现有九条工序链节点的版本化标准工时、医生多产品向导、普通产品、隐形正畸和权限审计；不开放工序链结构编辑。后端 253 项、前端 typecheck/构建、OpenAPI 159 paths / 183 operations 和阶段专项检查通过，标准演示环境已验证三子订单提交审核、正畸版本/批次、生产返工、账单物流/确认收货、标准工时 17→19 新旧实例隔离及 952px 生产端窄屏菜单。历史 `orders` 及所有工序/设计/质检/账单/物流事实不删除、不重建；V73 产品名称/工作流首版仍待业务确认，正式材料/配件、价格、交期、文件规则、标准工时及正式验收证据未齐，Task 8 保持 `NOT_READY`。
+
+2026-07-30 已按 PRD / 二期确认基线纠正生产审核和主链：单独授权的生产人员执行生产审核，管理端保留同队列监控与兜底；普通 WORKER / CS 不显示入口也不能调用。审核后先完成设计领取、内审和医生确认，再由 ADMIN 派工；普通技工只看本人节点或本人设计任务，不共享未派工 READY 池。OpenAPI、操作手册、菜单权限、数据库迁移、acceptance 和自动化测试均已同步。118 项目标后端测试、静态检查、编译 / 构建以及隔离订单 `ORD20260730-EC31EC97EA` 的完整数据链和真实浏览器角色验收通过；一期 Task 8 仍为 `NOT_READY`。下方 2026-07-29 的 ADMIN-only / 通用生产池描述仅作临时录屏修复历史，不再代表当前规则。
+
+2026-07-29 本轮 6 项录屏阻塞缺陷已关闭：生产订单在客服初审后、管理审核前对生产端不可见；无 STL 的非草稿提交由后端返回 400；快速三连点只生成一张草稿；医生消息中心展示已批准消息及真实患者名；管理端沟通中心支持患者搜索并只统计真实待审消息。隔离订单 `ORD20260729-940F23D973` 的四端真实浏览器闭环、后端 59 项目标测试、医生端检查、前端正式构建和 14 张截图均通过。证据与可转发报告位于 `docs/quality/evidence/bugfix-20260729-recording-blockers/`；该结论不代表正式部署或一期 Task 8 完成。
+
+2026-07-28 `goals/GOAL-026-phase-two-m2-ruoyi-runtime-bridge-20260728.md` / `tasks/TASK-027-phase-two-m2-ruoyi-runtime-bridge-20260728.md` 已完成 M2 渐进桥接第一批：四项确认已冻结为 D-171，M2/M3/M6 差异矩阵已建立；固定 RuoYi 源码中的 Web Filter 顺序能力已进入现有 backend reactor 和 Bearer 身份真实运行路径，13 项目标测试通过。完整权限、DataScope、审计、管理 UI、M2/M3/M6 和一期 Task 8 均未完成。
+
 2026-07-26 `goals/GOAL-025-phase-two-design-collaboration-20260726.md` / `tasks/TASK-026-phase-two-design-collaboration-20260726.md` 已完成二期设计协作第一批本地开发闭环：设计任务领取 / 转派、多文件版本、个体组长内审、医生确认 / 驳回、文件隔离、生产门禁和三端真实 API 页面已落地，医生 Multipart 支持待续传恢复；86 项目标后端测试、OpenAPI、前端构建和本地真实浏览器 smoke 通过。M2 / M3 / M6、正式部署、客户确认和四端 PDF 手册仍需后续批次，一期 Task 8 保持 `NOT_READY`。
 
-2026-07-24 `goals/GOAL-024-ruoyi-core-foundation-20260724.md` / `tasks/TASK-025-ruoyi-core-foundation-20260724.md` 已完成。真实 RuoYi-Vue-Pro 默认后端核心固定到官方提交 `ec3f7cbf73e88514a70a6b59d365092ee470603d` 并引入 `vendor/ruoyi-vue-pro-core`；21 个核心模块、现有后端 192 个测试和前端生产构建均通过。该源码尚未接管现有运行时，角色权限分配暂缓，现有登录与业务授权结果不变。
+2026-07-24 `goals/GOAL-024-ruoyi-core-foundation-20260724.md` / `tasks/TASK-025-ruoyi-core-foundation-20260724.md` 已完成。真实 RuoYi-Vue-Pro 默认后端核心固定到官方提交 `ec3f7cbf73e88514a70a6b59d365092ee470603d` 并引入 `vendor/ruoyi-vue-pro-core`；21 个核心模块、现有后端 192 个测试和前端生产构建均通过。当时只完成隔离源码基础；2026-07-28 已由 GOAL-026 增加第一条运行时桥接，现有登录与业务授权结果仍保持不变。
 
 2026-07-15 最新完成阶段为 `goals/GOAL-022-prd-v2-p0-local-closure-20260715.md` / `tasks/TASK-023-prd-v2-p0-local-closure-20260715.md`。本阶段关闭 workflow 定义/实例内部访问边界、loopback 登录 CORS、按产品类型自动选链、设计确认/OUT-PASS 生产门禁，以及管理员创建/编辑技工账号并登录的本地闭环。原 PRD 验收表38项入口为 `docs/acceptance/prd-v2-38-item-acceptance-audit-20260715.md`，当前重算为21 PASS、8 PARTIAL、1 MISSING、8 EXTERNAL_ACCEPTANCE；表外 A/B/C 范围、剩余页面分支、无 token 读取边界和上线 readiness 仍独立跟踪，不能只凭38项宣称整个一期完成。Task 8 继续保持 `NOT_READY`；真实支付、物流 API、电子签章、STL 在线查看器、RAG 和 tool calling 不作为一期 P0 阻塞。
 
-下方 2026-07-07 各段出现的 handoff 工作区路径和“当前 active goal”都是阶段历史记录，不再代表当前工作区或执行指针；当前工作区为 `/Users/yuri/Documents/AI智能下单平台`，如有冲突以 GOAL-021 / TASK-022、D-162 和 38 项审计矩阵为准。
+2026-07-07 `GOAL-018` / `TASK-019` 已完成本地 12 步主链路验收增强，保留 `npm run check:local-main-chain-acceptance-hardening` 作为历史角色边界与文档一致性入口；该证据不等于客户签字或真实环境验收，Task 8 继续保持 `NOT_READY`。
+
+下方旧日期段出现的 handoff 工作区路径和“当前 active goal”都是阶段历史记录，不再代表当前工作区或执行指针；当前指针以 `acceptance.json`、GOAL-026 / TASK-027、D-171 和二期里程碑差异矩阵为准。
 
 当前工作区为 `/Users/yuri/Documents/AI智能下单平台-handoff-20260706`，属于已有项目的 RepoFrame `repo-hydrate` 后续执行，不是重新初始化。当前 active goal 是 `goals/GOAL-020-deployment-ops-local-hardening-20260707.md`，active task 是 `tasks/TASK-021-deployment-ops-local-hardening-20260707.md`，正在执行部署 / 运维本地补强：新增 `npm run check:deployment-ops-local-hardening` 和 `npm run dry-run:phase-one-release-rollback`，并补 `docs/deployment/phase-one-local-ops-dry-run.md`、本地 release / rollback dry-run、备份 / 恢复 dry-run 模板第一段、日志留存 / 监控告警配置模板第一段、compose / env / Nginx / healthcheck 静态检查和 readiness 联动。Task 8 继续保持 `NOT_READY`；本阶段不声明真实服务器 / HTTPS / 备份恢复 / 日志留存 / 监控告警 / 发布回滚演练 / 客户培训签收 / 客户签字 / 真实环境验收完成。
 
@@ -1484,9 +1496,9 @@ Task 8A smoke 注意事项：
 
 优先处理 `tasks/README.md`：
 
-1. 下一轮唯一推荐目标：客服配送管理页 / 物流异常跟进第一增量。
-2. 9D.83 已补患者管理基础版，9D.84 已补人工支付流水 / 收支记录，9D.85 已补客户 / 诊所档案与偏好，9D.86 已补人员档案 / 工作量看板，9D.87 已补质量记录 / 外返登记，9D.88 已补客服订单 / 沟通完整可见性，9D.89 已补医生账户设置，9D.90 已补产品参数 / 价格体系一期最小后台；下一步继续按 `docs/acceptance/prd-v2-gap-matrix.md` 关闭 PRD V2.0 本地可实现的一期缺口。
-3. 不做独立网盘、Tus/tusd 独立服务、真实弱网全量验收、跨设备复杂续传、真实电子签章平台、物流平台 API 自动同步、支付系统、复杂 CRM、自动报价或 AI 自动审核/发送；每补一个缺口，都要回写 `docs/acceptance/task-8-acceptance-matrix.md` 和 `docs/deployment/readiness-checklist.md` 的状态。
+1. 下一轮唯一推荐目标：现有权限/DataScope 与 RuoYi 规则接口的只读兼容适配。
+2. 验收必须证明权限结果一致、桥接可关闭回滚、医生端和 `SELF` 数据范围不扩大。
+3. 后续依次推进 M3 统一全链验收、五个 AI 助手矩阵和 M6 交付；一期 Task 8 与二期里程碑继续分别跟踪。
 
 ## 9D.77 文件上传弱网 / 跨设备验收第一段
 

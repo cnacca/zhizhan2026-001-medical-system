@@ -330,6 +330,15 @@ components:
           type: integer
         order_no:
           type: string
+        group_id:
+          type: integer
+          format: int64
+          nullable: true
+          description: 病例订单组标识；医生仅可据此恢复本人诊所内的草稿组。
+        patient_id:
+          type: integer
+          format: int64
+          nullable: true
         product_type:
           type: string
         external_status:
@@ -1043,6 +1052,668 @@ components:
           "$ref": "#/components/schemas/OrderStatus"
         form_data:
           type: object
+    CreateCaseGroupRequest:
+      type: object
+      required:
+      - patient_id
+      - idempotency_key
+      properties:
+        patient_id:
+          type: integer
+          format: int64
+          nullable: false
+          description: 医生本人且属于当前诊所的患者档案 ID。
+        idempotency_key:
+          type: string
+          maxLength: 128
+          description: 医生创建病例订单组的幂等键；相同请求重复提交返回同一订单组。
+    CaseGroupItem:
+      type: object
+      description: 病例订单组中的真实产品子订单；不包含内部工序、员工、工时或返工信息。
+      properties:
+        order_id:
+          type: integer
+          format: int64
+        order_no:
+          type: string
+        line_no:
+          type: integer
+          minimum: 1
+        relationship_type:
+          type: string
+          enum:
+          - PRIMARY
+          - RELATED
+          - AFTER_SALES
+        item_client_key:
+          type: string
+        product_code:
+          type: string
+        product_name:
+          type: string
+        product_id:
+          type: integer
+          format: int64
+          nullable: true
+        variant_id:
+          type: integer
+          format: int64
+          nullable: true
+        variant_code:
+          type: string
+          nullable: true
+        variant_name:
+          type: string
+          nullable: true
+        product_type:
+          type: string
+        pricing_status:
+          type: string
+          enum: [PENDING_QUOTE, PRICED]
+        quoted_price_cents:
+          type: integer
+          format: int64
+          nullable: true
+        quoted_price_currency:
+          type: string
+          nullable: true
+        configuration_status:
+          type: string
+          enum: [DRAFT, FROZEN]
+        form_values:
+          type: object
+          description: 按已发布并冻结的 schema version 保存动态值；可包含 string、number、boolean、array、object 和非负整数 quantity。
+          additionalProperties: true
+        material_selections:
+          type: array
+          items: {"$ref": "#/components/schemas/CatalogQuantitySelection"}
+        accessory_selections:
+          type: array
+          items: {"$ref": "#/components/schemas/CatalogQuantitySelection"}
+        file_ids:
+          type: array
+          items: {type: integer, format: int64}
+        external_status:
+          type: string
+        created_at:
+          type: string
+          format: date-time
+    CaseGroupResponse:
+      type: object
+      description: |
+        医生可见的病例订单组外部投影。生产事实仍逐产品子订单记录；
+        历史单产品订单非破坏性兼容为一组一子单。
+      properties:
+        group_id:
+          type: integer
+          format: int64
+        group_no:
+          type: string
+        clinic_id:
+          type: integer
+          format: int64
+        doctor_user_id:
+          type: integer
+          format: int64
+          nullable: true
+        patient_id:
+          type: integer
+          format: int64
+          nullable: true
+        lifecycle_status:
+          type: string
+          enum:
+          - DRAFT
+          - SUBMITTED
+          - CANCELLED
+        external_status:
+          type: string
+          description: 由子订单外部状态聚合，可能为 DRAFT 或 PARTIALLY_COMPLETED。
+        draft_version:
+          type: integer
+          minimum: 1
+        shared_file_ids:
+          type: array
+          items: {type: integer, format: int64}
+        items:
+          type: array
+          items:
+            "$ref": "#/components/schemas/CaseGroupItem"
+        created_at:
+          type: string
+          format: date-time
+        updated_at:
+          type: string
+          format: date-time
+    CatalogQuantitySelection:
+      type: object
+      required: [item_id, quantity]
+      properties:
+        item_id: {type: integer, format: int64}
+        quantity: {type: integer, minimum: 1}
+    CaseGroupItemCreateRequest:
+      type: object
+      required: [product_id, item_client_key, form_values, expected_draft_version]
+      properties:
+        product_id: {type: integer, format: int64}
+        variant_id: {type: integer, format: int64, nullable: true}
+        relationship_type: {type: string, enum: [PRIMARY, RELATED]}
+        item_client_key: {type: string, maxLength: 128}
+        form_values:
+          type: object
+          description: 动态表单值；服务端按当前发布 schema 校验类型、选项、数量/数值边界和条件显示。
+          additionalProperties: true
+        material_selections: {type: array, items: {"$ref": "#/components/schemas/CatalogQuantitySelection"}}
+        accessory_selections: {type: array, items: {"$ref": "#/components/schemas/CatalogQuantitySelection"}}
+        file_ids: {type: array, items: {type: integer, format: int64}}
+        expected_draft_version: {type: integer, minimum: 1}
+    CaseGroupItemUpdateRequest:
+      type: object
+      required: [product_id, form_values, expected_draft_version]
+      description: file_ids 省略时保留已有专属文件。
+      properties:
+        product_id: {type: integer, format: int64}
+        variant_id: {type: integer, format: int64, nullable: true}
+        relationship_type: {type: string, enum: [PRIMARY, RELATED]}
+        form_values:
+          type: object
+          description: 动态表单值；即使保存草稿也校验已填写值的类型、选项和边界，提交时再校验当前可见必填项。
+          additionalProperties: true
+        material_selections: {type: array, items: {"$ref": "#/components/schemas/CatalogQuantitySelection"}}
+        accessory_selections: {type: array, items: {"$ref": "#/components/schemas/CatalogQuantitySelection"}}
+        file_ids: {type: array, items: {type: integer, format: int64}}
+        expected_draft_version: {type: integer, minimum: 1}
+    CaseGroupCopyRequest:
+      type: object
+      required: [item_client_key, expected_draft_version]
+      properties:
+        item_client_key: {type: string, maxLength: 128}
+        expected_draft_version: {type: integer, minimum: 1}
+    CaseGroupVersionRequest:
+      type: object
+      required: [expected_draft_version]
+      properties:
+        expected_draft_version: {type: integer, minimum: 1}
+    CaseGroupSubmitRequest:
+      type: object
+      required: [idempotency_key, expected_draft_version]
+      properties:
+        idempotency_key: {type: string, maxLength: 128}
+        expected_draft_version: {type: integer, minimum: 1}
+    CaseGroupSharedFilesRequest:
+      type: object
+      required: [file_ids, expected_draft_version]
+      properties:
+        file_ids: {type: array, items: {type: integer, format: int64}}
+        expected_draft_version: {type: integer, minimum: 1}
+    OrthodonticPrescriptionRequest:
+      type: object
+      required:
+      - aligner_type_code
+      - basic_information
+      - records_and_models
+      - clinical_diagnosis
+      - appliance_and_combination
+      - tooth_targets
+      - plan_parameters
+      - preview_and_submission
+      properties:
+        aligner_type_code:
+          type: string
+          description: 来自已发布产品变体或规则；当前可只启用 A 型，但接口不写死。
+        combined_order_id: {type: integer, format: int64, nullable: true}
+        total_steps: {type: integer, minimum: 1, maximum: 999, nullable: true}
+        basic_information: {type: object, additionalProperties: true}
+        records_and_models: {type: object, additionalProperties: true}
+        clinical_diagnosis: {type: object, additionalProperties: true}
+        appliance_and_combination: {type: object, additionalProperties: true}
+        tooth_targets: {type: object, additionalProperties: true}
+        plan_parameters: {type: object, additionalProperties: true}
+        preview_and_submission: {type: object, additionalProperties: true}
+        submit: {type: boolean, default: false}
+        expected_lock_version: {type: integer, minimum: 0, nullable: true}
+    OrthodonticPlanVersionRequest:
+      type: object
+      required: [plan_snapshot]
+      properties:
+        plan_file_id: {type: integer, format: int64, nullable: true}
+        plan_snapshot: {type: object, additionalProperties: true}
+        design_note: {type: string, maxLength: 2000, nullable: true}
+    OrthodonticPlanReviewRequest:
+      type: object
+      required: [decision]
+      properties:
+        decision: {type: string, enum: [APPROVE, REJECT]}
+        reason: {type: string, maxLength: 1000, nullable: true}
+    OrthodonticProductionBatchRequest:
+      type: object
+      required: [plan_version_id, step_from, step_to]
+      properties:
+        plan_version_id: {type: integer, format: int64}
+        step_from: {type: integer, minimum: 1}
+        step_to: {type: integer, minimum: 1}
+    OrthodonticChangeRequest:
+      type: object
+      required: [source_plan_version_id, request_type, reason]
+      properties:
+        source_plan_version_id: {type: integer, format: int64}
+        source_batch_id: {type: integer, format: int64, nullable: true}
+        request_type: {type: string, enum: [STAGE_ADJUSTMENT, FOLLOW_UP_PROCESSING]}
+        reason: {type: string, maxLength: 2000}
+    CatalogConfigVersion:
+      type: object
+      properties:
+        config_version_id:
+          type: integer
+          format: int64
+        version_no:
+          type: integer
+        version_name:
+          type: string
+        publication_status:
+          type: string
+          enum:
+          - DRAFT
+          - ACTIVE
+          - INACTIVE
+        effective_at:
+          type: string
+          format: date-time
+          nullable: true
+        lock_version:
+          type: integer
+    CatalogVersionCreateRequest:
+      type: object
+      required: [version_name]
+      properties:
+        version_name: {type: string, maxLength: 128}
+        based_on_version_id: {type: integer, format: int64, nullable: true}
+    CatalogCategoryRequest:
+      type: object
+      required:
+      - category_code
+      - display_name
+      properties:
+        category_code:
+          type: string
+          pattern: "^[A-Z][A-Z0-9_]{1,95}$"
+        display_name:
+          type: string
+          maxLength: 128
+        sort_order:
+          type: integer
+    CatalogProductRequest:
+      type: object
+      required:
+      - category_id
+      - product_code
+      - display_name
+      properties:
+        category_id:
+          type: integer
+          format: int64
+        product_code:
+          type: string
+          pattern: "^[A-Z][A-Z0-9_]{1,95}$"
+        display_name:
+          type: string
+          maxLength: 128
+        workflow_product_type:
+          type: string
+          nullable: true
+        tooth_rule_code:
+          type: string
+          nullable: true
+        sort_order:
+          type: integer
+    CatalogProductUpdateRequest:
+      type: object
+      required: [display_name, pricing_status, currency, status, lock_version]
+      properties:
+        display_name: {type: string, maxLength: 128}
+        workflow_product_type: {type: string, nullable: true}
+        tooth_rule_code: {type: string, nullable: true}
+        pricing_status: {type: string, enum: [PENDING_QUOTE, PRICED]}
+        base_price_cents: {type: integer, format: int64, minimum: 0, nullable: true}
+        currency: {type: string, pattern: "^[A-Z]{3,16}$"}
+        sort_order: {type: integer}
+        status: {type: string, enum: [ACTIVE, INACTIVE]}
+        lock_version: {type: integer, minimum: 0}
+    CatalogVariantRequest:
+      type: object
+      required: [product_id, variant_code, display_name]
+      properties:
+        product_id: {type: integer, format: int64}
+        variant_code: {type: string, pattern: "^[A-Z][A-Z0-9_]{1,95}$"}
+        display_name: {type: string, maxLength: 128}
+        attributes: {type: object, additionalProperties: true}
+        sort_order: {type: integer}
+    CatalogAccessoryRequest:
+      type: object
+      required: [accessory_code, display_name]
+      properties:
+        accessory_code: {type: string, pattern: "^[A-Z][A-Z0-9_]{1,95}$"}
+        display_name: {type: string, maxLength: 128}
+        quantity_supported: {type: boolean}
+        sort_order: {type: integer}
+    CatalogMaterialColorRequest:
+      type: object
+      required: [material_id, semantic_type, color_code, display_name]
+      properties:
+        material_id: {type: integer, format: int64}
+        semantic_type: {type: string, enum: [TOOTH_SHADE, GINGIVAL_SHADE, DENTURE_BASE_SHADE, ALIGNER_COLOR]}
+        color_code: {type: string, maxLength: 64}
+        display_name: {type: string, maxLength: 128}
+        sort_order: {type: integer}
+    CatalogAccessoryBindingRequest:
+      type: object
+      required: [product_id, accessory_id, selection_group_code]
+      properties:
+        product_id: {type: integer, format: int64}
+        variant_id: {type: integer, format: int64, nullable: true}
+        accessory_id: {type: integer, format: int64}
+        selection_group_code: {type: string, pattern: "^[A-Z][A-Z0-9_]{1,95}$"}
+        required: {type: boolean}
+        default: {type: boolean}
+        min_quantity: {type: integer, minimum: 0, nullable: true}
+        max_quantity: {type: integer, minimum: 0, nullable: true}
+        price_increment_cents: {type: integer, format: int64, minimum: 0, nullable: true}
+        sort_order: {type: integer}
+    CatalogAliasRequest:
+      type: object
+      required: [canonical_type, canonical_id, alias_text]
+      properties:
+        canonical_type: {type: string, enum: [PRODUCT, PRODUCT_VARIANT, MATERIAL, ACCESSORY]}
+        canonical_id: {type: integer, format: int64}
+        alias_text: {type: string, maxLength: 255}
+    CatalogRuleRequest:
+      type: object
+      required: [rule_type, rule_code, rule_schema]
+      properties:
+        product_id: {type: integer, format: int64, nullable: true}
+        variant_id: {type: integer, format: int64, nullable: true}
+        rule_type: {type: string, enum: [FORM_SCHEMA, TOOTH, UPLOAD, PRICE, LEAD_TIME, WORKFLOW]}
+        rule_code: {type: string, pattern: "^[A-Z][A-Z0-9_]{1,95}$"}
+        rule_schema:
+          type: object
+          description: FORM_SCHEMA 必须包含 fields 数组；字段 key 唯一，type 仅允许 string/text/textarea/single_select/color/tooth/number/quantity/boolean/array/multi_select/object，options、visible_when 与数值/集合边界由服务端校验。
+          additionalProperties: true
+        sort_order: {type: integer}
+    CatalogNamedEntityUpdateRequest:
+      type: object
+      required: [display_name, status, lock_version]
+      properties:
+        display_name: {type: string, maxLength: 128}
+        sort_order: {type: integer}
+        status: {type: string, enum: [ACTIVE, INACTIVE]}
+        lock_version: {type: integer, minimum: 0}
+    CatalogBindingUpdateRequest:
+      type: object
+      required: [selection_group_code, status, lock_version]
+      properties:
+        selection_group_code: {type: string, pattern: "^[A-Z][A-Z0-9_]{1,95}$"}
+        required: {type: boolean}
+        selection_mode: {type: string, enum: [SINGLE, MULTIPLE], nullable: true}
+        default: {type: boolean}
+        min_quantity: {type: integer, minimum: 0, nullable: true}
+        max_quantity: {type: integer, minimum: 0, nullable: true}
+        price_increment_cents: {type: integer, format: int64, minimum: 0, nullable: true}
+        sort_order: {type: integer}
+        status: {type: string, enum: [ACTIVE, INACTIVE]}
+        lock_version: {type: integer, minimum: 0}
+    CatalogAliasUpdateRequest:
+      type: object
+      required: [alias_text, status, lock_version]
+      properties:
+        alias_text: {type: string, maxLength: 255}
+        status: {type: string, enum: [ACTIVE, INACTIVE]}
+        lock_version: {type: integer, minimum: 0}
+    CatalogRuleUpdateRequest:
+      type: object
+      required: [rule_schema, status, lock_version]
+      properties:
+        rule_schema:
+          type: object
+          description: 更新时执行与创建相同的规则结构校验；非法类型、重复 key、错误选项或倒置边界返回 400。
+          additionalProperties: true
+        sort_order: {type: integer}
+        status: {type: string, enum: [ACTIVE, INACTIVE]}
+        lock_version: {type: integer, minimum: 0}
+    CatalogMaterialRequest:
+      type: object
+      required:
+      - material_code
+      - display_name
+      properties:
+        material_code:
+          type: string
+          pattern: "^[A-Z][A-Z0-9_]{1,95}$"
+        display_name:
+          type: string
+          maxLength: 128
+        material_family:
+          type: string
+          nullable: true
+        brand_name:
+          type: string
+          nullable: true
+        specification:
+          type: string
+          nullable: true
+        sort_order:
+          type: integer
+    CatalogMaterialUpdateRequest:
+      type: object
+      required:
+      - display_name
+      - status
+      - lock_version
+      properties:
+        display_name:
+          type: string
+        material_family:
+          type: string
+          nullable: true
+        brand_name:
+          type: string
+          nullable: true
+        specification:
+          type: string
+          nullable: true
+        sort_order:
+          type: integer
+        status:
+          type: string
+          enum:
+          - ACTIVE
+          - INACTIVE
+        lock_version:
+          type: integer
+          minimum: 0
+    CatalogMaterialBindingRequest:
+      type: object
+      required:
+      - product_id
+      - material_id
+      - selection_mode
+      properties:
+        product_id:
+          type: integer
+          format: int64
+        variant_id:
+          type: integer
+          format: int64
+          nullable: true
+        material_id:
+          type: integer
+          format: int64
+        selection_group_code:
+          type: string
+          pattern: "^[A-Z][A-Z0-9_]{1,95}$"
+          nullable: true
+        required:
+          type: boolean
+        selection_mode:
+          type: string
+          enum:
+          - SINGLE
+          - MULTIPLE
+        default:
+          type: boolean
+        min_quantity:
+          type: integer
+          minimum: 0
+          nullable: true
+        max_quantity:
+          type: integer
+          minimum: 0
+          nullable: true
+        price_increment_cents:
+          type: integer
+          format: int64
+          minimum: 0
+          nullable: true
+        sort_order:
+          type: integer
+    CatalogPublishRequest:
+      type: object
+      required:
+      - reason
+      - lock_version
+      properties:
+        effective_at:
+          type: string
+          format: date-time
+          nullable: true
+        reason:
+          type: string
+          maxLength: 512
+        lock_version:
+          type: integer
+          minimum: 0
+    WorkflowStandardTimeVersion:
+      type: object
+      properties:
+        standard_time_version_id:
+          type: integer
+          format: int64
+        version_no:
+          type: integer
+        version_name:
+          type: string
+        publication_status:
+          type: string
+          enum:
+          - DRAFT
+          - ACTIVE
+          - INACTIVE
+        effective_at:
+          type: string
+          format: date-time
+          nullable: true
+        lock_version:
+          type: integer
+    WorkflowStandardTimeCopyRequest:
+      type: object
+      required:
+      - version_name
+      properties:
+        source_version_id:
+          type: integer
+          format: int64
+          nullable: true
+        version_name:
+          type: string
+          maxLength: 128
+    WorkflowStandardTimeNode:
+      type: object
+      properties:
+        standard_time_item_id:
+          type: integer
+          format: int64
+        chain_id:
+          type: integer
+          format: int64
+        chain_code:
+          type: string
+        chain_name:
+          type: string
+        product_type:
+          type: string
+        node_id:
+          type: integer
+          format: int64
+        node_code:
+          type: string
+        process_name:
+          type: string
+        stage_name:
+          type: string
+          nullable: true
+        step_order:
+          type: integer
+        standard_duration_minutes:
+          type: integer
+          minimum: 0
+          maximum: 43200
+          nullable: true
+        status:
+          type: string
+          enum:
+          - ACTIVE
+          - INACTIVE
+        lock_version:
+          type: integer
+    WorkflowStandardTimeBulkRequest:
+      type: object
+      required:
+      - items
+      - reason
+      properties:
+        reason:
+          type: string
+          maxLength: 512
+        items:
+          type: array
+          items:
+            type: object
+            required:
+            - node_id
+            - status
+            - lock_version
+            properties:
+              node_id:
+                type: integer
+                format: int64
+              standard_duration_minutes:
+                type: integer
+                minimum: 0
+                maximum: 43200
+                nullable: true
+              status:
+                type: string
+                enum:
+                - ACTIVE
+                - INACTIVE
+              lock_version:
+                type: integer
+                minimum: 0
+    WorkflowStandardTimePublishRequest:
+      type: object
+      required:
+      - reason
+      - lock_version
+      properties:
+        effective_at:
+          type: string
+          format: date-time
+          nullable: true
+        reason:
+          type: string
+          maxLength: 512
+        lock_version:
+          type: integer
+          minimum: 0
     OrderReviewRequest:
       type: object
       required:
@@ -1070,6 +1741,12 @@ components:
           form_data:
             type: object
             description: 动态表单填写内容，key 为 field_key
+          form_schema_snapshot:
+            type: array
+            nullable: true
+            description: 提交时冻结的动态表单规则；存在时客服完整性检查不得回退到后续变更的旧产品字段配置。
+            items:
+              type: object
           attachments:
             type: array
             items:
@@ -1199,8 +1876,10 @@ components:
           type: string
           enum:
           - PHASE_ONE_DEFAULT_V1
+          - STANDARD_TIME_PENDING
           description: |
-            任务 9D.74 第一增量：开发默认绩效公式版本。当前公式只用于一期统计验收，不作为工资或奖惩结算依据；客户/PM 确认后再冻结正式口径。
+            任务 9D.74 第一增量：开发默认绩效公式版本。当前公式只用于一期统计验收，不作为工资或奖惩结算依据。
+            客户正式标准工时未启用时返回 STANDARD_TIME_PENDING，所有依赖标准工时的指标返回 null。
         username:
           type: string
         completed_count:
@@ -1211,16 +1890,20 @@ components:
           description: 有效工时（分钟）
         standard_duration:
           type: integer
-          description: 有标准工时的已完成工序标准工时合计（分钟）
+          nullable: true
+          description: 有正式标准工时的已完成工序标准工时合计（分钟）；正式开关关闭时返回 null
         standard_covered_count:
           type: integer
-          description: 已完成工序中配置了标准工时的数量
+          nullable: true
+          description: 已完成工序中配置了正式标准工时的数量；正式开关关闭时返回 null
         standard_missing_count:
           type: integer
-          description: 已完成工序中缺少标准工时的数量
+          nullable: true
+          description: 已完成工序中缺少正式标准工时的数量；正式开关关闭时返回 null
         standard_coverage_rate:
           type: integer
-          description: 标准工时覆盖率，取值 0-100
+          nullable: true
+          description: 标准工时覆盖率，取值 0-100；正式开关关闭时返回 null
         rework_count:
           type: integer
           description: 返工次数
@@ -1235,17 +1918,21 @@ components:
           description: 尚未关闭或未设置责任类型的返工次数
         on_time_rate:
           type: integer
-          description: 准时率，取值 0-100
+          nullable: true
+          description: 准时率，取值 0-100；performance_formula_version=STANDARD_TIME_PENDING 时返回 null
         pass_rate:
           type: integer
           description: 一次通过率，取值 0-100
         duration_efficiency:
           type: integer
-          description: 工时效率（标准工时÷实际工时×100%）
+          nullable: true
+          description: 工时效率（标准工时÷实际工时×100%）；performance_formula_version=STANDARD_TIME_PENDING 时返回 null
         performance_score:
           type: integer
+          nullable: true
           description: |
             开发默认绩效分，公式为工时效率 40% + 一次通过率 30% + 准时率 20% + 责任归因 10%；工时效率封顶 120，生产责任返工每次扣 10 分，未归因返工每次扣 5 分，非生产责任返工不扣分。
+            客户正式标准工时未启用时 performance_formula_version=STANDARD_TIME_PENDING，本字段返回 null，前端显示待数据。
     StaffWorkloadResponse:
       type: object
       description: |
@@ -2646,7 +3333,11 @@ components:
           type: integer
     ProductionReviewRequest:
       type: object
-      description: 生产审核请求；仅 ADMIN 可处理 internal_status=PENDING_PRODUCTION_REVIEW 的订单。
+      description: |
+        生产审核请求。ADMIN 可进行管理兜底；WORKER 仅在获得
+        workflow:review-production 直接授权后可处理 PENDING_PRODUCTION_REVIEW 订单。
+        选择双入口工艺链时必须提交 intake_branch；存在工艺分支组时，
+        branch_params 必须为每个分支组选择一个合法值；REJECT 必须提交 reject_reason。
       required:
       - action
       properties:
@@ -2657,7 +3348,7 @@ components:
           - REJECT
         chain_id:
           type: integer
-          description: action=APPROVE 时必填
+          description: 可选；服务端默认按订单产品匹配唯一启用工艺链，传入时必须与产品匹配。
         intake_branch:
           type: string
           enum:
@@ -2665,9 +3356,13 @@ components:
           - SCAN
         branch_params:
           type: object
-          description: 贴面、种植基台等内部路线参数
+          additionalProperties:
+            type: string
+          description: 贴面、种植基台等工艺分支选择；存在分支组时每组必选且值必须属于模板定义。
         reject_reason:
           type: string
+          maxLength: 500
+          description: action=REJECT 时必填。
     ProductionReviewResponse:
       type: object
       properties:
@@ -2788,6 +3483,15 @@ components:
       properties:
         reason:
           type: string
+    BusinessGateActionRequest:
+      type: object
+      required:
+      - note
+      properties:
+        note:
+          type: string
+          maxLength: 500
+          description: 客服或管理员本次核对结论；写入业务门禁审计。
     CheckRecordRequest:
       type: object
       required:
@@ -6011,6 +6715,856 @@ paths:
         '503':
           "$ref": "#/components/responses/ServiceUnavailable"
       operationId: getFilesByFileIdDownloadUrl
+  "/admin/catalog/versions":
+    get:
+      tags: [Catalog]
+      summary: 查询产品配置版本
+      description: 权限：catalog:manage；ADMIN 默认拥有。
+      operationId: getAdminCatalogVersions
+      responses:
+        '200': {description: 版本列表, content: {application/json: {schema: {type: object, properties: {data: {type: array, items: {"$ref": "#/components/schemas/CatalogConfigVersion"}}}}}}}
+        '400': {"$ref": "#/components/responses/BadRequest"}
+        '401': {"$ref": "#/components/responses/Unauthorized"}
+        '403': {"$ref": "#/components/responses/Forbidden"}
+        '404': {"$ref": "#/components/responses/NotFound"}
+        '409': {"$ref": "#/components/responses/Conflict"}
+        '503': {"$ref": "#/components/responses/ServiceUnavailable"}
+        default: {"$ref": "#/components/responses/DefaultError"}
+    post:
+      tags: [Catalog]
+      summary: 新建或复制产品配置草稿版本
+      description: 权限：catalog:manage。复制时完整重建关联 ID，不修改来源版本。
+      operationId: postAdminCatalogVersions
+      requestBody: {required: true, content: {application/json: {schema: {"$ref": "#/components/schemas/CatalogVersionCreateRequest"}}}}
+      responses:
+        '200': {description: 草稿版本, content: {application/json: {schema: {type: object, properties: {data: {"$ref": "#/components/schemas/CatalogConfigVersion"}}}}}}
+        '400': {"$ref": "#/components/responses/BadRequest"}
+        '401': {"$ref": "#/components/responses/Unauthorized"}
+        '403': {"$ref": "#/components/responses/Forbidden"}
+        '404': {"$ref": "#/components/responses/NotFound"}
+        '409': {"$ref": "#/components/responses/Conflict"}
+        '503': {"$ref": "#/components/responses/ServiceUnavailable"}
+        default: {"$ref": "#/components/responses/DefaultError"}
+  "/admin/catalog/versions/{versionId}/categories":
+    post:
+      tags: [Catalog]
+      summary: 在产品配置草稿中新增分类
+      description: 只允许修改 DRAFT；已发布版本返回 409。
+      operationId: postAdminCatalogVersionCategories
+      parameters:
+      - {name: versionId, in: path, required: true, schema: {type: integer, format: int64}}
+      requestBody: {required: true, content: {application/json: {schema: {"$ref": "#/components/schemas/CatalogCategoryRequest"}}}}
+      responses:
+        '200': {description: 新增成功, content: {application/json: {schema: {type: object}}}}
+        '400': {"$ref": "#/components/responses/BadRequest"}
+        '401': {"$ref": "#/components/responses/Unauthorized"}
+        '403': {"$ref": "#/components/responses/Forbidden"}
+        '404': {"$ref": "#/components/responses/NotFound"}
+        '409': {"$ref": "#/components/responses/Conflict"}
+        '503': {"$ref": "#/components/responses/ServiceUnavailable"}
+        default: {"$ref": "#/components/responses/DefaultError"}
+  "/admin/catalog/import-template":
+    get:
+      tags: [Catalog]
+      summary: 获取稳定的产品配置批量导入模板
+      description: 权限：catalog:manage。模板本身不写库，当前版本 CATALOG_V2_1。
+      operationId: getAdminCatalogImportTemplate
+      responses:
+        '200': {description: 模板列、实体类型和版本}
+        '400': {"$ref": "#/components/responses/BadRequest"}
+        '401': {"$ref": "#/components/responses/Unauthorized"}
+        '403': {"$ref": "#/components/responses/Forbidden"}
+        '404': {"$ref": "#/components/responses/NotFound"}
+        '409': {"$ref": "#/components/responses/Conflict"}
+        '503': {"$ref": "#/components/responses/ServiceUnavailable"}
+        default: {"$ref": "#/components/responses/DefaultError"}
+  "/admin/catalog/import-validation":
+    post:
+      tags: [Catalog]
+      summary: 校验产品配置导入数据
+      description: 只校验模板版本、实体类型、稳定 code、显示名及文件内重复项，不写入数据库。
+      operationId: postAdminCatalogImportValidation
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [template_version, rows]
+              properties:
+                template_version: {type: string, enum: [CATALOG_V2_1]}
+                rows: {type: array, maxItems: 5000, items: {type: object, additionalProperties: true}}
+      responses:
+        '200': {description: 行级校验结果}
+        '400': {"$ref": "#/components/responses/BadRequest"}
+        '401': {"$ref": "#/components/responses/Unauthorized"}
+        '403': {"$ref": "#/components/responses/Forbidden"}
+        '404': {"$ref": "#/components/responses/NotFound"}
+        '409': {"$ref": "#/components/responses/Conflict"}
+        '503': {"$ref": "#/components/responses/ServiceUnavailable"}
+        default: {"$ref": "#/components/responses/DefaultError"}
+  "/admin/catalog/versions/{versionId}/products":
+    post:
+      tags: [Catalog]
+      summary: 在产品配置草稿中新增产品
+      description: 未配置正式价格时保持 PENDING_QUOTE，不使用占位金额。
+      operationId: postAdminCatalogVersionProducts
+      parameters:
+      - {name: versionId, in: path, required: true, schema: {type: integer, format: int64}}
+      requestBody: {required: true, content: {application/json: {schema: {"$ref": "#/components/schemas/CatalogProductRequest"}}}}
+      responses:
+        '200': {description: 新增成功, content: {application/json: {schema: {type: object}}}}
+        '400': {"$ref": "#/components/responses/BadRequest"}
+        '401': {"$ref": "#/components/responses/Unauthorized"}
+        '403': {"$ref": "#/components/responses/Forbidden"}
+        '404': {"$ref": "#/components/responses/NotFound"}
+        '409': {"$ref": "#/components/responses/Conflict"}
+        '503': {"$ref": "#/components/responses/ServiceUnavailable"}
+        default: {"$ref": "#/components/responses/DefaultError"}
+  "/admin/catalog/products/{productId}":
+    put:
+      tags: [Catalog]
+      summary: 修改、排序、定价、停用或恢复草稿产品
+      operationId: putAdminCatalogProducts
+      parameters:
+      - {name: productId, in: path, required: true, schema: {type: integer, format: int64}}
+      requestBody: {required: true, content: {application/json: {schema: {"$ref": "#/components/schemas/CatalogProductUpdateRequest"}}}}
+      responses:
+        '200': {description: 更新成功}
+        '400': {"$ref": "#/components/responses/BadRequest"}
+        '401': {"$ref": "#/components/responses/Unauthorized"}
+        '403': {"$ref": "#/components/responses/Forbidden"}
+        '404': {"$ref": "#/components/responses/NotFound"}
+        '409': {"$ref": "#/components/responses/Conflict"}
+        '503': {"$ref": "#/components/responses/ServiceUnavailable"}
+        default: {"$ref": "#/components/responses/DefaultError"}
+  "/admin/catalog/versions/{versionId}/variants":
+    post:
+      tags: [Catalog]
+      summary: 新增产品变体或 SKU
+      operationId: postAdminCatalogVersionVariants
+      parameters:
+      - {name: versionId, in: path, required: true, schema: {type: integer, format: int64}}
+      requestBody: {required: true, content: {application/json: {schema: {"$ref": "#/components/schemas/CatalogVariantRequest"}}}}
+      responses:
+        '200': {description: 新增成功}
+        '400': {"$ref": "#/components/responses/BadRequest"}
+        '401': {"$ref": "#/components/responses/Unauthorized"}
+        '403': {"$ref": "#/components/responses/Forbidden"}
+        '404': {"$ref": "#/components/responses/NotFound"}
+        '409': {"$ref": "#/components/responses/Conflict"}
+        '503': {"$ref": "#/components/responses/ServiceUnavailable"}
+        default: {"$ref": "#/components/responses/DefaultError"}
+  "/admin/catalog/versions/{versionId}/accessories":
+    post:
+      tags: [Catalog]
+      summary: 新增配件
+      operationId: postAdminCatalogVersionAccessories
+      parameters:
+      - {name: versionId, in: path, required: true, schema: {type: integer, format: int64}}
+      requestBody: {required: true, content: {application/json: {schema: {"$ref": "#/components/schemas/CatalogAccessoryRequest"}}}}
+      responses:
+        '200': {description: 新增成功}
+        '400': {"$ref": "#/components/responses/BadRequest"}
+        '401': {"$ref": "#/components/responses/Unauthorized"}
+        '403': {"$ref": "#/components/responses/Forbidden"}
+        '404': {"$ref": "#/components/responses/NotFound"}
+        '409': {"$ref": "#/components/responses/Conflict"}
+        '503': {"$ref": "#/components/responses/ServiceUnavailable"}
+        default: {"$ref": "#/components/responses/DefaultError"}
+  "/admin/catalog/versions/{versionId}/material-colors":
+    post:
+      tags: [Catalog]
+      summary: 新增材料语义色号
+      description: 牙色、牙龈色、基托色和矫治器色分别建模。
+      operationId: postAdminCatalogVersionMaterialColors
+      parameters:
+      - {name: versionId, in: path, required: true, schema: {type: integer, format: int64}}
+      requestBody: {required: true, content: {application/json: {schema: {"$ref": "#/components/schemas/CatalogMaterialColorRequest"}}}}
+      responses:
+        '200': {description: 新增成功}
+        '400': {"$ref": "#/components/responses/BadRequest"}
+        '401': {"$ref": "#/components/responses/Unauthorized"}
+        '403': {"$ref": "#/components/responses/Forbidden"}
+        '404': {"$ref": "#/components/responses/NotFound"}
+        '409': {"$ref": "#/components/responses/Conflict"}
+        '503': {"$ref": "#/components/responses/ServiceUnavailable"}
+        default: {"$ref": "#/components/responses/DefaultError"}
+  "/admin/catalog/versions/{versionId}/accessory-bindings":
+    post:
+      tags: [Catalog]
+      summary: 绑定产品、变体与配件
+      operationId: postAdminCatalogVersionAccessoryBindings
+      parameters:
+      - {name: versionId, in: path, required: true, schema: {type: integer, format: int64}}
+      requestBody: {required: true, content: {application/json: {schema: {"$ref": "#/components/schemas/CatalogAccessoryBindingRequest"}}}}
+      responses:
+        '200': {description: 绑定成功}
+        '400': {"$ref": "#/components/responses/BadRequest"}
+        '401': {"$ref": "#/components/responses/Unauthorized"}
+        '403': {"$ref": "#/components/responses/Forbidden"}
+        '404': {"$ref": "#/components/responses/NotFound"}
+        '409': {"$ref": "#/components/responses/Conflict"}
+        '503': {"$ref": "#/components/responses/ServiceUnavailable"}
+        default: {"$ref": "#/components/responses/DefaultError"}
+  "/admin/catalog/versions/{versionId}/aliases":
+    post:
+      tags: [Catalog]
+      summary: 新增同义别名
+      operationId: postAdminCatalogVersionAliases
+      parameters:
+      - {name: versionId, in: path, required: true, schema: {type: integer, format: int64}}
+      requestBody: {required: true, content: {application/json: {schema: {"$ref": "#/components/schemas/CatalogAliasRequest"}}}}
+      responses:
+        '200': {description: 新增成功}
+        '400': {"$ref": "#/components/responses/BadRequest"}
+        '401': {"$ref": "#/components/responses/Unauthorized"}
+        '403': {"$ref": "#/components/responses/Forbidden"}
+        '404': {"$ref": "#/components/responses/NotFound"}
+        '409': {"$ref": "#/components/responses/Conflict"}
+        '503': {"$ref": "#/components/responses/ServiceUnavailable"}
+        default: {"$ref": "#/components/responses/DefaultError"}
+  "/admin/catalog/versions/{versionId}/rules":
+    post:
+      tags: [Catalog]
+      summary: 新增动态字段、牙位、上传、价格、交期或工序映射规则
+      description: FORM_SCHEMA 在写入时校验字段类型、唯一 key、选项、条件显示和数值/集合边界。
+      operationId: postAdminCatalogVersionRules
+      parameters:
+      - {name: versionId, in: path, required: true, schema: {type: integer, format: int64}}
+      requestBody: {required: true, content: {application/json: {schema: {"$ref": "#/components/schemas/CatalogRuleRequest"}}}}
+      responses:
+        '200': {description: 新增成功}
+        '400': {"$ref": "#/components/responses/BadRequest"}
+        '401': {"$ref": "#/components/responses/Unauthorized"}
+        '403': {"$ref": "#/components/responses/Forbidden"}
+        '404': {"$ref": "#/components/responses/NotFound"}
+        '409': {"$ref": "#/components/responses/Conflict"}
+        '503': {"$ref": "#/components/responses/ServiceUnavailable"}
+        default: {"$ref": "#/components/responses/DefaultError"}
+  "/admin/catalog/entities/{entityType}/{entityId}":
+    put:
+      tags: [Catalog]
+      summary: 更新、排序、停用或恢复命名配置项
+      operationId: putAdminCatalogNamedEntity
+      parameters:
+      - {name: entityType, in: path, required: true, schema: {type: string, enum: [CATEGORY, VARIANT, ACCESSORY, MATERIAL_COLOR]}}
+      - {name: entityId, in: path, required: true, schema: {type: integer, format: int64}}
+      requestBody: {required: true, content: {application/json: {schema: {"$ref": "#/components/schemas/CatalogNamedEntityUpdateRequest"}}}}
+      responses:
+        '200': {description: 更新成功}
+        '400': {"$ref": "#/components/responses/BadRequest"}
+        '401': {"$ref": "#/components/responses/Unauthorized"}
+        '403': {"$ref": "#/components/responses/Forbidden"}
+        '404': {"$ref": "#/components/responses/NotFound"}
+        '409': {"$ref": "#/components/responses/Conflict"}
+        '503': {"$ref": "#/components/responses/ServiceUnavailable"}
+        default: {"$ref": "#/components/responses/DefaultError"}
+    delete:
+      tags: [Catalog]
+      summary: 物理删除从未发布且未引用的草稿配置项
+      description: 已发布或已引用时返回 409；通常使用逻辑停用。
+      operationId: deleteAdminCatalogEntity
+      parameters:
+      - {name: entityType, in: path, required: true, schema: {type: string}}
+      - {name: entityId, in: path, required: true, schema: {type: integer, format: int64}}
+      responses:
+        '200': {description: 删除成功}
+        '400': {"$ref": "#/components/responses/BadRequest"}
+        '401': {"$ref": "#/components/responses/Unauthorized"}
+        '403': {"$ref": "#/components/responses/Forbidden"}
+        '404': {"$ref": "#/components/responses/NotFound"}
+        '409': {"$ref": "#/components/responses/Conflict"}
+        '503': {"$ref": "#/components/responses/ServiceUnavailable"}
+        default: {"$ref": "#/components/responses/DefaultError"}
+  "/admin/catalog/material-bindings/{bindingId}":
+    put:
+      tags: [Catalog]
+      summary: 修改、排序、停用或恢复产品材料绑定
+      operationId: putAdminCatalogMaterialBinding
+      parameters:
+      - {name: bindingId, in: path, required: true, schema: {type: integer, format: int64}}
+      requestBody: {required: true, content: {application/json: {schema: {"$ref": "#/components/schemas/CatalogBindingUpdateRequest"}}}}
+      responses:
+        '200': {description: 更新成功}
+        '400': {"$ref": "#/components/responses/BadRequest"}
+        '401': {"$ref": "#/components/responses/Unauthorized"}
+        '403': {"$ref": "#/components/responses/Forbidden"}
+        '404': {"$ref": "#/components/responses/NotFound"}
+        '409': {"$ref": "#/components/responses/Conflict"}
+        '503': {"$ref": "#/components/responses/ServiceUnavailable"}
+        default: {"$ref": "#/components/responses/DefaultError"}
+  "/admin/catalog/accessory-bindings/{bindingId}":
+    put:
+      tags: [Catalog]
+      summary: 修改、排序、停用或恢复产品配件绑定
+      operationId: putAdminCatalogAccessoryBinding
+      parameters:
+      - {name: bindingId, in: path, required: true, schema: {type: integer, format: int64}}
+      requestBody: {required: true, content: {application/json: {schema: {"$ref": "#/components/schemas/CatalogBindingUpdateRequest"}}}}
+      responses:
+        '200': {description: 更新成功}
+        '400': {"$ref": "#/components/responses/BadRequest"}
+        '401': {"$ref": "#/components/responses/Unauthorized"}
+        '403': {"$ref": "#/components/responses/Forbidden"}
+        '404': {"$ref": "#/components/responses/NotFound"}
+        '409': {"$ref": "#/components/responses/Conflict"}
+        '503': {"$ref": "#/components/responses/ServiceUnavailable"}
+        default: {"$ref": "#/components/responses/DefaultError"}
+  "/admin/catalog/aliases/{aliasId}":
+    put:
+      tags: [Catalog]
+      summary: 修改、停用或恢复同义别名
+      operationId: putAdminCatalogAlias
+      parameters:
+      - {name: aliasId, in: path, required: true, schema: {type: integer, format: int64}}
+      requestBody: {required: true, content: {application/json: {schema: {"$ref": "#/components/schemas/CatalogAliasUpdateRequest"}}}}
+      responses:
+        '200': {description: 更新成功}
+        '400': {"$ref": "#/components/responses/BadRequest"}
+        '401': {"$ref": "#/components/responses/Unauthorized"}
+        '403': {"$ref": "#/components/responses/Forbidden"}
+        '404': {"$ref": "#/components/responses/NotFound"}
+        '409': {"$ref": "#/components/responses/Conflict"}
+        '503': {"$ref": "#/components/responses/ServiceUnavailable"}
+        default: {"$ref": "#/components/responses/DefaultError"}
+  "/admin/catalog/rules/{ruleId}":
+    put:
+      tags: [Catalog]
+      summary: 修改、排序、停用或恢复版本化规则
+      description: 修改规则时重新执行规则结构校验；发布版本仍会对全部 ACTIVE 规则做最终复核。
+      operationId: putAdminCatalogRule
+      parameters:
+      - {name: ruleId, in: path, required: true, schema: {type: integer, format: int64}}
+      requestBody: {required: true, content: {application/json: {schema: {"$ref": "#/components/schemas/CatalogRuleUpdateRequest"}}}}
+      responses:
+        '200': {description: 更新成功}
+        '400': {"$ref": "#/components/responses/BadRequest"}
+        '401': {"$ref": "#/components/responses/Unauthorized"}
+        '403': {"$ref": "#/components/responses/Forbidden"}
+        '404': {"$ref": "#/components/responses/NotFound"}
+        '409': {"$ref": "#/components/responses/Conflict"}
+        '503': {"$ref": "#/components/responses/ServiceUnavailable"}
+        default: {"$ref": "#/components/responses/DefaultError"}
+  "/admin/catalog/versions/{versionId}/materials":
+    post:
+      tags: [Catalog]
+      summary: 在产品配置草稿中新增材料
+      description: 材料品牌和规格单独维护；Lucitone 199 不作为成品 SKU。
+      operationId: postAdminCatalogVersionMaterials
+      parameters:
+      - {name: versionId, in: path, required: true, schema: {type: integer, format: int64}}
+      requestBody: {required: true, content: {application/json: {schema: {"$ref": "#/components/schemas/CatalogMaterialRequest"}}}}
+      responses:
+        '200': {description: 新增成功, content: {application/json: {schema: {type: object}}}}
+        '400': {"$ref": "#/components/responses/BadRequest"}
+        '401': {"$ref": "#/components/responses/Unauthorized"}
+        '403': {"$ref": "#/components/responses/Forbidden"}
+        '404': {"$ref": "#/components/responses/NotFound"}
+        '409': {"$ref": "#/components/responses/Conflict"}
+        '503': {"$ref": "#/components/responses/ServiceUnavailable"}
+        default: {"$ref": "#/components/responses/DefaultError"}
+  "/admin/catalog/materials/{materialId}":
+    put:
+      tags: [Catalog]
+      summary: 更新、停用或恢复草稿材料
+      description: 使用 lock_version 防止并发覆盖；发布版本不可修改。
+      operationId: putAdminCatalogMaterials
+      parameters:
+      - {name: materialId, in: path, required: true, schema: {type: integer, format: int64}}
+      requestBody: {required: true, content: {application/json: {schema: {"$ref": "#/components/schemas/CatalogMaterialUpdateRequest"}}}}
+      responses:
+        '200': {description: 更新成功, content: {application/json: {schema: {type: object}}}}
+        '400': {"$ref": "#/components/responses/BadRequest"}
+        '401': {"$ref": "#/components/responses/Unauthorized"}
+        '403': {"$ref": "#/components/responses/Forbidden"}
+        '404': {"$ref": "#/components/responses/NotFound"}
+        '409': {"$ref": "#/components/responses/Conflict"}
+        '503': {"$ref": "#/components/responses/ServiceUnavailable"}
+        default: {"$ref": "#/components/responses/DefaultError"}
+    delete:
+      tags: [Catalog]
+      summary: 物理删除从未发布且未引用的草稿材料
+      description: 已发布、已绑定或已被订单快照引用时返回 409，应改为逻辑停用。
+      operationId: deleteAdminCatalogMaterials
+      parameters:
+      - {name: materialId, in: path, required: true, schema: {type: integer, format: int64}}
+      responses:
+        '200': {description: 删除成功, content: {application/json: {schema: {type: object}}}}
+        '400': {"$ref": "#/components/responses/BadRequest"}
+        '401': {"$ref": "#/components/responses/Unauthorized"}
+        '403': {"$ref": "#/components/responses/Forbidden"}
+        '404': {"$ref": "#/components/responses/NotFound"}
+        '409': {"$ref": "#/components/responses/Conflict"}
+        '503': {"$ref": "#/components/responses/ServiceUnavailable"}
+        default: {"$ref": "#/components/responses/DefaultError"}
+  "/admin/catalog/versions/{versionId}/material-bindings":
+    post:
+      tags: [Catalog]
+      summary: 绑定产品与材料
+      description: 服务端校验同版本归属、单选/多选、数量上下限和价格增量。
+      operationId: postAdminCatalogVersionMaterialBindings
+      parameters:
+      - {name: versionId, in: path, required: true, schema: {type: integer, format: int64}}
+      requestBody: {required: true, content: {application/json: {schema: {"$ref": "#/components/schemas/CatalogMaterialBindingRequest"}}}}
+      responses:
+        '200': {description: 绑定成功, content: {application/json: {schema: {type: object}}}}
+        '400': {"$ref": "#/components/responses/BadRequest"}
+        '401': {"$ref": "#/components/responses/Unauthorized"}
+        '403': {"$ref": "#/components/responses/Forbidden"}
+        '404': {"$ref": "#/components/responses/NotFound"}
+        '409': {"$ref": "#/components/responses/Conflict"}
+        '503': {"$ref": "#/components/responses/ServiceUnavailable"}
+        default: {"$ref": "#/components/responses/DefaultError"}
+  "/admin/catalog/versions/{versionId}/preview":
+    get:
+      tags: [Catalog]
+      summary: 预览产品配置草稿
+      description: 管理员在发布前查看医生端将读取的分类、产品、材料及绑定。
+      operationId: getAdminCatalogVersionPreview
+      parameters:
+      - {name: versionId, in: path, required: true, schema: {type: integer, format: int64}}
+      responses:
+        '200': {description: 配置预览, content: {application/json: {schema: {type: object}}}}
+        '400': {"$ref": "#/components/responses/BadRequest"}
+        '401': {"$ref": "#/components/responses/Unauthorized"}
+        '403': {"$ref": "#/components/responses/Forbidden"}
+        '404': {"$ref": "#/components/responses/NotFound"}
+        '409': {"$ref": "#/components/responses/Conflict"}
+        '503': {"$ref": "#/components/responses/ServiceUnavailable"}
+        default: {"$ref": "#/components/responses/DefaultError"}
+  "/admin/catalog/versions/{versionId}/publish":
+    post:
+      tags: [Catalog]
+      summary: 发布不可变产品配置版本
+      description: 权限：catalog:publish。发布前复核全部 ACTIVE 规则 schema；非法配置返回 400 且版本保持 DRAFT。发布后实体不可修改，订单提交保存版本快照。
+      operationId: postAdminCatalogVersionPublish
+      parameters:
+      - {name: versionId, in: path, required: true, schema: {type: integer, format: int64}}
+      requestBody: {required: true, content: {application/json: {schema: {"$ref": "#/components/schemas/CatalogPublishRequest"}}}}
+      responses:
+        '200': {description: 发布成功, content: {application/json: {schema: {type: object, properties: {data: {"$ref": "#/components/schemas/CatalogConfigVersion"}}}}}}
+        '400': {"$ref": "#/components/responses/BadRequest"}
+        '401': {"$ref": "#/components/responses/Unauthorized"}
+        '403': {"$ref": "#/components/responses/Forbidden"}
+        '404': {"$ref": "#/components/responses/NotFound"}
+        '409': {"$ref": "#/components/responses/Conflict"}
+        '503': {"$ref": "#/components/responses/ServiceUnavailable"}
+        default: {"$ref": "#/components/responses/DefaultError"}
+  "/catalog/configuration/active":
+    get:
+      tags: [Catalog]
+      summary: 获取当前生效的医生端产品配置
+      description: DOCTOR/CS/ADMIN 只读取已发布且已生效版本；停用材料不返回。
+      operationId: getActiveCatalogConfiguration
+      responses:
+        '200': {description: 当前生效配置或 NOT_PUBLISHED, content: {application/json: {schema: {type: object}}}}
+        '400': {"$ref": "#/components/responses/BadRequest"}
+        '401': {"$ref": "#/components/responses/Unauthorized"}
+        '403': {"$ref": "#/components/responses/Forbidden"}
+        '404': {"$ref": "#/components/responses/NotFound"}
+        '409': {"$ref": "#/components/responses/Conflict"}
+        '503': {"$ref": "#/components/responses/ServiceUnavailable"}
+        default: {"$ref": "#/components/responses/DefaultError"}
+  "/admin/workflow/standard-times/versions":
+    get:
+      tags: [Workflow]
+      summary: 查询标准工时版本
+      description: 权限：workflow:standard-time:manage。当前管理端菜单隐藏，但保留草稿维护底座。
+      operationId: getWorkflowStandardTimeVersions
+      responses:
+        '200': {description: 版本列表, content: {application/json: {schema: {type: object, properties: {data: {type: array, items: {"$ref": "#/components/schemas/WorkflowStandardTimeVersion"}}}}}}}
+        '400': {"$ref": "#/components/responses/BadRequest"}
+        '401': {"$ref": "#/components/responses/Unauthorized"}
+        '403': {"$ref": "#/components/responses/Forbidden"}
+        '404': {"$ref": "#/components/responses/NotFound"}
+        '409': {"$ref": "#/components/responses/Conflict"}
+        '503': {"$ref": "#/components/responses/ServiceUnavailable"}
+        default: {"$ref": "#/components/responses/DefaultError"}
+    post:
+      tags: [Workflow]
+      summary: 新建或复制标准工时草稿版本
+      description: 复制当前版本并补齐现有工序链新增节点；不提供工序链结构编辑。
+      operationId: postWorkflowStandardTimeVersions
+      requestBody: {required: true, content: {application/json: {schema: {"$ref": "#/components/schemas/WorkflowStandardTimeCopyRequest"}}}}
+      responses:
+        '200': {description: 草稿版本, content: {application/json: {schema: {type: object, properties: {data: {"$ref": "#/components/schemas/WorkflowStandardTimeVersion"}}}}}}
+        '400': {"$ref": "#/components/responses/BadRequest"}
+        '401': {"$ref": "#/components/responses/Unauthorized"}
+        '403': {"$ref": "#/components/responses/Forbidden"}
+        '404': {"$ref": "#/components/responses/NotFound"}
+        '409': {"$ref": "#/components/responses/Conflict"}
+        '503': {"$ref": "#/components/responses/ServiceUnavailable"}
+        default: {"$ref": "#/components/responses/DefaultError"}
+  "/admin/workflow/standard-times/versions/{versionId}/nodes":
+    get:
+      tags: [Workflow]
+      summary: 按现有工序链查询标准工时节点
+      description: 返回现有链/节点只读结构与可维护的标准分钟。
+      operationId: getWorkflowStandardTimeVersionNodes
+      parameters:
+      - {name: versionId, in: path, required: true, schema: {type: integer, format: int64}}
+      responses:
+        '200': {description: 节点标准工时, content: {application/json: {schema: {type: object, properties: {data: {type: array, items: {"$ref": "#/components/schemas/WorkflowStandardTimeNode"}}}}}}}
+        '400': {"$ref": "#/components/responses/BadRequest"}
+        '401': {"$ref": "#/components/responses/Unauthorized"}
+        '403': {"$ref": "#/components/responses/Forbidden"}
+        '404': {"$ref": "#/components/responses/NotFound"}
+        '409': {"$ref": "#/components/responses/Conflict"}
+        '503': {"$ref": "#/components/responses/ServiceUnavailable"}
+        default: {"$ref": "#/components/responses/DefaultError"}
+    put:
+      tags: [Workflow]
+      summary: 批量保存标准分钟
+      description: 允许空值；负数、超过 43200 分钟、并发版本冲突和越权均拒绝。
+      operationId: putWorkflowStandardTimeVersionNodes
+      parameters:
+      - {name: versionId, in: path, required: true, schema: {type: integer, format: int64}}
+      requestBody: {required: true, content: {application/json: {schema: {"$ref": "#/components/schemas/WorkflowStandardTimeBulkRequest"}}}}
+      responses:
+        '200': {description: 保存后的节点列表, content: {application/json: {schema: {type: object}}}}
+        '400': {"$ref": "#/components/responses/BadRequest"}
+        '401': {"$ref": "#/components/responses/Unauthorized"}
+        '403': {"$ref": "#/components/responses/Forbidden"}
+        '404': {"$ref": "#/components/responses/NotFound"}
+        '409': {"$ref": "#/components/responses/Conflict"}
+        '503': {"$ref": "#/components/responses/ServiceUnavailable"}
+        default: {"$ref": "#/components/responses/DefaultError"}
+  "/admin/workflow/standard-times/versions/{versionId}/publish":
+    post:
+      tags: [Workflow]
+      summary: 发布标准工时版本
+      description: |
+        发布后不可变；正式开关启用时，生产审核实例化会快照到 order_process_node.standard_duration（分钟）。
+        客户正式数据未提供且 WORKFLOW_STANDARD_TIME_FORMAL_ENABLED=false 时返回 409，版本继续保持 DRAFT。
+      operationId: postWorkflowStandardTimeVersionPublish
+      parameters:
+      - {name: versionId, in: path, required: true, schema: {type: integer, format: int64}}
+      requestBody: {required: true, content: {application/json: {schema: {"$ref": "#/components/schemas/WorkflowStandardTimePublishRequest"}}}}
+      responses:
+        '200': {description: 发布后的版本, content: {application/json: {schema: {type: object, properties: {data: {"$ref": "#/components/schemas/WorkflowStandardTimeVersion"}}}}}}
+        '400': {"$ref": "#/components/responses/BadRequest"}
+        '401': {"$ref": "#/components/responses/Unauthorized"}
+        '403': {"$ref": "#/components/responses/Forbidden"}
+        '404': {"$ref": "#/components/responses/NotFound"}
+        '409': {"$ref": "#/components/responses/Conflict"}
+        '503': {"$ref": "#/components/responses/ServiceUnavailable"}
+        default: {"$ref": "#/components/responses/DefaultError"}
+  "/order-case-groups":
+    post:
+      tags:
+      - Order
+      summary: 创建病例订单组草稿
+      description: |
+        权限码：order:write-doctor（DOCTOR）。只有读取权限不能创建病例订单组。
+        创建病例级草稿容器；产品子订单后续逐项加入。
+        使用 idempotency_key 防止快速重复点击产生重复订单组。
+      operationId: postOrderCaseGroups
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              "$ref": "#/components/schemas/CreateCaseGroupRequest"
+      responses:
+        '200':
+          description: 创建成功或返回同幂等键的既有订单组。
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data:
+                    "$ref": "#/components/schemas/CaseGroupResponse"
+        '400':
+          "$ref": "#/components/responses/BadRequest"
+        '401':
+          "$ref": "#/components/responses/Unauthorized"
+        '403':
+          "$ref": "#/components/responses/Forbidden"
+        '404':
+          "$ref": "#/components/responses/NotFound"
+        '409':
+          "$ref": "#/components/responses/Conflict"
+        '503':
+          "$ref": "#/components/responses/ServiceUnavailable"
+        default:
+          "$ref": "#/components/responses/DefaultError"
+  "/order-case-groups/{groupId}":
+    get:
+      tags:
+      - Order
+      summary: 获取病例订单组外部投影
+      description: |
+        权限：DOCTOR（仅本人且当前诊所）/ CS / ADMIN。
+        响应只聚合子订单外部状态，不向医生暴露内部工序、员工、工时、返工或绩效。
+      operationId: getOrderCaseGroupsByGroupId
+      parameters:
+      - name: groupId
+        in: path
+        required: true
+        schema:
+          type: integer
+          format: int64
+      responses:
+        '200':
+          description: 病例订单组及其产品子订单。
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data:
+                    "$ref": "#/components/schemas/CaseGroupResponse"
+        '400':
+          "$ref": "#/components/responses/BadRequest"
+        '401':
+          "$ref": "#/components/responses/Unauthorized"
+        '403':
+          "$ref": "#/components/responses/Forbidden"
+        '404':
+          "$ref": "#/components/responses/NotFound"
+        '409':
+          "$ref": "#/components/responses/Conflict"
+        '503':
+          "$ref": "#/components/responses/ServiceUnavailable"
+        default:
+          "$ref": "#/components/responses/DefaultError"
+  "/order-case-groups/{groupId}/items":
+    post:
+      tags: [Order]
+      summary: 向病例订单组幂等添加真实产品子订单
+      description: 权限码：order:write-doctor（DOCTOR）；只读医生权限不可调用。
+      operationId: postOrderCaseGroupItems
+      parameters:
+      - {name: groupId, in: path, required: true, schema: {type: integer, format: int64}}
+      requestBody: {required: true, content: {application/json: {schema: {"$ref": "#/components/schemas/CaseGroupItemCreateRequest"}}}}
+      responses:
+        '200': {description: 更新后的订单组, content: {application/json: {schema: {type: object, properties: {data: {"$ref": "#/components/schemas/CaseGroupResponse"}}}}}}
+        '400': {"$ref": "#/components/responses/BadRequest"}
+        '401': {"$ref": "#/components/responses/Unauthorized"}
+        '403': {"$ref": "#/components/responses/Forbidden"}
+        '404': {"$ref": "#/components/responses/NotFound"}
+        '409': {"$ref": "#/components/responses/Conflict"}
+        '503': {"$ref": "#/components/responses/ServiceUnavailable"}
+        default: {"$ref": "#/components/responses/DefaultError"}
+  "/order-case-groups/{groupId}/items/{orderId}":
+    put:
+      tags: [Order]
+      summary: 更新产品子订单草稿配置
+      description: 权限码：order:write-doctor（DOCTOR）。省略 file_ids 时保留已有专属文件；草稿校验已填写值，提交时再按当前发布 schema 校验可见必填项。
+      operationId: putOrderCaseGroupItem
+      parameters:
+      - {name: groupId, in: path, required: true, schema: {type: integer, format: int64}}
+      - {name: orderId, in: path, required: true, schema: {type: integer, format: int64}}
+      requestBody: {required: true, content: {application/json: {schema: {"$ref": "#/components/schemas/CaseGroupItemUpdateRequest"}}}}
+      responses:
+        '200': {description: 更新后的订单组}
+        '400': {"$ref": "#/components/responses/BadRequest"}
+        '401': {"$ref": "#/components/responses/Unauthorized"}
+        '403': {"$ref": "#/components/responses/Forbidden"}
+        '404': {"$ref": "#/components/responses/NotFound"}
+        '409': {"$ref": "#/components/responses/Conflict"}
+        '503': {"$ref": "#/components/responses/ServiceUnavailable"}
+        default: {"$ref": "#/components/responses/DefaultError"}
+    delete:
+      tags: [Order]
+      summary: 移除草稿产品子订单
+      description: 权限码：order:write-doctor（DOCTOR）；只允许操作本人诊所内仍可编辑的订单组草稿。
+      operationId: deleteOrderCaseGroupItem
+      parameters:
+      - {name: groupId, in: path, required: true, schema: {type: integer, format: int64}}
+      - {name: orderId, in: path, required: true, schema: {type: integer, format: int64}}
+      requestBody: {required: true, content: {application/json: {schema: {"$ref": "#/components/schemas/CaseGroupVersionRequest"}}}}
+      responses:
+        '200': {description: 更新后的订单组}
+        '400': {"$ref": "#/components/responses/BadRequest"}
+        '401': {"$ref": "#/components/responses/Unauthorized"}
+        '403': {"$ref": "#/components/responses/Forbidden"}
+        '404': {"$ref": "#/components/responses/NotFound"}
+        '409': {"$ref": "#/components/responses/Conflict"}
+        '503': {"$ref": "#/components/responses/ServiceUnavailable"}
+        default: {"$ref": "#/components/responses/DefaultError"}
+  "/order-case-groups/{groupId}/items/{orderId}/copy":
+    post:
+      tags: [Order]
+      summary: 复制产品子订单配置
+      description: 权限码：order:write-doctor（DOCTOR）。复制配置但不重复复制专属文件。
+      operationId: postOrderCaseGroupItemCopy
+      parameters:
+      - {name: groupId, in: path, required: true, schema: {type: integer, format: int64}}
+      - {name: orderId, in: path, required: true, schema: {type: integer, format: int64}}
+      requestBody: {required: true, content: {application/json: {schema: {"$ref": "#/components/schemas/CaseGroupCopyRequest"}}}}
+      responses:
+        '200': {description: 更新后的订单组}
+        '400': {"$ref": "#/components/responses/BadRequest"}
+        '401': {"$ref": "#/components/responses/Unauthorized"}
+        '403': {"$ref": "#/components/responses/Forbidden"}
+        '404': {"$ref": "#/components/responses/NotFound"}
+        '409': {"$ref": "#/components/responses/Conflict"}
+        '503': {"$ref": "#/components/responses/ServiceUnavailable"}
+        default: {"$ref": "#/components/responses/DefaultError"}
+  "/order-case-groups/{groupId}/shared-files":
+    put:
+      tags: [Order, File]
+      summary: 绑定订单组病例共享文件
+      description: 权限码：order:write-doctor（DOCTOR）。单文件上限 500MB；共享文件仍通过私有桶与服务端 DataScope 鉴权访问。
+      operationId: putOrderCaseGroupSharedFiles
+      parameters:
+      - {name: groupId, in: path, required: true, schema: {type: integer, format: int64}}
+      requestBody: {required: true, content: {application/json: {schema: {"$ref": "#/components/schemas/CaseGroupSharedFilesRequest"}}}}
+      responses:
+        '200': {description: 更新后的订单组}
+        '400': {"$ref": "#/components/responses/BadRequest"}
+        '401': {"$ref": "#/components/responses/Unauthorized"}
+        '403': {"$ref": "#/components/responses/Forbidden"}
+        '404': {"$ref": "#/components/responses/NotFound"}
+        '409': {"$ref": "#/components/responses/Conflict"}
+        '503': {"$ref": "#/components/responses/ServiceUnavailable"}
+        default: {"$ref": "#/components/responses/DefaultError"}
+  "/order-case-groups/{groupId}/submit":
+    post:
+      tags: [Order]
+      summary: 事务化幂等提交整个病例订单组
+      description: 权限码：order:write-doctor（DOCTOR）。逐子订单校验并冻结产品、材料、表单、价格、上传和工序映射快照。
+      operationId: postOrderCaseGroupSubmit
+      parameters:
+      - {name: groupId, in: path, required: true, schema: {type: integer, format: int64}}
+      requestBody: {required: true, content: {application/json: {schema: {"$ref": "#/components/schemas/CaseGroupSubmitRequest"}}}}
+      responses:
+        '200': {description: 已提交订单组}
+        '400': {"$ref": "#/components/responses/BadRequest"}
+        '401': {"$ref": "#/components/responses/Unauthorized"}
+        '403': {"$ref": "#/components/responses/Forbidden"}
+        '404': {"$ref": "#/components/responses/NotFound"}
+        '409': {"$ref": "#/components/responses/Conflict"}
+        '503': {"$ref": "#/components/responses/ServiceUnavailable"}
+        default: {"$ref": "#/components/responses/DefaultError"}
+  "/orders/{orderId}/orthodontic-case":
+    get:
+      tags: [Order, Design]
+      summary: 获取隐形正畸病例、方案版本、审核、批次和变更申请
+      description: 医生仅本人诊所；员工仅本人设计/工序任务；CS/ADMIN 按内部范围。医生响应不含员工绩效字段。
+      operationId: getOrderOrthodonticCase
+      parameters:
+      - {name: orderId, in: path, required: true, schema: {type: integer, format: int64}}
+      responses:
+        '200': {description: 正畸专项外部或内部投影}
+        '400': {"$ref": "#/components/responses/BadRequest"}
+        '401': {"$ref": "#/components/responses/Unauthorized"}
+        '403': {"$ref": "#/components/responses/Forbidden"}
+        '404': {"$ref": "#/components/responses/NotFound"}
+        '409': {"$ref": "#/components/responses/Conflict"}
+        '503': {"$ref": "#/components/responses/ServiceUnavailable"}
+        default: {"$ref": "#/components/responses/DefaultError"}
+  "/orders/{orderId}/orthodontic-prescription":
+    put:
+      tags: [Order]
+      summary: 保存或提交隐形正畸七步处方
+      description: 矫治器类型来自已发布配置；联合矫治只能关联同一订单组子订单；使用 lock_version 防并发覆盖。
+      operationId: putOrderOrthodonticPrescription
+      parameters:
+      - {name: orderId, in: path, required: true, schema: {type: integer, format: int64}}
+      requestBody: {required: true, content: {application/json: {schema: {"$ref": "#/components/schemas/OrthodonticPrescriptionRequest"}}}}
+      responses:
+        '200': {description: 正畸病例}
+        '400': {"$ref": "#/components/responses/BadRequest"}
+        '401': {"$ref": "#/components/responses/Unauthorized"}
+        '403': {"$ref": "#/components/responses/Forbidden"}
+        '404': {"$ref": "#/components/responses/NotFound"}
+        '409': {"$ref": "#/components/responses/Conflict"}
+        '503': {"$ref": "#/components/responses/ServiceUnavailable"}
+        default: {"$ref": "#/components/responses/DefaultError"}
+  "/orders/{orderId}/orthodontic-plan-versions":
+    post:
+      tags: [Design]
+      summary: 创建设计方案新版本并送内部审核
+      description: 每次修改创建新版本，不覆盖驳回版本；复用现有设计任务权限。
+      operationId: postOrderOrthodonticPlanVersion
+      parameters:
+      - {name: orderId, in: path, required: true, schema: {type: integer, format: int64}}
+      requestBody: {required: true, content: {application/json: {schema: {"$ref": "#/components/schemas/OrthodonticPlanVersionRequest"}}}}
+      responses:
+        '200': {description: 正畸病例及方案版本}
+        '400': {"$ref": "#/components/responses/BadRequest"}
+        '401': {"$ref": "#/components/responses/Unauthorized"}
+        '403': {"$ref": "#/components/responses/Forbidden"}
+        '404': {"$ref": "#/components/responses/NotFound"}
+        '409': {"$ref": "#/components/responses/Conflict"}
+        '503': {"$ref": "#/components/responses/ServiceUnavailable"}
+        default: {"$ref": "#/components/responses/DefaultError"}
+  "/orthodontic-plan-versions/{planVersionId}/internal-review":
+    post:
+      tags: [Design]
+      summary: 授权组长执行正畸方案内部审核
+      description: 这是方案内审，不是生产审核；通过后才进入医生确认。
+      operationId: postOrthodonticPlanInternalReview
+      parameters:
+      - {name: planVersionId, in: path, required: true, schema: {type: integer, format: int64}}
+      requestBody: {required: true, content: {application/json: {schema: {"$ref": "#/components/schemas/OrthodonticPlanReviewRequest"}}}}
+      responses:
+        '200': {description: 审核后的正畸病例}
+        '400': {"$ref": "#/components/responses/BadRequest"}
+        '401': {"$ref": "#/components/responses/Unauthorized"}
+        '403': {"$ref": "#/components/responses/Forbidden"}
+        '404': {"$ref": "#/components/responses/NotFound"}
+        '409': {"$ref": "#/components/responses/Conflict"}
+        '503': {"$ref": "#/components/responses/ServiceUnavailable"}
+        default: {"$ref": "#/components/responses/DefaultError"}
+  "/orthodontic-plan-versions/{planVersionId}/doctor-review":
+    post:
+      tags: [Design]
+      summary: 医生确认或驳回内部审核通过的正畸方案
+      description: 医生确认后才允许建立生产批次；驳回保留原版本。
+      operationId: postOrthodonticPlanDoctorReview
+      parameters:
+      - {name: planVersionId, in: path, required: true, schema: {type: integer, format: int64}}
+      requestBody: {required: true, content: {application/json: {schema: {"$ref": "#/components/schemas/OrthodonticPlanReviewRequest"}}}}
+      responses:
+        '200': {description: 审核后的正畸病例}
+        '400': {"$ref": "#/components/responses/BadRequest"}
+        '401': {"$ref": "#/components/responses/Unauthorized"}
+        '403': {"$ref": "#/components/responses/Forbidden"}
+        '404': {"$ref": "#/components/responses/NotFound"}
+        '409': {"$ref": "#/components/responses/Conflict"}
+        '503': {"$ref": "#/components/responses/ServiceUnavailable"}
+        default: {"$ref": "#/components/responses/DefaultError"}
+  "/orders/{orderId}/orthodontic-production-batches":
+    post:
+      tags: [Workflow]
+      summary: 基于医生确认方案建立正畸生产批次
+      description: 批次保存总步数上下文、批次号、起止步与数量；不允许区间重叠，不全局写死批次。
+      operationId: postOrderOrthodonticProductionBatch
+      parameters:
+      - {name: orderId, in: path, required: true, schema: {type: integer, format: int64}}
+      requestBody: {required: true, content: {application/json: {schema: {"$ref": "#/components/schemas/OrthodonticProductionBatchRequest"}}}}
+      responses:
+        '200': {description: 正畸病例及批次}
+        '400': {"$ref": "#/components/responses/BadRequest"}
+        '401': {"$ref": "#/components/responses/Unauthorized"}
+        '403': {"$ref": "#/components/responses/Forbidden"}
+        '404': {"$ref": "#/components/responses/NotFound"}
+        '409': {"$ref": "#/components/responses/Conflict"}
+        '503': {"$ref": "#/components/responses/ServiceUnavailable"}
+        default: {"$ref": "#/components/responses/DefaultError"}
+  "/orders/{orderId}/orthodontic-change-requests":
+    post:
+      tags: [Order, Workflow]
+      summary: 创建阶段调整或后续加工申请
+      description: 申请引用原方案/原批次；后续审批必须创建新方案版本或新批次，不覆盖原事实。
+      operationId: postOrderOrthodonticChangeRequest
+      parameters:
+      - {name: orderId, in: path, required: true, schema: {type: integer, format: int64}}
+      requestBody: {required: true, content: {application/json: {schema: {"$ref": "#/components/schemas/OrthodonticChangeRequest"}}}}
+      responses:
+        '200': {description: 正畸病例及变更申请}
+        '400': {"$ref": "#/components/responses/BadRequest"}
+        '401': {"$ref": "#/components/responses/Unauthorized"}
+        '403': {"$ref": "#/components/responses/Forbidden"}
+        '404': {"$ref": "#/components/responses/NotFound"}
+        '409': {"$ref": "#/components/responses/Conflict"}
+        '503': {"$ref": "#/components/responses/ServiceUnavailable"}
+        default: {"$ref": "#/components/responses/DefaultError"}
   "/orders":
     get:
       tags:
@@ -6255,9 +7809,11 @@ paths:
       - Order
       summary: 生产端数据审核
       description: |
-        权限：仅 ADMIN；CS 返回 403。仅允许处理 PENDING_PRODUCTION_REVIEW 订单。
-        APPROVE 后原子创建工序链实例与唯一 OPEN 设计任务，并把订单推进到
-        internal_status=IN_DESIGN / external_status=DESIGNING；生产节点仍受医生确认门禁约束。
+        权限：ADMIN 管理兜底，或具有 workflow:review-production 直接权限的 WORKER；
+        普通 WORKER 与 CS 返回 403。仅允许处理 PENDING_PRODUCTION_REVIEW 订单。
+        APPROVE 后原子创建工序链快照、设计确认门禁节点与唯一 OPEN 设计任务，
+        并把订单推进到 internal_status=IN_DESIGN / external_status=DESIGNING；
+        医生确认设计稿后，设计门禁节点自动完成并解锁所选路线的首批生产节点。
       parameters:
       - name: orderId
         in: path
@@ -6302,7 +7858,11 @@ paths:
       tags:
       - Order
       summary: 医生确认收货，触发订单完成
-      description: 权限：DOCTOR（只能操作本人订单）
+      description: |
+        权限：DOCTOR（只能操作本人订单）。
+        仅当订单已有物流记录且物流状态为 SHIPPED 或
+        DELIVERED_PENDING_CONFIRMATION 时允许确认；成功后物流状态冻结为
+        DELIVERED、记录 delivered_at，订单外部状态变为 COMPLETED，并通知客服。
       parameters:
       - name: orderId
         in: path
@@ -6321,7 +7881,11 @@ paths:
         '404':
           "$ref": "#/components/responses/NotFound"
         '409':
-          "$ref": "#/components/responses/Conflict"
+          description: 订单尚未发货、缺少物流记录或已确认收货
+          content:
+            application/json:
+              schema:
+                "$ref": "#/components/schemas/ErrorResponse"
         default:
           "$ref": "#/components/responses/DefaultError"
         '503':
@@ -6485,7 +8049,7 @@ paths:
       tags:
       - ProcessInstance
       summary: 批量绑定节点执行员工
-      description: 权限：ADMIN
+      description: 权限：ADMIN。目标账号必须是启用的 WORKER；已分配节点必须使用转派接口，操作写入派工审计并通知目标员工。
       parameters:
       - name: orderId
         in: path
@@ -6565,12 +8129,14 @@ paths:
               type: object
               required:
               - new_user_id
+              - reason
               properties:
                 new_user_id:
                   type: integer
                 reason:
                   type: string
-                  description: 转派原因
+                  maxLength: 500
+                  description: 必填转派原因；转派会写入审计并通知新执行员工。
       responses:
         '200':
           description: 转派成功，返回最新工序实例
@@ -8167,6 +9733,7 @@ paths:
       description: |
         任务 9D.66 第一增量：支持 start_date / end_date 按完成日期筛选绩效统计。
         权限：WORKER（只返回本人数据）/ ADMIN（可查全部）
+        客户正式标准工时未启用时 performance_formula_version=STANDARD_TIME_PENDING；标准工时、覆盖率、准时率、工时效率和绩效参考分均不作为业务结果。
         绩效计算公式：
         - 完成数量 = 已完成 work_log 记录数
         - 有效工时 = SUM(effective_duration_seconds)
@@ -9104,7 +10671,10 @@ paths:
       tags:
       - Bill
       summary: 上传账单文件
-      description: 权限：CS / ADMIN
+      description: |
+        权限：CS / ADMIN。
+        file_id 必须属于当前订单，且是 source_type=BILL、visibility=DOCTOR_CS、
+        已完成上传并可供医生查看的 PDF；其他订单或其他用途文件返回 409。
       parameters:
       - name: orderId
         in: path
@@ -9234,7 +10804,10 @@ paths:
       tags:
       - Bill
       summary: 录入人工收款流水
-      description: 权限：CS / ADMIN；一期人工录入收款事实，不接真实支付网关、退款、对账或发票。
+      description: |
+        权限：CS / ADMIN；一期人工录入收款事实，不接真实支付网关、退款、对账或发票。
+        必须先建立带金额的已上传账单；币种须一致且不能超过剩余应收。
+        保存后根据累计收款自动同步 PARTIALLY_PAID 或 PAID。
       parameters:
       - name: orderId
         in: path
@@ -9320,6 +10893,7 @@ paths:
       description: |
         权限：CS / ADMIN
         任务 9D.14 第一增量：发货前必须存在该订单最后一道工序节点的 OUT/PASS 终检出检记录；缺失时返回 409。
+        账单付款状态还必须为 PAID 或 NOT_REQUIRED；未收款或未明确免收时返回 409。
         录入成功后 external_status 自动变为 SHIPPED，医生端收到 WebSocket 通知。
       parameters:
       - name: orderId
@@ -10344,12 +11918,70 @@ paths:
         '503':
           "$ref": "#/components/responses/ServiceUnavailable"
       operationId: postProcessInstanceNodesByNodeInstanceIdComplete
+  "/orders/{orderId}/process-instance/nodes/{nodeInstanceId}/complete-business-gate":
+    post:
+      tags:
+      - ProcessInstance
+      summary: 完成客服业务门禁
+      description: |
+        权限：具有 workflow:operate-business-gate 的 CS 或 ADMIN。
+        仅允许处理 READY 状态的“客服定基台”和“客服核对订单信息及账单”节点；
+        不允许普通 WORKER 代办，也不把这些节点计入生产进度或生产派工。
+        “客服核对订单信息及账单”还要求当前订单已关联一份上传完成的 PDF 账单，
+        否则返回 409，不能用空账单或其他订单附件放行业务门禁。
+        note 必填，动作写入独立审计后再按 DAG 激活后续节点。
+      parameters:
+      - name: orderId
+        in: path
+        required: true
+        schema:
+          type: integer
+      - name: nodeInstanceId
+        in: path
+        required: true
+        schema:
+          type: integer
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              "$ref": "#/components/schemas/BusinessGateActionRequest"
+      responses:
+        '200':
+          description: 客服业务门禁已完成
+          content:
+            application/json:
+              schema:
+                allOf:
+                - "$ref": "#/components/schemas/CommonResponse"
+                - type: object
+                  properties:
+                    data:
+                      "$ref": "#/components/schemas/NodeActionResponse"
+        '400':
+          "$ref": "#/components/responses/BadRequest"
+        '401':
+          "$ref": "#/components/responses/Unauthorized"
+        '403':
+          "$ref": "#/components/responses/Forbidden"
+        '404':
+          "$ref": "#/components/responses/NotFound"
+        '409':
+          "$ref": "#/components/responses/Conflict"
+        default:
+          "$ref": "#/components/responses/DefaultError"
+        '503':
+          "$ref": "#/components/responses/ServiceUnavailable"
+      operationId: postOrdersByOrderIdProcessInstanceNodesByNodeInstanceIdCompleteBusinessGate
   "/process-instance/nodes/{nodeInstanceId}/skip":
     post:
       tags:
       - ProcessInstance
       summary: 跳过可选工序节点
-      description: 权限：WORKER / ADMIN。仅允许跳过 is_optional=1 且当前为 PENDING/READY 的节点，并记录
+      description: |
+        权限：仅 ADMIN。按二期已确认范围，WORKER 与 CS 均不得跳过生产节点。
+        仅允许跳过 is_optional=1 且当前为 PENDING/READY 的节点；reason 必填，并记录
         skipped_at 与 skip_reason。
       parameters:
       - name: nodeInstanceId

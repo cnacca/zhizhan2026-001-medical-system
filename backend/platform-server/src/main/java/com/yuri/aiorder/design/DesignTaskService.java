@@ -153,14 +153,23 @@ public class DesignTaskService {
     }
 
     @Transactional
-    public long ensureTaskForOrder(long orderId, BootstrapIdentity actor) {
+    public long ensureTaskForOrder(long orderId, long nodeInstanceId, BootstrapIdentity actor) {
         int inserted = jdbcClient.sql("""
                         INSERT IGNORE INTO design_task
-                            (order_id, task_status)
-                        SELECT order_id, 'OPEN'
+                            (order_id, node_instance_id, task_status)
+                        SELECT order_id, :nodeInstanceId, 'OPEN'
                         FROM orders
                         WHERE order_id = :orderId
                         """)
+                .param("orderId", orderId)
+                .param("nodeInstanceId", nodeInstanceId)
+                .update();
+        jdbcClient.sql("""
+                        UPDATE design_task
+                        SET node_instance_id = COALESCE(node_instance_id, :nodeInstanceId)
+                        WHERE order_id = :orderId
+                        """)
+                .param("nodeInstanceId", nodeInstanceId)
                 .param("orderId", orderId)
                 .update();
         TaskRow task = loadTaskByOrder(orderId, true);
@@ -534,6 +543,7 @@ public class DesignTaskService {
                 .param("taskId", task.taskId())
                 .update();
         if ("DOCTOR_CONFIRMED".equals(targetStatus)) {
+            completeDesignGateAndActivateRoute(task.taskId());
             ensureOrderStateFrom(
                     orderId,
                     Set.of(InternalOrderStatus.IN_DESIGN.name()),
@@ -560,6 +570,54 @@ public class DesignTaskService {
                 doctorDecisionRecipients(task, draftId),
                 rejectReason == null ? "医生已确认设计稿" : "医生要求修改设计稿：" + rejectReason);
         return loadDraft(draftId, identity);
+    }
+
+    private void completeDesignGateAndActivateRoute(long taskId) {
+        int completed = jdbcClient.sql("""
+                        UPDATE order_process_node gate_node
+                        JOIN design_task task ON task.node_instance_id = gate_node.node_instance_id
+                        SET gate_node.node_status = 'COMPLETED',
+                            gate_node.started_at = COALESCE(gate_node.started_at, CURRENT_TIMESTAMP(3)),
+                            gate_node.completed_at = CURRENT_TIMESTAMP(3)
+                        WHERE task.design_task_id = :taskId
+                          AND gate_node.node_category = 'DESIGN_GATE'
+                          AND gate_node.node_status IN ('PENDING', 'READY', 'IN_PROGRESS')
+                        """)
+                .param("taskId", taskId)
+                .update();
+        if (completed != 1) {
+            throw new ResponseStatusException(
+                    HttpStatus.CONFLICT, "design confirmation gate is missing or already completed");
+        }
+        jdbcClient.sql("""
+                        UPDATE order_process_node target
+                        JOIN design_task task ON task.design_task_id = :taskId
+                        JOIN (
+                            SELECT ready_nodes.node_instance_id
+                            FROM (
+                                SELECT candidate.node_instance_id
+                                FROM order_process_node candidate
+                                JOIN design_task selected_task
+                                  ON selected_task.design_task_id = :taskId
+                                JOIN order_process_node selected_gate
+                                  ON selected_gate.node_instance_id = selected_task.node_instance_id
+                                WHERE candidate.instance_id = selected_gate.instance_id
+                                  AND candidate.node_status = 'PENDING'
+                                  AND NOT EXISTS (
+                                      SELECT 1
+                                      FROM order_process_edge incoming
+                                      JOIN order_process_node predecessor
+                                        ON predecessor.node_instance_id = incoming.from_node_instance_id
+                                      WHERE incoming.instance_id = candidate.instance_id
+                                        AND incoming.to_node_instance_id = candidate.node_instance_id
+                                        AND predecessor.node_status NOT IN ('COMPLETED', 'SKIPPED')
+                                  )
+                            ) ready_nodes
+                        ) selected ON selected.node_instance_id = target.node_instance_id
+                        SET target.node_status = 'READY'
+                        """)
+                .param("taskId", taskId)
+                .update();
     }
 
     public List<DesignDraftResponse> listDrafts(long orderId, BootstrapIdentity identity) {

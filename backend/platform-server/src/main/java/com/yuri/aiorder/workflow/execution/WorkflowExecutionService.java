@@ -6,6 +6,7 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import com.yuri.aiorder.common.BootstrapIdentity;
 import com.yuri.aiorder.common.auth.AccessControlService;
 import com.yuri.aiorder.workflow.runtime.WorkflowRuntimeService;
+import com.yuri.aiorder.workflow.standardtime.WorkflowStandardTimeProperties;
 import com.yuri.aiorder.notification.NotificationPushService;
 import java.math.BigDecimal;
 import java.math.RoundingMode;
@@ -88,18 +89,21 @@ public class WorkflowExecutionService {
     private final ObjectMapper objectMapper;
     private final NotificationPushService notificationPushService;
     private final WorkflowRuntimeService workflowRuntimeService;
+    private final WorkflowStandardTimeProperties standardTimeProperties;
 
     public WorkflowExecutionService(
             JdbcClient jdbcClient,
             AccessControlService accessControlService,
             ObjectMapper objectMapper,
             NotificationPushService notificationPushService,
-            WorkflowRuntimeService workflowRuntimeService) {
+            WorkflowRuntimeService workflowRuntimeService,
+            WorkflowStandardTimeProperties standardTimeProperties) {
         this.jdbcClient = jdbcClient;
         this.accessControlService = accessControlService;
         this.objectMapper = objectMapper;
         this.notificationPushService = notificationPushService;
         this.workflowRuntimeService = workflowRuntimeService;
+        this.standardTimeProperties = standardTimeProperties;
     }
 
     @Transactional
@@ -2033,54 +2037,62 @@ public class WorkflowExecutionService {
                           AND c.check_type = 'OUT'
                           AND c.result = 'PASS'
                         """ + periodSql(period, "c.created_at"), targetUserId, period);
-        long onTimeCount = countLong("""
+        boolean formalStandardTimeEnabled = standardTimeProperties.formalEnabled();
+        long onTimeCount = formalStandardTimeEnabled ? countLong("""
                         SELECT COUNT(*)
                         FROM work_log w
                         JOIN order_process_node n ON n.node_instance_id = w.node_instance_id
                         WHERE w.worker_user_id = :userId
                           AND w.status = 'COMPLETED'
                           AND n.standard_duration IS NOT NULL
-                          AND w.effective_duration_seconds <= n.standard_duration
-                        """ + periodSql(period, "w.finished_at"), targetUserId, period);
-        long standardSeconds = countLong("""
+                          AND w.effective_duration_seconds <= n.standard_duration * 60
+                        """ + periodSql(period, "w.finished_at"), targetUserId, period) : 0;
+        long standardMinutes = formalStandardTimeEnabled ? countLong("""
                         SELECT COALESCE(SUM(n.standard_duration), 0)
                         FROM work_log w
                         JOIN order_process_node n ON n.node_instance_id = w.node_instance_id
                         WHERE w.worker_user_id = :userId
                           AND w.status = 'COMPLETED'
                           AND n.standard_duration IS NOT NULL
-                        """ + periodSql(period, "w.finished_at"), targetUserId, period);
-        long standardCoveredCount = countLong("""
+                        """ + periodSql(period, "w.finished_at"), targetUserId, period) : 0;
+        long standardCoveredCount = formalStandardTimeEnabled ? countLong("""
                         SELECT COUNT(*)
                         FROM work_log w
                         JOIN order_process_node n ON n.node_instance_id = w.node_instance_id
                         WHERE w.worker_user_id = :userId
                           AND w.status = 'COMPLETED'
                           AND n.standard_duration IS NOT NULL
-                        """ + periodSql(period, "w.finished_at"), targetUserId, period);
+                        """ + periodSql(period, "w.finished_at"), targetUserId, period) : 0;
         long standardMissingCount = Math.max(completedCount - standardCoveredCount, 0);
         int onTimeRate = percent(onTimeCount, completedCount);
         int passRate = percent(outCheckPass, outCheckTotal);
         int durationEfficiency = effectiveSeconds == 0
                 ? 0
-                : Math.toIntExact(Math.round((standardSeconds * 100.0) / effectiveSeconds));
+                : Math.toIntExact(Math.round((standardMinutes * 60.0 * 100.0) / effectiveSeconds));
         return new PerformanceStatsResponse(
                 targetUserId,
-                PERFORMANCE_FORMULA_VERSION,
+                formalStandardTimeEnabled ? PERFORMANCE_FORMULA_VERSION : "STANDARD_TIME_PENDING",
                 completedCount,
                 effectiveSeconds / 60,
-                standardSeconds / 60,
-                standardCoveredCount,
-                standardMissingCount,
-                percent(standardCoveredCount, completedCount),
+                formalStandardTimeEnabled ? standardMinutes : null,
+                formalStandardTimeEnabled ? standardCoveredCount : null,
+                formalStandardTimeEnabled ? standardMissingCount : null,
+                formalStandardTimeEnabled ? percent(standardCoveredCount, completedCount) : null,
                 reworkCount,
                 responsibleReworkCount,
                 nonWorkerResponsibilityReworkCount,
                 unclassifiedReworkCount,
-                onTimeRate,
+                formalStandardTimeEnabled ? onTimeRate : null,
                 passRate,
-                durationEfficiency,
-                performanceScore(durationEfficiency, passRate, onTimeRate, responsibleReworkCount, unclassifiedReworkCount));
+                formalStandardTimeEnabled ? durationEfficiency : null,
+                formalStandardTimeEnabled
+                        ? performanceScore(
+                                durationEfficiency,
+                                passRate,
+                                onTimeRate,
+                                responsibleReworkCount,
+                                unclassifiedReworkCount)
+                        : null);
     }
 
     public List<PerformanceDetailResponse> getPerformanceDetails(
@@ -2113,10 +2125,12 @@ public class WorkflowExecutionService {
         statement = bindPeriod(statement, period);
         return statement.query((rs, rowNum) -> {
                     Integer effectiveSeconds = rs.getObject("effective_duration_seconds", Integer.class);
-                    Integer standardSeconds = rs.getObject("standard_duration", Integer.class);
-                    Boolean onTime = standardSeconds == null || effectiveSeconds == null
+                    Integer standardMinutes = standardTimeProperties.formalEnabled()
+                            ? rs.getObject("standard_duration", Integer.class)
+                            : null;
+                    Boolean onTime = standardMinutes == null || effectiveSeconds == null
                             ? null
-                            : effectiveSeconds <= standardSeconds;
+                            : effectiveSeconds <= standardMinutes * 60;
                     return new PerformanceDetailResponse(
                             rs.getLong("work_log_id"),
                             rs.getLong("order_id"),
@@ -2126,7 +2140,7 @@ public class WorkflowExecutionService {
                             rs.getLong("worker_user_id"),
                             rs.getString("status"),
                             effectiveSeconds == null ? null : effectiveSeconds / 60,
-                            standardSeconds == null ? null : standardSeconds / 60,
+                            standardMinutes,
                             onTime,
                             rs.getObject("started_at", LocalDateTime.class),
                             rs.getObject("finished_at", LocalDateTime.class));

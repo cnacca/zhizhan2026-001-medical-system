@@ -27,10 +27,10 @@ public class WorkflowRuntimeController {
     }
 
     @PostMapping("/orders/{orderId}/production-review")
-    @RequirePermission(value = "workflow:review-production", roles = UserRole.ADMIN)
+    @RequirePermission(value = "workflow:review-production", roles = {UserRole.ADMIN, UserRole.WORKER})
     public DataResponse<ProductionReviewResponse> reviewProduction(
             @PathVariable long orderId,
-            @RequestBody ProductionReviewRequest request,
+            @Valid @RequestBody ProductionReviewRequest request,
             BootstrapIdentity identity) {
         return new DataResponse<>(workflowRuntimeService.reviewProduction(orderId, request, identity));
     }
@@ -55,7 +55,7 @@ public class WorkflowRuntimeController {
     @RequirePermission(value = "workflow:assign", roles = UserRole.ADMIN)
     public DataResponse<ProcessInstanceResponse> assign(
             @PathVariable long orderId,
-            @RequestBody AssignmentRequest request,
+            @Valid @RequestBody AssignmentRequest request,
             BootstrapIdentity identity) {
         workflowRuntimeService.assign(orderId, request, identity);
         return new DataResponse<>(workflowRuntimeService.getProcessInstance(orderId, identity));
@@ -66,7 +66,7 @@ public class WorkflowRuntimeController {
     public DataResponse<ProcessInstanceResponse> reassign(
             @PathVariable long orderId,
             @PathVariable long nodeInstanceId,
-            @RequestBody ReassignRequest request,
+            @Valid @RequestBody ReassignRequest request,
             BootstrapIdentity identity) {
         workflowRuntimeService.reassign(orderId, nodeInstanceId, request, identity);
         return new DataResponse<>(workflowRuntimeService.getProcessInstance(orderId, identity));
@@ -88,6 +88,17 @@ public class WorkflowRuntimeController {
         return new DataResponse<>(workflowRuntimeService.completeNode(nodeInstanceId, identity));
     }
 
+    @PostMapping("/orders/{orderId}/process-instance/nodes/{nodeInstanceId}/complete-business-gate")
+    @RequirePermission(value = "workflow:operate-business-gate", roles = {UserRole.ADMIN, UserRole.CS})
+    public DataResponse<NodeActionResponse> completeBusinessGate(
+            @PathVariable long orderId,
+            @PathVariable long nodeInstanceId,
+            @Valid @RequestBody BusinessGateActionRequest request,
+            BootstrapIdentity identity) {
+        return new DataResponse<>(
+                workflowRuntimeService.completeBusinessGate(orderId, nodeInstanceId, request, identity));
+    }
+
     @PostMapping("/process-instance/nodes/{nodeInstanceId}/questions")
     @RequirePermission(value = "workflow:operate-assigned", roles = {UserRole.ADMIN, UserRole.WORKER})
     public DataResponse<ProductionQuestionResponse> createProductionQuestion(
@@ -107,10 +118,10 @@ public class WorkflowRuntimeController {
     }
 
     @PostMapping("/process-instance/nodes/{nodeInstanceId}/skip")
-    @RequirePermission(value = "workflow:assign", roles = UserRole.ADMIN)
+    @RequirePermission(value = "workflow:skip-optional", roles = UserRole.ADMIN)
     public DataResponse<NodeActionResponse> skipNode(
             @PathVariable long nodeInstanceId,
-            @RequestBody(required = false) SkipNodeRequest request,
+            @Valid @RequestBody SkipNodeRequest request,
             BootstrapIdentity identity) {
         return new DataResponse<>(workflowRuntimeService.skipNode(nodeInstanceId, request, identity));
     }

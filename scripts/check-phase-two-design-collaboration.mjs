@@ -30,6 +30,9 @@ for (const file of [
   'tasks/TASK-026-phase-two-design-collaboration-20260726.md',
   'backend/platform-server/src/main/resources/db/migration/V49__phase_two_design_collaboration_foundation.sql',
   'backend/platform-server/src/main/resources/db/migration/V50__phase_two_design_legacy_compatibility.sql',
+  'backend/platform-server/src/main/resources/db/migration/V56__prd_production_review_and_workflow_alignment.sql',
+  'backend/platform-server/src/main/resources/db/migration/V57__prd_admin_only_optional_node_skip.sql',
+  'backend/platform-server/src/main/resources/db/migration/V58__rename_admin_optional_node_skip_permission.sql',
   'backend/platform-server/src/main/java/com/yuri/aiorder/design/DesignTaskController.java',
   'backend/platform-server/src/main/java/com/yuri/aiorder/design/DesignTaskService.java',
   'backend/platform-server/src/main/java/com/yuri/aiorder/common/auth/DatabaseAuthService.java',
@@ -41,17 +44,9 @@ for (const file of [
 ]) read(file)
 
 const acceptance = JSON.parse(read('acceptance.json') || '{}')
-if (acceptance.active_goal !== 'GOAL-025') {
-  failures.push(`acceptance.json active_goal expected GOAL-025, got ${acceptance.active_goal}`)
-}
-if (acceptance.active_goal_file !== 'goals/GOAL-025-phase-two-design-collaboration-20260726.md') {
-  failures.push(`unexpected active_goal_file: ${acceptance.active_goal_file}`)
-}
-if (acceptance.active_task_file !== 'tasks/TASK-026-phase-two-design-collaboration-20260726.md') {
-  failures.push(`unexpected active_task_file: ${acceptance.active_task_file}`)
-}
-if (!acceptance.goals?.some((goal) => goal.id === 'GOAL-025')) {
-  failures.push('acceptance.json missing GOAL-025 checks')
+const goal = acceptance.goals?.find((candidate) => candidate.id === 'GOAL-025')
+if (!goal || goal.status !== 'completed') {
+  failures.push('acceptance.json missing completed GOAL-025 checks')
 }
 
 requireText('backend/platform-server/src/main/resources/db/migration/V49__phase_two_design_collaboration_foundation.sql', [
@@ -83,6 +78,28 @@ requireText('backend/platform-server/src/main/resources/db/migration/V50__phase_
   "SET f.visibility = 'DOCTOR_CS'",
   "dt.task_status = 'OPEN'",
   "r.role_code = 'WORKER'"
+])
+
+requireText('backend/platform-server/src/main/resources/db/migration/V56__prd_production_review_and_workflow_alignment.sql', [
+  'ADD COLUMN node_instance_id',
+  "'DESIGN_GATE'",
+  'workflow_assignment_event'
+])
+
+requireText('backend/platform-server/src/main/resources/db/migration/V57__prd_admin_only_optional_node_skip.sql', [
+  "role.role_code = 'WORKER'",
+  "permission.permission_code = 'workflow:skip-optional'"
+])
+
+requireText('backend/platform-server/src/main/resources/db/migration/V58__rename_admin_optional_node_skip_permission.sql', [
+  "permission_name = '管理员跳过可选工序'",
+  "permission_code = 'workflow:skip-optional'"
+])
+
+requireText('backend/platform-server/src/main/java/com/yuri/aiorder/design/DesignTaskService.java', [
+  'completeDesignGateAndActivateRoute',
+  "gate_node.node_category = 'DESIGN_GATE'",
+  "SET target.node_status = 'READY'"
 ])
 
 requireText('backend/platform-server/src/main/java/com/yuri/aiorder/common/auth/BearerIdentityFilter.java', [

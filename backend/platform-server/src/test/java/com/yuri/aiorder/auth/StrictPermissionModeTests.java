@@ -29,7 +29,7 @@ class StrictPermissionModeTests {
                 UserRole.ADMIN,
                 8001L,
                 null,
-                "strict-admin",
+                null,
                 Set.of(),
                 "ALL"));
 
@@ -44,7 +44,7 @@ class StrictPermissionModeTests {
                 UserRole.ADMIN,
                 8001L,
                 null,
-                "strict-admin",
+                null,
                 Set.of("ai:cs"),
                 "ALL"));
 
@@ -59,7 +59,7 @@ class StrictPermissionModeTests {
                 UserRole.DOCTOR,
                 9701L,
                 1001L,
-                "strict-doctor",
+                null,
                 Set.of(),
                 "CLINIC"));
 
@@ -74,7 +74,7 @@ class StrictPermissionModeTests {
                 UserRole.DOCTOR,
                 9701L,
                 1001L,
-                "strict-doctor",
+                null,
                 Set.of("account:doctor"),
                 "CLINIC"));
 

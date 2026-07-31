@@ -264,7 +264,23 @@ async function interactWithOrders(page) {
 
 async function interactWithInformationTranslation(page) {
   const ready = await waitForVisibleDataOrEmpty(page, dataReadiness.informationTranslation)
-  await clickMatchingButtonIfVisible(page, /^待处理(?:\s|\d|$)/)
+  const filterCounts = {}
+  for (const [key, pattern] of [
+    ['ALL', /^全部\s+(\d+)$/],
+    ['NOT_STARTED', /^未进入\s+(\d+)$/],
+    ['PENDING', /^待初审\s+(\d+)$/],
+    ['CONFIRMED', /^已初审\s+(\d+)$/],
+    ['REJECTED', /^已退回\s+(\d+)$/]
+  ]) {
+    const button = page.getByRole('button', { name: pattern }).first()
+    await button.waitFor({ state: 'visible', timeout: timeoutMs })
+    const match = (await button.innerText()).trim().match(pattern)
+    if (!match) throw new Error(`信息审核分类 ${key} 无法读取计数`)
+    filterCounts[key] = Number(match[1])
+  }
+  if (filterCounts.ALL !== filterCounts.NOT_STARTED + filterCounts.PENDING + filterCounts.CONFIRMED + filterCounts.REJECTED) {
+    throw new Error(`信息审核分类无法对账：${JSON.stringify(filterCounts)}`)
+  }
   await clickMatchingButtonIfVisible(page, /^全部(?:\s|\d|$)/)
   if (ready.kind === 'empty') return `明确空态：${ready.text}`
   const firstTask = page.locator('.cs-r-side-list > button').first()
@@ -312,6 +328,27 @@ async function interactWithDesigns(page) {
 
 async function interactWithInquiries(page) {
   const ready = await waitForVisibleDataOrEmpty(page, dataReadiness.inquiries)
+  const reviewTab = page.getByRole('button', { name: /^待审核\s+\d+$/ }).first()
+  await reviewTab.waitFor({ state: 'visible', timeout: timeoutMs })
+  const pendingCount = Number((await reviewTab.innerText()).match(/\d+/)?.[0] || 0)
+  await reviewTab.click()
+  if (pendingCount > 0) {
+    const pendingConversation = page.locator('.cs-r-conversations > button').first()
+    await pendingConversation.waitFor({ state: 'visible', timeout: timeoutMs })
+    await pendingConversation.click()
+    const reviewPanel = page.locator('.cs-r-message-review').first()
+    await reviewPanel.waitFor({ state: 'visible', timeout: timeoutMs })
+    const approve = reviewPanel.getByRole('button', { name: '审核通过', exact: true })
+    const reject = reviewPanel.getByRole('button', { name: '退回修改', exact: true })
+    const note = reviewPanel.getByLabel(/消息 \d+ 审核意见/)
+    if (!await locatorIsVisible(approve) || !await locatorIsVisible(reject) || !await locatorIsVisible(note)) {
+      throw new Error('待审核消息没有同时展示审核意见、通过和退回操作')
+    }
+    if (!await reject.isDisabled()) throw new Error('退回修改在未填写原因时必须禁用')
+    await note.fill('只读验收，不提交')
+    if (await reject.isDisabled()) throw new Error('填写退回原因后操作仍不可用')
+    await note.fill('')
+  }
   await clickMatchingButtonIfVisible(page, /^待回复(?:\s|\d|$)/)
   await clickButtonIfVisible(page, '全部会话')
   if (ready.kind === 'empty') return `明确空态：${ready.text}`

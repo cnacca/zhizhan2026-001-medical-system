@@ -68,87 +68,108 @@ const phaseOneMainChainSteps = [
   {
     name: '1. 医生下单',
     portal: 'DOCTOR',
-    menuPath: ['订单管理', '新建订单'],
-    heading: '新建订单',
-    visibleText: ['产品类型', '已上传附件编号（可选）'],
-    testIds: ['doctor-upload-file-input', 'doctor-order-create-button']
+    menuPath: [],
+    actionText: '＋ 新建订单',
+    visibleText: ['新建订单', '1. 选择患者'],
+    testIds: ['doctor-order-wizard']
   },
   {
     name: '2. 客服初审',
     portal: 'CS',
-    menuPath: ['订单管理', '待审核订单'],
-    heading: '客服初审',
-    visibleText: ['待审核订单', '查询']
+    menuPath: ['信息审核/翻译'],
+    heading: '信息审核/翻译',
+    visibleText: ['处理队列']
   },
   {
     name: '3. 生产审核',
-    portal: 'CS',
-    menuPath: ['订单管理', '待审核订单'],
-    heading: '客服初审',
-    visibleText: ['审核']
+    portal: 'PRODUCTION',
+    menuPath: ['生产审核'],
+    heading: '生产审核',
+    visibleText: ['审核队列'],
+    layoutCheck: 'production-review'
   },
   {
-    name: '4. 派工到任务池',
+    name: '4. 设计任务领取与提交',
+    portal: 'PRODUCTION',
+    menuPath: ['设计任务池'],
+    heading: '设计任务池',
+    visibleText: ['设计任务池']
+  },
+  {
+    name: '5. 医生确认设计稿',
+    portal: 'DOCTOR',
+    menuPath: ['我的订单'],
+    heading: '订单管理',
+    visibleText: ['全部订单'],
+    testIds: ['doctor-page-orders']
+  },
+  {
+    name: '5A. 管理员生产审核监控',
     portal: 'ADMIN',
-    menuPath: ['工艺生产', '员工派工'],
-    heading: '员工派工',
+    menuPath: ['生产审核监控'],
+    heading: '生产审核监控',
+    visibleText: ['审核队列']
+  },
+  {
+    name: '6. 管理员派工',
+    portal: 'ADMIN',
+    menuPath: ['工艺生产'],
+    actionText: '员工派工',
+    heading: '工艺生产',
     visibleText: ['员工派工', '工序进度']
   },
   {
-    name: '5. 入检开工完工',
+    name: '7. 入检开工完工',
     portal: 'PRODUCTION',
     menuPath: ['我的任务'],
     heading: '我的任务',
     visibleText: ['↻ 刷新任务']
   },
   {
-    name: '6. 出检推进',
+    name: '8. 出检推进',
     portal: 'PRODUCTION',
     menuPath: ['扫码登记'],
     heading: '扫码登记',
     visibleText: ['↻ 刷新任务', '定位任务']
   },
   {
-    name: '7. 返工可见',
+    name: '9. 返工可见',
     portal: 'PRODUCTION',
-    menuPath: ['质量与返工', '内返管理'],
+    menuPath: ['质量与返工'],
+    actionText: '内返管理',
     heading: '内返管理',
     visibleText: ['终检入口']
   },
   {
-    name: '8. 设计稿确认',
-    portal: 'DOCTOR',
-    menuPath: ['订单管理', '设计稿确认'],
-    heading: '设计稿确认',
-    visibleText: ['设计稿确认', '查询']
-  },
-  {
-    name: '9. 消息客服审核',
+    name: '10. 消息客服审核',
     portal: 'CS',
-    menuPath: ['沟通中心', '待审核消息'],
-    heading: '沟通中心',
-    visibleText: ['待审核消息', '订单消息上下文']
+    menuPath: ['问单沟通'],
+    heading: '问单沟通',
+    visibleText: ['全部会话']
   },
   {
-    name: '10. 账单物流',
+    name: '11. 账单物流',
     portal: 'DOCTOR',
-    menuPath: ['订单管理', '账单物流'],
-    heading: '账单物流',
-    visibleText: ['账单物流', '查询']
+    menuPath: ['账单中心'],
+    heading: '账单与物流',
+    visibleText: ['账单与物流'],
+    testIds: ['doctor-page-billing']
   },
   {
-    name: '11. 医生 AI 安全查询',
+    name: '12. 医生 AI 安全查询',
     portal: 'DOCTOR',
     menuPath: ['订单助手'],
     heading: '订单助手',
-    visibleText: ['订单助手', '查询']
+    visibleText: ['订单助手'],
+    testIds: ['doctor-page-assistant']
   },
   {
-    name: '12. 医生确认收货',
+    name: '13. 医生确认收货',
     portal: 'DOCTOR',
-    menuPath: ['订单管理', '我的订单'],
-    heading: '我的订单',
-    visibleText: ['我的订单', '查询']
+    menuPath: ['我的订单'],
+    heading: '订单管理',
+    visibleText: ['全部订单'],
+    testIds: ['doctor-page-orders']
   }
 ]
 
@@ -196,8 +217,8 @@ async function apiFetchExpectStatus(pathname, token, expectedStatus, options = {
   return body
 }
 
-async function apiLogin(portalName) {
-  const portal = credentials[portalName]
+async function apiLogin(portalName, accountOverride = {}) {
+  const portal = { ...credentials[portalName], ...accountOverride }
   return apiFetch('/api/auth/login', null, {
     method: 'POST',
     body: JSON.stringify({
@@ -216,20 +237,65 @@ async function createFixedDemoOrder(doctorToken) {
   const acceptanceMarker = demoScenario
     ? `DEMO_DATA_V1:${demoScenario}`
     : '9D.62.1 fixed-demo-first-three'
-  const payload = await apiFetch('/orders', doctorToken, {
+  const formData = {
+    patient_name: patientName,
+    tooth_position: '16',
+    material: '氧化锆',
+    shade: 'A2',
+    acceptance_marker: acceptanceMarker,
+    demo_scenario: demoScenario || null
+  }
+  const draftPayload = await apiFetch('/orders', doctorToken, {
     method: 'POST',
     body: JSON.stringify({
       product_type: productType,
-      form_data: {
-        patient_name: patientName,
-        tooth_position: '16',
-        material: '氧化锆',
-        shade: 'A2',
-        acceptance_marker: acceptanceMarker,
-        demo_scenario: demoScenario || null
-      },
+      form_data: formData,
       file_ids: [],
-      is_draft: false
+      is_draft: true
+    })
+  })
+  const orderId = draftPayload.data.order_id
+  const content = new TextEncoder().encode(
+    'solid task9d62-order\n'
+    + 'facet normal 0 0 1\n outer loop\n'
+    + '  vertex 0 0 0\n  vertex 1 0 0\n  vertex 0 1 0\n'
+    + ' endloop\nendfacet\nendsolid task9d62-order\n'
+  )
+  const tokenPayload = await apiFetch('/files/upload-token', doctorToken, {
+    method: 'POST',
+    body: JSON.stringify({
+      order_id: orderId,
+      source_type: 'ORDER_ATTACHMENT',
+      visibility: 'DOCTOR',
+      original_filename: `task-9d62-order-${marker}.stl`,
+      content_type: 'model/stl',
+      file_size: content.byteLength
+    })
+  })
+  const uploadResponse = await fetch(tokenPayload.data.upload_url, {
+    method: 'PUT',
+    headers: {
+      'Content-Type': 'model/stl',
+      'Content-Length': String(content.byteLength)
+    },
+    body: content
+  })
+  if (!uploadResponse.ok) {
+    const body = await uploadResponse.text()
+    throw new Error(`task 9D.62 order STL signed upload failed with ${uploadResponse.status}: ${body}`)
+  }
+  const completedFile = await apiFetch(`/files/${tokenPayload.data.file_id}/complete`, doctorToken, {
+    method: 'POST'
+  })
+  expect(completedFile.data.upload_status).toBe('COMPLETED')
+
+  const payload = await apiFetch(`/orders/${orderId}`, doctorToken, {
+    method: 'PUT',
+    body: JSON.stringify({
+      product_type: productType,
+      form_data: formData,
+      file_ids: [completedFile.data.file_id],
+      submit: true
     })
   })
   return payload.data
@@ -246,6 +312,16 @@ async function approveCsReview(orderId, csToken) {
   return payload.data
 }
 
+async function createPendingWorkerMessage(orderId, workerToken) {
+  const content = `9D.62 客服正常入口消息审核 ${Date.now()}`
+  const payload = await apiFetch(`/orders/${orderId}/messages`, workerToken, {
+    method: 'POST',
+    body: JSON.stringify({ content, mention_user_ids: [] })
+  })
+  expect(payload.data.review_status).toBe('PENDING_REVIEW')
+  return { ...payload.data, content }
+}
+
 async function loadActiveWorkflowChainForProduct(token) {
   const payload = await apiFetch('/workflow-chains', token)
   const chain = payload.data.find((item) => item.status === 1 && item.product_type === productType)
@@ -255,17 +331,45 @@ async function loadActiveWorkflowChainForProduct(token) {
   return chain
 }
 
-async function approveProductionReview(orderId, csToken) {
-  const chain = await loadActiveWorkflowChainForProduct(csToken)
-  const payload = await apiFetch(`/orders/${orderId}/production-review`, csToken, {
+async function grantProductionReviewPermission(adminToken, workerSession) {
+  const assignableDirectPermissions = new Set([
+    'design-draft:internal-review',
+    'workflow:review-production',
+    'final-inspection:manage'
+  ])
+  const permissionCodes = [...new Set([
+    ...workerSession.permissions.filter((code) => assignableDirectPermissions.has(code)),
+    'workflow:review-production'
+  ])]
+  const payload = await apiFetch(`/staff/accounts/${workerSession.userId}`, adminToken, {
+    method: 'PUT',
+    body: JSON.stringify({
+      permission_codes: permissionCodes
+    })
+  })
+  expect(payload.data.permission_codes).toContain('workflow:review-production')
+  return payload.data
+}
+
+function productionReviewBranchParams() {
+  if (productType === 'IMPLANT_RESTORATION') {
+    return { implant_abutment: 'FINISHED_ABUTMENT' }
+  }
+  if (productType === 'VENEER_RESTORATION') {
+    return { veneer_route: 'CAD_MILLING' }
+  }
+  return {}
+}
+
+async function approveProductionReview(orderId, reviewerToken) {
+  const chain = await loadActiveWorkflowChainForProduct(reviewerToken)
+  const payload = await apiFetch(`/orders/${orderId}/production-review`, reviewerToken, {
     method: 'POST',
     body: JSON.stringify({
       action: 'APPROVE',
       chain_id: chain.chain_id,
-      intake_branch: chain.intake_branch ?? 'SCAN',
-      branch_params: {
-        route: '9D62_FIXED_DEMO'
-      }
+      intake_branch: chain.intake_branch === 'BOTH' ? 'SCAN' : chain.intake_branch,
+      branch_params: productionReviewBranchParams()
     })
   })
   return payload.data
@@ -278,7 +382,8 @@ async function loadProcessInstance(orderId, token) {
 
 async function assignFirstReadyNode(orderId, adminToken, workerUserId) {
   const instance = await loadProcessInstance(orderId, adminToken)
-  const readyNode = instance.nodes.find((node) => node.node_status === 'READY')
+  const readyNode = instance.nodes.find((node) =>
+    node.node_status === 'READY' && node.node_category !== 'DESIGN_GATE')
   if (!readyNode) {
     throw new Error(`task 9D.62.2 cannot find READY node for order ${orderId}`)
   }
@@ -292,7 +397,7 @@ async function assignFirstReadyNode(orderId, adminToken, workerUserId) {
     })
   })
   const assignedNode = payload.data.nodes.find((node) => node.node_instance_id === readyNode.node_instance_id)
-  expect(assignedNode?.assigned_user_id).toBe(workerUserId)
+  expect(assignedNode?.assigned_user_id).toBe(Number(workerUserId))
   return assignedNode
 }
 
@@ -307,7 +412,7 @@ async function assignReadyNode(orderId, adminToken, workerUserId, node) {
     })
   })
   const assignedNode = payload.data.nodes.find((item) => item.node_instance_id === node.node_instance_id)
-  expect(assignedNode?.assigned_user_id).toBe(workerUserId)
+  expect(assignedNode?.assigned_user_id).toBe(Number(workerUserId))
   return assignedNode
 }
 
@@ -405,14 +510,31 @@ async function loadReworkRecord(reworkId, orderId, token, status = 'PENDING') {
 async function closeReworkAfterTargetRedo(orderId, rework, adminToken, workerToken, workerUserId) {
   expect(rework.target_node_instance_id).toBeGreaterThan(0)
   expect(rework.target_node_status).toBe('READY')
-  const assignedTarget = await assignReadyNode(
-    orderId,
-    adminToken,
-    workerUserId,
-    {
-      node_instance_id: rework.target_node_instance_id
-    }
-  )
+  let assignedTarget = { node_instance_id: rework.target_node_instance_id }
+  if (rework.assigned_user_id == null) {
+    assignedTarget = await assignReadyNode(
+      orderId,
+      adminToken,
+      workerUserId,
+      assignedTarget
+    )
+  } else if (Number(rework.assigned_user_id) !== Number(workerUserId)) {
+    const reassigned = await apiFetch(
+      `/orders/${orderId}/process-instance/nodes/${rework.target_node_instance_id}/reassign`,
+      adminToken,
+      {
+        method: 'POST',
+        body: JSON.stringify({
+          new_user_id: workerUserId,
+          reason: '9D.63 固定演示数据：返工目标节点转派给当前验收技工'
+        })
+      }
+    )
+    assignedTarget = reassigned.data.nodes.find(
+      (node) => node.node_instance_id === rework.target_node_instance_id
+    )
+    expect(assignedTarget?.assigned_user_id).toBe(Number(workerUserId))
+  }
   await completeAssignedNodeWithChecksAndWorklog(assignedTarget.node_instance_id, workerToken)
 
   const payload = await apiFetch(`/reworks/${rework.rework_id}/close`, workerToken, {
@@ -470,7 +592,7 @@ async function uploadDesignDraftFile(orderId, workerToken) {
     body: JSON.stringify({
       order_id: orderId,
       source_type: 'DESIGN_DRAFT',
-      visibility: 'DOCTOR_CS',
+      visibility: 'INTERNAL',
       original_filename: `task-9d62-design-${Date.now()}.stl`,
       content_type: 'model/stl',
       file_size: content.byteLength
@@ -499,29 +621,55 @@ async function uploadDesignDraftFile(orderId, workerToken) {
 }
 
 async function uploadDesignDraft(orderId, workerToken, fileId) {
+  const submissionKey = `task-9d62-design-${orderId}-${Date.now()}`
   const payload = await apiFetch(`/orders/${orderId}/design-drafts`, workerToken, {
     method: 'POST',
     body: JSON.stringify({
       file_ids: [fileId],
-      upload_note: '9D.62.3 固定演示数据：生产端上传设计稿'
+      upload_note: '9D.62.3 固定演示数据：生产端上传设计稿',
+      submission_key: submissionKey
     })
   })
   expect(payload.data.order_id).toBe(orderId)
   expect(payload.data.file_ids).toContain(fileId)
   expect(payload.data.file_count).toBe(1)
-  expect(payload.data.status).toBe('PENDING_CS_REVIEW')
+  expect(payload.data.status).toBe('PENDING_REVIEW')
   return payload.data
 }
 
-async function approveDesignDraftByCs(orderId, draftId, csToken) {
-  const payload = await apiFetch(`/orders/${orderId}/design-drafts/${draftId}/cs-review`, csToken, {
+async function claimDesignTask(orderId, workerToken) {
+  const poolPayload = await apiFetch('/design-tasks/pool', workerToken)
+  const task = poolPayload.data.find((item) => item.order_id === orderId)
+  if (!task) {
+    throw new Error(`task 9D.62.3 cannot find design task for order ${orderId}`)
+  }
+  const payload = await apiFetch(`/design-tasks/${task.task_id}/claim`, workerToken, {
+    method: 'POST'
+  })
+  expect(payload.data.task_id).toBe(task.task_id)
+  expect(payload.data.status).toBe('CLAIMED')
+  return payload.data
+}
+
+async function submitDesignDraft(orderId, draftId, workerToken) {
+  const payload = await apiFetch(`/orders/${orderId}/design-drafts/${draftId}/submit`, workerToken, {
+    method: 'POST'
+  })
+  expect(payload.data.draft_id).toBe(draftId)
+  expect(payload.data.status).toBe('PENDING_REVIEW')
+  expect(payload.data.submitted_at).toBeTruthy()
+  return payload.data
+}
+
+async function approveDesignDraftInternally(orderId, draftId, reviewerToken) {
+  const payload = await apiFetch(`/orders/${orderId}/design-drafts/${draftId}/internal-review`, reviewerToken, {
     method: 'POST',
     body: JSON.stringify({
       action: 'APPROVE'
     })
   })
   expect(payload.data.draft_id).toBe(draftId)
-  expect(payload.data.status).toBe('PENDING_DOCTOR_CONFIRM')
+  expect(payload.data.status).toBe('PENDING_DOCTOR')
   return payload.data
 }
 
@@ -531,7 +679,7 @@ async function assertDoctorDesignDraftVisible(orderId, draftId, doctorToken) {
   if (!draft) {
     throw new Error(`task 9D.62.3 doctor cannot see design draft ${draftId}`)
   }
-  expect(draft.status).toBe('PENDING_DOCTOR_CONFIRM')
+  expect(draft.status).toBe('PENDING_DOCTOR')
   expect(draft.file_ids.length).toBeGreaterThan(0)
   return draft
 }
@@ -698,7 +846,7 @@ function assertMainChainDataState(createdOrder, csReview, productionReview) {
   expect(csReview.order_id).toBe(createdOrder.order_id)
   expect(csReview.internal_status).toBe('PENDING_PRODUCTION_REVIEW')
   expect(productionReview.order_id).toBe(createdOrder.order_id)
-  expect(productionReview.internal_status).toBe('PROCESS_INSTANCE_CREATED')
+  expect(productionReview.internal_status).toBe('IN_DESIGN')
   expect(productionReview.instance_id, 'production review should instantiate workflow').toBeGreaterThan(0)
 }
 
@@ -736,7 +884,7 @@ async function assertDoctorSafeProjection(orderId, doctorToken) {
 }
 
 async function assertCsInternalVisibility(orderId, csToken, productionReview) {
-  expect(productionReview.internal_status).toBe('PROCESS_INSTANCE_CREATED')
+  expect(productionReview.internal_status).toBe('IN_DESIGN')
   const instance = await loadProcessInstance(orderId, csToken)
   expect(instance.order_id).toBe(orderId)
   expect(instance.nodes.length).toBeGreaterThan(0)
@@ -748,7 +896,7 @@ async function assertWorkerTaskScope(nodeInstanceId, workerToken, workerUserId, 
   const payload = await apiFetch(`/tasks/mine?status=${expectedStatus}`, workerToken)
   for (const task of payload.data) {
     if ('assigned_user_id' in task) {
-      expect(task.assigned_user_id).toBe(workerUserId)
+      expect(task.assigned_user_id).toBe(Number(workerUserId))
     }
   }
   const task = payload.data.find((item) => item.node_instance_id === nodeInstanceId)
@@ -759,11 +907,85 @@ async function assertWorkerTaskScope(nodeInstanceId, workerToken, workerUserId, 
   return task
 }
 
-async function assertAdminAssignmentAndReassignment(orderId, adminToken, workerUserId, assignedNode) {
-  expect(assignedNode.assigned_user_id).toBe(workerUserId)
-  const reassignedNode = await assignReadyNode(orderId, adminToken, workerUserId, assignedNode)
-  expect(reassignedNode.assigned_user_id).toBe(workerUserId)
-  return reassignedNode
+async function assertAdminAssignmentAndReassignment(
+  orderId,
+  adminToken,
+  workerSession,
+  alternateWorkerSession,
+  assignedNode
+) {
+  expect(assignedNode.assigned_user_id).toBe(Number(workerSession.userId))
+
+  await apiFetchExpectStatus(
+    `/orders/${orderId}/process-instance/assign`,
+    adminToken,
+    409,
+    {
+      method: 'POST',
+      body: JSON.stringify({
+        assignments: [{
+          node_instance_id: assignedNode.node_instance_id,
+          user_id: alternateWorkerSession.userId
+        }]
+      })
+    }
+  )
+  await apiFetchExpectStatus(
+    `/orders/${orderId}/process-instance/nodes/${assignedNode.node_instance_id}/reassign`,
+    adminToken,
+    400,
+    {
+      method: 'POST',
+      body: JSON.stringify({
+        new_user_id: alternateWorkerSession.userId,
+        reason: ' '
+      })
+    }
+  )
+
+  const alternateAssignment = await apiFetch(
+    `/orders/${orderId}/process-instance/nodes/${assignedNode.node_instance_id}/reassign`,
+    adminToken,
+    {
+      method: 'POST',
+      body: JSON.stringify({
+        new_user_id: alternateWorkerSession.userId,
+        reason: '9D.62.GOAL018：验证已有执行人必须通过有理由转派'
+      })
+    }
+  )
+  const alternateNode = alternateAssignment.data.nodes.find(
+    (node) => node.node_instance_id === assignedNode.node_instance_id
+  )
+  expect(alternateNode?.assigned_user_id).toBe(Number(alternateWorkerSession.userId))
+  await assertWorkerTaskScope(
+    assignedNode.node_instance_id,
+    alternateWorkerSession.accessToken,
+    alternateWorkerSession.userId,
+    'READY'
+  )
+
+  const originalWorkerTasks = await apiFetch('/tasks/mine?status=READY', workerSession.accessToken)
+  expect(originalWorkerTasks.data.some(
+    (task) => task.node_instance_id === assignedNode.node_instance_id
+  )).toBe(false)
+
+  const restoredAssignment = await apiFetch(
+    `/orders/${orderId}/process-instance/nodes/${assignedNode.node_instance_id}/reassign`,
+    adminToken,
+    {
+      method: 'POST',
+      body: JSON.stringify({
+        new_user_id: workerSession.userId,
+        reason: '9D.62.GOAL018：完成转派门禁验证后恢复主链执行人'
+      })
+    }
+  )
+  const restoredNode = restoredAssignment.data.nodes.find(
+    (node) => node.node_instance_id === assignedNode.node_instance_id
+  )
+  expect(restoredNode?.assigned_user_id).toBe(Number(workerSession.userId))
+  return restoredNode
 }
 
 async function prepareFixedDemoFirstThreeSteps() {
@@ -775,6 +997,10 @@ async function prepareFixedDemoFirstThreeSteps() {
   const csSession = await apiLogin('CS')
   const adminSession = await apiLogin('ADMIN')
   const workerSession = await apiLogin('PRODUCTION')
+  const alternateWorkerSession = await apiLogin('PRODUCTION', {
+    username: process.env.TASK9D62_ORDINARY_WORKER_USERNAME ?? 'demo_cad',
+    password: process.env.TASK9D62_ORDINARY_WORKER_PASSWORD ?? 'change-me-worker'
+  })
   const createdOrder = await createFixedDemoOrder(doctorSession.accessToken)
   if (stopAfter === 'pending-cs') {
     console.log(
@@ -789,7 +1015,8 @@ async function prepareFixedDemoFirstThreeSteps() {
     )
     return { createdOrder, csReview, stage: stopAfter }
   }
-  const productionReview = await approveProductionReview(createdOrder.order_id, csSession.accessToken)
+  await grantProductionReviewPermission(adminSession.accessToken, workerSession)
+  const productionReview = await approveProductionReview(createdOrder.order_id, workerSession.accessToken)
   assertMainChainDataState(createdOrder, csReview, productionReview)
   const doctorProjection = await assertDoctorSafeProjection(createdOrder.order_id, doctorSession.accessToken)
   const csInternalVisibility = await assertCsInternalVisibility(
@@ -800,11 +1027,45 @@ async function prepareFixedDemoFirstThreeSteps() {
   console.log(
     `task 9D.62.1 fixed data chain first increment ok: order_id=${createdOrder.order_id}, order_no=${createdOrder.order_no}, instance_id=${productionReview.instance_id}`
   )
+
+  const designTask = await claimDesignTask(createdOrder.order_id, workerSession.accessToken)
+  const pendingMessage = await createPendingWorkerMessage(createdOrder.order_id, workerSession.accessToken)
+  const designDraftFileId = await uploadDesignDraftFile(createdOrder.order_id, workerSession.accessToken)
+  const designDraft = await uploadDesignDraft(createdOrder.order_id, workerSession.accessToken, designDraftFileId)
+  await submitDesignDraft(createdOrder.order_id, designDraft.draft_id, workerSession.accessToken)
+  const internallyApprovedDesignDraft = await approveDesignDraftInternally(
+    createdOrder.order_id,
+    designDraft.draft_id,
+    adminSession.accessToken
+  )
+  if (stopAfter === 'design-pending') {
+    console.log(
+      `task 9D.62 demo stage ready: scenario=${demoScenario || 'default'}, stage=${stopAfter}, order_id=${createdOrder.order_id}, draft_id=${internallyApprovedDesignDraft.draft_id}`
+    )
+    return {
+      createdOrder,
+      csReview,
+      productionReview,
+      designTask,
+      designDraft: internallyApprovedDesignDraft,
+      stage: stopAfter
+    }
+  }
+  const confirmedDesignDraft = await completeDesignDraftConfirmation(
+    createdOrder.order_id,
+    designDraft.draft_id,
+    doctorSession.accessToken
+  )
+  console.log(
+    `task 9D.62.3 design draft confirmation first increment ok: order_id=${createdOrder.order_id}, draft_id=${confirmedDesignDraft.draft_id}, file_id=${designDraftFileId}`
+  )
+
   const assignedNode = await assignFirstReadyNode(createdOrder.order_id, adminSession.accessToken, workerSession.userId)
   const reassignedNode = await assertAdminAssignmentAndReassignment(
     createdOrder.order_id,
     adminSession.accessToken,
-    workerSession.userId,
+    workerSession,
+    alternateWorkerSession,
     assignedNode
   )
   const scopedWorkerTask = await assertWorkerTaskScope(
@@ -814,7 +1075,7 @@ async function prepareFixedDemoFirstThreeSteps() {
     'READY'
   )
   console.log(
-    `task 9D.62.GOAL018 role boundary assertions ok: order_id=${createdOrder.order_id}, doctor_external_status=${doctorProjection.external_status}, cs_nodes=${csInternalVisibility.nodes.length}, worker_task=${scopedWorkerTask.node_instance_id}, reassigned_user_id=${reassignedNode.assigned_user_id}`
+    `task 9D.62.GOAL018 role boundary assertions ok: order_id=${createdOrder.order_id}, doctor_external_status=${doctorProjection.external_status}, cs_nodes=${csInternalVisibility.nodes.length}, worker_task=${scopedWorkerTask.node_instance_id}, assigned_user_id=${reassignedNode.assigned_user_id}`
   )
   const roleAssertions = {
     doctorProjection,
@@ -830,6 +1091,8 @@ async function prepareFixedDemoFirstThreeSteps() {
       createdOrder,
       csReview,
       productionReview,
+      designTask,
+      designDraft: confirmedDesignDraft,
       assignedNode: reassignedNode,
       roleAssertions,
       stage: stopAfter
@@ -863,36 +1126,6 @@ async function prepareFixedDemoFirstThreeSteps() {
   }
   console.log(
     `task 9D.63 rework exception first increment ok: order_id=${createdOrder.order_id}, rework_id=${rework.rework_id}, target_node_instance_id=${rework.target_node_instance_id}, status=${rework.status}`
-  )
-  const designDraftFileId = await uploadDesignDraftFile(createdOrder.order_id, csSession.accessToken)
-  const designDraft = await uploadDesignDraft(createdOrder.order_id, csSession.accessToken, designDraftFileId)
-  const csApprovedDesignDraft = await approveDesignDraftByCs(
-    createdOrder.order_id,
-    designDraft.draft_id,
-    csSession.accessToken
-  )
-  if (stopAfter === 'design-pending') {
-    console.log(
-      `task 9D.62 demo stage ready: scenario=${demoScenario || 'default'}, stage=${stopAfter}, order_id=${createdOrder.order_id}, draft_id=${csApprovedDesignDraft.draft_id}`
-    )
-    return {
-      createdOrder,
-      csReview,
-      productionReview,
-      assignedNode: reassignedNode,
-      roleAssertions,
-      rework,
-      designDraft: csApprovedDesignDraft,
-      stage: stopAfter
-    }
-  }
-  const confirmedDesignDraft = await completeDesignDraftConfirmation(
-    createdOrder.order_id,
-    designDraft.draft_id,
-    doctorSession.accessToken
-  )
-  console.log(
-    `task 9D.62.3 design draft confirmation first increment ok: order_id=${createdOrder.order_id}, draft_id=${confirmedDesignDraft.draft_id}, file_id=${designDraftFileId}`
   )
   const billFileId = await uploadBillFile(createdOrder.order_id, csSession.accessToken)
   const bill = await attachBillToOrder(createdOrder.order_id, csSession.accessToken, billFileId)
@@ -940,29 +1173,59 @@ async function prepareFixedDemoFirstThreeSteps() {
     bill,
     completedWorkflow,
     logistics,
-    completedOrder
+    completedOrder,
+    pendingMessage
   }
 }
 
 async function resetToLogin(page) {
-  await page.goto(frontendUrl, { waitUntil: 'networkidle' })
+  await page.goto(frontendUrl, { waitUntil: 'domcontentloaded' })
   await page.evaluate(() => localStorage.clear())
-  await page.goto(frontendUrl, { waitUntil: 'networkidle' })
+  await page.reload({ waitUntil: 'domcontentloaded' })
+  await expect(page.getByTestId('portal-card-DOCTOR')).toBeVisible({ timeout: 10_000 })
 }
 
-async function loginViaPortal(page, portalName) {
-  const portal = credentials[portalName]
+async function loginViaPortal(page, portalName, accountOverride = {}) {
+  const portal = { ...credentials[portalName], ...accountOverride }
   await resetToLogin(page)
   await page.getByTestId(portal.testId).click()
   await expect(page.getByRole('heading', { name: `${portal.title}登录` })).toBeVisible()
-  await page.getByLabel('用户名').fill(portal.username)
-  await page.getByLabel('密码').fill(portal.password)
+  const accountLabel = portalName === 'DOCTOR' ? '账号' : '用户名'
+  await page.getByRole('textbox', { name: accountLabel }).fill(portal.username, { timeout: 10_000 })
+  await page.getByRole('textbox', { name: '密码' }).fill(portal.password, { timeout: 10_000 })
   await page.getByRole('button', { name: '登录' }).click()
-  await expect(page.getByText(portal.loggedInText)).toBeVisible({ timeout: 10_000 })
-  await expect(page.locator('.prototype-dashboard-panel')).toBeVisible({ timeout: 10_000 })
+  if (portalName === 'DOCTOR') {
+    await expect(page.getByRole('navigation', { name: '医生端菜单' })).toBeVisible({ timeout: 10_000 })
+    await expect(page.getByTestId('doctor-page-dashboard')).toBeVisible({ timeout: 10_000 })
+  } else {
+    await expect(page.locator('.route-menu')).toBeVisible({ timeout: 10_000 })
+    await expect(page.locator('.prototype-dashboard-panel')).toBeVisible({ timeout: 10_000 })
+  }
 }
 
-async function clickMenuItem(page, label) {
+async function assertProductionReviewMenuIsolation(page) {
+  await loginViaPortal(page, 'PRODUCTION', {
+    username: process.env.TASK9D62_ORDINARY_WORKER_USERNAME ?? 'demo_cad',
+    password: process.env.TASK9D62_ORDINARY_WORKER_PASSWORD ?? 'change-me-worker'
+  })
+  await expect(
+    page.locator('.route-menu').getByRole('menuitem', { name: '生产审核', exact: true })
+  ).toHaveCount(0)
+
+  await loginViaPortal(page, 'CS')
+  await expect(
+    page.locator('.route-menu').getByRole('menuitem', { name: /生产审核/ })
+  ).toHaveCount(0)
+  console.log('task 9D.62 production-review menu isolation ok: ordinary WORKER and CS hidden')
+}
+
+async function clickMenuItem(page, label, portalName) {
+  if (portalName === 'DOCTOR') {
+    const button = page.getByRole('button', { name: label, exact: true }).filter({ visible: true }).first()
+    await expect(button, `doctor menu button "${label}" should be visible`).toBeVisible({ timeout: 10_000 })
+    await button.click()
+    return
+  }
   const nav = page.locator('.route-menu')
   const item = nav.getByRole('menuitem', { name: label }).filter({ visible: true }).first()
   await expect(item, `menu item "${label}" should be visible`).toBeVisible({ timeout: 10_000 })
@@ -971,14 +1234,16 @@ async function clickMenuItem(page, label) {
 
 async function navigateMainChainStep(page, step) {
   for (const label of step.menuPath) {
-    await clickMenuItem(page, label)
+    await clickMenuItem(page, label, step.portal)
   }
   if (step.actionText) {
     const action = page.getByText(step.actionText, { exact: true }).filter({ visible: true }).first()
     await expect(action, `${step.name} action "${step.actionText}" should be visible`).toBeVisible({ timeout: 10_000 })
     await action.click()
   }
-  await expect(page.getByRole('heading', { name: step.heading }).first()).toBeVisible({ timeout: 10_000 })
+  if (step.heading) {
+    await expect(page.getByRole('heading', { name: step.heading }).first()).toBeVisible({ timeout: 10_000 })
+  }
   for (const text of step.visibleText) {
     await expect(
       page.getByText(text, { exact: true }).filter({ visible: true }).first(),
@@ -988,6 +1253,82 @@ async function navigateMainChainStep(page, step) {
   for (const testId of step.testIds ?? []) {
     await expect(page.getByTestId(testId), `${step.name} should expose ${testId}`).toBeVisible({ timeout: 10_000 })
   }
+  if (step.layoutCheck === 'production-review') {
+    await assertProductionReviewLayout(page)
+  }
+}
+
+async function assertProductionReviewLayout(page) {
+  const reviewPage = page.getByTestId('production-review-page')
+  await expect(reviewPage).toBeVisible({ timeout: 10_000 })
+  await expect(page.getByTestId('production-review-table')).toBeVisible({ timeout: 10_000 })
+
+  const layout = await reviewPage.evaluate((root) => {
+    const table = root.querySelector('[data-testid="production-review-table"]')
+    const search = root.querySelector('.aor-filter-search')
+    const note = root.querySelector('.aor-production-note')
+    const action = root.querySelector('.aor-view-button')
+    const headers = [...root.querySelectorAll('th')].map((cell) => ({
+      label: cell.textContent?.trim() ?? '',
+      width: Math.round(cell.getBoundingClientRect().width),
+      whiteSpace: getComputedStyle(cell).whiteSpace
+    }))
+    const noteStyle = note ? getComputedStyle(note) : null
+    const actionStyle = action ? getComputedStyle(action) : null
+
+    return {
+      documentOverflow: document.documentElement.scrollWidth - window.innerWidth,
+      tableLayout: table ? getComputedStyle(table).tableLayout : '',
+      searchHeight: search ? Math.round(search.getBoundingClientRect().height) : 0,
+      headers,
+      noteHeight: note ? Math.round(note.getBoundingClientRect().height) : 0,
+      noteOverflow: noteStyle?.overflow ?? '',
+      noteWhiteSpace: noteStyle?.whiteSpace ?? '',
+      actionHeight: action ? Math.round(action.getBoundingClientRect().height) : 0,
+      actionBackground: actionStyle?.backgroundColor ?? ''
+    }
+  })
+
+  const customerHeader = layout.headers.find((header) => header.label === '客户')
+  const statusHeader = layout.headers.find((header) => header.label === '审核状态')
+  expect(layout.documentOverflow, 'production review must not overflow the viewport').toBeLessThanOrEqual(1)
+  expect(layout.tableLayout, 'production review table must use fixed column layout').toBe('fixed')
+  expect(layout.searchHeight, 'production review search must keep designed control height').toBeGreaterThanOrEqual(36)
+  expect(customerHeader?.width ?? 0, 'customer column must not collapse into vertical text').toBeGreaterThanOrEqual(120)
+  expect(statusHeader?.width ?? 0, 'status column must not collapse into vertical text').toBeGreaterThanOrEqual(120)
+  expect(customerHeader?.whiteSpace, 'production review headers must stay on one line').toBe('nowrap')
+  expect(layout.noteHeight, 'production note preview must stay within two lines').toBeLessThanOrEqual(36)
+  expect(layout.noteOverflow, 'production note preview must clip long content').toBe('hidden')
+  expect(layout.noteWhiteSpace, 'production note preview must wrap inside its column').toBe('normal')
+  expect(layout.actionHeight, 'production review action must use designed button height').toBe(32)
+  expect(layout.actionBackground, 'production review action must not fall back to a native button').toBe('rgb(15, 159, 145)')
+}
+
+async function assertCsMessageReviewFromNormalMenu(page, preparedData) {
+  if (!preparedData?.pendingMessage) return
+  await loginViaPortal(page, 'CS')
+  await page.getByRole('menuitem', { name: '问单沟通', exact: true }).click()
+  await expect(page.getByRole('heading', { name: '问单沟通', exact: true })).toBeVisible()
+  await page.getByRole('button', { name: /^待审核\s+\d+$/ }).click()
+  const search = page.getByRole('searchbox', { name: '搜索会话' })
+  await search.fill(preparedData.createdOrder.order_no)
+  const conversation = page.getByRole('button', { name: new RegExp(preparedData.createdOrder.order_no) }).first()
+  await expect(conversation).toBeVisible()
+  await conversation.click()
+  const message = page.locator('.cs-r-message-timeline article').filter({ hasText: preparedData.pendingMessage.content })
+  await expect(message).toBeVisible()
+  const reviewPanel = message.locator('.cs-r-message-review')
+  await expect(reviewPanel.getByRole('button', { name: '审核通过', exact: true })).toBeVisible()
+  const reject = reviewPanel.getByRole('button', { name: '退回修改', exact: true })
+  const note = reviewPanel.getByLabel(new RegExp(`消息 ${preparedData.pendingMessage.msg_id} 审核意见`))
+  await expect(reject).toBeDisabled()
+  await note.fill('浏览器门禁验证后仍选择通过')
+  await expect(reject).toBeEnabled()
+  await reviewPanel.getByRole('button', { name: '审核通过', exact: true }).click()
+  await expect(reviewPanel).toBeHidden()
+  await expect(page.getByText('消息已审核通过并按可见范围发送。', { exact: true })).toBeVisible()
+  await expect(page.getByText(preparedData.pendingMessage.content, { exact: true })).toHaveCount(0)
+  await expect(page.getByRole('heading', { name: '请选择会话', exact: true })).toBeVisible()
 }
 
 test.use({ channel: browserChannel })
@@ -995,10 +1336,10 @@ test.use({ channel: browserChannel })
 test.describe('Task 9D.62 phase-one main-chain browser smoke', () => {
   test.setTimeout(timeoutMs)
 
-  test('visits the 12 PRD/TRD main-chain browser entry points', async ({ browser }) => {
+  test('visits the current PRD/TRD main-chain browser entry points', async ({ browser }) => {
     requireIsolatedTestEnvironment()
     await assertReachable()
-    await prepareFixedDemoFirstThreeSteps()
+    const preparedData = await prepareFixedDemoFirstThreeSteps()
 
     if (dataOnly) {
       console.log(`task 9D.62 data-only mode ok: scenario=${demoScenario || 'default'}, stage=${stopAfter}`)
@@ -1007,6 +1348,8 @@ test.describe('Task 9D.62 phase-one main-chain browser smoke', () => {
 
     const page = await browser.newPage({ viewport: { width: 1440, height: 1000 } })
     try {
+      await assertProductionReviewMenuIsolation(page)
+      await assertCsMessageReviewFromNormalMenu(page, preparedData)
       let currentPortal = null
       for (const step of phaseOneMainChainSteps) {
         if (currentPortal !== step.portal) {

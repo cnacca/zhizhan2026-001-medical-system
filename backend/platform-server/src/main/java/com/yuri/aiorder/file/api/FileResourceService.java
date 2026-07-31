@@ -105,18 +105,24 @@ public class FileResourceService {
     }
 
     public List<OrderFileResponse> listOrderFiles(long orderId, BootstrapIdentity identity) {
-        loadOrderScope(orderId, identity, "identity cannot access this order's files", true);
+        OrderScope orderScope = loadOrderScope(
+                orderId, identity, "identity cannot access this order's files", true);
         String dataScope = accessControlService.effectiveDataScope(identity);
         boolean clinicScoped = "CLINIC".equals(dataScope);
         boolean selfScoped = "SELF".equals(dataScope);
         boolean csScoped = identity.role() == UserRole.CS;
         boolean designReviewer = identity.hasPermission("design-draft:internal-review");
-        boolean productionReviewer = accessControlService.canReviewProduction(identity);
         return jdbcClient.sql("""
                         SELECT file_id, source_type, visibility, original_filename, content_type,
                                file_size, upload_status, created_at
                         FROM file_resource f
-                        WHERE f.order_id = :orderId
+                        WHERE (
+                              f.order_id = :orderId
+                              OR (
+                                  f.case_group_id = :groupId
+                                  AND f.attachment_scope = 'SHARED'
+                              )
+                          )
                           AND f.status = 'ACTIVE'
                           AND f.upload_status = 'COMPLETED'
                           AND (
@@ -147,8 +153,14 @@ public class FileResourceService {
                               :selfScoped = 0
                               OR EXISTS (
                                   SELECT 1
-                                  FROM orders self_order
-                                  WHERE self_order.order_id = f.order_id
+                                          FROM orders self_order
+                                          WHERE (
+                                                self_order.order_id = f.order_id
+                                                OR (
+                                                    f.attachment_scope = 'SHARED'
+                                                    AND self_order.group_id = f.case_group_id
+                                                )
+                                            )
                                     AND (
                                         self_order.doctor_user_id = :userId
                                         OR self_order.cs_user_id = :userId
@@ -165,19 +177,6 @@ public class FileResourceService {
                                             FROM design_task self_design
                                             WHERE self_design.order_id = self_order.order_id
                                               AND self_design.assigned_user_id = :userId
-                                        )
-                                        OR (
-                                            :productionReviewer = 1
-                                            AND EXISTS (
-                                                SELECT 1
-                                                FROM order_process_instance review_instance
-                                                JOIN order_process_node review_node
-                                                  ON review_node.instance_id = review_instance.instance_id
-                                                WHERE review_instance.order_id = self_order.order_id
-                                                  AND review_instance.instance_status = 'ACTIVE'
-                                                  AND review_node.node_status = 'READY'
-                                                  AND review_node.assigned_user_id IS NULL
-                                            )
                                         )
                                     )
                               )
@@ -216,11 +215,11 @@ public class FileResourceService {
                         ORDER BY created_at DESC, file_id DESC
                         """)
                 .param("orderId", orderId)
+                .param("groupId", orderScope.groupId())
                 .param("clinicScoped", clinicScoped ? 1 : 0)
                 .param("selfScoped", selfScoped ? 1 : 0)
                 .param("csScoped", csScoped ? 1 : 0)
                 .param("designReviewer", designReviewer ? 1 : 0)
-                .param("productionReviewer", productionReviewer ? 1 : 0)
                 .param("userId", identity.userId())
                 .query((rs, rowNum) -> new OrderFileResponse(
                         rs.getLong("file_id"),
@@ -752,7 +751,7 @@ public class FileResourceService {
         if (!identity.isDoctor()) {
             return;
         }
-        if (file.orderId() == null || file.doctorUserId() == null
+        if ((file.orderId() == null && file.caseGroupId() == null) || file.doctorUserId() == null
                 || !DOCTOR_VISIBLE_FILE_VISIBILITIES.contains(file.visibility())
                 || !accessControlService.doctorCanAccessOrder(identity, file.doctorUserId(), file.clinicId())) {
             audit(file.fileId(), file.orderId(), identity.userId(), action, "DENIED", "doctor cannot access this file");
@@ -769,7 +768,7 @@ public class FileResourceService {
         accessControlService.requireScopedIdentity(identity, dataScope);
         try {
             return jdbcClient.sql("""
-                            SELECT order_id, clinic_id, doctor_user_id
+                            SELECT order_id, group_id, clinic_id, doctor_user_id
                             FROM orders
                             WHERE order_id = :orderId
                               AND (
@@ -795,19 +794,6 @@ public class FileResourceService {
                                                 AND scoped_design.assigned_user_id = :userId
                                           )
                                           OR (
-                                              :productionReviewer = 1
-                                              AND EXISTS (
-                                                  SELECT 1
-                                                  FROM order_process_instance review_instance
-                                                  JOIN order_process_node review_node
-                                                    ON review_node.instance_id = review_instance.instance_id
-                                                  WHERE review_instance.order_id = orders.order_id
-                                                    AND review_instance.instance_status = 'ACTIVE'
-                                                    AND review_node.node_status = 'READY'
-                                                    AND review_node.assigned_user_id IS NULL
-                                              )
-                                          )
-                                          OR (
                                               :designReviewer = 1
                                               AND EXISTS (
                                                   SELECT 1
@@ -824,13 +810,11 @@ public class FileResourceService {
                     .param(
                             "designReviewer",
                             allowDesignReviewScope && identity.hasPermission("design-draft:internal-review") ? 1 : 0)
-                    .param(
-                            "productionReviewer",
-                            allowDesignReviewScope && accessControlService.canReviewProduction(identity) ? 1 : 0)
                     .param("userId", identity.userId())
                     .param("clinicId", identity.clinicId())
                     .query((rs, rowNum) -> new OrderScope(
                             rs.getLong("order_id"),
+                            rs.getObject("group_id", Long.class),
                             rs.getLong("clinic_id"),
                             rs.getObject("doctor_user_id", Long.class)))
                     .single();
@@ -850,6 +834,7 @@ public class FileResourceService {
                             SELECT
                                 f.file_id,
                                 f.order_id,
+                                f.case_group_id,
                                 f.owner_user_id,
                                 f.source_type,
                                 f.visibility,
@@ -863,16 +848,21 @@ public class FileResourceService {
                                 f.multipart_part_size,
                                 f.multipart_part_count,
                                 f.status,
-                                o.clinic_id,
-                                o.doctor_user_id
+                                COALESCE(o.clinic_id, case_group.clinic_id) AS clinic_id,
+                                COALESCE(o.doctor_user_id, case_group.doctor_user_id) AS doctor_user_id
                             FROM file_resource f
                             LEFT JOIN orders o ON o.order_id = f.order_id
+                            LEFT JOIN order_case_group case_group
+                              ON case_group.group_id = f.case_group_id
                             WHERE f.file_id = :fileId
                               AND (
                                   :dataScope = 'ALL'
                                   OR (:dataScope = 'CLINIC'
-                                      AND f.order_id IS NOT NULL
-                                      AND (o.clinic_id = :clinicId OR o.doctor_user_id = :userId)
+                                      AND (f.order_id IS NOT NULL OR f.case_group_id IS NOT NULL)
+                                      AND (
+                                          COALESCE(o.clinic_id, case_group.clinic_id) = :clinicId
+                                          OR COALESCE(o.doctor_user_id, case_group.doctor_user_id) = :userId
+                                      )
                                       AND f.visibility IN ('DOCTOR', 'DOCTOR_CS', 'ALL')
                                       AND (
                                           EXISTS (
@@ -896,22 +886,38 @@ public class FileResourceService {
                                       AND (
                                           f.owner_user_id = :userId
                                           OR (
-                                              f.order_id IS NOT NULL
+                                              (f.order_id IS NOT NULL OR f.case_group_id IS NOT NULL)
                                               AND EXISTS (
                                                   SELECT 1
                                                   FROM order_process_instance scoped_i
                                                   JOIN order_process_node scoped_n
                                                     ON scoped_n.instance_id = scoped_i.instance_id
-                                                  WHERE scoped_i.order_id = f.order_id
+                                                  JOIN orders scoped_order
+                                                    ON scoped_order.order_id = scoped_i.order_id
+                                                  WHERE (
+                                                        scoped_i.order_id = f.order_id
+                                                        OR (
+                                                            f.attachment_scope = 'SHARED'
+                                                            AND scoped_order.group_id = f.case_group_id
+                                                        )
+                                                    )
                                                     AND scoped_n.assigned_user_id = :userId
                                               )
                                           )
                                           OR (
-                                              f.order_id IS NOT NULL
+                                              (f.order_id IS NOT NULL OR f.case_group_id IS NOT NULL)
                                               AND EXISTS (
                                                   SELECT 1
                                                   FROM design_task scoped_design
-                                                  WHERE scoped_design.order_id = f.order_id
+                                                  JOIN orders scoped_order
+                                                    ON scoped_order.order_id = scoped_design.order_id
+                                                  WHERE (
+                                                        scoped_design.order_id = f.order_id
+                                                        OR (
+                                                            f.attachment_scope = 'SHARED'
+                                                            AND scoped_order.group_id = f.case_group_id
+                                                        )
+                                                    )
                                                     AND scoped_design.assigned_user_id = :userId
                                               )
                                           )
@@ -926,20 +932,6 @@ public class FileResourceService {
                                                   WHERE review_file.file_id = f.file_id
                                                     AND review_draft.order_id = f.order_id
                                                     AND review_draft.submitted_at IS NOT NULL
-                                              )
-                                          )
-                                          OR (
-                                              :productionReviewer = 1
-                                              AND f.order_id IS NOT NULL
-                                              AND EXISTS (
-                                                  SELECT 1
-                                                  FROM order_process_instance review_instance
-                                                  JOIN order_process_node review_node
-                                                    ON review_node.instance_id = review_instance.instance_id
-                                                  WHERE review_instance.order_id = f.order_id
-                                                    AND review_instance.instance_status = 'ACTIVE'
-                                                    AND review_node.node_status = 'READY'
-                                                    AND review_node.assigned_user_id IS NULL
                                               )
                                           )
                                       ))
@@ -975,12 +967,6 @@ public class FileResourceService {
                                             && identity.hasPermission("design-draft:internal-review")
                                     ? 1
                                     : 0)
-                    .param(
-                            "productionReviewer",
-                            ("PREVIEW".equals(action) || "DOWNLOAD".equals(action))
-                                            && accessControlService.canReviewProduction(identity)
-                                    ? 1
-                                    : 0)
                     .param("csActor", identity.role() == UserRole.CS ? 1 : 0)
                     .param(
                             "csDesignRead",
@@ -993,6 +979,7 @@ public class FileResourceService {
                     .query((rs, rowNum) -> new FileRow(
                             rs.getLong("file_id"),
                             rs.getObject("order_id", Long.class),
+                            rs.getObject("case_group_id", Long.class),
                             rs.getObject("owner_user_id", Long.class),
                             rs.getString("source_type"),
                             rs.getString("visibility"),
@@ -1086,12 +1073,13 @@ public class FileResourceService {
         return normalizeCode(value);
     }
 
-    private record OrderScope(long orderId, long clinicId, Long doctorUserId) {
+    private record OrderScope(long orderId, Long groupId, long clinicId, Long doctorUserId) {
     }
 
     private record FileRow(
             long fileId,
             Long orderId,
+            Long caseGroupId,
             Long ownerUserId,
             String sourceType,
             String visibility,

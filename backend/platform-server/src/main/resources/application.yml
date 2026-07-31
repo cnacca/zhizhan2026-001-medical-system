@@ -43,13 +43,17 @@ app:
     upload-url-ttl-seconds: ${FILE_UPLOAD_URL_TTL_SECONDS:900}
     preview-url-ttl-seconds: ${FILE_PREVIEW_URL_TTL_SECONDS:900}
     download-url-ttl-seconds: ${FILE_DOWNLOAD_URL_TTL_SECONDS:7200}
-    max-file-size-bytes: ${FILE_MAX_FILE_SIZE_BYTES:209715200}
+    max-file-size-bytes: ${FILE_MAX_FILE_SIZE_BYTES:524288000}
     allowed-content-types: ${FILE_ALLOWED_CONTENT_TYPES:application/pdf,model/stl,application/sla,application/octet-stream,text/plain,image/png,image/jpeg,application/zip,application/x-zip-compressed}
     max-files-per-order: ${FILE_MAX_FILES_PER_ORDER:30}
   notification:
     instance-id: ${APP_INSTANCE_ID:${random.uuid}}
     redis-broadcast-enabled: ${NOTIFICATION_REDIS_BROADCAST_ENABLED:false}
     redis-channel: ${NOTIFICATION_REDIS_CHANNEL:ai-order:notifications}
+  workflow:
+    standard-time:
+      # 客户正式标准工时尚未提供。关闭时仅保留草稿维护底座，不生成 SLA 或绩效口径。
+      formal-enabled: ${WORKFLOW_STANDARD_TIME_FORMAL_ENABLED:false}
   ai:
     provider: ${AI_PROVIDER:deterministic}
     max-requests-per-user-hour: ${AI_MAX_REQUESTS_PER_USER_HOUR:120}

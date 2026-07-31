@@ -181,10 +181,18 @@ async function loadPerformance() {
       const stats = await request<Row>(`/performance?user_id=${staff.user_id}`)
       return {
         staff,
-        stats: {
-          ...stats,
-          performance_formula_version: stats.performance_formula_version ? '当前绩效参考口径' : null
-        },
+        stats: stats.performance_formula_version === 'STANDARD_TIME_PENDING'
+          ? {
+              ...stats,
+              standard_time_pending: true,
+              standard_duration: null,
+              standard_coverage_rate: null,
+              on_time_rate: null,
+              duration_efficiency: null,
+              performance_score: null,
+              performance_formula_version: '待客户提供正式标准工时'
+            }
+          : { ...stats, standard_time_pending: false },
         failed: false
       }
     } catch {
@@ -917,7 +925,7 @@ defineExpose({ refresh, openQualitySettings })
     </template>
 
     <template v-else-if="activeRoute === '/performance'">
-      <div class="arp-table-card arp-fill-card"><div class="arp-toolbar"><label class="arp-search"><span>⌕</span><input v-model="keyword" placeholder="搜索员工、账号或部门"></label><button @click="refresh">刷新</button><button @click="clearFilters">清空</button><em>当前比较 {{ filteredPerformance.length }} 人</em></div><div class="arp-table-scroll"><table class="arp-wide arp-performance-table"><thead><tr><th>员工</th><th>完成工序</th><th>有效 / 标准工时</th><th>标准覆盖率</th><th>准时率</th><th>通过率</th><th>工时效率</th><th>生产责任返工</th><th>未归因返工</th><th>绩效参考分</th><th>操作</th></tr></thead><tbody><tr v-for="row in pagedRows" :key="row.staff.user_id" @click="openPerformance(row)"><td><span class="arp-person-avatar">{{ (row.staff.display_name || row.staff.username || '员').slice(0, 1) }}</span><strong>{{ row.staff.display_name || row.staff.username }}</strong><small>{{ row.staff.department_name || '部门暂未记录' }} · {{ row.staff.post_names?.join(' / ') || '岗位暂未记录' }}</small></td><template v-if="!row.failed"><td>{{ row.stats.completed_count }}</td><td>{{ row.stats.effective_duration }} / {{ row.stats.standard_duration }} 分钟</td><td>{{ row.stats.standard_coverage_rate }}%</td><td>{{ row.stats.on_time_rate }}%</td><td>{{ row.stats.pass_rate }}%</td><td>{{ row.stats.duration_efficiency }}%</td><td>{{ row.stats.responsible_rework_count }}</td><td>{{ row.stats.unclassified_rework_count }}</td><td><strong class="arp-score">{{ row.stats.performance_score }}</strong><small>仅供绩效分析</small></td></template><template v-else><td colspan="9"><span class="arp-row-failed">该员工数据暂时无法加载</span></td></template><td><button @click.stop="openPerformance(row)">查看</button></td></tr></tbody></table></div><footer class="arp-pagination"><span>只使用当前可见员工与真实绩效结果</span><div><button :disabled="page <= 1" @click="page--">上一页</button><b>{{ page }}</b><button :disabled="page >= pageCount" @click="page++">下一页</button></div></footer></div>
+      <div class="arp-table-card arp-fill-card"><div class="arp-toolbar"><label class="arp-search"><span>⌕</span><input v-model="keyword" placeholder="搜索员工、账号或部门"></label><button @click="refresh">刷新</button><button @click="clearFilters">清空</button><em>当前比较 {{ filteredPerformance.length }} 人</em></div><div class="arp-table-scroll"><table class="arp-wide arp-performance-table"><thead><tr><th>员工</th><th>完成工序</th><th>有效 / 标准工时</th><th>标准覆盖率</th><th>准时率</th><th>通过率</th><th>工时效率</th><th>生产责任返工</th><th>未归因返工</th><th>绩效参考分</th><th>操作</th></tr></thead><tbody><tr v-for="row in pagedRows" :key="row.staff.user_id" @click="openPerformance(row)"><td><span class="arp-person-avatar">{{ (row.staff.display_name || row.staff.username || '员').slice(0, 1) }}</span><strong>{{ row.staff.display_name || row.staff.username }}</strong><small>{{ row.staff.department_name || '部门暂未记录' }} · {{ row.staff.post_names?.join(' / ') || '岗位暂未记录' }}</small></td><template v-if="!row.failed"><td>{{ row.stats.completed_count }}</td><td>{{ row.stats.effective_duration }} / {{ row.stats.standard_time_pending ? '—' : row.stats.standard_duration }} 分钟</td><td>{{ row.stats.standard_time_pending ? '待数据' : `${row.stats.standard_coverage_rate}%` }}</td><td>{{ row.stats.standard_time_pending ? '待数据' : `${row.stats.on_time_rate}%` }}</td><td>{{ row.stats.pass_rate }}%</td><td>{{ row.stats.standard_time_pending ? '待数据' : `${row.stats.duration_efficiency}%` }}</td><td>{{ row.stats.responsible_rework_count }}</td><td>{{ row.stats.unclassified_rework_count }}</td><td><strong class="arp-score">{{ row.stats.standard_time_pending ? '—' : row.stats.performance_score }}</strong><small>{{ row.stats.standard_time_pending ? '正式口径未启用' : '仅供绩效分析' }}</small></td></template><template v-else><td colspan="9"><span class="arp-row-failed">该员工数据暂时无法加载</span></td></template><td><button @click.stop="openPerformance(row)">查看</button></td></tr></tbody></table></div><footer><span>客户正式标准工时未启用时，标准工时、准时率、效率和绩效分均不参与计算。</span></footer><footer class="arp-pagination"><span>只使用当前可见员工与真实绩效结果</span><div><button :disabled="page <= 1" @click="page--">上一页</button><b>{{ page }}</b><button :disabled="page >= pageCount" @click="page++">下一页</button></div></footer></div>
     </template>
 
     <template v-else-if="['/production/devices', '/production/material-exceptions', '/production/safety-environment', '/production/cost-management'].includes(activeRoute)">

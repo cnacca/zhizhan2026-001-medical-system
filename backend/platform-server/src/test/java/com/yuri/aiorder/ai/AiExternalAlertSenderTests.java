@@ -302,7 +302,8 @@ class AiExternalAlertSenderTests {
                         SET alerts.send_status = 'SENT',
                             alerts.last_error = NULL
                         WHERE (c.clinic_name LIKE '外部告警发送器测试诊所-%'
-                               OR c.clinic_name LIKE 'AI测试诊所-%')
+                               OR c.clinic_name LIKE 'AI测试诊所-%'
+                               OR c.clinic_name LIKE 'DeepSeek测试诊所-%')
                           AND alerts.send_status IN ('PENDING', 'SENDING')
                         """)
                 .update();

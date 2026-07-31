@@ -1,5 +1,6 @@
 package com.yuri.aiorder.order.api;
 
+import com.fasterxml.jackson.annotation.JsonAlias;
 import com.fasterxml.jackson.annotation.JsonProperty;
 import com.fasterxml.jackson.databind.JsonNode;
 import jakarta.validation.constraints.NotBlank;
@@ -11,5 +12,5 @@ public record CreateOrderRequest(
         @JsonProperty("product_type") @NotBlank String productType,
         @JsonProperty("form_data") @NotNull JsonNode formData,
         @JsonProperty("file_ids") List<Long> fileIds,
-        @JsonProperty("is_draft") Boolean draft) {
+        @JsonProperty("is_draft") @JsonAlias("draft") Boolean draft) {
 }

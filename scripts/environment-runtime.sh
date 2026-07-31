@@ -213,6 +213,7 @@ stop_selected() {
 start_selected() {
   [[ "$TARGET" == local || "$TARGET" == all ]] && start_local
   [[ "$TARGET" == demo || "$TARGET" == all ]] && start_demo
+  return 0
 }
 
 open_url() {
@@ -233,6 +234,7 @@ open_selected() {
   printf '\n页面已打开：\n'
   [[ "$TARGET" == local || "$TARGET" == all ]] && printf '  标准本地：%s\n' "$LOCAL_FRONTEND_URL"
   [[ "$TARGET" == demo || "$TARGET" == all ]] && printf '  演示环境：%s\n' "$DEMO_FRONTEND_URL"
+  return 0
 }
 
 ensure_host_tools

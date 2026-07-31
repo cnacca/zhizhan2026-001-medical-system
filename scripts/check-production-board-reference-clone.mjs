@@ -11,7 +11,6 @@ const files = {
 const required = [
   [files.app, 'App.vue', 'stage_name: string | null'],
   [files.app, 'App.vue', 'const productionBoardStageDefinitions'],
-  [files.app, 'App.vue', "title: '待生产审核'"],
   [files.app, 'App.vue', "title: '待派工'"],
   [files.app, 'App.vue', "title: 'CAD审核/扫描'"],
   [files.app, 'App.vue', "title: '石膏'"],
@@ -41,8 +40,10 @@ const required = [
   [files.app, 'App.vue', 'productionBoardVisibleOrderIds'],
   [files.app, 'App.vue', 'function isProductionBoardWaitingDispatch(card: ProductionKanbanCard)'],
   [files.app, 'App.vue', 'return isProductionBoardWaitingDispatch(card)'],
-  [files.app, 'App.vue', "if (status === 'PENDING_PRODUCTION_REVIEW') return '待生产审核'"],
-  [files.app, 'App.vue', "? '等待生产审核'"],
+  [files.app, 'App.vue', 'unfinishedCount: cards.length - completedCards.length'],
+  [files.app, 'App.vue', "overdueCount: cards.filter((card) => card.risk === 'overdue').length"],
+  [files.app, 'App.vue', 'async function selectProductionBoardStage(key: string)'],
+  [files.app, 'App.vue', "@click=\"selectProductionBoardStage(summary.key)\""],
   [files.app, 'App.vue', "? '尚未派工'"],
   [files.app, 'App.vue', 'factory-order-note-text'],
   [files.app, 'App.vue', "timeZone: 'Asia/Shanghai'"],
@@ -90,6 +91,28 @@ if (files.app.includes("title: '工序待同步'") || files.app.includes("title:
 
 if (files.app.includes("['PENDING_PRODUCTION_REVIEW', 'PROCESS_INSTANCE_CREATED'].includes(status)) return 'CAD审核/扫描'")) {
   failures.push('App.vue still places pre-production queues in the CAD审核/扫描 column')
+}
+
+const removedProductionReviewBoardFragments = [
+  "key: 'queue-production-review'",
+  "key: 'review', label: '待生产审核'",
+  "if (status === 'PENDING_PRODUCTION_REVIEW') return '待生产审核'",
+  "label: '待生产审核', value: 'PENDING_PRODUCTION_REVIEW'",
+  'openProductionReviewFromBoard',
+]
+for (const fragment of removedProductionReviewBoardFragments) {
+  if (files.app.includes(fragment)) {
+    failures.push(`App.vue still exposes pending production review in the production portal: ${fragment}`)
+  }
+}
+
+if (files.service.includes('loadPendingProductionReviewKanbanVisibility')) {
+  failures.push('WorkflowRuntimeService still exposes pending production review through the production Kanban API')
+}
+
+if (files.app.includes('unfinishedCount: metric?.unfinished_count')
+    || files.app.includes('overdueCount: metric?.overdue_count')) {
+  failures.push('App.vue still mixes backend stage metrics with the visible production board columns')
 }
 
 const activeNodeMarkerCondition = "productionBoardSelectedCard?.node?.node_instance_id === node.node_instance_id && node.node_status === 'IN_PROGRESS'"
