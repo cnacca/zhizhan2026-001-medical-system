@@ -3023,6 +3023,46 @@
           ]
         },
         {
+          "id": "clear-aligner-catalog-d182",
+          "type": "required_text",
+          "paths": [
+            "backend/platform-server/src/main/resources/db/migration/V76__publish_braceless_clear_aligner_catalog.sql"
+          ],
+          "patterns": [
+            "D-182",
+            "CLEAR_ALIGNER_BRACELESS",
+            "无托槽隐形矫治器",
+            "FULL",
+            "UPPER",
+            "LOWER",
+            "REGULAR",
+            "COMBINED"
+          ]
+        },
+        {
+          "id": "clear-aligner-doctor-wizard-d182",
+          "type": "required_text",
+          "paths": [
+            "frontend/src/doctor/DoctorCaseGroupWizard.vue"
+          ],
+          "patterns": [
+            "DoctorOrthodonticPrescription",
+            "orthodonticPrescriptionReady"
+          ]
+        },
+        {
+          "id": "clear-aligner-seven-step-options-d182",
+          "type": "required_text",
+          "paths": [
+            "frontend/src/doctor/DoctorOrthodonticPrescription.vue"
+          ],
+          "patterns": [
+            "CLEAR_ALIGNER_ARCH_OPTIONS",
+            "CLEAR_ALIGNER_TREATMENT_OPTIONS",
+            "treatmentSelectionChange"
+          ]
+        },
+        {
           "id": "product-ordering-v2-approved-baseline",
           "type": "required_text",
           "paths": [

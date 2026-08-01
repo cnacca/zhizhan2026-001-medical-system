@@ -148,12 +148,13 @@ assert(
     !baseline.products.some((item) => /lucitone/i.test(item.display_name)),
   "Lucitone 199 必须作为材料品牌/规格，不能成为成品 SKU",
 );
-const clearAlignerTypeA = baseline.products.find(
-  (item) => item.code === "CLEAR_ALIGNER_TYPE_A",
+const bracelessClearAligner = baseline.products.find(
+  (item) => item.code === "CLEAR_ALIGNER_BRACELESS",
 );
 assert(
-  clearAlignerTypeA?.enabled_by_configuration === true,
-  "隐形正畸 A 型必须由配置启用，不能写死在页面",
+  bracelessClearAligner?.enabled_by_configuration === true &&
+    bracelessClearAligner?.display_name === "无托槽隐形矫治器",
+  "无托槽隐形矫治器必须来自已核对配置，不能继续使用 A 型占位名称",
 );
 assert(
   ["TOOTH_SHADE", "GINGIVAL_SHADE", "DENTURE_BASE_SHADE", "ALIGNER_COLOR"].every(
@@ -204,6 +205,10 @@ const requiredImplementationTexts = [
   {
     file: "backend/platform-server/src/main/resources/db/migration/V73__publish_confirmed_customer_product_catalog.sql",
     patterns: ["客户产品目录首版", "FIXED_PRINTED_ZIRCONIA_CROWN", "PENDING_QUOTE", "CLEAR_ALIGNER_TYPE_A", "INACTIVE"],
+  },
+  {
+    file: "backend/platform-server/src/main/resources/db/migration/V76__publish_braceless_clear_aligner_catalog.sql",
+    patterns: ["无托槽隐形矫治器", "CLEAR_ALIGNER_BRACELESS", "FULL", "UPPER", "LOWER", "REGULAR", "COMBINED", "SOURCE_CORRECTION"],
   },
   {
     file: "backend/platform-server/src/main/resources/db/migration/V63__workflow_standard_time_versioning.sql",
@@ -324,7 +329,10 @@ const requiredImplementationTexts = [
       "catalog?.publication_status !== 'ACTIVE'",
       "case-fdi-tooth-chart",
       "case-dental-svg",
-      "item.category_code !== 'CLEAR_ALIGNER'",
+      "DoctorOrthodonticPrescription",
+      "case-clear-aligner-arch",
+      "case-clear-aligner-mode",
+      "orthodonticPrescriptionReady",
       "选择产品大类和具体产品（均支持多选）",
       "function productSelected",
       "function toothClick",
@@ -366,9 +374,9 @@ for (const { file, patterns } of requiredImplementationTexts) {
 
 const doctorCaseGroupWizard = read("frontend/src/doctor/DoctorCaseGroupWizard.vue");
 assert(
-  !doctorCaseGroupWizard.includes("DoctorOrthodonticPrescription") &&
-    !doctorCaseGroupWizard.includes("七步"),
-  "客户尚未提供隐形正畸专项步骤，不得把七步处方设为医生下单门禁",
+  doctorCaseGroupWizard.includes("DoctorOrthodonticPrescription") &&
+    doctorCaseGroupWizard.includes("orthodonticPrescriptionReady"),
+  "按 D-182 开放隐形正畸后，医生下单必须接通既有七步处方门禁",
 );
 
 const adminConfigurationTemplate = read("frontend/src/components/AdminConfigurationCenter.vue")
@@ -389,5 +397,5 @@ for (const forbiddenText of [
 }
 
 console.log(
-  `[product-ordering-v2] PASS: ${baseline.categories.length} 分类、${baseline.products.length} 产品、${baseline.materials.length} 材料、${baseline.accessories.length} 配件、${baseline.supplemental_orthodontic_terms.length} 正畸补充术语；资料基线、D-174～D-181、V60～V75、分类安全删除、真实目录默认视图、一键开始编辑、业务化文案、隔离写入门禁与工序工时边界已对齐。`,
+  `[product-ordering-v2] PASS: ${baseline.categories.length} 分类、${baseline.products.length} 产品、${baseline.materials.length} 材料、${baseline.accessories.length} 配件、${baseline.supplemental_orthodontic_terms.length} 正畸补充术语；资料基线、D-174～D-182、V60～V76、分类安全删除、真实目录默认视图、一键开始编辑、业务化文案、隐形正畸下单、隔离写入门禁与工序工时边界已对齐。`,
 );

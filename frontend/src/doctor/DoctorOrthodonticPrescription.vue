@@ -1,6 +1,10 @@
 <script setup lang="ts">
 import { ElMessage } from 'element-plus'
 import { computed, onMounted, reactive, ref } from 'vue'
+import {
+  CLEAR_ALIGNER_ARCH_OPTIONS,
+  CLEAR_ALIGNER_TREATMENT_OPTIONS
+} from './customerOrderSourceSpec'
 
 type ApiResponse<T> = { data: T }
 type AlignerType = { code: string; name: string }
@@ -20,10 +24,14 @@ const props = defineProps<{
   orderId: number
   alignerTypes: AlignerType[]
   relatedOrders: RelatedOrder[]
+  initialTreatmentArch?: string
+  initialTreatmentMode?: string
+  initialRecords?: Partial<Record<'facial_photos' | 'intraoral_photos' | 'panoramic' | 'cephalometric' | 'upper_model' | 'lower_model' | 'bite_model', string>>
 }>()
 const emit = defineEmits<{
   ready: [ready: boolean]
   alignerTypeChange: [code: string]
+  treatmentSelectionChange: [selection: { treatment_arch: string; treatment_mode: string }]
 }>()
 
 const sectionLabels = [
@@ -67,6 +75,8 @@ const form = reactive({
     diagnostic_teeth: ''
   },
   appliance_and_combination: {
+    treatment_arch: props.initialTreatmentArch ?? '',
+    treatment_mode: props.initialTreatmentMode ?? '',
     appliance_note: '',
     combination_note: ''
   },
@@ -90,10 +100,13 @@ const form = reactive({
 const canSubmit = computed(() =>
   Boolean(
     alignerTypeCode.value
+    && form.appliance_and_combination.treatment_arch
+    && form.appliance_and_combination.treatment_mode
+    && (form.appliance_and_combination.treatment_mode !== 'COMBINED' || combinedOrderId.value)
     && form.basic_information.chief_concern.trim()
     && form.basic_information.treatment_goal.trim()
-    && form.records_and_models.upper_model.trim()
-    && form.records_and_models.lower_model.trim()
+    && (form.appliance_and_combination.treatment_arch === 'LOWER' || form.records_and_models.upper_model.trim())
+    && (form.appliance_and_combination.treatment_arch === 'UPPER' || form.records_and_models.lower_model.trim())
     && form.clinical_diagnosis.diagnostic_teeth.trim()
     && form.tooth_targets.target_teeth.trim()
     && totalSteps.value
@@ -101,6 +114,25 @@ const canSubmit = computed(() =>
     && form.preview_and_submission.doctor_confirmation
   )
 )
+
+function emitTreatmentSelection() {
+  if (form.appliance_and_combination.treatment_mode !== 'COMBINED') {
+    combinedOrderId.value = null
+  }
+  emit('treatmentSelectionChange', {
+    treatment_arch: form.appliance_and_combination.treatment_arch,
+    treatment_mode: form.appliance_and_combination.treatment_mode
+  })
+}
+
+function applyInitialRecords() {
+  const initial = props.initialRecords ?? {}
+  Object.entries(initial).forEach(([key, value]) => {
+    if (value && key in form.records_and_models && !form.records_and_models[key as keyof typeof form.records_and_models]) {
+      form.records_and_models[key as keyof typeof form.records_and_models] = value
+    }
+  })
+}
 
 async function api<T>(path: string, options: RequestInit = {}) {
   const response = await fetch(path, {
@@ -143,6 +175,7 @@ function textValue(value: unknown) {
 
 async function load() {
   try {
+    applyInitialRecords()
     const data = await api<OrthodonticCase>(`/orders/${props.orderId}/orthodontic-case`)
     alignerTypeCode.value = data.aligner_type_code || props.alignerTypes[0]?.code || ''
     if (alignerTypeCode.value) emit('alignerTypeChange', alignerTypeCode.value)
@@ -176,7 +209,9 @@ async function load() {
       form.tooth_targets.target_teeth = textValue(
         (prescription.tooth_targets as Record<string, any> | undefined)?.target_teeth
       )
+      applyInitialRecords()
     }
+    emitTreatmentSelection()
     emit('ready', caseStatus.value === 'PRESCRIPTION_SUBMITTED')
   } catch (cause) {
     ElMessage.error(cause instanceof Error ? cause.message : '正畸处方加载失败')
@@ -286,8 +321,10 @@ onMounted(load)
       <label class="full"><span>诊断牙位 *</span><input v-model="form.clinical_diagnosis.diagnostic_teeth" placeholder="FDI 牙位用逗号分隔"></label>
     </div>
     <div v-else-if="section === 4" class="ortho-fields">
-      <label><span>矫治器类型 *</span><select v-model="alignerTypeCode" @change="emit('alignerTypeChange', alignerTypeCode)"><option v-for="item in alignerTypes" :key="item.code" :value="item.code">{{ item.name }}</option></select></label>
-      <label><span>联合矫治子订单</span><select v-model.number="combinedOrderId"><option :value="null">不联合</option><option v-for="item in relatedOrders" :key="item.order_id" :value="item.order_id">{{ item.product_name }} · {{ item.order_no }}</option></select></label>
+      <label><span>矫治牙颌 *</span><select v-model="form.appliance_and_combination.treatment_arch" data-testid="orthodontic-treatment-arch" @change="emitTreatmentSelection"><option value="">请选择</option><option v-for="item in CLEAR_ALIGNER_ARCH_OPTIONS" :key="item.value" :value="item.value">{{ item.label }}</option></select></label>
+      <label><span>矫治方式 *</span><select v-model="form.appliance_and_combination.treatment_mode" data-testid="orthodontic-treatment-mode" @change="emitTreatmentSelection"><option value="">请选择</option><option v-for="item in CLEAR_ALIGNER_TREATMENT_OPTIONS" :key="item.value" :value="item.value">{{ item.label }}</option></select></label>
+      <label><span>矫治器类型 *</span><select v-model="alignerTypeCode" data-testid="orthodontic-aligner-type" @change="emit('alignerTypeChange', alignerTypeCode)"><option v-for="item in alignerTypes" :key="item.code" :value="item.code">{{ item.name }}</option></select></label>
+      <label v-if="form.appliance_and_combination.treatment_mode === 'COMBINED'"><span>联合矫治子订单 *</span><select v-model.number="combinedOrderId"><option :value="null">请选择同一病例中的产品</option><option v-for="item in relatedOrders" :key="item.order_id" :value="item.order_id">{{ item.product_name }} · {{ item.order_no }}</option></select></label>
       <label><span>矫治器说明</span><textarea v-model="form.appliance_and_combination.appliance_note" rows="3"></textarea></label>
       <label><span>联合矫治说明</span><textarea v-model="form.appliance_and_combination.combination_note" rows="3"></textarea></label>
     </div>
@@ -306,6 +343,8 @@ onMounted(load)
     <div v-else class="ortho-review">
       <dl>
         <div><dt>矫治器类型</dt><dd>{{ alignerTypes.find((item) => item.code === alignerTypeCode)?.name || alignerTypeCode }}</dd></div>
+        <div><dt>矫治牙颌</dt><dd>{{ CLEAR_ALIGNER_ARCH_OPTIONS.find((item) => item.value === form.appliance_and_combination.treatment_arch)?.label || '未选择' }}</dd></div>
+        <div><dt>矫治方式</dt><dd>{{ CLEAR_ALIGNER_TREATMENT_OPTIONS.find((item) => item.value === form.appliance_and_combination.treatment_mode)?.label || '未选择' }}</dd></div>
         <div><dt>总步数</dt><dd>{{ totalSteps || '未填写' }}</dd></div>
         <div><dt>诊断牙位</dt><dd>{{ form.clinical_diagnosis.diagnostic_teeth || '未填写' }}</dd></div>
         <div><dt>目标牙位</dt><dd>{{ form.tooth_targets.target_teeth || '未填写' }}</dd></div>

@@ -55,6 +55,57 @@ class ProductCatalogV2Tests {
     }
 
     @Test
+    void migratedCatalogPublishesConfirmedClearAlignerAndKeepsPlaceholderInactive() {
+        long confirmedProducts = jdbcClient.sql("""
+                        SELECT COUNT(*)
+                        FROM catalog_product_v2 product
+                        JOIN catalog_config_version version
+                          ON version.config_version_id = product.config_version_id
+                        WHERE version.version_name = '隐形正畸正式产品目录 2026-08-01'
+                          AND product.product_code = 'CLEAR_ALIGNER_BRACELESS'
+                          AND product.display_name = '无托槽隐形矫治器'
+                          AND product.status = 'ACTIVE'
+                          AND product.pricing_status = 'PENDING_QUOTE'
+                        """)
+                .query(Long.class)
+                .single();
+        long enabledRules = jdbcClient.sql("""
+                        SELECT COUNT(*)
+                        FROM catalog_rule_v2 rule
+                        JOIN catalog_product_v2 product ON product.product_id = rule.product_id
+                        JOIN catalog_config_version version
+                          ON version.config_version_id = product.config_version_id
+                        WHERE version.version_name = '隐形正畸正式产品目录 2026-08-01'
+                          AND product.product_code = 'CLEAR_ALIGNER_BRACELESS'
+                          AND rule.rule_type = 'WORKFLOW'
+                          AND JSON_SEARCH(
+                              rule.rule_schema_json,
+                              'one',
+                              'CLEAR_ALIGNER_BRACELESS',
+                              NULL,
+                              '$.aligner_types[*].code'
+                          ) IS NOT NULL
+                        """)
+                .query(Long.class)
+                .single();
+        long activePlaceholders = jdbcClient.sql("""
+                        SELECT COUNT(*)
+                        FROM catalog_product_v2 product
+                        JOIN catalog_config_version version
+                          ON version.config_version_id = product.config_version_id
+                        WHERE version.version_name = '隐形正畸正式产品目录 2026-08-01'
+                          AND product.product_code = 'CLEAR_ALIGNER_TYPE_A'
+                          AND product.status = 'ACTIVE'
+                        """)
+                .query(Long.class)
+                .single();
+
+        org.assertj.core.api.Assertions.assertThat(confirmedProducts).isEqualTo(1L);
+        org.assertj.core.api.Assertions.assertThat(enabledRules).isEqualTo(1L);
+        org.assertj.core.api.Assertions.assertThat(activePlaceholders).isZero();
+    }
+
+    @Test
     void adminCanMaintainBindPreviewPublishAndPublishedVersionIsImmutable() throws Exception {
         createCategory();
         long categoryId = categoryId();

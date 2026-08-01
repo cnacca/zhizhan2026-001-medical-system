@@ -749,13 +749,14 @@
       "status": "ACTIVE_CANDIDATE"
     },
     {
-      "code": "CLEAR_ALIGNER_TYPE_A",
-      "display_name": "隐形正畸 A 型",
+      "code": "CLEAR_ALIGNER_BRACELESS",
+      "display_name": "无托槽隐形矫治器",
       "category_code": "CLEAR_ALIGNER",
       "workflow_product_type": "ORTHODONTICS",
       "tooth_rule_code": "TOOTH_CLEAR_ALIGNER",
       "status": "ACTIVE_CANDIDATE",
-      "enabled_by_configuration": true
+      "enabled_by_configuration": true,
+      "source_document": "家红-正畸平台-医生端操作文档.docx"
     },
     {
       "code": "DESIGN_FULL_CROWN",

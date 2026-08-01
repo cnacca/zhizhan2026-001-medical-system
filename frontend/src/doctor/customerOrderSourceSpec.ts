@@ -4,8 +4,9 @@
  * 来源仅限：
  * - 《动态下单表最终版.docx》
  * - 《产品内容.doc》
+ * - 《家红-正畸平台-医生端操作文档.docx》（仅隐形正畸专项选项）
  *
- * 价格、标准工时和隐形正畸专项字段未在上述文件中确认，因此不在这里补演示值。
+ * 价格和标准工时未在上述文件中确认，因此不在这里补演示值。
  */
 
 export type SourceUploadRule = {
@@ -32,6 +33,19 @@ export const CATEGORY_NAMES: Record<string, string> = {
   CLEAR_ALIGNER: '隐形正畸',
   DESIGN_SERVICE: '设计服务'
 }
+
+export const CLEAR_ALIGNER_PRODUCT_CODE = 'CLEAR_ALIGNER_BRACELESS'
+
+export const CLEAR_ALIGNER_ARCH_OPTIONS = [
+  { value: 'FULL', label: '全颌' },
+  { value: 'UPPER', label: '上颌' },
+  { value: 'LOWER', label: '下颌' }
+] as const
+
+export const CLEAR_ALIGNER_TREATMENT_OPTIONS = [
+  { value: 'REGULAR', label: '常规矫治' },
+  { value: 'COMBINED', label: '联合矫治' }
+] as const
 
 export const ORTHODONTIC_PRODUCT_GROUPS = [
   {
@@ -234,6 +248,15 @@ export const UPLOAD_RULES: Record<string, SourceUploadRule[]> = {
     { code: 'panoramic', label: '全景片', required: true, accept: '.jpg,.jpeg,.png,.pdf,.dcm,.dicom' },
     { code: 'cephalometric', label: '头颅侧位片', required: true, accept: '.jpg,.jpeg,.png,.pdf,.dcm,.dicom' },
     { code: 'treatment_plan', label: '医生矫治方案', required: false, accept: '.pdf,.doc,.docx,.jpg,.jpeg,.png' }
+  ],
+  CLEAR_ALIGNER: [
+    { code: 'upper_model', label: '上颌数字模型', required: false, accept: '.stl,.ply,.obj' },
+    { code: 'lower_model', label: '下颌数字模型', required: false, accept: '.stl,.ply,.obj' },
+    { code: 'bite_model', label: '咬合模型', required: false, accept: '.stl,.ply,.obj' },
+    { code: 'facial_photos', label: '面像照片', required: false, accept: '.jpg,.jpeg,.png,.pdf' },
+    { code: 'intraoral_photos', label: '口内照片', required: false, accept: '.jpg,.jpeg,.png,.pdf' },
+    { code: 'panoramic', label: '全景片', required: false, accept: '.jpg,.jpeg,.png,.pdf,.dcm,.dicom' },
+    { code: 'cephalometric', label: '头颅侧位片', required: false, accept: '.jpg,.jpeg,.png,.pdf,.dcm,.dicom' }
   ],
   DESIGN_SERVICE: [
     { code: 'arch_scan', label: '口扫数据', required: true, accept: '.stl,.ply,.obj' },

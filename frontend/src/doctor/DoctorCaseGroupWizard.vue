@@ -2,8 +2,12 @@
 import { ElMessage, ElMessageBox } from 'element-plus'
 import { computed, onMounted, reactive, ref } from 'vue'
 import type { DoctorFile, DoctorGateway, PatientSummary } from './types/contracts'
+import DoctorOrthodonticPrescription from './DoctorOrthodonticPrescription.vue'
 import {
   CATEGORY_NAMES,
+  CLEAR_ALIGNER_ARCH_OPTIONS,
+  CLEAR_ALIGNER_PRODUCT_CODE,
+  CLEAR_ALIGNER_TREATMENT_OPTIONS,
   CUSTOMER_ORDER_STEPS,
   DENTURE_BASE_SHADES,
   FIXED_PRECISION_ATTACHMENTS,
@@ -286,6 +290,7 @@ const selectedCategoryCode = ref('')
 const selectedOrderId = ref<number | null>(null)
 const notice = ref('')
 const itemFiles = reactive<Record<number, DoctorFile[]>>({})
+const orthodonticPrescriptionReady = reactive<Record<number, boolean>>({})
 const objectFieldDrafts = reactive<Record<string, string>>({})
 const objectFieldErrors = reactive<Record<string, string>>({})
 const sharedFiles = ref<DoctorFile[]>([])
@@ -332,7 +337,6 @@ const patientRows = computed(() => {
 const catalogProducts = computed(() => {
   const keyword = productKeyword.value.trim().toLowerCase()
   return (catalog.value?.products ?? [])
-    .filter((item) => item.category_code !== 'CLEAR_ALIGNER')
     .filter((item) =>
       !keyword || `${item.product_code} ${item.display_name} ${item.category_name}`.toLowerCase().includes(keyword)
     )
@@ -582,6 +586,37 @@ function choosePrimaryMaterial(item: CaseGroupItem, value: string) {
 
 function uploadRules(item: CaseGroupItem): SourceUploadRule[] {
   return UPLOAD_RULES[productCategory(item)] ?? []
+}
+
+function clearAlignerTypes(item: CaseGroupItem) {
+  return [{ code: item.product_code || CLEAR_ALIGNER_PRODUCT_CODE, name: item.product_name }]
+}
+
+function relatedOrders(item: CaseGroupItem) {
+  return (group.value?.items ?? [])
+    .filter((candidate) => candidate.order_id !== item.order_id)
+    .map((candidate) => ({
+      order_id: candidate.order_id,
+      order_no: candidate.order_no,
+      product_name: candidate.product_name
+    }))
+}
+
+function prescriptionInitialRecords(item: CaseGroupItem) {
+  return Object.fromEntries([
+    'facial_photos',
+    'intraoral_photos',
+    'panoramic',
+    'cephalometric',
+    'upper_model',
+    'lower_model',
+    'bite_model'
+  ].map((slot) => [slot, uploadedSlotIds(item, slot).join(',')]))
+}
+
+function updateClearAlignerSelection(item: CaseGroupItem, selection: { treatment_arch: string; treatment_mode: string }) {
+  item.form_values.treatment_arch = selection.treatment_arch
+  item.form_values.treatment_mode = selection.treatment_mode
 }
 
 function uploadedSlotIds(item: CaseGroupItem, slotCode: string) {
@@ -927,6 +962,10 @@ function itemStepErrors(item: CaseGroupItem, targetStep: number) {
       ['skeletal_type', '请选择骨骼类型'],
       ['orthodontic_concern', '请选择诉求问题']
     ],
+    CLEAR_ALIGNER: [
+      ['treatment_arch', '请选择矫治牙颌'],
+      ['treatment_mode', '请选择矫治方式']
+    ],
     DESIGN_SERVICE: [
       ['delivery_format', '请选择交付数据格式'],
       ['design_standard', '请选择设计标准'],
@@ -987,6 +1026,11 @@ function itemStepErrors(item: CaseGroupItem, targetStep: number) {
     && !String(item.form_values.physical_model_tracking_no ?? '').trim()) {
     errors.push('请填写实体模型运单号或配送说明')
   }
+  if (targetStep === 5
+    && product?.category_code === 'CLEAR_ALIGNER'
+    && !orthodonticPrescriptionReady[item.order_id]) {
+    errors.push('请完成并提交隐形正畸七步处方')
+  }
 
   return errors
 }
@@ -1023,6 +1067,9 @@ function toothModeOptions(item: CaseGroupItem) {
       { value: 'ORTHO_AREA', label: '正畸区域' },
       { value: 'BAND', label: '带环牙位' }
     ]
+  }
+  if (category === 'CLEAR_ALIGNER') {
+    return [{ value: 'ORTHO_AREA', label: '目标矫治牙位' }]
   }
   if (category === 'IMPLANT_RESTORATION') {
     return [
@@ -1066,7 +1113,7 @@ function applyToothMode(item: CaseGroupItem, targets: string[], mode: string) {
 function singleClickToothMode(item: CaseGroupItem) {
   const category = productCategory(item)
   if (category === 'REMOVABLE_PROSTHETICS') return 'MISSING'
-  if (category === 'CONVENTIONAL_ORTHODONTICS') return 'ORTHO_AREA'
+  if (['CONVENTIONAL_ORTHODONTICS', 'CLEAR_ALIGNER'].includes(category)) return 'ORTHO_AREA'
   if (category === 'IMPLANT_RESTORATION') {
     const current = currentToothMode(item)
     if (['ABUTMENT', 'FRAMEWORK'].includes(current)) return current
@@ -1077,7 +1124,7 @@ function singleClickToothMode(item: CaseGroupItem) {
 function dragToothMode(item: CaseGroupItem) {
   const category = productCategory(item)
   if (category === 'REMOVABLE_PROSTHETICS') return 'MISSING'
-  if (category === 'CONVENTIONAL_ORTHODONTICS') return 'ORTHO_AREA'
+  if (['CONVENTIONAL_ORTHODONTICS', 'CLEAR_ALIGNER'].includes(category)) return 'ORTHO_AREA'
   return 'BRIDGE'
 }
 
@@ -1132,6 +1179,12 @@ function doubleClickTooth(item: CaseGroupItem, tooth: string) {
     setToothMode(item, tooth, 'BAND')
     return
   }
+  if (category === 'CLEAR_ALIGNER') {
+    const arch = String(item.form_values.treatment_arch ?? '')
+    const targets = arch === 'UPPER' ? upperTeeth : arch === 'LOWER' ? lowerTeeth : [...upperTeeth, ...lowerTeeth]
+    applyToothMode(item, targets, 'ORTHO_AREA')
+    return
+  }
   applyToothMode(item, [...upperTeeth, ...lowerTeeth], 'CROWN')
 }
 
@@ -1176,6 +1229,7 @@ function toothSelectionLabel(item: CaseGroupItem) {
   if (product?.category_code === 'REMOVABLE_PROSTHETICS') return '缺失牙位'
   if (product?.category_code === 'IMPLANT_RESTORATION') return '种植 / 修复牙位'
   if (product?.category_code === 'CONVENTIONAL_ORTHODONTICS') return '正畸涉及牙位'
+  if (product?.category_code === 'CLEAR_ALIGNER') return '隐形正畸目标牙位'
   return '修复牙位'
 }
 
@@ -1183,6 +1237,7 @@ function toothGestureHelp(item: CaseGroupItem) {
   const category = productCategory(item)
   if (category === 'REMOVABLE_PROSTHETICS') return '单击标缺失位，拖拽连续选择缺失位，双击标卡环位'
   if (category === 'CONVENTIONAL_ORTHODONTICS') return '单击或拖拽选择正畸区域，双击标带环牙位'
+  if (category === 'CLEAR_ALIGNER') return '单击或拖拽选择目标牙位，双击按已选牙颌快速选择'
   if (category === 'IMPLANT_RESTORATION') return '单击标单冠，拖拽标桥，双击任意牙位全口选择；可切换基台/桥架后点选对应牙位'
   return '单击标单冠，拖拽标桥，双击任意牙位全口选择'
 }
@@ -1423,8 +1478,7 @@ onMounted(async () => {
             <section v-if="selectedCategoryCode" class="case-sidebar-section case-sidebar-products">
               <header>具体产品 <b>*</b></header>
               <label class="case-sidebar-search"><span>⌕</span><input v-model="productKeyword" placeholder="搜索产品"></label>
-              <div v-if="selectedCategoryCode === 'CLEAR_ALIGNER'" class="case-sidebar-notice">隐形正畸暂未开放在线下单，请联系订单支持。</div>
-              <div v-else class="case-product-subcards">
+              <div class="case-product-subcards">
                 <template v-for="productGroup in selectedProductGroups" :key="productGroup.label || selectedCategoryCode">
                   <h4 v-if="productGroup.label">{{ productGroup.label }}</h4>
                   <button
@@ -1674,6 +1728,11 @@ onMounted(async () => {
                 <label class="case-field"><span>骨骼类型 *</span><select v-model="activeItem.form_values.skeletal_type"><option value="">请选择</option><option value="DENTAL">牙型</option><option value="SKELETAL">骨性</option></select></label>
                 <div class="case-field full"><span>诉求问题 *</span><div class="case-check-grid"><label v-for="value in ['拥挤', '稀疏', '前突', '地包天']" :key="value"><input type="checkbox" :checked="sourceArray(activeItem, 'orthodontic_concern').includes(value)" @change="toggleSourceArray(activeItem, 'orthodontic_concern', value, ($event.target as HTMLInputElement).checked)">{{ value }}</label></div></div>
               </div>
+              <div v-else-if="productCategory(activeItem) === 'CLEAR_ALIGNER'" class="case-field-grid">
+                <label class="case-field"><span>矫治牙颌 *</span><select v-model="activeItem.form_values.treatment_arch" data-testid="case-clear-aligner-arch"><option value="">请选择</option><option v-for="option in CLEAR_ALIGNER_ARCH_OPTIONS" :key="option.value" :value="option.value">{{ option.label }}</option></select></label>
+                <label class="case-field"><span>矫治方式 *</span><select v-model="activeItem.form_values.treatment_mode" data-testid="case-clear-aligner-mode"><option value="">请选择</option><option v-for="option in CLEAR_ALIGNER_TREATMENT_OPTIONS" :key="option.value" :value="option.value">{{ option.label }}</option></select></label>
+                <div class="case-alert info full">七步处方将在“试戴与过程确认”阶段填写；联合矫治时还需选择同一病例中的关联产品。</div>
+              </div>
               <div v-else-if="productCategory(activeItem) === 'DESIGN_SERVICE'" class="case-field-grid">
                 <label class="case-field"><span>数据格式 *</span><select v-model="activeItem.form_values.delivery_format"><option value="">请选择</option><option>STL</option><option>OBJ</option><option>EXO</option><option>3SHAPE</option></select></label>
                 <label class="case-field"><span>设计标准 *</span><select v-model="activeItem.form_values.design_standard"><option value="">请选择</option><option value="GENERAL">通用</option><option value="PERSONALIZED">个性化</option></select></label>
@@ -1882,6 +1941,19 @@ onMounted(async () => {
             </button>
           </aside>
           <section v-if="activeItem" class="case-config-form">
+            <DoctorOrthodonticPrescription
+              v-if="productCategory(activeItem) === 'CLEAR_ALIGNER'"
+              :key="activeItem.order_id"
+              :token="props.token"
+              :order-id="activeItem.order_id"
+              :aligner-types="clearAlignerTypes(activeItem)"
+              :related-orders="relatedOrders(activeItem)"
+              :initial-treatment-arch="String(activeItem.form_values.treatment_arch ?? '')"
+              :initial-treatment-mode="String(activeItem.form_values.treatment_mode ?? '')"
+              :initial-records="prescriptionInitialRecords(activeItem)"
+              @ready="orthodonticPrescriptionReady[activeItem.order_id] = $event"
+              @treatment-selection-change="updateClearAlignerSelection(activeItem, $event)"
+            />
             <label class="case-process-option">
               <input v-model="activeItem.form_values.try_in_required" type="checkbox">
               <div><strong>成品完成前需要试戴</strong><p>试戴后医生可在原订单继续选择完成成品；试戴费用待报价，不预填金额。</p></div>
