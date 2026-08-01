@@ -164,6 +164,85 @@ class ProductCatalogV2Tests {
     }
 
     @Test
+    void previewExposesProductLockAndDraftProductCanBeUpdatedThenDeleted() throws Exception {
+        createCategory();
+        long categoryId = categoryId();
+        createProduct(categoryId, "EDIT_" + suffix, "待修改产品");
+        long productId = productId("EDIT_" + suffix);
+
+        mockMvc.perform(get("/admin/catalog/versions/{versionId}/preview", versionId)
+                        .header("X-Bootstrap-Role", "ADMIN"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.products[0].config_version_id").value(versionId))
+                .andExpect(jsonPath("$.data.products[0].lock_version").value(0));
+
+        mockMvc.perform(put("/admin/catalog/products/{productId}", productId)
+                        .header("X-Bootstrap-Role", "ADMIN")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("""
+                                {
+                                  "display_name":"修改后的产品",
+                                  "workflow_product_type":"REGULAR_CROWN",
+                                  "tooth_rule_code":null,
+                                  "pricing_status":"PENDING_QUOTE",
+                                  "base_price_cents":null,
+                                  "currency":"CNY",
+                                  "sort_order":3,
+                                  "status":"ACTIVE",
+                                  "lock_version":0
+                                }
+                                """))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.display_name").value("修改后的产品"))
+                .andExpect(jsonPath("$.data.lock_version").value(1));
+
+        mockMvc.perform(delete("/admin/catalog/entities/PRODUCT/{productId}", productId)
+                        .header("X-Bootstrap-Role", "ADMIN"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.deleted").value(true));
+    }
+
+    @Test
+    void draftCategoryCanBeUpdatedAndDeletedOnlyWhenItHasNoProducts() throws Exception {
+        createCategory();
+        long emptyCategoryId = categoryId();
+
+        mockMvc.perform(get("/admin/catalog/versions/{versionId}/preview", versionId)
+                        .header("X-Bootstrap-Role", "ADMIN"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.categories[0].config_version_id").value(versionId))
+                .andExpect(jsonPath("$.data.categories[0].lock_version").value(0));
+
+        mockMvc.perform(put("/admin/catalog/entities/CATEGORY/{categoryId}", emptyCategoryId)
+                        .header("X-Bootstrap-Role", "ADMIN")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("""
+                                {
+                                  "display_name":"更新后的分类",
+                                  "sort_order":2,
+                                  "status":"ACTIVE",
+                                  "lock_version":0
+                                }
+                                """))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.display_name").value("更新后的分类"))
+                .andExpect(jsonPath("$.data.lock_version").value(1));
+
+        mockMvc.perform(delete("/admin/catalog/entities/CATEGORY/{categoryId}", emptyCategoryId)
+                        .header("X-Bootstrap-Role", "ADMIN"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.deleted").value(true));
+
+        createCategory();
+        long usedCategoryId = categoryId();
+        createProduct(usedCategoryId, "CATEGORY_USED_" + suffix, "分类引用产品");
+
+        mockMvc.perform(delete("/admin/catalog/entities/CATEGORY/{categoryId}", usedCategoryId)
+                        .header("X-Bootstrap-Role", "ADMIN"))
+                .andExpect(status().isConflict());
+    }
+
+    @Test
     void unauthorizedRolesCannotMaintainCatalogAndBindingRulesAreValidated() throws Exception {
         mockMvc.perform(post("/admin/catalog/versions/{versionId}/materials", versionId)
                         .header("X-Bootstrap-Role", "WORKER")

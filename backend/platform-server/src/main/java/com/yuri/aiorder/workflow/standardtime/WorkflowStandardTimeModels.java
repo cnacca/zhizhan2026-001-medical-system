@@ -47,7 +47,8 @@ public final class WorkflowStandardTimeModels {
             @JsonProperty("version_name") String versionName,
             @JsonProperty("publication_status") String publicationStatus,
             @JsonProperty("effective_at") LocalDateTime effectiveAt,
-            @JsonProperty("lock_version") int lockVersion) {
+            @JsonProperty("lock_version") int lockVersion,
+            @JsonProperty("formal_standard_time_enabled") boolean formalStandardTimeEnabled) {
     }
 
     public record NodeTimeResponse(

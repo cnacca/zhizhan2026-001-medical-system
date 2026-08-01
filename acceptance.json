@@ -3084,6 +3084,246 @@
           ]
         },
         {
+          "id": "admin-configuration-edit-form-readiness-ui",
+          "type": "required_text",
+          "paths": [
+            "frontend/src/components/AdminConfigurationCenter.vue"
+          ],
+          "patterns": [
+            "validId",
+            "catalog-category-name",
+            "catalog-category-create",
+            "请先填写分类名称",
+            "请先选择产品分类",
+            "请先填写产品名称",
+            "field-control"
+          ]
+        },
+        {
+          "id": "admin-configuration-edit-form-readiness-browser",
+          "type": "required_text",
+          "paths": [
+            "scripts/smoke-admin-ordering-configuration.spec.mjs"
+          ],
+          "patterns": [
+            "catalog-category-create",
+            "请先填写分类名称",
+            "请先填写产品名称",
+            "not.toHaveValue('0')"
+          ]
+        },
+        {
+          "id": "admin-category-maintenance-ui",
+          "type": "required_text",
+          "paths": [
+            "frontend/src/components/AdminConfigurationCenter.vue"
+          ],
+          "patterns": [
+            "categoryProductCount",
+            "saveCategory",
+            "toggleCategory",
+            "deleteCategory",
+            "catalog-category-delete",
+            "该分类下还有"
+          ]
+        },
+        {
+          "id": "admin-category-maintenance-backend",
+          "type": "required_text",
+          "paths": [
+            "backend/platform-server/src/main/java/com/yuri/aiorder/catalog/CatalogConfigurationService.java",
+            "backend/platform-server/src/test/java/com/yuri/aiorder/product/ProductCatalogV2Tests.java"
+          ],
+          "patterns": [
+            "config_version_id",
+            "lock_version"
+          ]
+        },
+        {
+          "id": "admin-category-maintenance-browser",
+          "type": "required_text",
+          "paths": [
+            "scripts/smoke-admin-ordering-configuration.spec.mjs"
+          ],
+          "patterns": [
+            "分类名称已更新",
+            "未使用的分类已删除",
+            "category-edit-table"
+          ]
+        },
+        {
+          "id": "admin-configuration-business-copy-docs",
+          "type": "required_text",
+          "paths": [
+            "DECISIONS.md",
+            "STATUS.md",
+            "tasks/README.md"
+          ],
+          "patterns": [
+            "D-180",
+            "一键开始编辑",
+            "后端文字"
+          ]
+        },
+        {
+          "id": "admin-configuration-business-copy-ui",
+          "type": "required_text",
+          "paths": [
+            "frontend/src/components/AdminConfigurationCenter.vue",
+            "scripts/smoke-admin-ordering-configuration.spec.mjs"
+          ],
+          "patterns": [
+            "开始编辑",
+            "工序工时尚未发布"
+          ]
+        },
+        {
+          "id": "workflow-standard-time-draft-entry-docs",
+          "type": "required_text",
+          "paths": [
+            "DECISIONS.md",
+            "STATUS.md",
+            "tasks/README.md"
+          ],
+          "patterns": [
+            "工序工时设置",
+            "DRAFT",
+            "待设置",
+            "NOT_READY"
+          ]
+        },
+        {
+          "id": "workflow-standard-time-draft-entry-migration",
+          "type": "required_text",
+          "paths": [
+            "backend/platform-server/src/main/resources/db/migration/V74__reopen_standard_time_draft_configuration.sql"
+          ],
+          "patterns": [
+            "工序工时设置",
+            "publication_status = 'DRAFT'",
+            "standard_duration_minutes",
+            "status = 'ACTIVE'"
+          ]
+        },
+        {
+          "id": "workflow-standard-time-business-copy-ui",
+          "type": "required_text",
+          "paths": [
+            "frontend/src/components/AdminConfigurationCenter.vue"
+          ],
+          "patterns": [
+            "workflow-standard-time-center",
+            "工序工时尚未发布",
+            "开始编辑",
+            "完善后发布",
+            "formalStandardTimeEnabled",
+            "待填写"
+          ]
+        },
+        {
+          "id": "admin-ordering-real-catalog-default-docs",
+          "type": "required_text",
+          "paths": [
+            "DECISIONS.md",
+            "STATUS.md",
+            "tasks/README.md"
+          ],
+          "patterns": [
+            "D-179",
+            "ACTIVE",
+            "验收假产品",
+            "NOT_READY"
+          ]
+        },
+        {
+          "id": "admin-ordering-real-catalog-default-ui",
+          "type": "required_text",
+          "paths": [
+            "frontend/src/components/AdminConfigurationCenter.vue"
+          ],
+          "patterns": [
+            "publication_status === 'ACTIVE'",
+            "publication_status === 'DRAFT'",
+            "catalog-version-select"
+          ]
+        },
+        {
+          "id": "admin-ordering-isolated-write-smoke",
+          "type": "required_text",
+          "paths": [
+            "scripts/smoke-admin-ordering-configuration.spec.mjs"
+          ],
+          "patterns": [
+            "ADMIN_CONFIG_ALLOW_WRITES",
+            "isolated",
+            "5173",
+            "15173",
+            "15175"
+          ]
+        },
+        {
+          "id": "admin-ordering-content-maintenance-docs",
+          "type": "required_text",
+          "paths": [
+            "DECISIONS.md",
+            "STATUS.md",
+            "tasks/README.md"
+          ],
+          "patterns": [
+            "D-178",
+            "下单内容设置",
+            "产品内容",
+            "材料维护",
+            "适用绑定",
+            "工序工时设置",
+            "NOT_READY"
+          ]
+        },
+        {
+          "id": "admin-ordering-content-maintenance-migration",
+          "type": "required_text",
+          "paths": [
+            "backend/platform-server/src/main/resources/db/migration/V75__expose_ordering_content_configuration.sql"
+          ],
+          "patterns": [
+            "D-178",
+            "下单内容设置",
+            "catalog-configuration-center",
+            "catalog:manage",
+            "status = 'ACTIVE'"
+          ]
+        },
+        {
+          "id": "admin-ordering-content-maintenance-ui",
+          "type": "required_text",
+          "paths": [
+            "frontend/src/components/AdminConfigurationCenter.vue"
+          ],
+          "patterns": [
+            "下单内容配置分区",
+            "产品内容",
+            "材料维护",
+            "适用绑定",
+            "saveProduct",
+            "deleteProduct",
+            "saveMaterial",
+            "34px",
+            "13px"
+          ]
+        },
+        {
+          "id": "admin-ordering-content-maintenance-browser",
+          "type": "required_text",
+          "paths": [
+            "frontend/src/App.vue",
+            "scripts/smoke-admin-ordering-configuration.spec.mjs"
+          ],
+          "patterns": [
+            "下单内容设置",
+            "工序工时设置"
+          ]
+        },
+        {
           "id": "product-ordering-v2-runtime-and-browser-evidence",
           "type": "required_text",
           "paths": [

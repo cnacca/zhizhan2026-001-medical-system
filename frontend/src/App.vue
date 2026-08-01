@@ -2359,7 +2359,8 @@ const displayNavigationConfig: Record<PortalTone, NavigationGroup[]> = {
       title: '系统治理',
       items: [
         { id: 'admin-products', title: '产品总览', description: '只读查看可用产品及其基本业务信息。', icon: 'product', routePath: '/system/form-configs' },
-        { id: 'admin-catalog-center', title: '产品配置中心', description: '维护并发布分类、产品、材料及适用绑定。', icon: 'product', routePath: '/admin/catalog' },
+        { id: 'admin-catalog-center', title: '下单内容设置', description: '维护产品、材料及适用绑定，持续补充下单选项。', icon: 'product', routePath: '/admin/catalog' },
+        { id: 'admin-standard-time', title: '工序工时设置', description: '按现有生产流程填写工序标准分钟并保留草稿。', icon: 'process', routePath: '/admin/workflow/standard-time' },
         { id: 'admin-audit', title: '通知中心', description: '查看当前账号的业务通知和未读提醒。', icon: 'notification', routePath: '/notifications' },
         { id: 'admin-ai', title: '智能服务', description: '查看全平台智能服务运行、用量与预算情况。', icon: 'ai', routePath: '/admin/ai-governance' }
       ]
@@ -4182,8 +4183,8 @@ const routeChrome = computed<RouteChrome>(() => {
       '/production/safety-environment': { title: '安环管理', description: '查看安全巡检、整改事项和环境记录。', icon: 'safety' },
       '/production/cost-management': { title: '成本管控', description: '查看工序、材料、人工、返工和外协费用概览。', icon: 'cost' },
       '/system/form-configs': { title: '产品总览', description: '只读查看可用产品及其基本业务信息。', icon: 'product' },
-      '/admin/catalog': { title: '产品配置中心', description: '持续维护分类、产品、材料、适用绑定与发布版本。', icon: 'product' },
-      '/admin/workflow/standard-time': { title: '标准工时', description: '维护现有工序链节点的标准分钟、版本和生效时间。', icon: 'process' },
+      '/admin/catalog': { title: '下单内容设置', description: '持续维护产品、材料和适用绑定；停用配置不会影响历史订单。', icon: 'product' },
+      '/admin/workflow/standard-time': { title: '工序工时设置', description: '按现有生产流程填写工序标准分钟；未确认值可先保留为空或草稿。', icon: 'process' },
       '/notifications': { title: '通知中心', description: '查看当前账号的真实业务通知和未读提醒。', icon: 'notification' },
       '/admin/ai-governance': { title: '智能服务', description: '查看全平台智能服务运行、用量与预算情况。', icon: 'ai' }
     }

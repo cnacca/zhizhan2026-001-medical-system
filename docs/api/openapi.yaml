@@ -1613,6 +1613,9 @@ components:
           nullable: true
         lock_version:
           type: integer
+        formal_standard_time_enabled:
+          type: boolean
+          description: 是否允许发布并在新工序实例、交期和绩效中使用正式标准工时
     WorkflowStandardTimeCopyRequest:
       type: object
       required:

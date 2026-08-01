@@ -177,7 +177,7 @@ const requiredTexts = [
   },
   {
     file: "DECISIONS.md",
-    patterns: ["D-174", "D-175", "产品配置中心", "标准工时", "不开放"],
+    patterns: ["D-174", "D-175", "D-179", "D-180", "D-181", "产品配置中心", "标准工时", "当前发布目录", "隔离库", "一键开始编辑", "后端文字", "安全删除", "不开放"],
   },
   {
     file: "acceptance.json",
@@ -218,6 +218,14 @@ const requiredImplementationTexts = [
     patterns: ["HOLD_UNCONFIRMED", "publication_status = 'INACTIVE'", "menu_code = 'workflow-standard-time'"],
   },
   {
+    file: "backend/platform-server/src/main/resources/db/migration/V74__reopen_standard_time_draft_configuration.sql",
+    patterns: ["工序工时设置", "status = 'ACTIVE'", "publication_status = 'DRAFT'", "standard_duration_minutes", "NULL"],
+  },
+  {
+    file: "backend/platform-server/src/main/resources/db/migration/V75__expose_ordering_content_configuration.sql",
+    patterns: ["D-178", "下单内容设置", "catalog-configuration-center", "catalog:manage", "status = 'ACTIVE'"],
+  },
+  {
     file: "backend/platform-server/src/main/resources/application.yml",
     patterns: ["WORKFLOW_STANDARD_TIME_FORMAL_ENABLED:false"],
   },
@@ -239,7 +247,7 @@ const requiredImplementationTexts = [
   },
   {
     file: "backend/platform-server/src/main/java/com/yuri/aiorder/catalog/CatalogConfigurationService.java",
-    patterns: ["validateActiveRuleSchemas", "ruleSchemaValidator.validate"],
+    patterns: ["validateActiveRuleSchemas", "ruleSchemaValidator.validate", "SELECT category_id, config_version_id, category_code", "SELECT product_id, config_version_id, category_id", "status, lock_version"],
   },
   {
     file: "backend/platform-server/src/main/java/com/yuri/aiorder/catalog/CatalogExtendedManagementService.java",
@@ -273,7 +281,40 @@ const requiredImplementationTexts = [
   },
   {
     file: "frontend/src/components/AdminConfigurationCenter.vue",
-    patterns: ["catalog-configuration-center", "workflow-standard-time-center", "只影响之后实例化的新工序"],
+    patterns: [
+      "catalog-configuration-center",
+      "workflow-standard-time-center",
+      "工序工时设置",
+      "工序工时尚未发布",
+      "formalStandardTimeEnabled",
+      "开始编辑",
+      "完善后发布",
+      "publicationStatusLabel",
+      "workflowTypeLabel",
+      "validId",
+      "catalog-category-create",
+      "categoryProductCount",
+      "saveCategory",
+      "toggleCategory",
+      "deleteCategory",
+      "catalog-category-delete",
+      "请先填写分类名称",
+      "请先填写产品名称",
+      "field-control",
+      "catalog-tab-products",
+      "catalog-tab-materials",
+      "catalog-tab-bindings",
+      "saveProduct",
+      "deleteProduct",
+      "saveMaterial",
+      "publication_status === 'ACTIVE'",
+      "publication_status === 'DRAFT'",
+      "catalog-version-select",
+    ],
+  },
+  {
+    file: "scripts/smoke-admin-ordering-configuration.spec.mjs",
+    patterns: ["下单内容设置", "分类名称已更新", "未使用的分类已删除", "产品内容已更新", "材料内容已更新", "产品与材料绑定已保存", "catalog-category-create", "请先填写分类名称", "请先填写产品名称", "not.toHaveValue('0')", "ADMIN_CONFIG_ALLOW_WRITES", "isolated", "15173", "34px", "13px", "工序工时设置"],
   },
   {
     file: "frontend/src/doctor/DoctorCaseGroupWizard.vue",
@@ -308,7 +349,7 @@ const requiredImplementationTexts = [
   },
   {
     file: "backend/platform-server/src/test/java/com/yuri/aiorder/product/ProductCatalogV2Tests.java",
-    patterns: ["formSchemaRejectsUnsupportedTypesDuplicateKeysInvalidUpdatesAndInvalidPublishData"],
+    patterns: ["formSchemaRejectsUnsupportedTypesDuplicateKeysInvalidUpdatesAndInvalidPublishData", "previewExposesProductLockAndDraftProductCanBeUpdatedThenDeleted", "draftCategoryCanBeUpdatedAndDeletedOnlyWhenItHasNoProducts"],
   },
   {
     file: "backend/platform-server/src/test/java/com/yuri/aiorder/auth/PermissionInterceptorTests.java",
@@ -330,6 +371,23 @@ assert(
   "客户尚未提供隐形正畸专项步骤，不得把七步处方设为医生下单门禁",
 );
 
+const adminConfigurationTemplate = read("frontend/src/components/AdminConfigurationCenter.vue")
+  .split("<template>")[1]
+  .split("</template>")[0];
+for (const forbiddenText of [
+  "正式标准工时开关未启用",
+  "服务端校验数量与适用范围",
+  "版本化 JSON Schema",
+  "操作冲突（409）",
+  "复制当前版本为草稿",
+  "DAG 编辑",
+]) {
+  assert(
+    !adminConfigurationTemplate.includes(forbiddenText),
+    `管理端配置页不得展示后端技术文案：${forbiddenText}`,
+  );
+}
+
 console.log(
-  `[product-ordering-v2] PASS: ${baseline.categories.length} 分类、${baseline.products.length} 产品、${baseline.materials.length} 材料、${baseline.accessories.length} 配件、${baseline.supplemental_orthodontic_terms.length} 正畸补充术语；资料基线、D-174/D-175/D-176、V60～V73、固定类浏览器证据与未确认标准工时门禁已对齐。`,
+  `[product-ordering-v2] PASS: ${baseline.categories.length} 分类、${baseline.products.length} 产品、${baseline.materials.length} 材料、${baseline.accessories.length} 配件、${baseline.supplemental_orthodontic_terms.length} 正畸补充术语；资料基线、D-174～D-181、V60～V75、分类安全删除、真实目录默认视图、一键开始编辑、业务化文案、隔离写入门禁与工序工时边界已对齐。`,
 );

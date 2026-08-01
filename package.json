@@ -161,6 +161,8 @@
     "smoke:task9d24": "playwright test scripts/smoke-task-9d24-four-portal-login.spec.mjs --browser=chromium --workers=1",
     "smoke:task9d36": "playwright test scripts/smoke-task-9d36-portal-theme-stability.spec.mjs --browser=chromium --workers=1",
     "smoke:task9d62": "playwright test scripts/smoke-task-9d62-main-chain.spec.mjs --browser=chromium --workers=1",
+    "smoke:workflow-standard-time-draft": "playwright test scripts/smoke-workflow-standard-time-draft.spec.mjs --browser=chromium --workers=1",
+    "smoke:admin-ordering-configuration": "playwright test scripts/smoke-admin-ordering-configuration.spec.mjs --browser=chromium --workers=1",
     "smoke:production-reference-pages": "playwright test scripts/smoke-production-reference-pages.spec.mjs --browser=chromium --workers=1",
     "smoke:test-feedback-20260710": "playwright test scripts/smoke-test-feedback-20260710.spec.mjs --browser=chromium --workers=1",
     "check:toolchain": "scripts/check-toolchain.sh",

@@ -298,14 +298,15 @@ public class WorkflowStandardTimeService {
         }
     }
 
-    private static VersionResponse mapVersion(java.sql.ResultSet rs) throws java.sql.SQLException {
+    private VersionResponse mapVersion(java.sql.ResultSet rs) throws java.sql.SQLException {
         return new VersionResponse(
                 rs.getLong("standard_time_version_id"),
                 rs.getInt("version_no"),
                 rs.getString("version_name"),
                 rs.getString("publication_status"),
                 rs.getObject("effective_at", LocalDateTime.class),
-                rs.getInt("lock_version"));
+                rs.getInt("lock_version"),
+                properties.formalEnabled());
     }
 
     private NodeSnapshot loadItem(long versionId, long nodeId) {

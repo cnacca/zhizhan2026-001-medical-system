@@ -400,15 +400,16 @@ public class CatalogConfigurationService {
         Map<String, Object> response = new LinkedHashMap<>();
         response.put("version", loadVersion(versionId));
         response.put("categories", rows("""
-                SELECT category_id, category_code, display_name, sort_order, status
+                SELECT category_id, config_version_id, category_code, display_name,
+                       sort_order, status, lock_version
                 FROM catalog_category_v2
                 WHERE config_version_id = :versionId
                 ORDER BY sort_order, category_id
                 """, versionId));
         response.put("products", rows("""
-                SELECT product_id, category_id, product_code, display_name,
+                SELECT product_id, config_version_id, category_id, product_code, display_name,
                        workflow_product_type, tooth_rule_code, pricing_status,
-                       base_price_cents, currency, sort_order, status
+                       base_price_cents, currency, sort_order, status, lock_version
                 FROM catalog_product_v2
                 WHERE config_version_id = :versionId
                 ORDER BY sort_order, product_id

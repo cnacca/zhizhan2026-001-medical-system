@@ -374,11 +374,17 @@ const activeProduct = computed(() =>
 const activeVariants = computed(() =>
   (catalog.value?.variants ?? []).filter((variant) => variant.product_id === activeItem.value?.product_id)
 )
+const activeVariant = computed(() =>
+  activeVariants.value.find((variant) => variant.variant_id === activeItem.value?.variant_id) ?? null
+)
 const activeMaterials = computed(() =>
   (catalog.value?.materials ?? []).filter((binding) =>
     binding.product_id === activeItem.value?.product_id
     && (binding.variant_id == null || binding.variant_id === activeItem.value?.variant_id)
   )
+)
+const activeMultipleMaterials = computed(() =>
+  activeMaterials.value.filter((binding) => binding.selection_mode === 'MULTIPLE')
 )
 const activeAccessories = computed(() =>
   (catalog.value?.accessories ?? []).filter((binding) =>
@@ -398,9 +404,35 @@ function catalogFieldsForItem(item: CaseGroupItem): FormField[] {
       return Array.isArray(schema.fields) ? schema.fields as FormField[] : []
     })
 }
+const stepThreeCoreFields = new Set([
+  'material_option',
+  'finish_margin_type',
+  'shade_system',
+  'shade_value',
+  'cervical_shade',
+  'body_shade',
+  'incisal_shade',
+  'polish_grade',
+  'material_shade_notes',
+  'implant_system',
+  'implant_diameter_length',
+  'connection_type',
+  'retention_type',
+  'abutment_type',
+  'screw_access_position',
+  'clasp_design',
+  'denture_teeth_brand',
+  'denture_base_shade',
+  'orthodontic_accessories',
+  'orthodontic_accessory_notes',
+  'design_delivery_format',
+  'design_delivery_turnaround'
+])
 const activeFields = computed<FormField[]>(() =>
   activeItem.value
-    ? catalogFieldsForItem(activeItem.value).filter((field) => field.key !== 'tooth_positions')
+    ? catalogFieldsForItem(activeItem.value).filter((field) =>
+        field.key !== 'tooth_positions' && !stepThreeCoreFields.has(field.key)
+      )
     : []
 )
 const incompleteItems = computed(() => (group.value?.items ?? []).filter((item) => itemErrors(item).length > 0))
@@ -484,6 +516,68 @@ function productCategory(item: CaseGroupItem) {
 
 function productMaterialOptions(item: CaseGroupItem) {
   return PRODUCT_MATERIAL_OPTIONS[item.product_code] ?? []
+}
+
+function materialBindingsForItem(item: CaseGroupItem) {
+  return (catalog.value?.materials ?? []).filter((binding) =>
+    binding.product_id === item.product_id
+    && (binding.variant_id == null || binding.variant_id === item.variant_id)
+  )
+}
+
+function materialBindingLabel(binding: CatalogMaterial) {
+  return Array.from(new Set([
+    binding.display_name,
+    binding.brand_name,
+    binding.specification
+  ].filter(Boolean))).join(' · ')
+}
+
+function normalizedMaterialLabel(value: string) {
+  return value.toLocaleLowerCase().replace(/[\s·（）()/_-]+/g, '')
+}
+
+function primaryMaterialOptions(item: CaseGroupItem) {
+  const sourceOptions = productMaterialOptions(item)
+  const publishedOptions = materialBindingsForItem(item)
+    .filter((binding) => binding.selection_mode === 'SINGLE')
+    .map(materialBindingLabel)
+  const options = publishedOptions.length ? publishedOptions : sourceOptions
+  const seen = new Set<string>()
+  return options.filter((option) => {
+    const key = normalizedMaterialLabel(option)
+    if (!key || seen.has(key)) return false
+    seen.add(key)
+    return true
+  })
+}
+
+function primaryMaterialValue(item: CaseGroupItem) {
+  const stored = String(item.form_values.material_option ?? '').trim()
+  if (stored) return stored
+  const selectedBinding = materialBindingsForItem(item)
+    .filter((binding) => binding.selection_mode === 'SINGLE')
+    .find((binding) => selected(item.material_selections, binding.material_id))
+  return selectedBinding ? materialBindingLabel(selectedBinding) : ''
+}
+
+function choosePrimaryMaterial(item: CaseGroupItem, value: string) {
+  item.form_values.material_option = value
+  const bindings = materialBindingsForItem(item).filter((binding) => binding.selection_mode === 'SINGLE')
+  const bindingIds = new Set(bindings.map((binding) => binding.material_id))
+  item.material_selections = item.material_selections.filter((entry) => !bindingIds.has(entry.item_id))
+  if (!value) return
+  const normalized = normalizedMaterialLabel(value)
+  const matched = bindings.find((binding) => {
+    const candidate = normalizedMaterialLabel(materialBindingLabel(binding))
+    return candidate === normalized || candidate.includes(normalized) || normalized.includes(candidate)
+  })
+  if (matched) {
+    item.material_selections.push({
+      item_id: matched.material_id,
+      quantity: Math.max(1, matched.min_quantity ?? 1)
+    })
+  }
 }
 
 function uploadRules(item: CaseGroupItem): SourceUploadRule[] {
@@ -1115,6 +1209,8 @@ async function saveItem(item: CaseGroupItem, silent = false) {
     return false
   }
   try {
+    const mainMaterial = primaryMaterialValue(item)
+    if (mainMaterial) choosePrimaryMaterial(item, mainMaterial)
     item.form_values = {
       ...item.form_values,
       ...caseSettingsSnapshot()
@@ -1159,6 +1255,7 @@ async function saveAllItems() {
 }
 
 async function changeVariant(item: CaseGroupItem) {
+  item.form_values.material_option = ''
   item.material_selections = []
   item.accessory_selections = []
   await saveItem(item, true)
@@ -1590,7 +1687,7 @@ onMounted(async () => {
       </section>
 
       <section v-else-if="step === 3" class="case-panel case-config-panel">
-        <header><h1>材料与工艺</h1><p>请逐个产品选择适用的材料、色号、配件和制作要求。</p></header>
+        <header><h1>材料与工艺</h1><p>请逐个产品填写对应的材料、色号和制作要求。</p></header>
         <div class="case-config-layout">
           <aside class="case-item-tabs">
             <button
@@ -1604,92 +1701,76 @@ onMounted(async () => {
               <div><strong>{{ item.product_name }}</strong><small>{{ itemStepErrors(item, 3).length ? `${itemStepErrors(item, 3).length} 项待补` : '本阶段完整' }}</small></div>
             </button>
           </aside>
-          <div v-if="activeItem" class="case-config-form">
-            <div class="case-config-summary">
-              <div><span>产品订单</span><strong>{{ activeItem.order_no }}</strong></div>
-              <div><span>产品大类</span><strong>{{ CATEGORY_NAMES[productCategory(activeItem)] }}</strong></div>
-              <div><span>价格</span><strong>{{ priceLabel(activeItem) }}</strong></div>
+          <div v-if="activeItem" class="case-config-form case-material-form" data-testid="case-material-form">
+            <div class="case-current-product">
+              <i>{{ categoryIcon(productCategory(activeItem)) }}</i>
+              <div>
+                <strong>{{ activeItem.product_name }}</strong>
+                <small>{{ CATEGORY_NAMES[productCategory(activeItem)] }}<template v-if="activeVariant"> · {{ activeVariant.display_name }}</template></small>
+              </div>
+              <span>{{ priceLabel(activeItem) }}</span>
             </div>
 
-            <section v-if="productMaterialOptions(activeItem).length" class="case-config-block source-materials">
-              <header><h3>材料 / 制作项目 *</h3><small>仅显示当前产品可选择的项目</small></header>
-              <div class="case-radio-grid">
-                <label v-for="option in productMaterialOptions(activeItem)" :key="option" :class="{ active: activeItem.form_values.material_option === option }">
-                  <input v-model="activeItem.form_values.material_option" type="radio" :value="option">
-                  <span>{{ option }}</span>
-                </label>
+            <section v-if="productCategory(activeItem) === 'IMPLANT_RESTORATION'" class="case-material-section">
+              <header><h3>种植参数</h3></header>
+              <div class="case-material-grid">
+                <label class="case-field"><span>种植系统 *</span><select v-model="activeItem.form_values.implant_system"><option value="">请选择</option><option>Nobel Biocare</option><option>Straumann</option><option>Osstem</option><option>BioHorizons</option><option>Zimmer Biomet</option><option>Megagen</option><option>其他</option></select></label>
+                <label class="case-field"><span>种植直径 × 长度 *</span><input v-model="activeItem.form_values.implant_diameter_length" placeholder="例如 Ø4.1 × 10mm"></label>
+                <label class="case-field"><span>连接方式 *</span><select v-model="activeItem.form_values.connection_type"><option value="">请选择</option><option value="INTERNAL">内连接</option><option value="EXTERNAL">外连接</option></select></label>
+                <label class="case-field"><span>基台类型</span><select v-model="activeItem.form_values.abutment_type"><option value="">请选择</option><option value="STANDARD">标准基台</option><option value="ANGLED">角度基台</option><option value="CUSTOM">个性化基台</option></select></label>
+                <label class="case-field"><span>固位方式 *</span><select v-model="activeItem.form_values.retention_type"><option value="">请选择</option><option value="SCREW">螺丝固位</option><option value="CEMENT">粘接固位</option></select></label>
+                <label class="case-field"><span>螺丝开口位置</span><select v-model="activeItem.form_values.screw_access_position"><option value="">请选择</option><option value="BUCCAL">颊侧</option><option value="LINGUAL">舌侧</option><option value="OCCLUSAL">咬合面</option></select></label>
               </div>
             </section>
 
-            <label v-if="activeVariants.length" class="case-field">
-              <span>产品规格 *</span>
-              <select v-model.number="activeItem.variant_id" @change="changeVariant(activeItem)">
-                <option :value="null">请选择</option>
-                <option v-for="variant in activeVariants" :key="variant.variant_id" :value="variant.variant_id">{{ variant.display_name }}</option>
-              </select>
-            </label>
+            <section
+              v-if="['FIXED_RESTORATION', 'IMPLANT_RESTORATION', 'REMOVABLE_PROSTHETICS'].includes(productCategory(activeItem)) || primaryMaterialOptions(activeItem).length || activeVariants.length"
+              class="case-material-section"
+            >
+              <header><h3>{{ productCategory(activeItem) === 'IMPLANT_RESTORATION' ? '修复材料' : productCategory(activeItem) === 'REMOVABLE_PROSTHETICS' ? '活动义齿配置' : '材料与工艺' }}</h3></header>
+              <div class="case-material-grid">
+                <label v-if="primaryMaterialOptions(activeItem).length" class="case-field">
+                  <span>主材料 / 制作项目 *</span>
+                  <select :value="primaryMaterialValue(activeItem)" data-testid="case-primary-material" @change="choosePrimaryMaterial(activeItem, ($event.target as HTMLSelectElement).value)">
+                    <option value="">请选择</option>
+                    <option v-for="option in primaryMaterialOptions(activeItem)" :key="option" :value="option">{{ option }}</option>
+                  </select>
+                </label>
+                <label v-if="activeVariants.length" class="case-field">
+                  <span>产品规格 *</span>
+                  <select v-model.number="activeItem.variant_id" @change="changeVariant(activeItem)">
+                    <option :value="null">请选择</option>
+                    <option v-for="variant in activeVariants" :key="variant.variant_id" :value="variant.variant_id">{{ variant.display_name }}</option>
+                  </select>
+                </label>
 
-            <section v-if="activeMaterials.length" class="case-config-block">
-              <header><h3>材料</h3><small>请选择主材料；如有组合材料，可按实际需要选择并填写数量。</small></header>
-              <label v-for="binding in activeMaterials" :key="binding.material_id" class="case-option">
-                <input
-                  type="checkbox"
-                  :checked="selected(activeItem.material_selections, binding.material_id)"
-                  @change="toggleMaterial(binding, ($event.target as HTMLInputElement).checked)"
-                >
-                <span><strong>{{ binding.display_name }}</strong><small>{{ [binding.brand_name, binding.specification].filter(Boolean).join(' · ') }}</small></span>
-                <em>{{ binding.required_flag ? '必选' : '可选' }}</em>
-                <input
-                  v-if="selected(activeItem.material_selections, binding.material_id)"
-                  type="number"
-                  min="1"
-                  :max="binding.max_quantity ?? undefined"
-                  :value="selectionQuantity(activeItem.material_selections, binding.material_id)"
-                  @input="setSelectionQuantity('material', binding.material_id, Number(($event.target as HTMLInputElement).value))"
-                >
-              </label>
-            </section>
+                <template v-if="productCategory(activeItem) === 'FIXED_RESTORATION'">
+                  <label class="case-field"><span>边缘类型</span><select v-model="activeItem.form_values.finish_margin_type"><option value="">请选择</option><option value="SUPRAGINGIVAL">龈上边缘</option><option value="SUBGINGIVAL">龈下边缘</option><option value="SHOULDER_STANDARD">肩台标准</option></select></label>
+                  <label class="case-field"><span>牙色系统</span><select v-model="activeItem.form_values.shade_system"><option value="">请选择</option><option value="VITA_16">VITA 16 Classic</option><option value="3D_MASTER">3D Master</option><option value="THREE_ZONE">颈部 / 体部 / 切端分色</option></select></label>
+                </template>
+                <template v-else-if="productCategory(activeItem) === 'IMPLANT_RESTORATION'">
+                  <label class="case-field"><span>牙色系统</span><select v-model="activeItem.form_values.shade_system"><option value="">请选择</option><option value="VITA_16">VITA 16 Classic</option><option value="3D_MASTER">3D Master</option><option value="THREE_ZONE">颈部 / 体部 / 切端分色</option></select></label>
+                </template>
+                <template v-else-if="productCategory(activeItem) === 'REMOVABLE_PROSTHETICS'">
+                  <label class="case-field"><span>卡环设计</span><select v-model="activeItem.form_values.clasp_design"><option value="">无 / 请选择</option><option>Standard I-bar</option><option>Circumferential</option><option>Ball Clasp</option><option>Custom</option><option>Casting Wire Clasp</option><option>Clear Clasp</option><option>Valplast Clasp-clear</option><option>Cast Chrome Clasp</option><option>Wrought Wire Clasp</option><option>Valplast Clasp-pink</option></select></label>
+                  <label class="case-field"><span>义齿牙品牌</span><select v-model="activeItem.form_values.denture_teeth_brand"><option value="">请选择</option><option>Huge</option><option>Yamahachi</option><option>Vita</option></select></label>
+                  <label class="case-field"><span>牙色系统</span><select v-model="activeItem.form_values.shade_system"><option value="">请选择</option><option value="VITA_16">VITA 16 Classic</option><option value="3D_MASTER">3D Master</option></select></label>
+                </template>
 
-            <section v-if="activeAccessories.length" class="case-config-block">
-              <header><h3>配件</h3><small>按当前产品需要选择配件并填写数量。</small></header>
-              <label v-for="binding in activeAccessories" :key="binding.accessory_id" class="case-option">
-                <input
-                  type="checkbox"
-                  :checked="selected(activeItem.accessory_selections, binding.accessory_id)"
-                  @change="toggleAccessory(binding, ($event.target as HTMLInputElement).checked)"
-                >
-                <span><strong>{{ binding.display_name }}</strong></span>
-                <em>{{ binding.required_flag ? '必选' : '可选' }}</em>
-                <input
-                  v-if="selected(activeItem.accessory_selections, binding.accessory_id)"
-                  type="number"
-                  min="1"
-                  :max="binding.max_quantity ?? undefined"
-                  :value="selectionQuantity(activeItem.accessory_selections, binding.accessory_id)"
-                  @input="setSelectionQuantity('accessory', binding.accessory_id, Number(($event.target as HTMLInputElement).value))"
-                >
-              </label>
-            </section>
-
-            <section v-if="['FIXED_RESTORATION', 'IMPLANT_RESTORATION'].includes(productCategory(activeItem))" class="case-config-block">
-              <header><h3>边缘、牙色与抛光</h3><small>颈部/体部/切端分色时分别选择三个色号</small></header>
-              <div class="case-field-grid">
-                <label class="case-field"><span>边缘类型</span><select v-model="activeItem.form_values.finish_margin_type"><option value="">请选择</option><option value="SUPRAGINGIVAL">龈上边缘</option><option value="SUBGINGIVAL">龈下边缘</option><option value="SHOULDER_STANDARD">肩台标准</option></select></label>
-                <label class="case-field"><span>牙色系统</span><select v-model="activeItem.form_values.shade_system"><option value="">请选择</option><option value="VITA_16">VITA 16 Classic</option><option value="3D_MASTER">3D Master</option><option value="THREE_ZONE">颈/体/切端分色</option></select></label>
-                <label v-if="activeItem.form_values.shade_system && activeItem.form_values.shade_system !== 'THREE_ZONE'" class="case-field"><span>牙色</span><select v-model="activeItem.form_values.shade_value"><option value="">请选择</option><option v-for="shade in activeItem.form_values.shade_system === '3D_MASTER' ? VITA_3D_SHADES : VITA_16_SHADES" :key="shade">{{ shade }}</option></select></label>
+                <label v-if="activeItem.form_values.shade_system && activeItem.form_values.shade_system !== 'THREE_ZONE' && ['FIXED_RESTORATION', 'IMPLANT_RESTORATION', 'REMOVABLE_PROSTHETICS'].includes(productCategory(activeItem))" class="case-field"><span>牙色</span><select v-model="activeItem.form_values.shade_value"><option value="">请选择</option><option v-for="shade in activeItem.form_values.shade_system === '3D_MASTER' ? VITA_3D_SHADES : VITA_16_SHADES" :key="shade">{{ shade }}</option></select></label>
                 <template v-if="activeItem.form_values.shade_system === 'THREE_ZONE'">
                   <label class="case-field"><span>颈部色</span><select v-model="activeItem.form_values.cervical_shade"><option value="">请选择</option><option v-for="shade in [...VITA_16_SHADES, ...VITA_3D_SHADES]" :key="`c-${shade}`">{{ shade }}</option></select></label>
                   <label class="case-field"><span>体部色</span><select v-model="activeItem.form_values.body_shade"><option value="">请选择</option><option v-for="shade in [...VITA_16_SHADES, ...VITA_3D_SHADES]" :key="`b-${shade}`">{{ shade }}</option></select></label>
                   <label class="case-field"><span>切端色</span><select v-model="activeItem.form_values.incisal_shade"><option value="">请选择</option><option v-for="shade in [...VITA_16_SHADES, ...VITA_3D_SHADES]" :key="`i-${shade}`">{{ shade }}</option></select></label>
                 </template>
-                <label class="case-field"><span>抛光程度</span><select v-model="activeItem.form_values.polish_grade"><option value="">请选择</option><option value="STANDARD">普通抛光</option><option value="MIRROR">镜面抛光</option></select></label>
-                <label v-if="productCategory(activeItem) === 'IMPLANT_RESTORATION'" class="case-field"><span>螺丝开口位置</span><select v-model="activeItem.form_values.screw_access_position"><option value="">请选择</option><option value="BUCCAL">颊侧</option><option value="LINGUAL">舌侧</option><option value="OCCLUSAL">咬合面</option></select></label>
-                <label class="case-field full"><span>颜色和材料备注</span><textarea :value="String(activeItem.form_values.material_shade_notes ?? '')" rows="3" @input="updateTextField(activeItem, 'material_shade_notes', ($event.target as HTMLTextAreaElement).value)"></textarea></label>
+                <label v-if="productCategory(activeItem) === 'REMOVABLE_PROSTHETICS'" class="case-field"><span>义齿基托颜色</span><select v-model="activeItem.form_values.denture_base_shade"><option value="">请选择</option><option v-for="shade in DENTURE_BASE_SHADES" :key="shade">{{ shade }}</option></select></label>
+                <label v-if="['FIXED_RESTORATION', 'IMPLANT_RESTORATION', 'REMOVABLE_PROSTHETICS'].includes(productCategory(activeItem))" class="case-field"><span>抛光程度</span><select v-model="activeItem.form_values.polish_grade"><option value="">请选择</option><option value="STANDARD">普通抛光</option><option value="MIRROR">镜面抛光</option></select></label>
+                <label v-if="['FIXED_RESTORATION', 'IMPLANT_RESTORATION', 'REMOVABLE_PROSTHETICS'].includes(productCategory(activeItem))" class="case-field full"><span>材料与色号备注</span><textarea :value="String(activeItem.form_values.material_shade_notes ?? '')" rows="3" placeholder="补充颜色、个性化染色或材料要求" @input="updateTextField(activeItem, 'material_shade_notes', ($event.target as HTMLTextAreaElement).value)"></textarea></label>
               </div>
             </section>
 
-            <section v-if="productCategory(activeItem) === 'FIXED_RESTORATION'" class="case-config-block">
-              <header><h3>精密附件（可选）</h3><small>客户资料列出的固定修复附件；选择后由客服确认适用性并报价</small></header>
+            <section v-if="productCategory(activeItem) === 'FIXED_RESTORATION'" class="case-material-section">
+              <header><h3>精密附件（可选）</h3></header>
               <div class="case-check-grid">
                 <label v-for="attachment in FIXED_PRECISION_ATTACHMENTS" :key="attachment">
                   <input type="checkbox" :checked="sourceArray(activeItem, 'precision_attachments').includes(attachment)" @change="toggleSourceArray(activeItem, 'precision_attachments', attachment, ($event.target as HTMLInputElement).checked)">
@@ -1698,21 +1779,8 @@ onMounted(async () => {
               </div>
             </section>
 
-            <section v-if="productCategory(activeItem) === 'REMOVABLE_PROSTHETICS'" class="case-config-block">
-              <header><h3>活动义齿专属工艺</h3><small>基托色与牙色分开，不使用“牙龈仿生色”自由文本</small></header>
-              <div class="case-field-grid">
-                <label class="case-field"><span>卡环设计</span><select v-model="activeItem.form_values.clasp_design"><option value="">无 / 请选择</option><option>Standard I-bar</option><option>Circumferential</option><option>Ball Clasp</option><option>Custom</option><option>Casting Wire Clasp</option><option>Clear Clasp</option><option>Valplast Clasp-clear</option><option>Cast Chrome Clasp</option><option>Wrought Wire Clasp</option><option>Valplast Clasp-pink</option></select></label>
-                <label class="case-field"><span>义齿牙品牌</span><select v-model="activeItem.form_values.denture_teeth_brand"><option value="">请选择</option><option>Huge</option><option>Yamahachi</option><option>Vita</option></select></label>
-                <label class="case-field"><span>牙色系统</span><select v-model="activeItem.form_values.shade_system"><option value="">请选择</option><option value="VITA_16">VITA 16 Classic</option><option value="3D_MASTER">3D Master</option></select></label>
-                <label v-if="activeItem.form_values.shade_system" class="case-field"><span>牙色</span><select v-model="activeItem.form_values.shade_value"><option value="">请选择</option><option v-for="shade in activeItem.form_values.shade_system === '3D_MASTER' ? VITA_3D_SHADES : VITA_16_SHADES" :key="shade">{{ shade }}</option></select></label>
-                <label class="case-field"><span>义齿基托颜色</span><select v-model="activeItem.form_values.denture_base_shade"><option value="">请选择</option><option v-for="shade in DENTURE_BASE_SHADES" :key="shade">{{ shade }}</option></select></label>
-                <label class="case-field"><span>抛光程度</span><select v-model="activeItem.form_values.polish_grade"><option value="">请选择</option><option value="STANDARD">普通抛光</option><option value="MIRROR">镜面抛光</option></select></label>
-                <label class="case-field full"><span>颜色和材料备注</span><textarea :value="String(activeItem.form_values.material_shade_notes ?? '')" rows="3" @input="updateTextField(activeItem, 'material_shade_notes', ($event.target as HTMLTextAreaElement).value)"></textarea></label>
-              </div>
-            </section>
-
-            <section v-if="productCategory(activeItem) === 'CONVENTIONAL_ORTHODONTICS'" class="case-config-block">
-              <header><h3>正畸附件</h3><small>多选，数量按实际需要填写在备注中；未提供价格，均为待报价</small></header>
+            <section v-if="productCategory(activeItem) === 'CONVENTIONAL_ORTHODONTICS'" class="case-material-section">
+              <header><h3>正畸附件</h3></header>
               <div class="case-check-grid">
                 <label v-for="accessory in ORTHODONTIC_ACCESSORIES" :key="accessory">
                   <input type="checkbox" :checked="sourceArray(activeItem, 'orthodontic_accessories').includes(accessory)" @change="toggleSourceArray(activeItem, 'orthodontic_accessories', accessory, ($event.target as HTMLInputElement).checked)">
@@ -1722,51 +1790,50 @@ onMounted(async () => {
               <label class="case-field"><span>附件数量及位置说明</span><textarea :value="String(activeItem.form_values.orthodontic_accessory_notes ?? '')" rows="3" placeholder="例如：16、26 各加一个带环" @input="updateTextField(activeItem, 'orthodontic_accessory_notes', ($event.target as HTMLTextAreaElement).value)"></textarea></label>
             </section>
 
-            <section v-if="productCategory(activeItem) === 'DESIGN_SERVICE'" class="case-config-block">
-              <header><h3>设计交付选项</h3><small>请选择需要的设计文件和交付方式</small></header>
-              <div class="case-field-grid">
-                <label class="case-field"><span>交付文件格式</span><select v-model="activeItem.form_values.design_delivery_format"><option value="">请选择</option><option>STL</option><option>OBJ</option><option>EXO</option><option>3SHAPE</option></select></label>
-                <label class="case-field"><span>交期选择</span><select v-model="activeItem.form_values.design_delivery_turnaround"><option value="">请选择</option><option value="6H">6 小时</option><option value="12H">12 小时</option><option value="24H">24 小时</option><option value="48H">48 小时</option></select></label>
+            <section v-if="productCategory(activeItem) === 'DESIGN_SERVICE'" class="case-material-section">
+              <header><h3>设计交付</h3></header>
+              <div class="case-material-grid">
+                <label class="case-field"><span>交付文件格式 *</span><select v-model="activeItem.form_values.design_delivery_format"><option value="">请选择</option><option>STL</option><option>OBJ</option><option>EXO</option><option>3SHAPE</option></select></label>
+                <label class="case-field"><span>交付时间 *</span><select v-model="activeItem.form_values.design_delivery_turnaround"><option value="">请选择</option><option value="6H">6 小时</option><option value="12H">12 小时</option><option value="24H">24 小时</option><option value="48H">48 小时</option></select></label>
               </div>
             </section>
 
-            <section v-if="activeFields.length" class="case-config-block">
-              <header><h3>补充信息</h3><small>请按当前产品要求填写</small></header>
-              <div class="case-field-grid">
+            <section v-if="activeMultipleMaterials.length" class="case-material-section">
+              <header><h3>附加材料</h3></header>
+              <label v-for="binding in activeMultipleMaterials" :key="binding.material_id" class="case-option">
+                <input type="checkbox" :checked="selected(activeItem.material_selections, binding.material_id)" @change="toggleMaterial(binding, ($event.target as HTMLInputElement).checked)">
+                <span><strong>{{ binding.display_name }}</strong><small>{{ [binding.brand_name, binding.specification].filter(Boolean).join(' · ') }}</small></span>
+                <em>{{ binding.required_flag ? '必选' : '可选' }}</em>
+                <input v-if="selected(activeItem.material_selections, binding.material_id)" type="number" min="1" :max="binding.max_quantity ?? undefined" :value="selectionQuantity(activeItem.material_selections, binding.material_id)" @input="setSelectionQuantity('material', binding.material_id, Number(($event.target as HTMLInputElement).value))">
+              </label>
+            </section>
+
+            <section v-if="activeAccessories.length" class="case-material-section">
+              <header><h3>附加选项</h3></header>
+              <label v-for="binding in activeAccessories" :key="binding.accessory_id" class="case-option">
+                <input type="checkbox" :checked="selected(activeItem.accessory_selections, binding.accessory_id)" @change="toggleAccessory(binding, ($event.target as HTMLInputElement).checked)">
+                <span><strong>{{ binding.display_name }}</strong></span>
+                <em>{{ binding.required_flag ? '必选' : '可选' }}</em>
+                <input v-if="selected(activeItem.accessory_selections, binding.accessory_id)" type="number" min="1" :max="binding.max_quantity ?? undefined" :value="selectionQuantity(activeItem.accessory_selections, binding.accessory_id)" @input="setSelectionQuantity('accessory', binding.accessory_id, Number(($event.target as HTMLInputElement).value))">
+              </label>
+            </section>
+
+            <section v-if="activeFields.length" class="case-material-section">
+              <header><h3>补充要求</h3></header>
+              <div class="case-material-grid">
                 <template v-for="field in activeFields" :key="field.key">
                   <label v-if="fieldVisible(field, activeItem)" class="case-field" :class="{ full: ['textarea', 'object'].includes(fieldType(field)) }">
                     <span>{{ field.label }}<b v-if="field.required"> *</b></span>
-                    <select
-                      v-if="fieldType(field) === 'multi_select' && field.options?.length"
-                      multiple
-                      :value="Array.isArray(activeItem.form_values[field.key]) ? activeItem.form_values[field.key] : []"
-                      @change="updateMultiSelectField(activeItem, field.key, $event)"
-                    >
+                    <select v-if="fieldType(field) === 'multi_select' && field.options?.length" multiple :value="Array.isArray(activeItem.form_values[field.key]) ? activeItem.form_values[field.key] : []" @change="updateMultiSelectField(activeItem, field.key, $event)">
                       <option v-for="option in field.options" :key="optionValue(option)" :value="optionValue(option)">{{ optionLabel(option) }}</option>
                     </select>
-                    <select v-else-if="field.options?.length" v-model="activeItem.form_values[field.key]">
-                      <option value="">请选择</option>
-                      <option v-for="option in field.options" :key="optionValue(option)" :value="optionValue(option)">{{ optionLabel(option) }}</option>
-                    </select>
+                    <select v-else-if="field.options?.length" v-model="activeItem.form_values[field.key]"><option value="">请选择</option><option v-for="option in field.options" :key="optionValue(option)" :value="optionValue(option)">{{ optionLabel(option) }}</option></select>
                     <textarea v-else-if="fieldType(field) === 'textarea'" :value="String(activeItem.form_values[field.key] ?? '')" rows="3" @input="updateTextField(activeItem, field.key, ($event.target as HTMLTextAreaElement).value)"></textarea>
-                    <input
-                      v-else-if="fieldType(field) === 'number' || fieldType(field) === 'quantity'"
-                      v-model.number="activeItem.form_values[field.key]"
-                      type="number"
-                      :step="fieldType(field) === 'quantity' ? 1 : 'any'"
-                      :min="field.minimum ?? field.min"
-                      :max="field.maximum ?? field.max"
-                    >
+                    <input v-else-if="fieldType(field) === 'number' || fieldType(field) === 'quantity'" v-model.number="activeItem.form_values[field.key]" type="number" :step="fieldType(field) === 'quantity' ? 1 : 'any'" :min="field.minimum ?? field.min" :max="field.maximum ?? field.max">
                     <label v-else-if="fieldType(field) === 'boolean'" class="case-switch"><input type="checkbox" :checked="Boolean(activeItem.form_values[field.key])" @change="updateBooleanField(activeItem, field.key, ($event.target as HTMLInputElement).checked)"><span>是 / 否</span></label>
                     <input v-else-if="fieldType(field) === 'array' || fieldType(field) === 'multi_select'" :value="Array.isArray(activeItem.form_values[field.key]) ? (activeItem.form_values[field.key] as unknown[]).join('，') : ''" placeholder="多项用逗号分隔" @input="updateArrayField(activeItem, field.key, ($event.target as HTMLInputElement).value)">
                     <template v-else-if="fieldType(field) === 'object'">
-                      <textarea
-                        :value="objectFieldText(activeItem, field.key)"
-                        rows="5"
-                        placeholder="请按示例填写补充内容"
-                        @input="updateObjectFieldDraft(activeItem, field.key, ($event.target as HTMLTextAreaElement).value)"
-                        @blur="commitObjectField(activeItem, field.key)"
-                      ></textarea>
+                      <textarea :value="objectFieldText(activeItem, field.key)" rows="5" placeholder="请按示例填写补充内容" @input="updateObjectFieldDraft(activeItem, field.key, ($event.target as HTMLTextAreaElement).value)" @blur="commitObjectField(activeItem, field.key)"></textarea>
                       <small v-if="objectFieldErrors[objectFieldKey(activeItem, field.key)]" class="case-field-error">{{ objectFieldErrors[objectFieldKey(activeItem, field.key)] }}</small>
                     </template>
                     <input v-else v-model="activeItem.form_values[field.key]" type="text">
@@ -3306,6 +3373,100 @@ onMounted(async () => {
   box-shadow: none;
 }
 
+.case-material-form {
+  max-width: 800px;
+}
+
+.case-current-product {
+  display: grid;
+  grid-template-columns: 42px minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 12px;
+  padding: 12px 14px;
+  border: 1.5px solid var(--case-border);
+  border-radius: 10px;
+  background: var(--case-off);
+}
+
+.case-current-product > i {
+  display: grid;
+  width: 42px;
+  height: 42px;
+  place-items: center;
+  border-radius: 10px;
+  color: var(--case-blue-600);
+  font-size: 20px;
+  font-style: normal;
+  background: var(--case-blue-50);
+}
+
+.case-current-product strong,
+.case-current-product small {
+  display: block;
+}
+
+.case-current-product strong {
+  font-size: 15px;
+}
+
+.case-current-product small {
+  margin-top: 3px;
+  color: var(--case-muted);
+  font-size: 11px;
+}
+
+.case-current-product > span {
+  color: #a16207;
+  font-size: 12px;
+  font-weight: 700;
+}
+
+.case-material-section {
+  margin-top: 22px;
+}
+
+.case-material-section > header {
+  display: block;
+  margin-bottom: 10px;
+  padding-bottom: 7px;
+  border-bottom: 1.5px solid var(--case-blue-100);
+}
+
+.case-material-section > header h3 {
+  margin: 0;
+  color: var(--case-blue-700);
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: .5px;
+}
+
+.case-material-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 14px;
+}
+
+.case-material-grid .case-field {
+  min-width: 0;
+  margin-top: 0;
+}
+
+.case-material-grid .case-field.full {
+  grid-column: 1 / -1;
+}
+
+.case-material-section .case-check-grid {
+  margin-top: 0;
+}
+
+.case-material-section .case-option {
+  margin-top: 8px;
+}
+
+.case-material-form > .case-primary {
+  margin-top: 18px;
+}
+
 .case-panel:not(.case-source-step):not(.case-config-panel) {
   width: calc(100% - 64px);
   max-width: 800px;
@@ -3394,8 +3555,22 @@ onMounted(async () => {
   }
 
   .case-product-subcards,
-  .case-source-grid .case-field-grid {
+  .case-source-grid .case-field-grid,
+  .case-material-grid {
     grid-template-columns: 1fr;
+  }
+
+  .case-current-product {
+    grid-template-columns: 38px minmax(0, 1fr);
+  }
+
+  .case-current-product > i {
+    width: 38px;
+    height: 38px;
+  }
+
+  .case-current-product > span {
+    grid-column: 2;
   }
 }
 </style>

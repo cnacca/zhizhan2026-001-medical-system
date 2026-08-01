@@ -249,6 +249,12 @@ class WorkflowRuntimeTests {
         assertThat(coveredProductTypes).isGreaterThanOrEqualTo(9L);
 
         mockMvc.perform(get("/admin/workflow/standard-times/versions")
+                        .header("X-Bootstrap-Role", "ADMIN")
+                        .header("X-Bootstrap-User-Id", 8001L))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data[0].formal_standard_time_enabled").value(true));
+
+        mockMvc.perform(get("/admin/workflow/standard-times/versions")
                         .header("X-Bootstrap-Role", "CS")
                         .header("X-Bootstrap-User-Id", 8001L))
                 .andExpect(status().isForbidden());
