@@ -44,18 +44,20 @@ Goal: `goals/GOAL-032-clean-env-and-catalog-data-closure-20260802.md`
 - 不补造客户未提供的文件规则、价格、制作周期与标准工时。
 - 不伪造客户签字、真实环境或最终上线证据，不把 Task 8 改为 `READY`。
 
-## 分支策略（需用户确认后执行 A）
+## 分支策略（已于 2026-08-02 收口）
 
-当前远端实际状态与 `AGENTS.md` 的协作规则存在偏差，A 批次提交前必须确认：
+执行 A 批次时的状态：`main` 与 `dev` 均停留在 2026-06-24 的空 `Initial commit`，全部业务代码只在 `feature/project-skeleton` 上。`AGENTS.md` 声明的"`main` 稳定 / `dev` 集成"工作流因此无法执行，A~D 四批只能推到 `feature/project-skeleton`。
 
-- `main`：停留在 2026-06-24 的空 `Initial commit`，无业务代码。
-- `dev`：同上，空。
-- `feature/project-skeleton`：**全部 139 个提交与全部业务代码所在分支**，Codespace 当前检出的也是该分支。
+该债务的实际代价在本任务中被实测命中：从零 `git clone` 默认分支只得到一个仅含 README 的仓库，必须手动切分支才看到代码——客户或新同事必然踩到。
 
-`AGENTS.md` 写明"`main` 是稳定分支，禁止直接 push；`dev` 是开发集成分支"，但实际两者均为空壳。要达成"让 Codespace 也生效"的目标，提交目标只能是 `feature/project-skeleton`。
+收口动作：
 
-- 本任务默认方案：提交并推送到 `feature/project-skeleton`。
-- 分支治理债务（139 个提交从未合并、无稳定回退点、无代码审查记录）单独记录，不在本任务解决。
+- PR #3 将 `feature/project-skeleton` 的 145 个提交快进合并入 `main`（合并提交 `816635d2`），保留完整历史，未做 squash。走 PR 而非直接 push，遵守 `AGENTS.md` 对 `main` 的保护约定。
+- `dev` 同步到同一提交，使"`main` 稳定 / `dev` 集成"工作流真正可执行。
+- 已验证：干净克隆默认分支即得到 `backend` / `frontend` / `scripts` / `docs` 全部内容。
+- `README.md` 中"业务代码在 `feature/project-skeleton`"的提示同步作废并改写。
+
+后续新工作从 `dev` 开分支、经 PR 合入 `main`，不再长期堆积在单一 feature 分支。
 
 ## Checklist
 

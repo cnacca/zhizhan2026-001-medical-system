@@ -136,8 +136,9 @@ npm run install:frontend
 前置条件与注意事项（2026-08-02 干净环境演练结果，详见
 `docs/deployment/clean-env-reproducibility-drill.md`）：
 
-- **业务代码在 `feature/project-skeleton` 分支**。`main` 与 `dev` 目前仍是空的初始
-  提交，clone 默认分支只会得到一个仅含 README 的仓库。
+- 直接 `clone` 默认分支 `main` 即可拿到全部代码。2026-08-02 之前 `main` 与 `dev`
+  停留在空的初始提交、全部业务代码只在 `feature/project-skeleton` 上，clone 默认分支
+  只会得到一个仅含 README 的仓库；该问题已由 PR #3 合并解决。
 - 宿主需已安装 `git`、`node`、`pnpm`、`docker`、`brew`。`scripts/with-jdk21.sh`
   硬编码 Homebrew 路径 `/opt/homebrew/opt/openjdk@21/...`，非 macOS / 非 Homebrew
   环境需自行调整。
