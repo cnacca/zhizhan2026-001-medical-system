@@ -133,6 +133,22 @@ brew install openjdk@21 maven
 npm run install:frontend
 ```
 
+前置条件与注意事项（2026-08-02 干净环境演练结果，详见
+`docs/deployment/clean-env-reproducibility-drill.md`）：
+
+- **业务代码在 `feature/project-skeleton` 分支**。`main` 与 `dev` 目前仍是空的初始
+  提交，clone 默认分支只会得到一个仅含 README 的仓库。
+- 宿主需已安装 `git`、`node`、`pnpm`、`docker`、`brew`。`scripts/with-jdk21.sh`
+  硬编码 Homebrew 路径 `/opt/homebrew/opt/openjdk@21/...`，非 macOS / 非 Homebrew
+  环境需自行调整。
+- **同一台机器同时只能跑一套环境**：`compose.yaml` 使用固定容器名
+  （`ai-order-mysql` / `ai-order-redis` / `ai-order-minio`），local 与 demo 运行时占用
+  固定端口 5173/8080/15173/18080。启动前确认未被占用。
+- `npm run demo:reset` 有二次确认保护，必须显式设置
+  `DEMO_RESET_CONFIRM=RESET_DEMO_DATA` 才会执行，否则只打印拒绝信息并退出。
+- 想验证"新机器能否直接跑通"，执行 `npm run drill:clean-env`：它会把**已提交状态**
+  克隆到全新目录并只按本章节步骤执行。该演练需独占上述端口与容器，且会清空演示库。
+
 工具链检查：
 
 ```bash

@@ -4,6 +4,12 @@ Status: `in_progress`
 
 Goal: `goals/GOAL-032-clean-env-and-catalog-data-closure-20260802.md`
 
+
+> A~D 四批的本地工作均已完成并推送。状态保持 `in_progress` 的原因只有两项外部动作：
+> (1) Codespace 侧执行 `git pull` 并注入 DeepSeek key 后复验真实模型回答；
+> (2) 产品目录草稿 v4 待客户核对材料归属后发布。
+> 两项都不依赖本地开发，完成后即可将本文件与 GOAL-032 置为 `completed`。
+
 ## Why
 
 2026-08-02 在一台全新 macOS 上按 `README.md` 从零安装本项目，暴露三个此前从未被发现的阻塞问题。三个都不是功能缺陷，而是**只在已配置好的开发机上不会暴露的可复现性缺陷**：
@@ -192,15 +198,38 @@ Scope：
 
 Acceptance：
 
-- [ ] 演练全程无手动补救即可跑通到四端登录 + `demo:prepare` 全绿。
-- [ ] 演练记录含宿主平台、各步耗时、失败点与修复项。
-- [ ] `README.md` 的"本地启动"章节按演练结果补全缺失前置条件。
-- [ ] 新增 `npm run check:clean-env-reproducibility`。
-- [ ] 记录写入 `docs/deployment/`，并在 `acceptance.json` 的 `deployment-infrastructure` 追加本地演练证据，该项**仍保持 `PARTIAL`**（本地演练不等于真实服务器验收）。
+- [x] 演练全程无手动补救即可跑通：2026-08-02 演练 10 项全部通过，0 失败。
+- [x] 演练记录含宿主平台、各步耗时、失败点与修复项。
+- [x] `README.md` 的"本地启动"章节补全缺失前置条件。
+- [x] 新增 `npm run drill:clean-env` 与 `npm run check:clean-env-reproducibility`。
+- [x] 记录写入 `docs/deployment/clean-env-reproducibility-drill.md`，`acceptance.json` 的 `deployment-infrastructure` 已追加本地演练证据且**仍为 `PARTIAL`**。
+
+2026-08-02 演练结果（Darwin 25.3.0 arm64，ref `feature/project-skeleton`）：
+
+| 步骤 | 结果 | 耗时 |
+| --- | --- | ---: |
+| git clone | PASS | 3s |
+| check:toolchain | PASS | 1s |
+| install:frontend | PASS | 1s |
+| compose:up | PASS | 11s |
+| backend build | PASS | 5s |
+| demo:reset | PASS | 0s |
+| demo:prepare | PASS | 63s |
+| demo:seed 幂等复跑 | PASS | 1s |
+| demo:check | PASS | 0s |
+| 四端入口可达 | PASS | 1s |
+
+演练本身发现并修复的第 8 个缺陷：`compose:up` 使用 `docker compose up -d` 不等健康检查即返回，全新卷上 MySQL 需十余秒初始化，紧随其后的 `demo:reset` 必然报 `Can't connect to local MySQL server through socket`。三个服务均已定义 healthcheck，改用 `--wait`（提交 `f62e248c`）。
+
+设计约束（写入脚本注释与记录文档）：
+
+- 演练执行 `git clone` 出来的**已提交状态**而非工作区。顺序固定为「改代码 → 提交 → 演练 → 通过后写记录」；若改读工作区，本地未提交的修复会产生假绿灯。
+- `compose.yaml` 使用固定容器名、local/demo 使用固定端口，同一宿主只能存在一套运行环境。脚本先停源仓库运行时，结束后 `docker compose down --volumes` 归还资源。
 
 Verification：
 
 ```bash
+npm run drill:clean-env                    # 独占运行，会清空演示库
 npm run check:clean-env-reproducibility
 ```
 
