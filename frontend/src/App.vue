@@ -7980,6 +7980,17 @@ async function sendDoctorMessage() {
   }
 }
 
+// 设计稿的"待医生确认"状态：迁移 V49 已把 PENDING_DOCTOR_CONFIRM 改名为 PENDING_DOCTOR，
+// 历史数据两种都可能出现。与 doctor/services/httpDoctorGateway.ts 的 doctorVisibleDraftStatuses
+// 保持同一口径。注意这只针对 design_draft.draft_status；订单的 internal_status /
+// external_status 仍在使用 PENDING_DOCTOR_CONFIRM（见后端 PhaseOneDashboardService 与
+// WorkflowRuntimeService），那些判断不属于本口径，不要一起改。
+const DRAFT_PENDING_DOCTOR_STATUSES = ['PENDING_DOCTOR', 'PENDING_DOCTOR_CONFIRM', 'PENDING_DOCTOR_REVIEW']
+
+function isDraftPendingDoctor(status: string | null | undefined): boolean {
+  return DRAFT_PENDING_DOCTOR_STATUSES.includes(String(status ?? ''))
+}
+
 async function handleDoctorDraft(draft: DesignDraftItem, action: 'CONFIRM' | 'REJECT') {
   if (!selectedOrderId.value) {
     return
@@ -15062,7 +15073,7 @@ onBeforeUnmount(() => {
                           文件 {{ fileId }}
                         </a>
                       </div>
-                      <div v-if="draft.status === 'PENDING_DOCTOR_CONFIRM'" class="inline-actions">
+                      <div v-if="isDraftPendingDoctor(draft.status)" class="inline-actions">
                         <el-button
                           type="primary"
                           :loading="doctorActionLoading"

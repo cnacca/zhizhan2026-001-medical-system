@@ -63,10 +63,12 @@ Scope：
 
 Acceptance：
 
-- [ ] `demo:backend` 使用 `${AI_PROVIDER:-deterministic}` 与 `${AI_DEEPSEEK_ENABLED:-false}`，默认行为不变。
-- [ ] `demo:seed` 顺序为先 `seed-admin-portal-demo-data.sh` 后 `seed-demo-data.mjs`。
-- [ ] `git status` 中不含 `.env`，提交 diff 中不含任何 `sk-` 开头字符串。
-- [ ] 推送成功，Codespace `git pull` 后注入 key 可返回真实模型回答。
+- [x] `demo:backend` 使用 `${AI_PROVIDER:-deterministic}` 与 `${AI_DEEPSEEK_ENABLED:-false}`，默认行为不变。
+- [x] `demo:seed` 顺序调整（后续在 B 批次进一步改为 SQL 前后各执行一次）。
+- [x] `git status` 中不含 `.env`；`sk-` 命中的 5 处均为 `task-9d62-...` 的子串，按 `sk-[a-f0-9]{32}` 严格匹配为 0。
+- [ ] Codespace `git pull` 后注入 key 返回真实模型回答（需在 Codespace 侧执行，本地无写权限）。
+
+结果：已提交并推送 `ab53c5e2`。
 
 Verification：
 
@@ -76,28 +78,52 @@ git diff | grep -c 'sk-' # 必须为 0
 npm run demo:stop && npm run demo:start
 ```
 
-### B. 修复 demo:seed 场景 07 账单重复绑定 409
+### B. 修复演示造数链路（实际范围远大于场景 07）
 
-Scope：
+原判为"场景 07 账单重复绑定"，实际 409 的原因并非重复绑定，而是账单文件不满足 PDF 校验。逐层定位后共 6 个缺陷，**其中 5 个不抛错，只让数据悄悄不完整**，最终表现为"某个模块没有数据"——与客户 CHK 反馈的现象同源。
 
-- 定位 `scripts/smoke-task-9d62-main-chain.spec.mjs` 中 `attachBillToOrder` 在场景 07 的重复调用路径。
-- 使账单绑定幂等：已存在账单时复用而非重复创建，或在场景层跳过。
-- 不改动 `/orders/{id}/bill` 后端语义——409 是正确的服务端行为，问题在造数脚本。
+后端门禁变更未同步造数脚本（均来自 `2100d857`，2026-07-31）：
+
+1. 账单绑定要求 doctor-visible 的 PDF（`CollaborationService.java:376-388`），脚本仍上传 `.txt` / `text-plain`，`attachBillToOrder` 必定 409。
+2. 发货要求 `order_bill.payment_status ∈ {PAID, NOT_REQUIRED}`（`CollaborationService.java:733-745`），脚本从未标记付款，场景 07 必定 409。按 CP-001 基线补人工标记付款。
+
+口径不一致：
+
+3. `check-demo-data` 用 `===` 比较 `sessions.PRODUCTION.userId`（字符串，后端为避免 JS 大整数精度丢失而序列化为字符串）与 `assigned_user_id`（数字），恒为 false。
+4. 迁移 V49 已将 `PENDING_DOCTOR_CONFIRM` 改名为 `PENDING_DOCTOR`，`httpDoctorGateway` 与 `CsPortalPages` 已兼容，`check-demo-data` 未跟进。
+
+日期边界（只在每月前几天复现）：
+
+5. 上月演示单锚定 `NOW()-1MONTH-7DAY`，当天为 1~7 号时跨到上上个月。工作台上月窗口只覆盖 `[上月1日, 上月1日+已过天数)`，因此放在月中同样落在窗口外。改为锚定上月 1 号，并让该单与去年同期单当日发货。
+
+造数流程循环依赖：
+
+6. `seed-admin-portal` SQL 与 scenarios 互为依赖：scenarios 需要 SQL 建的 `demo_cad` 账号；SQL 的外协/质量证据需要 scenarios 建的订单，且用 `WHERE @order_id IS NOT NULL` 静默跳过。单一顺序无解，改为 SQL 前后各执行一次（其全程 `ON DUPLICATE KEY UPDATE`，幂等），抽出 `demo:seed:admin` 复用。
+
+另补：`seed-demo-data` 此前仅以"订单存在"判断场景已完成，但订单在场景开头即创建，中途失败会留下半成品订单被后续运行当作完好数据跳过，重跑永远无法自愈。改为以上一次成功写出的 manifest 为完成凭据，遇到半成品订单直接报错并给出重置命令。
 
 Acceptance：
 
-- [ ] 全新库上 `npm run demo:seed` 7 个场景连续通过。
-- [ ] 同一库上重复执行 `npm run demo:seed` 不报 409，结果幂等。
-- [ ] `npm run demo:check` 通过。
-- [ ] 后端 `/orders/{id}/bill` 的 409 行为未被修改。
+- [x] 全新库上 `npm run demo:prepare` 一次通过，7 个场景全部创建。
+- [x] 同一库上重复执行 `npm run demo:seed` 幂等，退出码 0。
+- [x] `npm run demo:check` 输出 `demo data verification passed`。
+- [x] 后端 `/orders/{id}/bill` 与 `/orders/{id}/logistics` 的 409 行为未被修改——两处 409 都是正确的服务端门禁，问题在造数脚本。
+
+结果：已提交并推送 `a0dbf1df`。
 
 Verification：
 
 ```bash
-npm run demo:reset && npm run demo:prepare
-npm run demo:seed   # 第二次执行必须同样成功
+npm run demo:stop
+DEMO_RESET_CONFIRM=RESET_DEMO_DATA npm run demo:reset
+npm run demo:prepare   # 期望 exit 0 且输出 demo data verification passed
+npm run demo:seed      # 第二次执行必须同样 exit 0
 npm run demo:check
 ```
+
+遗留（不在本批次处理，已单独挂出）：
+
+- `frontend/src/App.vue:15065` 仍以 `draft.status === 'PENDING_DOCTOR_CONFIRM'` 决定是否渲染医生的"确认设计稿"按钮，未跟进 V49 改名。若该视图仍可达，会影响一期验收项 14.4-04。需先判断是否为死代码。
 
 ### C. 产品目录正式业务值录入
 

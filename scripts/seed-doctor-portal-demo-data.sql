@@ -91,14 +91,14 @@ FROM orders o
 JOIN (
  SELECT 1 version_no,'DOCTOR_REJECTED' draft_status,'邻接面请再调整' reject_reason,'2026-07-16 10:20:00' created_at
  UNION ALL SELECT 2,'SUPERSEDED',NULL,'2026-07-17 11:00:00'
- UNION ALL SELECT 3,'PENDING_DOCTOR_CONFIRMATION',NULL,'2026-07-18 09:10:00'
+ UNION ALL SELECT 3,'PENDING_DOCTOR',NULL,'2026-07-18 09:10:00'
 ) v
 JOIN file_resource f ON f.order_id=o.order_id AND f.original_filename='A026-scan.stl'
 WHERE o.order_no='ORD20260718-1001'
 ON DUPLICATE KEY UPDATE draft_status=VALUES(draft_status),doctor_reject_reason=VALUES(doctor_reject_reason),created_at=VALUES(created_at);
 
 INSERT INTO design_draft (order_id,file_id,version_no,draft_status,uploaded_by_user_id,created_at)
-SELECT o.order_id,f.file_id,1,'PENDING_DOCTOR_CONFIRMATION',8002,'2026-07-18 10:35:00'
+SELECT o.order_id,f.file_id,1,'PENDING_DOCTOR',8002,'2026-07-18 10:35:00'
 FROM orders o JOIN file_resource f ON f.order_id=o.order_id AND f.original_filename='B008-shade.jpg'
 WHERE o.order_no='ORD20260717-1003'
 ON DUPLICATE KEY UPDATE draft_status=VALUES(draft_status),created_at=VALUES(created_at);
