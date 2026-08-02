@@ -1,0 +1,110 @@
+{
+  "_source": {
+    "document": "动态下单表最终版.docx",
+    "sha256": "147810af568da193d7acd10f7963283ff8e0e74f5f272415aefda7bb6b1daef5",
+    "note": "与 GOAL-031 记录的指纹一致，为同一版本。本文件只承载该文档第三页各产品模板的材料与牙色。",
+    "pricing": "不写 price_increment_cents，全部保持待报价（CP-002 / CP-005 未交付）。",
+    "scope_out": [
+      "正畸产品：数据库中 48 项已作为 product 存在，文档第三页所列即同一批，不重复建材料。",
+      "正畸附件 21 项属于 ACCESSORY 而非 MATERIAL，另批处理。",
+      "设计服务的文件格式与交期属于动态表单字段，不是材料。",
+      "文档第四页（各大类上传资料）与第六页（价格/默认要求/制作周期）为空白。",
+      "文档『卡环设计，需要选择：无、以及以下内容』后无内容，属客户漏填，已登记待确认。"
+    ]
+  },
+
+  "shared_option_materials": [
+    { "code": "SHADE_VITA_CLASSIC_16", "name": "VITA 16 Classic", "family": "TOOTH_SHADE_SYSTEM", "brand": "VITA", "spec": "经典 16 色比色体系",
+      "colors": ["A1","A2","A3","A3.5","A4","B1","B2","B3","B4","C1","C2","C3","C4","D2","D3","D4"] },
+    { "code": "SHADE_VITA_3D_MASTER", "name": "VITA 3D Master", "family": "TOOTH_SHADE_SYSTEM", "brand": "VITA", "spec": "3D Master 比色体系",
+      "colors": ["1M1","1M2","2L1.5","2L2.5","2M1","2M2","2M3","2R1.5","2R2.5","3L1.5","3L2.5","3M1","3M2","3M3","3R1.5","3R2.5","4L1.5","4L2.5","4M1","4M2","4M3","4R1.5","4R2.5","5M1","5M2","5M3"] },
+    { "code": "SHADE_CERVICAL_BODY_INCISAL", "name": "颈/体/切端分色", "family": "TOOTH_SHADE_SYSTEM", "spec": "分三段选择，每段可选上述全部色号",
+      "colors": ["CERVICAL","BODY","INCISAL"] },
+
+    { "code": "POLISH_STANDARD", "name": "普通抛光", "family": "POLISH_LEVEL" },
+    { "code": "POLISH_MIRROR", "name": "镜面抛光", "family": "POLISH_LEVEL" },
+
+    { "code": "MARGIN_SUPRAGINGIVAL", "name": "龈上边缘", "family": "MARGIN_TYPE" },
+    { "code": "MARGIN_SUBGINGIVAL", "name": "龈下边缘", "family": "MARGIN_TYPE" },
+    { "code": "MARGIN_SHOULDER_STANDARD", "name": "肩台标准", "family": "MARGIN_TYPE" },
+
+    { "code": "DENTURE_TOOTH_HUGE", "name": "Huge", "family": "DENTURE_TOOTH_BRAND", "brand": "Huge" },
+    { "code": "DENTURE_TOOTH_YAMAHACHI", "name": "Yamahachi", "family": "DENTURE_TOOTH_BRAND", "brand": "Yamahachi" },
+    { "code": "DENTURE_TOOTH_VITA", "name": "Vita", "family": "DENTURE_TOOTH_BRAND", "brand": "Vita" },
+
+    { "code": "IMPLANT_ABUTMENT_STANDARD", "name": "标准基台", "family": "IMPLANT_ABUTMENT_TYPE" },
+    { "code": "IMPLANT_ABUTMENT_CUSTOM", "name": "个性化基台", "family": "IMPLANT_ABUTMENT_TYPE" },
+    { "code": "IMPLANT_ABUTMENT_ANGLED", "name": "角度基台", "family": "IMPLANT_ABUTMENT_TYPE" },
+    { "code": "IMPLANT_ABUTMENT_MULTI_UNIT", "name": "复合基台", "family": "IMPLANT_ABUTMENT_TYPE" },
+    { "code": "IMPLANT_ABUTMENT_TEMPORARY", "name": "临时基台", "family": "IMPLANT_ABUTMENT_TYPE" },
+    { "code": "IMPLANT_ABUTMENT_TI_BASE", "name": "Ti Base", "family": "IMPLANT_ABUTMENT_TYPE" },
+
+    { "code": "SCREW_ACCESS_BUCCAL", "name": "颊侧", "family": "SCREW_ACCESS_POSITION" },
+    { "code": "SCREW_ACCESS_LINGUAL", "name": "舌侧", "family": "SCREW_ACCESS_POSITION" },
+    { "code": "SCREW_ACCESS_OCCLUSAL", "name": "咬合面", "family": "SCREW_ACCESS_POSITION" }
+  ],
+
+  "shared_bindings": [
+    { "group": "TOOTH_SHADE", "mode": "SINGLE", "required": true,
+      "materials": ["SHADE_VITA_CLASSIC_16", "SHADE_VITA_3D_MASTER", "SHADE_CERVICAL_BODY_INCISAL"],
+      "products": ["打印氧化锆冠","全瓷冠","全瓷上瓷冠","烤瓷冠","嵌体","贴面","临时冠","桩核","全金属冠","马里兰桥","双重冠",
+                   "种植氧化锆冠","种植个性化基台","种植一体冠","种植桥架","全口种植产品","种植上部义齿",
+                   "支架义齿","树脂活动义齿","弹性义齿","临时活动义齿","全口义齿"] },
+    { "group": "POLISH_LEVEL", "mode": "SINGLE", "required": false,
+      "materials": ["POLISH_STANDARD","POLISH_MIRROR"],
+      "products": ["打印氧化锆冠","全瓷冠","全瓷上瓷冠","烤瓷冠","嵌体","贴面","临时冠","桩核","全金属冠","马里兰桥","双重冠",
+                   "种植氧化锆冠","种植个性化基台","种植一体冠","种植桥架","全口种植产品","种植上部义齿",
+                   "支架义齿","树脂活动义齿","弹性义齿","临时活动义齿","全口义齿"] },
+    { "group": "MARGIN_TYPE", "mode": "SINGLE", "required": false,
+      "materials": ["MARGIN_SUPRAGINGIVAL","MARGIN_SUBGINGIVAL","MARGIN_SHOULDER_STANDARD"],
+      "products": ["打印氧化锆冠","全瓷冠","全瓷上瓷冠","烤瓷冠","嵌体","贴面","临时冠","桩核","全金属冠","马里兰桥","双重冠"] },
+    { "group": "DENTURE_TOOTH_BRAND", "mode": "SINGLE", "required": false,
+      "materials": ["DENTURE_TOOTH_HUGE","DENTURE_TOOTH_YAMAHACHI","DENTURE_TOOTH_VITA"],
+      "products": ["支架义齿","树脂活动义齿","弹性义齿","临时活动义齿","全口义齿"] },
+    { "group": "IMPLANT_ABUTMENT_TYPE", "mode": "SINGLE", "required": false,
+      "materials": ["IMPLANT_ABUTMENT_STANDARD","IMPLANT_ABUTMENT_CUSTOM","IMPLANT_ABUTMENT_ANGLED","IMPLANT_ABUTMENT_MULTI_UNIT","IMPLANT_ABUTMENT_TEMPORARY","IMPLANT_ABUTMENT_TI_BASE"],
+      "products": ["种植氧化锆冠","种植个性化基台","种植一体冠","全口种植产品","种植上部义齿"] },
+    { "group": "SCREW_ACCESS_POSITION", "mode": "SINGLE", "required": false,
+      "materials": ["SCREW_ACCESS_BUCCAL","SCREW_ACCESS_LINGUAL","SCREW_ACCESS_OCCLUSAL"],
+      "products": ["种植氧化锆冠","种植个性化基台","种植一体冠","全口种植产品","种植上部义齿"] }
+  ],
+
+  "product_materials": {
+    "_note": "key 为 catalog_product_v2.display_name，与数据库 v3 逐字一致。每个产品的材料建成独立 MATERIAL 并绑定到该产品，selection_group_code 统一为 PRIMARY_MATERIAL，SINGLE 必选。",
+
+    "打印氧化锆冠": ["打印氧化锆冠","打印氧化锆贴面","打印氧化锆马里兰桥","打印氧化锆桩核","打印氧化锆嵌体","打印氧化锆种植冠","打印氧化锆基台"],
+    "全瓷冠": ["E-max铸瓷","3M LAVA","爱尔创氧化锆","爱迪特绚彩3D氧化锆","威兰德氧化锆","德国弹性瓷","泽康氧化锆全瓷（二代）","特美云锆","特美德锆","特美玉锆","特美锆","睿典瓷"],
+    "全瓷上瓷冠": ["威兰德氧化锆","德国弹性瓷"],
+    "烤瓷冠": ["钴铬合金烤瓷","纯钛烤瓷","贵金属烤瓷","Bego钴铬合金","德尔合金"],
+    "嵌体": ["E-max铸瓷","爱尔创氧化锆","爱迪特绚彩3D氧化锆","微晶瓷","聚合瓷","贵金属","钴铬合金","纯钛","德尔生物"],
+    "贴面": ["E-max铸瓷","家红水晶超薄贴面","微晶瓷"],
+    "临时冠": ["切削临时树脂冠"],
+    "桩核": ["E-max铸瓷","爱尔创氧化锆","爱迪特氧化锆","纯钛","钴铬合金","Bego钴铬合金"],
+    "全金属冠": ["贵金属冠"],
+    "马里兰桥": ["HPP马里兰桥（高分子HPP）","临时马里兰桥（树脂）","金属马里兰桥（钴铬）","马里兰桥（氧化锆，仅限前牙）","马里兰桥翼"],
+    "美学蜡型": ["美学蜡型牙"],
+    "双重冠": ["Bego钴铬合金套筒冠内冠","Bego钴铬合金套筒冠外冠","贵金属套筒冠内冠（另加贵金属时价）","贵金属套筒冠外冠（另加贵金属时价）","钴铬合金套筒冠内冠","钴铬合金套筒冠外冠"],
+
+    "种植氧化锆冠": ["种植体上部Cercon泽康全瓷牙","种植体上部LAVA氧化锆全瓷牙","种植体上部威兰德氧化锆全瓷牙","种植体上部特美云锆全瓷牙","种植体上部普通氧化锆全瓷牙","种植体上部水晶氧化锆全瓷牙","种植体上部特美德锆全瓷牙","种植体上部特美玉锆全瓷牙","种植体上部特美锆全瓷牙","种植体上部Bego钴铬合金烤瓷牙","种植体上部德尔烤瓷牙","种植体上部贵金属烤瓷牙","种植体上部钴铬合金烤瓷牙","种植体上部临时冠","种植体上部铸瓷冠（E-max，仅限前牙）","种植基底桥上部烤瓷"],
+    "种植个性化基台": ["研磨费LAVA氧化锆基台（含钛连接体）","研磨费威兰德氧化锆基台（含钛连接体）","研磨费氧化锆基台（含钛连接体）","研磨费水晶氧化锆基台（含钛连接体）","氧化锆基台","钛基台","钴铬基台","基台研磨费","贵金属可铸造基台加工费（另加贵金属时价）","钴铬合金可铸造基台加工费"],
+    "种植一体冠": ["种植体上部纯钛聚合瓷冠","种植体上部纯钛金属冠","种植体上部钴铬合金聚合瓷冠","种植体上部钴铬金属冠","研磨费LAVA氧化锆基台一体冠含上瓷","研磨费威兰德氧化锆基台一体冠含上瓷","研磨费氧化锆基台一体冠含上瓷","研磨费水晶氧化锆基台一体冠含上瓷"],
+    "种植导板": ["艾尔斯特全口种植放射导板（胶托排牙）","艾尔斯特导板孔","艾尔斯特导板（含CBCT分析设计）含一孔","艾尔斯特导板（无牙颌）"],
+    "种植桥架": ["种植桥连基台切削支架（含基台）","种植上部连基台铸造纯钛金属杆卡","种植上部连基台铸造贵金属杆卡"],
+    "全口种植产品": ["种植上部球帽式覆盖义齿","种植支架上部排塑钢牙修复","种植纯钛马泷桥架上部二氧化锆（国产锆）","种植纯钛马泷桥架上部二氧化锆（威兰德全瓷）","种植纯钛马泷桥架上部二氧化锆（泽康全瓷）","种植纯钛马泷桥架上部二氧化锆（进口水晶锆）"],
+
+    "支架义齿": ["BPD完美支架（大）","BPD完美支架（小）","Bego钴铬合金钢托（大）","Bego钴铬合金钢托（小）","Bio HPP支架（大）","德尔Del打印纯钛支架（大）","德尔Del打印纯钛支架（小）","德尔Del钴铬合金支架（大）","德尔Del钴铬合金支架（小）","维他灵钢托（大）","维他灵钢托（小）","精密附件支架"],
+    "树脂活动义齿": ["PPDS","代充胶","充不碎胶","隐形义齿胶（含一颗牙）"],
+    "微笑牙套": ["微笑牙套"],
+    "漂白牙套": ["漂白牙套"],
+    "临时活动义齿": ["临时全口活动义齿"],
+    "活动义齿修理": ["活动托垫底","活动托修补","清洁（加牙、加钩另计）","加软衬","加铸造支托/卡环","加白胶钩/透明卡环/隐形卡环","加成品钢网","加成品舌杆","加成品吸盘"],
+    "个性化托盘/蜡堤": ["个别托盘","蜡堤"],
+    "全口义齿": ["全口胶托（塑钢牙）","全口胶托（山八树脂牙）","全口Vita排牙"]
+  },
+
+  "unbound_materials": {
+    "_note": "文档在固定修复模板下列出但未指明归属产品，先建材料不建绑定，待客户确认归属。",
+    "钴铬合金聚合瓷冠": ["Bego钴铬合金聚合瓷冠","纯钛聚合瓷冠","贵金属聚合瓷冠"],
+    "精密附件": ["Bredent球状精密附着体","Bredent锁式精密附着体","Bredent键槽精密附着体","Key-key way栓道桥扣位附着体","MK1锁式精密附着体","太极扣精密附着体","按扣式精密附着体","杆卡式精密附着体","根面快套精密附着体","磁性式精密附着体","附着体换固位胶圈（活动托部分）"]
+  }
+}
