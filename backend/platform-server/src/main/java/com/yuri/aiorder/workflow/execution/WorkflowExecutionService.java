@@ -5,6 +5,7 @@ import com.fasterxml.jackson.core.type.TypeReference;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.yuri.aiorder.common.BootstrapIdentity;
 import com.yuri.aiorder.common.auth.AccessControlService;
+import com.yuri.aiorder.common.auth.SystemConfigService;
 import com.yuri.aiorder.workflow.runtime.WorkflowRuntimeService;
 import com.yuri.aiorder.workflow.standardtime.WorkflowStandardTimeProperties;
 import com.yuri.aiorder.notification.NotificationPushService;
@@ -90,6 +91,7 @@ public class WorkflowExecutionService {
     private final NotificationPushService notificationPushService;
     private final WorkflowRuntimeService workflowRuntimeService;
     private final WorkflowStandardTimeProperties standardTimeProperties;
+    private final SystemConfigService systemConfigService;
 
     public WorkflowExecutionService(
             JdbcClient jdbcClient,
@@ -97,13 +99,15 @@ public class WorkflowExecutionService {
             ObjectMapper objectMapper,
             NotificationPushService notificationPushService,
             WorkflowRuntimeService workflowRuntimeService,
-            WorkflowStandardTimeProperties standardTimeProperties) {
+            WorkflowStandardTimeProperties standardTimeProperties,
+            SystemConfigService systemConfigService) {
         this.jdbcClient = jdbcClient;
         this.accessControlService = accessControlService;
         this.objectMapper = objectMapper;
         this.notificationPushService = notificationPushService;
         this.workflowRuntimeService = workflowRuntimeService;
         this.standardTimeProperties = standardTimeProperties;
+        this.systemConfigService = systemConfigService;
     }
 
     @Transactional
@@ -114,6 +118,12 @@ public class WorkflowExecutionService {
         NodeRow node = lockNode(request.nodeInstanceId());
         requireWorkerAssignment(node, identity);
         String checkType = normalizeCheckType(request.checkType());
+        // 客户规则：入检 / 出检的检查人是组长，质检员只做过程抽检。
+        if ("SAMPLE".equals(checkType)) {
+            accessControlService.requireSampleInspection(identity);
+        } else {
+            accessControlService.requireGateInspection(identity);
+        }
         if ("IN".equals(checkType) && !"READY".equals(node.nodeStatus())) {
             throw new ResponseStatusException(HttpStatus.CONFLICT, "in-check requires ready node");
         }
@@ -194,6 +204,8 @@ public class WorkflowExecutionService {
                             r.reason_category,
                             r.reason_detail,
                             r.responsibility_type,
+                            r.routed_dept_id,
+                            r.routed_to_user_id,
                             r.close_note,
                             r.closed_by_user_id,
                             r.closed_at,
@@ -241,6 +253,8 @@ public class WorkflowExecutionService {
                         rs.getString("reason_category"),
                         rs.getString("reason_detail"),
                         rs.getString("responsibility_type"),
+                        rs.getObject("routed_dept_id", Long.class),
+                        rs.getObject("routed_to_user_id", Long.class),
                         rs.getString("close_note"),
                         rs.getObject("closed_by_user_id", Long.class),
                         rs.getObject("closed_at", LocalDateTime.class),
@@ -1808,6 +1822,9 @@ public class WorkflowExecutionService {
             throw new ResponseStatusException(
                     HttpStatus.CONFLICT, "rework target OUT/PASS check is required before closing rework");
         }
+        // 客户规则：内返由部门组长登记，责任由质检确认。关闭返工时要填责任方，因此这里要求责任确认权限码。
+        accessControlService.requirePermission(
+                identity, "rework:confirm-responsibility", "closing rework requires rework:confirm-responsibility");
         String reasonCategory = normalizeDictionaryValue(
                 request.reasonCategory(), REWORK_REASON_CATEGORY_TYPE, "unsupported rework reason category");
         String responsibilityType = normalizeDictionaryValue(
@@ -2163,6 +2180,47 @@ public class WorkflowExecutionService {
                 .list();
     }
 
+    /**
+     * 解析返工目标节点所属部门的组长。
+     *
+     * <p>部门归属取自被退回节点执行人所在部门（{@code system_user.dept_id}）；组长取该部门内持有
+     * {@code PROD_TEAM_LEAD} 角色且在岗的用户，同部门多名组长时取 user_id 最小的一个。
+     * 真实部门 / 班组清单属客户未提供资料，解析不到时两个字段留空，不阻塞返工创建。
+     */
+    private TeamLeadRoute resolveTeamLeadRoute(NodeRow target) {
+        if (target.assignedUserId() == null) {
+            return new TeamLeadRoute(null, null);
+        }
+        Long deptId = jdbcClient.sql("SELECT dept_id FROM system_user WHERE user_id = :userId")
+                .param("userId", target.assignedUserId())
+                .query(Long.class)
+                .optional()
+                .orElse(null);
+        if (deptId == null) {
+            return new TeamLeadRoute(null, null);
+        }
+        Long teamLeadUserId = jdbcClient.sql("""
+                        SELECT u.user_id
+                        FROM system_user u
+                        JOIN system_user_role ur ON ur.user_id = u.user_id
+                        JOIN system_role r ON r.role_id = ur.role_id
+                        WHERE u.dept_id = :deptId
+                          AND u.status = 'ACTIVE'
+                          AND r.role_code = 'PROD_TEAM_LEAD'
+                          AND r.status = 'ACTIVE'
+                        ORDER BY u.user_id ASC
+                        LIMIT 1
+                        """)
+                .param("deptId", deptId)
+                .query(Long.class)
+                .optional()
+                .orElse(null);
+        return new TeamLeadRoute(deptId, teamLeadUserId);
+    }
+
+    private record TeamLeadRoute(Long deptId, Long teamLeadUserId) {
+    }
+
     private Long createRework(NodeRow node, long checkId, CheckRecordRequest request) {
         if (request.reworkToNodeId() == null) {
             throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "rework_to_node_id is required when out-check fails");
@@ -2172,13 +2230,17 @@ public class WorkflowExecutionService {
             throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "rework target must belong to same order");
         }
         List<Long> impactedNodeIds = findImpactedResettableDownstreamNodeIds(target);
+        // 客户规则：终检不合格退回负责部门的组长。这里把退回目标固化成事实，供组长在返工列表里认领。
+        TeamLeadRoute route = resolveTeamLeadRoute(target);
         jdbcClient.sql("""
                         INSERT INTO rework_record
                             (order_id, source_check_id, from_node_instance_id, target_node_instance_id,
-                             impacted_node_count, impacted_node_instance_ids, reason_detail, status)
+                             impacted_node_count, impacted_node_instance_ids, reason_detail, status,
+                             routed_dept_id, routed_to_user_id)
                         VALUES
                             (:orderId, :sourceCheckId, :fromNodeInstanceId, :targetNodeInstanceId,
-                             :impactedNodeCount, CAST(:impactedNodeInstanceIds AS JSON), :reasonDetail, 'PENDING')
+                             :impactedNodeCount, CAST(:impactedNodeInstanceIds AS JSON), :reasonDetail, 'PENDING',
+                             :routedDeptId, :routedToUserId)
                         """)
                 .param("orderId", node.orderId())
                 .param("sourceCheckId", checkId)
@@ -2187,6 +2249,8 @@ public class WorkflowExecutionService {
                 .param("impactedNodeCount", impactedNodeIds.size())
                 .param("impactedNodeInstanceIds", serializeImpactedNodeInstanceIds(impactedNodeIds))
                 .param("reasonDetail", request.remark())
+                .param("routedDeptId", route.deptId())
+                .param("routedToUserId", route.teamLeadUserId())
                 .update();
         long reworkId = lastInsertId();
         resetImpactedDownstreamNodes(target);
@@ -2557,6 +2621,8 @@ public class WorkflowExecutionService {
                                 r.reason_category,
                                 r.reason_detail,
                                 r.responsibility_type,
+                                r.routed_dept_id,
+                                r.routed_to_user_id,
                                 r.close_note,
                                 r.closed_by_user_id,
                                 r.closed_at,
@@ -2587,6 +2653,8 @@ public class WorkflowExecutionService {
                             rs.getString("reason_category"),
                             rs.getString("reason_detail"),
                             rs.getString("responsibility_type"),
+                            rs.getObject("routed_dept_id", Long.class),
+                            rs.getObject("routed_to_user_id", Long.class),
                             rs.getString("close_note"),
                             rs.getObject("closed_by_user_id", Long.class),
                             rs.getObject("closed_at", LocalDateTime.class),
@@ -2752,8 +2820,12 @@ public class WorkflowExecutionService {
     }
 
     private void requireWorkLogOwner(WorkLogRow workLog, BootstrapIdentity identity) {
-        accessControlService.requireAssignedWorkerOrAdmin(
-                identity, workLog.workerUserId(), "worker cannot operate this work log");
+        // 开工 / 暂停 / 完工属「代操作生产」，是否允许派工权限持有者代做由配置开关决定（默认不允许）。
+        accessControlService.requireProductionOperator(
+                identity,
+                workLog.workerUserId(),
+                "worker cannot operate this work log",
+                systemConfigService.adminCanOperateProduction());
     }
 
     private void requireProductionEquipmentWrite(BootstrapIdentity identity) {
@@ -3419,6 +3491,8 @@ public class WorkflowExecutionService {
         return switch (checkType) {
             case 1 -> "IN";
             case 2 -> "OUT";
+            // 3 = 过程抽检：不参与一次通过率 / 终检通过率统计（那两项只看 check_type = 'OUT'）。
+            case 3 -> "SAMPLE";
             default -> throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "unsupported check_type");
         };
     }
@@ -3429,6 +3503,9 @@ public class WorkflowExecutionService {
         }
         if ("OUT".equals(checkType)) {
             return 2;
+        }
+        if ("SAMPLE".equals(checkType)) {
+            return 3;
         }
         return null;
     }

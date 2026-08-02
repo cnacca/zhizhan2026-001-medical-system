@@ -20,6 +20,9 @@ public record ReworkRecordResponse(
         @JsonProperty("reason_category") String reasonCategory,
         @JsonProperty("reason_detail") String reasonDetail,
         @JsonProperty("responsibility_type") String responsibilityType,
+        // 客户规则：终检不合格退回负责部门组长。解析不到部门或组长时留空，不阻塞返工创建。
+        @JsonProperty("routed_dept_id") Long routedDeptId,
+        @JsonProperty("routed_to_user_id") Long routedToUserId,
         @JsonProperty("close_note") String closeNote,
         @JsonProperty("closed_by_user_id") Long closedByUserId,
         @JsonProperty("closed_at") LocalDateTime closedAt,

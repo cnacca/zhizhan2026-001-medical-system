@@ -118,7 +118,21 @@ public class AccessControlService {
      * 这里的 {@code workflow:assign} 替代了原先写死的「ADMIN 直接放行」。
      */
     public void requireAssignedWorkerOrAdmin(BootstrapIdentity identity, Long assignedUserId, String message) {
-        if (identity.hasPermission("workflow:assign")) {
+        requireAssignedWorker(identity, assignedUserId, message, true);
+    }
+
+    /**
+     * 开工 / 暂停 / 完工等「代操作生产」动作。客户否决了「管理端一律不能代操作」的建议但未写允许到什么程度，
+     * 因此是否放行派工权限持有者由配置开关 {@code role.admin.can-operate-production} 决定，默认关闭。
+     */
+    public void requireProductionOperator(
+            BootstrapIdentity identity, Long assignedUserId, String message, boolean allowDelegation) {
+        requireAssignedWorker(identity, assignedUserId, message, allowDelegation);
+    }
+
+    private void requireAssignedWorker(
+            BootstrapIdentity identity, Long assignedUserId, String message, boolean allowDelegation) {
+        if (allowDelegation && identity.hasPermission("workflow:assign")) {
             return;
         }
         if (!identity.hasPermission("workflow:operate-assigned")
@@ -127,6 +141,21 @@ public class AccessControlService {
                 || !identity.userId().equals(assignedUserId)) {
             throw forbidden(message);
         }
+    }
+
+    /**
+     * 入检 / 出检的检查人是组长；质检员只做过程抽检。两者用不同权限码区分，新增角色时只配权限码即可。
+     */
+    public void requireGateInspection(BootstrapIdentity identity) {
+        requirePermission(identity, "check:gate-inspect", "in/out check requires check:gate-inspect");
+    }
+
+    public void requireSampleInspection(BootstrapIdentity identity) {
+        requireAnyPermission(
+                identity,
+                "sample check requires check:sample-inspect or check:gate-inspect",
+                "check:sample-inspect",
+                "check:gate-inspect");
     }
 
     public Long resolvePerformanceTargetUserId(BootstrapIdentity identity, Long requestedUserId) {

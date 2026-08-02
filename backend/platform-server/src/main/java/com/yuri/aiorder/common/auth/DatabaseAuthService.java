@@ -41,10 +41,10 @@ public class DatabaseAuthService {
     }
 
     private AuthenticatedUser toAuthenticatedUser(UserAuthRow row) {
-        List<String> roles = splitCsv(row.roleCodes());
-        List<String> permissions = splitCsv(row.permissionCodes());
+        List<String> roles = row.roleCodes();
+        List<String> permissions = row.permissionCodes();
         UserRole primaryRole = primaryRole(roles);
-        String dataScope = resolveDataScope(primaryRole, row.userDataScope(), splitCsv(row.dataScopes()));
+        String dataScope = resolveDataScope(primaryRole, row.userDataScope(), row.dataScopes());
         BootstrapIdentity identity = new BootstrapIdentity(
                 primaryRole,
                 row.userId(),
@@ -72,110 +72,104 @@ public class DatabaseAuthService {
     }
 
     private UserAuthRow loadUser(String username) {
-        try {
-            return jdbcClient.sql("""
-                            SELECT
-                                u.user_id,
-                                u.username,
-                                u.password_hash,
-                                u.clinic_id,
-                                u.data_scope AS user_data_scope,
-                                GROUP_CONCAT(DISTINCT r.role_code ORDER BY r.role_code SEPARATOR ',') AS role_codes,
-                                GROUP_CONCAT(DISTINCT r.data_scope ORDER BY r.data_scope SEPARATOR ',') AS data_scopes,
-                                GROUP_CONCAT(DISTINCT p.permission_code ORDER BY p.permission_code SEPARATOR ',') AS permission_codes
-                            FROM system_user u
-                            JOIN system_user_role ur ON ur.user_id = u.user_id
-                            JOIN system_role r ON r.role_id = ur.role_id
-                            LEFT JOIN (
-                                SELECT permission_user.user_id, permission_user.permission_id
-                                FROM (
-                                    SELECT role_user.user_id, role_permission.permission_id
-                                    FROM system_user_role role_user
-                                    JOIN system_role active_role
-                                      ON active_role.role_id = role_user.role_id
-                                     AND active_role.status = 'ACTIVE'
-                                    JOIN system_role_permission role_permission
-                                      ON role_permission.role_id = active_role.role_id
-                                    UNION
-                                    SELECT direct_permission.user_id, direct_permission.permission_id
-                                    FROM system_user_permission direct_permission
-                                ) permission_user
-                            ) effective_permission
-                              ON effective_permission.user_id = u.user_id
-                            LEFT JOIN system_permission p
-                              ON p.permission_id = effective_permission.permission_id
-                             AND p.status = 'ACTIVE'
-                            WHERE u.username = :username
-                              AND u.status = 'ACTIVE'
-                              AND r.status = 'ACTIVE'
-                            GROUP BY u.user_id, u.username, u.password_hash, u.clinic_id, u.data_scope
-                            """)
-                    .param("username", username)
-                    .query((rs, rowNum) -> new UserAuthRow(
-                            rs.getLong("user_id"),
-                            rs.getString("username"),
-                            rs.getString("password_hash"),
-                            rs.getObject("clinic_id", Long.class),
-                            rs.getString("user_data_scope"),
-                            rs.getString("role_codes"),
-                            rs.getString("data_scopes"),
-                            rs.getString("permission_codes")))
-                    .single();
-        } catch (EmptyResultDataAccessException ex) {
-            throw unauthorized();
-        }
+        return loadUser("username", username);
     }
 
     private UserAuthRow loadUser(long userId) {
+        return loadUser("user_id", userId);
+    }
+
+    /**
+     * 分三次查询装配用户身份，而不是用一条带 GROUP_CONCAT 的大查询。
+     *
+     * <p>原实现把角色码、数据范围、权限码都用 {@code GROUP_CONCAT} 拼成 CSV。MySQL 的
+     * {@code group_concat_max_len} 默认只有 1024 字节：权限码一多，字符串会被**静默截断**，
+     * 用户于是莫名其妙少掉一批权限且不报任何错。TASK-034 B 批次给管理员补齐权限码后，
+     * 管理员的权限串正好越过这条线，`workflow:assign` 被截掉。
+     */
+    private UserAuthRow loadUser(String identifierColumn, Object identifierValue) {
         try {
-            return jdbcClient.sql("""
+            UserBaseRow base = jdbcClient.sql("""
                             SELECT
                                 u.user_id,
                                 u.username,
                                 u.password_hash,
                                 u.clinic_id,
-                                u.data_scope AS user_data_scope,
-                                GROUP_CONCAT(DISTINCT r.role_code ORDER BY r.role_code SEPARATOR ',') AS role_codes,
-                                GROUP_CONCAT(DISTINCT r.data_scope ORDER BY r.data_scope SEPARATOR ',') AS data_scopes,
-                                GROUP_CONCAT(DISTINCT p.permission_code ORDER BY p.permission_code SEPARATOR ',') AS permission_codes
+                                u.data_scope AS user_data_scope
                             FROM system_user u
-                            JOIN system_user_role ur ON ur.user_id = u.user_id
-                            JOIN system_role r ON r.role_id = ur.role_id
-                            LEFT JOIN (
-                                SELECT permission_user.user_id, permission_user.permission_id
-                                FROM (
-                                    SELECT role_user.user_id, role_permission.permission_id
-                                    FROM system_user_role role_user
-                                    JOIN system_role active_role
-                                      ON active_role.role_id = role_user.role_id
-                                     AND active_role.status = 'ACTIVE'
-                                    JOIN system_role_permission role_permission
-                                      ON role_permission.role_id = active_role.role_id
-                                    UNION
-                                    SELECT direct_permission.user_id, direct_permission.permission_id
-                                    FROM system_user_permission direct_permission
-                                ) permission_user
-                            ) effective_permission
-                              ON effective_permission.user_id = u.user_id
-                            LEFT JOIN system_permission p
-                              ON p.permission_id = effective_permission.permission_id
-                             AND p.status = 'ACTIVE'
-                            WHERE u.user_id = :userId
+                            WHERE u.%s = :identifier
                               AND u.status = 'ACTIVE'
-                              AND r.status = 'ACTIVE'
-                            GROUP BY u.user_id, u.username, u.password_hash, u.clinic_id, u.data_scope
-                            """)
-                    .param("userId", userId)
-                    .query((rs, rowNum) -> new UserAuthRow(
+                            """.formatted(identifierColumn))
+                    .param("identifier", identifierValue)
+                    .query((rs, rowNum) -> new UserBaseRow(
                             rs.getLong("user_id"),
                             rs.getString("username"),
                             rs.getString("password_hash"),
                             rs.getObject("clinic_id", Long.class),
-                            rs.getString("user_data_scope"),
-                            rs.getString("role_codes"),
-                            rs.getString("data_scopes"),
-                            rs.getString("permission_codes")))
+                            rs.getString("user_data_scope")))
                     .single();
+
+            List<String> roleCodes = jdbcClient.sql("""
+                            SELECT r.role_code
+                            FROM system_user_role ur
+                            JOIN system_role r ON r.role_id = ur.role_id
+                            WHERE ur.user_id = :userId
+                              AND r.status = 'ACTIVE'
+                            ORDER BY r.role_code
+                            """)
+                    .param("userId", base.userId())
+                    .query(String.class)
+                    .list();
+            if (roleCodes.isEmpty()) {
+                throw unauthorized();
+            }
+
+            List<String> dataScopes = jdbcClient.sql("""
+                            SELECT DISTINCT r.data_scope
+                            FROM system_user_role ur
+                            JOIN system_role r ON r.role_id = ur.role_id
+                            WHERE ur.user_id = :userId
+                              AND r.status = 'ACTIVE'
+                              AND r.data_scope IS NOT NULL
+                            """)
+                    .param("userId", base.userId())
+                    .query(String.class)
+                    .list();
+
+            List<String> permissionCodes = jdbcClient.sql("""
+                            SELECT DISTINCT p.permission_code
+                            FROM system_permission p
+                            JOIN (
+                                SELECT role_permission.permission_id
+                                FROM system_user_role role_user
+                                JOIN system_role active_role
+                                  ON active_role.role_id = role_user.role_id
+                                 AND active_role.status = 'ACTIVE'
+                                JOIN system_role_permission role_permission
+                                  ON role_permission.role_id = active_role.role_id
+                                WHERE role_user.user_id = :userId
+                                UNION
+                                SELECT direct_permission.permission_id
+                                FROM system_user_permission direct_permission
+                                WHERE direct_permission.user_id = :userId
+                            ) effective_permission
+                              ON effective_permission.permission_id = p.permission_id
+                            WHERE p.status = 'ACTIVE'
+                            ORDER BY p.permission_code
+                            """)
+                    .param("userId", base.userId())
+                    .query(String.class)
+                    .list();
+
+            return new UserAuthRow(
+                    base.userId(),
+                    base.username(),
+                    base.passwordHash(),
+                    base.clinicId(),
+                    base.userDataScope(),
+                    roleCodes,
+                    dataScopes,
+                    permissionCodes);
         } catch (EmptyResultDataAccessException ex) {
             throw unauthorized();
         }
@@ -329,8 +323,16 @@ public class DatabaseAuthService {
             String passwordHash,
             Long clinicId,
             String userDataScope,
-            String roleCodes,
-            String dataScopes,
-            String permissionCodes) {
+            List<String> roleCodes,
+            List<String> dataScopes,
+            List<String> permissionCodes) {
+    }
+
+    private record UserBaseRow(
+            long userId,
+            String username,
+            String passwordHash,
+            Long clinicId,
+            String userDataScope) {
     }
 }

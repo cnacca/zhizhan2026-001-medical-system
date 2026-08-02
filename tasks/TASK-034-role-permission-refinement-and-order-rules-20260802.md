@@ -88,33 +88,68 @@ npm run check:task-034-authorization-baseline
 
 ---
 
-## B. 细分角色与专项权限落地
+## B. 细分角色与专项权限落地 —— `COMPLETED`（2026-08-03）
 
 **目标**：客户确认的约 20 个细分角色成为可配置数据。
 
-Scope：
+### Scope
 
-- 按 GOAL-033 的映射表，为四个入口各建细分角色记录（`system_role`），配置其权限码集合与 `data_scope`。
-- 补齐客户确认的约 38 项专项权限对应的权限码。已有 48 个，需盘点差集后新增。
-- 新增「组长」角色，并落地客户明确的三条规则：
-  - 入检/出检的检查人是组长，质检员只做过程抽检；
-  - 内返由部门组长登记，质检确认责任；
-  - 终检不合格退回负责部门组长。
-- 新增「收货人员」「发货人员」（`CS` 入口下的角色）。
-- 三项待澄清做成**配置可调**，不写死：
-  - 高级客服（客户「保留」「取消」都勾了）
-  - 管理端能否代操作生产（客户否决建议但未写替代方案）
-  - 生产资料审核员取消后由谁承接
+- [x] 按 GOAL-033 映射表建 **20 个细分角色**（V79），配置权限码集合与 `data_scope`：
+  医生端 4（诊所管理员/医生/前台/护士助手）、客服端 6（客服经理/高级客服/普通客服/翻译人员/收货人员/发货人员）、
+  生产端 7（生产经理/部门主管/组长/技工/质检员/终检员/生产资料审核员）、管理端 3（经理/主管/普通员工）。
+- [x] 新增 8 个专项权限码：`check:gate-inspect`、`check:sample-inspect`、`rework:register-internal`、
+  `rework:confirm-responsibility`、`logistics:receive`、`logistics:ship`、`message:translate`、`production:review-data`。
+- [x] 组长三条业务规则：
+  - 入检/出检需 `check:gate-inspect`（组长/主管/终检员持有）；质检员只有 `check:sample-inspect`，
+    新增 `check_type = 3 (SAMPLE)` 过程抽检类型，不参与一次通过率/终检通过率统计（那两项只看 `OUT`）。
+  - 内返登记权限码归组长；关闭返工时要填责任方，因此该动作要求 `rework:confirm-responsibility`（质检员持有）。
+  - 终检不合格退回负责部门组长：`rework_record` 新增 `routed_dept_id` / `routed_to_user_id`，
+    创建返工时按被退回节点执行人所属部门解析该部门 `PROD_TEAM_LEAD`，解析不到时留空、不阻塞返工创建。
+- [x] 收货/发货人员：只持有 `logistics:receive` / `logistics:ship` 与订单只读，不碰客户资料、产品与经营看板。
+- [x] 三项待澄清做成配置开关（新建 `system_config` 表），不写死：
+  - `role.cs-senior.enabled = true`（高级客服保留/取消，客户两个框都勾了）
+  - `role.admin.can-operate-production = false`（管理端代操作生产，客户否决建议但未写边界）
+  - `role.production-data-reviewer.successor = PROD_SUPERVISOR`（资料审核员取消后的承接方）
+  生产资料审核员角色以 `INACTIVE` 建档保留结构，客户改口时不需要重建。
 
-Acceptance：
+### 执行中发现并修复的缺陷
 
-- [ ] 新增一个角色全程在配置中完成，无 Java 改动。
-- [ ] 组长的三条业务规则有对应守卫与测试。
-- [ ] 收货/发货人员可登录客服端，看到且仅看到其职责范围内的功能。
-- [ ] 三项待澄清项以配置开关表达，切换开关即可改变行为。
-- [ ] 每个新角色有一条越权拒绝测试。
+**权限码列表会被静默截断。** `DatabaseAuthService` 原先用 `GROUP_CONCAT` 把角色码、数据范围、权限码拼成 CSV。
+MySQL `group_concat_max_len` 默认 1024 字节——本批次给管理员补齐权限码后，管理员的权限串正好越线，
+`workflow:assign` 被从末尾截掉，**不报任何错**，表现为管理员莫名其妙失去派工能力。
+已改为分三次查询装配，并加回归测试 `permissionListIsNotTruncatedWhenRoleHasManyCodes`
+（同时断言权限码总长度确实超过 1KB，否则这条回归没有意义）。
 
-**前置**：三项待澄清建议先发客户，但**不阻塞本批**——做成开关即可。
+这与 `status-vocabulary.md` 开篇记的是同一类问题：不抛错，只让数据悄悄不完整。
+
+### Acceptance
+
+- [x] 新增角色全程在配置中完成，无 Java 改动（`allTwentyFineGrainedRolesAreSeededAsConfigurationData`、
+  `assigningFineGrainedRoleToUserDoesNotBreakPortalLogin`）。
+- [x] 组长三条规则有守卫与测试（`teamLeadDoesGateInspectionWhileQualityInspectorOnlyDoesSampling`、
+  `internalReworkIsRegisteredByTeamLeadAndResponsibilityConfirmedByQualityInspector`、`resolveTeamLeadRoute`）。
+- [x] 收货/发货人员只看到职责范围内的功能（`receiverAndShipperSeeOnlyTheirOwnScope`，含越权拒绝断言）。
+- [x] 三项待澄清以开关表达，切换开关即可改变行为（`adminDelegationOfProductionOperationIsDrivenByConfigurationSwitch`
+  先断言默认拒绝，改配置后同一调用放行）。
+- [x] `INACTIVE` 角色不授予任何权限（`inactiveRoleGrantsNothing`）。
+
+Verification：
+
+```bash
+npm run test:backend
+npm run check:task-034-fine-grained-roles
+```
+
+结果：后端 277 项，仅剩 A 批次已登记的两条既有失败（测试库残留、生产工作台时区）。
+
+### 遗留
+
+- 「高级客服=按分配客户」需要 `ASSIGNED` 数据范围档，依赖 GOAL-034 G4 的客户负责人关系；
+  「部门主管=本部门」需要 `DEPT` 档，依赖客户未提供的真实部门数据。两者当前统一按 `SELF` 配置——
+  宁可范围偏窄，也不要先给成 `ALL` 再往回收。
+- 细分角色目前只能用 SQL 分配，管理端界面属 C 批次。
+- 客户确认表的 md 转写丢失了勾选与手写内容，本批次的角色清单以 GOAL-033 的归纳为准；
+  与客户复核时应回到 docx 原件。
 
 ---
 
