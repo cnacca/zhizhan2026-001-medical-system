@@ -1,0 +1,269 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>客户验收样片渲染器</title>
+  <style>
+    body {
+      margin: 0;
+      min-height: 100vh;
+      display: grid;
+      place-items: center;
+      color: #e8eef8;
+      background: #0b1424;
+      font-family: "PingFang SC", "Microsoft YaHei", sans-serif;
+    }
+    main { width: min(96vw, 1120px); }
+    canvas {
+      display: block;
+      width: 100%;
+      aspect-ratio: 16 / 9;
+      background: #111827;
+      border-radius: 14px;
+      box-shadow: 0 24px 80px rgba(0, 0, 0, .45);
+    }
+    footer {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 16px;
+      padding-top: 14px;
+    }
+    button {
+      border: 0;
+      border-radius: 999px;
+      padding: 11px 22px;
+      color: #04151d;
+      background: #73d4e7;
+      font: inherit;
+      font-weight: 700;
+      cursor: pointer;
+    }
+    button:disabled { opacity: .45; cursor: default; }
+    #download {
+      border-radius: 999px;
+      padding: 11px 22px;
+      color: #04151d;
+      background: #73d4e7;
+      font-weight: 700;
+      text-decoration: none;
+    }
+    #status { color: #aebbd0; }
+  </style>
+</head>
+<body>
+  <main>
+    <canvas id="stage" width="1920" height="1080"></canvas>
+    <footer>
+      <span id="status">准备就绪</span>
+      <button id="render">生成 30 秒样片</button>
+      <a id="download" hidden>下载样片</a>
+    </footer>
+  </main>
+  <audio id="narration" src="narration.mp3" preload="auto"></audio>
+  <script>
+    const canvas = document.querySelector('#stage')
+    const context = canvas.getContext('2d')
+    const renderButton = document.querySelector('#render')
+    const downloadLink = document.querySelector('#download')
+    const statusText = document.querySelector('#status')
+    const narration = document.querySelector('#narration')
+    const durationMs = 30000
+
+    const shots = [
+      { src: 'source_frames/01-login-entry.png', start: 0, end: 6000 },
+      { src: 'source_frames/02-doctor-login.png', start: 6000, end: 10000 },
+      { src: 'source_frames/03-doctor-dashboard.png', start: 10000, end: 18000 },
+      { src: 'source_frames/04-my-orders.png', start: 18000, end: 24000 },
+      { src: 'source_frames/05-new-order.png', start: 24000, end: 30000 }
+    ]
+    const subtitles = [
+      { start: 300, end: 3000, lines: ['欢迎查看 AI 智能下单平台'] },
+      { start: 3200, end: 8500, lines: ['系统按照医生、客服、生产和管理四类角色', '提供独立的工作入口'] },
+      { start: 8700, end: 14500, lines: ['进入医生端后，可以快速查看制作中', '即将送达和待处理订单'] },
+      { start: 14700, end: 22800, lines: ['医生还可以统一检索订单状态', '并通过分步表单创建新订单'] },
+      { start: 22900, end: 26300, lines: ['选择患者、产品及病例资料'] },
+      { start: 26500, end: 29800, lines: ['正式版本将继续展示完整业务闭环'] }
+    ]
+
+    function roundedRect(x, y, width, height, radius) {
+      context.beginPath()
+      context.roundRect(x, y, width, height, radius)
+    }
+
+    function drawImageCover(image, progress, alpha = 1) {
+      const zoom = 1 + progress * 0.035
+      const width = canvas.width * zoom
+      const height = canvas.height * zoom
+      context.save()
+      context.globalAlpha = alpha
+      context.drawImage(image, (canvas.width - width) / 2, (canvas.height - height) / 2, width, height)
+      context.restore()
+    }
+
+    function drawLabel() {
+      context.save()
+      roundedRect(52, 46, 320, 52, 26)
+      context.fillStyle = 'rgba(8, 18, 34, .82)'
+      context.fill()
+      context.font = '600 25px "PingFang SC", sans-serif'
+      context.fillStyle = '#d7f7ff'
+      context.fillText('客户验收样片 · 演示数据', 80, 81)
+      context.restore()
+    }
+
+    function drawTitle(elapsed) {
+      if (elapsed > 2800) return
+      const opacity = Math.min(1, elapsed / 500) * Math.min(1, (2800 - elapsed) / 500)
+      context.save()
+      context.fillStyle = `rgba(7, 16, 31, ${0.68 * opacity})`
+      context.fillRect(0, 0, canvas.width, canvas.height)
+      context.textAlign = 'center'
+      context.fillStyle = `rgba(255, 255, 255, ${opacity})`
+      context.font = '700 66px "PingFang SC", sans-serif'
+      context.fillText('AI 智能下单平台', 960, 474)
+      context.fillStyle = `rgba(190, 224, 236, ${opacity})`
+      context.font = '400 31px "PingFang SC", sans-serif'
+      context.fillText('客户验收效果样片', 960, 532)
+      context.restore()
+    }
+
+    function drawOutro(elapsed) {
+      if (elapsed < 28500) return
+      const opacity = Math.min(1, (elapsed - 28500) / 500)
+      context.save()
+      context.fillStyle = `rgba(6, 15, 29, ${0.72 * opacity})`
+      context.fillRect(0, 0, canvas.width, canvas.height)
+      context.textAlign = 'center'
+      context.fillStyle = `rgba(255, 255, 255, ${opacity})`
+      context.font = '650 48px "PingFang SC", sans-serif'
+      context.fillText('完整版本将展示四端业务闭环', 960, 510)
+      context.restore()
+    }
+
+    function drawSubtitle(elapsed) {
+      const cue = subtitles.find(item => elapsed >= item.start && elapsed <= item.end)
+      if (!cue) return
+      context.save()
+      context.textAlign = 'center'
+      context.font = '600 36px "PingFang SC", sans-serif'
+      const lineHeight = 50
+      const boxHeight = cue.lines.length * lineHeight + 28
+      const y = 1020 - boxHeight
+      roundedRect(330, y, 1260, boxHeight, 18)
+      context.fillStyle = 'rgba(3, 10, 20, .78)'
+      context.fill()
+      context.fillStyle = '#ffffff'
+      cue.lines.forEach((line, index) => {
+        context.fillText(line, 960, y + 48 + index * lineHeight)
+      })
+      context.restore()
+    }
+
+    function drawFrame(elapsed, images) {
+      const matchedShotIndex = shots.findIndex(item => elapsed >= item.start && elapsed < item.end)
+      const shotIndex = matchedShotIndex === -1 ? shots.length - 1 : matchedShotIndex
+      const shot = shots[shotIndex]
+      const progress = Math.max(0, Math.min(1, (elapsed - shot.start) / (shot.end - shot.start)))
+      context.fillStyle = '#0b1424'
+      context.fillRect(0, 0, canvas.width, canvas.height)
+      drawImageCover(images[shotIndex], progress)
+
+      const transitionMs = 420
+      if (shotIndex > 0 && elapsed - shot.start < transitionMs) {
+        const mix = (elapsed - shot.start) / transitionMs
+        drawImageCover(images[shotIndex - 1], 1, 1 - mix)
+      }
+
+      drawLabel()
+      drawTitle(elapsed)
+      drawOutro(elapsed)
+      drawSubtitle(elapsed)
+    }
+
+    async function loadImage(src) {
+      const image = new Image()
+      image.src = src
+      await image.decode()
+      return image
+    }
+
+    async function renderVideo() {
+      renderButton.disabled = true
+      statusText.textContent = '载入画面与语音…'
+      const images = await Promise.all(shots.map(item => loadImage(item.src)))
+      await narration.play().catch(() => {})
+      narration.pause()
+      narration.currentTime = 0
+      narration.playbackRate = 1.08
+
+      const audioContext = new AudioContext()
+      const source = audioContext.createMediaElementSource(narration)
+      const destination = audioContext.createMediaStreamDestination()
+      source.connect(destination)
+      const canvasStream = canvas.captureStream(30)
+      const mediaStream = new MediaStream([
+        ...canvasStream.getVideoTracks(),
+        ...destination.stream.getAudioTracks()
+      ])
+      const mimeType = MediaRecorder.isTypeSupported('video/webm;codecs=vp9,opus')
+        ? 'video/webm;codecs=vp9,opus'
+        : 'video/webm;codecs=vp8,opus'
+      const recorder = new MediaRecorder(mediaStream, {
+        mimeType,
+        videoBitsPerSecond: 9000000,
+        audioBitsPerSecond: 160000
+      })
+      const chunks = []
+      recorder.ondataavailable = event => {
+        if (event.data.size) chunks.push(event.data)
+      }
+
+      statusText.textContent = '正在生成 30 秒样片…'
+      const start = performance.now()
+      recorder.start(1000)
+      await audioContext.resume()
+      await narration.play()
+
+      await new Promise(resolve => {
+        function tick(now) {
+          const elapsed = Math.min(durationMs, now - start)
+          drawFrame(elapsed, images)
+          statusText.textContent = `正在生成… ${Math.min(30, Math.floor(elapsed / 1000) + 1)} / 30 秒`
+          if (elapsed < durationMs) {
+            requestAnimationFrame(tick)
+          } else {
+            resolve()
+          }
+        }
+        requestAnimationFrame(tick)
+      })
+
+      narration.pause()
+      await new Promise(resolve => {
+        recorder.onstop = resolve
+        recorder.stop()
+      })
+      const blob = new Blob(chunks, { type: mimeType })
+      downloadLink.href = URL.createObjectURL(blob)
+      downloadLink.download = 'ai-order-customer-acceptance-sample-30s.webm'
+      downloadLink.hidden = false
+      statusText.textContent = `样片已完成（${(blob.size / 1024 / 1024).toFixed(1)} MB）`
+      renderButton.textContent = '重新生成'
+      renderButton.disabled = false
+      drawFrame(durationMs - 1, images)
+    }
+
+    renderButton.addEventListener('click', () => {
+      renderVideo().catch(error => {
+        console.error(error)
+        statusText.textContent = error.message
+        renderButton.disabled = false
+      })
+    })
+
+    Promise.all(shots.map(item => loadImage(item.src))).then(images => drawFrame(0, images))
+  </script>
+</body>
+</html>

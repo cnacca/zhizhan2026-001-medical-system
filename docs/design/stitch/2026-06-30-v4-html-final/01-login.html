@@ -1,0 +1,200 @@
+<!-- 登录 - AI智能下单平台 (最终版) -->
+<!DOCTYPE html><html lang="zh-CN"><head>
+<meta charset="utf-8">
+<meta content="width=device-width, initial-scale=1.0" name="viewport">
+<title>AI智能下单平台 - 登录</title>
+<script src="https://cdn.tailwindcss.com?plugins=forms,container-queries"></script>
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet">
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&amp;family=Plus+Jakarta+Sans:wght@500;600;700&amp;family=JetBrains+Mono:wght@500&amp;display=swap" rel="stylesheet">
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet">
+<script id="tailwind-config">
+        tailwind.config = {
+            darkMode: "class",
+            theme: {
+                extend: {
+                    "colors": {
+                        "primary-fixed-dim": "#b4c5ff",
+                        "tertiary": "#822600",
+                        "surface-dim": "#d7dae5",
+                        "on-secondary": "#ffffff",
+                        "error-container": "#ffdad6",
+                        "secondary-fixed-dim": "#59dea0",
+                        "error": "#ba1a1a",
+                        "surface-variant": "#dfe2ed",
+                        "surface-container-highest": "#dfe2ed",
+                        "inverse-on-surface": "#eef0fc",
+                        "on-tertiary-fixed": "#390c00",
+                        "tertiary-fixed": "#ffdbd0",
+                        "surface-container-high": "#e5e8f3",
+                        "secondary-container": "#78fbbb",
+                        "on-tertiary-fixed-variant": "#832700",
+                        "surface": "#f9f9ff",
+                        "tertiary-fixed-dim": "#ffb59c",
+                        "inverse-surface": "#2c3039",
+                        "outline": "#737686",
+                        "on-primary": "#ffffff",
+                        "on-background": "#181c23",
+                        "surface-container-lowest": "#ffffff",
+                        "outline-variant": "#c3c6d7",
+                        "tertiary-container": "#aa3500",
+                        "background": "#f9f9ff",
+                        "on-error-container": "#93000a",
+                        "primary": "#003da6",
+                        "on-primary-fixed-variant": "#003ea8",
+                        "primary-fixed": "#dbe1ff",
+                        "secondary": "#006c47",
+                        "surface-container-low": "#f1f3ff",
+                        "surface-bright": "#f9f9ff",
+                        "primary-container": "#0052d9",
+                        "on-tertiary": "#ffffff",
+                        "on-primary-fixed": "#00174b",
+                        "surface-container": "#ebedf9",
+                        "on-primary-container": "#cbd6ff",
+                        "on-surface-variant": "#434654",
+                        "surface-tint": "#0353da",
+                        "on-error": "#ffffff",
+                        "on-secondary-fixed-variant": "#005234",
+                        "on-surface": "#181c23",
+                        "on-secondary-fixed": "#002112",
+                        "secondary-fixed": "#78fbbb",
+                        "inverse-primary": "#b4c5ff",
+                        "on-tertiary-container": "#ffccbc",
+                        "on-secondary-container": "#00734b"
+                    },
+                    "borderRadius": {
+                        "DEFAULT": "0.25rem",
+                        "lg": "0.5rem",
+                        "xl": "0.75rem",
+                        "full": "9999px"
+                    },
+                    "spacing": {
+                        "container-max": "1440px",
+                        "xl": "32px",
+                        "md": "16px",
+                        "gutter": "16px",
+                        "sm": "8px",
+                        "sidebar-width": "240px",
+                        "lg": "24px",
+                        "base": "4px",
+                        "xs": "4px"
+                    },
+                    "fontFamily": {
+                        "label-md": ["JetBrains Mono"],
+                        "headline-sm": ["Plus Jakarta Sans"],
+                        "display-lg": ["Plus Jakarta Sans"],
+                        "body-sm": ["Inter"],
+                        "body-lg": ["Inter"],
+                        "label-sm": ["JetBrains Mono"],
+                        "body-md": ["Inter"],
+                        "headline-md": ["Plus Jakarta Sans"]
+                    },
+                    "fontSize": {
+                        "label-md": ["13px", {"lineHeight": "18px", "fontWeight": "500"}],
+                        "headline-sm": ["16px", {"lineHeight": "24px", "fontWeight": "600"}],
+                        "display-lg": ["30px", {"lineHeight": "38px", "fontWeight": "700"}],
+                        "body-sm": ["12px", {"lineHeight": "20px", "fontWeight": "400"}],
+                        "body-lg": ["16px", {"lineHeight": "24px", "fontWeight": "400"}],
+                        "label-sm": ["11px", {"lineHeight": "16px", "fontWeight": "500"}],
+                        "body-md": ["14px", {"lineHeight": "22px", "fontWeight": "400"}],
+                        "headline-md": ["20px", {"lineHeight": "28px", "fontWeight": "600"}]
+                    }
+                }
+            }
+        }
+    </script>
+</head>
+<body class="bg-surface text-on-surface min-h-screen flex items-center justify-center p-md relative overflow-hidden font-body-md">
+<!-- Ambient Background Elements -->
+<div class="absolute inset-0 z-0 pointer-events-none">
+<div class="absolute top-[-10%] left-[-10%] w-[40vw] h-[40vw] rounded-full bg-primary-fixed-dim/30 blur-[120px]"></div>
+<div class="absolute bottom-[-10%] right-[-10%] w-[30vw] h-[30vw] rounded-full bg-secondary-fixed-dim/20 blur-[100px]"></div>
+</div>
+<!-- Main Container -->
+<div class="relative z-10 w-full max-w-[440px] flex flex-col gap-xl">
+<!-- Header Section -->
+<div class="text-center space-y-sm">
+<div class="mx-auto w-16 h-16 bg-primary rounded-xl flex items-center justify-center shadow-[0px_4px_10px_rgba(0,61,166,0.2)] mb-md">
+<span class="material-symbols-outlined text-on-primary text-[32px]">precision_manufacturing</span>
+</div>
+<h1 class="font-display-lg text-display-lg text-primary">AI智能下单平台</h1>
+<p class="font-body-lg text-body-lg text-on-surface-variant">智能下单与生产协同平台</p>
+</div>
+<!-- Login Card -->
+<div class="bg-surface-container-lowest rounded-xl border border-outline-variant/50 shadow-[0px_8px_24px_rgba(29,33,41,0.05)] p-lg flex flex-col gap-lg">
+<!-- Standard Login Form -->
+<form class="flex flex-col gap-md">
+<!-- Username -->
+<div class="relative">
+<label class="sr-only" for="username">账号</label>
+<div class="absolute inset-y-0 left-0 pl-sm flex items-center pointer-events-none">
+<span class="material-symbols-outlined text-outline text-[20px]">person</span>
+</div>
+<input class="w-full pl-xl pr-sm py-[10px] bg-surface border border-outline-variant rounded-lg text-on-surface placeholder:text-outline focus:border-primary focus:ring-1 focus:ring-primary focus:outline-none transition-colors font-body-md text-body-md" id="username" name="username" placeholder="请输入授权账号" type="text">
+</div>
+<!-- Password -->
+<div class="relative">
+<label class="sr-only" for="password">密码</label>
+<div class="absolute inset-y-0 left-0 pl-sm flex items-center pointer-events-none">
+<span class="material-symbols-outlined text-outline text-[20px]">lock</span>
+</div>
+<input class="w-full pl-xl pr-sm py-[10px] bg-surface border border-outline-variant rounded-lg text-on-surface placeholder:text-outline focus:border-primary focus:ring-1 focus:ring-primary focus:outline-none transition-colors font-body-md text-body-md" id="password" name="password" placeholder="请输入密码" type="password">
+</div>
+<!-- Remember Me & Forgot Password -->
+<div class="flex items-center justify-between mt-sm">
+<label class="flex items-center gap-xs cursor-pointer group">
+<input class="w-4 h-4 rounded border-outline-variant text-primary focus:ring-primary bg-surface transition-colors" type="checkbox">
+<span class="font-body-sm text-body-sm text-on-surface-variant group-hover:text-on-surface transition-colors">记住我</span>
+</label>
+<a class="font-body-sm text-body-sm text-primary hover:text-primary-container transition-colors" href="#">忘记密码？</a>
+</div>
+<!-- Login Button -->
+<button class="w-full mt-sm bg-primary hover:bg-primary-container text-on-primary font-headline-sm text-headline-sm py-[10px] rounded-lg transition-colors flex items-center justify-center gap-sm" type="submit">
+                    登录系统
+                    <span class="material-symbols-outlined text-[20px]">arrow_forward</span>
+</button>
+</form>
+<div class="h-px bg-outline-variant/30 w-full relative">
+<span class="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 bg-surface-container-lowest px-sm font-label-sm text-label-sm text-outline uppercase tracking-wider">快速登录通道</span>
+</div>
+<!-- Quick Login Portals (Bento Grid Style) -->
+<div class="grid grid-cols-2 gap-sm">
+<!-- Doctor Portal -->
+<button class="group flex flex-col items-center justify-center gap-xs p-md bg-surface border border-outline-variant/50 rounded-lg hover:bg-surface-container-low hover:border-primary-fixed-dim transition-all" type="button">
+<div class="w-10 h-10 rounded-full bg-secondary-fixed/20 text-secondary-container flex items-center justify-center group-hover:bg-secondary-fixed group-hover:text-on-secondary-container transition-colors">
+<span class="material-symbols-outlined text-[20px]">stethoscope</span>
+</div>
+<span class="font-label-md text-label-md text-on-surface-variant group-hover:text-on-surface transition-colors">医生端</span>
+</button>
+<!-- Customer Service Portal -->
+<button class="group flex flex-col items-center justify-center gap-xs p-md bg-surface border border-outline-variant/50 rounded-lg hover:bg-surface-container-low hover:border-primary-fixed-dim transition-all" type="button">
+<div class="w-10 h-10 rounded-full bg-primary-fixed/20 text-primary-container flex items-center justify-center group-hover:bg-primary-fixed group-hover:text-on-primary-container transition-colors">
+<span class="material-symbols-outlined text-[20px]">support_agent</span>
+</div>
+<span class="font-label-md text-label-md text-on-surface-variant group-hover:text-on-surface transition-colors">客服端</span>
+</button>
+<!-- Production Portal -->
+<button class="group flex flex-col items-center justify-center gap-xs p-md bg-surface border border-outline-variant/50 rounded-lg hover:bg-surface-container-low hover:border-primary-fixed-dim transition-all" type="button">
+<div class="w-10 h-10 rounded-full bg-tertiary-fixed/20 text-tertiary-container flex items-center justify-center group-hover:bg-tertiary-fixed group-hover:text-on-tertiary-container transition-colors">
+<span class="material-symbols-outlined text-[20px]">factory</span>
+</div>
+<span class="font-label-md text-label-md text-on-surface-variant group-hover:text-on-surface transition-colors">生产端</span>
+</button>
+<!-- Management Portal -->
+<button class="group flex flex-col items-center justify-center gap-xs p-md bg-surface border border-outline-variant/50 rounded-lg hover:bg-surface-container-low hover:border-primary-fixed-dim transition-all" type="button">
+<div class="w-10 h-10 rounded-full bg-surface-variant text-on-surface-variant flex items-center justify-center group-hover:bg-surface-container-highest group-hover:text-on-surface transition-colors">
+<span class="material-symbols-outlined text-[20px]">admin_panel_settings</span>
+</div>
+<span class="font-label-md text-label-md text-on-surface-variant group-hover:text-on-surface transition-colors">管理端</span>
+</button>
+</div>
+</div>
+<!-- Footer -->
+<div class="text-center space-y-xs">
+<div class="inline-flex items-center gap-xs bg-surface-container-low px-md py-xs rounded-full border border-outline-variant/30">
+<span class="material-symbols-outlined text-[16px] text-error">gpp_maybe</span>
+<span class="font-body-sm text-body-sm text-on-surface-variant">仅用于授权账号访问</span>
+</div>
+<p class="font-body-sm text-body-sm text-outline mt-sm">© 2026 AI智能下单平台</p>
+</div>
+</div>
+</body></html>

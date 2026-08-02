@@ -1,0 +1,230 @@
+{
+  "status": "passed",
+  "checkedAt": "2026-07-20T07:56:34.016Z",
+  "baseUrl": "http://127.0.0.1:15173",
+  "staticResult": {
+    "componentMarkers": [
+      "sendOrderDrawerMessage",
+      "visible_to: 'DOCTOR_CS'",
+      "/preview-url",
+      "StlViewerDialog",
+      "IMPLANT_RESTORATION",
+      "制作时间线",
+      "沟通信息",
+      "文件与设计稿",
+      "订单资料",
+      "订单时间线",
+      "cs-order-production-timeline",
+      "cs-order-section-details",
+      "cs-order-section-files",
+      "cs-order-section-messages",
+      "cs-order-section-history",
+      "设计稿第 {{ draft.version }} 版",
+      "生产创建时间",
+      "MAIN_PRODUCTION_STAGES"
+    ],
+    "styleMarkers": [
+      ".cs-r-order-drawer.el-drawer",
+      "overflow-y: auto",
+      "position: sticky",
+      "height: 61px",
+      "box-shadow: -8px 0 32px rgba(30, 27, 75, .1)",
+      ".cs-r-order-production-timeline",
+      ".cs-r-order-production-step",
+      ".cs-r-order-production-marker",
+      ".cs-r-order-production-current-note",
+      ".cs-r-order-production-toggle",
+      ".cs-r-order-production-sublist",
+      ".cs-r-order-production-substep",
+      ".cs-r-order-flow-section",
+      ".cs-r-order-composer"
+    ]
+  },
+  "browserResult": {
+    "geometry": {
+      "width": 540,
+      "height": 900,
+      "scrollHeight": 2508,
+      "clientHeight": 900,
+      "drawerOverflowY": "auto",
+      "bodyOverflowY": "visible",
+      "contentOverflowY": "visible",
+      "headerPosition": "sticky",
+      "headerTop": 0
+    },
+    "mobileGeometry": {
+      "width": 390,
+      "viewportWidth": 390,
+      "scrollWidth": 389,
+      "clientWidth": 389,
+      "flowSectionCount": 4
+    },
+    "sections": [
+      "制作时间线",
+      "订单资料",
+      "文件与设计稿",
+      "沟通信息",
+      "订单时间线"
+    ],
+    "productionStageCount": 8,
+    "productionNodeCount": 28,
+    "productionStageVisuals": [
+      {
+        "name": "订单接收",
+        "icon": "✓"
+      },
+      {
+        "name": "信息与数据审核",
+        "icon": "💾"
+      },
+      {
+        "name": "入厂收货",
+        "icon": "📥"
+      },
+      {
+        "name": "种植部件制作",
+        "icon": "⚙️"
+      },
+      {
+        "name": "CAD设计与切削",
+        "icon": "✏️"
+      },
+      {
+        "name": "金属与瓷层加工",
+        "icon": "⚙️"
+      },
+      {
+        "name": "上釉、抛光与质检",
+        "icon": "✅"
+      },
+      {
+        "name": "账单核对与发货",
+        "icon": "🚀"
+      }
+    ],
+    "productionNodeVisuals": [
+      {
+        "name": "客户、客服、销售下单",
+        "icon": "✓"
+      },
+      {
+        "name": "国外件信息检验、翻译，国内件信息检验",
+        "icon": "🔎"
+      },
+      {
+        "name": "入厂检验、数据技术检验",
+        "icon": "💾"
+      },
+      {
+        "name": "收发入货",
+        "icon": "📥"
+      },
+      {
+        "name": "收发出货",
+        "icon": "🚀"
+      },
+      {
+        "name": "种植入货检",
+        "icon": "🔎"
+      },
+      {
+        "name": "种植配基台",
+        "icon": "⚙️"
+      },
+      {
+        "name": "种植研磨基台",
+        "icon": "⚙️"
+      },
+      {
+        "name": "种植上部冠设计",
+        "icon": "✏️"
+      },
+      {
+        "name": "CAD入货检",
+        "icon": "🔎"
+      },
+      {
+        "name": "CAD设计",
+        "icon": "✏️"
+      },
+      {
+        "name": "CAD切削基台",
+        "icon": "⚙️"
+      },
+      {
+        "name": "CAD排版/切削/染色",
+        "icon": "🎨"
+      },
+      {
+        "name": "CAD烧结",
+        "icon": "⚙️"
+      },
+      {
+        "name": "CAD检验出货",
+        "icon": "✅"
+      },
+      {
+        "name": "车金入货检验",
+        "icon": "🔎"
+      },
+      {
+        "name": "车金出货检验",
+        "icon": "✅"
+      },
+      {
+        "name": "上瓷入货检验",
+        "icon": "🔎"
+      },
+      {
+        "name": "上瓷出货检验",
+        "icon": "✅"
+      },
+      {
+        "name": "车瓷入货检验",
+        "icon": "🔎"
+      },
+      {
+        "name": "车瓷形态确认",
+        "icon": "🔍"
+      },
+      {
+        "name": "车瓷出货检验",
+        "icon": "✅"
+      },
+      {
+        "name": "上釉",
+        "icon": "🎨"
+      },
+      {
+        "name": "抛光",
+        "icon": "🎨"
+      },
+      {
+        "name": "质检出货",
+        "icon": "✅"
+      },
+      {
+        "name": "等待出货",
+        "icon": "🚀"
+      },
+      {
+        "name": "客服核对订单信息及账单",
+        "icon": "💳"
+      },
+      {
+        "name": "发货",
+        "icon": "🚀"
+      }
+    ],
+    "timelineStyles": {
+      "markerWidth": "24px",
+      "markerHeight": "24px",
+      "markerBorderColor": "rgb(221, 214, 254)",
+      "markerFontSize": "9px",
+      "lineColor": "rgb(238, 242, 248)",
+      "nodeNameFontSize": "12px",
+      "nodeNameFontWeight": "600"
+    },
+    "visibleTextLength": 1145
+  }
+}

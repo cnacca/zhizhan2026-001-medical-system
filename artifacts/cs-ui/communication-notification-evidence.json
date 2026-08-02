@@ -1,0 +1,22 @@
+{
+  "cs_order_notifications": [
+    {
+      "notification_id": 4169,
+      "event": "MESSAGE_PENDING_REVIEW",
+      "order_id": 10483,
+      "read_at": null,
+      "created_at": "2026-07-12T20:42:38.235"
+    }
+  ],
+  "worker_order_notifications": [
+    {
+      "notification_id": 4170,
+      "event": "MESSAGE_MENTIONED",
+      "order_id": 10483,
+      "read_at": null,
+      "created_at": "2026-07-12T20:44:03.373"
+    }
+  ],
+  "cs_unread": 1,
+  "worker_unread": 1
+}

@@ -1,0 +1,3426 @@
+{
+  "version": 1,
+  "managed_by": "RepoFrame",
+  "active_goal": "GOAL-031",
+  "active_goal_file": "goals/GOAL-031-product-ordering-v2-case-group-20260731.md",
+  "phase_two_milestone_gaps": "docs/acceptance/phase-two-milestone-gap-matrix-20260728.md",
+  "linter": "repo-init/scripts/lint_acceptance.py",
+  "task8_readiness_gaps": [
+    {
+      "id": "auth-datascope-prod",
+      "status": "PARTIAL",
+      "source": "docs/deployment/readiness-checklist.md#正式鉴权与数据范围",
+      "current_evidence": "数据库账号、权限码、data_scope、Bearer token、refresh/logout、权限注解、部分 SQL DataScope、prod 关闭 bootstrap header 门禁、9D.75 权限码优先模式、GOAL-012 / TASK-013 权限 / DataScope 生产化收口第一段，以及 GOAL-016 / TASK-017 权限 / DataScope 生产化补强 B 已落地；主代码 roles-only `@RequirePermission` 已清零，clinic / doctor account / notification 已补权限码和 V36 种子，`/api/auth/refresh` 已实现 refresh token 轮换并拒绝旧 token 复用。",
+      "remaining_reason": "9D.75 已关闭生产角色兜底第一段，GOAL-012 已关闭 roles-only 权限注解库存，GOAL-016 已补 refresh token 轮换；仍缺完整 RuoYi 管理 UI、生产级 Spring Security/JWT、通用 DataScope SQL、access token 黑名单和多设备会话策略。",
+      "minimum_closure_loop": "后续补生产级 Spring Security/JWT、通用 SQL DataScope、access token 黑名单或多设备会话策略；继续保持 Task 8 NOT_READY。",
+      "verification": "npm run check:auth-datascope-prod-closure-b; npm run check:auth-refresh; npm run check:auth-datascope-prod-closure; npm run check:task9d75; ./scripts/with-jdk21.sh mvn -f backend/pom.xml -pl platform-server -Dtest=BearerIdentityTests,StrictPermissionModeTests,AuthStartupValidatorTests,PermissionInterceptorTests test; 角色越权矩阵"
+    },
+    {
+      "id": "frontend-business-pages",
+      "status": "PARTIAL",
+      "source": "docs/deployment/readiness-checklist.md#前端业务页面",
+      "current_evidence": "四入口登录、医生下单、客服初审、客服协同、客服资料缺失提示、AI 翻译草稿确认、设计稿预览 URL 聚合、客服端设计稿审核预览、账单物流预览/录入、人工付款状态第一段、生产审核、质检工时、绩效、绩效周期筛选第一段、绩效标准工时覆盖率与默认公式第一段、人员档案 / 工作量看板第一增量、质量记录 / 外返登记第一增量、生产看板、返工、终检报告、终检专用角色 / 附件第一增量、终检 PDF/签名第一段、12 步入口 smoke、固定演示数据前 3 步、首个派工节点工序操作数据动作、设计稿确认数据动作、账单/物流第一段数据动作、剩余工序完成、物流发货、医生确认收货数据动作、返工异常路径数据动作和 9D.99 A/B 类一期范围对齐第一段和 9D.100 A/B 类一期范围对齐第二段已落地。 PRD V2 本地功能差异收口 C 已补客服端 /ai/cs 的 AI-2 attachment_contexts 附件预览上下文展示。 PRD V2 本地功能差异收口 D 已补 /dashboards/phase-one-ab 本地月度趋势 / 客户排名聚合第一段，并让客服 / 生产工作台消费该聚合。 GOAL-017 / TASK-018 已补四端前端产品化体验收口：客服设计稿入口复用订单详情设计稿审核链路，客服账单入口复用账单 / 付款 / 配送人工跟进链路，生产设备 / 物料 / 安环 / 成本 / 奖惩入口从演示占位升级为本地第一增量汇总与表单，管理端账号 / 角色 / 权限入口补当前账号菜单与权限码库存展示，并新增统一加载态 / 空态 / 错误态 / 权限拒绝态提示。 GOAL-018 / TASK-019 已补本地 12 步主链路验收增强：`smoke:task9d62` 增加医生端脱敏、客服端可见性、生产端任务范围和管理端派工 / 转派角色边界断言，并新增 `check:local-main-chain-acceptance-hardening`。2026-07-27 医生端新建订单 P1 已完成隔离演示环境真实点击：PNG、PDF、STL 上传后返回上一步仍保留，草稿可见，订单 `ORD20260727-0384C949A3` 成功提交且 3 个附件均为 COMPLETED，缺少必填资料时提交按钮禁用；草稿 `ORD20260727-25A7C1F479`（ID 183）提交后保持同订单号 / 同 ID，未生成重复订单。",
+      "remaining_reason": "按 PRD V2 原验收表38项，前端与交互侧仍缺实时自动保存、设计稿多轮驳回、质量统计时间段拆分、人员账号创建入口，以及部分状态分支专项验收；2026-07-06 A/B/C 表外范围另行跟踪。真实支付 / 物流平台、电子签章、复杂报告、绩效申诉 / 工资和完整 HR/BI 不计一期 P0。",
+      "minimum_closure_loop": "按 docs/acceptance/prd-v2-38-item-acceptance-audit-20260715.md 关闭 PARTIAL / MISSING 的页面和接口闭环，形成原验收表38项记录；2026-07-06 A/B/C 表外范围、跨项门禁和 readiness 继续单独关闭，二期平台集成如新增另走变更任务。",
+      "verification": "npm run check:doctor-portal-v2; npm run build:frontend; ./scripts/with-jdk21.sh mvn -f backend/pom.xml -pl platform-server -Dtest=OrderStatusProjectionTests,FileAccessTests test; npm run check:local-main-chain-acceptance-hardening; npm run check:task9d62; npm run smoke:task9d62; npm run check:task9d68; npm run check:task8-readiness-gaps; npm run acceptance; git diff --check"
+    },
+    {
+      "id": "websocket-notification-prod",
+      "status": "PARTIAL",
+      "source": "docs/deployment/readiness-checklist.md#WebSocket / 通知",
+      "current_evidence": "单实例 WebSocket、通知 REST、前端通知中心、Redis 广播代码路径、AI 外部告警 outbox 可观察链路、9D.71 接收端验签 / 防重放本地验收桩和 9D.76 Nginx 通知 REST / WebSocket 生产网关 readiness 第一段已落地。GOAL-014 / TASK-015 已新增 docs/deployment/websocket-notification-production-readiness.md 和 check:websocket-notification-readiness-closure，把真实环境通知验收项整理为待填写 / 待确认模板；Task 8 NOT_READY。",
+      "remaining_reason": "仍缺真实双后端实例 Redis 联调、心跳 / 重连压测、Nginx HTTPS 生产网关验收、浏览器通知权限、完整业务页面联动、生产 webhook 联调、监控告警和真实环境通知验收证据。",
+      "minimum_closure_loop": "后续在具备真实环境后，按 docs/deployment/websocket-notification-production-readiness.md 补双实例 Redis WebSocket 联调记录、Nginx HTTPS smoke、生产 webhook 联调记录和监控告警证据，并纳入一期总体验收记录；继续保持 Task 8 NOT_READY。",
+      "verification": "npm run check:websocket-notification-readiness-closure; npm run check:task9d76; NotificationWebSocketTests; NotificationRestTests; NotificationBroadcastTests; Nginx HTTPS smoke; 真实双后端实例 Redis 联调记录; 生产 webhook 联调记录"
+    },
+    {
+      "id": "file-upload-prod",
+      "status": "PARTIAL",
+      "source": "docs/deployment/readiness-checklist.md#文件上传",
+      "current_evidence": "105MB Multipart、本地恢复、服务端候选恢复和中断恢复浏览器 smoke 已通过；9D.67 已补 FILE_MAX_FILE_SIZE_BYTES、FILE_ALLOWED_CONTENT_TYPES、FILE_MAX_FILES_PER_ORDER 服务端校验和医生端选择提示；9D.77 弱网 / 跨设备验收第一段已新增本地 Playwright smoke，使用两个浏览器 context 模拟设备 A 弱网中断、设备 B 无 localStorage 通过服务端 pending 候选恢复同一 file_id；9D.78 测试 / 正式对象存储 bucket 隔离验收记录第一段已新增 check:task9d78 和 bucket 隔离记录；9D.79 已新增真实环境文件上传人工验收记录模板第一段、task-9d79-real-env-file-upload-manual-acceptance-required-text 和 check:task9d79。",
+      "remaining_reason": "仍缺真实测试 bucket、真实正式 bucket、对象存储账号隔离、真实弱网物理网络、真实跨设备实机、真实对象存储联调和文件大小 / 类型 / 数量最终参数确认。PRD 已给 500MB、每单 50 个默认值，可先开发测试。",
+      "minimum_closure_loop": "真实测试环境具备后按 9D.79 模板填写文件上传人工验收记录；PM/客户只需确认最终文件参数，验收证据并入一期总体验收记录。",
+      "verification": "npm run check:task9d67; npm run check:task9d77; npm run check:task9d78; npm run check:task9d79; npm run smoke:task9d10-large-upload; npm run smoke:task9d10-server-resume; npm run smoke:task9d10-interrupted-resume; npm run smoke:task9d77-file-upload-resilience"
+    },
+    {
+      "id": "ai-production-governance",
+      "status": "PARTIAL",
+      "source": "docs/deployment/readiness-checklist.md#AI 接入",
+      "current_evidence": "DeepSeek 默认关闭、限流、成本审计、重试、失败审计、预算、熔断、输出防护、外部告警发送/调度/死信/幂等/签名/监控/列表/失败可见性已落地；9D.71 已补默认关闭的 AI 外部告警接收端验签 / 防重放本地验收桩；9D.80 已新增 AI 真实 key / 生产 webhook 联调记录模板和 check:task9d80；9D.94 已补 LangChain4j + DeepSeek 底座对齐第一增量；9D.97 和 PRD V2 本地功能差异收口 C 已补 AI-2 引用数据说明与 attachment_contexts 附件预览上下文第一段；9D.98 已补 AI-5 PHASE_ONE_DEFAULT_V1 默认模板、知识上下文说明和人工确认写入链路。GOAL-019 / TASK-020 已补本地只读 AI 治理总览：GET /ai/governance/local-hardening、管理端 /admin/ai-governance、提示词版本、输出安全边界、预算 / 熔断、AI-3 安全矩阵、AI-5 默认模板边界和真实外部集成待验状态，并新增 check:ai-production-governance-local-hardening。真实 key、生产 webhook、客户正式模板和客户 / PM 签字仍为待填写 / 待确认。 AI-5 人工确认写入入口保留 /ai/production-note/confirm 作为本地证据。",
+      "remaining_reason": "仍缺真实 key 环境联调、生产 webhook 联调、外部 secret 注入验收、客户提供 AI-5 正式模板和真实环境 AI 验收。guarded streaming、RAG / tool calling、生产级成本看板未被 PRD V2 列为一期 P0。",
+      "minimum_closure_loop": "真实 AI 环境具备后按 9D.80 模板完成 AI-1 至 AI-5 验收；客户提供 AI-5 正式模板后替换 PHASE_ONE_DEFAULT_V1，并把结果纳入一期总体验收记录。额外 AI 能力如新增另走变更。",
+      "verification": "npm run check:ai-production-governance-local-hardening; npm run check:task9d71; npm run check:task9d80; npm run check:task9d94; npm run check:task9d97; npm run check:task9d98; npm run check:openapi; AiGatewayTests; AiGatewayDeepSeekTests; npm run check:prd-v2-gap-closure-c; task-9d94-langchain-deepseek-foundation; task-9d98-ai5-production-note-template-context"
+    },
+    {
+      "id": "deployment-infrastructure",
+      "status": "PARTIAL",
+      "source": "docs/deployment/readiness-checklist.md#部署基础设施",
+      "current_evidence": "已有本地 compose、prod auth token-secret 门禁、部署环境静态检查第一增量；9D.69 已补后端/前端 Dockerfile、full-stack compose 示例、生产 env 占位示例和 Docker/env 隔离文档；9D.70 已补操作手册第一段；9D.81 已新增部署真实环境 smoke / HTTPS / 备份监控验收记录模板和 check:task9d81。 GOAL-011 / TASK-012 已把 9D.81 真实部署 / HTTPS / 备份监控模板纳入阶段级闸门；真实部署验收仍为待填写 / 待确认。GOAL-020 / TASK-021 已补 docs/deployment/phase-one-local-ops-dry-run.md、check:deployment-ops-local-hardening 和 dry-run:phase-one-release-rollback，用于本地 release / rollback、备份 / 恢复、日志 / 监控和 compose / env / Nginx / healthcheck 静态检查；真实部署验收仍未关闭。 GOAL-032 / TASK-033 已新增 scripts/clean-env-reproducibility-drill.sh、npm run drill:clean-env、npm run check:clean-env-reproducibility 和 docs/deployment/clean-env-reproducibility-drill.md：把仓库克隆到全新目录只按 README 执行，2026-08-02 演练 10 项全部通过。该演练过程中修复了 demo:seed 顺序、账单 PDF 校验、付款门禁、造数循环依赖、幂等判据、类型比较、日期边界与 compose:up 启动竞态共 8 项缺陷。本地演练不覆盖 Linux 宿主、with-jdk21.sh 的 Homebrew 硬编码路径、Docker 权限、HTTPS、多实例并存、备份恢复与监控告警，不构成真实服务器部署验收，本项继续保持 PARTIAL。",
+      "remaining_reason": "仍缺真实服务器部署、HTTPS、镜像仓库、测试/正式环境真实联调、数据库备份恢复演练、日志留存、监控告警、发布回滚和真实部署验收证据。",
+      "minimum_closure_loop": "真实部署环境具备后按 9D.81 模板填写部署 smoke / HTTPS / 备份监控记录，并纳入一期总体验收；本地优先关闭 PRD V2 的 MISSING / PARTIAL 项。",
+      "verification": "npm run check:deployment-ops-local-hardening; npm run dry-run:phase-one-release-rollback; npm run check:task9d69; npm run compose:phase-one:config; npm run check:deployment-env; npm run check:task9d81; 后续真实环境 smoke"
+    },
+    {
+      "id": "operations-manuals",
+      "status": "PARTIAL",
+      "source": "docs/deployment/readiness-checklist.md#操作手册",
+      "current_evidence": "9D.70 已新增 docs/operations/phase-one-role-operation-manual.md、docs/operations/phase-one-troubleshooting-guide.md 和 docs/operations/phase-one-delivery-materials-index.md，覆盖四端最小操作路径、首版故障处理清单和交付材料索引。GOAL-015 / TASK-016 已新增 docs/operations/phase-one-rollback-runbook.md、docs/operations/phase-one-training-materials.md 和 check:operations-rollback-training-closure，把操作手册、发布回滚手册模板、培训材料模板和交付材料索引收拢为本地阶段入口；Task 8 NOT_READY。GOAL-020 / TASK-021 已把 phase-one-local-ops-dry-run.md、dry-run:phase-one-release-rollback、备份 / 恢复 dry-run 模板第一段、日志留存 / 监控告警配置模板第一段与回滚 / 培训材料做 readiness 联动。",
+      "remaining_reason": "仍缺正式客户培训签收、真实发布回滚演练、真实生产部署手册执行记录、备份恢复演练、日志留存、监控告警和真实环境验收。这些属于交付证据，不是功能逐项签字闸门。",
+      "minimum_closure_loop": "真实培训或真实部署环境具备后，按 docs/operations/phase-one-training-materials.md 补客户培训签到 / 签收记录，按 docs/operations/phase-one-rollback-runbook.md 补真实发布回滚演练、备份恢复和监控告警证据；继续保持 Task 8 NOT_READY。",
+      "verification": "npm run check:deployment-ops-local-hardening; npm run dry-run:phase-one-release-rollback; npm run check:operations-rollback-training-closure; npm run check:task9d70; 客户培训签收; 真实发布回滚演练记录; 备份恢复演练记录; 监控告警验收记录"
+    },
+    {
+      "id": "prd-v2-local-feature-gaps",
+      "status": "PARTIAL",
+      "source": "docs/acceptance/prd-v2-gap-matrix.md",
+      "current_evidence": "9D.82 已新增 docs/acceptance/prd-v2-gap-matrix.md，2026-07-06 基准已新增 docs/acceptance/phase-one-scope-baseline-20260706.md，9D.83 已补患者管理基础版第一增量，9D.84 已补人工支付流水 / 收支记录第一增量，9D.85 已补客户 / 诊所档案与偏好第一增量，9D.86 已补人员档案 / 工作量看板第一增量，9D.87 已补质量记录 CRUD / 外返登记第一增量，PRD V2 本地功能差异收口 B 已补 quality_record 独立事实表和状态工作流第一段，9D.88 已补客服订单 / 沟通完整可见性 smoke，9D.89 已补医生账户设置基础闭环，9D.90 已补产品参数 / 价格体系一期最小后台，9D.91 已补客服配送管理页 / 物流异常跟进第一增量，9D.92 已补 AI-2 客服查询助手完整入口第一增量，9D.93.1 已保留医生文件模块不独立开发和 AI 使用 LangChain + DeepSeek 的判断，9D.94 已补 LangChain + DeepSeek AI 底座对齐第一增量，9D.95.1-9D.95.5 作为 C 类基础能力中的基础台账 / 基础登记 / 状态更新证据保留，9D.96 已补医生提交前 AI-4 资料缺失自动触发体验第一增量，9D.97 已补 AI-2 客服查询引用数据说明 / 知识上下文补强第一增量，9D.99 已补 A/B 类一期范围对齐第一段，9D.100 已补 A/B 类一期范围对齐第二段。 PRD V2 本地功能差异收口 C 已补 AI-2 attachment_contexts 附件预览上下文、客服端展示、OpenAPI AiAttachmentContext 和 check:prd-v2-gap-closure-c。 9D.97 静态验收入口 task-9d97-cs-ai-reference-context / check:task9d97 保留为 AI-2 reference_data_notes 证据。 PRD V2 本地功能差异收口 D 已补 /dashboards/phase-one-ab、PhaseOneDashboardTests、客服 / 生产工作台消费、OpenAPI PhaseOneAbDashboardResponse 和 check:prd-v2-gap-closure-d。 GOAL-017 / TASK-018 已把已有本地第一增量的四端前端入口产品化，但不改变 PRD V2 差异整体 PARTIAL 判断。",
+      "remaining_reason": "按 38 项逐项审计，本地仍有 4 项 MISSING 和 8 项 PARTIAL：最高风险包括医生端内部工序暴露/生产端访问、工序链自动匹配、人员账号创建、设计稿确认与出检通过生产门禁、跨诊所无令牌访问，以及若干设计稿/质量/绩效分支。真实支付 / 物流平台、电子签章不计一期 P0。",
+      "minimum_closure_loop": "按 docs/acceptance/prd-v2-38-item-acceptance-audit-20260715.md 的 P0-1 至 P0-4 顺序关闭本地安全和主链缺口；并行准备 8 项真实环境/最终验收证据。Task 8 继续保持 NOT_READY。",
+      "verification": "npm run check:prd-v2-gap-closure-d; ./scripts/with-jdk21.sh mvn -f backend/pom.xml -pl platform-server -Dtest=PhaseOneDashboardTests test; npm run check:openapi; npm run build:frontend; npm run acceptance"
+    },
+    {
+      "id": "customer-pm-confirmations",
+      "status": "PARTIAL",
+      "source": "docs/acceptance/phase-one-customer-pm-confirmations.md",
+      "current_evidence": "GOAL-021 / TASK-022 已按 PRD V2 和 2026-07-06 已确认范围基准校正旧 CP 清单：仅 CP-002 动态表单最终字段和 CP-005 文件限制属于待客户 / PM 产品确认；CP-003 是客户模板输入，CP-004 是标准工时业务数据且提供方待项目方指定，CP-001 / CP-007 已确认人工维护方式，CP-006 不属于一期 P0，CP-008 / CP-009 分别属于最终交付和真实环境证据。PRD 明确要求逐功能签字为 0 项。",
+      "remaining_reason": "仍缺 2 项产品参数确认、1 份 AI-5 客户模板、1 包工序标准工时数据，以及最终培训、真实环境和总体验收证据；这些依赖不应阻塞其余 32 个无外部口径依赖的验收项继续开发。",
+      "minimum_closure_loop": "先按 docs/acceptance/prd-v2-38-item-acceptance-audit-20260715.md 关闭本地 PARTIAL / MISSING 项；并行收集 CP-002、CP-005、AI-5 模板和标准工时。原验收表38项、2026-07-06 A/B/C 表外范围、跨项门禁、上线 readiness 与真实交付证据全部关闭后形成一份总体验收记录；Task 8 继续保持 NOT_READY。",
+      "verification": "npm run check:prd-v2-acceptance-recalibration; npm run check:task9d72; npm run check:real-acceptance-confirmation; npm run check:task8-readiness-gaps"
+    }
+  ],
+  "goals": [
+    {
+      "id": "GOAL-001",
+      "file": "goals/GOAL-001-scope-clarified-for.md",
+      "status": "superseded-for-current-execution",
+      "checks": [
+        {
+          "id": "goal-001-file-exists",
+          "type": "files_exist",
+          "paths": [
+            "goals/GOAL-001-scope-clarified-for.md"
+          ]
+        },
+        {
+          "id": "goal-001-headings",
+          "type": "markdown_headings",
+          "paths": [
+            "goals/GOAL-001-scope-clarified-for.md"
+          ],
+          "headings": [
+            "Metadata",
+            "Final Outcome",
+            "Human Acceptance",
+            "Machine Acceptance",
+            "Observation Ledger",
+            "Replan History"
+          ]
+        },
+        {
+          "id": "goal-001-current-supersede-text",
+          "type": "required_text",
+          "paths": [
+            "goals/GOAL-001-scope-clarified-for.md"
+          ],
+          "patterns": [
+            "Status: `superseded-for-current-execution`",
+            "Current handoff work continues through `goals/GOAL-003-repoframe-doc-hydration-20260707.md`",
+            "historical initialization evidence"
+          ]
+        }
+      ]
+    },
+    {
+      "id": "GOAL-002",
+      "file": "goals/GOAL-002-scope-clarified-for.md",
+      "status": "superseded",
+      "checks": [
+        {
+          "id": "goal-002-and-task-003-exist",
+          "type": "files_exist",
+          "paths": [
+            "goals/GOAL-002-scope-clarified-for.md",
+            "tasks/TASK-003-clarify-source-bundle-and-recover-missing-scope.md"
+          ]
+        },
+        {
+          "id": "goal-002-headings",
+          "type": "markdown_headings",
+          "paths": [
+            "goals/GOAL-002-scope-clarified-for.md"
+          ],
+          "headings": [
+            "Metadata",
+            "Final Outcome",
+            "Human Acceptance",
+            "Machine Acceptance",
+            "Observation Ledger",
+            "Replan History"
+          ]
+        },
+        {
+          "id": "task-003-headings",
+          "type": "markdown_headings",
+          "paths": [
+            "tasks/TASK-003-clarify-source-bundle-and-recover-missing-scope.md"
+          ],
+          "headings": [
+            "Metadata",
+            "Why",
+            "Scope",
+            "Acceptance Criteria",
+            "Assumption Checks",
+            "Downstream Impact",
+            "Execution Log"
+          ]
+        },
+        {
+          "id": "goal-002-superseded-text",
+          "type": "required_text",
+          "paths": [
+            "goals/GOAL-002-scope-clarified-for.md"
+          ],
+          "patterns": [
+            "Status: `superseded`",
+            "active GOAL-003 RepoFrame hydration track",
+            "Do not use it as the current execution entry"
+          ]
+        },
+        {
+          "id": "task-003-superseded-text",
+          "type": "required_text",
+          "paths": [
+            "tasks/TASK-003-clarify-source-bundle-and-recover-missing-scope.md"
+          ],
+          "patterns": [
+            "Status: `superseded`",
+            "GOAL-003 / TASK-004 exists as the current RepoFrame hydration route",
+            "No implementation work is scheduled from this task"
+          ]
+        }
+      ]
+    },
+    {
+      "id": "GOAL-003",
+      "file": "goals/GOAL-003-repoframe-doc-hydration-20260707.md",
+      "status": "completed",
+      "checks": [
+        {
+          "id": "repoframe-required-files-exist",
+          "type": "files_exist",
+          "paths": [
+            "AGENTS.md",
+            "AGENT.md",
+            "PROJECT.md",
+            "STATUS.md",
+            "DECISIONS.md",
+            "README.md",
+            "acceptance.json",
+            ".repo-init/init-report.md",
+            "goals/GOAL-003-repoframe-doc-hydration-20260707.md",
+            "tasks/TASK-004-repoframe-doc-hydration-20260707.md",
+            "docs/development/repo-init-document-design-20260706.md",
+            "docs/acceptance/phase-one-scope-baseline-20260706.md",
+            "scripts/check-repoframe-docs.mjs"
+          ]
+        },
+        {
+          "id": "goal-003-headings",
+          "type": "markdown_headings",
+          "paths": [
+            "goals/GOAL-003-repoframe-doc-hydration-20260707.md"
+          ],
+          "headings": [
+            "Metadata",
+            "Final Outcome",
+            "Human Acceptance",
+            "Machine Acceptance",
+            "Constraints",
+            "Current Strategy",
+            "Planned Tasks",
+            "Recommended Start",
+            "Observation Ledger",
+            "Replan History",
+            "Assumptions"
+          ]
+        },
+        {
+          "id": "task-004-headings",
+          "type": "markdown_headings",
+          "paths": [
+            "tasks/TASK-004-repoframe-doc-hydration-20260707.md"
+          ],
+          "headings": [
+            "Metadata",
+            "Why",
+            "Scope",
+            "Non-goals",
+            "Acceptance Criteria",
+            "Verification Commands",
+            "Assumption Checks",
+            "Downstream Impact",
+            "Completion Record",
+            "Remaining Work",
+            "Known Risks",
+            "Execution Log"
+          ]
+        },
+        {
+          "id": "goal-003-completed-status-pointers",
+          "type": "required_text",
+          "paths": [
+            "STATUS.md"
+          ],
+          "patterns": [
+            "GOAL-003-repoframe-doc-hydration-20260707.md",
+            "TASK-004-repoframe-doc-hydration-20260707.md",
+            "RepoFrame 文档校准已完成"
+          ]
+        },
+        {
+          "id": "agents-repoframe-only",
+          "type": "required_text",
+          "paths": [
+            "AGENTS.md"
+          ],
+          "patterns": [
+            "RepoFrame 接手后的 handoff worktree",
+            "不使用 Yuri workflow/SOP 作为默认流程",
+            "不重跑 `initialize_repo.py`",
+            "goals/GOAL-003-repoframe-doc-hydration-20260707.md",
+            "tasks/TASK-004-repoframe-doc-hydration-20260707.md"
+          ]
+        },
+        {
+          "id": "agent-index-current-route",
+          "type": "required_text",
+          "paths": [
+            "AGENT.md"
+          ],
+          "patterns": [
+            "GOAL-003 and TASK-004 are the current hydration route",
+            "Do not run `initialize_repo.py`",
+            "Task 8 remains `NOT_READY`"
+          ]
+        },
+        {
+          "id": "readme-current-route",
+          "type": "required_text",
+          "paths": [
+            "README.md"
+          ],
+          "patterns": [
+            "RepoFrame `repo-hydrate` 后续执行",
+            "goals/GOAL-006-phase-one-workflow-doc-20260707.md",
+            "tasks/TASK-007-phase-one-workflow-doc-20260707.md",
+            "Task 8 继续保持 `NOT_READY`"
+          ]
+        },
+        {
+          "id": "project-current-route",
+          "type": "required_text",
+          "paths": [
+            "PROJECT.md"
+          ],
+          "patterns": [
+            "2026-07-07 RepoFrame hydration 校准",
+            "GOAL-003",
+            "TASK-004",
+            "不改变一期业务范围"
+          ]
+        },
+        {
+          "id": "decisions-current-route",
+          "type": "required_text",
+          "paths": [
+            "DECISIONS.md"
+          ],
+          "patterns": [
+            "D-091 RepoFrame hydration 作为当前协作层校准口径",
+            "D-146 一期收口技术方案纳入 RepoFrame",
+            "D-147 一期收口 workflow 采用阶段级 goal",
+            "GOAL-003 / TASK-004",
+            "Task 8 仍保持 `NOT_READY`"
+          ]
+        },
+        {
+          "id": "tasks-current-route",
+          "type": "required_text",
+          "paths": [
+            "tasks/README.md"
+          ],
+          "patterns": [
+            "2026-07-07 RepoFrame 文档校准任务已完成",
+            "GOAL-001 保留为历史初始化证据",
+            "GOAL-002 / TASK-003 保留为 superseded intake 证据",
+            "GOAL-006 / TASK-007"
+          ]
+        },
+        {
+          "id": "repo-init-report-current-route",
+          "type": "required_text",
+          "paths": [
+            ".repo-init/init-report.md"
+          ],
+          "patterns": [
+            "GOAL-003 / TASK-004 were added for RepoFrame document hydration",
+            "not a fresh initialization",
+            "Do not treat the original GOAL-002 / TASK-003 recommendation above as the current start"
+          ]
+        },
+        {
+          "id": "repo-init-design-current-route",
+          "type": "required_text",
+          "paths": [
+            "docs/development/repo-init-document-design-20260706.md"
+          ],
+          "patterns": [
+            "goals/GOAL-003-repoframe-doc-hydration-20260707.md",
+            "tasks/TASK-004-repoframe-doc-hydration-20260707.md",
+            "repo-hydrate",
+            "npm run check:repoframe-docs"
+          ]
+        },
+        {
+          "id": "acceptance-and-readiness-current-route",
+          "type": "required_text",
+          "paths": [
+            "docs/acceptance/prd-v2-gap-matrix.md",
+            "docs/acceptance/task-8-acceptance-matrix.md",
+            "docs/deployment/readiness-checklist.md",
+            "docs/deployment/task-8-final-readiness-report.md"
+          ],
+          "patterns": [
+            "RepoFrame",
+            "Task 8"
+          ]
+        },
+        {
+          "id": "scope-baseline-still-not-ready",
+          "type": "required_text",
+          "paths": [
+            "docs/acceptance/phase-one-scope-baseline-20260706.md"
+          ],
+          "patterns": [
+            "状态：active-baseline / NOT_READY",
+            "C 类：入口 / 台账 / 预留，不做完整闭环",
+            "Task 8 仍保持 `NOT_READY`"
+          ]
+        },
+        {
+          "id": "package-check-entry",
+          "type": "required_text",
+          "paths": [
+            "package.json"
+          ],
+          "patterns": [
+            "check:repoframe-docs",
+            "scripts/check-repoframe-docs.mjs",
+            "check:phase-one-closure-plan",
+            "check:phase-one-workflow"
+          ]
+        },
+        {
+          "id": "repoframe-check-script-required-text",
+          "type": "required_text",
+          "paths": [
+            "scripts/check-repoframe-docs.mjs"
+          ],
+          "patterns": [
+            "acceptance.active_goal",
+            "startsWith('GOAL-')",
+            "GOAL-006",
+            "Task 8 remains `NOT_READY`",
+            "真实 DeepSeek key 已完成"
+          ]
+        },
+        {
+          "id": "no-fake-completion-claims",
+          "type": "forbidden_text",
+          "paths": [
+            "AGENTS.md",
+            "AGENT.md",
+            "README.md",
+            "PROJECT.md",
+            "STATUS.md",
+            "tasks/README.md",
+            "goals/GOAL-003-repoframe-doc-hydration-20260707.md",
+            "tasks/TASK-004-repoframe-doc-hydration-20260707.md",
+            "docs/deployment/readiness-checklist.md",
+            "docs/deployment/task-8-final-readiness-report.md"
+          ],
+          "patterns": [
+            "Task 8 状态：READY",
+            "Task 8 已 READY",
+            "真实 DeepSeek key 已完成",
+            "真实 webhook 已完成",
+            "客户生产备注模板已确认",
+            "客户签字已完成",
+            "真实环境验收已完成"
+          ]
+        }
+      ]
+    },
+    {
+      "id": "GOAL-004",
+      "file": "goals/GOAL-004-phase-one-ab-data-closure-20260707.md",
+      "status": "completed",
+      "checks": [
+        {
+          "id": "goal-004-files-exist",
+          "type": "files_exist",
+          "paths": [
+            "goals/GOAL-004-phase-one-ab-data-closure-20260707.md",
+            "tasks/TASK-005-phase-one-ab-data-closure-20260707.md",
+            "scripts/check-task-9d100-phase-one-ab-data-closure.mjs"
+          ],
+          "commands": [
+            "npm run check:task9d99",
+            "npm run check:task9d100"
+          ]
+        },
+        {
+          "id": "goal-004-headings",
+          "type": "markdown_headings",
+          "paths": [
+            "goals/GOAL-004-phase-one-ab-data-closure-20260707.md"
+          ],
+          "headings": [
+            "Metadata",
+            "Final Outcome",
+            "Human Acceptance",
+            "Machine Acceptance",
+            "Constraints",
+            "Current Strategy",
+            "Planned Tasks",
+            "Recommended Start",
+            "Observation Ledger",
+            "Replan History",
+            "Assumptions"
+          ]
+        },
+        {
+          "id": "task-005-headings",
+          "type": "markdown_headings",
+          "paths": [
+            "tasks/TASK-005-phase-one-ab-data-closure-20260707.md"
+          ],
+          "headings": [
+            "Metadata",
+            "Why",
+            "Scope",
+            "Non-goals",
+            "Acceptance Criteria",
+            "Verification Commands",
+            "Assumption Checks",
+            "Downstream Impact",
+            "Completion Record",
+            "Remaining Work",
+            "Known Risks",
+            "Execution Log"
+          ]
+        },
+        {
+          "id": "task-9d100-check-entry",
+          "type": "required_text",
+          "paths": [
+            "package.json",
+            "README.md",
+            "acceptance.json"
+          ],
+          "patterns": [
+            "check:task9d100"
+          ]
+        },
+        {
+          "id": "task-9d100-frontend-data-source",
+          "type": "required_text",
+          "paths": [
+            "frontend/src/App.vue"
+          ],
+          "patterns": [
+            "loadPhaseOneAbDashboardData",
+            "phaseOneAbCsDashboardStats",
+            "phaseOneAbProductionDashboardStats",
+            "复用 /orders 列表",
+            "复用物流人工状态",
+            "本地月度趋势接口"
+          ]
+        },
+        {
+          "id": "task-9d100-docs",
+          "type": "required_text",
+          "paths": [
+            "STATUS.md",
+            "tasks/README.md",
+            "DECISIONS.md",
+            "docs/acceptance/phase-one-frontend-task-scope.md",
+            "docs/acceptance/phase-one-frontend-alignment.md",
+            "docs/acceptance/task-8-acceptance-matrix.md",
+            "docs/deployment/readiness-checklist.md"
+          ],
+          "patterns": [
+            "9D.100 A/B 类一期范围对齐第二段",
+            "Task 8"
+          ]
+        },
+        {
+          "id": "task-9d100-no-fake-external-completion",
+          "type": "forbidden_text",
+          "paths": [
+            "STATUS.md",
+            "tasks/README.md",
+            "README.md",
+            "DECISIONS.md",
+            "docs/acceptance/task-8-acceptance-matrix.md",
+            "docs/deployment/readiness-checklist.md",
+            "goals/GOAL-004-phase-one-ab-data-closure-20260707.md",
+            "tasks/TASK-005-phase-one-ab-data-closure-20260707.md"
+          ],
+          "patterns": [
+            "真实支付平台已接入并验收",
+            "真实物流平台已接入并验收",
+            "真实 DeepSeek key 已联调完成",
+            "真实客户签字已完成且无阻塞",
+            "Task 8 状态：READY / 可上线"
+          ]
+        }
+      ]
+    },
+    {
+      "id": "GOAL-005",
+      "file": "goals/GOAL-005-phase-one-closure-plan-integration-20260707.md",
+      "status": "completed",
+      "checks": [
+        {
+          "id": "goal-005-files-exist",
+          "type": "files_exist",
+          "paths": [
+            "goals/GOAL-005-phase-one-closure-plan-integration-20260707.md",
+            "tasks/TASK-006-phase-one-closure-plan-integration-20260707.md",
+            "docs/development/phase-one-closure-technical-plan.md",
+            "scripts/check-phase-one-closure-plan.mjs"
+          ]
+        },
+        {
+          "id": "goal-005-headings",
+          "type": "markdown_headings",
+          "paths": [
+            "goals/GOAL-005-phase-one-closure-plan-integration-20260707.md"
+          ]
+        },
+        {
+          "id": "task-006-headings",
+          "type": "markdown_headings",
+          "paths": [
+            "tasks/TASK-006-phase-one-closure-plan-integration-20260707.md"
+          ]
+        },
+        {
+          "id": "phase-one-closure-plan-structure",
+          "type": "required_text",
+          "paths": [
+            "docs/development/phase-one-closure-technical-plan.md"
+          ],
+          "patterns": [
+            "## Summary",
+            "## RepoFrame 纳入状态",
+            "## Current Baseline",
+            "## Execution Phases",
+            "## Test Plan",
+            "## Hard Boundaries",
+            "## Remaining Blockers",
+            "/Users/yuri/Documents/AI智能下单平台-handoff-20260706",
+            "GOAL-005",
+            "TASK-006",
+            "Task 8 继续保持 `NOT_READY`"
+          ]
+        },
+        {
+          "id": "phase-one-closure-gap-alignment",
+          "type": "required_text",
+          "paths": [
+            "docs/development/phase-one-closure-technical-plan.md"
+          ],
+          "patterns": [
+            "customer-pm-confirmations",
+            "ai-production-governance",
+            "prd-v2-local-feature-gaps",
+            "frontend-business-pages",
+            "9D.90 产品参数 / 价格体系一期最小后台：已完成第一增量",
+            "9D.91 客服配送管理页 / 物流异常跟进：已完成第一增量",
+            "9D.92 AI-2 客服查询助手完整入口：已完成第一增量",
+            "9D.97 AI-2 客服查询引用数据说明 / 知识上下文补强：已完成第一增量",
+            "9D.98 AI-5 生产备注客户模板 / 知识上下文补强：已完成第一增量"
+          ]
+        },
+        {
+          "id": "phase-one-closure-entry-docs",
+          "type": "required_text",
+          "paths": [
+            "STATUS.md",
+            "tasks/README.md",
+            "README.md",
+            "DECISIONS.md"
+          ],
+          "patterns": [
+            "docs/development/phase-one-closure-technical-plan.md",
+            "GOAL-005",
+            "TASK-006",
+            "check:phase-one-closure-plan",
+            "Task 8"
+          ]
+        },
+        {
+          "id": "phase-one-closure-check-entry",
+          "type": "required_text",
+          "paths": [
+            "package.json"
+          ],
+          "patterns": [
+            "check:phase-one-closure-plan",
+            "scripts/check-phase-one-closure-plan.mjs"
+          ]
+        },
+        {
+          "id": "phase-one-closure-no-fake-external-completion",
+          "type": "forbidden_text",
+          "paths": [
+            "docs/development/phase-one-closure-technical-plan.md",
+            "STATUS.md",
+            "tasks/README.md",
+            "README.md",
+            "DECISIONS.md",
+            "goals/GOAL-005-phase-one-closure-plan-integration-20260707.md",
+            "tasks/TASK-006-phase-one-closure-plan-integration-20260707.md"
+          ],
+          "patterns": [
+            "Task 8 状态：READY",
+            "Task 8 已 READY",
+            "真实 DeepSeek key 已完成",
+            "真实 webhook 已完成",
+            "客户生产备注模板已确认",
+            "客户签字已完成",
+            "真实环境验收已完成"
+          ]
+        }
+      ]
+    },
+    {
+      "id": "GOAL-006",
+      "file": "goals/GOAL-006-phase-one-workflow-doc-20260707.md",
+      "status": "completed",
+      "checks": [
+        {
+          "id": "acceptance-active-goal-current-after-006",
+          "type": "json_path_equals",
+          "path": "acceptance.json",
+          "json_path": "active_goal",
+          "expected": "GOAL-016"
+        },
+        {
+          "id": "acceptance-active-goal-file-current-after-006",
+          "type": "json_path_equals",
+          "path": "acceptance.json",
+          "json_path": "active_goal_file",
+          "expected": "goals/GOAL-016-auth-datascope-production-closure-b-20260707.md"
+        },
+        {
+          "id": "goal-006-files-exist",
+          "type": "files_exist",
+          "paths": [
+            "goals/GOAL-006-phase-one-workflow-doc-20260707.md",
+            "tasks/TASK-007-phase-one-workflow-doc-20260707.md",
+            "docs/development/workflow.md",
+            "docs/development/stage-goal-window-guide.md",
+            "scripts/check-phase-one-workflow.mjs",
+            "scripts/check-stage-goal-window-guide.mjs"
+          ]
+        },
+        {
+          "id": "goal-006-headings",
+          "type": "markdown_headings",
+          "paths": [
+            "goals/GOAL-006-phase-one-workflow-doc-20260707.md"
+          ]
+        },
+        {
+          "id": "task-007-headings",
+          "type": "markdown_headings",
+          "paths": [
+            "tasks/TASK-007-phase-one-workflow-doc-20260707.md"
+          ]
+        },
+        {
+          "id": "phase-one-workflow-structure",
+          "type": "required_text",
+          "paths": [
+            "docs/development/workflow.md"
+          ],
+          "patterns": [
+            "# AI 智能下单平台一期收口 Workflow",
+            "状态：ACTIVE / PROJECT_LOCAL。",
+            "## Purpose",
+            "## Source Of Truth",
+            "## Default Goal Granularity",
+            "## Execution Loop",
+            "## Window Startup Contract",
+            "## Task Template",
+            "## Completion Standard",
+            "## Stop Conditions",
+            "## Verification Matrix",
+            "## Output Rules",
+            "## RepoFrame File Rules",
+            "默认 goal 粒度是阶段级",
+            "每个新窗口必须先确认阶段级 goal",
+            "不应在完成一个小任务后停止并只建议下一个小任务",
+            "Task 8 仍保持 `NOT_READY`"
+          ]
+        },
+        {
+          "id": "phase-one-workflow-entry-docs",
+          "type": "required_text",
+          "paths": [
+            "STATUS.md",
+            "tasks/README.md",
+            "README.md",
+            "DECISIONS.md"
+          ],
+          "patterns": [
+            "docs/development/workflow.md",
+            "GOAL-006",
+            "TASK-007",
+            "docs/development/stage-goal-window-guide.md",
+            "check:phase-one-workflow",
+            "check:stage-goal-window",
+            "Task 8"
+          ]
+        },
+        {
+          "id": "stage-goal-window-guide-required-text",
+          "type": "required_text",
+          "paths": [
+            "docs/development/stage-goal-window-guide.md"
+          ],
+          "patterns": [
+            "# Codex Stage Goal Window Guide",
+            "本窗口只执行一个阶段级 goal，不做单个小任务闭环。",
+            "建立或更新一个阶段级 RepoFrame goal",
+            "建立一个执行批次 task，并在 task 内拆 checklist",
+            "不要完成一个小项就停止建议下一步",
+            "不要共用同一个 worktree 写文件",
+            "Task 8 必须保持 NOT_READY"
+          ]
+        },
+        {
+          "id": "stage-goal-window-entry-docs",
+          "type": "required_text",
+          "paths": [
+            "STATUS.md",
+            "tasks/README.md",
+            "README.md",
+            "DECISIONS.md"
+          ],
+          "patterns": [
+            "阶段级 goal",
+            "docs/development/stage-goal-window-guide.md",
+            "check:stage-goal-window",
+            "Task 8"
+          ]
+        },
+        {
+          "id": "phase-one-workflow-check-entry",
+          "type": "required_text",
+          "paths": [
+            "package.json"
+          ],
+          "patterns": [
+            "check:phase-one-workflow",
+            "scripts/check-phase-one-workflow.mjs",
+            "check:stage-goal-window",
+            "scripts/check-stage-goal-window-guide.mjs"
+          ]
+        },
+        {
+          "id": "phase-one-workflow-no-fake-external-completion",
+          "type": "forbidden_text",
+          "paths": [
+            "docs/development/workflow.md",
+            "docs/development/stage-goal-window-guide.md",
+            "STATUS.md",
+            "tasks/README.md",
+            "README.md",
+            "DECISIONS.md",
+            "goals/GOAL-006-phase-one-workflow-doc-20260707.md",
+            "tasks/TASK-007-phase-one-workflow-doc-20260707.md"
+          ],
+          "patterns": [
+            "Task 8 状态：READY",
+            "Task 8 已 READY",
+            "真实 DeepSeek key 已完成",
+            "真实 webhook 已完成",
+            "客户生产备注模板已确认",
+            "客户签字已完成",
+            "真实环境验收已完成"
+          ]
+        }
+      ]
+    },
+    {
+      "id": "GOAL-007",
+      "file": "goals/GOAL-007-prd-v2-local-gap-closure-a-20260707.md",
+      "status": "completed",
+      "checks": [
+        {
+          "id": "acceptance-active-goal-007",
+          "type": "json_path_equals",
+          "path": "acceptance.json",
+          "json_path": "active_goal",
+          "expected": "GOAL-016"
+        },
+        {
+          "id": "acceptance-active-goal-file-007",
+          "type": "json_path_equals",
+          "path": "acceptance.json",
+          "json_path": "active_goal_file",
+          "expected": "goals/GOAL-016-auth-datascope-production-closure-b-20260707.md"
+        },
+        {
+          "id": "goal-007-files-exist",
+          "type": "files_exist",
+          "paths": [
+            "goals/GOAL-007-prd-v2-local-gap-closure-a-20260707.md",
+            "tasks/TASK-008-prd-v2-local-gap-closure-a-20260707.md",
+            "scripts/check-prd-v2-local-gap-closure-a.mjs"
+          ]
+        },
+        {
+          "id": "goal-007-task-008-entry-docs",
+          "type": "required_text",
+          "paths": [
+            "STATUS.md",
+            "tasks/README.md",
+            "README.md",
+            "DECISIONS.md",
+            "docs/acceptance/task-8-acceptance-matrix.md",
+            "docs/deployment/readiness-checklist.md"
+          ],
+          "patterns": [
+            "GOAL-007",
+            "TASK-008",
+            "PRD V2 本地功能差异收口 A",
+            "check:prd-v2-gap-closure-a",
+            "Task 8"
+          ]
+        },
+        {
+          "id": "task-008-checklist-scope-nongoals-acceptance-verification",
+          "type": "required_text",
+          "paths": [
+            "tasks/TASK-008-prd-v2-local-gap-closure-a-20260707.md"
+          ],
+          "patterns": [
+            "## Checklist",
+            "Scope:",
+            "Non-goals:",
+            "Acceptance:",
+            "Verification:",
+            "Stage container and machine check",
+            "PRD V2 local gap queue alignment",
+            "Readiness and entry document writeback"
+          ]
+        },
+        {
+          "id": "prd-v2-gap-closure-a-docs",
+          "type": "required_text",
+          "paths": [
+            "docs/acceptance/prd-v2-gap-matrix.md"
+          ],
+          "patterns": [
+            "PRD V2 本地功能差异收口 A",
+            "质量记录独立模型 / 状态工作流第一段",
+            "月度趋势 / 客户排名完整口径确认",
+            "AI-2 消息附件预览聚合 / 更完整知识上下文",
+            "Task 8 仍保持 `in-progress / NOT_READY`"
+          ]
+        },
+        {
+          "id": "prd-v2-gap-closure-a-check-entry",
+          "type": "required_text",
+          "paths": [
+            "package.json"
+          ],
+          "patterns": [
+            "check:prd-v2-gap-closure-a",
+            "scripts/check-prd-v2-local-gap-closure-a.mjs",
+            "check:task9d82"
+          ]
+        },
+        {
+          "id": "prd-v2-gap-closure-a-no-fake-external-completion",
+          "type": "forbidden_text",
+          "paths": [
+            "goals/GOAL-007-prd-v2-local-gap-closure-a-20260707.md",
+            "tasks/TASK-008-prd-v2-local-gap-closure-a-20260707.md",
+            "STATUS.md",
+            "tasks/README.md",
+            "README.md",
+            "DECISIONS.md",
+            "docs/acceptance/prd-v2-gap-matrix.md",
+            "docs/acceptance/task-8-acceptance-matrix.md",
+            "docs/deployment/readiness-checklist.md"
+          ],
+          "patterns": [
+            "Task 8 状态：READY",
+            "Task 8 已 READY",
+            "真实 DeepSeek key 已完成",
+            "真实 webhook 已完成",
+            "客户生产备注模板已确认",
+            "客户签字已完成",
+            "真实环境验收已完成",
+            "真实支付平台已接入并验收",
+            "真实物流平台已接入并验收"
+          ]
+        }
+      ]
+    },
+    {
+      "id": "GOAL-008",
+      "file": "goals/GOAL-008-prd-v2-local-gap-closure-b-20260707.md",
+      "status": "completed",
+      "checks": [
+        {
+          "id": "acceptance-active-goal-008",
+          "type": "json_path_equals",
+          "path": "acceptance.json",
+          "json_path": "active_goal",
+          "expected": "GOAL-016"
+        },
+        {
+          "id": "acceptance-active-goal-file-008",
+          "type": "json_path_equals",
+          "path": "acceptance.json",
+          "json_path": "active_goal_file",
+          "expected": "goals/GOAL-016-auth-datascope-production-closure-b-20260707.md"
+        },
+        {
+          "id": "goal-008-files-exist",
+          "type": "files_exist",
+          "paths": [
+            "goals/GOAL-008-prd-v2-local-gap-closure-b-20260707.md",
+            "tasks/TASK-009-prd-v2-local-gap-closure-b-20260707.md",
+            "backend/platform-server/src/main/resources/db/migration/V35__quality_record_independent_fact.sql",
+            "backend/platform-server/src/main/java/com/yuri/aiorder/quality/QualityRecordStatusUpdateRequest.java",
+            "scripts/check-prd-v2-local-gap-closure-b.mjs"
+          ]
+        },
+        {
+          "id": "goal-008-task-009-entry-docs",
+          "type": "required_text",
+          "paths": [
+            "STATUS.md",
+            "tasks/README.md",
+            "README.md",
+            "DECISIONS.md",
+            "docs/acceptance/task-8-acceptance-matrix.md",
+            "docs/deployment/readiness-checklist.md"
+          ],
+          "patterns": [
+            "GOAL-008",
+            "TASK-009",
+            "PRD V2 本地功能差异收口 B",
+            "check:prd-v2-gap-closure-b",
+            "Task 8"
+          ]
+        },
+        {
+          "id": "task-009-checklist-scope-nongoals-acceptance-verification",
+          "type": "required_text",
+          "paths": [
+            "tasks/TASK-009-prd-v2-local-gap-closure-b-20260707.md"
+          ],
+          "patterns": [
+            "## Checklist",
+            "Scope:",
+            "Non-goals:",
+            "Acceptance:",
+            "Verification:",
+            "Stage container and failing target test",
+            "Backend model and status workflow",
+            "Frontend and OpenAPI contract",
+            "Machine checks and documentation writeback"
+          ]
+        },
+        {
+          "id": "quality-record-independent-model-migration",
+          "type": "required_text",
+          "paths": [
+            "backend/platform-server/src/main/resources/db/migration/V35__quality_record_independent_fact.sql"
+          ],
+          "patterns": [
+            "quality_record",
+            "status_note",
+            "source_check_id",
+            "rework_id"
+          ]
+        },
+        {
+          "id": "quality-record-independent-model-service",
+          "type": "required_text",
+          "paths": [
+            "backend/platform-server/src/main/java/com/yuri/aiorder/quality/QualityRecordService.java"
+          ],
+          "patterns": [
+            "quality_record",
+            "status_note",
+            "updateStatus",
+            "QUALITY_RECORD_STATUSES"
+          ]
+        },
+        {
+          "id": "quality-record-independent-model-controller",
+          "type": "required_text",
+          "paths": [
+            "backend/platform-server/src/main/java/com/yuri/aiorder/quality/QualityRecordController.java"
+          ],
+          "patterns": [
+            "/quality-records",
+            "/quality-records/external-returns",
+            "/quality-records/{qualityRecordId}/status",
+            "QualityRecordStatusUpdateRequest"
+          ]
+        },
+        {
+          "id": "task-9d87-quality-records-required-text",
+          "type": "required_text",
+          "paths": [
+            "backend/platform-server/src/test/java/com/yuri/aiorder/quality/QualityRecordTests.java"
+          ],
+          "patterns": [
+            "externalReturnWritesIndependentQualityRecordFact",
+            "adminCanAdvanceQualityRecordStatusButDoctorCannot",
+            "quality_record",
+            "doctorCannotReadOrCreateInternalQualityRecords"
+          ]
+        },
+        {
+          "id": "quality-record-frontend-required-text",
+          "type": "required_text",
+          "paths": [
+            "frontend/src/App.vue"
+          ],
+          "patterns": [
+            "status_note",
+            "updateQualityRecordStatus",
+            "quality-record-status-button"
+          ]
+        },
+        {
+          "id": "quality-record-openapi-required-text",
+          "type": "required_text",
+          "paths": [
+            "docs/api/openapi.yaml"
+          ],
+          "patterns": [
+            "status_note",
+            "updateQualityRecordStatus",
+            "QualityRecordStatusUpdateRequest"
+          ]
+        },
+        {
+          "id": "prd-v2-gap-closure-b-check-entry",
+          "type": "required_text",
+          "paths": [
+            "package.json"
+          ],
+          "patterns": [
+            "check:prd-v2-gap-closure-b",
+            "scripts/check-prd-v2-local-gap-closure-b.mjs",
+            "check:task9d87"
+          ]
+        },
+        {
+          "id": "prd-v2-gap-closure-b-no-fake-external-completion",
+          "type": "forbidden_text",
+          "paths": [
+            "goals/GOAL-008-prd-v2-local-gap-closure-b-20260707.md",
+            "tasks/TASK-009-prd-v2-local-gap-closure-b-20260707.md",
+            "STATUS.md",
+            "tasks/README.md",
+            "README.md",
+            "DECISIONS.md",
+            "docs/acceptance/prd-v2-gap-matrix.md",
+            "docs/acceptance/task-8-acceptance-matrix.md",
+            "docs/deployment/readiness-checklist.md"
+          ],
+          "patterns": [
+            "Task 8 状态：READY",
+            "Task 8 已 READY",
+            "真实 DeepSeek key 已完成",
+            "真实 webhook 已完成",
+            "客户生产备注模板已确认",
+            "客户签字已完成",
+            "真实环境验收已完成",
+            "真实支付平台已接入并验收",
+            "真实物流平台已接入并验收",
+            "客户最终质量口径已确认"
+          ]
+        }
+      ]
+    },
+    {
+      "id": "GOAL-009",
+      "file": "goals/GOAL-009-prd-v2-local-gap-closure-c-20260707.md",
+      "status": "completed",
+      "checks": [
+        {
+          "id": "acceptance-active-goal-009",
+          "type": "json_path_equals",
+          "path": "acceptance.json",
+          "json_path": "active_goal",
+          "expected": "GOAL-016"
+        },
+        {
+          "id": "acceptance-active-goal-file-009",
+          "type": "json_path_equals",
+          "path": "acceptance.json",
+          "json_path": "active_goal_file",
+          "expected": "goals/GOAL-016-auth-datascope-production-closure-b-20260707.md"
+        },
+        {
+          "id": "goal-009-files-exist",
+          "type": "files_exist",
+          "paths": [
+            "goals/GOAL-009-prd-v2-local-gap-closure-c-20260707.md",
+            "tasks/TASK-010-prd-v2-local-gap-closure-c-20260707.md"
+          ]
+        },
+        {
+          "id": "goal-009-task-010-entry-docs",
+          "type": "required_text",
+          "paths": [
+            "STATUS.md",
+            "tasks/README.md",
+            "README.md",
+            "docs/acceptance/prd-v2-gap-matrix.md",
+            "docs/acceptance/task-8-acceptance-matrix.md",
+            "docs/deployment/readiness-checklist.md"
+          ],
+          "patterns": [
+            "GOAL-009",
+            "TASK-010",
+            "PRD V2 本地功能差异收口 C",
+            "attachment_contexts",
+            "check:prd-v2-gap-closure-c",
+            "Task 8"
+          ]
+        },
+        {
+          "id": "task-010-checklist-scope-nongoals-acceptance-verification",
+          "type": "required_text",
+          "paths": [
+            "tasks/TASK-010-prd-v2-local-gap-closure-c-20260707.md"
+          ],
+          "patterns": [
+            "## Checklist",
+            "Scope:",
+            "Non-goals:",
+            "Acceptance:",
+            "Verification:",
+            "Backend AI-2 attachment context aggregation",
+            "Frontend and OpenAPI contract",
+            "Machine checks and documentation writeback"
+          ]
+        },
+        {
+          "id": "ai2-attachment-context-controller",
+          "type": "required_text",
+          "paths": [
+            "backend/platform-server/src/main/java/com/yuri/aiorder/ai/AiGatewayController.java"
+          ],
+          "patterns": [
+            "attachment_contexts",
+            "attachmentContexts"
+          ]
+        },
+        {
+          "id": "ai2-attachment-context-service",
+          "type": "required_text",
+          "paths": [
+            "backend/platform-server/src/main/java/com/yuri/aiorder/ai/AiGatewayService.java"
+          ],
+          "patterns": [
+            "buildCsAttachmentContexts",
+            "CsAttachmentContext",
+            "FileResourceService",
+            "createPreviewUrl",
+            "消息附件预览",
+            "人工复核"
+          ]
+        },
+        {
+          "id": "ai2-attachment-context-test",
+          "type": "required_text",
+          "paths": [
+            "backend/platform-server/src/test/java/com/yuri/aiorder/ai/AiGatewayTests.java"
+          ],
+          "patterns": [
+            "csQueryReturnsMessageAttachmentPreviewContextsForManualReview",
+            "attachment_contexts",
+            "MESSAGE_ATTACHMENT",
+            "insertCompletedMessageAttachmentFile"
+          ]
+        },
+        {
+          "id": "ai2-attachment-context-frontend",
+          "type": "required_text",
+          "paths": [
+            "frontend/src/App.vue"
+          ],
+          "patterns": [
+            "AiAttachmentContext",
+            "attachment_contexts",
+            "csAiQueryAttachmentContexts",
+            "cs-ai-query-attachment-contexts",
+            "附件预览上下文"
+          ]
+        },
+        {
+          "id": "ai2-attachment-context-openapi",
+          "type": "required_text",
+          "paths": [
+            "docs/api/openapi.yaml"
+          ],
+          "patterns": [
+            "AiAttachmentContext",
+            "attachment_contexts",
+            "AI-2 客服查询聚合的订单附件短时效预览上下文"
+          ]
+        },
+        {
+          "id": "prd-v2-gap-closure-c-check-entry",
+          "type": "required_text",
+          "paths": [
+            "package.json"
+          ],
+          "patterns": [
+            "check:prd-v2-gap-closure-c",
+            "scripts/check-prd-v2-local-gap-closure-c.mjs"
+          ]
+        },
+        {
+          "id": "prd-v2-gap-closure-c-no-fake-external-completion",
+          "type": "forbidden_text",
+          "paths": [
+            "goals/GOAL-009-prd-v2-local-gap-closure-c-20260707.md",
+            "tasks/TASK-010-prd-v2-local-gap-closure-c-20260707.md",
+            "STATUS.md",
+            "tasks/README.md",
+            "README.md",
+            "DECISIONS.md",
+            "docs/acceptance/prd-v2-gap-matrix.md",
+            "docs/acceptance/task-8-acceptance-matrix.md",
+            "docs/deployment/readiness-checklist.md"
+          ],
+          "patterns": [
+            "Task 8 状态：READY",
+            "Task 8 已 READY",
+            "真实 DeepSeek key 已完成",
+            "真实 webhook 已完成",
+            "客户生产备注模板已确认",
+            "客户签字已完成",
+            "真实环境验收已完成",
+            "真实支付平台已接入并验收",
+            "真实物流平台已接入并验收",
+            "客户 AI-2 口径已确认"
+          ]
+        }
+      ]
+    },
+    {
+      "id": "GOAL-010",
+      "file": "goals/GOAL-010-prd-v2-local-gap-closure-d-20260707.md",
+      "status": "completed",
+      "checks": [
+        {
+          "id": "acceptance-active-goal-010",
+          "type": "json_path_equals",
+          "path": "acceptance.json",
+          "json_path": "active_goal",
+          "expected": "GOAL-016"
+        },
+        {
+          "id": "acceptance-active-goal-file-010",
+          "type": "json_path_equals",
+          "path": "acceptance.json",
+          "json_path": "active_goal_file",
+          "expected": "goals/GOAL-016-auth-datascope-production-closure-b-20260707.md"
+        },
+        {
+          "id": "goal-010-files-exist",
+          "type": "files_exist",
+          "paths": [
+            "goals/GOAL-010-prd-v2-local-gap-closure-d-20260707.md",
+            "tasks/TASK-011-prd-v2-local-gap-closure-d-20260707.md"
+          ]
+        },
+        {
+          "id": "goal-010-task-011-entry-docs",
+          "type": "required_text",
+          "paths": [
+            "STATUS.md",
+            "tasks/README.md",
+            "README.md",
+            "DECISIONS.md",
+            "docs/acceptance/prd-v2-gap-matrix.md",
+            "docs/acceptance/task-8-acceptance-matrix.md",
+            "docs/deployment/readiness-checklist.md"
+          ],
+          "patterns": [
+            "GOAL-010",
+            "TASK-011",
+            "PRD V2 本地功能差异收口 D",
+            "check:prd-v2-gap-closure-d",
+            "月度趋势 / 客户排名",
+            "Task 8"
+          ]
+        },
+        {
+          "id": "task-011-checklist-scope-nongoals-acceptance-verification",
+          "type": "required_text",
+          "paths": [
+            "tasks/TASK-011-prd-v2-local-gap-closure-d-20260707.md"
+          ],
+          "patterns": [
+            "## Checklist",
+            "Scope:",
+            "Non-goals:",
+            "Acceptance:",
+            "Verification:",
+            "Backend monthly trend and customer ranking aggregation",
+            "Frontend and OpenAPI contract",
+            "Machine checks and documentation writeback"
+          ]
+        },
+        {
+          "id": "phase-one-dashboard-controller",
+          "type": "required_text",
+          "paths": [
+            "backend/platform-server/src/main/java/com/yuri/aiorder/dashboard/PhaseOneDashboardController.java"
+          ],
+          "patterns": [
+            "@GetMapping(\"/dashboards/phase-one-ab\")",
+            "check:read-internal",
+            "PhaseOneDashboardResponse"
+          ]
+        },
+        {
+          "id": "phase-one-dashboard-service",
+          "type": "required_text",
+          "paths": [
+            "backend/platform-server/src/main/java/com/yuri/aiorder/dashboard/PhaseOneDashboardService.java"
+          ],
+          "patterns": [
+            "current_month",
+            "previous_month",
+            "monthly_order_delta",
+            "top_customers",
+            "scopedWhereClause",
+            "production_exception_count",
+            "pending_question_count"
+          ]
+        },
+        {
+          "id": "phase-one-dashboard-test",
+          "type": "required_text",
+          "paths": [
+            "backend/platform-server/src/test/java/com/yuri/aiorder/dashboard/PhaseOneDashboardTests.java"
+          ],
+          "patterns": [
+            "csCanReadMonthlyTrendAndCustomerRanking",
+            "doctorCannotReadPhaseOneDashboard",
+            "/dashboards/phase-one-ab",
+            "current_month",
+            "top_customers"
+          ]
+        },
+        {
+          "id": "phase-one-dashboard-frontend",
+          "type": "required_text",
+          "paths": [
+            "frontend/src/App.vue"
+          ],
+          "patterns": [
+            "PhaseOneAbDashboardResponse",
+            "apiFetch<PhaseOneAbDashboardResponse>('/dashboards/phase-one-ab')",
+            "phaseOneAbDashboardSummary",
+            "本地月度趋势接口",
+            "phaseOneAbMonthlyComparison"
+          ]
+        },
+        {
+          "id": "phase-one-dashboard-openapi",
+          "type": "required_text",
+          "paths": [
+            "docs/api/openapi.yaml"
+          ],
+          "patterns": [
+            "\"/dashboards/phase-one-ab\"",
+            "getPhaseOneAbDashboard",
+            "PhaseOneAbDashboardResponse",
+            "PhaseOneAbMonthSummary",
+            "PhaseOneAbCustomerRanking"
+          ]
+        },
+        {
+          "id": "prd-v2-gap-closure-d-check-entry",
+          "type": "required_text",
+          "paths": [
+            "package.json"
+          ],
+          "patterns": [
+            "check:prd-v2-gap-closure-d",
+            "scripts/check-prd-v2-local-gap-closure-d.mjs"
+          ]
+        },
+        {
+          "id": "prd-v2-gap-closure-d-no-fake-external-completion",
+          "type": "forbidden_text",
+          "paths": [
+            "goals/GOAL-010-prd-v2-local-gap-closure-d-20260707.md",
+            "tasks/TASK-011-prd-v2-local-gap-closure-d-20260707.md",
+            "STATUS.md",
+            "tasks/README.md",
+            "README.md",
+            "DECISIONS.md",
+            "docs/acceptance/prd-v2-gap-matrix.md",
+            "docs/acceptance/task-8-acceptance-matrix.md",
+            "docs/deployment/readiness-checklist.md"
+          ],
+          "patterns": [
+            "PARTIAL：缺少月度趋势接口",
+            "Task 8 状态：READY",
+            "Task 8 已 READY",
+            "真实 DeepSeek key 已完成",
+            "真实 webhook 已完成",
+            "客户生产备注模板已确认",
+            "客户签字已完成",
+            "真实环境验收已完成",
+            "真实支付平台已接入并验收",
+            "真实物流平台已接入并验收",
+            "客户最终统计口径已确认"
+          ]
+        }
+      ]
+    },
+    {
+      "id": "GOAL-011",
+      "file": "goals/GOAL-011-real-acceptance-confirmation-20260707.md",
+      "status": "completed",
+      "checks": [
+        {
+          "id": "acceptance-active-goal-after-011",
+          "type": "json_path_equals",
+          "path": "acceptance.json",
+          "json_path": "active_goal",
+          "expected": "GOAL-016"
+        },
+        {
+          "id": "acceptance-active-goal-file-after-011",
+          "type": "json_path_equals",
+          "path": "acceptance.json",
+          "json_path": "active_goal_file",
+          "expected": "goals/GOAL-016-auth-datascope-production-closure-b-20260707.md"
+        },
+        {
+          "id": "goal-011-files-exist",
+          "type": "files_exist",
+          "paths": [
+            "goals/GOAL-011-real-acceptance-confirmation-20260707.md",
+            "tasks/TASK-012-real-acceptance-confirmation-20260707.md",
+            "scripts/check-real-acceptance-confirmation.mjs"
+          ]
+        },
+        {
+          "id": "real-acceptance-confirmation-entry-docs",
+          "type": "required_text",
+          "paths": [
+            "STATUS.md",
+            "tasks/README.md",
+            "README.md",
+            "DECISIONS.md",
+            "docs/acceptance/prd-v2-gap-matrix.md",
+            "docs/acceptance/task-8-acceptance-matrix.md",
+            "docs/deployment/readiness-checklist.md",
+            "docs/deployment/task-8-final-readiness-report.md"
+          ],
+          "patterns": [
+            "GOAL-011",
+            "TASK-012",
+            "客户 / PM 确认项与真实环境 AI 验收收口",
+            "check:real-acceptance-confirmation",
+            "Task 8"
+          ]
+        },
+        {
+          "id": "task-012-checklist-scope-nongoals-acceptance-verification",
+          "type": "required_text",
+          "paths": [
+            "tasks/TASK-012-real-acceptance-confirmation-20260707.md"
+          ],
+          "patterns": [
+            "## Checklist",
+            "Scope:",
+            "Non-goals:",
+            "Acceptance:",
+            "Verification:",
+            "Customer / PM confirmation gate",
+            "Real AI and deployment template gate",
+            "Machine checks and documentation writeback"
+          ]
+        },
+        {
+          "id": "real-acceptance-confirmation-check-entry",
+          "type": "required_text",
+          "paths": [
+            "package.json"
+          ],
+          "patterns": [
+            "check:real-acceptance-confirmation",
+            "scripts/check-real-acceptance-confirmation.mjs"
+          ]
+        },
+        {
+          "id": "real-acceptance-confirmation-templates",
+          "type": "required_text",
+          "paths": [
+            "docs/acceptance/phase-one-customer-pm-confirmations.md",
+            "docs/acceptance/task-9d80-ai-production-integration-acceptance.md",
+            "docs/deployment/task-9d81-production-deployment-acceptance.md"
+          ],
+          "patterns": [
+            "待填写",
+            "待确认",
+            "Task 8"
+          ]
+        },
+        {
+          "id": "real-acceptance-confirmation-no-fake-completion",
+          "type": "forbidden_text",
+          "paths": [
+            "goals/GOAL-011-real-acceptance-confirmation-20260707.md",
+            "tasks/TASK-012-real-acceptance-confirmation-20260707.md",
+            "STATUS.md",
+            "tasks/README.md",
+            "README.md",
+            "DECISIONS.md",
+            "docs/acceptance/prd-v2-gap-matrix.md",
+            "docs/acceptance/task-8-acceptance-matrix.md",
+            "docs/deployment/readiness-checklist.md",
+            "docs/deployment/task-8-final-readiness-report.md"
+          ],
+          "patterns": [
+            "Task 8 状态：READY",
+            "Task 8 已 READY",
+            "状态：真实 key 已联调完成",
+            "结论：真实 key 已联调完成",
+            "状态：生产 webhook 已联调完成",
+            "结论：生产 webhook 已联调完成",
+            "状态：客户签字已完成",
+            "结论：客户签字已完成",
+            "状态：真实环境验收已完成",
+            "结论：真实环境验收已完成"
+          ]
+        },
+        {
+          "id": "task-9d80-ai-production-integration-acceptance-required-text-compat",
+          "type": "required_text",
+          "paths": [
+            "acceptance.json"
+          ],
+          "patterns": [
+            "task-9d80-ai-production-integration-acceptance-required-text",
+            "check:task9d80",
+            "AI 真实 key / 生产 webhook 联调记录模板第一段"
+          ]
+        },
+        {
+          "id": "task-9d81-production-deployment-acceptance-required-text-compat",
+          "type": "required_text",
+          "paths": [
+            "acceptance.json"
+          ],
+          "patterns": [
+            "task-9d81-production-deployment-acceptance-required-text",
+            "check:task9d81",
+            "部署真实环境 smoke / HTTPS / 备份监控验收记录模板第一段"
+          ]
+        },
+        {
+          "id": "task-9d72-customer-pm-confirmations-required-text-compat",
+          "type": "required_text",
+          "paths": [
+            "acceptance.json"
+          ],
+          "patterns": [
+            "task-9d72-customer-pm-confirmations-required-text",
+            "phase-one-customer-pm-confirmations.md",
+            "check:task9d72"
+          ]
+        }
+      ]
+    },
+    {
+      "id": "GOAL-012",
+      "file": "goals/GOAL-012-auth-datascope-production-closure-20260707.md",
+      "status": "completed",
+      "checks": [
+        {
+          "id": "acceptance-active-goal-012",
+          "type": "json_path_equals",
+          "path": "acceptance.json",
+          "json_path": "active_goal",
+          "expected": "GOAL-016"
+        },
+        {
+          "id": "acceptance-active-goal-file-012",
+          "type": "json_path_equals",
+          "path": "acceptance.json",
+          "json_path": "active_goal_file",
+          "expected": "goals/GOAL-016-auth-datascope-production-closure-b-20260707.md"
+        },
+        {
+          "id": "goal-012-files-exist",
+          "type": "files_exist",
+          "paths": [
+            "goals/GOAL-012-auth-datascope-production-closure-20260707.md",
+            "tasks/TASK-013-auth-datascope-production-closure-20260707.md",
+            "scripts/check-auth-datascope-production-closure.mjs"
+          ]
+        },
+        {
+          "id": "auth-datascope-production-closure-entry-docs",
+          "type": "required_text",
+          "paths": [
+            "STATUS.md",
+            "PROJECT.md",
+            "tasks/README.md",
+            "README.md",
+            "DECISIONS.md",
+            "docs/acceptance/prd-v2-gap-matrix.md",
+            "docs/acceptance/task-8-acceptance-matrix.md",
+            "docs/deployment/readiness-checklist.md",
+            "docs/deployment/task-8-final-readiness-report.md"
+          ],
+          "patterns": [
+            "GOAL-012",
+            "TASK-013",
+            "权限 / DataScope 生产化收口第一段",
+            "check:auth-datascope-prod-closure",
+            "Task 8"
+          ]
+        },
+        {
+          "id": "task-013-checklist-scope-nongoals-acceptance-verification",
+          "type": "required_text",
+          "paths": [
+            "tasks/TASK-013-auth-datascope-production-closure-20260707.md"
+          ],
+          "patterns": [
+            "## Checklist",
+            "Scope:",
+            "Non-goals:",
+            "Acceptance:",
+            "Verification:",
+            "Strict permission-code gate",
+            "Roles-only annotation inventory",
+            "RepoFrame and readiness writeback"
+          ]
+        },
+        {
+          "id": "auth-datascope-production-closure-check-entry",
+          "type": "required_text",
+          "paths": [
+            "package.json"
+          ],
+          "patterns": [
+            "check:auth-datascope-prod-closure",
+            "scripts/check-auth-datascope-production-closure.mjs"
+          ]
+        },
+        {
+          "id": "task-9d75-auth-datascope-strict-permission-required-text-compat",
+          "type": "required_text",
+          "paths": [
+            "acceptance.json"
+          ],
+          "patterns": [
+            "check:task9d75",
+            "9D.75 正式鉴权与 DataScope 收口第一段",
+            "APP_AUTH_ALLOW_ROLE_FALLBACK=false"
+          ]
+        },
+        {
+          "id": "auth-datascope-production-closure-strict-test",
+          "type": "required_text",
+          "paths": [
+            "backend/platform-server/src/test/java/com/yuri/aiorder/auth/StrictPermissionModeTests.java"
+          ],
+          "patterns": [
+            "strictPermissionModeRejectsDoctorAccountRoleOnlyTokenWhenPermissionCodeIsRequired",
+            "strictPermissionModeAllowsDoctorAccountTokenWithRequiredPermissionCode",
+            "account:doctor"
+          ]
+        },
+        {
+          "id": "auth-datascope-production-closure-permission-seeds",
+          "type": "required_text",
+          "paths": [
+            "backend/platform-server/src/main/resources/db/migration/V36__auth_permission_code_completion.sql"
+          ],
+          "patterns": [
+            "clinic:read-internal",
+            "clinic:read-self",
+            "clinic:create",
+            "clinic:preference:write",
+            "account:doctor",
+            "notification:read-self",
+            "notification:write-self"
+          ]
+        },
+        {
+          "id": "auth-datascope-production-closure-controller-permissions",
+          "type": "required_text",
+          "paths": [
+            "backend/platform-server/src/main/java/com/yuri/aiorder/clinic/ClinicController.java",
+            "backend/platform-server/src/main/java/com/yuri/aiorder/account/DoctorAccountController.java",
+            "backend/platform-server/src/main/java/com/yuri/aiorder/notification/NotificationController.java"
+          ],
+          "patterns": [
+            "value ="
+          ]
+        },
+        {
+          "id": "auth-datascope-production-closure-no-fake-ready",
+          "type": "forbidden_text",
+          "paths": [
+            "goals/GOAL-012-auth-datascope-production-closure-20260707.md",
+            "tasks/TASK-013-auth-datascope-production-closure-20260707.md",
+            "STATUS.md",
+            "PROJECT.md",
+            "tasks/README.md",
+            "README.md",
+            "DECISIONS.md",
+            "docs/acceptance/prd-v2-gap-matrix.md",
+            "docs/acceptance/task-8-acceptance-matrix.md",
+            "docs/deployment/readiness-checklist.md",
+            "docs/deployment/task-8-final-readiness-report.md"
+          ],
+          "patterns": [
+            "Task 8 状态：READY",
+            "Task 8 已 READY",
+            "完整 Spring Security/JWT 已完成",
+            "完整 RuoYi DataScope 已完成",
+            "通用 SQL DataScope 拦截器已完成",
+            "生产多设备会话策略已完成",
+            "真实环境验收已完成",
+            "客户签字已完成"
+          ]
+        }
+      ]
+    },
+    {
+      "id": "GOAL-013",
+      "file": "goals/GOAL-013-frontend-customer-smoke-closure-20260707.md",
+      "status": "completed",
+      "checks": [
+        {
+          "id": "acceptance-active-goal-013",
+          "type": "json_path_equals",
+          "path": "acceptance.json",
+          "json_path": "active_goal",
+          "expected": "GOAL-016"
+        },
+        {
+          "id": "acceptance-active-goal-file-013",
+          "type": "json_path_equals",
+          "path": "acceptance.json",
+          "json_path": "active_goal_file",
+          "expected": "goals/GOAL-016-auth-datascope-production-closure-b-20260707.md"
+        },
+        {
+          "id": "goal-013-files-exist",
+          "type": "files_exist",
+          "paths": [
+            "goals/GOAL-013-frontend-customer-smoke-closure-20260707.md",
+            "tasks/TASK-014-frontend-customer-smoke-closure-20260707.md",
+            "scripts/check-frontend-customer-smoke-closure.mjs"
+          ]
+        },
+        {
+          "id": "frontend-customer-smoke-closure-entry-docs",
+          "type": "required_text",
+          "paths": [
+            "STATUS.md",
+            "PROJECT.md",
+            "tasks/README.md",
+            "README.md",
+            "DECISIONS.md",
+            "docs/acceptance/prd-v2-gap-matrix.md",
+            "docs/acceptance/task-8-acceptance-matrix.md",
+            "docs/deployment/readiness-checklist.md",
+            "docs/deployment/task-8-final-readiness-report.md"
+          ],
+          "patterns": [
+            "GOAL-013",
+            "TASK-014",
+            "四端业务页面与客户验收 smoke 收口",
+            "check:frontend-customer-smoke-closure",
+            "frontend-business-pages",
+            "Task 8"
+          ]
+        },
+        {
+          "id": "task-014-checklist-scope-nongoals-acceptance-verification",
+          "type": "required_text",
+          "paths": [
+            "tasks/TASK-014-frontend-customer-smoke-closure-20260707.md"
+          ],
+          "patterns": [
+            "## Checklist",
+            "Scope:",
+            "Non-goals:",
+            "Acceptance:",
+            "Verification:",
+            "Stage machine check",
+            "Four-end page evidence consolidation",
+            "Customer acceptance smoke consolidation",
+            "RepoFrame and readiness writeback"
+          ]
+        },
+        {
+          "id": "frontend-customer-smoke-closure-check-entry",
+          "type": "required_text",
+          "paths": [
+            "package.json"
+          ],
+          "patterns": [
+            "check:frontend-customer-smoke-closure",
+            "scripts/check-frontend-customer-smoke-closure.mjs"
+          ]
+        },
+        {
+          "id": "frontend-customer-smoke-closure-existing-smoke-evidence",
+          "type": "required_text",
+          "paths": [
+            "package.json"
+          ],
+          "patterns": [
+            "check:task9d24",
+            "check:task9d36",
+            "check:task9d62",
+            "check:task9d68",
+            "check:task9d70",
+            "smoke:task9d24",
+            "smoke:task9d36",
+            "smoke:task9d62"
+          ]
+        },
+        {
+          "id": "task-9d62-main-chain-browser-smoke-required-text-compat",
+          "type": "required_text",
+          "paths": [
+            "acceptance.json"
+          ],
+          "patterns": [
+            "task-9d62-main-chain-browser-smoke-required-text",
+            "check:task9d62",
+            "smoke:task9d62"
+          ]
+        },
+        {
+          "id": "task-9d68-main-chain-customer-acceptance-required-text-compat",
+          "type": "required_text",
+          "paths": [
+            "acceptance.json"
+          ],
+          "patterns": [
+            "task-9d68-main-chain-customer-acceptance-required-text",
+            "phase-one-main-chain-customer-acceptance.md",
+            "check:task9d68"
+          ]
+        },
+        {
+          "id": "task-9d70-operations-manuals-required-text-compat",
+          "type": "required_text",
+          "paths": [
+            "acceptance.json"
+          ],
+          "patterns": [
+            "task-9d70-operations-manuals-required-text",
+            "phase-one-role-operation-manual.md",
+            "check:task9d70"
+          ]
+        },
+        {
+          "id": "frontend-customer-smoke-closure-no-fake-ready",
+          "type": "forbidden_text",
+          "paths": [
+            "goals/GOAL-013-frontend-customer-smoke-closure-20260707.md",
+            "tasks/TASK-014-frontend-customer-smoke-closure-20260707.md",
+            "STATUS.md",
+            "PROJECT.md",
+            "tasks/README.md",
+            "README.md",
+            "DECISIONS.md",
+            "docs/acceptance/phase-one-main-chain-customer-acceptance.md",
+            "docs/acceptance/phase-one-frontend-alignment.md",
+            "docs/acceptance/phase-one-frontend-task-scope.md",
+            "docs/acceptance/prd-v2-gap-matrix.md",
+            "docs/acceptance/task-8-acceptance-matrix.md",
+            "docs/deployment/readiness-checklist.md",
+            "docs/deployment/task-8-final-readiness-report.md"
+          ],
+          "patterns": [
+            "Task 8 状态：READY",
+            "Task 8 已 READY",
+            "状态：客户签字已完成",
+            "状态：真实环境验收已完成",
+            "状态：真实 DeepSeek key 已联调完成",
+            "状态：生产 webhook 已联调完成",
+            "状态：真实支付平台已接入并验收",
+            "状态：真实物流平台已接入并验收",
+            "状态：真实电子签章已完成"
+          ]
+        }
+      ]
+    },
+    {
+      "id": "GOAL-014",
+      "file": "goals/GOAL-014-websocket-notification-readiness-closure-20260707.md",
+      "status": "completed",
+      "checks": [
+        {
+          "id": "acceptance-active-goal-014",
+          "type": "json_path_equals",
+          "path": "acceptance.json",
+          "json_path": "active_goal",
+          "expected": "GOAL-016"
+        },
+        {
+          "id": "acceptance-active-goal-file-014",
+          "type": "json_path_equals",
+          "path": "acceptance.json",
+          "json_path": "active_goal_file",
+          "expected": "goals/GOAL-016-auth-datascope-production-closure-b-20260707.md"
+        },
+        {
+          "id": "goal-014-files-exist",
+          "type": "files_exist",
+          "paths": [
+            "goals/GOAL-014-websocket-notification-readiness-closure-20260707.md",
+            "tasks/TASK-015-websocket-notification-readiness-closure-20260707.md",
+            "scripts/check-websocket-notification-readiness-closure.mjs",
+            "docs/deployment/websocket-notification-production-readiness.md"
+          ]
+        },
+        {
+          "id": "websocket-notification-readiness-entry-docs",
+          "type": "required_text",
+          "paths": [
+            "STATUS.md",
+            "PROJECT.md",
+            "tasks/README.md",
+            "README.md",
+            "DECISIONS.md",
+            "docs/acceptance/prd-v2-gap-matrix.md",
+            "docs/acceptance/task-8-acceptance-matrix.md",
+            "docs/deployment/readiness-checklist.md",
+            "docs/deployment/task-8-final-readiness-report.md"
+          ],
+          "patterns": [
+            "GOAL-014",
+            "TASK-015",
+            "WebSocket / 通知生产 readiness 收口",
+            "check:websocket-notification-readiness-closure",
+            "websocket-notification-prod",
+            "Task 8"
+          ]
+        },
+        {
+          "id": "task-015-checklist-scope-nongoals-acceptance-verification",
+          "type": "required_text",
+          "paths": [
+            "tasks/TASK-015-websocket-notification-readiness-closure-20260707.md"
+          ],
+          "patterns": [
+            "## Checklist",
+            "Scope:",
+            "Non-goals:",
+            "Acceptance:",
+            "Verification:",
+            "Stage machine check",
+            "Production readiness template",
+            "Notification evidence consolidation",
+            "RepoFrame and readiness writeback"
+          ]
+        },
+        {
+          "id": "websocket-notification-readiness-check-entry",
+          "type": "required_text",
+          "paths": [
+            "package.json"
+          ],
+          "patterns": [
+            "check:websocket-notification-readiness-closure",
+            "scripts/check-websocket-notification-readiness-closure.mjs",
+            "check:task9d76"
+          ]
+        },
+        {
+          "id": "websocket-notification-readiness-template-required-text",
+          "type": "required_text",
+          "paths": [
+            "docs/deployment/websocket-notification-production-readiness.md"
+          ],
+          "patterns": [
+            "WebSocket / 通知生产 readiness 验收记录模板",
+            "状态：TEMPLATE_READY / PARTIAL",
+            "真实双后端实例 Redis 联调",
+            "心跳 / 重连压测",
+            "Nginx HTTPS WebSocket 网关",
+            "浏览器通知权限",
+            "完整业务页面联动",
+            "生产 webhook 联调",
+            "待填写",
+            "待确认",
+            "不填写真实密钥",
+            "不填写真实 webhook URL",
+            "不代表真实双实例 Redis 联调完成",
+            "不代表 Nginx HTTPS 已验收完成",
+            "Task 8 仍保持 NOT_READY"
+          ]
+        },
+        {
+          "id": "websocket-notification-readiness-existing-evidence",
+          "type": "required_text",
+          "paths": [
+            "scripts/check-task-9d76-notification-gateway.mjs",
+            "backend/platform-server/src/test/java/com/yuri/aiorder/notification/NotificationWebSocketTests.java",
+            "backend/platform-server/src/test/java/com/yuri/aiorder/notification/NotificationRestTests.java",
+            "backend/platform-server/src/test/java/com/yuri/aiorder/notification/NotificationBroadcastTests.java"
+          ],
+          "patterns": [
+            "Notification"
+          ]
+        },
+        {
+          "id": "websocket-notification-readiness-no-fake-ready",
+          "type": "forbidden_text",
+          "paths": [
+            "goals/GOAL-014-websocket-notification-readiness-closure-20260707.md",
+            "tasks/TASK-015-websocket-notification-readiness-closure-20260707.md",
+            "docs/deployment/websocket-notification-production-readiness.md",
+            "STATUS.md",
+            "PROJECT.md",
+            "tasks/README.md",
+            "README.md",
+            "DECISIONS.md",
+            "docs/acceptance/prd-v2-gap-matrix.md",
+            "docs/acceptance/task-8-acceptance-matrix.md",
+            "docs/deployment/readiness-checklist.md",
+            "docs/deployment/task-8-final-readiness-report.md"
+          ],
+          "patterns": [
+            "Task 8 状态：READY",
+            "Task 8 已 READY",
+            "websocket-notification-prod 已 READY",
+            "状态：真实双实例 Redis 联调已完成",
+            "状态：Nginx HTTPS 已验收完成",
+            "状态：生产 webhook 已联调完成",
+            "状态：真实环境通知验收已完成",
+            "客户/PM 签字状态：已确认",
+            "客户/PM 签字状态：已签字"
+          ]
+        }
+      ]
+    },
+    {
+      "id": "GOAL-015",
+      "file": "goals/GOAL-015-operations-rollback-training-closure-20260707.md",
+      "status": "completed",
+      "checks": [
+        {
+          "id": "acceptance-active-goal-015",
+          "type": "json_path_equals",
+          "path": "acceptance.json",
+          "json_path": "active_goal",
+          "expected": "GOAL-016"
+        },
+        {
+          "id": "acceptance-active-goal-file-015",
+          "type": "json_path_equals",
+          "path": "acceptance.json",
+          "json_path": "active_goal_file",
+          "expected": "goals/GOAL-016-auth-datascope-production-closure-b-20260707.md"
+        },
+        {
+          "id": "goal-015-files-exist",
+          "type": "files_exist",
+          "paths": [
+            "goals/GOAL-015-operations-rollback-training-closure-20260707.md",
+            "tasks/TASK-016-operations-rollback-training-closure-20260707.md",
+            "scripts/check-operations-rollback-training-closure.mjs",
+            "docs/operations/phase-one-rollback-runbook.md",
+            "docs/operations/phase-one-training-materials.md"
+          ]
+        },
+        {
+          "id": "operations-rollback-training-entry-docs",
+          "type": "required_text",
+          "paths": [
+            "STATUS.md",
+            "PROJECT.md",
+            "tasks/README.md",
+            "README.md",
+            "DECISIONS.md",
+            "docs/acceptance/prd-v2-gap-matrix.md",
+            "docs/acceptance/task-8-acceptance-matrix.md",
+            "docs/deployment/readiness-checklist.md",
+            "docs/deployment/task-8-final-readiness-report.md"
+          ],
+          "patterns": [
+            "GOAL-015",
+            "TASK-016",
+            "操作手册 / 回滚 / 培训材料本地收口",
+            "check:operations-rollback-training-closure",
+            "operations-manuals",
+            "Task 8"
+          ]
+        },
+        {
+          "id": "task-016-checklist-scope-nongoals-acceptance-verification",
+          "type": "required_text",
+          "paths": [
+            "tasks/TASK-016-operations-rollback-training-closure-20260707.md"
+          ],
+          "patterns": [
+            "## Checklist",
+            "Scope:",
+            "Non-goals:",
+            "Acceptance:",
+            "Verification:",
+            "Stage machine check",
+            "Operation manual refresh",
+            "Rollback and deployment runbook",
+            "Training materials and signoff template",
+            "RepoFrame and readiness writeback"
+          ]
+        },
+        {
+          "id": "operations-rollback-training-check-entry",
+          "type": "required_text",
+          "paths": [
+            "package.json"
+          ],
+          "patterns": [
+            "check:operations-rollback-training-closure",
+            "scripts/check-operations-rollback-training-closure.mjs",
+            "check:task9d70"
+          ]
+        },
+        {
+          "id": "operations-rollback-training-required-text",
+          "type": "required_text",
+          "paths": [
+            "docs/operations/phase-one-role-operation-manual.md",
+            "docs/operations/phase-one-troubleshooting-guide.md",
+            "docs/operations/phase-one-delivery-materials-index.md",
+            "docs/operations/phase-one-rollback-runbook.md",
+            "docs/operations/phase-one-training-materials.md"
+          ],
+          "patterns": [
+            "Task 8",
+            "NOT_READY"
+          ]
+        },
+        {
+          "id": "operations-rollback-training-no-fake-ready",
+          "type": "forbidden_text",
+          "paths": [
+            "goals/GOAL-015-operations-rollback-training-closure-20260707.md",
+            "tasks/TASK-016-operations-rollback-training-closure-20260707.md",
+            "docs/operations/phase-one-rollback-runbook.md",
+            "docs/operations/phase-one-training-materials.md",
+            "STATUS.md",
+            "PROJECT.md",
+            "tasks/README.md",
+            "README.md",
+            "DECISIONS.md",
+            "docs/acceptance/prd-v2-gap-matrix.md",
+            "docs/acceptance/task-8-acceptance-matrix.md",
+            "docs/deployment/readiness-checklist.md",
+            "docs/deployment/task-8-final-readiness-report.md"
+          ],
+          "patterns": [
+            "Task 8 状态：READY",
+            "Task 8 已 READY",
+            "operations-manuals 已 READY",
+            "状态：真实发布回滚演练已完成",
+            "状态：正式客户培训签收已完成",
+            "客户/PM 签字状态：已确认",
+            "客户/PM 签字状态：已签字"
+          ]
+        }
+      ]
+    },
+    {
+      "id": "GOAL-016",
+      "file": "goals/GOAL-016-auth-datascope-production-closure-b-20260707.md",
+      "status": "completed",
+      "checks": [
+        {
+          "id": "acceptance-active-goal-016",
+          "type": "json_path_equals",
+          "path": "acceptance.json",
+          "json_path": "active_goal",
+          "expected": "GOAL-016"
+        },
+        {
+          "id": "acceptance-active-goal-file-016",
+          "type": "json_path_equals",
+          "path": "acceptance.json",
+          "json_path": "active_goal_file",
+          "expected": "goals/GOAL-016-auth-datascope-production-closure-b-20260707.md"
+        },
+        {
+          "id": "goal-016-files-exist",
+          "type": "files_exist",
+          "paths": [
+            "goals/GOAL-016-auth-datascope-production-closure-b-20260707.md",
+            "tasks/TASK-017-auth-datascope-production-closure-b-20260707.md",
+            "scripts/check-auth-datascope-production-closure-b.mjs"
+          ]
+        },
+        {
+          "id": "auth-datascope-production-closure-b-entry-docs",
+          "type": "required_text",
+          "paths": [
+            "STATUS.md",
+            "PROJECT.md",
+            "tasks/README.md",
+            "README.md",
+            "DECISIONS.md",
+            "docs/acceptance/prd-v2-gap-matrix.md",
+            "docs/acceptance/task-8-acceptance-matrix.md",
+            "docs/deployment/readiness-checklist.md",
+            "docs/deployment/task-8-final-readiness-report.md"
+          ],
+          "patterns": [
+            "GOAL-016",
+            "TASK-017",
+            "权限 / DataScope 生产化补强 B",
+            "check:auth-datascope-prod-closure-b",
+            "refresh token 轮换",
+            "Task 8"
+          ]
+        },
+        {
+          "id": "task-017-checklist-scope-nongoals-acceptance-verification",
+          "type": "required_text",
+          "paths": [
+            "tasks/TASK-017-auth-datascope-production-closure-b-20260707.md"
+          ],
+          "patterns": [
+            "## Checklist",
+            "Scope:",
+            "Non-goals:",
+            "Acceptance:",
+            "Verification:",
+            "Stage machine check",
+            "Refresh token rotation regression",
+            "Refresh token rotation implementation",
+            "RepoFrame and readiness writeback"
+          ]
+        },
+        {
+          "id": "auth-datascope-production-closure-b-check-entry",
+          "type": "required_text",
+          "paths": [
+            "package.json"
+          ],
+          "patterns": [
+            "check:auth-datascope-prod-closure-b",
+            "scripts/check-auth-datascope-production-closure-b.mjs"
+          ]
+        },
+        {
+          "id": "auth-refresh-rotation-test",
+          "type": "required_text",
+          "paths": [
+            "backend/platform-server/src/test/java/com/yuri/aiorder/auth/BearerIdentityTests.java"
+          ],
+          "patterns": [
+            "refreshTokenRotatesAndRejectsOldTokenReuse",
+            "assertNotEquals",
+            "rotatedRefreshToken"
+          ]
+        },
+        {
+          "id": "auth-refresh-rotation-service",
+          "type": "required_text",
+          "paths": [
+            "backend/platform-server/src/main/java/com/yuri/aiorder/common/auth/RefreshTokenService.java"
+          ],
+          "patterns": [
+            "rotate(String refreshToken)",
+            "revokeByHash(tokenHash)",
+            "return issue(row.userId())"
+          ]
+        },
+        {
+          "id": "auth-refresh-rotation-controller",
+          "type": "required_text",
+          "paths": [
+            "backend/platform-server/src/main/java/com/yuri/aiorder/bootstrap/BootstrapAuthController.java"
+          ],
+          "patterns": [
+            "refreshTokenService.rotate(request.refreshToken())",
+            "refreshToken.token()",
+            "refreshToken.expiresAt()"
+          ]
+        },
+        {
+          "id": "auth-refresh-rotation-openapi",
+          "type": "required_text",
+          "paths": [
+            "docs/api/openapi.yaml"
+          ],
+          "patterns": [
+            "轮换 refreshToken",
+            "客户端必须替换本地保存的 refreshToken"
+          ]
+        },
+        {
+          "id": "auth-datascope-production-closure-b-no-fake-ready",
+          "type": "forbidden_text",
+          "paths": [
+            "goals/GOAL-016-auth-datascope-production-closure-b-20260707.md",
+            "tasks/TASK-017-auth-datascope-production-closure-b-20260707.md",
+            "STATUS.md",
+            "PROJECT.md",
+            "tasks/README.md",
+            "README.md",
+            "DECISIONS.md",
+            "docs/acceptance/prd-v2-gap-matrix.md",
+            "docs/acceptance/task-8-acceptance-matrix.md",
+            "docs/deployment/readiness-checklist.md",
+            "docs/deployment/task-8-final-readiness-report.md"
+          ],
+          "patterns": [
+            "Task 8 状态：READY",
+            "Task 8 已 READY",
+            "auth-datascope-prod 已 READY",
+            "完整 Spring Security/JWT 已完成",
+            "完整 RuoYi DataScope 已完成",
+            "通用 SQL DataScope 拦截器已完成",
+            "access token 黑名单已完成",
+            "生产多设备会话策略已完成",
+            "真实环境验收已完成",
+            "客户签字已完成"
+          ]
+        }
+      ]
+    },
+    {
+      "id": "GOAL-017",
+      "file": "goals/GOAL-017-frontend-productization-closure-20260707.md",
+      "status": "completed",
+      "checks": [
+        {
+          "id": "frontend-productization-closure-files",
+          "type": "files_exist",
+          "paths": [
+            "goals/GOAL-017-frontend-productization-closure-20260707.md",
+            "tasks/TASK-018-frontend-productization-closure-20260707.md",
+            "scripts/check-frontend-productization-closure.mjs"
+          ],
+          "command": "npm run check:frontend-productization-closure"
+        },
+        {
+          "id": "frontend-productization-state-surface",
+          "type": "required_text",
+          "paths": [
+            "frontend/src/App.vue"
+          ],
+          "patterns": [
+            "frontendProductizationStateCopy",
+            "frontend-productization-state-strip",
+            "加载态",
+            "空态",
+            "错误态",
+            "权限拒绝态"
+          ]
+        },
+        {
+          "id": "frontend-productization-production-support",
+          "type": "required_text",
+          "paths": [
+            "frontend/src/App.vue"
+          ],
+          "patterns": [
+            "isProductizedProductionSupportRoute",
+            "frontend-productized-support-panel",
+            "本地第一增量",
+            "admin-permission-inventory-panel"
+          ]
+        },
+        {
+          "id": "frontend-productization-no-fake-ready",
+          "type": "forbidden_text",
+          "paths": [
+            "frontend/src/App.vue",
+            "goals/GOAL-017-frontend-productization-closure-20260707.md",
+            "tasks/TASK-018-frontend-productization-closure-20260707.md",
+            "STATUS.md",
+            "PROJECT.md",
+            "tasks/README.md",
+            "README.md",
+            "DECISIONS.md",
+            "docs/acceptance/prd-v2-gap-matrix.md",
+            "docs/acceptance/task-8-acceptance-matrix.md",
+            "docs/deployment/readiness-checklist.md",
+            "docs/deployment/task-8-final-readiness-report.md"
+          ],
+          "patterns": [
+            "Task 8 状态：READY",
+            "Task 8 已 READY",
+            "frontend-business-pages 状态：READY",
+            "真实支付平台已接入并验收",
+            "真实物流平台已接入并验收",
+            "真实电子签章已完成",
+            "真实环境验收已完成",
+            "客户签字已完成"
+          ]
+        }
+      ]
+    },
+    {
+      "id": "GOAL-018",
+      "file": "goals/GOAL-018-local-main-chain-acceptance-hardening-20260707.md",
+      "status": "completed",
+      "checks": [
+        {
+          "id": "local-main-chain-acceptance-hardening-files",
+          "type": "files_exist",
+          "paths": [
+            "goals/GOAL-018-local-main-chain-acceptance-hardening-20260707.md",
+            "tasks/TASK-019-local-main-chain-acceptance-hardening-20260707.md",
+            "scripts/check-local-main-chain-acceptance-hardening.mjs"
+          ]
+        },
+        {
+          "id": "local-main-chain-smoke-role-assertions",
+          "type": "required_text",
+          "paths": [
+            "scripts/smoke-task-9d62-main-chain.spec.mjs",
+            "scripts/check-task-9d62-main-chain-browser-smoke.mjs"
+          ],
+          "patterns": [
+            "assertDoctorSafeProjection",
+            "assertCsInternalVisibility",
+            "assertWorkerTaskScope",
+            "assertAdminAssignmentAndReassignment",
+            "task 9D.62.GOAL018 role boundary assertions ok"
+          ]
+        },
+        {
+          "id": "local-main-chain-doc-writeback",
+          "type": "required_text",
+          "paths": [
+            "STATUS.md",
+            "PROJECT.md",
+            "tasks/README.md",
+            "README.md",
+            "DECISIONS.md",
+            "docs/acceptance/phase-one-main-chain-customer-acceptance.md",
+            "docs/acceptance/prd-v2-gap-matrix.md",
+            "docs/acceptance/task-8-acceptance-matrix.md",
+            "docs/deployment/readiness-checklist.md",
+            "docs/deployment/task-8-final-readiness-report.md"
+          ],
+          "patterns": [
+            "GOAL-018",
+            "TASK-019",
+            "本地 12 步主链路验收增强",
+            "Task 8"
+          ]
+        },
+        {
+          "id": "local-main-chain-no-fake-ready",
+          "type": "forbidden_text",
+          "paths": [
+            "goals/GOAL-018-local-main-chain-acceptance-hardening-20260707.md",
+            "tasks/TASK-019-local-main-chain-acceptance-hardening-20260707.md",
+            "STATUS.md",
+            "PROJECT.md",
+            "tasks/README.md",
+            "README.md",
+            "DECISIONS.md",
+            "docs/acceptance/phase-one-main-chain-customer-acceptance.md",
+            "docs/acceptance/prd-v2-gap-matrix.md",
+            "docs/acceptance/task-8-acceptance-matrix.md",
+            "docs/deployment/readiness-checklist.md",
+            "docs/deployment/task-8-final-readiness-report.md"
+          ],
+          "patterns": [
+            "Task 8 状态：READY",
+            "Task 8 已 READY",
+            "客户签字已完成",
+            "真实 DeepSeek key 已联调完成",
+            "生产 webhook 已联调完成",
+            "真实支付平台已接入并验收",
+            "真实物流平台已接入并验收",
+            "真实电子签章已完成",
+            "真实环境验收已完成"
+          ]
+        }
+      ]
+    },
+    {
+      "id": "GOAL-019",
+      "file": "goals/GOAL-019-ai-production-governance-local-hardening-20260707.md",
+      "status": "completed",
+      "checks": [
+        {
+          "id": "ai-production-governance-local-hardening-files",
+          "type": "files_exist",
+          "paths": [
+            "goals/GOAL-019-ai-production-governance-local-hardening-20260707.md",
+            "tasks/TASK-020-ai-production-governance-local-hardening-20260707.md",
+            "scripts/check-ai-production-governance-local-hardening.mjs",
+            "backend/platform-server/src/main/java/com/yuri/aiorder/ai/AiGovernanceLocalHardeningResponse.java"
+          ]
+        },
+        {
+          "id": "ai-production-governance-local-hardening-backend",
+          "type": "required_text",
+          "paths": [
+            "backend/platform-server/src/main/java/com/yuri/aiorder/ai/AiGatewayController.java",
+            "backend/platform-server/src/main/java/com/yuri/aiorder/ai/AiGatewayService.java",
+            "backend/platform-server/src/test/java/com/yuri/aiorder/ai/AiGatewayTests.java"
+          ],
+          "patterns": [
+            "/ai/governance/local-hardening",
+            "AiGovernanceLocalHardeningResponse",
+            "AI3_DOCTOR_INTERNAL_SAFETY_MATRIX",
+            "CUSTOMER_TEMPLATE_UNCONFIRMED",
+            "REAL_EXTERNAL_INTEGRATION_PENDING"
+          ]
+        },
+        {
+          "id": "ai-production-governance-local-hardening-frontend-openapi",
+          "type": "required_text",
+          "paths": [
+            "frontend/src/App.vue",
+            "docs/api/openapi.yaml"
+          ],
+          "patterns": [
+            "ai-governance-local-hardening",
+            "AiGovernanceLocalHardeningResponse",
+            "getAiGovernanceLocalHardening",
+            "AI-3 安全矩阵",
+            "真实 key / webhook 仍待验收"
+          ]
+        },
+        {
+          "id": "ai-production-governance-local-hardening-doc-writeback",
+          "type": "required_text",
+          "paths": [
+            "STATUS.md",
+            "PROJECT.md",
+            "tasks/README.md",
+            "README.md",
+            "DECISIONS.md",
+            "docs/acceptance/prd-v2-gap-matrix.md",
+            "docs/acceptance/task-8-acceptance-matrix.md",
+            "docs/acceptance/task-9d80-ai-production-integration-acceptance.md",
+            "docs/deployment/readiness-checklist.md",
+            "docs/deployment/task-8-final-readiness-report.md"
+          ],
+          "patterns": [
+            "GOAL-019",
+            "TASK-020",
+            "AI 生产治理本地补强",
+            "Task 8"
+          ]
+        },
+        {
+          "id": "ai-production-governance-local-hardening-no-fake-ready",
+          "type": "forbidden_text",
+          "paths": [
+            "goals/GOAL-019-ai-production-governance-local-hardening-20260707.md",
+            "tasks/TASK-020-ai-production-governance-local-hardening-20260707.md",
+            "STATUS.md",
+            "PROJECT.md",
+            "tasks/README.md",
+            "README.md",
+            "DECISIONS.md",
+            "docs/acceptance/prd-v2-gap-matrix.md",
+            "docs/acceptance/task-8-acceptance-matrix.md",
+            "docs/acceptance/task-9d80-ai-production-integration-acceptance.md",
+            "docs/deployment/readiness-checklist.md",
+            "docs/deployment/task-8-final-readiness-report.md"
+          ],
+          "patterns": [
+            "Task 8 状态：READY",
+            "Task 8 已 READY",
+            "ai-production-governance 状态：READY",
+            "客户签字已完成",
+            "真实 DeepSeek key 已联调完成",
+            "生产 webhook 已联调完成",
+            "AI-5 客户正式模板已确认",
+            "真实环境验收已完成"
+          ]
+        }
+      ]
+    },
+    {
+      "id": "GOAL-020",
+      "file": "goals/GOAL-020-deployment-ops-local-hardening-20260707.md",
+      "status": "completed",
+      "checks": [
+        {
+          "id": "deployment-ops-local-hardening-files",
+          "type": "files_exist",
+          "paths": [
+            "goals/GOAL-020-deployment-ops-local-hardening-20260707.md",
+            "tasks/TASK-021-deployment-ops-local-hardening-20260707.md",
+            "scripts/check-deployment-ops-local-hardening.mjs",
+            "scripts/phase-one-release-rollback-dry-run.mjs",
+            "docs/deployment/phase-one-local-ops-dry-run.md"
+          ]
+        },
+        {
+          "id": "deployment-ops-local-hardening-check-entry",
+          "type": "required_text",
+          "paths": [
+            "package.json"
+          ],
+          "patterns": [
+            "check:deployment-ops-local-hardening",
+            "dry-run:phase-one-release-rollback",
+            "scripts/check-deployment-ops-local-hardening.mjs",
+            "scripts/phase-one-release-rollback-dry-run.mjs"
+          ]
+        },
+        {
+          "id": "deployment-ops-local-hardening-dry-run",
+          "type": "required_text",
+          "paths": [
+            "docs/deployment/phase-one-local-ops-dry-run.md",
+            "docs/operations/phase-one-rollback-runbook.md",
+            "docs/operations/phase-one-training-materials.md",
+            "docs/deployment/task-9d81-production-deployment-acceptance.md"
+          ],
+          "patterns": [
+            "GOAL-020",
+            "TASK-021",
+            "phase-one-local-ops-dry-run.md",
+            "dry-run:phase-one-release-rollback",
+            "待填写",
+            "待确认",
+            "Task 8"
+          ]
+        },
+        {
+          "id": "deployment-ops-local-hardening-doc-writeback",
+          "type": "required_text",
+          "paths": [
+            "STATUS.md",
+            "PROJECT.md",
+            "tasks/README.md",
+            "README.md",
+            "DECISIONS.md",
+            "docs/acceptance/prd-v2-gap-matrix.md",
+            "docs/acceptance/task-8-acceptance-matrix.md",
+            "docs/deployment/readiness-checklist.md",
+            "docs/deployment/task-8-final-readiness-report.md"
+          ],
+          "patterns": [
+            "GOAL-020",
+            "TASK-021",
+            "部署 / 运维本地补强",
+            "Task 8"
+          ]
+        },
+        {
+          "id": "deployment-ops-local-hardening-no-fake-ready",
+          "type": "forbidden_text",
+          "paths": [
+            "goals/GOAL-020-deployment-ops-local-hardening-20260707.md",
+            "tasks/TASK-021-deployment-ops-local-hardening-20260707.md",
+            "docs/deployment/phase-one-local-ops-dry-run.md",
+            "docs/deployment/task-9d81-production-deployment-acceptance.md",
+            "docs/operations/phase-one-rollback-runbook.md",
+            "docs/operations/phase-one-training-materials.md",
+            "STATUS.md",
+            "PROJECT.md",
+            "tasks/README.md",
+            "README.md",
+            "DECISIONS.md",
+            "docs/acceptance/prd-v2-gap-matrix.md",
+            "docs/acceptance/task-8-acceptance-matrix.md",
+            "docs/deployment/readiness-checklist.md",
+            "docs/deployment/task-8-final-readiness-report.md"
+          ],
+          "patterns": [
+            "Task 8 状态：READY",
+            "Task 8 已 READY",
+            "deployment-infrastructure 已 READY",
+            "operations-manuals 已 READY",
+            "真实服务器已部署完成",
+            "HTTPS 已验收完成",
+            "备份恢复演练已完成",
+            "监控告警已验收完成",
+            "正式客户培训签收已完成",
+            "客户签字已完成"
+          ]
+        }
+      ]
+    },
+    {
+      "id": "GOAL-021",
+      "file": "goals/GOAL-021-prd-v2-acceptance-recalibration-20260715.md",
+      "status": "completed",
+      "checks": [
+        {
+          "id": "prd-v2-acceptance-recalibration-files",
+          "type": "files_exist",
+          "paths": [
+            "goals/GOAL-021-prd-v2-acceptance-recalibration-20260715.md",
+            "tasks/TASK-022-prd-v2-acceptance-recalibration-20260715.md",
+            "docs/acceptance/prd-v2-38-item-acceptance-audit-20260715.md",
+            "scripts/check-prd-v2-acceptance-recalibration.mjs"
+          ]
+        },
+        {
+          "id": "prd-v2-acceptance-recalibration-classification",
+          "type": "required_text",
+          "paths": [
+            "docs/acceptance/phase-one-customer-pm-confirmations.md",
+            "docs/acceptance/prd-v2-38-item-acceptance-audit-20260715.md"
+          ],
+          "patterns": [
+            "待客户 / PM 确认 2 项",
+            "PRD 明确要求逐功能签字 0 项",
+            "38项全部是一阶段 P0 验收测试",
+            "Task 8 仍保持 NOT_READY"
+          ]
+        },
+        {
+          "id": "prd-v2-acceptance-recalibration-no-fake-ready",
+          "type": "forbidden_text",
+          "paths": [
+            "docs/acceptance/phase-one-customer-pm-confirmations.md",
+            "docs/acceptance/prd-v2-38-item-acceptance-audit-20260715.md"
+          ],
+          "patterns": [
+            "Task 8 状态：READY",
+            "Task 8 已 READY",
+            "真实环境验收已完成",
+            "客户签字已完成"
+          ]
+        }
+      ]
+    },
+    {
+      "id": "GOAL-025",
+      "file": "goals/GOAL-025-phase-two-design-collaboration-20260726.md",
+      "status": "completed",
+      "checks": [
+        {
+          "id": "phase-two-design-collaboration-files",
+          "type": "files_exist",
+          "paths": [
+            "goals/GOAL-025-phase-two-design-collaboration-20260726.md",
+            "tasks/TASK-026-phase-two-design-collaboration-20260726.md",
+            "docs/acceptance/phase-two-scope-baseline-20260726.md",
+            "backend/platform-server/src/main/resources/db/migration/V49__phase_two_design_collaboration_foundation.sql",
+            "backend/platform-server/src/main/resources/db/migration/V50__phase_two_design_legacy_compatibility.sql",
+            "backend/platform-server/src/main/resources/db/migration/V56__prd_production_review_and_workflow_alignment.sql",
+            "backend/platform-server/src/main/resources/db/migration/V57__prd_admin_only_optional_node_skip.sql",
+            "backend/platform-server/src/main/resources/db/migration/V58__rename_admin_optional_node_skip_permission.sql",
+            "backend/platform-server/src/main/java/com/yuri/aiorder/design/DesignTaskController.java",
+            "backend/platform-server/src/main/java/com/yuri/aiorder/design/DesignTaskService.java",
+            "frontend/src/components/ProductionDesignWorkspace.vue",
+            "frontend/src/doctor/DoctorPortalV2.vue",
+            "scripts/check-phase-two-design-collaboration.mjs"
+          ]
+        },
+        {
+          "id": "prd-production-review-workflow-alignment",
+          "type": "required_text",
+          "paths": [
+            "backend/platform-server/src/main/java/com/yuri/aiorder/common/auth/AccessControlService.java",
+            "backend/platform-server/src/main/java/com/yuri/aiorder/common/auth/DatabaseAuthService.java",
+            "backend/platform-server/src/main/java/com/yuri/aiorder/workflow/runtime/WorkflowRuntimeController.java",
+            "backend/platform-server/src/main/java/com/yuri/aiorder/workflow/runtime/WorkflowRuntimeService.java",
+            "backend/platform-server/src/main/resources/db/migration/V56__prd_production_review_and_workflow_alignment.sql",
+            "backend/platform-server/src/main/resources/db/migration/V57__prd_admin_only_optional_node_skip.sql",
+            "backend/platform-server/src/main/resources/db/migration/V58__rename_admin_optional_node_skip_permission.sql",
+            "frontend/src/App.vue",
+            "docs/api/openapi.yaml",
+            "docs/operations/phase-one-role-operation-manual.md",
+            "scripts/smoke-task-9d62-main-chain.spec.mjs"
+          ],
+          "patterns": [
+            "workflow:review-production",
+            "production-review",
+            "DESIGN_GATE",
+            "workflow_assignment_event",
+            "only ADMIN can skip an optional node",
+            "生产审核监控",
+            "grantProductionReviewPermission",
+            "assertProductionReviewMenuIsolation",
+            "claimDesignTask"
+          ]
+        },
+        {
+          "id": "phase-two-design-collaboration-backend",
+          "type": "required_text",
+          "paths": [
+            "backend/platform-server/src/main/resources/db/migration/V49__phase_two_design_collaboration_foundation.sql",
+            "backend/platform-server/src/main/java/com/yuri/aiorder/design/DesignTaskService.java",
+            "backend/platform-server/src/main/java/com/yuri/aiorder/common/auth/BearerIdentityFilter.java",
+            "backend/platform-server/src/main/java/com/yuri/aiorder/file/api/FileResourceService.java"
+          ],
+          "patterns": [
+            "design_task",
+            "design_task_event",
+            "submission_key",
+            "doctor_visible_at",
+            "design-draft:internal-review",
+            "design task has already been claimed"
+          ]
+        },
+        {
+          "id": "phase-two-design-collaboration-frontend-contract",
+          "type": "required_text",
+          "paths": [
+            "frontend/src/App.vue",
+            "frontend/src/components/ProductionDesignWorkspace.vue",
+            "frontend/src/doctor/DoctorPortalV2.vue",
+            "frontend/src/doctor/services/httpDoctorGateway.ts",
+            "frontend/vite.config.ts",
+            "docs/api/openapi.yaml",
+            "package.json"
+          ],
+          "patterns": [
+            "/production/design-tasks/pool",
+            "/production/design-tasks/mine",
+            "/production/design-reviews",
+            "/design-tasks/manage",
+            "doctor-confirm",
+            "/files/multipart/pending",
+            "/multipart/status",
+            "check:phase-two-design-collaboration"
+          ]
+        },
+        {
+          "id": "phase-two-design-collaboration-no-fake-ready",
+          "type": "forbidden_text",
+          "paths": [
+            "goals/GOAL-025-phase-two-design-collaboration-20260726.md",
+            "tasks/TASK-026-phase-two-design-collaboration-20260726.md",
+            "docs/acceptance/phase-two-scope-baseline-20260726.md",
+            "STATUS.md",
+            "PROJECT.md",
+            "tasks/README.md",
+            "README.md",
+            "DECISIONS.md"
+          ],
+          "patterns": [
+            "Task 8 状态：READY",
+            "Task 8 已 READY",
+            "M2 已验收",
+            "M3 已验收",
+            "M6 已验收",
+            "客户签字已完成",
+            "真实环境验收已完成"
+          ]
+        }
+      ]
+    },
+    {
+      "id": "GOAL-026",
+      "file": "goals/GOAL-026-phase-two-m2-ruoyi-runtime-bridge-20260728.md",
+      "status": "completed",
+      "checks": [
+        {
+          "id": "phase-two-m2-ruoyi-runtime-bridge-files",
+          "type": "files_exist",
+          "paths": [
+            "goals/GOAL-026-phase-two-m2-ruoyi-runtime-bridge-20260728.md",
+            "tasks/TASK-027-phase-two-m2-ruoyi-runtime-bridge-20260728.md",
+            "docs/acceptance/phase-two-milestone-gap-matrix-20260728.md",
+            "docs/development/phase-two-m2-ruoyi-runtime-bridge-plan-20260728.md",
+            "backend/ruoyi-runtime-bridge/pom.xml",
+            "backend/ruoyi-runtime-bridge/src/main/java/com/yuri/aiorder/ruoyi/RuoyiRuntimeBridge.java",
+            "backend/platform-server/src/main/java/com/yuri/aiorder/ruoyi/RuoyiRuntimeBridgeInfoContributor.java",
+            "backend/platform-server/src/test/java/com/yuri/aiorder/RuoyiRuntimeBridgeTests.java",
+            "scripts/check-phase-two-m2-ruoyi-runtime-bridge.mjs"
+          ]
+        },
+        {
+          "id": "phase-two-m2-ruoyi-runtime-bridge-contract",
+          "type": "required_text",
+          "paths": [
+            "backend/pom.xml",
+            "backend/ruoyi-runtime-bridge/pom.xml",
+            "backend/platform-server/pom.xml",
+            "backend/platform-server/src/main/java/com/yuri/aiorder/common/auth/BearerIdentityFilter.java",
+            "backend/platform-server/src/main/java/com/yuri/aiorder/ruoyi/RuoyiRuntimeBridgeInfoContributor.java",
+            "DECISIONS.md"
+          ],
+          "patterns": [
+            "ruoyi-runtime-bridge",
+            "WebFilterOrderEnum.java",
+            "RuoyiRuntimeBridge.BEARER_FILTER_ORDER",
+            "ruoyiRuntimeBridge",
+            "## D-171"
+          ]
+        },
+        {
+          "id": "phase-two-m2-ruoyi-runtime-bridge-no-fake-ready",
+          "type": "forbidden_text",
+          "paths": [
+            "goals/GOAL-026-phase-two-m2-ruoyi-runtime-bridge-20260728.md",
+            "tasks/TASK-027-phase-two-m2-ruoyi-runtime-bridge-20260728.md",
+            "docs/development/phase-two-m2-ruoyi-runtime-bridge-plan-20260728.md"
+          ],
+          "patterns": [
+            "Task 8 状态：READY",
+            "M2 状态：READY",
+            "真实环境验收已完成",
+            "客户签字已完成"
+          ]
+        }
+      ]
+    },
+    {
+      "id": "GOAL-031",
+      "file": "goals/GOAL-031-product-ordering-v2-case-group-20260731.md",
+      "status": "in_progress",
+      "checks": [
+        {
+          "id": "product-ordering-v2-stage-files",
+          "type": "files_exist",
+          "paths": [
+            "goals/GOAL-031-product-ordering-v2-case-group-20260731.md",
+            "tasks/TASK-032-product-ordering-v2-case-group-20260731.md",
+            "docs/development/product-ordering-v2-implementation-plan-20260731.md"
+          ]
+        },
+        {
+          "id": "clear-aligner-catalog-d182",
+          "type": "required_text",
+          "paths": [
+            "backend/platform-server/src/main/resources/db/migration/V76__publish_braceless_clear_aligner_catalog.sql"
+          ],
+          "patterns": [
+            "D-182",
+            "CLEAR_ALIGNER_BRACELESS",
+            "无托槽隐形矫治器",
+            "FULL",
+            "UPPER",
+            "LOWER",
+            "REGULAR",
+            "COMBINED"
+          ]
+        },
+        {
+          "id": "clear-aligner-doctor-wizard-d182",
+          "type": "required_text",
+          "paths": [
+            "frontend/src/doctor/DoctorCaseGroupWizard.vue"
+          ],
+          "patterns": [
+            "DoctorOrthodonticPrescription",
+            "orthodonticPrescriptionReady"
+          ]
+        },
+        {
+          "id": "clear-aligner-seven-step-options-d182",
+          "type": "required_text",
+          "paths": [
+            "frontend/src/doctor/DoctorOrthodonticPrescription.vue"
+          ],
+          "patterns": [
+            "CLEAR_ALIGNER_ARCH_OPTIONS",
+            "CLEAR_ALIGNER_TREATMENT_OPTIONS",
+            "treatmentSelectionChange"
+          ]
+        },
+        {
+          "id": "product-ordering-v2-approved-baseline",
+          "type": "required_text",
+          "paths": [
+            "goals/GOAL-031-product-ordering-v2-case-group-20260731.md",
+            "tasks/TASK-032-product-ordering-v2-case-group-20260731.md",
+            "docs/development/product-ordering-v2-implementation-plan-20260731.md",
+            "DECISIONS.md",
+            "STATUS.md",
+            "PROJECT.md",
+            "README.md",
+            "tasks/README.md"
+          ],
+          "patterns": [
+            "GOAL-031",
+            "TASK-032",
+            "病例订单组",
+            "产品子订单",
+            "D-174",
+            "Task 8",
+            "NOT_READY"
+          ]
+        },
+        {
+          "id": "product-ordering-v2-maintainable-catalog-and-standard-time",
+          "type": "required_text",
+          "paths": [
+            "goals/GOAL-031-product-ordering-v2-case-group-20260731.md",
+            "tasks/TASK-032-product-ordering-v2-case-group-20260731.md",
+            "docs/development/product-ordering-v2-implementation-plan-20260731.md",
+            "DECISIONS.md"
+          ],
+          "patterns": [
+            "产品配置中心",
+            "标准工时",
+            "D-175",
+            "D-176",
+            "菜单隐藏",
+            "INACTIVE",
+            "不开放"
+          ]
+        },
+        {
+          "id": "product-ordering-v2-unconfirmed-standard-time-boundary",
+          "type": "required_text",
+          "paths": [
+            "goals/GOAL-031-product-ordering-v2-case-group-20260731.md",
+            "tasks/TASK-032-product-ordering-v2-case-group-20260731.md",
+            "docs/development/product-ordering-v2-implementation-plan-20260731.md",
+            "DECISIONS.md",
+            "STATUS.md",
+            "docs/operations/phase-one-role-operation-manual.md"
+          ],
+          "patterns": [
+            "客户尚未提供正式标准工时",
+            "WORKFLOW_STANDARD_TIME_FORMAL_ENABLED",
+            "17/19",
+            "Task 8",
+            "NOT_READY"
+          ]
+        },
+        {
+          "id": "admin-configuration-edit-form-readiness-ui",
+          "type": "required_text",
+          "paths": [
+            "frontend/src/components/AdminConfigurationCenter.vue"
+          ],
+          "patterns": [
+            "validId",
+            "catalog-category-name",
+            "catalog-category-create",
+            "请先填写分类名称",
+            "请先选择产品分类",
+            "请先填写产品名称",
+            "field-control"
+          ]
+        },
+        {
+          "id": "admin-configuration-edit-form-readiness-browser",
+          "type": "required_text",
+          "paths": [
+            "scripts/smoke-admin-ordering-configuration.spec.mjs"
+          ],
+          "patterns": [
+            "catalog-category-create",
+            "请先填写分类名称",
+            "请先填写产品名称",
+            "not.toHaveValue('0')"
+          ]
+        },
+        {
+          "id": "admin-category-maintenance-ui",
+          "type": "required_text",
+          "paths": [
+            "frontend/src/components/AdminConfigurationCenter.vue"
+          ],
+          "patterns": [
+            "categoryProductCount",
+            "saveCategory",
+            "toggleCategory",
+            "deleteCategory",
+            "catalog-category-delete",
+            "该分类下还有"
+          ]
+        },
+        {
+          "id": "admin-category-maintenance-backend",
+          "type": "required_text",
+          "paths": [
+            "backend/platform-server/src/main/java/com/yuri/aiorder/catalog/CatalogConfigurationService.java",
+            "backend/platform-server/src/test/java/com/yuri/aiorder/product/ProductCatalogV2Tests.java"
+          ],
+          "patterns": [
+            "config_version_id",
+            "lock_version"
+          ]
+        },
+        {
+          "id": "admin-category-maintenance-browser",
+          "type": "required_text",
+          "paths": [
+            "scripts/smoke-admin-ordering-configuration.spec.mjs"
+          ],
+          "patterns": [
+            "分类名称已更新",
+            "未使用的分类已删除",
+            "category-edit-table"
+          ]
+        },
+        {
+          "id": "admin-configuration-business-copy-docs",
+          "type": "required_text",
+          "paths": [
+            "DECISIONS.md",
+            "STATUS.md",
+            "tasks/README.md"
+          ],
+          "patterns": [
+            "D-180",
+            "一键开始编辑",
+            "后端文字"
+          ]
+        },
+        {
+          "id": "admin-configuration-business-copy-ui",
+          "type": "required_text",
+          "paths": [
+            "frontend/src/components/AdminConfigurationCenter.vue",
+            "scripts/smoke-admin-ordering-configuration.spec.mjs"
+          ],
+          "patterns": [
+            "开始编辑",
+            "工序工时尚未发布"
+          ]
+        },
+        {
+          "id": "workflow-standard-time-draft-entry-docs",
+          "type": "required_text",
+          "paths": [
+            "DECISIONS.md",
+            "STATUS.md",
+            "tasks/README.md"
+          ],
+          "patterns": [
+            "工序工时设置",
+            "DRAFT",
+            "待设置",
+            "NOT_READY"
+          ]
+        },
+        {
+          "id": "workflow-standard-time-draft-entry-migration",
+          "type": "required_text",
+          "paths": [
+            "backend/platform-server/src/main/resources/db/migration/V74__reopen_standard_time_draft_configuration.sql"
+          ],
+          "patterns": [
+            "工序工时设置",
+            "publication_status = 'DRAFT'",
+            "standard_duration_minutes",
+            "status = 'ACTIVE'"
+          ]
+        },
+        {
+          "id": "workflow-standard-time-business-copy-ui",
+          "type": "required_text",
+          "paths": [
+            "frontend/src/components/AdminConfigurationCenter.vue"
+          ],
+          "patterns": [
+            "workflow-standard-time-center",
+            "工序工时尚未发布",
+            "开始编辑",
+            "完善后发布",
+            "formalStandardTimeEnabled",
+            "待填写"
+          ]
+        },
+        {
+          "id": "admin-ordering-real-catalog-default-docs",
+          "type": "required_text",
+          "paths": [
+            "DECISIONS.md",
+            "STATUS.md",
+            "tasks/README.md"
+          ],
+          "patterns": [
+            "D-179",
+            "ACTIVE",
+            "验收假产品",
+            "NOT_READY"
+          ]
+        },
+        {
+          "id": "admin-ordering-real-catalog-default-ui",
+          "type": "required_text",
+          "paths": [
+            "frontend/src/components/AdminConfigurationCenter.vue"
+          ],
+          "patterns": [
+            "publication_status === 'ACTIVE'",
+            "publication_status === 'DRAFT'",
+            "catalog-version-select"
+          ]
+        },
+        {
+          "id": "admin-ordering-isolated-write-smoke",
+          "type": "required_text",
+          "paths": [
+            "scripts/smoke-admin-ordering-configuration.spec.mjs"
+          ],
+          "patterns": [
+            "ADMIN_CONFIG_ALLOW_WRITES",
+            "isolated",
+            "5173",
+            "15173",
+            "15175"
+          ]
+        },
+        {
+          "id": "admin-ordering-content-maintenance-docs",
+          "type": "required_text",
+          "paths": [
+            "DECISIONS.md",
+            "STATUS.md",
+            "tasks/README.md"
+          ],
+          "patterns": [
+            "D-178",
+            "下单内容设置",
+            "产品内容",
+            "材料维护",
+            "适用绑定",
+            "工序工时设置",
+            "NOT_READY"
+          ]
+        },
+        {
+          "id": "admin-ordering-content-maintenance-migration",
+          "type": "required_text",
+          "paths": [
+            "backend/platform-server/src/main/resources/db/migration/V75__expose_ordering_content_configuration.sql"
+          ],
+          "patterns": [
+            "D-178",
+            "下单内容设置",
+            "catalog-configuration-center",
+            "catalog:manage",
+            "status = 'ACTIVE'"
+          ]
+        },
+        {
+          "id": "admin-ordering-content-maintenance-ui",
+          "type": "required_text",
+          "paths": [
+            "frontend/src/components/AdminConfigurationCenter.vue"
+          ],
+          "patterns": [
+            "下单内容配置分区",
+            "产品内容",
+            "材料维护",
+            "适用绑定",
+            "saveProduct",
+            "deleteProduct",
+            "saveMaterial",
+            "34px",
+            "13px"
+          ]
+        },
+        {
+          "id": "admin-ordering-content-maintenance-browser",
+          "type": "required_text",
+          "paths": [
+            "frontend/src/App.vue",
+            "scripts/smoke-admin-ordering-configuration.spec.mjs"
+          ],
+          "patterns": [
+            "下单内容设置",
+            "工序工时设置"
+          ]
+        },
+        {
+          "id": "product-ordering-v2-runtime-and-browser-evidence",
+          "type": "required_text",
+          "paths": [
+            "goals/GOAL-031-product-ordering-v2-case-group-20260731.md",
+            "tasks/TASK-032-product-ordering-v2-case-group-20260731.md",
+            "STATUS.md",
+            "tasks/README.md"
+          ],
+          "patterns": [
+            "V60～V73",
+            "CASE20260731-6CE2B613B8",
+            "ORD20260731-6622BC4A2A",
+            "253",
+            "159 paths / 183 operations",
+            "STANDARD_TIME_PENDING",
+            "确认收货",
+            "952px",
+            "NOT_READY"
+          ]
+        },
+        {
+          "id": "product-ordering-v2-no-fake-ready",
+          "type": "forbidden_text",
+          "paths": [
+            "goals/GOAL-031-product-ordering-v2-case-group-20260731.md",
+            "tasks/TASK-032-product-ordering-v2-case-group-20260731.md",
+            "docs/development/product-ordering-v2-implementation-plan-20260731.md"
+          ],
+          "patterns": [
+            "Task 8 状态：READY",
+            "Task 8 已 READY",
+            "正式价格已确认",
+            "真实环境验收已完成",
+            "客户签字已完成"
+          ]
+        }
+      ]
+    }
+  ],
+  "active_task_file": "tasks/TASK-032-product-ordering-v2-case-group-20260731.md",
+  "legacy_check_ids": [
+    "task-deployment-env-readiness-required-text",
+    "npm run check:task9d951",
+    "npm run check:task9d952",
+    "npm run check:task9d953",
+    "npm run check:task9d954",
+    "npm run check:task9d955",
+    "task-9d61-bill-logistics-preview-entry-required-text",
+    "task-9d64-cs-design-draft-preview-required-text",
+    "task-9d57-rework-impact-visualization-required-text",
+    "task-9d86-staff-workload-required-text",
+    "task-9d91-logistics-exception-required-text",
+    "task-9d93-prd-v2-scope-rework",
+    "task-9d951-production-equipment-management",
+    "task-9d952-production-material-exception-management",
+    "task-9d953-production-safety-environment-management",
+    "task-9d954-production-cost-management",
+    "task-9d955-production-reward-penalty-management"
+  ]
+}

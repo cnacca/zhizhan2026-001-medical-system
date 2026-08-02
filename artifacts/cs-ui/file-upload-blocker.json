@@ -1,0 +1,11 @@
+{
+  "tested_at": "2026-07-13T04:46:00+08:00",
+  "order_id": 10483,
+  "request": "POST /files/upload-token",
+  "frontend_proxy_status": 404,
+  "backend_direct_status": 404,
+  "minio_health_status": 200,
+  "source_controller": "backend/platform-server/src/main/java/com/yuri/aiorder/file/api/FileController.java",
+  "source_mapping": "POST /files/upload-token",
+  "conclusion": "当前运行中的 8080 后端未暴露源码中已有的文件上传入口，因此本轮不能完成上传、预览和下载的真实浏览器复测。"
+}

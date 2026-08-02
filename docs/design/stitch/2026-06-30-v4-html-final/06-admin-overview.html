@@ -1,0 +1,499 @@
+<!-- 管理后台 - 运营总览 (最终版) -->
+<!DOCTYPE html><html lang="zh-CN"><head>
+<meta charset="utf-8">
+<meta content="width=device-width, initial-scale=1.0" name="viewport">
+<title>运营总览 - AI智能下单平台</title>
+<!-- Google Fonts & Material Symbols -->
+<link href="https://fonts.googleapis.com" rel="preconnect">
+<link crossorigin="" href="https://fonts.gstatic.com" rel="preconnect">
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600&amp;family=JetBrains+Mono:wght@500&amp;family=Plus+Jakarta+Sans:wght@600;700&amp;display=swap" rel="stylesheet">
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet">
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet">
+<!-- Tailwind CSS -->
+<script src="https://cdn.tailwindcss.com?plugins=forms,container-queries"></script>
+<!-- Tailwind Config -->
+<script id="tailwind-config">
+        tailwind.config = {
+            darkMode: "class",
+            theme: {
+                extend: {
+                    "colors": {
+                        "primary-fixed-dim": "#b4c5ff",
+                        "tertiary": "#822600",
+                        "surface-dim": "#d7dae5",
+                        "on-secondary": "#ffffff",
+                        "error-container": "#ffdad6",
+                        "secondary-fixed-dim": "#59dea0",
+                        "error": "#ba1a1a",
+                        "surface-variant": "#dfe2ed",
+                        "surface-container-highest": "#dfe2ed",
+                        "inverse-on-surface": "#eef0fc",
+                        "on-tertiary-fixed": "#390c00",
+                        "tertiary-fixed": "#ffdbd0",
+                        "surface-container-high": "#e5e8f3",
+                        "secondary-container": "#78fbbb",
+                        "on-tertiary-fixed-variant": "#832700",
+                        "surface": "#f9f9ff",
+                        "tertiary-fixed-dim": "#ffb59c",
+                        "inverse-surface": "#2c3039",
+                        "outline": "#737686",
+                        "on-primary": "#ffffff",
+                        "on-background": "#181c23",
+                        "surface-container-lowest": "#ffffff",
+                        "outline-variant": "#c3c6d7",
+                        "tertiary-container": "#aa3500",
+                        "background": "#f9f9ff",
+                        "on-error-container": "#93000a",
+                        "primary": "#003da6",
+                        "on-primary-fixed-variant": "#003ea8",
+                        "primary-fixed": "#dbe1ff",
+                        "secondary": "#006c47",
+                        "surface-container-low": "#f1f3ff",
+                        "surface-bright": "#f9f9ff",
+                        "primary-container": "#0052d9",
+                        "on-tertiary": "#ffffff",
+                        "on-primary-fixed": "#00174b",
+                        "surface-container": "#ebedf9",
+                        "on-primary-container": "#cbd6ff",
+                        "on-surface-variant": "#434654",
+                        "surface-tint": "#0353da",
+                        "on-error": "#ffffff",
+                        "on-secondary-fixed-variant": "#005234",
+                        "on-surface": "#181c23",
+                        "on-secondary-fixed": "#002112",
+                        "secondary-fixed": "#78fbbb",
+                        "inverse-primary": "#b4c5ff",
+                        "on-tertiary-container": "#ffccbc",
+                        "on-secondary-container": "#00734b"
+                    },
+                    "borderRadius": {
+                        "DEFAULT": "0.25rem",
+                        "lg": "0.5rem",
+                        "xl": "0.75rem",
+                        "full": "9999px"
+                    },
+                    "spacing": {
+                        "container-max": "1440px",
+                        "xl": "32px",
+                        "md": "16px",
+                        "gutter": "16px",
+                        "sm": "8px",
+                        "sidebar-width": "240px",
+                        "lg": "24px",
+                        "base": "4px",
+                        "xs": "4px"
+                    },
+                    "fontFamily": {
+                        "label-md": ["JetBrains Mono"],
+                        "headline-sm": ["Plus Jakarta Sans"],
+                        "display-lg": ["Plus Jakarta Sans"],
+                        "body-sm": ["Inter"],
+                        "body-lg": ["Inter"],
+                        "label-sm": ["JetBrains Mono"],
+                        "body-md": ["Inter"],
+                        "headline-md": ["Plus Jakarta Sans"]
+                    },
+                    "fontSize": {
+                        "label-md": ["13px", { "lineHeight": "18px", "fontWeight": "500" }],
+                        "headline-sm": ["16px", { "lineHeight": "24px", "fontWeight": "600" }],
+                        "display-lg": ["30px", { "lineHeight": "38px", "fontWeight": "700" }],
+                        "body-sm": ["12px", { "lineHeight": "20px", "fontWeight": "400" }],
+                        "body-lg": ["16px", { "lineHeight": "24px", "fontWeight": "400" }],
+                        "label-sm": ["11px", { "lineHeight": "16px", "fontWeight": "500" }],
+                        "body-md": ["14px", { "lineHeight": "22px", "fontWeight": "400" }],
+                        "headline-md": ["20px", { "lineHeight": "28px", "fontWeight": "600" }]
+                    }
+                }
+            }
+        }
+    </script>
+<style>
+        .material-symbols-outlined {
+            font-variation-settings: 'FILL' 0, 'wght' 400, 'GRAD' 0, 'opsz' 24;
+        }
+        /* Custom scrollbar for dense tables */
+        ::-webkit-scrollbar {
+            width: 6px;
+            height: 6px;
+        }
+        ::-webkit-scrollbar-track {
+            background: transparent;
+        }
+        ::-webkit-scrollbar-thumb {
+            background: #c3c6d7;
+            border-radius: 4px;
+        }
+        ::-webkit-scrollbar-thumb:hover {
+            background: #737686;
+        }
+    </style>
+</head>
+<body class="bg-surface text-on-surface font-body-md text-body-md overflow-hidden">
+<!-- App Shell Container -->
+<div class="flex h-screen w-full">
+<!-- SideNavBar (from JSON) -->
+<nav class="flex flex-col h-screen w-sidebar-width fixed left-0 top-0 z-40 bg-surface border-r border-outline-variant flat no shadows">
+<!-- Header -->
+<div class="p-lg flex flex-col gap-sm">
+<div class="flex items-center gap-md">
+<div class="w-8 h-8 rounded-full bg-primary-container flex items-center justify-center text-on-primary-container">
+<span class="material-symbols-outlined" style="font-size: 20px;">manufacturing</span>
+</div>
+<span class="font-headline-md text-headline-md font-bold text-primary">AI智能下单平台</span>
+</div>
+<span class="font-label-sm text-label-sm text-on-surface-variant">牙科生产协同</span>
+</div>
+<!-- CTA -->
+<div class="px-md mb-md">
+<button class="w-full bg-primary text-on-primary rounded-lg py-sm flex items-center justify-center gap-sm hover:bg-primary-container transition-colors">
+<span class="material-symbols-outlined" style="font-size: 18px;">add</span>
+<span class="font-label-md text-label-md">新建订单</span>
+</button>
+</div>
+<!-- Main Tabs -->
+<div class="flex-1 overflow-y-auto px-sm flex flex-col gap-xs font-label-md text-label-md">
+<!-- Active Tab -->
+<a class="flex items-center gap-md px-md py-sm bg-primary-fixed text-on-primary-fixed-variant border-l-4 border-primary rounded-r-lg" href="#">
+<span class="material-symbols-outlined">dashboard</span>
+<span>工作台</span>
+</a>
+<!-- Inactive Tabs -->
+<a class="flex items-center gap-md px-md py-sm text-on-surface-variant hover:bg-surface-container-high transition-colors rounded-lg border-l-4 border-transparent" href="#">
+<span class="material-symbols-outlined">receipt_long</span>
+<span>订单管理</span>
+</a>
+<a class="flex items-center gap-md px-md py-sm text-on-surface-variant hover:bg-surface-container-high transition-colors rounded-lg border-l-4 border-transparent" href="#">
+<span class="material-symbols-outlined">precision_manufacturing</span>
+<span>生产看板</span>
+</a>
+<a class="flex items-center gap-md px-md py-sm text-on-surface-variant hover:bg-surface-container-high transition-colors rounded-lg border-l-4 border-transparent" href="#">
+<span class="material-symbols-outlined">payments</span>
+<span>财务结算</span>
+</a>
+<a class="flex items-center gap-md px-md py-sm text-on-surface-variant hover:bg-surface-container-high transition-colors rounded-lg border-l-4 border-transparent" href="#">
+<span class="material-symbols-outlined">inventory_2</span>
+<span>仓库物料</span>
+</a>
+<a class="flex items-center gap-md px-md py-sm text-on-surface-variant hover:bg-surface-container-high transition-colors rounded-lg border-l-4 border-transparent" href="#">
+<span class="material-symbols-outlined">analytics</span>
+<span>统计报表</span>
+</a>
+</div>
+<!-- Footer Tabs -->
+<div class="p-sm mt-auto border-t border-outline-variant flex flex-col gap-xs font-label-md text-label-md">
+<a class="flex items-center gap-md px-md py-sm text-on-surface-variant hover:bg-surface-container-high transition-colors rounded-lg border-l-4 border-transparent" href="#">
+<span class="material-symbols-outlined">settings</span>
+<span>设置</span>
+</a>
+<a class="flex items-center gap-md px-md py-sm text-on-surface-variant hover:bg-surface-container-high transition-colors rounded-lg border-l-4 border-transparent" href="#">
+<span class="material-symbols-outlined">help</span>
+<span>帮助中心</span>
+</a>
+</div>
+</nav>
+<!-- Main Content Wrapper -->
+<div class="flex-1 flex flex-col ml-sidebar-width bg-surface h-screen">
+<!-- TopNavBar (from JSON) -->
+<header class="flex justify-between items-center h-16 px-lg bg-surface border-b border-outline-variant sticky top-0 z-30 flat no shadows font-body-md text-body-md text-primary">
+<!-- Search Bar -->
+<div class="flex-1 max-w-xl">
+<div class="relative flex items-center w-full h-10 rounded-lg bg-surface-container-low border border-outline-variant focus-within:border-primary focus-within:ring-1 focus-within:ring-primary transition-all">
+<span class="material-symbols-outlined absolute left-3 text-on-surface-variant">search</span>
+<input class="w-full h-full bg-transparent border-none focus:ring-0 pl-10 pr-4 text-on-surface placeholder:text-outline font-body-sm text-body-sm rounded-lg" placeholder="搜索订单号、诊所、患者/病例..." type="text">
+</div>
+</div>
+<!-- Trailing Actions -->
+<div class="flex items-center gap-md">
+<div class="flex items-center gap-sm">
+<button class="w-10 h-10 rounded-full flex items-center justify-center text-on-surface-variant hover:bg-surface-container-high transition-colors">
+<span class="material-symbols-outlined">notifications</span>
+</button>
+<button class="w-10 h-10 rounded-full flex items-center justify-center text-on-surface-variant hover:bg-surface-container-high transition-colors">
+<span class="material-symbols-outlined">apps</span>
+</button>
+</div>
+<div class="h-6 w-px bg-outline-variant mx-sm"></div>
+<button class="text-on-surface-variant hover:text-primary font-label-md text-label-md transition-colors">角色切换</button>
+<button class="flex items-center gap-sm hover:opacity-80 transition-opacity ml-sm">
+<div class="w-8 h-8 rounded-full bg-primary-container text-on-primary-container flex items-center justify-center font-headline-sm text-headline-sm">
+<span class="material-symbols-outlined" style="font-size: 18px;">person</span>
+</div>
+<span class="font-label-md text-label-md text-on-surface">个人中心</span>
+</button>
+</div>
+</header>
+<!-- Scrollable Canvas -->
+<main class="flex-1 overflow-y-auto p-lg bg-surface">
+<div class="max-w-container-max mx-auto flex flex-col gap-lg">
+<!-- Page Title -->
+<div class="flex items-center justify-between">
+<h1 class="font-headline-md text-headline-md text-on-background font-bold">运营总览</h1>
+<span class="font-label-sm text-label-sm text-on-surface-variant">最后更新: 今日 09:42 AM</span>
+</div>
+<!-- Metrics Row (5 Cards) -->
+<div class="grid grid-cols-5 gap-md">
+<!-- Card 1 -->
+<div class="bg-surface-container-lowest border border-outline-variant rounded-lg p-md flex flex-col gap-sm">
+<div class="flex justify-between items-center text-on-surface-variant">
+<span class="font-label-md text-label-md">今日新增订单</span>
+<span class="material-symbols-outlined" style="font-size: 20px;">add_shopping_cart</span>
+</div>
+<div class="font-display-lg text-display-lg text-on-surface">142</div>
+<div class="font-label-sm text-label-sm text-secondary flex items-center gap-xs">
+<span class="material-symbols-outlined" style="font-size: 14px;">trending_up</span>
+<span>+12% 较昨日</span>
+</div>
+</div>
+<!-- Card 2 -->
+<div class="bg-surface-container-lowest border border-outline-variant rounded-lg p-md flex flex-col gap-sm">
+<div class="flex justify-between items-center text-on-surface-variant">
+<span class="font-label-md text-label-md">待审核</span>
+<span class="material-symbols-outlined" style="font-size: 20px;">pending_actions</span>
+</div>
+<div class="font-display-lg text-display-lg text-on-surface">28</div>
+<div class="font-label-sm text-label-sm text-tertiary flex items-center gap-xs">
+<span>需优先处理</span>
+</div>
+</div>
+<!-- Card 3 -->
+<div class="bg-surface-container-lowest border border-outline-variant rounded-lg p-md flex flex-col gap-sm">
+<div class="flex justify-between items-center text-on-surface-variant">
+<span class="font-label-md text-label-md">生产中</span>
+<span class="material-symbols-outlined" style="font-size: 20px;">precision_manufacturing</span>
+</div>
+<div class="font-display-lg text-display-lg text-primary">315</div>
+<div class="font-label-sm text-label-sm text-on-surface-variant">
+<span>正常运转</span>
+</div>
+</div>
+<!-- Card 4 -->
+<div class="bg-surface-container-lowest border border-outline-variant rounded-lg p-md flex flex-col gap-sm">
+<div class="flex justify-between items-center text-on-surface-variant">
+<span class="font-label-md text-label-md">返工中</span>
+<span class="material-symbols-outlined" style="font-size: 20px;">build</span>
+</div>
+<div class="font-display-lg text-display-lg text-error">14</div>
+<div class="font-label-sm text-label-sm text-error flex items-center gap-xs">
+<span class="material-symbols-outlined" style="font-size: 14px;">warning</span>
+<span>高于警戒线 (2%)</span>
+</div>
+</div>
+<!-- Card 5 -->
+<div class="bg-surface-container-lowest border border-outline-variant rounded-lg p-md flex flex-col gap-sm">
+<div class="flex justify-between items-center text-on-surface-variant">
+<span class="font-label-md text-label-md">待发货</span>
+<span class="material-symbols-outlined" style="font-size: 20px;">local_shipping</span>
+</div>
+<div class="font-display-lg text-display-lg text-on-surface">86</div>
+<div class="font-label-sm text-label-sm text-secondary">
+<span>物流已预约</span>
+</div>
+</div>
+</div>
+<!-- Middle Row: Grid 12 cols -->
+<div class="grid grid-cols-12 gap-gutter">
+<!-- Left Panel: Active Process Instances (8 cols) -->
+<div class="col-span-8 bg-surface-container-lowest border border-outline-variant rounded-lg flex flex-col">
+<div class="p-md border-b border-outline-variant flex justify-between items-center">
+<h2 class="font-headline-sm text-headline-sm font-bold text-on-surface">进行中的工序实例</h2>
+<button class="font-label-sm text-label-sm text-primary hover:underline">查看全部</button>
+</div>
+<div class="overflow-x-auto">
+<table class="w-full text-left border-collapse">
+<thead class="bg-surface-container-low border-b border-outline-variant">
+<tr>
+<th class="p-sm pl-md font-label-sm text-label-sm text-on-surface-variant font-normal">订单号</th>
+<th class="p-sm font-label-sm text-label-sm text-on-surface-variant font-normal">工序</th>
+<th class="p-sm font-label-sm text-label-sm text-on-surface-variant font-normal">负责技工</th>
+<th class="p-sm font-label-sm text-label-sm text-on-surface-variant font-normal">状态</th>
+<th class="p-sm pr-md font-label-sm text-label-sm text-on-surface-variant font-normal">预计完成</th>
+</tr>
+</thead>
+<tbody class="font-body-sm text-body-sm text-on-surface divide-y divide-outline-variant">
+<tr class="h-[40px] hover:bg-surface-container-highest transition-colors">
+<td class="p-sm pl-md font-label-sm text-label-sm">ORD-20231024-01</td>
+<td class="p-sm">CAD 设计</td>
+<td class="p-sm flex items-center gap-xs">
+<div class="w-5 h-5 rounded-full bg-primary-container text-on-primary-container flex items-center justify-center font-label-sm text-label-sm">王</div>
+                                                王建国
+                                            </td>
+<td class="p-sm">
+<span class="inline-flex items-center px-2 py-0.5 rounded-full bg-primary-fixed text-on-primary-fixed-variant font-label-sm text-[10px]">进行中</span>
+</td>
+<td class="p-sm pr-md text-on-surface-variant">10:30 AM</td>
+</tr>
+<tr class="h-[40px] hover:bg-surface-container-highest transition-colors">
+<td class="p-sm pl-md font-label-sm text-label-sm">ORD-20231024-05</td>
+<td class="p-sm">3D 打印</td>
+<td class="p-sm flex items-center gap-xs">
+<div class="w-5 h-5 rounded-full bg-surface-variant text-on-surface-variant flex items-center justify-center font-label-sm text-label-sm">机</div>
+                                                设备 P-02
+                                            </td>
+<td class="p-sm">
+<span class="inline-flex items-center px-2 py-0.5 rounded-full bg-primary-fixed text-on-primary-fixed-variant font-label-sm text-[10px]">进行中</span>
+</td>
+<td class="p-sm pr-md text-on-surface-variant">11:15 AM</td>
+</tr>
+<tr class="h-[40px] hover:bg-surface-container-highest transition-colors">
+<td class="p-sm pl-md font-label-sm text-label-sm">ORD-20231023-88</td>
+<td class="p-sm">上釉/车瓷</td>
+<td class="p-sm flex items-center gap-xs">
+<div class="w-5 h-5 rounded-full bg-tertiary-fixed text-on-tertiary-fixed flex items-center justify-center font-label-sm text-label-sm">李</div>
+                                                李明
+                                            </td>
+<td class="p-sm">
+<span class="inline-flex items-center px-2 py-0.5 rounded-full bg-error-container text-on-error-container font-label-sm text-[10px]">返工中</span>
+</td>
+<td class="p-sm pr-md text-on-surface-variant">14:00 PM</td>
+</tr>
+<tr class="h-[40px] hover:bg-surface-container-highest transition-colors">
+<td class="p-sm pl-md font-label-sm text-label-sm">ORD-20231024-12</td>
+<td class="p-sm">数控切削</td>
+<td class="p-sm flex items-center gap-xs">
+<div class="w-5 h-5 rounded-full bg-surface-variant text-on-surface-variant flex items-center justify-center font-label-sm text-label-sm">机</div>
+                                                设备 M-01
+                                            </td>
+<td class="p-sm">
+<span class="inline-flex items-center px-2 py-0.5 rounded-full bg-primary-fixed text-on-primary-fixed-variant font-label-sm text-[10px]">进行中</span>
+</td>
+<td class="p-sm pr-md text-on-surface-variant">10:45 AM</td>
+</tr>
+<tr class="h-[40px] hover:bg-surface-container-highest transition-colors">
+<td class="p-sm pl-md font-label-sm text-label-sm">ORD-20231024-19</td>
+<td class="p-sm">模型准备</td>
+<td class="p-sm flex items-center gap-xs">
+<div class="w-5 h-5 rounded-full bg-primary-container text-on-primary-container flex items-center justify-center font-label-sm text-label-sm">张</div>
+                                                张伟
+                                            </td>
+<td class="p-sm">
+<span class="inline-flex items-center px-2 py-0.5 rounded-full bg-primary-fixed text-on-primary-fixed-variant font-label-sm text-[10px]">进行中</span>
+</td>
+<td class="p-sm pr-md text-on-surface-variant">10:50 AM</td>
+</tr>
+</tbody>
+</table>
+</div>
+</div>
+<!-- Right Panel: Exceptions & Dispatch (4 cols) -->
+<div class="col-span-4 bg-surface-container-lowest border border-outline-variant rounded-lg flex flex-col">
+<div class="p-md border-b border-outline-variant flex justify-between items-center bg-error-container/20 rounded-t-lg">
+<h2 class="font-headline-sm text-headline-sm font-bold text-on-surface flex items-center gap-sm">
+<span class="material-symbols-outlined text-error" style="font-size: 20px;">warning</span>
+                                    异常与派工
+                                </h2>
+</div>
+<div class="p-md flex flex-col gap-md flex-1 overflow-y-auto">
+<!-- Alert Item -->
+<div class="bg-surface p-sm rounded-lg border border-outline-variant">
+<div class="flex justify-between items-start mb-sm">
+<div>
+<div class="font-label-md text-label-md text-on-surface">设计组产能瓶颈</div>
+<div class="font-body-sm text-body-sm text-on-surface-variant">当前排队订单积压 (24单)</div>
+</div>
+<span class="inline-flex items-center px-2 py-0.5 rounded bg-error-container text-on-error-container font-label-sm text-[10px]">高优</span>
+</div>
+<!-- AI Suggestion -->
+<div class="bg-surface-container-low p-sm rounded border border-secondary/20 flex flex-col gap-sm">
+<div class="flex items-center gap-xs text-secondary font-label-sm text-label-sm">
+<span class="material-symbols-outlined" style="font-size: 14px;">auto_awesome</span>
+                                            AI 派工建议
+                                        </div>
+<div class="font-body-sm text-body-sm text-on-surface-variant">建议将 8 单标准牙冠设计转派至空闲的 <b>外包 B 组</b>。</div>
+<div class="flex justify-end mt-xs">
+<button class="bg-primary text-on-primary font-label-sm text-label-sm px-3 py-1 rounded hover:bg-primary-container transition-colors">
+                                                确认转派
+                                            </button>
+</div>
+</div>
+</div>
+<!-- Alert Item -->
+<div class="bg-surface p-sm rounded-lg border border-outline-variant">
+<div class="flex justify-between items-start mb-sm">
+<div>
+<div class="font-label-md text-label-md text-on-surface">设备故障报警</div>
+<div class="font-body-sm text-body-sm text-on-surface-variant">切削机 M-03 刀具寿命耗尽</div>
+</div>
+<span class="inline-flex items-center px-2 py-0.5 rounded bg-surface-variant text-on-surface-variant font-label-sm text-[10px]">停机</span>
+</div>
+<div class="flex justify-between items-center mt-xs">
+<span class="font-body-sm text-body-sm text-on-surface-variant">影响 3 个待加工订单</span>
+<button class="text-primary font-label-sm text-label-sm hover:underline">重新分配设备</button>
+</div>
+</div>
+</div>
+</div>
+</div>
+<!-- Bottom Row: Performance Summary (12 cols) -->
+<div class="bg-surface-container-lowest border border-outline-variant rounded-lg flex flex-col mb-lg">
+<div class="p-md border-b border-outline-variant flex justify-between items-center">
+<h2 class="font-headline-sm text-headline-sm font-bold text-on-surface flex items-center gap-sm">
+<span class="material-symbols-outlined text-on-surface-variant" style="font-size: 20px;">bar_chart</span>
+                                员工绩效简表 (今日)
+                            </h2>
+<div class="flex items-center gap-sm">
+<button class="font-label-sm text-label-sm text-on-surface-variant bg-surface-container-low px-3 py-1 rounded border border-outline-variant hover:bg-surface-container transition-colors">
+                                    导出报表
+                                </button>
+</div>
+</div>
+<div class="p-md grid grid-cols-4 gap-md">
+<!-- Performance Card -->
+<div class="flex items-center gap-md p-sm bg-surface rounded-lg border border-outline-variant">
+<div class="w-10 h-10 rounded-full bg-primary-container text-on-primary-container flex items-center justify-center font-headline-sm text-headline-sm">李</div>
+<div class="flex-1">
+<div class="flex justify-between items-center">
+<span class="font-label-md text-label-md text-on-surface">李明 (上釉)</span>
+<span class="font-label-sm text-label-sm text-secondary">TOP 1</span>
+</div>
+<div class="flex gap-md mt-xs font-body-sm text-body-sm text-on-surface-variant">
+<span>计件: 42</span>
+<span>合格率: 98%</span>
+</div>
+</div>
+</div>
+<!-- Performance Card -->
+<div class="flex items-center gap-md p-sm bg-surface rounded-lg border border-outline-variant">
+<div class="w-10 h-10 rounded-full bg-primary-container text-on-primary-container flex items-center justify-center font-headline-sm text-headline-sm">王</div>
+<div class="flex-1">
+<div class="flex justify-between items-center">
+<span class="font-label-md text-label-md text-on-surface">王建国 (CAD)</span>
+</div>
+<div class="flex gap-md mt-xs font-body-sm text-body-sm text-on-surface-variant">
+<span>计件: 38</span>
+<span>合格率: 100%</span>
+</div>
+</div>
+</div>
+<!-- Performance Card -->
+<div class="flex items-center gap-md p-sm bg-surface rounded-lg border border-outline-variant">
+<div class="w-10 h-10 rounded-full bg-primary-container text-on-primary-container flex items-center justify-center font-headline-sm text-headline-sm">赵</div>
+<div class="flex-1">
+<div class="flex justify-between items-center">
+<span class="font-label-md text-label-md text-on-surface">赵雷 (排牙)</span>
+</div>
+<div class="flex gap-md mt-xs font-body-sm text-body-sm text-on-surface-variant">
+<span>计件: 25</span>
+<span>返工率: <span class="text-error">8%</span></span>
+</div>
+</div>
+</div>
+<!-- Performance Card -->
+<div class="flex items-center gap-md p-sm bg-surface rounded-lg border border-outline-variant">
+<div class="w-10 h-10 rounded-full bg-surface-variant text-on-surface-variant flex items-center justify-center font-headline-sm text-headline-sm">陈</div>
+<div class="flex-1">
+<div class="flex justify-between items-center">
+<span class="font-label-md text-label-md text-on-surface">陈工 (打磨)</span>
+</div>
+<div class="flex gap-md mt-xs font-body-sm text-body-sm text-on-surface-variant">
+<span>计件: 31</span>
+<span>合格率: 95%</span>
+</div>
+</div>
+</div>
+</div>
+</div>
+</div>
+</main>
+</div>
+</div>
+</body></html>

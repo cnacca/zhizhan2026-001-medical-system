@@ -141,3 +141,28 @@ dist
 vite.config.js.timestamp-*
 vite.config.ts.timestamp-*
 .vite/
+
+# macOS
+.DS_Store
+
+# Java / Maven
+target/
+*.class
+.mvn/wrapper/maven-wrapper.jar
+
+# Local IDE files
+.idea/
+*.iml
+
+# Local source documents and private intake materials
+.local-context/
+.local-runtime/
+.demo-runtime/
+
+# Local generated review artifacts
+tmp/
+output/
+test-results/
+.codex-tmp/
+docs/customer-confirmation/*.docx
+docs/customer-confirmation/*.pdf

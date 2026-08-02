@@ -1,0 +1,70 @@
+{
+  "mode": "plan-ingest",
+  "files": {
+    "README.md": {
+      "policy": "supplement",
+      "state": "populated",
+      "reason": "README.md already exists and should be updated compatibly."
+    },
+    "AGENT.md": {
+      "policy": "supplement",
+      "state": "populated",
+      "reason": "AGENT.md already exists and should be updated compatibly."
+    },
+    "PROJECT.md": {
+      "policy": "preserve",
+      "state": "populated",
+      "reason": "Keep the existing project definition and preserve the authoritative source."
+    },
+    "STATUS.md": {
+      "policy": "supplement",
+      "state": "populated",
+      "reason": "STATUS.md already exists and should be updated compatibly."
+    },
+    "DECISIONS.md": {
+      "policy": "supplement",
+      "state": "populated",
+      "reason": "DECISIONS.md already exists and should be updated compatibly."
+    },
+    "acceptance.json": {
+      "policy": "supplement",
+      "state": "populated",
+      "reason": "Existing acceptance.json is managed by RepoFrame and can be updated."
+    },
+    "goals/": {
+      "policy": "supplement",
+      "state": "present",
+      "reason": "Create the goals directory if absent; otherwise add a real goal file."
+    },
+    "tasks/": {
+      "policy": "supplement",
+      "state": "present",
+      "reason": "Create the tasks directory if absent; otherwise add a real task file."
+    },
+    ".agent/": {
+      "policy": "supplement",
+      "state": "present",
+      "reason": "Create the generated agent-rule directory without touching unrelated docs content."
+    },
+    ".agent/operating-rules.md": {
+      "policy": "supplement",
+      "state": "populated",
+      "reason": ".agent/operating-rules.md is managed or empty and can be updated."
+    },
+    ".agent/replanning.md": {
+      "policy": "supplement",
+      "state": "populated",
+      "reason": ".agent/replanning.md is managed or empty and can be updated."
+    },
+    ".agent/file-contract.md": {
+      "policy": "supplement",
+      "state": "populated",
+      "reason": ".agent/file-contract.md is managed or empty and can be updated."
+    },
+    ".agent/collaboration-rule-changes.md": {
+      "policy": "supplement",
+      "state": "populated",
+      "reason": ".agent/collaboration-rule-changes.md is managed or empty and can be updated."
+    }
+  }
+}

@@ -1,0 +1,201 @@
+{
+  "baseUrl": "http://127.0.0.1:15174",
+  "viewport": {
+    "width": 1440,
+    "height": 900
+  },
+  "startedAt": "2026-07-17T23:38:14.515Z",
+  "pages": [
+    {
+      "menu": "工作台",
+      "heading": "客服工作台",
+      "dimensions": {
+        "scrollWidth": 1440,
+        "viewportWidth": 1440,
+        "offenders": []
+      },
+      "interaction": "工作台仅执行只读可见性检查",
+      "screenshot": "docs/design-references/cs-portal/implementation-20260718/01-workbench.png"
+    },
+    {
+      "menu": "订单管理",
+      "heading": "订单管理",
+      "dimensions": {
+        "scrollWidth": 1440,
+        "viewportWidth": 1440,
+        "offenders": []
+      },
+      "interaction": "已打开并关闭首条真实数据详情",
+      "screenshot": "docs/design-references/cs-portal/implementation-20260718/02-orders.png"
+    },
+    {
+      "menu": "信息审核/翻译",
+      "heading": "信息审核/翻译",
+      "dimensions": {
+        "scrollWidth": 1440,
+        "viewportWidth": 1440,
+        "offenders": []
+      },
+      "interaction": "已切换真实任务和只读页签，未生成或确认内容",
+      "screenshot": "docs/design-references/cs-portal/implementation-20260718/03-information-translation.png"
+    },
+    {
+      "menu": "设计稿管理",
+      "heading": "设计稿管理",
+      "dimensions": {
+        "scrollWidth": 1440,
+        "viewportWidth": 1440,
+        "offenders": []
+      },
+      "interaction": "已打开并关闭首条真实数据详情",
+      "screenshot": "docs/design-references/cs-portal/implementation-20260718/04-designs.png"
+    },
+    {
+      "menu": "问单沟通",
+      "heading": "问单沟通",
+      "dimensions": {
+        "scrollWidth": 1440,
+        "viewportWidth": 1440,
+        "offenders": []
+      },
+      "interaction": "快捷回复仅填入后已清空，未点击发送",
+      "screenshot": "docs/design-references/cs-portal/implementation-20260718/05-inquiries.png"
+    },
+    {
+      "menu": "客户管理",
+      "heading": "客户管理",
+      "dimensions": {
+        "scrollWidth": 1440,
+        "viewportWidth": 1440,
+        "offenders": []
+      },
+      "interaction": "已打开并关闭首个真实客户详情",
+      "screenshot": "docs/design-references/cs-portal/implementation-20260718/06-customers.png"
+    },
+    {
+      "menu": "产品管理",
+      "heading": "产品管理",
+      "dimensions": {
+        "scrollWidth": 1440,
+        "viewportWidth": 1440,
+        "offenders": []
+      },
+      "interaction": "已打开并关闭首条真实数据详情",
+      "screenshot": "docs/design-references/cs-portal/implementation-20260718/07-products.png"
+    },
+    {
+      "menu": "账单管理",
+      "heading": "账单管理",
+      "dimensions": {
+        "scrollWidth": 1440,
+        "viewportWidth": 1440,
+        "offenders": []
+      },
+      "interaction": "已打开并关闭首条真实数据详情",
+      "screenshot": "docs/design-references/cs-portal/implementation-20260718/08-billing.png"
+    },
+    {
+      "menu": "配送管理",
+      "heading": "配送管理",
+      "dimensions": {
+        "scrollWidth": 1440,
+        "viewportWidth": 1440,
+        "offenders": []
+      },
+      "interaction": "已打开并关闭首条真实数据详情",
+      "screenshot": "docs/design-references/cs-portal/implementation-20260718/09-delivery.png"
+    },
+    {
+      "menu": "外协管理",
+      "heading": "外协管理",
+      "dimensions": {
+        "scrollWidth": 1440,
+        "viewportWidth": 1440,
+        "offenders": []
+      },
+      "interaction": "已打开并关闭首条真实数据详情",
+      "screenshot": "docs/design-references/cs-portal/implementation-20260718/10-outsourcing.png"
+    },
+    {
+      "menu": "设置与账号",
+      "heading": "设置与账号",
+      "dimensions": {
+        "scrollWidth": 1440,
+        "viewportWidth": 1440,
+        "offenders": []
+      },
+      "interaction": "已切换全部设置页签，未执行保存",
+      "screenshot": "docs/design-references/cs-portal/implementation-20260718/11-settings.png"
+    }
+  ],
+  "auxiliaryPages": [
+    {
+      "page": "通知中心",
+      "dimensions": {
+        "scrollWidth": 1440,
+        "viewportWidth": 1440,
+        "offenders": []
+      },
+      "screenshot": "docs/design-references/cs-portal/implementation-20260718/12-notifications.png"
+    },
+    {
+      "page": "帮助中心",
+      "dimensions": {
+        "scrollWidth": 1440,
+        "viewportWidth": 1440,
+        "offenders": []
+      },
+      "screenshot": "docs/design-references/cs-portal/implementation-20260718/13-help.png"
+    },
+    {
+      "page": "全局搜索",
+      "dimensions": {
+        "scrollWidth": 1440,
+        "viewportWidth": 1440,
+        "offenders": []
+      },
+      "interaction": "已从搜索结果打开并关闭对应订单详情",
+      "screenshot": "docs/design-references/cs-portal/implementation-20260718/14-search.png"
+    }
+  ],
+  "consoleErrors": [],
+  "pageErrors": [],
+  "externalResourceWarnings": [
+    {
+      "step": "侧栏页面：工作台",
+      "text": "Failed to load resource: net::ERR_CONNECTION_CLOSED",
+      "location": {
+        "url": "https://fonts.gstatic.com/s/plusjakartasans/v12/LDIoaomQNQcsA88c7O9yZ4KMCoOg4Ko20yygg_vb.woff2",
+        "line": 0,
+        "column": 0,
+        "lineNumber": 0,
+        "columnNumber": 0
+      }
+    },
+    {
+      "step": "侧栏页面：工作台",
+      "text": "Failed to load resource: net::ERR_CONNECTION_CLOSED",
+      "location": {
+        "url": "https://fonts.gstatic.com/s/lora/v37/0QI6MX1D_JOuGQbT0gvTJPa787zAvBJBkq18ndeYxZ0.woff2",
+        "line": 0,
+        "column": 0,
+        "lineNumber": 0,
+        "columnNumber": 0
+      }
+    },
+    {
+      "step": "侧栏页面：订单管理",
+      "text": "Failed to load resource: net::ERR_CONNECTION_CLOSED",
+      "location": {
+        "url": "https://fonts.gstatic.com/s/inter/v20/UcC73FwrK3iLTeHuS_nVMrMxCp50SjIa1ZL7W0Q5nw.woff2",
+        "line": 0,
+        "column": 0,
+        "lineNumber": 0,
+        "columnNumber": 0
+      }
+    }
+  ],
+  "blockedMutations": [],
+  "finishedAt": "2026-07-17T23:38:39.086Z",
+  "status": "passed"
+}

@@ -1,0 +1,51 @@
+AI智能下单平台 2026-07-29 修复验收数据库只读证据
+================================================
+
+[orders]
+order_id=1
+order_no=ORD20260729-8DA6781EC7
+internal_status=DRAFT
+external_status=DRAFT
+purpose=BUG-013 triple-click proof
+
+order_id=2
+order_no=ORD20260729-940F23D973
+internal_status=IN_DESIGN
+external_status=DESIGNING
+product_type=REGULAR_CROWN
+purpose=main four-portal acceptance
+
+[draft count]
+draft_count=1
+
+[file_resource]
+file_id=1
+order_id=2
+original_filename=REG0729_keep.stl
+upload_status=COMPLETED
+status=ACTIVE
+visibility=DOCTOR
+
+[order_message]
+message_id=1
+order_id=2
+sender_role=WORKER
+visibility=ALL
+review_status=APPROVED
+content=BUGFIX-0729 production review passed; tooth 26 and material reference ZR-0729-A2 confirmed
+
+[flyway]
+installed_rank=54
+version=55
+description=admin only production review
+success=1
+
+[workflow:review-production role assignment]
+ADMIN=present
+CS=absent
+WORKER=absent
+
+[BUG-012 direct API]
+http_status=400
+order_count_before=2
+order_count_after=2

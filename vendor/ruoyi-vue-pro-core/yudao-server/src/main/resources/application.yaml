@@ -1,0 +1,34 @@
+spring:
+  application:
+    name: ruoyi-vue-pro-core
+  main:
+    allow-circular-references: true
+  datasource:
+    dynamic:
+      primary: master
+      strict: true
+      datasource:
+        master:
+          url: ${RUOYI_DB_URL:}
+          username: ${RUOYI_DB_USERNAME:}
+          password: ${RUOYI_DB_PASSWORD:}
+  data:
+    redis:
+      host: ${RUOYI_REDIS_HOST:127.0.0.1}
+      port: ${RUOYI_REDIS_PORT:6379}
+      database: ${RUOYI_REDIS_DATABASE:0}
+      password: ${RUOYI_REDIS_PASSWORD:}
+
+server:
+  port: ${RUOYI_SERVER_PORT:48080}
+
+mybatis-plus:
+  type-aliases-package: ${yudao.info.base-package}.module.*.dal.dataobject
+  encryptor:
+    password: ${RUOYI_MYBATIS_ENCRYPTOR_PASSWORD:}
+
+yudao:
+  info:
+    version: 2026.06-SNAPSHOT
+    base-package: cn.iocoder.yudao
+

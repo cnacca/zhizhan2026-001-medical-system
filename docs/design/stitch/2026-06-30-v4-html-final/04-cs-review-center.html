@@ -1,0 +1,707 @@
+<!-- 客服审核中心 (最终版) -->
+<!DOCTYPE html><html lang="zh"><head>
+<meta charset="utf-8">
+<meta content="width=device-width, initial-scale=1.0" name="viewport">
+<title>客服审核中心 - AI智能下单平台</title>
+<script src="https://cdn.tailwindcss.com?plugins=forms,container-queries"></script>
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet">
+<link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@600;700&amp;family=Inter:wght@400;500;600&amp;family=JetBrains+Mono:wght@500&amp;display=swap" rel="stylesheet">
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet">
+<script id="tailwind-config">
+        tailwind.config = {
+          darkMode: "class",
+          theme: {
+            extend: {
+              "colors": {
+                      "primary-fixed-dim": "#b4c5ff",
+                      "tertiary": "#822600",
+                      "surface-dim": "#d7dae5",
+                      "on-secondary": "#ffffff",
+                      "error-container": "#ffdad6",
+                      "secondary-fixed-dim": "#59dea0",
+                      "error": "#ba1a1a",
+                      "surface-variant": "#dfe2ed",
+                      "surface-container-highest": "#dfe2ed",
+                      "inverse-on-surface": "#eef0fc",
+                      "on-tertiary-fixed": "#390c00",
+                      "tertiary-fixed": "#ffdbd0",
+                      "surface-container-high": "#e5e8f3",
+                      "secondary-container": "#78fbbb",
+                      "on-tertiary-fixed-variant": "#832700",
+                      "surface": "#f9f9ff",
+                      "tertiary-fixed-dim": "#ffb59c",
+                      "inverse-surface": "#2c3039",
+                      "outline": "#737686",
+                      "on-primary": "#ffffff",
+                      "on-background": "#181c23",
+                      "surface-container-lowest": "#ffffff",
+                      "outline-variant": "#c3c6d7",
+                      "tertiary-container": "#aa3500",
+                      "background": "#f9f9ff",
+                      "on-error-container": "#93000a",
+                      "primary": "#003da6",
+                      "on-primary-fixed-variant": "#003ea8",
+                      "primary-fixed": "#dbe1ff",
+                      "secondary": "#006c47",
+                      "surface-container-low": "#f1f3ff",
+                      "surface-bright": "#f9f9ff",
+                      "primary-container": "#0052d9",
+                      "on-tertiary": "#ffffff",
+                      "on-primary-fixed": "#00174b",
+                      "surface-container": "#ebedf9",
+                      "on-primary-container": "#cbd6ff",
+                      "on-surface-variant": "#434654",
+                      "surface-tint": "#0353da",
+                      "on-error": "#ffffff",
+                      "on-secondary-fixed-variant": "#005234",
+                      "on-surface": "#181c23",
+                      "on-secondary-fixed": "#002112",
+                      "secondary-fixed": "#78fbbb",
+                      "inverse-primary": "#b4c5ff",
+                      "on-tertiary-container": "#ffccbc",
+                      "on-secondary-container": "#00734b"
+              },
+              "borderRadius": {
+                      "DEFAULT": "0.25rem",
+                      "lg": "0.5rem",
+                      "xl": "0.75rem",
+                      "full": "9999px"
+              },
+              "spacing": {
+                      "container-max": "1440px",
+                      "xl": "32px",
+                      "md": "16px",
+                      "gutter": "16px",
+                      "sm": "8px",
+                      "sidebar-width": "240px",
+                      "lg": "24px",
+                      "base": "4px",
+                      "xs": "4px"
+              },
+              "fontFamily": {
+                      "label-md": [
+                              "JetBrains Mono"
+                      ],
+                      "headline-sm": [
+                              "Plus Jakarta Sans"
+                      ],
+                      "display-lg": [
+                              "Plus Jakarta Sans"
+                      ],
+                      "body-sm": [
+                              "Inter"
+                      ],
+                      "body-lg": [
+                              "Inter"
+                      ],
+                      "label-sm": [
+                              "JetBrains Mono"
+                      ],
+                      "body-md": [
+                              "Inter"
+                      ],
+                      "headline-md": [
+                              "Plus Jakarta Sans"
+                      ]
+              },
+              "fontSize": {
+                      "label-md": [
+                              "13px",
+                              {
+                                      "lineHeight": "18px",
+                                      "fontWeight": "500"
+                              }
+                      ],
+                      "headline-sm": [
+                              "16px",
+                              {
+                                      "lineHeight": "24px",
+                                      "fontWeight": "600"
+                              }
+                      ],
+                      "display-lg": [
+                              "30px",
+                              {
+                                      "lineHeight": "38px",
+                                      "fontWeight": "700"
+                              }
+                      ],
+                      "body-sm": [
+                              "12px",
+                              {
+                                      "lineHeight": "20px",
+                                      "fontWeight": "400"
+                              }
+                      ],
+                      "body-lg": [
+                              "16px",
+                              {
+                                      "lineHeight": "24px",
+                                      "fontWeight": "400"
+                              }
+                      ],
+                      "label-sm": [
+                              "11px",
+                              {
+                                      "lineHeight": "16px",
+                                      "fontWeight": "500"
+                              }
+                      ],
+                      "body-md": [
+                              "14px",
+                              {
+                                      "lineHeight": "22px",
+                                      "fontWeight": "400"
+                              }
+                      ],
+                      "headline-md": [
+                              "20px",
+                              {
+                                      "lineHeight": "28px",
+                                      "fontWeight": "600"
+                              }
+                      ]
+              }
+      },
+          },
+        }
+      </script>
+<style>
+        .material-symbols-outlined {
+            font-variation-settings: 'FILL' 0, 'wght' 400, 'GRAD' 0, 'opsz' 24;
+        }
+        .material-symbols-outlined.fill {
+            font-variation-settings: 'FILL' 1, 'wght' 400, 'GRAD' 0, 'opsz' 24;
+        }
+        /* Custom Scrollbar for Drawer */
+        ::-webkit-scrollbar {
+            width: 6px;
+            height: 6px;
+        }
+        ::-webkit-scrollbar-track {
+            background: transparent;
+        }
+        ::-webkit-scrollbar-thumb {
+            background: #c3c6d7;
+            border-radius: 3px;
+        }
+        ::-webkit-scrollbar-thumb:hover {
+            background: #737686;
+        }
+        
+        .drawer-slide-in {
+            animation: slideInRight 0.3s cubic-bezier(0.4, 0, 0.2, 1) forwards;
+        }
+        .drawer-slide-out {
+            animation: slideOutRight 0.3s cubic-bezier(0.4, 0, 0.2, 1) forwards;
+        }
+        @keyframes slideInRight {
+            from { transform: translateX(100%); }
+            to { transform: translateX(0); }
+        }
+        @keyframes slideOutRight {
+            from { transform: translateX(0); }
+            to { transform: translateX(100%); }
+        }
+    </style>
+</head>
+<body class="bg-[#F2F3F5] text-on-surface font-body-md min-h-screen overflow-x-hidden selection:bg-primary-fixed selection:text-on-primary-fixed">
+<!-- TopNavBar -->
+<header class="flex justify-between items-center h-16 ml-[240px] px-lg bg-surface border-b border-outline-variant docked full-width top-0 sticky z-30 hidden md:flex">
+<div class="flex items-center gap-lg flex-1">
+<div class="relative w-96">
+<span class="material-symbols-outlined absolute left-sm top-1/2 -translate-y-1/2 text-on-surface-variant text-[20px]">search</span>
+<input class="w-full bg-surface-container-high border-none rounded-DEFAULT pl-10 pr-md py-sm font-body-sm text-body-sm text-on-surface placeholder:text-[#86909C] focus:ring-1 focus:ring-primary focus:bg-surface transition-colors" placeholder="搜索订单号、诊所、患者/病例..." type="text">
+</div>
+</div>
+<div class="flex items-center gap-md">
+<button class="p-xs text-on-surface-variant hover:text-primary transition-colors hover:bg-surface-container-high rounded-full relative">
+<span class="material-symbols-outlined text-[20px]">notifications</span>
+<span class="absolute top-1 right-1 w-2 h-2 bg-error rounded-full"></span>
+</button>
+<button class="p-xs text-on-surface-variant hover:text-primary transition-colors hover:bg-surface-container-high rounded-full">
+<span class="material-symbols-outlined text-[20px]">apps</span>
+</button>
+<button class="p-xs text-on-surface-variant hover:text-primary transition-colors hover:bg-surface-container-high rounded-full mr-sm">
+<span class="material-symbols-outlined text-[20px]">help</span>
+</button>
+<div class="h-6 w-px bg-outline-variant mx-xs"></div>
+<button class="text-on-surface-variant font-label-md text-label-md hover:text-primary transition-colors px-sm">
+                角色切换
+            </button>
+<button class="flex items-center gap-xs text-on-surface-variant hover:text-primary transition-colors pl-sm">
+<img alt="User Profile Avatar" class="w-8 h-8 rounded-full object-cover border border-outline-variant" data-alt="A professional headshot of an Asian female customer service representative in a modern, brightly lit office environment. She is wearing a neat white blouse and a subtle headset, conveying approachability and efficiency. The lighting is soft and even, highlighting a clean, corporate aesthetic." src="https://lh3.googleusercontent.com/aida-public/AB6AXuCkwl05xl8EEKC3osVMt3qN-YLk36wDI9L4w9BPyvGiwhz_ec5-7p4bUR4rSUMMd58aS1qYeshCKDNOCBCF0N7S6pn3VsCyiHwrU4Ch0FQX3AwS3NDaToZP3n_3i8DXEWu1mPUNPgDZaYOz7sIjhEehrxGgRerytzVh9myhWeLb38lJ1ClzyUKcv2cal9xHnEVC7k4UKyesu6-W1ijjlWCEFsux81LPAP3v4IDZFJZacq8Lh4dbIoDfgg4cJP1RO-Th3P9jEd0cZ0k">
+<span class="font-label-md text-label-md">个人中心</span>
+<span class="material-symbols-outlined text-[16px]">arrow_drop_down</span>
+</button>
+</div>
+</header>
+<!-- SideNavBar -->
+<nav class="flex flex-col h-screen w-[240px] fixed left-0 top-0 z-40 bg-surface border-r border-outline-variant hidden md:flex">
+<!-- Brand Header -->
+<div class="h-16 flex items-center px-lg border-b border-outline-variant">
+<div class="flex items-center gap-sm">
+<div class="w-8 h-8 rounded-DEFAULT bg-primary flex items-center justify-center text-on-primary">
+<span class="material-symbols-outlined fill text-[20px]">smart_toy</span>
+</div>
+<div>
+<h1 class="font-headline-sm text-headline-sm font-bold text-primary tracking-tight">AI智能下单平台</h1>
+<p class="font-label-sm text-label-sm text-on-surface-variant mt-[2px]">牙科生产协同</p>
+</div>
+</div>
+</div>
+<!-- Primary CTA -->
+<div class="p-md">
+<button class="w-full flex items-center justify-center gap-sm bg-primary text-on-primary font-label-md text-label-md py-sm px-md rounded-DEFAULT hover:bg-primary-container transition-colors shadow-sm">
+<span class="material-symbols-outlined text-[18px]">add</span>
+                新建订单
+            </button>
+</div>
+<!-- Navigation Links -->
+<div class="flex-1 overflow-y-auto py-sm">
+<ul class="flex flex-col gap-[2px]">
+<li>
+<a class="flex items-center gap-md px-lg py-sm text-on-surface-variant hover:bg-surface-container-high transition-colors font-label-md text-label-md" href="#">
+<span class="material-symbols-outlined text-[20px]">headset_mic</span>
+                        客服工作台
+                    </a>
+</li>
+<li>
+<a class="flex items-center gap-md px-[21px] py-sm bg-primary-fixed text-on-primary-fixed-variant border-l-[3px] border-primary font-label-md text-label-md" href="#">
+<span class="material-symbols-outlined text-[20px] fill">pending_actions</span>
+                        待审核订单
+                    </a>
+</li>
+<li>
+<a class="flex items-center gap-md px-lg py-sm text-on-surface-variant hover:bg-surface-container-high transition-colors font-label-md text-label-md" href="#">
+<span class="material-symbols-outlined text-[20px]">folder_off</span>
+                        资料缺失
+                    </a>
+</li>
+<li>
+<a class="flex items-center gap-md px-lg py-sm text-on-surface-variant hover:bg-surface-container-high transition-colors font-label-md text-label-md" href="#">
+<span class="material-symbols-outlined text-[20px]">chat_error</span>
+                        消息审核
+                    </a>
+</li>
+<li>
+<a class="flex items-center gap-md px-lg py-sm text-on-surface-variant hover:bg-surface-container-high transition-colors font-label-md text-label-md" href="#">
+<span class="material-symbols-outlined text-[20px]">design_services</span>
+                        设计稿审核
+                    </a>
+</li>
+<li>
+<a class="flex items-center gap-md px-lg py-sm text-on-surface-variant hover:bg-surface-container-high transition-colors font-label-md text-label-md" href="#">
+<span class="material-symbols-outlined text-[20px]">local_shipping</span>
+                        账单物流
+                    </a>
+</li>
+<li class="mt-md mb-sm px-lg">
+<span class="font-label-sm text-label-sm text-outline tracking-wider uppercase">智能工具</span>
+</li>
+<li>
+<a class="flex items-center justify-between px-lg py-sm text-on-surface-variant hover:bg-surface-container-high transition-colors font-label-md text-label-md group" href="#">
+<div class="flex items-center gap-md">
+<span class="material-symbols-outlined text-[20px] text-secondary">smart_toy</span>
+                            AI客服助手
+                        </div>
+<span class="material-symbols-outlined text-[16px] opacity-0 group-hover:opacity-100 transition-opacity">open_in_new</span>
+</a>
+</li>
+</ul>
+</div>
+<!-- Footer Links -->
+<div class="p-sm border-t border-outline-variant bg-surface-container-lowest">
+<a class="flex items-center gap-md px-md py-sm text-on-surface-variant hover:bg-surface-container-high transition-colors font-label-md text-label-md rounded-DEFAULT" href="#">
+<span class="material-symbols-outlined text-[20px]">settings</span>
+                设置
+            </a>
+<a class="flex items-center gap-md px-md py-sm text-on-surface-variant hover:bg-surface-container-high transition-colors font-label-md text-label-md rounded-DEFAULT" href="#">
+<span class="material-symbols-outlined text-[20px]">help</span>
+                帮助中心
+            </a>
+</div>
+</nav>
+<!-- Main Content Canvas -->
+<main class="ml-0 md:ml-[240px] p-lg">
+<!-- Page Header & Actions -->
+<div class="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-md mb-lg">
+<div>
+<h2 class="font-display-lg text-display-lg text-on-surface mb-xs">待审核订单</h2>
+<p class="font-body-sm text-body-sm text-on-surface-variant">共 <span class="font-label-md text-primary">124</span> 笔订单待处理，建议优先处理加急标记订单。</p>
+</div>
+<div class="flex items-center gap-sm">
+<div class="bg-[#FFFFFF] border border-outline-variant rounded-DEFAULT p-[2px] flex font-label-sm text-label-sm">
+<button class="px-md py-xs bg-surface-container-high text-on-surface rounded-sm shadow-sm transition-colors">列表视图</button>
+<button class="px-md py-xs text-on-surface-variant hover:text-on-surface rounded-sm transition-colors">卡片视图</button>
+</div>
+<button class="flex items-center gap-xs px-md py-sm bg-[#FFFFFF] border border-outline-variant rounded-DEFAULT font-label-md text-label-md text-on-surface hover:bg-surface-container-lowest transition-colors">
+<span class="material-symbols-outlined text-[18px]">filter_list</span>
+                    高级筛选
+                </button>
+</div>
+</div>
+<!-- Bento Grid Layout for Dashboard Elements -->
+<div class="grid grid-cols-1 xl:grid-cols-12 gap-gutter mb-lg">
+<!-- Quick Stats -->
+<div class="xl:col-span-8 grid grid-cols-1 md:grid-cols-3 gap-gutter">
+<div class="bg-[#FFFFFF] border border-outline-variant rounded-lg p-md relative overflow-hidden group">
+<div class="absolute -right-4 -top-4 w-16 h-16 bg-error-container rounded-full opacity-20 group-hover:scale-150 transition-transform duration-500"></div>
+<div class="flex justify-between items-start mb-sm relative z-10">
+<span class="font-label-md text-label-md text-on-surface-variant">超时警告 ( &gt;24h )</span>
+<span class="material-symbols-outlined text-[20px] text-error">warning</span>
+</div>
+<div class="flex items-baseline gap-xs relative z-10">
+<span class="font-display-lg text-display-lg text-on-surface">12</span>
+<span class="font-body-sm text-body-sm text-error font-medium">+3 笔新增</span>
+</div>
+</div>
+<div class="bg-[#FFFFFF] border border-outline-variant rounded-lg p-md relative overflow-hidden group">
+<div class="absolute -right-4 -top-4 w-16 h-16 bg-primary-fixed-dim rounded-full opacity-20 group-hover:scale-150 transition-transform duration-500"></div>
+<div class="flex justify-between items-start mb-sm relative z-10">
+<span class="font-label-md text-label-md text-on-surface-variant">AI 预警缺漏</span>
+<span class="material-symbols-outlined text-[20px] text-primary">psychology_alt</span>
+</div>
+<div class="flex items-baseline gap-xs relative z-10">
+<span class="font-display-lg text-display-lg text-on-surface">38</span>
+<span class="font-body-sm text-body-sm text-on-surface-variant">笔建议打回</span>
+</div>
+</div>
+<div class="bg-[#FFFFFF] border border-outline-variant rounded-lg p-md relative overflow-hidden group">
+<div class="absolute -right-4 -top-4 w-16 h-16 bg-secondary-container rounded-full opacity-20 group-hover:scale-150 transition-transform duration-500"></div>
+<div class="flex justify-between items-start mb-sm relative z-10">
+<span class="font-label-md text-label-md text-on-surface-variant">今日已审核</span>
+<span class="material-symbols-outlined text-[20px] text-secondary">task_alt</span>
+</div>
+<div class="flex items-baseline gap-xs relative z-10">
+<span class="font-display-lg text-display-lg text-on-surface">156</span>
+<span class="font-body-sm text-body-sm text-secondary font-medium">↑ 12%</span>
+</div>
+</div>
+</div>
+<!-- AI Assistant Mini-Widget -->
+<div class="xl:col-span-4 bg-[#FFFFFF] border border-outline-variant rounded-lg p-md flex flex-col justify-between relative overflow-hidden">
+<div class="absolute top-0 left-0 w-full h-1 bg-gradient-to-r from-primary via-secondary-fixed-dim to-primary"></div>
+<div>
+<div class="flex items-center gap-xs mb-xs">
+<span class="material-symbols-outlined text-[18px] text-secondary">auto_awesome</span>
+<h3 class="font-label-md text-label-md text-on-surface font-semibold">AI 审核助手建议</h3>
+</div>
+<p class="font-body-sm text-body-sm text-on-surface-variant line-clamp-2 mt-xs">检测到近期「全瓷冠」订单中，口扫文件咬合关系缺失率上升（15%），建议重点核查此类订单的三维模型数据。</p>
+</div>
+<button class="mt-sm text-primary font-label-sm text-label-sm flex items-center gap-xs hover:underline w-fit">
+                    查看详情 <span class="material-symbols-outlined text-[14px]">arrow_forward</span>
+</button>
+</div>
+</div>
+<!-- Main Data Table Container -->
+<div class="bg-[#FFFFFF] border border-outline-variant rounded-lg shadow-sm overflow-hidden flex flex-col">
+<!-- Table Toolbar -->
+<div class="p-sm border-b border-outline-variant flex justify-between items-center bg-surface-container-lowest">
+<div class="flex gap-sm">
+<button class="px-md py-xs bg-surface-container-high text-on-surface font-label-sm text-label-sm rounded-DEFAULT border border-outline-variant hover:bg-surface-container transition-colors">
+                        全部待审 (124)
+                    </button>
+<button class="px-md py-xs bg-surface-container-lowest text-on-surface-variant font-label-sm text-label-sm rounded-DEFAULT border border-transparent hover:bg-surface-container-highest transition-colors">
+                        加急 (12)
+                    </button>
+<button class="px-md py-xs bg-surface-container-lowest text-on-surface-variant font-label-sm text-label-sm rounded-DEFAULT border border-transparent hover:bg-surface-container-highest transition-colors">
+                        重做/返修 (5)
+                    </button>
+</div>
+<div class="flex items-center gap-sm text-on-surface-variant">
+<span class="font-body-sm text-body-sm">排序:</span>
+<button class="flex items-center gap-xs font-label-sm text-label-sm hover:text-primary transition-colors">
+                        创建时间 <span class="material-symbols-outlined text-[16px]">arrow_downward</span>
+</button>
+</div>
+</div>
+<!-- Table -->
+<div class="overflow-x-auto">
+<table class="w-full text-left border-collapse">
+<thead>
+<tr class="bg-surface border-b border-outline-variant font-label-sm text-label-sm text-on-surface-variant">
+<th class="p-sm pl-md font-medium w-12 text-center"><input class="rounded-sm border-outline-variant text-primary focus:ring-primary h-4 w-4" type="checkbox"></th>
+<th class="p-sm font-medium w-[140px]">订单号/提交时间</th>
+<th class="p-sm font-medium w-[160px]">诊所/医生</th>
+<th class="p-sm font-medium w-[120px]">患者/牙位</th>
+<th class="p-sm font-medium w-[180px]">产品类别</th>
+<th class="p-sm font-medium">资料完整度</th>
+<th class="p-sm font-medium w-[100px] text-right pr-md">操作</th>
+</tr>
+</thead>
+<tbody class="font-body-sm text-body-sm text-on-surface divide-y divide-outline-variant">
+<!-- Row 1: Needs Review (Clickable to open drawer) -->
+<tr class="hover:bg-[#F7F8FA] transition-colors cursor-pointer group" onclick="document.getElementById('drawer').classList.remove('translate-x-full');">
+<td class="p-sm pl-md text-center"><input class="rounded-sm border-outline-variant text-primary focus:ring-primary h-4 w-4" onclick="event.stopPropagation()" type="checkbox"></td>
+<td class="p-sm">
+<div class="font-label-md text-primary group-hover:underline">ORD-2310-0891</div>
+<div class="text-on-surface-variant text-[11px] mt-[2px]">10-24 14:30</div>
+</td>
+<td class="p-sm">
+<div class="font-medium text-on-surface truncate w-[150px]">瑞尔齿科 (朝阳店)</div>
+<div class="text-on-surface-variant text-[11px] mt-[2px]">张建国 医生</div>
+</td>
+<td class="p-sm">
+<div class="font-medium text-on-surface">李明 (男, 45)</div>
+<div class="text-on-surface-variant text-[11px] mt-[2px] font-label-sm">#36, #37</div>
+</td>
+<td class="p-sm">
+<div class="flex items-center gap-xs">
+<span class="w-2 h-2 rounded-full bg-primary"></span>
+<span>氧化锆全瓷冠</span>
+</div>
+<div class="text-on-surface-variant text-[11px] mt-[2px] ml-3">比色: A2</div>
+</td>
+<td class="p-sm">
+<div class="flex items-center gap-sm">
+<!-- AI Warning Status Chip -->
+<span class="inline-flex items-center gap-xs px-[6px] py-[2px] rounded-sm bg-error-container text-on-error-container font-label-sm text-[11px] border border-[#ffb4ab]">
+<span class="material-symbols-outlined text-[12px]">warning</span>
+                                        STL缺失
+                                    </span>
+</div>
+</td>
+<td class="p-sm text-right pr-md">
+<button class="text-primary hover:text-primary-container font-label-md text-label-md transition-colors" onclick="event.stopPropagation(); document.getElementById('drawer').classList.remove('translate-x-full');">审核</button>
+</td>
+</tr>
+<!-- Row 2: Standard -->
+<tr class="hover:bg-[#F7F8FA] transition-colors cursor-pointer group">
+<td class="p-sm pl-md text-center"><input class="rounded-sm border-outline-variant text-primary focus:ring-primary h-4 w-4" onclick="event.stopPropagation()" type="checkbox"></td>
+<td class="p-sm">
+<div class="font-label-md text-primary group-hover:underline flex items-center gap-xs">
+                                    ORD-2310-0890
+                                    <span class="inline-block px-1 py-[1px] bg-tertiary-fixed text-on-tertiary-fixed text-[9px] font-bold rounded-sm uppercase tracking-tighter">加急</span>
+</div>
+<div class="text-on-surface-variant text-[11px] mt-[2px]">10-24 13:15</div>
+</td>
+<td class="p-sm">
+<div class="font-medium text-on-surface truncate w-[150px]">拜博口腔 (天河院)</div>
+<div class="text-on-surface-variant text-[11px] mt-[2px]">王美丽 医生</div>
+</td>
+<td class="p-sm">
+<div class="font-medium text-on-surface">陈子涵 (女, 28)</div>
+<div class="text-on-surface-variant text-[11px] mt-[2px] font-label-sm">#11, #21</div>
+</td>
+<td class="p-sm">
+<div class="flex items-center gap-xs">
+<span class="w-2 h-2 rounded-full bg-secondary"></span>
+<span>玻璃陶瓷贴面</span>
+</div>
+<div class="text-on-surface-variant text-[11px] mt-[2px] ml-3">比色: BL2</div>
+</td>
+<td class="p-sm">
+<div class="flex flex-wrap gap-xs">
+<span class="inline-flex items-center px-[6px] py-[2px] rounded-sm bg-surface-container-high text-on-surface-variant font-label-sm text-[11px] border border-outline-variant">
+                                        模型数据完整
+                                    </span>
+<span class="inline-flex items-center px-[6px] py-[2px] rounded-sm bg-[#eef0fc] text-primary font-label-sm text-[11px] border border-primary-fixed">
+<span class="material-symbols-outlined text-[12px] mr-[2px]">psychology</span> AI已校验
+                                    </span>
+</div>
+</td>
+<td class="p-sm text-right pr-md">
+<button class="text-primary hover:text-primary-container font-label-md text-label-md transition-colors">审核</button>
+</td>
+</tr>
+<!-- Row 3: Standard -->
+<tr class="hover:bg-[#F7F8FA] transition-colors cursor-pointer group">
+<td class="p-sm pl-md text-center"><input class="rounded-sm border-outline-variant text-primary focus:ring-primary h-4 w-4" onclick="event.stopPropagation()" type="checkbox"></td>
+<td class="p-sm">
+<div class="font-label-md text-primary group-hover:underline">ORD-2310-0885</div>
+<div class="text-on-surface-variant text-[11px] mt-[2px]">10-24 11:05</div>
+</td>
+<td class="p-sm">
+<div class="font-medium text-on-surface truncate w-[150px]">欢乐口腔</div>
+<div class="text-on-surface-variant text-[11px] mt-[2px]">刘洋 医生</div>
+</td>
+<td class="p-sm">
+<div class="font-medium text-on-surface">赵伟 (男, 55)</div>
+<div class="text-on-surface-variant text-[11px] mt-[2px] font-label-sm">全口</div>
+</td>
+<td class="p-sm">
+<div class="flex items-center gap-xs">
+<span class="w-2 h-2 rounded-full bg-outline"></span>
+<span>纯钛活动义齿支架</span>
+</div>
+</td>
+<td class="p-sm">
+<div class="flex flex-wrap gap-xs">
+<span class="inline-flex items-center px-[6px] py-[2px] rounded-sm bg-surface-container-high text-on-surface-variant font-label-sm text-[11px] border border-outline-variant">
+                                        石膏模型待接收
+                                    </span>
+</div>
+</td>
+<td class="p-sm text-right pr-md">
+<button class="text-primary hover:text-primary-container font-label-md text-label-md transition-colors">审核</button>
+</td>
+</tr>
+</tbody>
+</table>
+</div>
+<!-- Pagination -->
+<div class="p-sm border-t border-outline-variant flex justify-between items-center bg-surface-container-lowest font-body-sm text-body-sm text-on-surface-variant">
+<div>显示 1-3 条，共 124 条</div>
+<div class="flex items-center gap-xs">
+<button class="p-xs rounded-sm hover:bg-surface-container-high disabled:opacity-50" disabled=""><span class="material-symbols-outlined text-[18px]">chevron_left</span></button>
+<button class="w-6 h-6 flex items-center justify-center rounded-sm bg-primary-fixed text-on-primary-fixed-variant font-label-sm">1</button>
+<button class="w-6 h-6 flex items-center justify-center rounded-sm hover:bg-surface-container-high font-label-sm">2</button>
+<button class="w-6 h-6 flex items-center justify-center rounded-sm hover:bg-surface-container-high font-label-sm">3</button>
+<span>...</span>
+<button class="w-6 h-6 flex items-center justify-center rounded-sm hover:bg-surface-container-high font-label-sm">13</button>
+<button class="p-xs rounded-sm hover:bg-surface-container-high"><span class="material-symbols-outlined text-[18px]">chevron_right</span></button>
+</div>
+</div>
+</div>
+</main>
+<!-- Detail Drawer (Slide from right, ~40% width on desktop) -->
+<!-- Backdrop -->
+<div class="fixed inset-0 bg-[#1D2129] bg-opacity-40 backdrop-blur-sm z-40 hidden" id="drawer-backdrop" onclick="document.getElementById('drawer').classList.add('translate-x-full');"></div>
+<!-- Drawer Content -->
+<aside class="fixed top-0 right-0 h-full w-full sm:w-[500px] xl:w-[600px] bg-[#FFFFFF] shadow-[0px_8px_24px_rgba(29,33,41,0.15)] z-50 transform translate-x-full transition-transform duration-300 ease-in-out flex flex-col border-l border-outline-variant" id="drawer">
+<!-- Drawer Header -->
+<div class="px-lg py-md border-b border-outline-variant flex justify-between items-start bg-surface-container-lowest">
+<div>
+<div class="flex items-center gap-sm mb-xs">
+<h3 class="font-headline-md text-headline-md text-on-surface">订单审核: ORD-2310-0891</h3>
+<span class="inline-flex items-center px-xs py-[2px] rounded-sm bg-surface-container-high text-on-surface-variant font-label-sm text-[11px] border border-outline-variant">
+                        待审核
+                    </span>
+</div>
+<p class="font-body-sm text-body-sm text-on-surface-variant">提交于 2023-10-24 14:30:45</p>
+</div>
+<button class="p-xs text-on-surface-variant hover:text-on-surface hover:bg-surface-container-high rounded-full transition-colors" onclick="document.getElementById('drawer').classList.add('translate-x-full');">
+<span class="material-symbols-outlined text-[24px]">close</span>
+</button>
+</div>
+<!-- Drawer Body (Scrollable) -->
+<div class="flex-1 overflow-y-auto p-lg bg-[#F2F3F5]">
+<!-- AI Alert Card -->
+<div class="bg-error-container border border-[#ffb4ab] rounded-lg p-md mb-md flex items-start gap-md shadow-sm">
+<span class="material-symbols-outlined text-error text-[24px] mt-[2px]">error</span>
+<div>
+<h4 class="font-label-md text-label-md text-on-error-container font-semibold mb-xs">资料缺失预警</h4>
+<p class="font-body-sm text-body-sm text-on-error-container opacity-90">系统检测到该订单未上传口扫数据 (STL/PLY/OBJ)，且未标记寄送实体石膏模型。请核实资料完整性后操作。</p>
+</div>
+</div>
+<!-- Bento Group 1: Basic Info -->
+<div class="bg-[#FFFFFF] border border-outline-variant rounded-lg p-md mb-md shadow-sm">
+<h4 class="font-label-md text-label-md text-on-surface font-semibold mb-md border-b border-outline-variant pb-xs">基础信息</h4>
+<div class="grid grid-cols-2 gap-y-sm gap-x-md text-body-sm">
+<div>
+<span class="text-on-surface-variant block mb-[2px] text-[11px]">诊所名称</span>
+<span class="text-on-surface font-medium">瑞尔齿科 (朝阳店)</span>
+</div>
+<div>
+<span class="text-on-surface-variant block mb-[2px] text-[11px]">主治医生</span>
+<span class="text-on-surface font-medium">张建国 (138****8921)</span>
+</div>
+<div>
+<span class="text-on-surface-variant block mb-[2px] text-[11px]">患者信息</span>
+<span class="text-on-surface font-medium">李明 | 男 | 45岁</span>
+</div>
+<div>
+<span class="text-on-surface-variant block mb-[2px] text-[11px]">期望交期</span>
+<span class="text-on-surface font-medium text-error">2023-10-28 (剩余 4 天)</span>
+</div>
+</div>
+</div>
+<!-- Bento Group 2: Product & Design -->
+<div class="bg-[#FFFFFF] border border-outline-variant rounded-lg p-md mb-md shadow-sm">
+<div class="flex justify-between items-center mb-md border-b border-outline-variant pb-xs">
+<h4 class="font-label-md text-label-md text-on-surface font-semibold">修复体要求</h4>
+<span class="font-label-md text-label-md text-primary bg-primary-fixed px-xs py-[2px] rounded-sm">牙位: #36, #37</span>
+</div>
+<div class="space-y-sm mb-md">
+<div class="flex justify-between items-center py-xs border-b border-surface-variant border-dashed">
+<span class="text-on-surface-variant font-body-sm text-body-sm">产品类型</span>
+<span class="text-on-surface font-label-md text-label-md">氧化锆全瓷冠 (多层色)</span>
+</div>
+<div class="flex justify-between items-center py-xs border-b border-surface-variant border-dashed">
+<span class="text-on-surface-variant font-body-sm text-body-sm">比色</span>
+<div class="flex items-center gap-xs">
+<span class="w-3 h-3 rounded-sm bg-[#EADDCD] border border-outline-variant inline-block"></span>
+<span class="text-on-surface font-label-md text-label-md">A2</span>
+</div>
+</div>
+<div class="flex justify-between items-center py-xs border-b border-surface-variant border-dashed">
+<span class="text-on-surface-variant font-body-sm text-body-sm">咬合接触</span>
+<span class="text-on-surface font-label-md text-label-md">轻接触</span>
+</div>
+<div class="flex justify-between items-center py-xs">
+<span class="text-on-surface-variant font-body-sm text-body-sm">邻接关系</span>
+<span class="text-on-surface font-label-md text-label-md">面接触</span>
+</div>
+</div>
+<div class="bg-surface-container-low p-sm rounded-md border border-outline-variant">
+<span class="text-on-surface-variant font-label-sm text-[11px] block mb-xs">医生备注：</span>
+<p class="font-body-sm text-body-sm text-on-surface">患者牙体预备空间有限，请尽量保证咬合面强度，舌侧可适当增加金属环绕结构。注意边缘密合度。</p>
+</div>
+</div>
+<!-- Bento Group 3: File Integrity Check -->
+<div class="bg-[#FFFFFF] border border-outline-variant rounded-lg p-md shadow-sm">
+<div class="flex justify-between items-center mb-md border-b border-outline-variant pb-xs">
+<h4 class="font-label-md text-label-md text-on-surface font-semibold">资料完整性检查</h4>
+<span class="material-symbols-outlined text-[20px] text-primary">data_check</span>
+</div>
+<ul class="space-y-xs">
+<li class="flex items-center justify-between p-sm rounded-md bg-error-container border border-[#ffb4ab]">
+<div class="flex items-center gap-sm">
+<span class="material-symbols-outlined text-error text-[18px]">cancel</span>
+<span class="font-body-sm text-body-sm text-on-surface font-medium">口扫数据 (STL/PLY)</span>
+</div>
+<span class="font-label-sm text-[11px] text-error">未上传</span>
+</li>
+<li class="flex items-center justify-between p-sm rounded-md border border-outline-variant hover:bg-surface-container-lowest transition-colors cursor-pointer">
+<div class="flex items-center gap-sm">
+<span class="material-symbols-outlined text-secondary text-[18px]">check_circle</span>
+<span class="font-body-sm text-body-sm text-on-surface">电子设计单</span>
+</div>
+<span class="text-primary font-label-sm text-[11px] hover:underline">查看 PDF</span>
+</li>
+<li class="flex items-center justify-between p-sm rounded-md border border-outline-variant hover:bg-surface-container-lowest transition-colors cursor-pointer">
+<div class="flex items-center gap-sm">
+<span class="material-symbols-outlined text-secondary text-[18px]">check_circle</span>
+<span class="font-body-sm text-body-sm text-on-surface">患者面部照片 (3张)</span>
+</div>
+<span class="text-primary font-label-sm text-[11px] hover:underline">预览</span>
+</li>
+</ul>
+<!-- Interaction Input for Rejection -->
+<div class="mt-md pt-md border-t border-outline-variant">
+<label class="block font-label-sm text-label-sm text-on-surface-variant mb-xs">内部处理意见 / 驳回理由</label>
+<textarea class="w-full bg-surface-container-highest border border-outline-variant rounded-md p-sm font-body-sm text-body-sm text-on-surface placeholder:text-[#86909C] focus:ring-1 focus:ring-primary focus:border-primary transition-colors resize-none" placeholder="如驳回，请详细说明需要诊所补充哪些资料..." rows="3"></textarea>
+<div class="flex gap-sm mt-xs">
+<button class="px-sm py-[2px] bg-surface border border-outline-variant rounded-sm font-label-sm text-[11px] text-on-surface-variant hover:bg-surface-container-high transition-colors">快速填入: 缺少STL文件</button>
+<button class="px-sm py-[2px] bg-surface border border-outline-variant rounded-sm font-label-sm text-[11px] text-on-surface-variant hover:bg-surface-container-high transition-colors">快速填入: 照片不清晰</button>
+</div>
+</div>
+</div>
+</div>
+<!-- Drawer Footer Actions -->
+<div class="px-lg py-md border-t border-outline-variant bg-surface-container-lowest flex justify-between items-center shadow-[0px_-4px_10px_rgba(0,0,0,0.02)]">
+<button class="px-md py-sm bg-surface-container-high border border-outline-variant text-on-surface font-label-md text-label-md rounded-DEFAULT hover:bg-surface-container-highest transition-colors" onclick="document.getElementById('drawer').classList.add('translate-x-full');">
+                取消
+            </button>
+<div class="flex gap-md">
+<button class="px-md py-sm bg-[#FFF] border border-error text-error font-label-md text-label-md rounded-DEFAULT hover:bg-error-container transition-colors flex items-center gap-xs">
+<span class="material-symbols-outlined text-[18px]">block</span>
+                    驳回补资料
+                </button>
+<button class="px-lg py-sm bg-primary text-on-primary font-label-md text-label-md rounded-DEFAULT hover:bg-primary-container shadow-sm transition-colors flex items-center gap-xs">
+<span class="material-symbols-outlined text-[18px]">check</span>
+                    通过审核
+                </button>
+</div>
+</div>
+</aside>
+<script>
+        // Simple drawer toggle logic for demonstration
+        document.addEventListener('keydown', function(event) {
+            if (event.key === "Escape") {
+                document.getElementById('drawer').classList.add('translate-x-full');
+            }
+        });
+    </script>
+</body></html>
