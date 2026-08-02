@@ -171,6 +171,7 @@
     "compose:up": "docker compose up -d --wait mysql redis minio",
     "drill:clean-env": "bash scripts/clean-env-reproducibility-drill.sh",
     "check:clean-env-reproducibility": "node scripts/check-clean-env-reproducibility.mjs",
+    "check:status-vocabulary": "node scripts/check-status-vocabulary.mjs",
     "dev:backend": "scripts/with-jdk21.sh mvn -f backend/pom.xml -pl platform-server -am -DskipTests install && scripts/with-jdk21.sh mvn -f backend/platform-server/pom.xml spring-boot:run",
     "dev:frontend": "pnpm --filter ai-order-platform-frontend dev",
     "install:frontend": "pnpm install",

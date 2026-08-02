@@ -94,7 +94,7 @@ INSERT INTO orders
      internal_status, external_status, created_at, updated_at)
 SELECT 'DEMO-ADMIN-KQ-001', clinic_id, NULL, 8002, 'ORTHODONTICS',
        JSON_OBJECT('item_count', 6, 'acceptance_marker', 'ADMIN_PORTAL_DEMO_V1'),
-       'PRODUCING', 'IN_PRODUCTION', DATE_SUB(NOW(3), INTERVAL 7 DAY), NOW(3)
+       'IN_PRODUCTION', 'PRODUCING', DATE_SUB(NOW(3), INTERVAL 7 DAY), NOW(3)
 FROM clinic WHERE clinic_name = '康桥齿科中心'
 ON DUPLICATE KEY UPDATE form_data = VALUES(form_data), updated_at = VALUES(updated_at);
 INSERT INTO orders
