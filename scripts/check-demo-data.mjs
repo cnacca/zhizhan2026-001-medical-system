@@ -91,7 +91,10 @@ async function main() {
     if (scenario.processCheck) {
       const process = await apiFetch(`/orders/${order.order_id}/process-instance`, sessions.ADMIN.accessToken)
       if (scenario.processCheck === 'assigned') {
-        assert(process.data.nodes.some((node) => node.assigned_user_id === sessions.PRODUCTION.userId),
+        // 登录接口把 userId 序列化为字符串（避免 JS 大整数精度丢失），而工序节点的
+        // assigned_user_id 是数字，直接用 === 比较恒为 false。统一转字符串再比。
+        const workerUserId = String(sessions.PRODUCTION.userId)
+        assert(process.data.nodes.some((node) => String(node.assigned_user_id) === workerUserId),
           `${scenario.key} has no node assigned to demo worker`)
       } else {
         assert(process.data.instance_status === 'COMPLETED',
@@ -103,8 +106,11 @@ async function main() {
       assert(reworks.data.length > 0, `${scenario.key} has no pending rework`)
     }
     if (scenario.designCheck) {
+      // 迁移 V49 把待医生确认状态由 PENDING_DOCTOR_CONFIRM 改名为 PENDING_DOCTOR，
+      // 历史数据两种都可能出现，与 httpDoctorGateway / CsPortalPages 保持同样的兼容口径。
+      const pendingDoctorStatuses = new Set(['PENDING_DOCTOR', 'PENDING_DOCTOR_CONFIRM', 'PENDING_DOCTOR_REVIEW'])
       const drafts = await apiFetch(`/orders/${order.order_id}/design-drafts`, sessions.DOCTOR.accessToken)
-      assert(drafts.data.some((draft) => draft.status === 'PENDING_DOCTOR_CONFIRM'),
+      assert(drafts.data.some((draft) => pendingDoctorStatuses.has(draft.status)),
         `${scenario.key} has no design draft pending doctor confirmation`)
     }
     checked.push({

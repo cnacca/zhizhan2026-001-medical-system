@@ -65,6 +65,16 @@ async function findScenario(token, scenario) {
   ) ?? null
 }
 
+// manifest 只在全部场景成功后写出，因此其中的 key 才是"这个场景确实跑完过"的凭据。
+function readPreviousManifestKeys() {
+  try {
+    const raw = JSON.parse(fs.readFileSync(manifestPath, 'utf8'))
+    return (raw.scenarios ?? []).map((item) => item.key).filter(Boolean)
+  } catch {
+    return []
+  }
+}
+
 function runScenario(scenario) {
   const env = {
     ...process.env,
@@ -97,11 +107,23 @@ async function main() {
     scenarios: []
   }
 
+  // 订单在场景开头就已创建，所以"订单存在"不能证明场景跑完了：中途失败会留下一张
+  // 半成品订单。只按存在性跳过会让残缺数据被当成完好数据继续用于演示和验收，
+  // 且重跑永远无法自愈。因此以上一次成功写出的 manifest 作为完成凭据。
+  const previouslySeeded = new Set(readPreviousManifestKeys())
+
   for (const scenario of scenarios) {
     let order = await findScenario(admin.accessToken, scenario)
-    if (order) {
+    if (order && previouslySeeded.has(scenario.key)) {
       console.log(`demo data exists, skipping ${scenario.key}: ${order.order_no}`)
     } else {
+      if (order) {
+        throw new Error(
+          `scenario ${scenario.key} 存在订单 ${order.order_no}，但上一次没有成功完成（manifest 无记录）。`
+            + ` 这是一张半成品演示订单，重跑不会修复它。`
+            + ` 请执行：DEMO_RESET_CONFIRM=RESET_DEMO_DATA npm run demo:reset && npm run demo:prepare`
+        )
+      }
       console.log(`creating demo scenario ${scenario.key} (${scenario.stage})`)
       runScenario(scenario)
       order = await findScenario(admin.accessToken, scenario)

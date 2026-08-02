@@ -116,11 +116,15 @@ ON DUPLICATE KEY UPDATE form_data = VALUES(form_data);
 INSERT INTO orders
     (order_no, clinic_id, doctor_user_id, cs_user_id, product_type, form_data,
      internal_status, external_status, created_at, updated_at)
+-- 必须锚定到"上月 1 号"，不能用 NOW() - 1 MONTH - 7 DAY。
+-- 工作台的本月/上月对比是同口径比较已过天数：上月窗口只覆盖 [上月1日, 上月1日+min(今天几号, 上月天数))。
+-- 当天是 1~7 号时，减 7 天会跨到上上个月；放在月中（如 15 号）又会落在窗口之外。
+-- 只有上月 1 号能保证任何日期执行都落在窗口内。
 SELECT 'DEMO-ADMIN-LAST-MONTH-001', clinic_id, NULL, 8002, 'IMPLANT',
        JSON_OBJECT('item_count', 2, 'acceptance_marker', 'ADMIN_PORTAL_DEMO_V1'),
        'SHIPPED', 'SHIPPED',
-       DATE_SUB(DATE_SUB(NOW(3), INTERVAL 1 MONTH), INTERVAL 7 DAY),
-       DATE_SUB(DATE_SUB(NOW(3), INTERVAL 1 MONTH), INTERVAL 7 DAY)
+       DATE_SUB(DATE_FORMAT(NOW(3), '%Y-%m-01 09:00:00'), INTERVAL 1 MONTH),
+       DATE_SUB(DATE_FORMAT(NOW(3), '%Y-%m-01 09:00:00'), INTERVAL 1 MONTH)
 FROM clinic WHERE clinic_name = '海湾数字口腔'
 ON DUPLICATE KEY UPDATE
     form_data = VALUES(form_data),
@@ -147,7 +151,10 @@ INSERT INTO order_logistics
     (order_id, carrier_name, tracking_no, logistics_status, shipped_at, delivered_at)
 SELECT order_id, '顺丰速运', CONCAT('SF-DEMO-', LPAD(order_id, 8, '0')),
        CASE WHEN order_no = 'DEMO-ADMIN-CX-001' OR order_no = 'DEMO-ADMIN-PREV-001' THEN 'DELIVERED' ELSE 'SHIPPED' END,
-       DATE_SUB(created_at, INTERVAL -2 DAY),
+       -- 常规演示单发货时间取下单后 2 天；但"上月出货"和"去年同期出货"这两个证据单
+       -- 必须与下单同日发货，否则 +2 天会越过工作台的对比窗口（窗口只覆盖已过天数）。
+       CASE WHEN order_no IN ('DEMO-ADMIN-LAST-MONTH-001', 'DEMO-ADMIN-PREV-001')
+            THEN created_at ELSE DATE_SUB(created_at, INTERVAL -2 DAY) END,
        CASE WHEN order_no = 'DEMO-ADMIN-CX-001' OR order_no = 'DEMO-ADMIN-PREV-001' THEN DATE_SUB(created_at, INTERVAL -4 DAY) ELSE NULL END
 FROM orders WHERE order_no IN (
     'DEMO-ADMIN-CX-001',

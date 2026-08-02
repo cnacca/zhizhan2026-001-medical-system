@@ -706,15 +706,17 @@ async function completeDesignDraftConfirmation(orderId, draftId, doctorToken) {
 }
 
 async function uploadBillFile(orderId, csToken) {
-  const content = new TextEncoder().encode(`Task 9D.62.4 bill smoke ${Date.now()}`)
+  // 账单文件必须是 doctor-visible 的 PDF：绑定账单前 CollaborationService 会校验
+  // content_type = 'application/pdf' 或文件名以 .pdf 结尾，否则返回 409。
+  const content = new TextEncoder().encode(`%PDF-1.4\nTask 9D.62.4 bill smoke ${Date.now()}\n%%EOF\n`)
   const tokenPayload = await apiFetch('/files/upload-token', csToken, {
     method: 'POST',
     body: JSON.stringify({
       order_id: orderId,
       source_type: 'BILL',
       visibility: 'DOCTOR_CS',
-      original_filename: `task-9d62-bill-${Date.now()}.txt`,
-      content_type: 'text/plain',
+      original_filename: `task-9d62-bill-${Date.now()}.pdf`,
+      content_type: 'application/pdf',
       file_size: content.byteLength
     })
   })
@@ -722,7 +724,7 @@ async function uploadBillFile(orderId, csToken) {
   const uploadResponse = await fetch(tokenPayload.data.upload_url, {
     method: 'PUT',
     headers: {
-      'Content-Type': 'text/plain',
+      'Content-Type': 'application/pdf',
       'Content-Length': String(content.byteLength)
     },
     body: content
@@ -804,6 +806,18 @@ async function completeRemainingWorkflowNodes(orderId, adminToken, workerToken, 
     }
   }
   throw new Error(`task 9D.62.5 workflow did not complete within 100 rounds for order ${orderId}`)
+}
+
+// 发货门禁要求 order_bill.payment_status ∈ {PAID, NOT_REQUIRED}，否则返回 409。
+// 一期按 CP-001 基线由 CS / ADMIN 人工维护付款状态，这里复用同一条人工链路。
+async function markBillPaid(orderId, csToken) {
+  const payload = await apiFetch(`/orders/${orderId}/bill/payment-status`, csToken, {
+    method: 'POST',
+    body: JSON.stringify({ payment_status: 'PAID' })
+  })
+  expect(payload.data.order_id).toBe(orderId)
+  expect(payload.data.payment_status).toBe('PAID')
+  return payload.data
 }
 
 async function shipOrderAfterFinalInspection(orderId, csToken) {
@@ -1157,6 +1171,7 @@ async function prepareFixedDemoFirstThreeSteps() {
       stage: stopAfter
     }
   }
+  await markBillPaid(createdOrder.order_id, csSession.accessToken)
   const logistics = await shipOrderAfterFinalInspection(createdOrder.order_id, csSession.accessToken)
   const completedOrder = await confirmReceiptByDoctor(createdOrder.order_id, doctorSession.accessToken)
   console.log(
