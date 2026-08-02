@@ -63,10 +63,13 @@ ON DUPLICATE KEY UPDATE
 -- 3. 角色 → 权限码
 -- ---------------------------------------------------------------------------
 
+-- 必须显式声明字符集与排序规则：临时表默认跟随库级默认值，而开发库是 utf8mb4_0900_ai_ci、
+-- 测试库是 utf8mb4_unicode_ci。不写死的话在开发库上会因为 "Illegal mix of collations" 失败，
+-- 而测试库上却能通过——环境差异会让这类问题只在部署时才暴露。
 CREATE TEMPORARY TABLE tmp_role_grant (
     role_code VARCHAR(32) NOT NULL,
     permission_code VARCHAR(96) NOT NULL
-) ENGINE=Memory;
+) ENGINE=Memory DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
 INSERT INTO tmp_role_grant (role_code, permission_code) VALUES
     -- 医生端
