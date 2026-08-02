@@ -77,6 +77,12 @@ class PhaseOneDashboardTests {
                 .andExpect(jsonPath("$.data.top_customers[0].clinic_name").exists())
                 .andExpect(jsonPath("$.data.top_customers[0].order_count").exists())
                 .andExpect(jsonPath("$.data.top_customers[0].item_count").exists())
+                // 十大客户带出上月同口径对照：榜首客户上月无订单，次位客户上月有 1 单 4 件。
+                .andExpect(jsonPath("$.data.top_customers[0].previous_month_order_count").value(0))
+                .andExpect(jsonPath("$.data.top_customers[0].order_count_delta").value(13))
+                .andExpect(jsonPath("$.data.top_customers[1].order_count").value(1))
+                .andExpect(jsonPath("$.data.top_customers[1].previous_month_order_count").value(1))
+                .andExpect(jsonPath("$.data.top_customers[1].previous_month_item_count").value(4))
                 .andExpect(jsonPath("$.data.production_exception_count").value(greaterThanOrEqualTo(1)))
                 .andExpect(jsonPath("$.data.pending_question_count").value(greaterThanOrEqualTo(0)))
                 .andExpect(jsonPath("$.data.previous_month_shipping_rate").exists())

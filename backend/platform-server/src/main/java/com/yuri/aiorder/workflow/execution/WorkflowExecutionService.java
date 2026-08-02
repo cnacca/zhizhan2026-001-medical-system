@@ -400,6 +400,20 @@ public class WorkflowExecutionService {
                         rs.getLong("unclassified_rework_count")))
                 .single();
 
+        String complaintDateClause = startDate == null ? "" : " AND qr.created_at >= :startAt";
+        complaintDateClause += endDate == null ? "" : " AND qr.created_at < :endExclusive";
+        JdbcClient.StatementSpec complaintSpec = jdbcClient.sql("""
+                        SELECT COUNT(*) AS complaint_count
+                        FROM quality_record qr
+                        JOIN orders o ON o.order_id = qr.order_id
+                        WHERE qr.record_type = 'EXTERNAL_RETURN'
+                        """ + productTypeClause + complaintDateClause);
+        if (normalizedProductType != null) {
+            complaintSpec = complaintSpec.param("productType", normalizedProductType);
+        }
+        complaintSpec = bindQualityDateRange(complaintSpec, startDate, endDate);
+        long complaintCount = complaintSpec.query(Long.class).single();
+
         long inspectedOrderCount = checkSummary.inspectedOrderCount();
         List<ProductionQualitySummaryResponse.TrendPoint> trends = loadProductionQualityTrends(
                 normalizedProductType, startDate, endDate);
@@ -415,8 +429,9 @@ public class WorkflowExecutionService {
                 percentage(reworkSummary.externalReworkCount(), inspectedOrderCount),
                 percentage(checkSummary.firstPassCount(), inspectedOrderCount),
                 percentage(checkSummary.finalPassCount(), inspectedOrderCount),
-                0.0,
-                0.0,
+                complaintCount,
+                percentage(complaintCount, inspectedOrderCount),
+                null,
                 startDate,
                 endDate,
                 trends,

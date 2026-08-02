@@ -391,6 +391,10 @@ type PhaseOneAbDashboardCustomerRanking = {
   clinic_name: string
   order_count: number
   item_count: number
+  previous_month_order_count: number
+  previous_month_item_count: number
+  order_count_delta: number
+  item_count_delta: number
 }
 
 type PhaseOneAbDashboardResponse = {
@@ -930,8 +934,10 @@ type ProductionQualitySummaryResponse = {
   external_rework_rate: number
   first_pass_rate: number
   final_pass_rate: number
-  complaint_rate: number
-  return_rate: number
+  complaint_count: number
+  // 客诉率来自客服登记的外返；退货率口径尚未启用，后端返回 null，界面必须显示"口径未启用"而不是 0%。
+  complaint_rate: number | null
+  return_rate: number | null
   start_date: string | null
   end_date: string | null
   trends: Array<{
@@ -1350,6 +1356,16 @@ type CsWeekOnWeekRate = {
   comparison: string
   tone: PrototypeTone
   direction: 'up' | 'down' | 'flat'
+}
+
+type CsMonthOverMonthBar = {
+  label: string
+  currentLabel: string
+  previousLabel: string
+  currentHeight: number
+  previousHeight: number
+  deltaLabel: string
+  deltaTone: 'up' | 'down' | 'flat'
 }
 
 type CsAnnualTrendPoint = {
@@ -2875,32 +2891,71 @@ const csBusinessMetrics = computed<CsBusinessMetric[]>(() => {
 const csWeekOnWeekRates = computed<CsWeekOnWeekRate[]>(() => {
   const summary = phaseOneAbDashboardSummary.value
   const qualitySummary = productionQualitySummary.value
+  const previousWeekSummary = productionPreviousWeekQualitySummary.value
   const shippingRate = summary?.shipping_rate ?? 0
   const reworkRate = qualitySummary?.total_rework_rate ?? 0
-  const complaintRate = qualitySummary?.complaint_rate ?? 0
+  const complaintRate = qualitySummary?.complaint_rate ?? null
+  const previousShippingRate = summary?.previous_week_shipping_rate ?? null
+  const previousReworkRate = previousWeekSummary?.total_rework_rate ?? null
+  const previousComplaintRate = previousWeekSummary?.complaint_rate ?? null
 
   return [
     {
       label: '返工率',
       value: formatRate(reworkRate),
-      comparison: '上周口径待接入',
+      comparison: weekOnWeekLabel(previousReworkRate),
       tone: 'teal',
-      direction: reworkRate > 0 ? 'down' : 'flat'
+      direction: weekOnWeekDirection(reworkRate, previousReworkRate)
     },
     {
       label: '发货率',
       value: formatRate(shippingRate),
-      comparison: '上周口径待接入',
+      comparison: weekOnWeekLabel(previousShippingRate),
       tone: 'teal',
-      direction: shippingRate > 0 ? 'up' : 'flat'
+      direction: weekOnWeekDirection(shippingRate, previousShippingRate)
     },
     {
       label: '投诉率',
-      value: formatRate(complaintRate),
-      comparison: '上周口径待接入',
+      value: formatOptionalRate(complaintRate),
+      comparison: weekOnWeekLabel(previousComplaintRate),
       tone: 'rose',
-      direction: complaintRate > 0 ? 'down' : 'flat'
+      direction: weekOnWeekDirection(complaintRate, previousComplaintRate)
     }
+  ]
+})
+// CHK014-1：把「本月 vs 上月」做成独立对比图。
+// 只放三项后端确有上月同口径数值的指标（订单数、件数、发货率），不为完成达成率虚构上月基准。
+const csMonthOverMonthBars = computed<CsMonthOverMonthBar[]>(() => {
+  const summary = phaseOneAbDashboardSummary.value
+  if (!summary) {
+    return []
+  }
+  const build = (
+    label: string,
+    current: number,
+    previous: number,
+    unit: string,
+    isRate: boolean
+  ): CsMonthOverMonthBar => {
+    const max = Math.max(current, previous, 1)
+    const delta = current - previous
+    const format = (value: number) => (isRate ? formatRate(value) : `${value} ${unit}`)
+    return {
+      label,
+      currentLabel: format(current),
+      previousLabel: format(previous),
+      currentHeight: Math.round((current / max) * 100),
+      previousHeight: Math.round((previous / max) * 100),
+      deltaLabel: isRate
+        ? (Math.abs(delta) < 0.05 ? '与上月持平' : `${delta > 0 ? '+' : ''}${delta.toFixed(1)} 个百分点`)
+        : (delta === 0 ? '与上月持平' : `${signedCount(delta)} ${unit}`),
+      deltaTone: Math.abs(delta) < 0.05 ? 'flat' : (delta > 0 ? 'up' : 'down')
+    }
+  }
+  return [
+    build('订单数', summary.current_month.order_count, summary.previous_month.order_count, '单', false),
+    build('件数', summary.current_month.item_count, summary.previous_month.item_count, '件', false),
+    build('发货率', summary.shipping_rate, summary.previous_month_shipping_rate, '%', true)
   ]
 })
 const csAnnualTrendPoints = computed<CsAnnualTrendPoint[]>(() => {
@@ -2953,7 +3008,8 @@ const csCustomerRankRows = computed<CsCustomerRankRow[]>(() => {
     orderCount: customer.order_count,
     itemCount: customer.item_count,
     percent: phaseOneProgress((customer.item_count / maxItems) * 100),
-    comparison: `${customer.order_count} 单`,
+    // 排名按本月订单数（一期 B 类口径），同时给出上月同口径对照。
+    comparison: `${customer.order_count} 单 · 上月 ${customer.previous_month_order_count ?? 0} 单（${signedCount(customer.order_count_delta ?? 0)}）`,
     tone: customer.item_count >= maxItems ? 'violet' : 'teal'
   }))
 })
@@ -3105,7 +3161,7 @@ const phaseOneAbProductionDashboardStats = computed(() => {
       ?? (orders.length > 0 ? Math.round((completedCount / orders.length) * 100) : 0),
     firstPassRate: qualitySummary?.first_pass_rate ?? 0,
     finalPassRate: qualitySummary?.final_pass_rate ?? 0,
-    complaintRate: qualitySummary?.complaint_rate ?? 0,
+    complaintRate: qualitySummary?.complaint_rate ?? null,
     totalReworkRate: qualitySummary?.total_rework_rate ?? 0,
     internalReworkRate: qualitySummary?.internal_rework_rate ?? 0,
     externalReworkRate: qualitySummary?.external_rework_rate ?? 0
@@ -3352,7 +3408,7 @@ const prototypeDashboards = computed<Record<PortalTone, PrototypeDashboard>>(() 
           { label: '内返率', value: formatRate(phaseOneAbProductionDashboardStats.value.internalReworkRate), comparison: rateComparedWithLastWeek(phaseOneAbProductionDashboardStats.value.internalReworkRate, productionPreviousWeekQualitySummary.value?.internal_rework_rate, false), tone: 'green' },
           { label: '外返率', value: formatRate(phaseOneAbProductionDashboardStats.value.externalReworkRate), comparison: rateComparedWithLastWeek(phaseOneAbProductionDashboardStats.value.externalReworkRate, productionPreviousWeekQualitySummary.value?.external_rework_rate, false), tone: 'green' },
           { label: '发货率', value: formatRate(phaseOneAbProductionDashboardStats.value.shippingRate), comparison: rateComparedWithLastWeek(phaseOneAbProductionDashboardStats.value.shippingRate, phaseOneAbDashboardSummary.value?.previous_week_shipping_rate, true), tone: 'green' },
-          { label: '客诉率', value: formatRate(phaseOneAbProductionDashboardStats.value.complaintRate), comparison: rateComparedWithLastWeek(phaseOneAbProductionDashboardStats.value.complaintRate, productionPreviousWeekQualitySummary.value?.complaint_rate, false), tone: 'rose' }
+          { label: '客诉率', value: formatOptionalRate(phaseOneAbProductionDashboardStats.value.complaintRate), comparison: rateComparedWithLastWeek(phaseOneAbProductionDashboardStats.value.complaintRate ?? 0, productionPreviousWeekQualitySummary.value?.complaint_rate, false), tone: 'rose' }
         ]
       },
       panels: [],
@@ -4696,6 +4752,10 @@ function compactDateTime(value: string | undefined) {
 function formatRate(value: number | null | undefined) {
   return `${Number(value ?? 0).toFixed(1)}%`
 }
+// 后端用 null 表示"该口径尚未启用"，不能按 0% 展示，否则会变成假数据。
+function formatOptionalRate(value: number | null | undefined, pendingLabel = '口径未启用') {
+  return value === null || value === undefined ? pendingLabel : formatRate(value)
+}
 function previousCalendarWeekQuery() {
   const today = new Date()
   const currentWeekMonday = new Date(today.getFullYear(), today.getMonth(), today.getDate())
@@ -4723,6 +4783,24 @@ function rateComparedWithLastWeek(
   const delta = current - previous
   const arrow = Math.abs(delta) < 0.05 ? '→' : ((higherIsBetter ? delta > 0 : delta < 0) ? '↑' : '↓')
   return `${arrow} 较上周 ${formatRate(previous)}`
+}
+// 客服工作台的周环比：箭头表示数值本身的升降，文案给出上周基准值。
+// 模板已经按 direction 渲染箭头，因此这里的文案不再自带箭头，避免出现两个箭头。
+function weekOnWeekDirection(
+  current: number | null | undefined,
+  previous: number | null | undefined
+): 'up' | 'down' | 'flat' {
+  if (current === null || current === undefined || previous === null || previous === undefined) return 'flat'
+  const delta = current - previous
+  if (Math.abs(delta) < 0.05) return 'flat'
+  return delta > 0 ? 'up' : 'down'
+}
+function signedCount(value: number) {
+  if (value === 0) return '持平'
+  return value > 0 ? `+${value}` : `${value}`
+}
+function weekOnWeekLabel(previous: number | null | undefined) {
+  return previous === null || previous === undefined ? '上周数据待同步' : `较上周 ${formatRate(previous)}`
 }
 function formatMoney(value: number | null | undefined) {
   return `¥${Number(value ?? 0).toFixed(2)}`
@@ -5341,8 +5419,8 @@ const productionQualitySummaryCards = computed(() => {
     },
     {
       title: '投诉率 / 退货率',
-      value: `${Object.prototype.hasOwnProperty.call(summary, 'complaint_rate') ? formatRate(summary.complaint_rate) : '暂无统计'} / ${Object.prototype.hasOwnProperty.call(summary, 'return_rate') ? formatRate(summary.return_rate) : '暂无统计'}`,
-      detail: '投诉和退货数据接入后会自动显示',
+      value: `${formatOptionalRate(summary.complaint_rate)} / ${formatOptionalRate(summary.return_rate)}`,
+      detail: `${summary.complaint_count ?? 0} 次客服登记外返；退货率待「退货订单」类型上线后启用`,
       tone: 'neutral'
     }
   ]
@@ -16522,7 +16600,7 @@ onBeforeUnmount(() => {
             <div class="production-department-card-head">
               <div>
                 <h3>部门效能对比</h3>
-                <small>按部门查看内返与完成表现</small>
+                <small>每个部门当天数据与上月平均对照（上月平均 = 上月自然月内有产出的工作日均值）</small>
                 <small class="production-department-linkage-hint">点击部门可联动右侧近 7 日趋势</small>
               </div>
               <button v-if="productionWorkbenchDepartments.length > 6" class="production-department-expand" type="button" @click="showAllProductionWorkbenchDepartments = !showAllProductionWorkbenchDepartments">
@@ -16531,12 +16609,22 @@ onBeforeUnmount(() => {
             </div>
             <div class="production-department-table-wrap">
               <table class="production-department-table">
-                <thead><tr><th>部门</th><th>内返率</th><th>外返率</th><th>客诉率</th><th>完成达成率</th><th>状态</th></tr></thead>
+                <thead><tr><th>部门</th><th>任务量<small>今日 / 上月日均</small></th><th>内返率<small>今日 / 上月</small></th><th>出货率<small>今日 / 上月</small></th><th>完成达成率<small>今日</small></th><th>状态</th></tr></thead>
                 <tbody>
                   <tr v-for="department in visibleProductionWorkbenchDepartments" :key="department.department_key" :class="{ active: selectedProductionWorkbenchDepartmentKey === department.department_key }" @click="selectProductionWorkbenchDepartment(department.department_key)">
                     <td><strong>{{ department.department_name }}</strong><small>{{ department.department_subtitle }}</small></td>
-                    <td><b class="production-department-rate" :class="department.today_rework_rate > department.last_month_rework_rate ? 'tone-risk' : 'tone-good'">{{ formatRate(department.today_rework_rate) }}</b></td>
-                    <td><span class="production-department-pending-rate">待接入</span></td><td><span class="production-department-pending-rate">待接入</span></td>
+                    <td>
+                      <b class="production-department-rate" :class="department.today_task_count >= department.last_month_daily_avg_task_count ? 'tone-good' : 'tone-warn'">{{ department.today_task_count }}</b>
+                      <span class="production-department-baseline">上月日均 {{ department.last_month_daily_avg_task_count }}</span>
+                    </td>
+                    <td>
+                      <b class="production-department-rate" :class="department.today_rework_rate > department.last_month_rework_rate ? 'tone-risk' : 'tone-good'">{{ formatRate(department.today_rework_rate) }}</b>
+                      <span class="production-department-baseline">上月 {{ formatRate(department.last_month_rework_rate) }}</span>
+                    </td>
+                    <td>
+                      <b class="production-department-rate" :class="department.today_shipping_rate >= department.last_month_shipping_rate ? 'tone-good' : 'tone-warn'">{{ formatRate(department.today_shipping_rate) }}</b>
+                      <span class="production-department-baseline">上月 {{ formatRate(department.last_month_shipping_rate) }}</span>
+                    </td>
                     <td><b class="production-department-rate" :class="department.today_completion_rate >= 80 ? 'tone-good' : 'tone-warn'">{{ formatRate(department.today_completion_rate) }}</b></td>
                     <td><span class="production-department-status">{{ department.status_label }}</span></td>
                   </tr>
@@ -16544,6 +16632,7 @@ onBeforeUnmount(() => {
                 </tbody>
               </table>
             </div>
+            <p class="production-department-table-note">外返与客诉按订单登记、不绑定工序节点，因此只在上方全厂指标中统计，不做部门拆分；口径待甲方确认。</p>
           </section>
 
           <section class="production-department-card production-department-trend-row">
@@ -16770,6 +16859,29 @@ onBeforeUnmount(() => {
                 </p>
               </section>
             </div>
+
+            <section class="prototype-panel-card cs-month-compare-card">
+              <div class="prototype-panel-head">
+                <h3>本月 vs 上月</h3>
+                <span class="prototype-badge tone-violet">{{ phaseOneAbDashboardSummary?.current_month.month ?? '本月' }} / {{ phaseOneAbDashboardSummary?.previous_month.month ?? '上月' }}</span>
+              </div>
+              <div class="cs-month-compare-legend">
+                <span><i class="legend-current" />本月</span>
+                <span><i class="legend-previous" />上月</span>
+              </div>
+              <div v-if="csMonthOverMonthBars.length" class="cs-month-compare-grid">
+                <article v-for="bar in csMonthOverMonthBars" :key="bar.label" class="cs-month-compare-item">
+                  <div class="cs-month-compare-bars">
+                    <div class="cs-month-compare-bar current" :style="{ height: `${bar.currentHeight}%` }"><span>{{ bar.currentLabel }}</span></div>
+                    <div class="cs-month-compare-bar previous" :style="{ height: `${bar.previousHeight}%` }"><span>{{ bar.previousLabel }}</span></div>
+                  </div>
+                  <strong>{{ bar.label }}</strong>
+                  <em :class="`delta-${bar.deltaTone}`">{{ bar.deltaLabel }}</em>
+                </article>
+              </div>
+              <div v-else class="cs-month-compare-empty">月度对比数据同步中</div>
+              <p class="cs-business-note">口径：订单按登记时间归属自然月；发货率为已发货订单占比。完成达成率暂无上月同口径基准，未纳入本图。</p>
+            </section>
 
             <section class="prototype-panel-card cs-customer-rank-card">
               <div class="prototype-panel-head">

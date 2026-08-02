@@ -643,8 +643,58 @@ class CheckWorklogPerformanceTests {
                 .andExpect(jsonPath("$.data.external_rework_rate").value(33.3))
                 .andExpect(jsonPath("$.data.first_pass_rate").value(33.3))
                 .andExpect(jsonPath("$.data.final_pass_rate").value(100.0))
-                .andExpect(jsonPath("$.data.complaint_rate").value(0))
-                .andExpect(jsonPath("$.data.return_rate").value(0));
+                // 本场景没有客服登记的外返，客诉计数真实为 0；退货率口径尚未启用，必须是 null 而不是 0。
+                .andExpect(jsonPath("$.data.complaint_count").value(0))
+                .andExpect(jsonPath("$.data.complaint_rate").value(0.0))
+                .andExpect(jsonPath("$.data.return_rate").value(org.hamcrest.Matchers.nullValue()));
+    }
+
+    @Test
+    void productionQualitySummaryComputesComplaintRateFromRegisteredExternalReturns() throws Exception {
+        String productType = "COMPLAINT_RATE_" + UUID.randomUUID().toString().replace("-", "").substring(0, 12);
+        String orderSuffix = productType.replace("COMPLAINT_RATE_", "");
+        long clinicId = createClinic("客诉率测试诊所-" + productType);
+        long complaintOrderId = createOrder("CR_" + orderSuffix, clinicId, productType);
+
+        long nodeId = instantiateAndAssignAll(complaintOrderId, chainId).get(0);
+        submitCheck(nodeId, 1, true, null);
+        startNode(nodeId);
+        completeNode(nodeId);
+        submitCheck(nodeId, 2, true, null);
+
+        // 登记前：没有外返登记，客诉计数真实为 0。
+        mockMvc.perform(get("/production/quality/summary")
+                        .header("X-Bootstrap-Role", "WORKER")
+                        .header("X-Bootstrap-User-Id", workerUserId)
+                        .param("product_type", productType))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.inspected_order_count").value(1))
+                .andExpect(jsonPath("$.data.complaint_count").value(0))
+                .andExpect(jsonPath("$.data.complaint_rate").value(0.0));
+
+        mockMvc.perform(post("/quality-records/external-returns")
+                        .header("X-Bootstrap-Role", "CS")
+                        .header("X-Bootstrap-User-Id", 8901L)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("""
+                                {
+                                  "order_id": %d,
+                                  "reason_category": "FIT_ISSUE",
+                                  "responsibility_type": "DOCTOR",
+                                  "reason_detail": "客户反馈戴不上，退回处理"
+                                }
+                                """.formatted(complaintOrderId)))
+                .andExpect(status().isOk());
+
+        // 登记后客诉率必须随真实数据变化——证明它不是写死的常量。
+        mockMvc.perform(get("/production/quality/summary")
+                        .header("X-Bootstrap-Role", "WORKER")
+                        .header("X-Bootstrap-User-Id", workerUserId)
+                        .param("product_type", productType))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.complaint_count").value(1))
+                .andExpect(jsonPath("$.data.complaint_rate").value(100.0))
+                .andExpect(jsonPath("$.data.return_rate").value(org.hamcrest.Matchers.nullValue()));
     }
 
     @Test

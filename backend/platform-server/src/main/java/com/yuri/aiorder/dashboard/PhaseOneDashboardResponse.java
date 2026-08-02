@@ -29,6 +29,10 @@ public record PhaseOneDashboardResponse(
             @JsonProperty("clinic_id") long clinicId,
             @JsonProperty("clinic_name") String clinicName,
             @JsonProperty("order_count") long orderCount,
-            @JsonProperty("item_count") long itemCount) {
+            @JsonProperty("item_count") long itemCount,
+            @JsonProperty("previous_month_order_count") long previousMonthOrderCount,
+            @JsonProperty("previous_month_item_count") long previousMonthItemCount,
+            @JsonProperty("order_count_delta") long orderCountDelta,
+            @JsonProperty("item_count_delta") long itemCountDelta) {
     }
 }

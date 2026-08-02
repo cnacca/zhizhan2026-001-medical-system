@@ -57,7 +57,8 @@ public class PhaseOneDashboardService {
                 currentMonth, currentStart, nextStart, identity, dataScope);
         PhaseOneDashboardResponse.MonthSummary previous = monthSummary(
                 previousMonth, previousStart, currentStart, identity, dataScope);
-        List<PhaseOneDashboardResponse.CustomerRanking> topCustomers = topCustomers(currentStart, nextStart, identity, dataScope);
+        List<PhaseOneDashboardResponse.CustomerRanking> topCustomers = topCustomers(
+                previousStart, currentStart, nextStart, identity, dataScope);
         long productionExceptionCount = productionExceptionCount(currentStart, nextStart, identity, dataScope);
         long pendingQuestionCount = pendingQuestionCount(currentStart, nextStart, identity, dataScope);
         int shippingRate = shippingRate(currentStart, nextStart, identity, dataScope);
@@ -103,31 +104,55 @@ public class PhaseOneDashboardService {
         return new PhaseOneDashboardResponse.MonthSummary(month.toString(), row.orderCount(), row.itemCount());
     }
 
+    /**
+     * 十大客户排名：按本月订单数量 / 件数排名（一期 B 类已确认口径），同时带出上月同口径数据作对照。
+     * 上月窗口只作对照，不参与排名，因此保留 HAVING 过滤掉本月无订单的客户。
+     */
     private List<PhaseOneDashboardResponse.CustomerRanking> topCustomers(
-            LocalDate start,
-            LocalDate end,
+            LocalDate previousStart,
+            LocalDate currentStart,
+            LocalDate nextStart,
             BootstrapIdentity identity,
             String dataScope) {
-        return bindScopeAndWindow(jdbcClient.sql("""
+        return bindScope(jdbcClient.sql("""
                         SELECT o.clinic_id,
                                c.clinic_name,
-                               COUNT(*) AS order_count,
-                               COALESCE(SUM(%s), 0) AS item_count
+                               COALESCE(SUM(CASE WHEN o.created_at >= :currentStartAt THEN 1 ELSE 0 END), 0)
+                                   AS order_count,
+                               COALESCE(SUM(CASE WHEN o.created_at >= :currentStartAt THEN %s ELSE 0 END), 0)
+                                   AS item_count,
+                               COALESCE(SUM(CASE WHEN o.created_at < :currentStartAt THEN 1 ELSE 0 END), 0)
+                                   AS previous_order_count,
+                               COALESCE(SUM(CASE WHEN o.created_at < :currentStartAt THEN %s ELSE 0 END), 0)
+                                   AS previous_item_count
                         FROM orders o
                         JOIN clinic c ON c.clinic_id = o.clinic_id
                         WHERE %s
-                          AND o.created_at >= :startAt
-                          AND o.created_at < :endAt
+                          AND o.created_at >= :previousStartAt
+                          AND o.created_at < :nextStartAt
                         GROUP BY o.clinic_id, c.clinic_name
+                        HAVING order_count > 0
                         ORDER BY order_count DESC, item_count DESC, o.clinic_id ASC
                         LIMIT 10
-                        """.formatted(ITEM_COUNT_SQL, scopedWhereClause())),
-                identity, dataScope, start, end)
-                .query((rs, rowNum) -> new PhaseOneDashboardResponse.CustomerRanking(
-                        rs.getLong("clinic_id"),
-                        rs.getString("clinic_name"),
-                        rs.getLong("order_count"),
-                        rs.getLong("item_count")))
+                        """.formatted(ITEM_COUNT_SQL, ITEM_COUNT_SQL, scopedWhereClause())), identity, dataScope)
+                .param("previousStartAt", previousStart.atStartOfDay())
+                .param("currentStartAt", currentStart.atStartOfDay())
+                .param("nextStartAt", nextStart.atStartOfDay())
+                .query((rs, rowNum) -> {
+                    long orderCount = rs.getLong("order_count");
+                    long itemCount = rs.getLong("item_count");
+                    long previousOrderCount = rs.getLong("previous_order_count");
+                    long previousItemCount = rs.getLong("previous_item_count");
+                    return new PhaseOneDashboardResponse.CustomerRanking(
+                            rs.getLong("clinic_id"),
+                            rs.getString("clinic_name"),
+                            orderCount,
+                            itemCount,
+                            previousOrderCount,
+                            previousItemCount,
+                            orderCount - previousOrderCount,
+                            itemCount - previousItemCount);
+                })
                 .list();
     }
 

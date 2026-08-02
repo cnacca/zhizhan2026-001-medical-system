@@ -17,8 +17,11 @@ public record ProductionQualitySummaryResponse(
         @JsonProperty("external_rework_rate") double externalReworkRate,
         @JsonProperty("first_pass_rate") double firstPassRate,
         @JsonProperty("final_pass_rate") double finalPassRate,
-        @JsonProperty("complaint_rate") double complaintRate,
-        @JsonProperty("return_rate") double returnRate,
+        @JsonProperty("complaint_count") long complaintCount,
+        // 客诉率口径：客服登记的外返（quality_record.record_type = 'EXTERNAL_RETURN'）÷ 出检订单数。
+        // 退货率所依赖的「退货订单」类型尚未建模，返回 null 表示口径未启用，不得用 0 冒充真实值。
+        @JsonProperty("complaint_rate") Double complaintRate,
+        @JsonProperty("return_rate") Double returnRate,
         @JsonProperty("start_date") LocalDate startDate,
         @JsonProperty("end_date") LocalDate endDate,
         List<TrendPoint> trends,

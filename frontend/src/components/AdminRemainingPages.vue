@@ -539,6 +539,12 @@ function amount(value: number | null | undefined, currency = 'CNY') {
   return new Intl.NumberFormat('zh-CN', { style: 'currency', currency }).format(value / 100)
 }
 
+// 后端用 null 表示该口径尚未启用；不能退化成 0%，否则管理端会展示假指标。
+function optionalRate(value: number | null | undefined) {
+  if (value === null || value === undefined) return '口径未启用'
+  return `${Number(value).toFixed(1)}%`
+}
+
 function costAmount(value: number | null | undefined) {
   if (value === null || value === undefined) return '暂未统计'
   return new Intl.NumberFormat('zh-CN', { maximumFractionDigits: 2 }).format(value)
@@ -920,7 +926,7 @@ defineExpose({ refresh, openQualitySettings })
     </template>
 
     <template v-else-if="activeRoute === '/production/quality'">
-      <div class="arp-metric-band"><article><span>出检订单</span><strong>{{ qualitySummary?.inspected_order_count ?? 0 }}</strong></article><article><span>一次通过率</span><strong>{{ qualitySummary?.first_pass_rate ?? 0 }}%</strong></article><article><span>终检通过率</span><strong>{{ qualitySummary?.final_pass_rate ?? 0 }}%</strong></article><article><span>总返工率</span><strong>{{ qualitySummary?.total_rework_rate ?? 0 }}%</strong></article><article><span>内返 / 外返</span><strong>{{ qualitySummary?.internal_rework_count ?? 0 }} / {{ qualitySummary?.external_rework_count ?? 0 }}</strong></article><article><span>投诉 / 退货</span><strong>{{ qualitySummary?.complaint_rate ?? 0 }}% / {{ qualitySummary?.return_rate ?? 0 }}%</strong></article></div>
+      <div class="arp-metric-band"><article><span>出检订单</span><strong>{{ qualitySummary?.inspected_order_count ?? 0 }}</strong></article><article><span>一次通过率</span><strong>{{ qualitySummary?.first_pass_rate ?? 0 }}%</strong></article><article><span>终检通过率</span><strong>{{ qualitySummary?.final_pass_rate ?? 0 }}%</strong></article><article><span>总返工率</span><strong>{{ qualitySummary?.total_rework_rate ?? 0 }}%</strong></article><article><span>内返 / 外返</span><strong>{{ qualitySummary?.internal_rework_count ?? 0 }} / {{ qualitySummary?.external_rework_count ?? 0 }}</strong></article><article><span>投诉 / 退货</span><strong>{{ optionalRate(qualitySummary?.complaint_rate) }} / {{ optionalRate(qualitySummary?.return_rate) }}</strong></article></div>
       <div class="arp-table-card arp-metric-table"><div class="arp-toolbar"><label class="arp-search"><span>⌕</span><input v-model="keyword" placeholder="搜索订单或问题原因"></label><select v-model="statusFilter"><option value="ALL">全部问题</option><option value="内返">内返</option><option value="外返">外返</option><option value="PENDING">待处理</option><option value="CLOSED">已关闭</option></select><button @click="clearFilters">清空</button><em>问题记录 {{ filteredQuality.length }} 条</em></div><div class="arp-table-scroll"><table class="arp-wide"><thead><tr><th>问题类型</th><th>订单</th><th>客户 / 产品</th><th>来源</th><th>原因</th><th>责任依据</th><th>处理状态</th><th>发生 / 更新</th><th>操作</th></tr></thead><tbody><tr v-for="row in pagedRows" :key="row.rework_id ?? row.quality_record_id" @click="openDrawer('质量问题详情', 'quality', row)"><td><i class="arp-badge" :class="row.issue_type === '外返' ? 'danger' : 'warning'">{{ row.issue_type }}</i></td><td><strong>{{ row.order_no || `订单 ${row.order_id}` }}</strong></td><td><strong>{{ row.clinic_name || '客户暂未记录' }}</strong><small>{{ productLabel(row.product_type) }}</small></td><td>{{ row.source }}</td><td>{{ row.reason_detail || row.reason_category || '暂未记录' }}</td><td>{{ row.issue_type === '外返' ? '当前责任信息以客服登记结果为准' : statusLabel(row.responsibility_type) }}</td><td>{{ statusLabel(row.status) }}</td><td>{{ compactDate(row.updated_at || row.status_updated_at || row.created_at) }}</td><td><button @click.stop="openDrawer('质量问题详情', 'quality', row)">查看</button></td></tr></tbody></table></div><div v-if="filteredQuality.length === 0" class="arp-empty">当前还没有可查看的质量问题记录</div></div>
     </template>
 

@@ -2061,14 +2061,24 @@ components:
           type: number
           format: double
           description: 终检通过率，按每个订单最新出检结果统计。
+        complaint_count:
+          type: integer
+          format: int64
+          description: 客服登记的外返（客诉）记录数。
         complaint_rate:
           type: number
           format: double
-          description: 投诉率；当前后端暂无投诉事实表，返回 0。
+          nullable: true
+          description: |
+            客诉率 = 客服登记的外返（quality_record.record_type = 'EXTERNAL_RETURN'）÷ 出检订单数。
+            口径由项目方拟定，待甲方确认。
         return_rate:
           type: number
           format: double
-          description: 退货率；当前后端暂无退货事实表，返回 0。
+          nullable: true
+          description: |
+            退货率；所依赖的「退货订单」类型尚未建模，当前固定返回 null 表示口径未启用。
+            界面必须显示「口径未启用」，不得按 0% 展示。
         generated_at:
           type: string
           format: date-time
@@ -4303,6 +4313,9 @@ components:
           format: int64
     PhaseOneAbCustomerRanking:
       type: object
+      description: |
+        十大客户排名：按本月订单数量 / 件数排名（一期 B 类已确认口径），
+        同时带出上月同口径数据作对照；上月数据只作对照，不参与排名。
       properties:
         clinic_id:
           type: integer
@@ -4315,6 +4328,22 @@ components:
         item_count:
           type: integer
           format: int64
+        previous_month_order_count:
+          type: integer
+          format: int64
+          description: 上月同口径订单数。
+        previous_month_item_count:
+          type: integer
+          format: int64
+          description: 上月同口径件数。
+        order_count_delta:
+          type: integer
+          format: int64
+          description: 本月订单数减上月订单数。
+        item_count_delta:
+          type: integer
+          format: int64
+          description: 本月件数减上月件数。
     PhaseOneAbDashboardResponse:
       type: object
       description: PRD V2 本地功能差异收口 D 的内部一期 A/B 月度趋势 / 客户排名聚合；仅供 CS / ADMIN / WORKER 内部看板使用。
