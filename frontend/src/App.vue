@@ -2,6 +2,7 @@
 import Uppy from '@uppy/core'
 import { computed, defineAsyncComponent, nextTick, onBeforeUnmount, onMounted, ref, watch } from 'vue'
 import AdminRemainingPages from './components/AdminRemainingPages.vue'
+import AdminRbacPages from './components/AdminRbacPages.vue'
 import AdminConfigurationCenter from './components/AdminConfigurationCenter.vue'
 import CsPortalPages from './components/CsPortalPages.vue'
 import ProductionDesignWorkspace from './components/ProductionDesignWorkspace.vue'
@@ -2378,7 +2379,10 @@ const displayNavigationConfig: Record<PortalTone, NavigationGroup[]> = {
         { id: 'admin-catalog-center', title: '下单内容设置', description: '维护产品、材料及适用绑定，持续补充下单选项。', icon: 'product', routePath: '/admin/catalog' },
         { id: 'admin-standard-time', title: '工序工时设置', description: '按现有生产流程填写工序标准分钟并保留草稿。', icon: 'process', routePath: '/admin/workflow/standard-time' },
         { id: 'admin-audit', title: '通知中心', description: '查看当前账号的业务通知和未读提醒。', icon: 'notification', routePath: '/notifications' },
-        { id: 'admin-ai', title: '智能服务', description: '查看全平台智能服务运行、用量与预算情况。', icon: 'ai', routePath: '/admin/ai-governance' }
+        { id: 'admin-ai', title: '智能服务', description: '查看全平台智能服务运行、用量与预算情况。', icon: 'ai', routePath: '/admin/ai-governance' },
+        { id: 'admin-rbac-roles', title: '角色权限', description: '创建角色、分配权限码与数据范围。', icon: 'lock', routePath: '/admin/rbac/roles' },
+        { id: 'admin-rbac-org', title: '组织架构', description: '维护部门层级、岗位与人员归属。', icon: 'staff', routePath: '/admin/rbac/org' },
+        { id: 'admin-rbac-matrix', title: '权限矩阵', description: '按角色核对权限码，并查看授权操作留痕。', icon: 'quality', routePath: '/admin/rbac/matrix' }
       ]
     }
   ]
@@ -2613,6 +2617,9 @@ const adminRemainingRoutePaths = new Set([
   '/production/material-exceptions', '/production/safety-environment',
   '/production/cost-management', '/system/form-configs', '/notifications',
   '/admin/ai-governance'
+])
+const adminRbacRoutePaths = new Set([
+  '/admin/rbac/roles', '/admin/rbac/org', '/admin/rbac/matrix'
 ])
 const adminParentNavIdByRoute: Record<string, string> = {
   '/orders/internal': 'admin-orders',
@@ -11546,6 +11553,13 @@ onBeforeUnmount(() => {
             @navigate="navigateFromCsPage"
             @refresh-notifications="loadNotifications"
           />
+        </section>
+
+        <section
+          v-else-if="portalTone === 'admin' && adminRbacRoutePaths.has(activeRoute)"
+          class="panel route-panel admin-remaining-shell"
+        >
+          <AdminRbacPages :active-route="activeRoute" :token="token" />
         </section>
 
         <section

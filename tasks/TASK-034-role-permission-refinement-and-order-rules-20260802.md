@@ -153,28 +153,71 @@ npm run check:task-034-fine-grained-roles
 
 ---
 
-## C. 管理端角色 / 权限 / 组织管理界面
+## C. 管理端角色 / 权限 / 组织管理界面 —— `COMPLETED`（2026-08-03）
 
 **目标**：关闭客户 CHK064 / CHK065 / CHK066 三条标红。
 
-Scope：
+### 授权边界落成两个可判定的数据字段
 
-- 角色管理：创建、编辑、停用、恢复；分配菜单与权限码；设置 `data_scope`。
-- 组织管理：部门与班组的层级维护（表已支持 `parent_id`）、岗位维护。
-- 用户管理：给用户分配角色与所属部门/岗位；停用与解锁。
-- 权限矩阵视图：按角色 × 菜单 / 按钮 / 数据范围可视化，供客户核对。
-- 客户已确认的授权边界必须落地：
-  - 创建/停用账号 = 管理者账号；
-  - 分配角色/菜单/数据范围 = 各部门经理；
-  - 账号安全权限与业务数据权限分离；
-  - 经理不能分配管理员/经理级，主管不能跨部门。
+客户确认的四条授权边界没有写成角色名判断，而是落成数据，新增角色只需配置：
 
-Acceptance：
+- `system_role.role_level`（V80 新增）：数字越小权限越高。授权人只能授予**等级严格低于自己**的角色，
+  「经理不能分配管理员级和经理级」自动成立。0=平台管理员与入口角色，10=经理级，20=主管/组长级，30=普通岗位。
+- `rbac:cross-dept` 权限码：没有它就只能操作与自己同部门的用户，「主管不能跨部门」自动成立。
+- 账号安全权限（`account:create` / `account:disable` / `account:reset-password`）与业务数据权限
+  （`rbac:permission:assign` / `rbac:user:assign`）拆成两组码：部门经理拿后者不拿前者，
+  落地客户「创建/停用账号=管理者账号，分配角色/菜单/数据范围=各部门经理」的分工。
+- 额外加了一条客户没写但必须有的约束：**不能把自己没有的权限码授予别人**。
 
-- [ ] 上述操作在管理端**可实操**，不是只读展示。
-- [ ] 高风险操作（创建/停用账号、分配角色权限）全部留痕：操作人、时间、对象、修改前后内容。
-- [ ] 越权测试：主管账号尝试跨部门分配被拒；经理尝试授予管理员级被拒。
-- [ ] 密码只能重置不能查看。
+### Scope
+
+- [x] 角色管理：创建、编辑、停用、恢复；分配权限码与菜单；设置 `data_scope`。入口角色禁止停用（会让整端登录不进来，返回 409）。
+- [x] 组织管理：部门层级维护（`parent_id`）、岗位维护。
+- [x] 用户管理：分配角色 / 部门 / 岗位；停用与解锁；重置密码。
+- [x] 权限矩阵视图：角色 × 权限码可视化 + 授权操作留痕列表，供客户逐项核对。
+- [x] 新增 `system_rbac_audit` 表，17 个接口的全部写操作记录操作人、时间、对象与**修改前后内容**。
+- [x] 前端 `AdminRbacPages.vue` 三个页面（角色权限 / 组织架构 / 权限矩阵）+ 管理端导航与菜单种子。
+- [x] 同步 `docs/api/openapi.yaml`（17 个 operation、14 个 schema）。
+
+### 执行中发现并修复的问题
+
+1. **`system_dept` / `system_menu` / `system_post` / `system_user` 的主键都不是自增列**，一直靠手工分配 id。
+   照常规写 `INSERT` + `LAST_INSERT_ID()` 会直接失败（`Field 'menu_id' doesn't have a default value`）。
+   已按 `MAX+1` 取号并在代码里说明这一约定。
+2. **入口角色不能参与授权人自身等级的计算**。每个用户都持有入口角色，而 CS/WORKER/DOCTOR 的
+   `role_level` 是 0（表示「只有管理员能授予入口角色」）。第一版把它们算进 `MIN` 后，任何客服用户
+   都被判成平台管理员，**全部授权边界失效**。已排除这三个角色码，ADMIN 例外。
+3. **人员角色分配会误删入口角色**。`role_codes` 是全量替换语义，非平台管理员调整下属角色时会把
+   目标用户的入口角色一起删掉，人就登录不进来了。已改为：非平台管理员的请求自动保留目标用户已有的入口角色。
+
+### Acceptance
+
+- [x] 上述操作在管理端**可实操**：新建角色、勾选权限码保存、新建部门/岗位、下拉分配角色与部门、
+  停用/解锁账号、重置密码，全部是表单与按钮，不是只读展示。
+- [x] 高风险操作全部留痕（`adminCanCreateEditAndDisableRoleWithFullAudit` 断言 CREATE/UPDATE/STATUS_CHANGE
+  三条记录，并校验 `before_value` 确实是修改前的内容）。
+- [x] 越权测试：`managerCannotGrantAdminOrManagerLevelRole`、`supervisorCannotAssignAcrossDepartments`、
+  `managerCannotGrantPermissionCodeTheyDoNotHold`、`accountSecurityPermissionsAreSeparateFromBusinessPermissions`、
+  `workerWithoutRbacPermissionIsDenied`。
+- [x] 密码只能重置不能查看：`RbacUserResponse` 不含任何口令字段；重置返回一次性初始口令，
+  系统不保存明文，审计只记录「发生过重置」（`passwordCanOnlyBeResetNeverRead` 同时断言响应与审计都不含散列值）。
+
+Verification：
+
+```bash
+npm run test:backend
+npm run check:task-034-rbac-console
+npm run check:openapi
+npm run build:frontend
+```
+
+结果：后端 288 项，仅剩 A 批次已登记的两条既有失败；OpenAPI 176 paths / 204 operations 校验通过。
+
+### 遗留
+
+- 生产工作台的 13 个硬编码部门（GOAL-034 P2）仍未与 `system_dept` 打通。本批次把部门做成了可维护数据，
+  但工作台那条链路的改动与正在进行的时区修复在同一个方法上，避免冲突，留到时区任务合并后再处理。
+- 角色的菜单分配接口已具备（`menu_codes`），界面暂只做了权限码勾选；菜单勾选待客户确认菜单清单后补。
 
 ---
 

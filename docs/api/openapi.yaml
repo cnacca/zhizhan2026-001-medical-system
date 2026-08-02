@@ -4243,6 +4243,147 @@ components:
           type: integer
         question:
           type: string
+    RbacRole:
+      type: object
+      properties:
+        role_id: { type: integer, format: int64 }
+        role_code: { type: string }
+        role_name: { type: string }
+        data_scope: { type: string, enum: [ALL, CLINIC, SELF, NONE] }
+        role_level:
+          type: integer
+          description: 授权等级，数字越小权限越高。0=平台管理员与入口角色，10=经理级，20=主管/组长级，30=普通岗位。
+        status: { type: string, enum: [ACTIVE, INACTIVE] }
+        remark: { type: string, nullable: true }
+        permission_count: { type: integer }
+        menu_count: { type: integer }
+        user_count: { type: integer }
+    RbacRoleRequest:
+      type: object
+      properties:
+        role_code: { type: string }
+        role_name: { type: string }
+        data_scope: { type: string, enum: [ALL, CLINIC, SELF, NONE] }
+        role_level: { type: integer, nullable: true }
+        remark: { type: string, nullable: true }
+        reason: { type: string, nullable: true }
+    RbacStatusRequest:
+      type: object
+      properties:
+        status: { type: string }
+        reason: { type: string, nullable: true }
+    RbacRolePermission:
+      type: object
+      properties:
+        role_id: { type: integer, format: int64 }
+        role_code: { type: string }
+        data_scope: { type: string }
+        permission_codes: { type: array, items: { type: string } }
+        menu_codes: { type: array, items: { type: string } }
+    RbacRolePermissionRequest:
+      type: object
+      properties:
+        permission_codes: { type: array, items: { type: string } }
+        menu_codes: { type: array, nullable: true, items: { type: string } }
+        data_scope: { type: string, nullable: true }
+        reason: { type: string, nullable: true }
+    RbacPermission:
+      type: object
+      properties:
+        permission_id: { type: integer, format: int64 }
+        permission_code: { type: string }
+        permission_name: { type: string }
+        module_code: { type: string }
+        status: { type: string }
+    RbacDept:
+      type: object
+      properties:
+        dept_id: { type: integer, format: int64 }
+        parent_id: { type: integer, format: int64, nullable: true }
+        dept_code: { type: string }
+        dept_name: { type: string }
+        sort_order: { type: integer }
+        status: { type: string }
+        member_count: { type: integer }
+    RbacDeptRequest:
+      type: object
+      properties:
+        parent_id: { type: integer, format: int64, nullable: true }
+        dept_code: { type: string }
+        dept_name: { type: string }
+        sort_order: { type: integer, nullable: true }
+        status: { type: string, nullable: true }
+        reason: { type: string, nullable: true }
+    RbacPost:
+      type: object
+      properties:
+        post_id: { type: integer, format: int64 }
+        post_code: { type: string }
+        post_name: { type: string }
+        sort_order: { type: integer }
+        status: { type: string }
+    RbacPostRequest:
+      type: object
+      properties:
+        post_code: { type: string }
+        post_name: { type: string }
+        sort_order: { type: integer, nullable: true }
+        status: { type: string, nullable: true }
+        reason: { type: string, nullable: true }
+    RbacUser:
+      type: object
+      description: 人员视图。刻意不包含任何口令字段——密码只能重置不能查看。
+      properties:
+        user_id: { type: integer, format: int64 }
+        username: { type: string }
+        display_name: { type: string }
+        status: { type: string }
+        dept_id: { type: integer, format: int64, nullable: true }
+        dept_name: { type: string, nullable: true }
+        data_scope: { type: string, nullable: true, description: 用户级数据范围覆盖，为空表示按角色级配置。 }
+        role_codes: { type: array, items: { type: string } }
+        post_codes: { type: array, items: { type: string } }
+    RbacUserAssignRequest:
+      type: object
+      properties:
+        role_codes: { type: array, nullable: true, items: { type: string } }
+        post_codes: { type: array, nullable: true, items: { type: string } }
+        dept_id: { type: integer, format: int64, nullable: true }
+        data_scope: { type: string, nullable: true }
+        reason: { type: string, nullable: true }
+    RbacPasswordReset:
+      type: object
+      properties:
+        user_id: { type: integer, format: int64 }
+        username: { type: string }
+        temporary_password:
+          type: string
+          description: 一次性初始口令，仅本次响应返回；系统不保存明文，也不写入审计。
+    RbacMatrix:
+      type: object
+      properties:
+        roles: { type: array, items: { "$ref": "#/components/schemas/RbacRole" } }
+        permissions: { type: array, items: { "$ref": "#/components/schemas/RbacPermission" } }
+        permissions_by_role:
+          type: object
+          additionalProperties: { type: array, items: { type: string } }
+        menus_by_role:
+          type: object
+          additionalProperties: { type: array, items: { type: string } }
+    RbacAudit:
+      type: object
+      properties:
+        audit_id: { type: integer, format: int64 }
+        entity_type: { type: string }
+        entity_id: { type: integer, format: int64, nullable: true }
+        entity_label: { type: string, nullable: true }
+        action_type: { type: string }
+        before_value: { type: string, nullable: true }
+        after_value: { type: string, nullable: true }
+        operator_user_id: { type: integer, format: int64, nullable: true }
+        operator_username: { type: string, nullable: true }
+        reason: { type: string, nullable: true }
+        created_at: { type: string, format: date-time }
     AiFaqRequest:
       type: object
       required:
@@ -11352,6 +11493,801 @@ paths:
         '503':
           "$ref": "#/components/responses/ServiceUnavailable"
       operationId: postAiOrderQuery
+  "/rbac/roles":
+    get:
+      tags:
+      - RBAC
+      summary: 角色列表
+      description: |
+        权限：rbac:matrix:read 或 rbac:role:manage。返回全部角色及其权限码 / 菜单 / 人数统计。
+      responses:
+        '200':
+          description: 角色列表
+          content:
+            application/json:
+              schema:
+                allOf:
+                - "$ref": "#/components/schemas/CommonResponse"
+                - type: object
+                  properties:
+                    data:
+                      type: array
+                      items:
+                        "$ref": "#/components/schemas/RbacRole"
+        '400':
+          "$ref": "#/components/responses/BadRequest"
+        '401':
+          "$ref": "#/components/responses/Unauthorized"
+        '403':
+          "$ref": "#/components/responses/Forbidden"
+        '404':
+          "$ref": "#/components/responses/NotFound"
+        '409':
+          "$ref": "#/components/responses/Conflict"
+        default:
+          "$ref": "#/components/responses/DefaultError"
+        '503':
+          "$ref": "#/components/responses/ServiceUnavailable"
+      operationId: getRbacRoles
+    post:
+      tags:
+      - RBAC
+      summary: 创建角色
+      description: |
+        权限：rbac:role:manage。授权人只能创建授权等级严格低于自己的角色；创建动作写入 system_rbac_audit。
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              "$ref": "#/components/schemas/RbacRoleRequest"
+      responses:
+        '200':
+          description: 创建角色
+          content:
+            application/json:
+              schema:
+                allOf:
+                - "$ref": "#/components/schemas/CommonResponse"
+                - type: object
+                  properties:
+                    data:
+                      "$ref": "#/components/schemas/RbacRole"
+        '400':
+          "$ref": "#/components/responses/BadRequest"
+        '401':
+          "$ref": "#/components/responses/Unauthorized"
+        '403':
+          "$ref": "#/components/responses/Forbidden"
+        '404':
+          "$ref": "#/components/responses/NotFound"
+        '409':
+          "$ref": "#/components/responses/Conflict"
+        default:
+          "$ref": "#/components/responses/DefaultError"
+        '503':
+          "$ref": "#/components/responses/ServiceUnavailable"
+      operationId: postRbacRole
+  "/rbac/roles/{roleId}":
+    put:
+      tags:
+      - RBAC
+      summary: 编辑角色
+      description: |
+        权限：rbac:role:manage。改名、改数据范围与授权等级；修改前后内容写入审计。
+      parameters:
+      - name: roleId
+        in: path
+        required: true
+        schema:
+          type: integer
+          format: int64
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              "$ref": "#/components/schemas/RbacRoleRequest"
+      responses:
+        '200':
+          description: 编辑角色
+          content:
+            application/json:
+              schema:
+                allOf:
+                - "$ref": "#/components/schemas/CommonResponse"
+                - type: object
+                  properties:
+                    data:
+                      "$ref": "#/components/schemas/RbacRole"
+        '400':
+          "$ref": "#/components/responses/BadRequest"
+        '401':
+          "$ref": "#/components/responses/Unauthorized"
+        '403':
+          "$ref": "#/components/responses/Forbidden"
+        '404':
+          "$ref": "#/components/responses/NotFound"
+        '409':
+          "$ref": "#/components/responses/Conflict"
+        default:
+          "$ref": "#/components/responses/DefaultError"
+        '503':
+          "$ref": "#/components/responses/ServiceUnavailable"
+      operationId: putRbacRole
+  "/rbac/roles/{roleId}/status":
+    put:
+      tags:
+      - RBAC
+      summary: 停用或恢复角色
+      description: |
+        权限：rbac:role:manage。入口角色（ADMIN/CS/WORKER/DOCTOR）不允许停用，会返回 409。
+      parameters:
+      - name: roleId
+        in: path
+        required: true
+        schema:
+          type: integer
+          format: int64
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              "$ref": "#/components/schemas/RbacStatusRequest"
+      responses:
+        '200':
+          description: 停用或恢复角色
+          content:
+            application/json:
+              schema:
+                allOf:
+                - "$ref": "#/components/schemas/CommonResponse"
+                - type: object
+                  properties:
+                    data:
+                      "$ref": "#/components/schemas/RbacRole"
+        '400':
+          "$ref": "#/components/responses/BadRequest"
+        '401':
+          "$ref": "#/components/responses/Unauthorized"
+        '403':
+          "$ref": "#/components/responses/Forbidden"
+        '404':
+          "$ref": "#/components/responses/NotFound"
+        '409':
+          "$ref": "#/components/responses/Conflict"
+        default:
+          "$ref": "#/components/responses/DefaultError"
+        '503':
+          "$ref": "#/components/responses/ServiceUnavailable"
+      operationId: putRbacRoleStatus
+  "/rbac/roles/{roleId}/permissions":
+    get:
+      tags:
+      - RBAC
+      summary: 读取角色的权限码与菜单
+      description: |
+        权限：rbac:matrix:read 或 rbac:permission:assign。
+      parameters:
+      - name: roleId
+        in: path
+        required: true
+        schema:
+          type: integer
+          format: int64
+      responses:
+        '200':
+          description: 读取角色的权限码与菜单
+          content:
+            application/json:
+              schema:
+                allOf:
+                - "$ref": "#/components/schemas/CommonResponse"
+                - type: object
+                  properties:
+                    data:
+                      "$ref": "#/components/schemas/RbacRolePermission"
+        '400':
+          "$ref": "#/components/responses/BadRequest"
+        '401':
+          "$ref": "#/components/responses/Unauthorized"
+        '403':
+          "$ref": "#/components/responses/Forbidden"
+        '404':
+          "$ref": "#/components/responses/NotFound"
+        '409':
+          "$ref": "#/components/responses/Conflict"
+        default:
+          "$ref": "#/components/responses/DefaultError"
+        '503':
+          "$ref": "#/components/responses/ServiceUnavailable"
+      operationId: getRbacRolePermissions
+    put:
+      tags:
+      - RBAC
+      summary: 分配角色的权限码、菜单与数据范围
+      description: |
+        权限：rbac:permission:assign。不能授予自己没有的权限码；不能操作授权等级不低于自己的角色。
+      parameters:
+      - name: roleId
+        in: path
+        required: true
+        schema:
+          type: integer
+          format: int64
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              "$ref": "#/components/schemas/RbacRolePermissionRequest"
+      responses:
+        '200':
+          description: 分配角色的权限码、菜单与数据范围
+          content:
+            application/json:
+              schema:
+                allOf:
+                - "$ref": "#/components/schemas/CommonResponse"
+                - type: object
+                  properties:
+                    data:
+                      "$ref": "#/components/schemas/RbacRolePermission"
+        '400':
+          "$ref": "#/components/responses/BadRequest"
+        '401':
+          "$ref": "#/components/responses/Unauthorized"
+        '403':
+          "$ref": "#/components/responses/Forbidden"
+        '404':
+          "$ref": "#/components/responses/NotFound"
+        '409':
+          "$ref": "#/components/responses/Conflict"
+        default:
+          "$ref": "#/components/responses/DefaultError"
+        '503':
+          "$ref": "#/components/responses/ServiceUnavailable"
+      operationId: putRbacRolePermissions
+  "/rbac/permissions":
+    get:
+      tags:
+      - RBAC
+      summary: 权限码列表
+      description: |
+        权限：rbac:matrix:read 或 rbac:permission:assign。
+      responses:
+        '200':
+          description: 权限码列表
+          content:
+            application/json:
+              schema:
+                allOf:
+                - "$ref": "#/components/schemas/CommonResponse"
+                - type: object
+                  properties:
+                    data:
+                      type: array
+                      items:
+                        "$ref": "#/components/schemas/RbacPermission"
+        '400':
+          "$ref": "#/components/responses/BadRequest"
+        '401':
+          "$ref": "#/components/responses/Unauthorized"
+        '403':
+          "$ref": "#/components/responses/Forbidden"
+        '404':
+          "$ref": "#/components/responses/NotFound"
+        '409':
+          "$ref": "#/components/responses/Conflict"
+        default:
+          "$ref": "#/components/responses/DefaultError"
+        '503':
+          "$ref": "#/components/responses/ServiceUnavailable"
+      operationId: getRbacPermissions
+  "/rbac/departments":
+    get:
+      tags:
+      - RBAC
+      summary: 部门列表
+      description: |
+        权限：rbac:matrix:read 或 rbac:org:manage。按层级排序返回，含各部门人数。
+      responses:
+        '200':
+          description: 部门列表
+          content:
+            application/json:
+              schema:
+                allOf:
+                - "$ref": "#/components/schemas/CommonResponse"
+                - type: object
+                  properties:
+                    data:
+                      type: array
+                      items:
+                        "$ref": "#/components/schemas/RbacDept"
+        '400':
+          "$ref": "#/components/responses/BadRequest"
+        '401':
+          "$ref": "#/components/responses/Unauthorized"
+        '403':
+          "$ref": "#/components/responses/Forbidden"
+        '404':
+          "$ref": "#/components/responses/NotFound"
+        '409':
+          "$ref": "#/components/responses/Conflict"
+        default:
+          "$ref": "#/components/responses/DefaultError"
+        '503':
+          "$ref": "#/components/responses/ServiceUnavailable"
+      operationId: getRbacDepartments
+    post:
+      tags:
+      - RBAC
+      summary: 新建部门
+      description: |
+        权限：rbac:org:manage。支持通过 parent_id 建立层级。
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              "$ref": "#/components/schemas/RbacDeptRequest"
+      responses:
+        '200':
+          description: 新建部门
+          content:
+            application/json:
+              schema:
+                allOf:
+                - "$ref": "#/components/schemas/CommonResponse"
+                - type: object
+                  properties:
+                    data:
+                      "$ref": "#/components/schemas/RbacDept"
+        '400':
+          "$ref": "#/components/responses/BadRequest"
+        '401':
+          "$ref": "#/components/responses/Unauthorized"
+        '403':
+          "$ref": "#/components/responses/Forbidden"
+        '404':
+          "$ref": "#/components/responses/NotFound"
+        '409':
+          "$ref": "#/components/responses/Conflict"
+        default:
+          "$ref": "#/components/responses/DefaultError"
+        '503':
+          "$ref": "#/components/responses/ServiceUnavailable"
+      operationId: postRbacDepartment
+  "/rbac/departments/{deptId}":
+    put:
+      tags:
+      - RBAC
+      summary: 编辑部门
+      description: |
+        权限：rbac:org:manage。不允许把自己设为自己的上级。
+      parameters:
+      - name: deptId
+        in: path
+        required: true
+        schema:
+          type: integer
+          format: int64
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              "$ref": "#/components/schemas/RbacDeptRequest"
+      responses:
+        '200':
+          description: 编辑部门
+          content:
+            application/json:
+              schema:
+                allOf:
+                - "$ref": "#/components/schemas/CommonResponse"
+                - type: object
+                  properties:
+                    data:
+                      "$ref": "#/components/schemas/RbacDept"
+        '400':
+          "$ref": "#/components/responses/BadRequest"
+        '401':
+          "$ref": "#/components/responses/Unauthorized"
+        '403':
+          "$ref": "#/components/responses/Forbidden"
+        '404':
+          "$ref": "#/components/responses/NotFound"
+        '409':
+          "$ref": "#/components/responses/Conflict"
+        default:
+          "$ref": "#/components/responses/DefaultError"
+        '503':
+          "$ref": "#/components/responses/ServiceUnavailable"
+      operationId: putRbacDepartment
+  "/rbac/posts":
+    get:
+      tags:
+      - RBAC
+      summary: 岗位列表
+      description: |
+        权限：rbac:matrix:read 或 rbac:org:manage。
+      responses:
+        '200':
+          description: 岗位列表
+          content:
+            application/json:
+              schema:
+                allOf:
+                - "$ref": "#/components/schemas/CommonResponse"
+                - type: object
+                  properties:
+                    data:
+                      type: array
+                      items:
+                        "$ref": "#/components/schemas/RbacPost"
+        '400':
+          "$ref": "#/components/responses/BadRequest"
+        '401':
+          "$ref": "#/components/responses/Unauthorized"
+        '403':
+          "$ref": "#/components/responses/Forbidden"
+        '404':
+          "$ref": "#/components/responses/NotFound"
+        '409':
+          "$ref": "#/components/responses/Conflict"
+        default:
+          "$ref": "#/components/responses/DefaultError"
+        '503':
+          "$ref": "#/components/responses/ServiceUnavailable"
+      operationId: getRbacPosts
+    post:
+      tags:
+      - RBAC
+      summary: 新建岗位
+      description: |
+        权限：rbac:org:manage。
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              "$ref": "#/components/schemas/RbacPostRequest"
+      responses:
+        '200':
+          description: 新建岗位
+          content:
+            application/json:
+              schema:
+                allOf:
+                - "$ref": "#/components/schemas/CommonResponse"
+                - type: object
+                  properties:
+                    data:
+                      "$ref": "#/components/schemas/RbacPost"
+        '400':
+          "$ref": "#/components/responses/BadRequest"
+        '401':
+          "$ref": "#/components/responses/Unauthorized"
+        '403':
+          "$ref": "#/components/responses/Forbidden"
+        '404':
+          "$ref": "#/components/responses/NotFound"
+        '409':
+          "$ref": "#/components/responses/Conflict"
+        default:
+          "$ref": "#/components/responses/DefaultError"
+        '503':
+          "$ref": "#/components/responses/ServiceUnavailable"
+      operationId: postRbacPost
+  "/rbac/posts/{postId}":
+    put:
+      tags:
+      - RBAC
+      summary: 编辑岗位
+      description: |
+        权限：rbac:org:manage。
+      parameters:
+      - name: postId
+        in: path
+        required: true
+        schema:
+          type: integer
+          format: int64
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              "$ref": "#/components/schemas/RbacPostRequest"
+      responses:
+        '200':
+          description: 编辑岗位
+          content:
+            application/json:
+              schema:
+                allOf:
+                - "$ref": "#/components/schemas/CommonResponse"
+                - type: object
+                  properties:
+                    data:
+                      "$ref": "#/components/schemas/RbacPost"
+        '400':
+          "$ref": "#/components/responses/BadRequest"
+        '401':
+          "$ref": "#/components/responses/Unauthorized"
+        '403':
+          "$ref": "#/components/responses/Forbidden"
+        '404':
+          "$ref": "#/components/responses/NotFound"
+        '409':
+          "$ref": "#/components/responses/Conflict"
+        default:
+          "$ref": "#/components/responses/DefaultError"
+        '503':
+          "$ref": "#/components/responses/ServiceUnavailable"
+      operationId: putRbacPost
+  "/rbac/users":
+    get:
+      tags:
+      - RBAC
+      summary: 人员列表
+      description: |
+        权限：rbac:matrix:read 或 rbac:user:assign。任何情况下都不返回口令或散列值。
+      responses:
+        '200':
+          description: 人员列表
+          content:
+            application/json:
+              schema:
+                allOf:
+                - "$ref": "#/components/schemas/CommonResponse"
+                - type: object
+                  properties:
+                    data:
+                      type: array
+                      items:
+                        "$ref": "#/components/schemas/RbacUser"
+        '400':
+          "$ref": "#/components/responses/BadRequest"
+        '401':
+          "$ref": "#/components/responses/Unauthorized"
+        '403':
+          "$ref": "#/components/responses/Forbidden"
+        '404':
+          "$ref": "#/components/responses/NotFound"
+        '409':
+          "$ref": "#/components/responses/Conflict"
+        default:
+          "$ref": "#/components/responses/DefaultError"
+        '503':
+          "$ref": "#/components/responses/ServiceUnavailable"
+      operationId: getRbacUsers
+  "/rbac/users/{userId}/assignment":
+    put:
+      tags:
+      - RBAC
+      summary: 分配人员的角色、部门与岗位
+      description: |
+        权限：rbac:user:assign。受两条边界约束：只能授予授权等级严格低于自己的角色；没有 rbac:cross-dept 时只能操作同部门人员。非平台管理员的请求不会移除目标用户已有的入口角色。
+      parameters:
+      - name: userId
+        in: path
+        required: true
+        schema:
+          type: integer
+          format: int64
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              "$ref": "#/components/schemas/RbacUserAssignRequest"
+      responses:
+        '200':
+          description: 分配人员的角色、部门与岗位
+          content:
+            application/json:
+              schema:
+                allOf:
+                - "$ref": "#/components/schemas/CommonResponse"
+                - type: object
+                  properties:
+                    data:
+                      "$ref": "#/components/schemas/RbacUser"
+        '400':
+          "$ref": "#/components/responses/BadRequest"
+        '401':
+          "$ref": "#/components/responses/Unauthorized"
+        '403':
+          "$ref": "#/components/responses/Forbidden"
+        '404':
+          "$ref": "#/components/responses/NotFound"
+        '409':
+          "$ref": "#/components/responses/Conflict"
+        default:
+          "$ref": "#/components/responses/DefaultError"
+        '503':
+          "$ref": "#/components/responses/ServiceUnavailable"
+      operationId: putRbacUserAssignment
+  "/rbac/users/{userId}/status":
+    put:
+      tags:
+      - RBAC
+      summary: 停用或解锁账号
+      description: |
+        权限：account:disable（账号安全权限，与业务数据权限分离）。
+      parameters:
+      - name: userId
+        in: path
+        required: true
+        schema:
+          type: integer
+          format: int64
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              "$ref": "#/components/schemas/RbacStatusRequest"
+      responses:
+        '200':
+          description: 停用或解锁账号
+          content:
+            application/json:
+              schema:
+                allOf:
+                - "$ref": "#/components/schemas/CommonResponse"
+                - type: object
+                  properties:
+                    data:
+                      "$ref": "#/components/schemas/RbacUser"
+        '400':
+          "$ref": "#/components/responses/BadRequest"
+        '401':
+          "$ref": "#/components/responses/Unauthorized"
+        '403':
+          "$ref": "#/components/responses/Forbidden"
+        '404':
+          "$ref": "#/components/responses/NotFound"
+        '409':
+          "$ref": "#/components/responses/Conflict"
+        default:
+          "$ref": "#/components/responses/DefaultError"
+        '503':
+          "$ref": "#/components/responses/ServiceUnavailable"
+      operationId: putRbacUserStatus
+  "/rbac/users/{userId}/password-reset":
+    post:
+      tags:
+      - RBAC
+      summary: 重置账号密码
+      description: |
+        权限：account:reset-password。密码只能重置不能查看：返回一次性初始口令由管理员线下转交，系统不保存明文，审计只记录发生过重置。
+      parameters:
+      - name: userId
+        in: path
+        required: true
+        schema:
+          type: integer
+          format: int64
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              "$ref": "#/components/schemas/RbacStatusRequest"
+      responses:
+        '200':
+          description: 重置账号密码
+          content:
+            application/json:
+              schema:
+                allOf:
+                - "$ref": "#/components/schemas/CommonResponse"
+                - type: object
+                  properties:
+                    data:
+                      "$ref": "#/components/schemas/RbacPasswordReset"
+        '400':
+          "$ref": "#/components/responses/BadRequest"
+        '401':
+          "$ref": "#/components/responses/Unauthorized"
+        '403':
+          "$ref": "#/components/responses/Forbidden"
+        '404':
+          "$ref": "#/components/responses/NotFound"
+        '409':
+          "$ref": "#/components/responses/Conflict"
+        default:
+          "$ref": "#/components/responses/DefaultError"
+        '503':
+          "$ref": "#/components/responses/ServiceUnavailable"
+      operationId: postRbacPasswordReset
+  "/rbac/matrix":
+    get:
+      tags:
+      - RBAC
+      summary: 权限矩阵
+      description: |
+        权限：rbac:matrix:read。按角色 × 权限码 / 菜单返回，供客户逐项核对。
+      responses:
+        '200':
+          description: 权限矩阵
+          content:
+            application/json:
+              schema:
+                allOf:
+                - "$ref": "#/components/schemas/CommonResponse"
+                - type: object
+                  properties:
+                    data:
+                      "$ref": "#/components/schemas/RbacMatrix"
+        '400':
+          "$ref": "#/components/responses/BadRequest"
+        '401':
+          "$ref": "#/components/responses/Unauthorized"
+        '403':
+          "$ref": "#/components/responses/Forbidden"
+        '404':
+          "$ref": "#/components/responses/NotFound"
+        '409':
+          "$ref": "#/components/responses/Conflict"
+        default:
+          "$ref": "#/components/responses/DefaultError"
+        '503':
+          "$ref": "#/components/responses/ServiceUnavailable"
+      operationId: getRbacMatrix
+  "/rbac/audits":
+    get:
+      tags:
+      - RBAC
+      summary: 授权操作留痕
+      description: |
+        权限：rbac:matrix:read。返回创建/停用账号、分配角色权限、组织调整等高风险操作的审计记录。
+      parameters:
+      - name: entity_type
+        in: query
+        required: false
+        schema:
+          type: string
+      - name: limit
+        in: query
+        required: false
+        schema:
+          type: integer
+          default: 50
+      responses:
+        '200':
+          description: 授权操作留痕
+          content:
+            application/json:
+              schema:
+                allOf:
+                - "$ref": "#/components/schemas/CommonResponse"
+                - type: object
+                  properties:
+                    data:
+                      type: array
+                      items:
+                        "$ref": "#/components/schemas/RbacAudit"
+        '400':
+          "$ref": "#/components/responses/BadRequest"
+        '401':
+          "$ref": "#/components/responses/Unauthorized"
+        '403':
+          "$ref": "#/components/responses/Forbidden"
+        '404':
+          "$ref": "#/components/responses/NotFound"
+        '409':
+          "$ref": "#/components/responses/Conflict"
+        default:
+          "$ref": "#/components/responses/DefaultError"
+        '503':
+          "$ref": "#/components/responses/ServiceUnavailable"
+      operationId: getRbacAudits
   "/ai/faq":
     post:
       tags:
