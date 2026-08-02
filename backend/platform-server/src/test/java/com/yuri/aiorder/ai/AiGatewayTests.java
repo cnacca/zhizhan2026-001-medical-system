@@ -355,6 +355,112 @@ class AiGatewayTests {
     }
 
     @Test
+    void doctorFaqAnswersFromKnowledgeBaseAndMarksSampleCorpus() throws Exception {
+        mockMvc.perform(post("/ai/faq")
+                        .header("X-Bootstrap-Role", "DOCTOR")
+                        .header("X-Bootstrap-User-Id", DOCTOR_USER_ID)
+                        .header("X-Bootstrap-Clinic-Id", clinicId)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"question\":\"口扫文件支持哪些格式？\"}"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.result_status").value("SUCCESS"))
+                .andExpect(jsonPath("$.data.matched_entries[0].question").value(containsString("口扫")))
+                .andExpect(jsonPath("$.data.requires_customer_confirmation").value(true))
+                .andExpect(jsonPath("$.data.source_note").value(containsString("待甲方确认")));
+    }
+
+    @Test
+    void doctorFaqRefusesInternalQuestionsWithoutCallingTheModel() throws Exception {
+        mockMvc.perform(post("/ai/faq")
+                        .header("X-Bootstrap-Role", "DOCTOR")
+                        .header("X-Bootstrap-User-Id", DOCTOR_USER_ID)
+                        .header("X-Bootstrap-Clinic-Id", clinicId)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"question\":\"我这单现在是哪个技工在做？返工工时怎么算？\"}"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.result_status").value("SAFE_REFUSAL"))
+                .andExpect(jsonPath("$.data.matched_entries").isEmpty())
+                .andExpect(content().string(not(containsString("车瓷"))));
+
+        // 拒答同样要留审计；FAQ 不依附订单，因此审计行的 order_id 为空。
+        long refusals = jdbcClient.sql("""
+                        SELECT COUNT(*)
+                        FROM ai_audit_log
+                        WHERE agent_code = 'AI_FAQ'
+                          AND result_status = 'SAFE_REFUSAL'
+                          AND order_id IS NULL
+                          AND actor_user_id = :actorUserId
+                          AND created_at >= DATE_SUB(CURRENT_TIMESTAMP(3), INTERVAL 1 MINUTE)
+                        """)
+                .param("actorUserId", DOCTOR_USER_ID)
+                .query(Long.class)
+                .single();
+        assertThat(refusals).isGreaterThan(0L);
+    }
+
+    @Test
+    void doctorFaqReturnsNoMatchInsteadOfGuessing() throws Exception {
+        mockMvc.perform(post("/ai/faq")
+                        .header("X-Bootstrap-Role", "DOCTOR")
+                        .header("X-Bootstrap-User-Id", DOCTOR_USER_ID)
+                        .header("X-Bootstrap-Clinic-Id", clinicId)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"question\":\"zzzzz qqqqq wwwww\"}"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.result_status").value("NO_MATCH"))
+                .andExpect(jsonPath("$.data.answer").value(containsString("联系客服")))
+                .andExpect(jsonPath("$.data.matched_entries").isEmpty());
+    }
+
+    @Test
+    void workerCannotUseFaqOrProductRecommendation() throws Exception {
+        mockMvc.perform(post("/ai/faq")
+                        .header("X-Bootstrap-Role", "WORKER")
+                        .header("X-Bootstrap-User-Id", WORKER_USER_ID)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"question\":\"下单需要提供哪些资料？\"}"))
+                .andExpect(status().isForbidden());
+
+        mockMvc.perform(post("/ai/product-recommendation")
+                        .header("X-Bootstrap-Role", "WORKER")
+                        .header("X-Bootstrap-User-Id", WORKER_USER_ID)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"case_note\":\"后牙缺失\"}"))
+                .andExpect(status().isForbidden());
+    }
+
+    @Test
+    void doctorProductRecommendationOnlySuggestsPublishedCatalogProducts() throws Exception {
+        String response = mockMvc.perform(post("/ai/product-recommendation")
+                        .header("X-Bootstrap-Role", "DOCTOR")
+                        .header("X-Bootstrap-User-Id", DOCTOR_USER_ID)
+                        .header("X-Bootstrap-Clinic-Id", clinicId)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"case_note\":\"46 缺失，咬合力较大\"}"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.recommendations[0].product_id").exists())
+                .andExpect(jsonPath("$.data.recommendations[0].reason").exists())
+                .andExpect(jsonPath("$.data.source_note").value(containsString("医生需自行确认")))
+                .andReturn()
+                .getResponse()
+                .getContentAsString(StandardCharsets.UTF_8);
+
+        // 推荐结果必须落在当前生效目录版本内，不允许出现目录里不存在的产品。
+        long publishedCount = jdbcClient.sql("""
+                        SELECT COUNT(*)
+                        FROM catalog_product_v2 product
+                        JOIN catalog_config_version version
+                          ON version.config_version_id = product.config_version_id
+                        WHERE product.status = 'ACTIVE'
+                          AND version.publication_status = 'ACTIVE'
+                        """)
+                .query(Long.class)
+                .single();
+        assertThat(publishedCount).isGreaterThan(0L);
+        assertThat(response).contains("\"catalog_version_id\"");
+    }
+
+    @Test
     void doctorOrderAssistantRefusesInternalQuestionsAndDoesNotLeakInternalData() throws Exception {
         mockMvc.perform(post("/ai/order-query")
                         .header("X-Bootstrap-Role", "DOCTOR")

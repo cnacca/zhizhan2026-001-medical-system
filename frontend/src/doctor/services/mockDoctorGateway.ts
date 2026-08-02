@@ -3,7 +3,9 @@ import type {
   ClinicRole,
   DoctorAccount,
   DoctorFile,
+  DoctorFaqAnswer,
   DoctorGateway,
+  DoctorProductRecommendation,
   DoctorNotification,
   DoctorPortalDataset,
   LogisticsRecord,
@@ -702,5 +704,44 @@ export class MockDoctorGateway implements DoctorGateway {
         : '未找到当前权限范围内的相关订单。',
       orderIds: targets.map((order) => order.order_id)
     }
+  }
+
+  async askFaq(question: string, _category?: string): Promise<DoctorFaqAnswer> {
+    const unsafe = /(内部工序|技师|员工|质检|返工|工时|绩效|责任)/.test(question)
+    if (unsafe) {
+      return {
+        answer: '我只能回答下单流程、产品材料、交期物流、返工售后和账单方面的常见问题。',
+        resultStatus: 'SAFE_REFUSAL',
+        matchedQuestions: [],
+        requiresCustomerConfirmation: false
+      }
+    }
+    const known = ['下单需要提供哪些资料？', '口扫文件支持哪些格式？', '订单大概多久能做好？']
+    const matched = known.filter((item) => question.split('').some((char) => item.includes(char)))
+    if (!matched.length) {
+      return {
+        answer: '这个问题暂时不在常见问题库里，请通过沟通中心联系客服。',
+        resultStatus: 'NO_MATCH',
+        matchedQuestions: [],
+        requiresCustomerConfirmation: false
+      }
+    }
+    return {
+      answer: '（演示数据）常见问题示例回答，正式语料待甲方确认。',
+      resultStatus: 'SUCCESS',
+      matchedQuestions: matched.slice(0, 3),
+      requiresCustomerConfirmation: true
+    }
+  }
+
+  async recommendProducts(_caseNote?: string): Promise<DoctorProductRecommendation[]> {
+    return [
+      {
+        productId: 'mock-1',
+        displayName: '（演示数据）常规牙冠',
+        categoryName: '固定修复',
+        reason: '演示数据，不代表真实推荐结果。'
+      }
+    ]
   }
 }

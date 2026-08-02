@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import { ElMessage, ElMessageBox } from 'element-plus'
 import { computed, onMounted, reactive, ref } from 'vue'
-import type { DoctorFile, DoctorGateway, PatientSummary } from './types/contracts'
+import type { DoctorFile, DoctorGateway, DoctorProductRecommendation, PatientSummary } from './types/contracts'
 import DoctorOrthodonticPrescription from './DoctorOrthodonticPrescription.vue'
 import {
   CATEGORY_NAMES,
@@ -286,6 +286,11 @@ const patientId = ref(props.initialPatientId ?? '')
 const patientKeyword = ref('')
 const patientSearchFocused = ref(false)
 const productKeyword = ref('')
+const recommendCaseNote = ref('')
+const recommendLoading = ref(false)
+const recommendError = ref('')
+const recommendNote = ref('')
+const productRecommendations = ref<DoctorProductRecommendation[]>([])
 const selectedCategoryCode = ref('')
 const selectedOrderId = ref<number | null>(null)
 const notice = ref('')
@@ -1246,6 +1251,43 @@ function productSelected(product: CatalogProduct) {
   return Boolean(group.value?.items.some((item) => item.product_id === product.product_id))
 }
 
+// AI-7：推荐只作建议，必须由医生点击「采用」才加入订单，系统不自动填表。
+function recommendationProduct(recommendation: DoctorProductRecommendation) {
+  return (catalog.value?.products ?? []).find(
+    (product) => String(product.product_id) === recommendation.productId
+  )
+}
+
+async function loadProductRecommendations() {
+  recommendLoading.value = true
+  recommendError.value = ''
+  try {
+    productRecommendations.value = await props.gateway.recommendProducts(recommendCaseNote.value.trim())
+    recommendNote.value = productRecommendations.value.length
+      ? '以上为建议项，请确认后再选择；价格以正式报价为准。'
+      : '当前没有可推荐的产品。'
+  } catch (cause) {
+    productRecommendations.value = []
+    recommendNote.value = ''
+    recommendError.value = cause instanceof Error ? cause.message : '智能推荐暂时不可用'
+  } finally {
+    recommendLoading.value = false
+  }
+}
+
+async function applyRecommendation(recommendation: DoctorProductRecommendation) {
+  const product = recommendationProduct(recommendation)
+  if (!product) {
+    ElMessage.warning('该推荐产品不在当前生效目录中')
+    return
+  }
+  if (productSelected(product)) {
+    ElMessage.info('该产品已经在当前病例中')
+    return
+  }
+  await addProduct(product)
+}
+
 function categoryIcon(categoryCode: string) {
   return {
     FIXED_RESTORATION: '♛',
@@ -1513,6 +1555,39 @@ onMounted(async () => {
             <div v-if="catalog?.publication_status !== 'ACTIVE'" class="case-alert warning">
               当前暂时没有可下单产品，请刷新页面或联系订单支持。
             </div>
+
+            <section class="case-recommend-card">
+              <header>
+                <div>
+                  <strong>智能推荐</strong>
+                  <small>根据本诊所历史下单与病例描述给出建议，需您确认后才会加入订单</small>
+                </div>
+                <button type="button" :disabled="recommendLoading" @click="loadProductRecommendations">
+                  {{ recommendLoading ? '推荐中…' : '让 AI 推荐' }}
+                </button>
+              </header>
+              <label class="case-recommend-input">
+                <span>病例描述（可选）</span>
+                <input v-model="recommendCaseNote" placeholder="例如：46 缺失，咬合力较大，患者要求美观">
+              </label>
+              <p v-if="recommendError" class="case-recommend-error">{{ recommendError }}</p>
+              <p v-else-if="recommendNote" class="case-recommend-note">{{ recommendNote }}</p>
+              <div v-if="productRecommendations.length" class="case-recommend-list">
+                <button
+                  v-for="recommendation in productRecommendations"
+                  :key="recommendation.productId"
+                  type="button"
+                  :disabled="busy || !recommendationProduct(recommendation)"
+                  @click="applyRecommendation(recommendation)"
+                >
+                  <span>
+                    <strong>{{ recommendation.displayName }}</strong>
+                    <small>{{ recommendation.categoryName }} · {{ recommendation.reason }}</small>
+                  </span>
+                  <i>{{ recommendationProduct(recommendation) ? '＋ 采用' : '不在当前目录' }}</i>
+                </button>
+              </div>
+            </section>
 
             <section class="case-account-card">
               <span>{{ (props.doctorName || '医').slice(0, 1) }}</span>
@@ -2218,6 +2293,105 @@ onMounted(async () => {
   border: 1.5px solid var(--case-blue-200);
   border-radius: 10px;
   background: var(--case-blue-50);
+}
+
+.case-recommend-card {
+  margin-top: 14px;
+  padding: 14px 16px;
+  border: 1px solid #e9d5ff;
+  border-radius: 12px;
+  background: linear-gradient(180deg, #fff, #faf5ff);
+}
+
+.case-recommend-card > header {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 16px;
+}
+
+.case-recommend-card > header strong,
+.case-recommend-card > header small {
+  display: block;
+}
+
+.case-recommend-card > header small {
+  margin-top: 3px;
+  color: #7c6f95;
+}
+
+.case-recommend-card > header button {
+  flex: none;
+  padding: 7px 12px;
+  border: 1px solid #c4b5fd;
+  border-radius: 8px;
+  background: #f5f3ff;
+  color: #6d28d9;
+  font-weight: 700;
+}
+
+.case-recommend-input {
+  display: block;
+  margin-top: 12px;
+}
+
+.case-recommend-input span {
+  display: block;
+  margin-bottom: 5px;
+  color: #526174;
+}
+
+.case-recommend-input input {
+  width: 100%;
+  box-sizing: border-box;
+  padding: 8px;
+  border: 1px solid #d6e0eb;
+  border-radius: 8px;
+}
+
+.case-recommend-note,
+.case-recommend-error {
+  margin: 10px 0 0;
+  font-size: 12px;
+}
+
+.case-recommend-note {
+  color: #7c6f95;
+}
+
+.case-recommend-error {
+  color: #dc2626;
+}
+
+.case-recommend-list {
+  display: grid;
+  gap: 9px;
+  margin-top: 12px;
+}
+
+.case-recommend-list button {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 11px;
+  border: 1px solid #e2e8f0;
+  border-radius: 10px;
+  background: #fff;
+  text-align: left;
+}
+
+.case-recommend-list button small {
+  display: block;
+  margin-top: 3px;
+  color: #8291a7;
+}
+
+.case-recommend-list button i {
+  flex: none;
+  color: #6d28d9;
+  font-style: normal;
+  font-weight: 800;
 }
 
 .case-account-card > span {

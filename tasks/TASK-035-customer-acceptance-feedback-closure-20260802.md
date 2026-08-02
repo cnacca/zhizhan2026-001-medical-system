@@ -76,23 +76,38 @@ npm run check:goal-034-dashboard-metrics
 
 ---
 
-## G3. AI 能力增强（AI-6 FAQ / AI-7 智能推荐）—— `planned`
+## G3. AI 能力增强（AI-6 FAQ / AI-7 智能推荐）—— `COMPLETED`（2026-08-02）
 
 前提：真实模型链路已通。`.env` 中 `AI_PROVIDER=langchain-deepseek`、`AI_DEEPSEEK_ENABLED=true`、`AI_LANGCHAIN_ENABLED=true`、`DEEPSEEK_API_KEY` 已配置（`application.yml:73` 绑定），TASK-033 已修掉 demo 脚本内联覆盖 `AI_PROVIDER` 的问题。
 
 Scope：
 
-- [ ] **AI-6 牙科 FAQ**：新增 `POST /ai/faq`。新建 `ai_faq_entry` 表（问题 / 答案 / 分类 / 状态 / 排序 / 版本），管理端可维护；按分类取条目拼入 system prompt 作为知识上下文，模型只允许基于给定条目作答，无命中回「该问题需联系客服」。医生端 `POST /ai/order-query` 在订单问题无命中时兜底转 FAQ。
-- [ ] **AI-7 智能推荐产品**：新增 `POST /ai/product-recommendation`。上下文 = 诊所历史下单产品分布 + `product_catalog` 正式目录 + 当前病例已填字段；输出结构化 top-N 推荐与理由，只作建议，医生显式选择才生效，不自动填表。
-- [ ] 两者复用 `AiGatewayService` 既有骨架：`enforceAiRateLimit` → `completeWithModel`（含 deterministic fallback）→ 审计写入 → `OUTPUT_GUARD_PATTERNS` 输出防护。
-- [ ] 医生端入口继续受 `DOCTOR_INTERNAL_KEYWORDS` 的 AI-3 安全读边界约束，不得因新增入口绕开内部信息拒答。
+- [x] **AI-6 牙科 FAQ**：新增 `POST /ai/faq` 与 `ai_faq_entry` 表（V77），种子 10 条我方拟定的牙科通用条目，全部标记 `SAMPLE_PENDING_CUSTOMER_CONFIRMATION`。命中条目拼入 system prompt 作为知识上下文，模型只允许基于条目作答；无命中返回 `NO_MATCH` 并引导联系客服，且不调用模型。
+- [x] 医生端订单助手在问题定位不到订单时兜底转 FAQ，不再直接报「请选择订单」。
+- [x] **AI-7 智能推荐产品**：新增 `POST /ai/product-recommendation`。候选集只来自当前生效目录版本（`publication_status = 'ACTIVE'`），上下文含诊所历史下单分布与病例描述。
+- [x] 两者复用 `AiGatewayService` 既有骨架：`enforceAiRateLimit` → `completeWithModel`（含 deterministic fallback）→ 审计写入 → `OUTPUT_GUARD_PATTERNS`。
+- [x] 治理链路的 `orderId` 由 `long` 放宽为 `Long`：`ai_audit_log.order_id` 与 `notification_event.order_id` 本就可空，只是此前没有不依附订单的智能体。`loadOrderNo` 已加空值分支。
+- [x] 医生端入口继续受 `DOCTOR_INTERNAL_KEYWORDS` 约束：命中内部关键词时本地拒答并留审计，**不向模型发送任何上下文**。
+- [x] 前端：医生端订单助手新增常见问题快捷入口；下单向导新增「智能推荐」卡片，推荐项须点击「采用」才加入订单。
+- [x] 同步 `docs/api/openapi.yaml`（`postAiFaq` / `postAiProductRecommendation` 及四个 schema）。
 
 Acceptance：
 
-- [ ] FAQ 与推荐在真实 key 环境各留一份问答记录到 `docs/acceptance/`。
-- [ ] 越权测试：医生通过 FAQ 入口拿不到内部工序 / 员工 / 返工 / 绩效信息。
-- [ ] key 失效时返回 deterministic fallback，不抛 500。
-- [ ] FAQ 示例条目在界面标注「示例内容，待甲方确认」。
+- [x] 真实 key 环境联调记录见 `docs/acceptance/goal-034-ai-faq-and-recommendation-real-model-record.md`；`ai_audit_log.model_name = langchain-deepseek-chat` 证明走的是真实 DeepSeek 而非兜底桩。
+- [x] 越权测试：`workerCannotUseFaqOrProductRecommendation`（403）、`doctorFaqRefusesInternalQuestionsWithoutCallingTheModel`（SAFE_REFUSAL + 审计）。
+- [x] key 未启用时走 deterministic fallback，不抛 500（测试环境即为该路径，26 项 AiGatewayTests 全绿）。
+- [x] FAQ 示例条目通过 `requires_customer_confirmation` 标记，界面追加「以上内容引自常见问题库的示例语料，待甲方确认」。
+
+**防幻觉设计**：模型被要求末尾输出 `RECOMMENDED_IDS: <编号>` 一行，服务端解析后**与候选集取交集**才生成推荐卡片，不在候选集内的编号一律丢弃；模型未给出可用编号时退回「按诊所历史下单分布排序」的服务端规则。该行在返回前剥离，不出现在界面文案。首轮联调曾出现卡片与说明给出两套不同产品，已按此收口为一致结果。
+
+Verification：
+
+```bash
+npm run check:goal-034-ai-knowledge
+npm run check:openapi
+```
+
+结果：`AiGatewayTests` 26 项、`AiGatewayDeepSeekTests` 16 项、`AiExternalAlertSenderTests` 9 项全绿；OpenAPI 校验通过；前端 `vue-tsc -b` 通过。
 
 ---
 

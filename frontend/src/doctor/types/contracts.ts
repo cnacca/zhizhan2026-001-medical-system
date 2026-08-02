@@ -317,6 +317,22 @@ export type OrderDraftInput = {
   files: DoctorFile[]
 }
 
+/** AI-6 牙科 FAQ 应答；示例语料需在界面标注「待甲方确认」。 */
+export type DoctorFaqAnswer = {
+  answer: string
+  resultStatus: 'SUCCESS' | 'SAFE_REFUSAL' | 'NO_MATCH'
+  matchedQuestions: string[]
+  requiresCustomerConfirmation: boolean
+}
+
+/** AI-7 产品推荐建议项；医生必须显式选择才生效，系统不自动填表。 */
+export type DoctorProductRecommendation = {
+  productId: string
+  displayName: string
+  categoryName: string
+  reason: string
+}
+
 export interface DoctorGateway {
   updateToken(token: string): void
   loadDataset(): Promise<DoctorPortalDataset>
@@ -336,4 +352,6 @@ export interface DoctorGateway {
   markAllNotificationsRead(): Promise<void>
   confirmReceipt(orderId: string, stateVersion: number): Promise<void>
   askAssistant(question: string, orderId?: string): Promise<{ answer: string; orderIds: string[] }>
+  askFaq(question: string, category?: string): Promise<DoctorFaqAnswer>
+  recommendProducts(caseNote?: string): Promise<DoctorProductRecommendation[]>
 }

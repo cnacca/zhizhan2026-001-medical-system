@@ -4243,6 +4243,104 @@ components:
           type: integer
         question:
           type: string
+    AiFaqRequest:
+      type: object
+      required:
+      - question
+      properties:
+        question:
+          type: string
+          description: 医生或客服的提问。
+        category:
+          type: string
+          nullable: true
+          description: 可选的知识分类；指定后只在该分类内检索。
+    AiFaqResponse:
+      type: object
+      properties:
+        answer:
+          type: string
+        matched_entries:
+          type: array
+          items:
+            type: object
+            properties:
+              faq_id:
+                type: integer
+                format: int64
+              category:
+                type: string
+              question:
+                type: string
+              source_note:
+                type: string
+        result_status:
+          type: string
+          enum:
+          - SUCCESS
+          - SAFE_REFUSAL
+          - NO_MATCH
+          description: SAFE_REFUSAL 表示命中医生端内部信息边界，未调用模型；NO_MATCH 表示知识库无命中。
+        requires_customer_confirmation:
+          type: boolean
+          description: 引用条目仍是示例语料时为 true，界面必须标注「待甲方确认」。
+        source_note:
+          type: string
+    AiProductRecommendationRequest:
+      type: object
+      properties:
+        clinic_id:
+          type: integer
+          format: int64
+          nullable: true
+          description: 仅 CS / ADMIN 生效；医生身份以登录诊所为准。
+        case_note:
+          type: string
+          nullable: true
+          description: 病例描述，可为空。
+    AiProductRecommendationResponse:
+      type: object
+      properties:
+        recommendations:
+          type: array
+          items:
+            type: object
+            properties:
+              product_id:
+                type: integer
+                format: int64
+              product_code:
+                type: string
+              display_name:
+                type: string
+              category_name:
+                type: string
+              workflow_product_type:
+                type: string
+                nullable: true
+              pricing_status:
+                type: string
+              reason:
+                type: string
+        clinic_history:
+          type: array
+          items:
+            type: object
+            properties:
+              product_type:
+                type: string
+              order_count:
+                type: integer
+                format: int64
+        catalog_version_id:
+          type: integer
+          format: int64
+          nullable: true
+        note:
+          type: string
+          description: 模型生成的说明文字；结构化推荐不依赖对该文本的解析。
+        source_note:
+          type: string
     AiTranslateRequest:
       type: object
       required:
@@ -11254,6 +11352,95 @@ paths:
         '503':
           "$ref": "#/components/responses/ServiceUnavailable"
       operationId: postAiOrderQuery
+  "/ai/faq":
+    post:
+      tags:
+      - AI
+      summary: AI-6 牙科常见问题助手
+      description: |
+        权限：DOCTOR / CS / ADMIN
+        只依据 ai_faq_entry 中启用的知识条目作答，不允许模型自由发挥；命中不到时返回 NO_MATCH 并引导联系客服。
+        医生问到内部工序 / 技师 / 返工 / 工时 / 绩效时返回 SAFE_REFUSAL，且不向模型发送任何内部上下文，与 AI-3 的安全读边界一致。
+        本接口不依附具体订单，审计记录的 order_id 为空。
+        种子语料为项目方拟定的示例内容（CP-013），responses 中 requires_customer_confirmation 为 true 时界面必须标注「待甲方确认」。
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              "$ref": "#/components/schemas/AiFaqRequest"
+      responses:
+        '200':
+          description: 返回常见问题答案与命中的知识条目
+          content:
+            application/json:
+              schema:
+                allOf:
+                - "$ref": "#/components/schemas/CommonResponse"
+                - type: object
+                  properties:
+                    data:
+                      "$ref": "#/components/schemas/AiFaqResponse"
+        '400':
+          "$ref": "#/components/responses/BadRequest"
+        '401':
+          "$ref": "#/components/responses/Unauthorized"
+        '403':
+          "$ref": "#/components/responses/Forbidden"
+        '404':
+          "$ref": "#/components/responses/NotFound"
+        '409':
+          "$ref": "#/components/responses/Conflict"
+        default:
+          "$ref": "#/components/responses/DefaultError"
+        '503':
+          "$ref": "#/components/responses/ServiceUnavailable"
+      operationId: postAiFaq
+  "/ai/product-recommendation":
+    post:
+      tags:
+      - AI
+      summary: AI-7 智能推荐产品
+      description: |
+        权限：DOCTOR / CS / ADMIN
+        候选集只来自当前生效的产品目录版本（catalog_config_version.publication_status = ACTIVE）。
+        结构化推荐由服务端按可核对的规则产生（诊所历史下单分布），模型输出只作为说明文字放在 note 字段，
+        因此不会出现目录中不存在的产品。
+        推荐结果只是下单向导中的建议项，医生必须显式选择才生效，系统不会自动填表；价格以正式报价为准。
+        医生身份的诊所范围以登录身份为准，请求体中的 clinic_id 仅对 CS / ADMIN 生效。
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              "$ref": "#/components/schemas/AiProductRecommendationRequest"
+      responses:
+        '200':
+          description: 返回产品推荐建议与依据
+          content:
+            application/json:
+              schema:
+                allOf:
+                - "$ref": "#/components/schemas/CommonResponse"
+                - type: object
+                  properties:
+                    data:
+                      "$ref": "#/components/schemas/AiProductRecommendationResponse"
+        '400':
+          "$ref": "#/components/responses/BadRequest"
+        '401':
+          "$ref": "#/components/responses/Unauthorized"
+        '403':
+          "$ref": "#/components/responses/Forbidden"
+        '404':
+          "$ref": "#/components/responses/NotFound"
+        '409':
+          "$ref": "#/components/responses/Conflict"
+        default:
+          "$ref": "#/components/responses/DefaultError"
+        '503':
+          "$ref": "#/components/responses/ServiceUnavailable"
+      operationId: postAiProductRecommendation
   "/ai/production-note":
     post:
       tags:

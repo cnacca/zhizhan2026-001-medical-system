@@ -20,8 +20,10 @@ import java.time.format.DateTimeParseException;
 import java.util.ArrayList;
 import java.util.EnumSet;
 import java.util.HexFormat;
+import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Locale;
+import java.util.Map;
 import java.util.Set;
 import java.util.function.Supplier;
 import org.springframework.dao.EmptyResultDataAccessException;
@@ -66,7 +68,18 @@ public class AiGatewayService {
     private static final String EXTERNAL_ALERT_SENT_STATUS = "SENT";
     private static final String EXTERNAL_ALERT_FAILED_STATUS = "FAILED";
     private static final String EXTERNAL_ALERT_DEAD_LETTER_STATUS = "DEAD_LETTER";
+    private static final String SAMPLE_PENDING_CUSTOMER_CONFIRMATION = "SAMPLE_PENDING_CUSTOMER_CONFIRMATION";
+    private static final String AI_FAQ_SOURCE_NOTE = "AI-6 只依据知识库条目作答；示例语料待甲方确认（CP-013）。";
+    private static final String AI_PRODUCT_RECOMMENDATION_SOURCE_NOTE =
+            "AI-7 推荐仅供参考，医生需自行确认；候选来自当前生效的产品目录版本，价格以正式报价为准。";
+    private static final int FAQ_CONTEXT_LIMIT = 5;
+    private static final int PRODUCT_RECOMMENDATION_LIMIT = 3;
+    private static final int PRODUCT_CANDIDATE_LIMIT = 30;
+    private static final String RECOMMENDED_IDS_MARKER = "RECOMMENDED_IDS:";
     private static final Set<UserRole> CS_AND_ADMIN = EnumSet.of(UserRole.CS, UserRole.ADMIN);
+    private static final Set<UserRole> FAQ_ROLES = EnumSet.of(UserRole.DOCTOR, UserRole.CS, UserRole.ADMIN);
+    private static final Set<UserRole> PRODUCT_RECOMMENDATION_ROLES =
+            EnumSet.of(UserRole.DOCTOR, UserRole.CS, UserRole.ADMIN);
     private static final Set<UserRole> CHECK_MISSING_ROLES = EnumSet.of(UserRole.DOCTOR, UserRole.CS, UserRole.ADMIN);
     private static final Set<UserRole> PRODUCTION_NOTE_ROLES = EnumSet.of(UserRole.CS, UserRole.WORKER, UserRole.ADMIN);
     private static final List<String> OUTPUT_GUARD_PATTERNS = List.of(
@@ -219,6 +232,133 @@ public class AiGatewayService {
                     resultStatus, aiAnswer);
             return answer;
         }
+    }
+
+    /**
+     * AI-6 牙科 FAQ。不依附具体订单，因此审计链路的 orderId 为空。
+     *
+     * <p>模型只允许基于命中的知识条目作答；命中不到时不外呼模型，直接返回引导联系客服的兜底话术。
+     * 医生问到内部工序 / 员工 / 返工 / 工时 / 绩效时，继续走 AI-3 的安全拒答边界，不因新增入口而放宽。
+     */
+    @Transactional
+    public AiFaqResponse faq(String question, String category, BootstrapIdentity identity) {
+        accessControlService.requireAnyRole(identity, FAQ_ROLES, "AI-6 is DOCTOR/CS/ADMIN only");
+        String normalizedQuestion = question == null ? "" : question.trim();
+        if (normalizedQuestion.isEmpty()) {
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "question is required");
+        }
+        if (identity.role() == UserRole.DOCTOR && asksForInternalData(normalizedQuestion)) {
+            String refusal = "我只能回答下单流程、产品材料、交期物流、返工售后和账单方面的常见问题，"
+                    + "内部工序、技师、返工和绩效信息需要联系客服。";
+            audit(null, identity, "AI_FAQ", "AI_FAQ_KNOWLEDGE_BASE", normalizedQuestion,
+                    "SAFE_REFUSAL", deterministic(refusal));
+            return new AiFaqResponse(refusal, List.of(), "SAFE_REFUSAL", false, AI_FAQ_SOURCE_NOTE);
+        }
+
+        List<FaqEntry> entries = matchFaqEntries(normalizedQuestion, category, identity);
+        List<AiFaqResponse.MatchedEntry> matchedEntries = entries.stream()
+                .map(entry -> new AiFaqResponse.MatchedEntry(
+                        entry.faqId(), entry.category(), entry.question(), entry.sourceNote()))
+                .toList();
+        boolean requiresCustomerConfirmation = entries.stream()
+                .anyMatch(entry -> SAMPLE_PENDING_CUSTOMER_CONFIRMATION.equals(entry.sourceNote()));
+
+        if (entries.isEmpty()) {
+            String noMatch = "这个问题暂时不在常见问题库里，请通过沟通中心联系客服，我们会安排人工回复。";
+            audit(null, identity, "AI_FAQ", "AI_FAQ_KNOWLEDGE_BASE", normalizedQuestion,
+                    "NO_MATCH", deterministic(noMatch));
+            return new AiFaqResponse(noMatch, List.of(), "NO_MATCH", false, AI_FAQ_SOURCE_NOTE);
+        }
+
+        String knowledgeContext = entries.stream()
+                .map(entry -> "【" + entry.category() + "】" + entry.question() + "\n答：" + entry.answer())
+                .reduce((left, right) -> left + "\n\n" + right)
+                .orElse("");
+        enforceAiRateLimit(null, identity, "AI_FAQ", "AI_FAQ_KNOWLEDGE_BASE", normalizedQuestion);
+        AiModelResult answer = completeWithModel(
+                "你是牙科加工厂的常见问题助手。只能依据下面给出的知识条目作答，不得编造条目之外的信息，"
+                        + "不得给出诊疗建议，也不得透露内部工序、技师、返工、工时或绩效。"
+                        + "知识条目无法回答时，请直接说明需要联系客服。",
+                "知识条目：\n" + knowledgeContext + "\n\n提问：" + normalizedQuestion,
+                () -> deterministic(entries.get(0).answer()),
+                null,
+                identity,
+                "AI_FAQ",
+                "AI_FAQ_KNOWLEDGE_BASE",
+                normalizedQuestion);
+        audit(null, identity, "AI_FAQ", "AI_FAQ_KNOWLEDGE_BASE", normalizedQuestion, "SUCCESS", answer);
+        return new AiFaqResponse(
+                answer.content(), matchedEntries, "SUCCESS", requiresCustomerConfirmation, AI_FAQ_SOURCE_NOTE);
+    }
+
+    /**
+     * AI-7 智能推荐产品。候选集只来自当前生效的产品目录版本，依据是该诊所的历史下单分布与病例描述。
+     *
+     * <p>结果只是下单向导中的建议项；医生必须显式选择才生效，系统不会自动填表。
+     */
+    @Transactional
+    public AiProductRecommendationResponse recommendProducts(
+            Long clinicId, String caseNote, BootstrapIdentity identity) {
+        accessControlService.requireAnyRole(
+                identity, PRODUCT_RECOMMENDATION_ROLES, "AI-7 is DOCTOR/CS/ADMIN only");
+        Long targetClinicId = identity.role() == UserRole.DOCTOR ? identity.clinicId() : clinicId;
+        if (identity.role() == UserRole.DOCTOR && targetClinicId == null) {
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "clinic id is required for doctor recommendation");
+        }
+        String normalizedCaseNote = caseNote == null ? "" : caseNote.trim();
+
+        List<CatalogCandidate> candidates = loadRecommendationCandidates();
+        if (candidates.isEmpty()) {
+            return new AiProductRecommendationResponse(
+                    List.of(),
+                    List.of(),
+                    null,
+                    "当前没有已发布的产品目录版本，无法给出推荐。",
+                    AI_PRODUCT_RECOMMENDATION_SOURCE_NOTE);
+        }
+        List<AiProductRecommendationResponse.ClinicHistoryItem> history = loadClinicProductHistory(targetClinicId);
+
+        String candidateText = candidates.stream()
+                .map(candidate -> "- [" + candidate.productId() + "] " + candidate.displayName()
+                        + "（分类：" + candidate.categoryName()
+                        + "；工艺类型：" + nullToBlank(candidate.workflowProductType())
+                        + "；定价状态：" + candidate.pricingStatus() + "）")
+                .reduce((left, right) -> left + "\n" + right)
+                .orElse("");
+        String historyText = history.isEmpty()
+                ? "该诊所暂无历史下单记录。"
+                : history.stream()
+                        .map(item -> item.productType() + " " + item.orderCount() + " 单")
+                        .reduce((left, right) -> left + "；" + right)
+                        .orElse("");
+
+        enforceAiRateLimit(null, identity, "AI_PRODUCT_RECOMMENDATION", "CATALOG_AND_CLINIC_HISTORY", normalizedCaseNote);
+        AiModelResult answer = completeWithModel(
+                "你是牙科加工厂的下单建议助手。只能从给定的候选产品中挑选，不得编造产品。"
+                        + "针对每个推荐给出一句话依据，依据必须来自候选产品信息、诊所历史下单分布或病例描述。"
+                        + "最多推荐 3 个，并说明这是建议、需要医生自行确认。"
+                        + "最后必须单独用一行输出机器可读结果，格式为 RECOMMENDED_IDS: 逗号分隔的候选产品编号，"
+                        + "编号必须来自候选列表方括号中的数字。",
+                "候选产品：\n" + candidateText
+                        + "\n\n该诊所历史下单分布：" + historyText
+                        + "\n\n病例描述：" + (normalizedCaseNote.isEmpty() ? "医生未填写描述。" : normalizedCaseNote),
+                () -> deterministic(deterministicRecommendationNote(candidates, history)),
+                null,
+                identity,
+                "AI_PRODUCT_RECOMMENDATION",
+                "CATALOG_AND_CLINIC_HISTORY",
+                normalizedCaseNote);
+        audit(null, identity, "AI_PRODUCT_RECOMMENDATION", "CATALOG_AND_CLINIC_HISTORY", normalizedCaseNote,
+                "SUCCESS", answer);
+
+        List<AiProductRecommendationResponse.Recommendation> recommendations =
+                rankRecommendations(candidates, history, parseRecommendedProductIds(answer.content(), candidates));
+        return new AiProductRecommendationResponse(
+                recommendations,
+                history,
+                candidates.get(0).configVersionId(),
+                stripRecommendedIdsLine(answer.content()),
+                AI_PRODUCT_RECOMMENDATION_SOURCE_NOTE);
     }
 
     @Transactional
@@ -519,7 +659,7 @@ public class AiGatewayService {
             String systemPrompt,
             String userPrompt,
             Supplier<AiModelResult> fallback,
-            long orderId,
+            Long orderId,
             BootstrapIdentity identity,
             String agentCode,
             String contextType,
@@ -610,7 +750,7 @@ public class AiGatewayService {
     }
 
     private void auditOutputGuarded(
-            long orderId,
+            Long orderId,
             BootstrapIdentity identity,
             String agentCode,
             String contextType,
@@ -631,7 +771,7 @@ public class AiGatewayService {
     }
 
     private void auditModelFailure(
-            long orderId,
+            Long orderId,
             BootstrapIdentity identity,
             String agentCode,
             String contextType,
@@ -673,7 +813,7 @@ public class AiGatewayService {
     }
 
     private void auditBudgetCircuitOpen(
-            long orderId,
+            Long orderId,
             BootstrapIdentity identity,
             String agentCode,
             String contextType,
@@ -699,7 +839,7 @@ public class AiGatewayService {
     }
 
     private void auditBudgetRoleCircuitOpen(
-            long orderId,
+            Long orderId,
             BootstrapIdentity identity,
             String agentCode,
             String contextType,
@@ -727,7 +867,7 @@ public class AiGatewayService {
     }
 
     private void auditBudgetModelCircuitOpen(
-            long orderId,
+            Long orderId,
             BootstrapIdentity identity,
             String agentCode,
             String contextType,
@@ -811,7 +951,7 @@ public class AiGatewayService {
     }
 
     private void enforceAiRateLimit(
-            long orderId,
+            Long orderId,
             BootstrapIdentity identity,
             String agentCode,
             String contextType,
@@ -847,6 +987,222 @@ public class AiGatewayService {
 
     private String nullToBlank(String value) {
         return value == null ? "" : value;
+    }
+
+    /**
+     * 取出与提问最相关的 FAQ 条目。相关度用「问题标题与关键词命中的分词数」粗排——
+     * 一期不引入检索引擎；命中不到时返回空列表，由调用方走「联系客服」兜底，而不是把整库塞给模型。
+     */
+    private List<FaqEntry> matchFaqEntries(String question, String category, BootstrapIdentity identity) {
+        String normalizedCategory = category == null || category.isBlank() ? null : category.trim();
+        String audience = identity.role() == UserRole.DOCTOR ? "DOCTOR" : "INTERNAL";
+        List<FaqEntry> entries = jdbcClient.sql("""
+                        SELECT faq_id, category, question, answer, keywords, source_note
+                        FROM ai_faq_entry
+                        WHERE status = 'ACTIVE'
+                          AND (audience = :audience OR audience = 'DOCTOR')
+                          AND (:category IS NULL OR category = :category)
+                        ORDER BY sort_order ASC, faq_id ASC
+                        """)
+                .param("audience", audience)
+                .param("category", normalizedCategory)
+                .query((rs, rowNum) -> new FaqEntry(
+                        rs.getLong("faq_id"),
+                        rs.getString("category"),
+                        rs.getString("question"),
+                        rs.getString("answer"),
+                        rs.getString("keywords"),
+                        rs.getString("source_note")))
+                .list();
+        if (entries.isEmpty()) {
+            return List.of();
+        }
+        String lowered = question.toLowerCase(Locale.ROOT);
+        List<FaqEntry> scored = entries.stream()
+                .filter(entry -> faqMatchScore(entry, lowered) > 0)
+                .sorted((left, right) -> Integer.compare(
+                        faqMatchScore(right, lowered), faqMatchScore(left, lowered)))
+                .limit(FAQ_CONTEXT_LIMIT)
+                .toList();
+        // 指定了分类却没有关键词命中时，把该分类的条目整体作为上下文；否则视为未命中。
+        if (scored.isEmpty() && normalizedCategory != null) {
+            return entries.stream().limit(FAQ_CONTEXT_LIMIT).toList();
+        }
+        return scored;
+    }
+
+    private int faqMatchScore(FaqEntry entry, String loweredQuestion) {
+        int score = 0;
+        for (String keyword : nullToBlank(entry.keywords()).split(",")) {
+            String trimmed = keyword.trim().toLowerCase(Locale.ROOT);
+            if (!trimmed.isEmpty() && loweredQuestion.contains(trimmed)) {
+                score += 2;
+            }
+        }
+        String loweredTitle = nullToBlank(entry.question()).toLowerCase(Locale.ROOT);
+        for (int index = 0; index + 2 <= loweredTitle.length(); index++) {
+            if (loweredQuestion.contains(loweredTitle.substring(index, index + 2))) {
+                score += 1;
+            }
+        }
+        return score;
+    }
+
+    private List<CatalogCandidate> loadRecommendationCandidates() {
+        return jdbcClient.sql("""
+                        SELECT product.product_id,
+                               product.config_version_id,
+                               product.product_code,
+                               product.display_name,
+                               product.workflow_product_type,
+                               product.pricing_status,
+                               category.display_name AS category_name
+                        FROM catalog_product_v2 product
+                        JOIN catalog_category_v2 category
+                          ON category.category_id = product.category_id
+                        JOIN catalog_config_version version
+                          ON version.config_version_id = product.config_version_id
+                        WHERE product.status = 'ACTIVE'
+                          AND category.status = 'ACTIVE'
+                          AND version.publication_status = 'ACTIVE'
+                          AND version.effective_at <= CURRENT_TIMESTAMP(3)
+                        ORDER BY category.sort_order ASC, product.sort_order ASC, product.product_id ASC
+                        LIMIT %d
+                        """.formatted(PRODUCT_CANDIDATE_LIMIT))
+                .query((rs, rowNum) -> new CatalogCandidate(
+                        rs.getLong("product_id"),
+                        rs.getLong("config_version_id"),
+                        rs.getString("product_code"),
+                        rs.getString("display_name"),
+                        rs.getString("category_name"),
+                        rs.getString("workflow_product_type"),
+                        rs.getString("pricing_status")))
+                .list();
+    }
+
+    private List<AiProductRecommendationResponse.ClinicHistoryItem> loadClinicProductHistory(Long clinicId) {
+        if (clinicId == null) {
+            return List.of();
+        }
+        return jdbcClient.sql("""
+                        SELECT product_type, COUNT(*) AS order_count
+                        FROM orders
+                        WHERE clinic_id = :clinicId
+                        GROUP BY product_type
+                        ORDER BY order_count DESC, product_type ASC
+                        LIMIT 10
+                        """)
+                .param("clinicId", clinicId)
+                .query((rs, rowNum) -> new AiProductRecommendationResponse.ClinicHistoryItem(
+                        rs.getString("product_type"), rs.getLong("order_count")))
+                .list();
+    }
+
+    /**
+     * 模型给出的产品编号必须与候选集取交集后才进入结构化结果，因此界面上的推荐卡片不可能出现目录里不存在的产品。
+     * 模型没有给出可用编号时，退回到「按诊所历史下单分布排序」的服务端规则，保证结果始终可解释。
+     */
+    private List<AiProductRecommendationResponse.Recommendation> rankRecommendations(
+            List<CatalogCandidate> candidates,
+            List<AiProductRecommendationResponse.ClinicHistoryItem> history,
+            List<Long> modelPickedProductIds) {
+        Map<String, Long> historyByType = new LinkedHashMap<>();
+        history.forEach(item -> historyByType.put(nullToBlank(item.productType()), item.orderCount()));
+        Map<Long, CatalogCandidate> candidateById = new LinkedHashMap<>();
+        candidates.forEach(candidate -> candidateById.put(candidate.productId(), candidate));
+
+        List<CatalogCandidate> ordered = modelPickedProductIds.stream()
+                .map(candidateById::get)
+                .filter(java.util.Objects::nonNull)
+                .limit(PRODUCT_RECOMMENDATION_LIMIT)
+                .toList();
+        boolean fromModel = !ordered.isEmpty();
+        if (!fromModel) {
+            ordered = candidates.stream()
+                    .sorted((left, right) -> Long.compare(
+                            historyByType.getOrDefault(nullToBlank(right.workflowProductType()), 0L),
+                            historyByType.getOrDefault(nullToBlank(left.workflowProductType()), 0L)))
+                    .limit(PRODUCT_RECOMMENDATION_LIMIT)
+                    .toList();
+        }
+
+        boolean modelPicked = fromModel;
+        return ordered.stream()
+                .map(candidate -> {
+                    long historyCount = historyByType.getOrDefault(nullToBlank(candidate.workflowProductType()), 0L);
+                    String reason;
+                    if (historyCount > 0) {
+                        reason = "该诊所历史上以 " + candidate.workflowProductType() + " 类订单为主（" + historyCount + " 单）。";
+                    } else if (modelPicked) {
+                        reason = "依据本次病例描述给出的建议，理由见下方说明。";
+                    } else {
+                        reason = "当前生效目录中的可选产品，该诊所暂无同类历史订单。";
+                    }
+                    return new AiProductRecommendationResponse.Recommendation(
+                            candidate.productId(),
+                            candidate.productCode(),
+                            candidate.displayName(),
+                            candidate.categoryName(),
+                            candidate.workflowProductType(),
+                            candidate.pricingStatus(),
+                            reason);
+                })
+                .toList();
+    }
+
+    private List<Long> parseRecommendedProductIds(String content, List<CatalogCandidate> candidates) {
+        if (content == null || content.isBlank()) {
+            return List.of();
+        }
+        Set<Long> allowed = candidates.stream()
+                .map(CatalogCandidate::productId)
+                .collect(java.util.stream.Collectors.toSet());
+        List<Long> picked = new ArrayList<>();
+        for (String line : content.split("\\R")) {
+            String trimmed = line.trim();
+            if (!trimmed.startsWith(RECOMMENDED_IDS_MARKER)) {
+                continue;
+            }
+            for (String token : trimmed.substring(RECOMMENDED_IDS_MARKER.length()).split("[,，\\s]+")) {
+                String digits = token.replaceAll("[^0-9]", "");
+                if (digits.isEmpty()) {
+                    continue;
+                }
+                try {
+                    long productId = Long.parseLong(digits);
+                    if (allowed.contains(productId) && !picked.contains(productId)) {
+                        picked.add(productId);
+                    }
+                } catch (NumberFormatException ignored) {
+                    // 模型输出不可解析时忽略该编号，退回服务端规则。
+                }
+            }
+        }
+        return picked;
+    }
+
+    private String stripRecommendedIdsLine(String content) {
+        if (content == null) {
+            return "";
+        }
+        return content.lines()
+                .filter(line -> !line.trim().startsWith(RECOMMENDED_IDS_MARKER))
+                .reduce((left, right) -> left + "\n" + right)
+                .orElse("")
+                .trim();
+    }
+
+    private String deterministicRecommendationNote(
+            List<CatalogCandidate> candidates,
+            List<AiProductRecommendationResponse.ClinicHistoryItem> history) {
+        String top = candidates.stream()
+                .limit(PRODUCT_RECOMMENDATION_LIMIT)
+                .map(CatalogCandidate::displayName)
+                .reduce((left, right) -> left + "、" + right)
+                .orElse("暂无可选产品");
+        return "根据当前生效的产品目录"
+                + (history.isEmpty() ? "" : "与该诊所历史下单分布")
+                + "，可优先考虑：" + top + "。以上为建议项，请医生自行确认后选择。";
     }
 
     private OrderAiContext loadOrderContext(long orderId, BootstrapIdentity identity, String forbiddenMessage) {
@@ -1263,7 +1619,7 @@ public class AiGatewayService {
     }
 
     private void audit(
-            long orderId,
+            Long orderId,
             BootstrapIdentity identity,
             String agentCode,
             String contextType,
@@ -1305,12 +1661,14 @@ public class AiGatewayService {
             case "AI_DOCTOR_ORDER_QUERY" -> "AI_DOCTOR_ORDER_QUERY_V1";
             case "AI_CHECK_MISSING" -> "AI_CHECK_MISSING_V1";
             case "AI_PRODUCTION_NOTE" -> "AI_PRODUCTION_NOTE_V1";
+            case "AI_FAQ" -> "AI_FAQ_V1";
+            case "AI_PRODUCT_RECOMMENDATION" -> "AI_PRODUCT_RECOMMENDATION_V1";
             default -> agentCode + "_V1";
         };
     }
 
     private void auditBudgetExceededIfCrossed(
-            long orderId,
+            Long orderId,
             BootstrapIdentity identity,
             String agentCode,
             String contextType,
@@ -1349,7 +1707,7 @@ public class AiGatewayService {
         }
     }
 
-    private void emitBudgetExceededNotification(long orderId, long currentWindowCost, long dailyBudgetMicrousd) {
+    private void emitBudgetExceededNotification(Long orderId, long currentWindowCost, long dailyBudgetMicrousd) {
         String orderNo = loadOrderNo(orderId);
         String message = budgetExceededMessage(currentWindowCost, dailyBudgetMicrousd);
         String payload = budgetNotificationPayload(orderId, orderNo, message, currentWindowCost, dailyBudgetMicrousd);
@@ -1388,7 +1746,7 @@ public class AiGatewayService {
     }
 
     private void emitExternalAlertOutbox(
-            long orderId,
+            Long orderId,
             String alertType,
             String message,
             long currentWindowCost,
@@ -1397,7 +1755,7 @@ public class AiGatewayService {
     }
 
     private void emitExternalAlertOutbox(
-            long orderId,
+            Long orderId,
             String alertType,
             String message,
             long currentWindowCost,
@@ -1407,7 +1765,7 @@ public class AiGatewayService {
     }
 
     private void emitExternalAlertOutbox(
-            long orderId,
+            Long orderId,
             String alertType,
             String message,
             long currentWindowCost,
@@ -1474,7 +1832,11 @@ public class AiGatewayService {
                 .single();
     }
 
-    private String loadOrderNo(long orderId) {
+    private String loadOrderNo(Long orderId) {
+        // AI-6 / AI-7 这类不依附具体订单的智能体，审计与告警链路允许 orderId 为空。
+        if (orderId == null) {
+            return null;
+        }
         return jdbcClient.sql("SELECT order_no FROM orders WHERE order_id = :orderId")
                 .param("orderId", orderId)
                 .query(String.class)
@@ -1518,7 +1880,7 @@ public class AiGatewayService {
     }
 
     private String budgetNotificationPayload(
-            long orderId,
+            Long orderId,
             String orderNo,
             String message,
             long currentWindowCost,
@@ -1537,7 +1899,7 @@ public class AiGatewayService {
     }
 
     private String externalAlertPayload(
-            long orderId,
+            Long orderId,
             String orderNo,
             String event,
             String role,
@@ -1620,6 +1982,25 @@ public class AiGatewayService {
             boolean requiresCustomerTemplateConfirmation) {
     }
 
+    private record FaqEntry(
+            long faqId,
+            String category,
+            String question,
+            String answer,
+            String keywords,
+            String sourceNote) {
+    }
+
+    private record CatalogCandidate(
+            long productId,
+            long configVersionId,
+            String productCode,
+            String displayName,
+            String categoryName,
+            String workflowProductType,
+            String pricingStatus) {
+    }
+
     private record OrderAiContext(
             long orderId,
             String orderNo,
@@ -1657,7 +2038,7 @@ public class AiGatewayService {
 
     private record AiBudgetNotificationPayload(
             String event,
-            long orderId,
+            Long orderId,
             String orderNo,
             String message,
             long estimatedCostMicrousd,
@@ -1668,7 +2049,7 @@ public class AiGatewayService {
             String event,
             String role,
             String model,
-            long orderId,
+            Long orderId,
             String orderNo,
             String message,
             long estimatedCostMicrousd,

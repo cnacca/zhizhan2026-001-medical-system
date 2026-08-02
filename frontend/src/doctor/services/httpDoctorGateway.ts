@@ -3,7 +3,9 @@ import type {
   ClinicRole,
   DoctorAccount,
   DoctorFile,
+  DoctorFaqAnswer,
   DoctorGateway,
+  DoctorProductRecommendation,
   Message,
   MessageThread,
   DoctorNotification,
@@ -1186,5 +1188,43 @@ export class LegacyHttpDoctorGateway implements DoctorGateway {
       body: JSON.stringify({ order_id: numericOrderId, question })
     })
     return { answer: payload.answer, orderIds: [String(numericOrderId)] }
+  }
+
+  async askFaq(question: string, category?: string): Promise<DoctorFaqAnswer> {
+    const payload = await this.request<{
+      answer: string
+      result_status: DoctorFaqAnswer['resultStatus']
+      matched_entries: Array<{ question: string }>
+      requires_customer_confirmation: boolean
+    }>('/ai/faq', {
+      method: 'POST',
+      body: JSON.stringify(category ? { question, category } : { question })
+    })
+    return {
+      answer: payload.answer,
+      resultStatus: payload.result_status,
+      matchedQuestions: (payload.matched_entries ?? []).map((entry) => entry.question),
+      requiresCustomerConfirmation: Boolean(payload.requires_customer_confirmation)
+    }
+  }
+
+  async recommendProducts(caseNote?: string): Promise<DoctorProductRecommendation[]> {
+    const payload = await this.request<{
+      recommendations: Array<{
+        product_id: number
+        display_name: string
+        category_name: string
+        reason: string
+      }>
+    }>('/ai/product-recommendation', {
+      method: 'POST',
+      body: JSON.stringify({ case_note: caseNote ?? '' })
+    })
+    return (payload.recommendations ?? []).map((item) => ({
+      productId: String(item.product_id),
+      displayName: item.display_name,
+      categoryName: item.category_name,
+      reason: item.reason
+    }))
   }
 }

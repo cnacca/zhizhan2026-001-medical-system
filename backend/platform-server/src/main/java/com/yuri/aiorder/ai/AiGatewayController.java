@@ -47,6 +47,27 @@ public class AiGatewayController {
         return new DataResponse<>(aiGatewayService.checkMissing(request.orderId(), identity));
     }
 
+    @PostMapping("/ai/faq")
+    @RequirePermission(
+            value = {"ai:doctor", "ai:cs"},
+            roles = {UserRole.ADMIN, UserRole.CS, UserRole.DOCTOR})
+    public DataResponse<AiFaqResponse> faq(
+            @Valid @RequestBody FaqRequest request,
+            BootstrapIdentity identity) {
+        return new DataResponse<>(aiGatewayService.faq(request.question(), request.category(), identity));
+    }
+
+    @PostMapping("/ai/product-recommendation")
+    @RequirePermission(
+            value = {"ai:doctor", "ai:cs"},
+            roles = {UserRole.ADMIN, UserRole.CS, UserRole.DOCTOR})
+    public DataResponse<AiProductRecommendationResponse> productRecommendation(
+            @Valid @RequestBody ProductRecommendationRequest request,
+            BootstrapIdentity identity) {
+        return new DataResponse<>(
+                aiGatewayService.recommendProducts(request.clinicId(), request.caseNote(), identity));
+    }
+
     @PostMapping("/ai/cs-query")
     @RequirePermission(value = "ai:cs", roles = {UserRole.ADMIN, UserRole.CS})
     public DataResponse<QueryResponse> csQuery(
@@ -151,6 +172,16 @@ public class AiGatewayController {
     public record TranslateRequest(
             @JsonProperty("order_id") @NotNull Long orderId,
             @JsonProperty("source_text") @NotBlank String sourceText) {
+    }
+
+    public record FaqRequest(
+            @NotBlank String question,
+            String category) {
+    }
+
+    public record ProductRecommendationRequest(
+            @JsonProperty("clinic_id") Long clinicId,
+            @JsonProperty("case_note") String caseNote) {
     }
 
     public record OrderOnlyRequest(@JsonProperty("order_id") @NotNull Long orderId) {

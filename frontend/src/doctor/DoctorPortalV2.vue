@@ -1612,12 +1612,46 @@ async function askAssistant() {
   try {
     const contextOrder = (dataset.value?.orders ?? []).find((order) => question.includes(order.order_no) || question.includes(order.patient_code))
       ?? (dataset.value?.orders ?? []).find((order) => order.external_status !== 'DRAFT')
-    const response = await gateway.askAssistant(question, contextOrder?.order_id)
+    if (!contextOrder) {
+      // 问题定位不到订单时兜底转 AI-6 常见问题，而不是直接报「请选择订单」。
+      await answerWithFaq(question)
+      return
+    }
+    const response = await gateway.askAssistant(question, contextOrder.order_id)
     assistantMessages.value.push({ role: 'ASSISTANT', content: response.answer, orderIds: response.orderIds })
   } catch (cause) {
     assistantMessages.value.push({ role: 'ASSISTANT', content: cause instanceof Error ? cause.message : '查询暂时不可用' })
   } finally {
     assistantLoading.value = false
+  }
+}
+
+async function askFaq(question: string) {
+  const trimmed = question.trim()
+  if (!trimmed) return
+  assistantMessages.value.push({ role: 'SELF', content: trimmed })
+  assistantQuestion.value = ''
+  assistantLoading.value = true
+  try {
+    await answerWithFaq(trimmed)
+  } finally {
+    assistantLoading.value = false
+  }
+}
+
+async function answerWithFaq(question: string) {
+  try {
+    const faq = await gateway.askFaq(question)
+    const suffix = faq.requiresCustomerConfirmation
+      ? '\n\n（以上内容引自常见问题库的示例语料，待甲方确认）'
+      : ''
+    assistantMessages.value.push({ role: 'ASSISTANT', content: faq.answer + suffix, orderIds: [] })
+  } catch (cause) {
+    assistantMessages.value.push({
+      role: 'ASSISTANT',
+      content: cause instanceof Error ? cause.message : '常见问题查询暂时不可用',
+      orderIds: []
+    })
   }
 }
 
@@ -2014,9 +2048,13 @@ onBeforeUnmount(() => window.removeEventListener('keydown', handleGlobalShortcut
 
           <section v-else-if="activePage === 'assistant'" class="dv2-assistant" data-testid="doctor-page-assistant">
             <div class="dv2-card dv2-assistant-card">
-              <header><span class="dv2-assistant-mark">✦</span><div><h2>订单助手</h2><p>可查询您当前身份有权查看的订单、账单、物流与消息信息</p></div></header>
+              <header><span class="dv2-assistant-mark">✦</span><div><h2>订单助手</h2><p>可查询您当前身份有权查看的订单、账单、物流与消息信息，也可以直接问下单流程、材料、交期等常见问题</p></div></header>
               <div class="dv2-assistant-suggestions">
                 <button v-for="question in ['哪些订单需要我处理？', '查看本周预计到期的订单', '有哪些账单待付款？']" :key="question" type="button" @click="assistantQuestion = question; askAssistant()">{{ question }}</button>
+              </div>
+              <div class="dv2-assistant-suggestions is-faq">
+                <span class="dv2-assistant-faq-label">常见问题</span>
+                <button v-for="question in ['下单需要提供哪些资料？', '口扫文件支持哪些格式？', '订单大概多久能做好？', '做出来不合适需要返工怎么办？']" :key="question" type="button" @click="askFaq(question)">{{ question }}</button>
               </div>
               <div class="dv2-chat-stream">
                 <article v-for="(message, index) in assistantMessages" :key="index" :class="{ self: message.role === 'SELF' }">

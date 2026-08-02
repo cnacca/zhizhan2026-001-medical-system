@@ -1419,6 +1419,18 @@
   background: #fff;
 }
 
+.dv2-assistant-suggestions.is-faq {
+  flex-wrap: wrap;
+  align-items: center;
+  background: #f8fafc;
+}
+
+.dv2-assistant-faq-label {
+  color: #64748b;
+  font-size: 9px;
+  font-weight: 700;
+}
+
 .dv2-chat-stream {
   min-height: 390px;
   max-height: 510px;
