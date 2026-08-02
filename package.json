@@ -168,7 +168,7 @@
     "check:toolchain": "scripts/check-toolchain.sh",
     "compose:config": "docker compose config",
     "compose:phase-one:config": "docker compose -f deploy/docker-compose.phase-one.yml --env-file deploy/env/phase-one.prod.example config",
-    "compose:up": "docker compose up -d mysql redis minio",
+    "compose:up": "docker compose up -d --wait mysql redis minio",
     "dev:backend": "scripts/with-jdk21.sh mvn -f backend/pom.xml -pl platform-server -am -DskipTests install && scripts/with-jdk21.sh mvn -f backend/platform-server/pom.xml spring-boot:run",
     "dev:frontend": "pnpm --filter ai-order-platform-frontend dev",
     "install:frontend": "pnpm install",
