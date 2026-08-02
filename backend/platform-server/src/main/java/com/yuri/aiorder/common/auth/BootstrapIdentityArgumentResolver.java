@@ -13,6 +13,12 @@ import org.springframework.web.server.ResponseStatusException;
 @Component
 public class BootstrapIdentityArgumentResolver implements HandlerMethodArgumentResolver {
 
+    private final BootstrapIdentityFactory identityFactory;
+
+    public BootstrapIdentityArgumentResolver(BootstrapIdentityFactory identityFactory) {
+        this.identityFactory = identityFactory;
+    }
+
     @Override
     public boolean supportsParameter(MethodParameter parameter) {
         return BootstrapIdentity.class.equals(parameter.getParameterType());
@@ -24,7 +30,7 @@ public class BootstrapIdentityArgumentResolver implements HandlerMethodArgumentR
             ModelAndViewContainer mavContainer,
             NativeWebRequest webRequest,
             WebDataBinderFactory binderFactory) {
-        return BootstrapIdentity.fromHeaders(
+        return identityFactory.resolve(
                 webRequest.getHeader("X-Bootstrap-Role"),
                 parseLongHeader(webRequest.getHeader("X-Bootstrap-User-Id")),
                 parseLongHeader(webRequest.getHeader("X-Bootstrap-Clinic-Id")));

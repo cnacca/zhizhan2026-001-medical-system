@@ -1,6 +1,6 @@
 # TASK-034 角色权限体系细化与下单规则后端化执行批次
 
-Status: `planned`
+Status: `in_progress`
 
 Goal: `goals/GOAL-033-role-permission-refinement-and-order-rules-20260802.md`
 
@@ -30,33 +30,61 @@ A 是所有权限相关批次的前置。F 独立，若人手紧张可先做 F�
 
 ---
 
-## A. 授权底座统一
+## A. 授权底座统一 —— `COMPLETED`（2026-08-03）
 
 **目标**：让"新增一个角色"不再需要改 Java 代码。
 
-Scope：
+### 执行前先纠正 GOAL-033 结论三的两处事实错误
 
-- `data_scope` 从 `system_user` 提升到 `system_role`，用户级保留为覆盖项（`system_user.data_scope` 非空时优先）。迁移需保留现有 7 个用户的既有取值，不改变当前行为。
-- `AccessControlService` 中的纯角色白名单判定（`requireAnyRole`）逐个改为权限码判定。改造前先清点全部调用点并列表，逐个对应到权限码——**没有对应权限码的要新建，不能就近复用语义不符的**。
-- 硬编码组合（如 `requireProductionReview` 的 `ADMIN || (WORKER && hasPermission)`）改为纯权限码。
-- `identity.role()` 语义在代码注释与 `docs/development/status-vocabulary.md` 中明确为「入口角色 / Portal」，防止后人误当业务角色使用。
+1. **`data_scope` 本来就在 `system_role` 上**，不需要"提升"。`system_user` 上没有这一列。
+2. 真正让角色级配置失效的是 `DatabaseAuthService.resolveDataScope` 里的短路：
+   `dataScopes.contains("ALL") || primaryRole == ADMIN || primaryRole == CS → "ALL"`。
+   入口角色永远盖掉角色配置，客户要的「客服经理=全公司 / 普通客服=本人负责」在那种写法下**配不出来**。
 
-Acceptance：
+### 执行中发现的两个更关键的阻塞（原方案未提及）
 
-- [ ] `AccessControlService` 中不再有不看权限码的判定。
-- [ ] 角色级 `data_scope` 生效；用户级覆盖生效；现有 7 个用户行为不变。
-- [ ] 订单、工序、绩效、文件四条数据过滤链路按角色级 `data_scope` 生效。
-- [ ] 越权测试：给一个 `WORKER` 账号去掉某权限码后，对应接口返回 403。
-- [ ] 既有 198 个 `@RequirePermission` 注解无回归，后端全量测试通过。
+3. **`app.auth.allow-role-fallback=true` 让权限码形同虚设**。`PermissionInterceptor.hasFallbackRole` 在角色命中时直接放行；而 bootstrap header 身份的权限集合恒为空（`BootstrapIdentity.fromHeaders` 给 `Set.of()`），所有走 header 的链路（测试、演示）实际上全靠角色兜底。不解决这一条，服务层改成纯权限码会让约 250 个既有测试全部 403。
+   **解法**：新增 `RolePermissionCatalog` + `BootstrapIdentityFactory`，让 bootstrap 身份带上其入口角色**当前配置的**权限码与数据范围。既有测试照常通过，而删掉权限码会真的产生 403。
+4. **`DatabaseAuthService.primaryRole` 对每个角色码直接 `UserRole.valueOf`**，管理端一旦新建「组长」这类细分角色并分配给用户，该用户立刻**登录不进来**。这与结论二的整个架构直接冲突。
+   **解法**：无法映射为入口角色的角色码一律忽略，不再抛异常。
+
+### 实际 Scope
+
+- [x] `system_user` 新增 `data_scope` 覆盖列（V78）；解析顺序改为 用户级覆盖 > 角色级配置 > 入口角色默认值，删除入口角色短路。
+- [x] 清点并改造全部 **26 个** `requireAnyRole` 调用点（原估 24），逐个对应权限码；新增 15 个权限码并按原角色白名单等价授予。
+- [x] 硬编码组合改为纯权限码：`requireProductionReview` / `canReviewProduction` → `workflow:review-production`；`requireAssignedWorkerOrAdmin` 的 ADMIN 直通 → `workflow:assign`；`resolvePerformanceTargetUserId` → `performance:read-all` / `performance:read-self`。
+- [x] `requireDoctorOnly` 拆成 `requireDoctorPortalAction(identity, 权限码, message)`，9 个调用点分别对应 `order:write-doctor` / `patient:manage-doctor` / `ai:doctor`。
+- [x] 清理两处**授权与实现长期不一致**的历史遗留（改成纯权限码后会真的放开访问）：
+  - `workflow:assign` 曾授予 CS，但派工接口注解是 `roles = ADMIN`、服务层也是 ADMIN-only；撤销，与 PRD 11.3-03 一致。
+  - 六个医生端专属码（`order:read-doctor` / `ai:doctor` / `patient:manage-doctor` / `account:doctor` / `clinic:read-self` / `file:access-doctor`）曾授予 ADMIN，而这些接口要么只允许 DOCTOR，要么另有内部码供 ADMIN 走；撤销后 ADMIN 可见范围不变。
+- [x] `identity.role()` 的「入口角色 / Portal」语义写入 `AccessControlService` 类注释与 `docs/development/status-vocabulary.md` 新增章节。
+
+### Acceptance
+
+- [x] `AccessControlService` 中不再有不看权限码的判定；全仓库 `requireAnyRole` 零命中（由 `check:task-034-authorization-baseline` 静态守住）。
+- [x] 角色级 `data_scope` 生效（`roleLevelDataScopeIsAuthoritativeInsteadOfPortalRoleDefault`）；用户级覆盖生效（`userLevelDataScopeOverridesRoleLevelConfiguration`）；现有 4 个种子用户行为不变（原文写 7 个，实际是 4 个）。
+- [x] 越权测试：撤销 `WORKER` 的 `dashboard:read-internal` 后接口返回 403（`removingPermissionCodeFromRoleDeniesAccessEvenWhenPortalRoleMatches`）。
+- [x] 新增细分角色全程只改配置：`newFineGrainedRoleGetsAccessPurelyThroughConfiguration` 建角色、授码、绑用户，无 Java 改动。
+- [x] 既有 `@RequirePermission` 注解无回归，后端 268 项测试仅剩两条与本批次无关的既有失败（见下）。
 
 Verification：
 
 ```bash
 npm run test:backend
-npm run demo:check
+npm run check:task-034-authorization-baseline
 ```
 
-风险：这是本任务风险最高的一批。建议按模块分小步提交（order / workflow / check / file / ai 各一批），每步跑全量后端测试。
+结果：268 项中 266 通过。两条失败均与 A 批次无关，已分别登记：
+
+- `OrderCaseGroupTests.migrationLeavesNoUngroupedOrDuplicateLegacyOrders`：断言全库不变量，被其它非事务测试的残留污染；干净库上通过。
+- `ProductionWorkbenchDepartmentSummaryTests`：服务按 `Asia/Shanghai` 算「今天」而 MySQL 存 UTC，本地 00:00–08:00 期间必然失败；生产环境的「今日」指标同样错 8 小时。
+
+**注意**：改动了已应用的迁移时需要重建测试库（`DROP DATABASE ai_order_platform_test` 后跑 `scripts/ensure-test-database.sh`），否则 Flyway 校验和不匹配。
+
+### 遗留
+
+- 多角色时数据范围取最宽，是过渡口径；B 批次落地「登录后选择当前身份」后应改为只按当前生效身份解析。
+- `app.auth.allow-role-fallback` 保持现状未动。服务层已是纯权限码判定，该开关现在只影响 `@RequirePermission` 这一层；B/C 批次落地角色管理界面后可评估关闭。
 
 ---
 

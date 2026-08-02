@@ -45,7 +45,8 @@ public class OrderCreationService {
 
     @Transactional
     public CreateOrderResponse createOrder(CreateOrderRequest request, BootstrapIdentity identity) {
-        accessControlService.requireDoctorOnly(identity, "only doctors can create orders");
+        accessControlService.requireDoctorPortalAction(
+                identity, "order:write-doctor", "only doctors can create orders");
         accessControlService.requireScopedIdentity(identity, "CLINIC");
         ensureClinicCanOrder(identity.clinicId());
 
@@ -111,7 +112,8 @@ public class OrderCreationService {
 
     @Transactional
     public CreateOrderResponse updateDoctorOrder(long orderId, UpdateOrderRequest request, BootstrapIdentity identity) {
-        accessControlService.requireDoctorOnly(identity, "only doctors can update orders");
+        accessControlService.requireDoctorPortalAction(
+                identity, "order:write-doctor", "only doctors can update orders");
         accessControlService.requireScopedIdentity(identity, "CLINIC");
         ensureClinicCanOrder(identity.clinicId());
 

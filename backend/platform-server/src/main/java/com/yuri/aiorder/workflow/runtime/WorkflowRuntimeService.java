@@ -398,10 +398,10 @@ public class WorkflowRuntimeService {
             long nodeInstanceId,
             BusinessGateActionRequest request,
             BootstrapIdentity identity) {
-        accessControlService.requireAnyRole(
+        accessControlService.requirePermission(
                 identity,
-                EnumSet.of(UserRole.ADMIN, UserRole.CS),
-                "business gate completion requires CS or ADMIN role");
+                "workflow:operate-business-gate",
+                "business gate completion requires workflow:operate-business-gate");
         NodeRow node = lockNode(nodeInstanceId);
         if (node.orderId() != orderId) {
             throw new ResponseStatusException(HttpStatus.NOT_FOUND, "process node does not belong to this order");
@@ -510,8 +510,8 @@ public class WorkflowRuntimeService {
     }
 
     public List<MyTaskResponse> getMyTasks(BootstrapIdentity identity, String status, boolean finalOnly) {
-        accessControlService.requireAnyRole(
-                identity, EnumSet.of(UserRole.WORKER, UserRole.ADMIN), "tasks/mine requires WORKER or ADMIN role");
+        accessControlService.requirePermission(
+                identity, "workflow:operate-assigned", "tasks/mine requires workflow:operate-assigned");
         if (identity.userId() == null) {
             throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "worker user id is required");
         }

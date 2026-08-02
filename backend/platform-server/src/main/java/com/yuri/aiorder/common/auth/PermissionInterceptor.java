@@ -17,9 +17,11 @@ import org.springframework.web.servlet.HandlerInterceptor;
 public class PermissionInterceptor implements HandlerInterceptor {
 
     private final AuthProperties properties;
+    private final BootstrapIdentityFactory identityFactory;
 
-    public PermissionInterceptor(AuthProperties properties) {
+    public PermissionInterceptor(AuthProperties properties, BootstrapIdentityFactory identityFactory) {
         this.properties = properties;
+        this.identityFactory = identityFactory;
     }
 
     @Override
@@ -51,7 +53,7 @@ public class PermissionInterceptor implements HandlerInterceptor {
         if (identity != null) {
             return identity;
         }
-        return BootstrapIdentity.fromHeaders(
+        return identityFactory.resolve(
                 request.getHeader("X-Bootstrap-Role"),
                 parseLongHeader(request.getHeader("X-Bootstrap-User-Id")),
                 parseLongHeader(request.getHeader("X-Bootstrap-Clinic-Id")));

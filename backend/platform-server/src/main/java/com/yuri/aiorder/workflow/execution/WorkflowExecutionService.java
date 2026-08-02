@@ -1029,7 +1029,7 @@ public class WorkflowExecutionService {
     @Transactional
     public ProductionEquipmentEventResponse decideProductionEquipmentApproval(
             long eventId, ProductionEquipmentApprovalRequest request, BootstrapIdentity identity) {
-        requireAdmin(identity, "equipment approval requires ADMIN role");
+        requirePermission(identity, "production:equipment:approve", "equipment approval requires production:equipment:approve");
         String decision = normalizeRequired(request.decision(), "decision").toUpperCase(Locale.ROOT);
         if (!Set.of("APPROVED", "REJECTED").contains(decision)) {
             throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "unsupported equipment approval decision");
@@ -1564,7 +1564,7 @@ public class WorkflowExecutionService {
     @Transactional
     public ProductionCostRecordResponse updateProductionCostRecordStatus(
             String costNo, ProductionCostStatusRequest request, BootstrapIdentity identity) {
-        requireAdmin(identity, "cost confirmation requires ADMIN role");
+        requirePermission(identity, "production:cost:confirm", "cost confirmation requires production:cost:confirm");
         String normalizedCostNo = normalizeCostNo(costNo);
         String normalizedStatus = normalizeProductionCostStatus(request.status());
         int updated = jdbcClient.sql("""
@@ -2757,38 +2757,32 @@ public class WorkflowExecutionService {
     }
 
     private void requireProductionEquipmentWrite(BootstrapIdentity identity) {
-        accessControlService.requireAnyRole(
-                identity, Set.of(com.yuri.aiorder.common.UserRole.ADMIN, com.yuri.aiorder.common.UserRole.WORKER),
-                "production equipment write requires ADMIN or WORKER role");
+        accessControlService.requirePermission(
+                identity, "production:equipment:write", "production equipment write requires production:equipment:write");
     }
 
-    private void requireAdmin(BootstrapIdentity identity, String message) {
-        accessControlService.requireAnyRole(
-                identity, Set.of(com.yuri.aiorder.common.UserRole.ADMIN), message);
+    private void requirePermission(BootstrapIdentity identity, String permissionCode, String message) {
+        accessControlService.requirePermission(identity, permissionCode, message);
     }
 
     private void requireProductionMaterialExceptionWrite(BootstrapIdentity identity) {
-        accessControlService.requireAnyRole(
-                identity, Set.of(com.yuri.aiorder.common.UserRole.ADMIN, com.yuri.aiorder.common.UserRole.WORKER),
-                "production material exception write requires ADMIN or WORKER role");
+        accessControlService.requirePermission(
+                identity, "production:material:write", "production material exception write requires production:material:write");
     }
 
     private void requireProductionSafetyEnvironmentWrite(BootstrapIdentity identity) {
-        accessControlService.requireAnyRole(
-                identity, Set.of(com.yuri.aiorder.common.UserRole.ADMIN, com.yuri.aiorder.common.UserRole.WORKER),
-                "production safety environment write requires ADMIN or WORKER role");
+        accessControlService.requirePermission(
+                identity, "production:safety:write", "production safety environment write requires production:safety:write");
     }
 
     private void requireProductionCostWrite(BootstrapIdentity identity) {
-        accessControlService.requireAnyRole(
-                identity, Set.of(com.yuri.aiorder.common.UserRole.ADMIN, com.yuri.aiorder.common.UserRole.WORKER),
-                "production cost write requires ADMIN or WORKER role");
+        accessControlService.requirePermission(
+                identity, "production:cost:write", "production cost write requires production:cost:write");
     }
 
     private void requireProductionRewardPenaltyWrite(BootstrapIdentity identity) {
-        accessControlService.requireAnyRole(
-                identity, Set.of(com.yuri.aiorder.common.UserRole.ADMIN, com.yuri.aiorder.common.UserRole.WORKER),
-                "production reward penalty write requires ADMIN or WORKER role");
+        accessControlService.requirePermission(
+                identity, "production:reward-penalty:write", "production reward penalty write requires production:reward-penalty:write");
     }
 
     private EquipmentInput normalizeProductionEquipment(ProductionEquipmentRequest request) {

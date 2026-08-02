@@ -68,7 +68,7 @@ public class ClinicService {
 
     @Transactional
     public ClinicResponse createClinic(CreateClinicRequest request, BootstrapIdentity identity) {
-        accessControlService.requireAnyRole(identity, Set.of(UserRole.ADMIN), "clinic creation requires ADMIN role");
+        accessControlService.requirePermission(identity, "clinic:create", "clinic creation requires clinic:create");
         String clinicName = normalizeRequired(request.clinicName(), "clinic_name is required");
         String requestedCode = normalizeClinicCode(request.clinicCode());
         String temporaryCode = requestedCode == null
@@ -156,8 +156,8 @@ public class ClinicService {
     }
 
     private void requireInternalCustomerAccess(BootstrapIdentity identity) {
-        accessControlService.requireAnyRole(
-                identity, Set.of(UserRole.CS, UserRole.ADMIN), "clinic management requires CS or ADMIN role");
+        accessControlService.requirePermission(
+                identity, "clinic:manage", "clinic management requires clinic:manage");
     }
 
     private void requireClinicAccess(BootstrapIdentity identity, long clinicId) {

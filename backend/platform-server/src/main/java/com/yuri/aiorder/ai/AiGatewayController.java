@@ -113,19 +113,19 @@ public class AiGatewayController {
     }
 
     @GetMapping("/ai/governance/summary")
-    @RequirePermission(value = "ai:cs", roles = {UserRole.ADMIN, UserRole.CS})
+    @RequirePermission(value = "ai:governance:read", roles = {UserRole.ADMIN, UserRole.CS})
     public DataResponse<AiGovernanceSummaryResponse> governanceSummary(BootstrapIdentity identity) {
         return new DataResponse<>(aiGatewayService.governanceSummary(identity));
     }
 
     @GetMapping("/ai/governance/local-hardening")
-    @RequirePermission(value = "ai:cs", roles = {UserRole.ADMIN, UserRole.CS})
+    @RequirePermission(value = "ai:governance:read", roles = {UserRole.ADMIN, UserRole.CS})
     public DataResponse<AiGovernanceLocalHardeningResponse> governanceLocalHardening(BootstrapIdentity identity) {
         return new DataResponse<>(aiGatewayService.governanceLocalHardening(identity));
     }
 
     @GetMapping("/ai/governance/cost-trend")
-    @RequirePermission(value = "ai:cs", roles = {UserRole.ADMIN, UserRole.CS})
+    @RequirePermission(value = "ai:governance:read", roles = {UserRole.ADMIN, UserRole.CS})
     public DataResponse<AiGovernanceCostTrendResponse> governanceCostTrend(
             @RequestParam(defaultValue = "7") int days,
             BootstrapIdentity identity) {
@@ -133,13 +133,13 @@ public class AiGatewayController {
     }
 
     @GetMapping("/ai/governance/external-alerts/summary")
-    @RequirePermission(value = "ai:cs", roles = {UserRole.ADMIN, UserRole.CS})
+    @RequirePermission(value = "ai:governance:read", roles = {UserRole.ADMIN, UserRole.CS})
     public DataResponse<AiExternalAlertSummaryResponse> externalAlertSummary(BootstrapIdentity identity) {
         return new DataResponse<>(aiGatewayService.externalAlertSummary(identity));
     }
 
     @GetMapping("/ai/governance/external-alerts")
-    @RequirePermission(value = "ai:cs", roles = {UserRole.ADMIN, UserRole.CS})
+    @RequirePermission(value = "ai:governance:read", roles = {UserRole.ADMIN, UserRole.CS})
     public DataResponse<AiExternalAlertListResponse> externalAlerts(
             @RequestParam(name = "send_status", required = false) String sendStatus,
             @RequestParam(name = "event_type", required = false) String eventType,

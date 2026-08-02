@@ -99,6 +99,35 @@ InternalOrderStatus  ──投影──▶  ExternalOrderStatus  ──前端 st
 | `seed-doctor-portal-demo-data.sql` 订单 `ORD20260718-1002` | `external_status = 'NEEDS_INFO'` | `NEEDS_INFO` 不在 `ExternalOrderStatus` 中，是医生 UI 层词汇。「待补资料」的正确来源应是 `current_action = SUPPLEMENT_REQUIRED` |
 | 同上 订单 `DRAFT-20260718-08` | `external_status = 'DRAFT'` | `DRAFT` 不在 `ExternalOrderStatus` 中；`InternalOrderStatus.DRAFT.externalStatus()` 会抛异常。但该列 NOT NULL 且默认 `PENDING_REVIEW`，草稿订单的对外状态该填什么需要明确 |
 
+## 角色与权限：`UserRole` 是「入口角色 / Portal」，不是业务角色
+
+权威定义：`backend/platform-server/src/main/java/com/yuri/aiorder/common/UserRole.java`
+
+`UserRole` 只有 `DOCTOR / CS / WORKER / ADMIN` 四个值，语义是**从哪个端登录**。它决定两件事，仅此两件：
+
+1. 登录入口匹配（账号角色与入口不符时拒绝登录）；
+2. 身份未携带数据范围时的默认值兜底。
+
+客户 2026-07-24 确认的约 20 个细分角色（客服经理、普通客服、翻译人员、收货人员、发货人员、生产经理、部门主管、组长、技工、质检员、终检员……）**一律是 `system_role` 记录 + 权限码集合 + 数据范围，不进入这个枚举**。
+
+因此有三条规矩：
+
+1. **不要用 `identity.role()` 做业务权限判定**。新增细分角色时那种判定不会生效——新角色的入口角色仍是那四个值之一，却拿不到只对特定角色开放的入口。业务判定一律用 `accessControlService.requirePermission(...)` / `requireAnyPermission(...)`。
+2. **权限码授予必须与实现一致**。TASK-034 A 批次清理过两处历史不一致：`workflow:assign` 曾授予 CS、六个医生端专属码曾授予 ADMIN，而实现层一直把它们挡在外面。改成纯权限码判定后，这类"看着无害"的多余授权会真的放开访问。新增授权时按接口注解和服务层实际判定核对。
+3. **角色码不是枚举值**。`DatabaseAuthService.primaryRole` 会忽略无法映射到 `UserRole` 的角色码；不要恢复成 `UserRole.valueOf` 直取，否则管理端一新建细分角色，被分配到该角色的用户就登录不进来。
+
+数据范围解析顺序（`DatabaseAuthService.resolveDataScope`）：
+
+```
+system_user.data_scope（用户级覆盖，可空）
+      ▼ 为空时
+system_role.data_scope（角色级配置，NOT NULL；多角色取最宽）
+      ▼ 身份完全未携带时（例如 bootstrap header）
+入口角色默认值：ADMIN/CS → ALL，DOCTOR → CLINIC，WORKER → SELF
+```
+
+「多角色取最宽」是过渡口径。TASK-034 B 批次落地「登录后选择当前身份」后，应改为只按当前生效身份解析。
+
 ## 改动这些值时的规矩
 
 1. **先确认改的是哪个域**。同名不代表同义。

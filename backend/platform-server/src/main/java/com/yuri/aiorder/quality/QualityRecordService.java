@@ -40,8 +40,8 @@ public class QualityRecordService {
             Long orderId,
             int page,
             int size) {
-        accessControlService.requireAnyRole(
-                identity, java.util.EnumSet.of(UserRole.ADMIN, UserRole.CS, UserRole.WORKER), "quality records are internal only");
+        accessControlService.requirePermission(
+                identity, "check:read-internal", "quality records are internal only");
         int safePage = Math.max(page, 1);
         int safeSize = Math.max(1, Math.min(size, 100));
         int offset = (safePage - 1) * safeSize;
@@ -133,8 +133,8 @@ public class QualityRecordService {
     @Transactional
     public QualityRecordResponse createExternalReturn(
             BootstrapIdentity identity, ExternalReturnQualityRecordRequest request) {
-        accessControlService.requireAnyRole(
-                identity, java.util.EnumSet.of(UserRole.ADMIN, UserRole.CS), "external return registration is CS/ADMIN only");
+        accessControlService.requirePermission(
+                identity, "quality:external-return:manage", "external return registration requires quality:external-return:manage");
         if (request.orderId() == null) {
             throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "order_id is required");
         }
@@ -195,8 +195,8 @@ public class QualityRecordService {
     @Transactional
     public QualityRecordResponse updateStatus(
             BootstrapIdentity identity, long qualityRecordId, QualityRecordStatusUpdateRequest request) {
-        accessControlService.requireAnyRole(
-                identity, java.util.EnumSet.of(UserRole.ADMIN, UserRole.CS), "quality record status is internal only");
+        accessControlService.requirePermission(
+                identity, "quality:record:manage", "quality record status requires quality:record:manage");
         String status = normalizeRequired(request.status(), "status");
         if (!QUALITY_RECORD_STATUSES.contains(status)) {
             throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "unsupported quality record status");

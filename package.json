@@ -183,6 +183,7 @@
     "check:customer-dashboard-attention": "node scripts/check-customer-dashboard-attention.mjs",
     "check:goal-034-dashboard-metrics": "node scripts/check-goal-034-dashboard-metrics.mjs",
     "check:goal-034-ai-knowledge": "node scripts/check-goal-034-ai-knowledge.mjs",
+    "check:task-034-authorization-baseline": "node scripts/check-task-034-authorization-baseline.mjs",
     "check:local-runtime": "node scripts/check-local-runtime.mjs",
     "check:environment-runtime": "node scripts/check-environment-runtime.mjs",
     "env:start": "bash scripts/environment-runtime.sh start",

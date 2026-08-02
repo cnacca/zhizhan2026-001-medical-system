@@ -76,12 +76,6 @@ public class AiGatewayService {
     private static final int PRODUCT_RECOMMENDATION_LIMIT = 3;
     private static final int PRODUCT_CANDIDATE_LIMIT = 30;
     private static final String RECOMMENDED_IDS_MARKER = "RECOMMENDED_IDS:";
-    private static final Set<UserRole> CS_AND_ADMIN = EnumSet.of(UserRole.CS, UserRole.ADMIN);
-    private static final Set<UserRole> FAQ_ROLES = EnumSet.of(UserRole.DOCTOR, UserRole.CS, UserRole.ADMIN);
-    private static final Set<UserRole> PRODUCT_RECOMMENDATION_ROLES =
-            EnumSet.of(UserRole.DOCTOR, UserRole.CS, UserRole.ADMIN);
-    private static final Set<UserRole> CHECK_MISSING_ROLES = EnumSet.of(UserRole.DOCTOR, UserRole.CS, UserRole.ADMIN);
-    private static final Set<UserRole> PRODUCTION_NOTE_ROLES = EnumSet.of(UserRole.CS, UserRole.WORKER, UserRole.ADMIN);
     private static final List<String> OUTPUT_GUARD_PATTERNS = List.of(
             "deepseek_api_key",
             "app_auth_token_secret",
@@ -133,7 +127,7 @@ public class AiGatewayService {
 
     @Transactional
     public String translate(long orderId, String sourceText, BootstrapIdentity identity) {
-        accessControlService.requireAnyRole(identity, CS_AND_ADMIN, "AI-1 is CS/ADMIN only");
+        accessControlService.requirePermission(identity, "ai:cs", "AI-1 requires ai:cs");
         OrderAiContext context = loadOrderContext(orderId, identity, "identity cannot access this order");
         enforceAiRateLimit(orderId, identity, "AI_TRANSLATE", "ORDER_TRANSLATION_DRAFT", sourceText);
         AiModelResult answer = completeWithModel(
@@ -155,7 +149,7 @@ public class AiGatewayService {
 
     @Transactional
     public CsQueryResult csQuery(long orderId, String question, BootstrapIdentity identity) {
-        accessControlService.requireAnyRole(identity, CS_AND_ADMIN, "AI-2 is CS/ADMIN only");
+        accessControlService.requirePermission(identity, "ai:cs", "AI-2 requires ai:cs");
         OrderAiContext context = loadOrderContext(orderId, identity, "identity cannot access this order");
         List<String> referenceDataNotes = buildCsReferenceDataNotes(context);
         List<CsAttachmentContext> attachmentContexts = buildCsAttachmentContexts(context.orderId(), identity);
@@ -196,7 +190,7 @@ public class AiGatewayService {
 
     @Transactional
     public String orderQuery(long orderId, String question, BootstrapIdentity identity) {
-        accessControlService.requireDoctorOnly(identity, "AI-3 is doctor only");
+        accessControlService.requireDoctorPortalAction(identity, "ai:doctor", "AI-3 requires ai:doctor");
         DoctorOrderAssistantReadModel readModel = orderProjectionQueryService.getAssistantReadModel(orderId, identity);
         boolean internalQuestion = asksForInternalData(question);
         String answer;
@@ -242,7 +236,7 @@ public class AiGatewayService {
      */
     @Transactional
     public AiFaqResponse faq(String question, String category, BootstrapIdentity identity) {
-        accessControlService.requireAnyRole(identity, FAQ_ROLES, "AI-6 is DOCTOR/CS/ADMIN only");
+        accessControlService.requireAnyPermission(identity, "AI-6 requires ai:doctor or ai:cs", "ai:doctor", "ai:cs");
         String normalizedQuestion = question == null ? "" : question.trim();
         if (normalizedQuestion.isEmpty()) {
             throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "question is required");
@@ -299,8 +293,8 @@ public class AiGatewayService {
     @Transactional
     public AiProductRecommendationResponse recommendProducts(
             Long clinicId, String caseNote, BootstrapIdentity identity) {
-        accessControlService.requireAnyRole(
-                identity, PRODUCT_RECOMMENDATION_ROLES, "AI-7 is DOCTOR/CS/ADMIN only");
+        accessControlService.requireAnyPermission(
+                identity, "AI-7 requires ai:doctor or ai:cs", "ai:doctor", "ai:cs");
         Long targetClinicId = identity.role() == UserRole.DOCTOR ? identity.clinicId() : clinicId;
         if (identity.role() == UserRole.DOCTOR && targetClinicId == null) {
             throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "clinic id is required for doctor recommendation");
@@ -363,7 +357,7 @@ public class AiGatewayService {
 
     @Transactional
     public MissingInfoResponse checkMissing(long orderId, BootstrapIdentity identity) {
-        accessControlService.requireAnyRole(identity, CHECK_MISSING_ROLES, "AI-4 is DOCTOR/CS/ADMIN only");
+        accessControlService.requireAnyPermission(identity, "AI-4 requires ai:doctor or ai:cs", "ai:doctor", "ai:cs");
         OrderAiContext context = loadOrderContext(orderId, identity, "doctor cannot access this order");
 
         JsonNode formData = orderProjectionQueryService.getNormalizedFormData(orderId, identity);
@@ -385,7 +379,7 @@ public class AiGatewayService {
 
     @Transactional
     public ProductionNoteDraftResult productionNote(long orderId, BootstrapIdentity identity) {
-        accessControlService.requireAnyRole(identity, PRODUCTION_NOTE_ROLES, "AI-5 is CS/WORKER/ADMIN only");
+        accessControlService.requireAnyPermission(identity, "AI-5 requires ai:production or ai:cs", "ai:production", "ai:cs");
         OrderAiContext context = loadOrderContext(orderId, identity, "identity cannot access this order");
         JsonNode normalizedFormData = orderProjectionQueryService.getNormalizedFormData(orderId, identity);
         List<String> knowledgeContextNotes = buildProductionNoteKnowledgeContextNotes(context);
@@ -422,7 +416,7 @@ public class AiGatewayService {
             String draftNote,
             String confirmationNote,
             BootstrapIdentity identity) {
-        accessControlService.requireAnyRole(identity, PRODUCTION_NOTE_ROLES, "AI-5 confirmation is CS/WORKER/ADMIN only");
+        accessControlService.requireAnyPermission(identity, "AI-5 confirmation requires ai:production or ai:cs", "ai:production", "ai:cs");
         OrderAiContext context = loadOrderContext(orderId, identity, "identity cannot access this order");
         String trimmedDraft = draftNote == null ? "" : draftNote.trim();
         if (trimmedDraft.isBlank()) {
@@ -446,7 +440,7 @@ public class AiGatewayService {
 
     @Transactional(readOnly = true)
     public AiGovernanceSummaryResponse governanceSummary(BootstrapIdentity identity) {
-        accessControlService.requireAnyRole(identity, CS_AND_ADMIN, "AI governance summary is CS/ADMIN only");
+        accessControlService.requirePermission(identity, "ai:governance:read", "AI governance summary requires ai:governance:read");
         long dailyBudgetMicrousd = Math.max(0, properties.getDailyBudgetMicrousd());
         return jdbcClient.sql("""
                         SELECT
@@ -481,7 +475,7 @@ public class AiGatewayService {
 
     @Transactional(readOnly = true)
     public AiGovernanceLocalHardeningResponse governanceLocalHardening(BootstrapIdentity identity) {
-        accessControlService.requireAnyRole(identity, CS_AND_ADMIN, "AI governance local hardening is CS/ADMIN only");
+        accessControlService.requirePermission(identity, "ai:governance:read", "AI governance local hardening requires ai:governance:read");
         return new AiGovernanceLocalHardeningResponse(
                 "GOAL-019",
                 "TASK-020",
@@ -519,7 +513,7 @@ public class AiGatewayService {
 
     @Transactional(readOnly = true)
     public AiGovernanceCostTrendResponse governanceCostTrend(BootstrapIdentity identity, int requestedDays) {
-        accessControlService.requireAnyRole(identity, CS_AND_ADMIN, "AI governance cost trend is CS/ADMIN only");
+        accessControlService.requirePermission(identity, "ai:governance:read", "AI governance cost trend requires ai:governance:read");
         int days = Math.max(1, Math.min(31, requestedDays));
         List<AiGovernanceCostTrendResponse.Point> points = jdbcClient.sql("""
                         SELECT
@@ -557,7 +551,7 @@ public class AiGatewayService {
 
     @Transactional(readOnly = true)
     public AiExternalAlertSummaryResponse externalAlertSummary(BootstrapIdentity identity) {
-        accessControlService.requireAnyRole(identity, CS_AND_ADMIN, "AI external alert summary is CS/ADMIN only");
+        accessControlService.requirePermission(identity, "ai:governance:read", "AI external alert summary requires ai:governance:read");
         List<AiExternalAlertSummaryResponse.StatusCount> statusCounts = jdbcClient.sql("""
                         SELECT send_status, COUNT(*) AS status_count
                         FROM ai_external_alert_outbox
@@ -614,7 +608,7 @@ public class AiGatewayService {
             String createdAtFrom,
             String createdAtTo,
             int requestedLimit) {
-        accessControlService.requireAnyRole(identity, CS_AND_ADMIN, "AI external alert list is CS/ADMIN only");
+        accessControlService.requirePermission(identity, "ai:governance:read", "AI external alert list requires ai:governance:read");
         int limit = Math.max(1, Math.min(100, requestedLimit));
         LocalDateTime from = parseNullableDateTime(createdAtFrom, "created_at_from");
         LocalDateTime to = parseNullableDateTime(createdAtTo, "created_at_to");

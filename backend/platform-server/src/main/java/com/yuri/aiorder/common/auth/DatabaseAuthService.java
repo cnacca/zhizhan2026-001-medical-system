@@ -5,6 +5,7 @@ import com.yuri.aiorder.common.UserRole;
 import java.util.Arrays;
 import java.util.Comparator;
 import java.util.List;
+import java.util.Locale;
 import java.util.Set;
 import java.util.stream.Collectors;
 import org.springframework.dao.EmptyResultDataAccessException;
@@ -43,7 +44,7 @@ public class DatabaseAuthService {
         List<String> roles = splitCsv(row.roleCodes());
         List<String> permissions = splitCsv(row.permissionCodes());
         UserRole primaryRole = primaryRole(roles);
-        String dataScope = resolveDataScope(primaryRole, splitCsv(row.dataScopes()));
+        String dataScope = resolveDataScope(primaryRole, row.userDataScope(), splitCsv(row.dataScopes()));
         BootstrapIdentity identity = new BootstrapIdentity(
                 primaryRole,
                 row.userId(),
@@ -78,6 +79,7 @@ public class DatabaseAuthService {
                                 u.username,
                                 u.password_hash,
                                 u.clinic_id,
+                                u.data_scope AS user_data_scope,
                                 GROUP_CONCAT(DISTINCT r.role_code ORDER BY r.role_code SEPARATOR ',') AS role_codes,
                                 GROUP_CONCAT(DISTINCT r.data_scope ORDER BY r.data_scope SEPARATOR ',') AS data_scopes,
                                 GROUP_CONCAT(DISTINCT p.permission_code ORDER BY p.permission_code SEPARATOR ',') AS permission_codes
@@ -106,7 +108,7 @@ public class DatabaseAuthService {
                             WHERE u.username = :username
                               AND u.status = 'ACTIVE'
                               AND r.status = 'ACTIVE'
-                            GROUP BY u.user_id, u.username, u.password_hash, u.clinic_id
+                            GROUP BY u.user_id, u.username, u.password_hash, u.clinic_id, u.data_scope
                             """)
                     .param("username", username)
                     .query((rs, rowNum) -> new UserAuthRow(
@@ -114,6 +116,7 @@ public class DatabaseAuthService {
                             rs.getString("username"),
                             rs.getString("password_hash"),
                             rs.getObject("clinic_id", Long.class),
+                            rs.getString("user_data_scope"),
                             rs.getString("role_codes"),
                             rs.getString("data_scopes"),
                             rs.getString("permission_codes")))
@@ -131,6 +134,7 @@ public class DatabaseAuthService {
                                 u.username,
                                 u.password_hash,
                                 u.clinic_id,
+                                u.data_scope AS user_data_scope,
                                 GROUP_CONCAT(DISTINCT r.role_code ORDER BY r.role_code SEPARATOR ',') AS role_codes,
                                 GROUP_CONCAT(DISTINCT r.data_scope ORDER BY r.data_scope SEPARATOR ',') AS data_scopes,
                                 GROUP_CONCAT(DISTINCT p.permission_code ORDER BY p.permission_code SEPARATOR ',') AS permission_codes
@@ -159,7 +163,7 @@ public class DatabaseAuthService {
                             WHERE u.user_id = :userId
                               AND u.status = 'ACTIVE'
                               AND r.status = 'ACTIVE'
-                            GROUP BY u.user_id, u.username, u.password_hash, u.clinic_id
+                            GROUP BY u.user_id, u.username, u.password_hash, u.clinic_id, u.data_scope
                             """)
                     .param("userId", userId)
                     .query((rs, rowNum) -> new UserAuthRow(
@@ -167,6 +171,7 @@ public class DatabaseAuthService {
                             rs.getString("username"),
                             rs.getString("password_hash"),
                             rs.getObject("clinic_id", Long.class),
+                            rs.getString("user_data_scope"),
                             rs.getString("role_codes"),
                             rs.getString("data_scopes"),
                             rs.getString("permission_codes")))
@@ -176,24 +181,69 @@ public class DatabaseAuthService {
         }
     }
 
+    /**
+     * 解析入口角色（Portal）。
+     *
+     * <p>只有与 {@link UserRole} 同名的角色码才是入口角色；客户确认的细分角色（组长、终检员、收货人员……）
+     * 是普通的 {@code system_role} 记录，会被忽略而不是让登录失败。
+     * 原实现对每个角色码直接 {@code UserRole.valueOf}，一旦管理端新建一个细分角色并分配给用户，
+     * 该用户就再也登录不进来——这与「新增角色不需要改 Java 代码」直接冲突。
+     */
     private UserRole primaryRole(List<String> roles) {
         return roles.stream()
-                .map(UserRole::valueOf)
+                .map(this::toPortalRole)
+                .filter(java.util.Objects::nonNull)
                 .min(Comparator.comparingInt(ROLE_PRIORITY::indexOf))
                 .orElseThrow(this::unauthorized);
     }
 
-    private String resolveDataScope(UserRole primaryRole, List<String> dataScopes) {
-        if (dataScopes.contains("ALL") || primaryRole == UserRole.ADMIN || primaryRole == UserRole.CS) {
+    private UserRole toPortalRole(String roleCode) {
+        try {
+            return UserRole.valueOf(roleCode);
+        } catch (IllegalArgumentException ex) {
+            return null;
+        }
+    }
+
+    /**
+     * 数据范围解析顺序：用户级覆盖 &gt; 角色级配置 &gt; 入口角色默认值。
+     *
+     * <p>此前的实现把「入口角色是 ADMIN / CS 就返回 ALL」写在最前面，角色级 {@code system_role.data_scope}
+     * 实际上永远被入口角色盖掉——客户要的「客服经理=全公司 / 普通客服=本人负责」在那种写法下无法配置出来。
+     * 现在只有当该用户的所有角色都没有配置数据范围时，才回落到入口角色默认值。
+     *
+     * <p>用户同时拥有多个角色时取其中最宽的范围。这是过渡口径：TASK-034 B 批次落地
+     * 「登录后选择当前身份」之后，这里应改为只按当前生效身份解析，届时不再存在多角色取并集的问题。
+     */
+    private String resolveDataScope(UserRole primaryRole, String userDataScope, List<String> dataScopes) {
+        String override = normalizeDataScope(userDataScope);
+        if (override != null) {
+            return override;
+        }
+        if (dataScopes.contains("ALL")) {
             return "ALL";
         }
-        if (dataScopes.contains("CLINIC") || primaryRole == UserRole.DOCTOR) {
+        if (dataScopes.contains("CLINIC")) {
             return "CLINIC";
         }
-        if (dataScopes.contains("SELF") || primaryRole == UserRole.WORKER) {
+        if (dataScopes.contains("SELF")) {
             return "SELF";
         }
-        return "NONE";
+        if (!dataScopes.isEmpty()) {
+            return "NONE";
+        }
+        return switch (primaryRole) {
+            case ADMIN, CS -> "ALL";
+            case DOCTOR -> "CLINIC";
+            case WORKER -> "SELF";
+        };
+    }
+
+    private String normalizeDataScope(String value) {
+        if (value == null || value.isBlank()) {
+            return null;
+        }
+        return value.trim().toUpperCase(Locale.ROOT);
     }
 
     private List<String> splitCsv(String csv) {
@@ -278,6 +328,7 @@ public class DatabaseAuthService {
             String username,
             String passwordHash,
             Long clinicId,
+            String userDataScope,
             String roleCodes,
             String dataScopes,
             String permissionCodes) {

@@ -1138,7 +1138,8 @@ public class CaseGroupDraftService {
     }
 
     private LockedGroup lockOwnedGroup(long groupId, BootstrapIdentity identity) {
-        accessControlService.requireDoctorOnly(identity, "only doctors can change case groups");
+        accessControlService.requireDoctorPortalAction(
+                identity, "order:write-doctor", "only doctors can change case groups");
         accessControlService.requireScopedIdentity(identity, "CLINIC");
         try {
             LockedGroup group = jdbcClient.sql("""

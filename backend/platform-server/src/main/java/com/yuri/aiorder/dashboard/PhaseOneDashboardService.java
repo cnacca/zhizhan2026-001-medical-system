@@ -42,8 +42,8 @@ public class PhaseOneDashboardService {
     }
 
     public PhaseOneDashboardResponse getPhaseOneAbDashboard(BootstrapIdentity identity) {
-        accessControlService.requireAnyRole(
-                identity, EnumSet.of(UserRole.ADMIN, UserRole.CS, UserRole.WORKER), "phase-one dashboard is internal only");
+        accessControlService.requirePermission(
+                identity, "dashboard:read-internal", "phase-one dashboard requires dashboard:read-internal");
         String dataScope = accessControlService.effectiveDataScope(identity);
         accessControlService.requireScopedIdentity(identity, dataScope);
 

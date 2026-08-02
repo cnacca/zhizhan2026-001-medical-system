@@ -45,7 +45,8 @@ class StrictPermissionModeTests {
                 8001L,
                 null,
                 null,
-                Set.of("ai:cs"),
+                // AI 治理接口的权限码在 TASK-034 A 批次中从 ai:cs 细化为 ai:governance:read。
+                Set.of("ai:governance:read"),
                 "ALL"));
 
         mockMvc.perform(get("/ai/governance/summary")

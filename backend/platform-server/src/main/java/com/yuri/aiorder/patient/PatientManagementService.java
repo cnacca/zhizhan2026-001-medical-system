@@ -26,7 +26,8 @@ public class PatientManagementService {
 
     @Transactional
     public PatientRecordResponse createPatient(CreatePatientRequest request, BootstrapIdentity identity) {
-        accessControlService.requireDoctorOnly(identity, "only doctors can manage patient records");
+        accessControlService.requireDoctorPortalAction(
+                identity, "patient:manage-doctor", "only doctors can manage patient records");
         accessControlService.requireScopedIdentity(identity, "CLINIC");
         String patientName = normalizeRequired(request.patientName(), "patient_name is required");
         String treatmentStatus = normalizeTreatmentStatus(request.treatmentStatus());
@@ -111,7 +112,8 @@ public class PatientManagementService {
 
     public OrderListResponse<PatientRecordResponse> listPatients(
             BootstrapIdentity identity, String keyword, int page, int size) {
-        accessControlService.requireDoctorOnly(identity, "only doctors can manage patient records");
+        accessControlService.requireDoctorPortalAction(
+                identity, "patient:manage-doctor", "only doctors can manage patient records");
         accessControlService.requireScopedIdentity(identity, "CLINIC");
         int safePage = Math.max(page, 1);
         int safeSize = Math.max(1, Math.min(size, 100));
@@ -190,7 +192,8 @@ public class PatientManagementService {
     }
 
     private PatientRecordResponse loadOwnedPatient(long patientId, BootstrapIdentity identity) {
-        accessControlService.requireDoctorOnly(identity, "only doctors can manage patient records");
+        accessControlService.requireDoctorPortalAction(
+                identity, "patient:manage-doctor", "only doctors can manage patient records");
         accessControlService.requireScopedIdentity(identity, "CLINIC");
         try {
             return jdbcClient.sql("""

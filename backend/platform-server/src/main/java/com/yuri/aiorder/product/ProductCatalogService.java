@@ -65,8 +65,8 @@ public class ProductCatalogService {
     }
 
     public List<DoctorProductCatalogResponse> listDoctorProducts(BootstrapIdentity identity) {
-        accessControlService.requireAnyRole(
-                identity, Set.of(UserRole.DOCTOR), "doctor product catalog requires doctor role");
+        accessControlService.requirePermission(
+                identity, "catalog:read-doctor", "doctor product catalog requires catalog:read-doctor");
         return jdbcClient.sql("""
                         SELECT product_id, product_type, product_name, material_spec
                         FROM product_catalog
@@ -146,8 +146,8 @@ public class ProductCatalogService {
     }
 
     private void requireProductManagement(BootstrapIdentity identity) {
-        accessControlService.requireAnyRole(
-                identity, Set.of(UserRole.CS, UserRole.ADMIN), "product management requires CS or ADMIN role");
+        accessControlService.requirePermission(
+                identity, "product:manage", "product management requires product:manage");
     }
 
     private ProductCatalogResponse loadProduct(long productId) {

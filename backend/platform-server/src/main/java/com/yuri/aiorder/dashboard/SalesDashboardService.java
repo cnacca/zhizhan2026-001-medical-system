@@ -39,8 +39,8 @@ public class SalesDashboardService {
     }
 
     public SalesDashboardResponse getSalesDashboard(BootstrapIdentity identity) {
-        accessControlService.requireAnyRole(
-                identity, EnumSet.of(UserRole.ADMIN, UserRole.CS), "sales dashboard is available to admin and cs only");
+        accessControlService.requirePermission(
+                identity, "dashboard:read-sales", "sales dashboard requires dashboard:read-sales");
         String dataScope = accessControlService.effectiveDataScope(identity);
         accessControlService.requireScopedIdentity(identity, dataScope);
 

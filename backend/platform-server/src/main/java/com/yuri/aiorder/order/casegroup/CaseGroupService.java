@@ -50,7 +50,8 @@ public class CaseGroupService {
 
     @Transactional
     public CaseGroupResponse createDraft(CreateCaseGroupRequest request, BootstrapIdentity identity) {
-        accessControlService.requireDoctorOnly(identity, "only doctors can create case groups");
+        accessControlService.requireDoctorPortalAction(
+                identity, "order:write-doctor", "only doctors can create case groups");
         accessControlService.requireScopedIdentity(identity, "CLINIC");
         ensureClinicCanOrder(identity.clinicId());
         requireOwnedPatient(request.patientId(), identity);
@@ -297,9 +298,9 @@ public class CaseGroupService {
             }
             return;
         }
-        accessControlService.requireAnyRole(
+        accessControlService.requirePermission(
                 identity,
-                Set.of(UserRole.ADMIN, UserRole.CS),
+                "order:read-case-group-internal",
                 "case group requires doctor ownership or internal order access");
     }
 

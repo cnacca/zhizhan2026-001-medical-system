@@ -871,7 +871,10 @@ class CheckWorklogPerformanceTests {
                 workerUserId,
                 null,
                 null,
-                Set.of("check:write", "check:read-internal", "final-inspection:manage"),
+                // A 批次后终检报告读取统一走权限码判定：内部读取用 workflow:read-internal，
+                // 「只能操作分配给本人的节点」用 workflow:operate-assigned。真实 WORKER 角色两者都已授予。
+                Set.of("check:write", "check:read-internal", "final-inspection:manage",
+                        "workflow:read-internal", "workflow:operate-assigned"),
                 "SELF"));
 
         mockMvc.perform(get("/final-inspection-reports/{orderId}", orderId)

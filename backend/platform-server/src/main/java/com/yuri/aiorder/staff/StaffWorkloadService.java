@@ -62,8 +62,8 @@ public class StaffWorkloadService {
             accessControlService.requireScopedIdentity(identity, "SELF");
             return;
         }
-        accessControlService.requireAnyRole(
-                identity, Set.of(UserRole.ADMIN, UserRole.CS), "staff workload requires internal role");
+        accessControlService.requirePermission(
+                identity, "staff:read-workload", "staff workload requires staff:read-workload");
     }
 
     private String staffWhereClause(BootstrapIdentity identity, String keyword) {

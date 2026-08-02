@@ -1,6 +1,6 @@
 # GOAL-033 角色权限体系细化与下单规则后端化
 
-Status: `planned`
+Status: `in_progress`
 
 Mode: `stage-goal`
 

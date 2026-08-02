@@ -588,8 +588,8 @@ public class ClinicManagementService {
     }
 
     private void requireManage(BootstrapIdentity identity) {
-        accessControlService.requireAnyRole(
-                identity, Set.of(UserRole.CS, UserRole.ADMIN), "customer management requires CS or ADMIN role");
+        accessControlService.requirePermission(
+                identity, "clinic:manage", "customer management requires clinic:manage");
     }
 
     private String normalizeClinicCode(String value) {
