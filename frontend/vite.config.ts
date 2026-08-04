@@ -54,6 +54,7 @@ export default defineConfig({
       '/rbac': backendProxy,
       '/ordering-rules': backendProxy,
       '/exports': backendProxy,
+      '/accounts': backendProxy,
       '/ws': {
         target: websocketTarget,
         ws: true,

@@ -1,6 +1,6 @@
 # TASK-034 角色权限体系细化与下单规则后端化执行批次
 
-Status: `in_progress`
+Status: `completed`（A~F 六个批次全部完成，2026-08-04）
 
 Goal: `goals/GOAL-033-role-permission-refinement-and-order-rules-20260802.md`
 
@@ -224,7 +224,7 @@ npm run build:frontend
 
 ---
 
-## D. 账号交接与人员转移
+## D. 账号交接与人员转移 —— `COMPLETED`（2026-08-04）
 
 **目标**：落地客户原话「有分配功能，把他账号分配给新同事，并保留之前得服务记录」。
 
@@ -235,14 +235,95 @@ Scope：
 - 医生端对应场景：转诊/离职时「所有资料、病例等转交给承接医生」。
 - 转移操作本身留痕：操作人、时间、原责任人、承接人、转移对象清单、原因。
 
-Acceptance：
+### 这一批的难点是分类，不是转移
 
-- [ ] 转移后新责任人能看到并处理相应对象。
-- [ ] 转移后查询历史记录，原责任人姓名仍出现在历史节点上。
-- [ ] 转移有完整审计记录。
-- [ ] 越权测试：非授权账号不能执行转移。
+客户那句话的后半段「**并保留之前得服务记录**」才是真正的约束。无脑把某个 user_id 全库替换掉，
+会把已完成工序的执行人、工时的归属人、质检与终检的检验人、返工的责任人一起改写。
+**那种改写不报错**——绩效照算，只是算到了别人头上，等到有人对不上账才发现，
+而那时已经无法区分哪些是交接改的、哪些本来就是。
 
-**注意**：这是客户新增需求，PRD V2 原 38 项中没有。需在验收矩阵中单列，不要混入原 38 项计数。
+因此先把全库 **78 个带用户 ID 的列**逐个判定，结果写进 `AccountHandoverPlan`：
+
+- **9 个是「当前负责关系」**，交接时转移：订单归属医生、订单受理客服、患者档案负责医生、
+  病例订单组、医生上传资料的归属、进行中的设计任务、未完成的工序任务、
+  未关闭返工的退回对象、设备责任人。
+- **其余全部是历史事实**，一个都不动。
+
+判定标准只有一条：这一列回答的是「**现在**归谁负责」，还是「**当时**是谁做的」。
+进行中的任务另加状态条件——已完成的工序即使有 `assigned_user_id`，那也是历史事实了。
+
+### 实际 Scope
+
+- [x] 两张表（V83）：`account_handover`（一次交接）+ `account_handover_item`（转移对象清单）。
+- [x] `AccountHandoverPlan` 承载分类结果；`AccountHandoverClassificationTests` 扫
+  `information_schema` 强制**每一个用户 ID 列都被显式分类**——以后新增一个列不分类就过不了测试。
+  已实测该守卫非空转：临时删掉 `work_log.worker_user_id` 的分类后测试立刻失败并指名该列。
+- [x] 三条边界，缺一条就会变成数据事故：
+  - 承接人必须与原责任人**同一入口角色**（把医生的病例转给客服，接手的人进不了医生端，
+    数据还会落在他看不见的数据范围外）；
+  - 医生之间必须**同诊所**（跨诊所转病例等于把患者资料给了另一家客户）；
+  - 操作人需要 `account:handover`，跨部门另需 `rbac:cross-dept`，与 C 批次同一套口径。
+- [x] 「同时停用原账号」是可选项，且**另需 `account:disable`**——不因为「顺带」而放宽；
+  停用会一并删除 `auth_refresh_token`，否则「已停用」只是列表上的一个字。
+- [x] 执行前必须先看预览：转走什么、转多少，以及 `historical_records_kept` 列出的
+  **不会跟着走的历史记录**。不把后半句摆在操作人眼前，很容易有人以为绩效也一并转过去。
+- [x] `acknowledged` 必须显式为 true：交接是不可逆的批量改写。
+- [x] 留痕含客户点名的六项，且转移对象清单是**具体主键**——只记「转移了 12 条订单」事后无法追溯。
+  数量为 0 的条目也落一条：「这一类当时就没有对象」和「这一类根本没被考虑过」是两回事。
+- [x] 管理端新增 `AdminHandoverPages.vue`（交接表单 + 预览 + 记录与对象清单展开）+ 路由 + 菜单种子。
+- [x] 同步 `docs/api/openapi.yaml`（4 个 operation、4 个 schema）。
+- [x] 按任务要求在验收矩阵中单列：`docs/acceptance/customer-added-requirements-outside-prd-v2-38.md`
+  记为 CA-001，**不计入 PRD V2 原 38 项**。
+
+### Acceptance
+
+- [x] 转移后新责任人能看到并处理相应对象（`handoverMovesCurrentOwnershipToTheSuccessor`，
+  含承接人以自己身份读取订单返回 200）。
+- [x] 转移后查询历史记录，原责任人仍在历史节点上（`historicalFactsKeepTheOriginalOperatorAfterHandover`：
+  未完成工序转给承接人，而**已完成工序、工时、质检、状态流转四项逐一断言仍是原执行人**）。
+- [x] 转移有完整审计记录（`handoverRecordsFullAuditIncludingTheTransferredObjectList`，
+  逐项断言操作人、时间、原责任人、承接人、原因，并断言对象清单里含具体订单 id）。
+- [x] 越权测试：`unauthorizedAccountsCannotExecuteOrReadHandovers`（客服/生产/医生端三种身份
+  执行与查询都 403，且订单归属未被改动）、`removingTheHandoverPermissionCodeDeniesAccessEvenForAdminPortal`、
+  `disablingTheSourceAccountNeedsTheAccountDisablePermissionOnTopOfHandover`、
+  `successorMustUseTheSamePortalRole`、`doctorHandoverCannotCrossClinics`。
+
+Verification：
+
+```bash
+npm run test:backend
+npm run check:task-034-account-handover
+npm run check:openapi
+npm run build:frontend
+npm run demo:prepare
+```
+
+结果：后端 **333 项全绿**（干净测试库）；`check:task-034-account-handover` 36 项断言 + 4 项结构断言；
+OpenAPI 194 paths / 223 operations 通过。
+
+另在**运行中的演示环境**用真实登录实测一次完整交接（医生 9701 → 承接医生 9799）：
+
+| | 交接前 | 交接后 |
+| --- | --- | --- |
+| 订单归属 9701 | 17 条 | **0 条**（17 条全部到 9799） |
+| 患者档案归属 9701 | 5 条 | **0 条**（5 条全部到 9799） |
+| 状态流转记录归 9701 | 14 条 | **14 条（未变）** |
+| 沟通消息归 9701 | 1 条 | **1 条（未变）** |
+| 文件访问留痕归 9701 | 22 条 | **22 条（未变）** |
+| 病例组审计归 9701 | 8 条 | **8 条（未变）** |
+
+另实测客服执行交接 403、医生查交接记录 403、不带确认执行 400。
+
+### 遗留
+
+- 客户口径的「转移负责的客户」目前只能落到订单上的 `cs_user_id`。**客户↔负责人的一级关系
+  （clinic 级）在系统里还不存在**，依赖 GOAL-034 G4；该关系落地后要加入
+  `AccountHandoverPlan.TRANSFER_RULES`，届时分类测试会强制做出判断，不会漏掉。
+- 交接是一次性全量转移，不支持「只转其中几条订单」。客户没提这个要求，未擅自扩。
+- 未做反向撤销。交接留痕里有完整对象清单，需要回退时可据此人工处理；
+  若客户要求一键撤销，需要另做（并要考虑撤销期间对象又被改动的情况）。
+- 转移对象清单每类最多记 1000 个主键；超出时数量仍准确，但清单会被截断。
+  当前数据量下不会触及，真实上量后需要改为分页留痕。
 
 ---
 

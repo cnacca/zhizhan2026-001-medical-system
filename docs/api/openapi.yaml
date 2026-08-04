@@ -1246,6 +1246,53 @@ components:
       properties:
         file_ids: {type: array, items: {type: integer, format: int64}}
         expected_draft_version: {type: integer, minimum: 1}
+    HandoverRequest:
+      type: object
+      required: [successor_user_id, acknowledged]
+      properties:
+        successor_user_id: {type: integer, format: int64}
+        reason: {type: string, maxLength: 512}
+        disable_source_account: {type: boolean, description: '需要 account:disable 权限；停用会一并使原账号会话失效'}
+        acknowledged: {type: boolean, description: 必须为 true，交接是不可逆的批量改写}
+    HandoverItemResponse:
+      type: object
+      properties:
+        object_type: {type: string}
+        object_label: {type: string}
+        target_table: {type: string}
+        target_column: {type: string}
+        affected_count: {type: integer}
+        object_ids: {type: array, items: {type: integer, format: int64}, description: 转移对象清单，具体主键}
+    HandoverPreviewResponse:
+      type: object
+      properties:
+        from_user_id: {type: integer, format: int64}
+        from_user_name: {type: string}
+        to_user_id: {type: integer, format: int64}
+        to_user_name: {type: string}
+        portal_role: {type: string, enum: [DOCTOR, CS, WORKER, ADMIN]}
+        total_object_count: {type: integer}
+        items: {type: array, items: {"$ref": "#/components/schemas/HandoverItemResponse"}}
+        historical_records_kept:
+          type: array
+          items: {type: string}
+          description: 明确列出不会跟着转移的历史记录，供界面展示
+    HandoverResponse:
+      type: object
+      properties:
+        handover_id: {type: integer, format: int64}
+        handover_no: {type: string}
+        from_user_id: {type: integer, format: int64}
+        from_user_name: {type: string}
+        to_user_id: {type: integer, format: int64}
+        to_user_name: {type: string}
+        operator_user_id: {type: integer, format: int64}
+        operator_name: {type: string}
+        reason: {type: string, nullable: true}
+        source_disabled: {type: boolean}
+        transferred_object_count: {type: integer}
+        created_at: {type: string, format: date-time}
+        items: {type: array, items: {"$ref": "#/components/schemas/HandoverItemResponse"}}
     ExportDatasetResponse:
       type: object
       properties:
@@ -7887,6 +7934,83 @@ paths:
       requestBody: {required: true, content: {application/json: {schema: {"$ref": "#/components/schemas/CaseGroupSubmitRequest"}}}}
       responses:
         '200': {description: 已提交订单组}
+        '400': {"$ref": "#/components/responses/BadRequest"}
+        '401': {"$ref": "#/components/responses/Unauthorized"}
+        '403': {"$ref": "#/components/responses/Forbidden"}
+        '404': {"$ref": "#/components/responses/NotFound"}
+        '409': {"$ref": "#/components/responses/Conflict"}
+        '503': {"$ref": "#/components/responses/ServiceUnavailable"}
+        default: {"$ref": "#/components/responses/DefaultError"}
+  "/accounts/{userId}/handover-preview":
+    get:
+      tags: [Admin]
+      summary: 预览账号交接会转移哪些当前负责关系
+      description: |
+        权限码：account:handover（ADMIN）。执行前先看清楚转走什么、转多少，
+        以及 historical_records_kept 列出的**不会跟着走的历史记录**——
+        不把后半句摆在操作人眼前，很容易有人以为交接会把绩效也一并转过去。
+      operationId: getAccountHandoverPreview
+      parameters:
+      - {name: userId, in: path, required: true, schema: {type: integer, format: int64}}
+      - {name: successor_user_id, in: query, required: true, schema: {type: integer, format: int64}}
+      responses:
+        '200': {description: 交接预览, content: {application/json: {schema: {"$ref": "#/components/schemas/HandoverPreviewResponse"}}}}
+        '400': {"$ref": "#/components/responses/BadRequest"}
+        '401': {"$ref": "#/components/responses/Unauthorized"}
+        '403': {"$ref": "#/components/responses/Forbidden"}
+        '404': {"$ref": "#/components/responses/NotFound"}
+        '409': {"$ref": "#/components/responses/Conflict"}
+        '503': {"$ref": "#/components/responses/ServiceUnavailable"}
+        default: {"$ref": "#/components/responses/DefaultError"}
+  "/accounts/{userId}/handover":
+    post:
+      tags: [Admin]
+      summary: 执行账号交接与人员转移
+      description: |
+        权限码：account:handover；同时停用原账号另需 account:disable，跨部门另需 rbac:cross-dept。
+        只转移「当前负责关系」（订单归属、患者负责医生、病例组、医生资料、进行中的设计与工序任务、
+        未关闭返工的退回对象、设备责任人）。**已完成的工序、工时、质检、终检、返工关闭、状态流转、
+        奖惩绩效全部保留原操作人**——客户原话「并保留之前得服务记录」。
+        承接人必须与原责任人同一入口角色；医生之间还必须同诊所。
+        acknowledged 必须为 true：交接是不可逆的批量改写。
+      operationId: postAccountHandover
+      parameters:
+      - {name: userId, in: path, required: true, schema: {type: integer, format: int64}}
+      requestBody: {required: true, content: {application/json: {schema: {"$ref": "#/components/schemas/HandoverRequest"}}}}
+      responses:
+        '200': {description: 交接记录, content: {application/json: {schema: {"$ref": "#/components/schemas/HandoverResponse"}}}}
+        '400': {"$ref": "#/components/responses/BadRequest"}
+        '401': {"$ref": "#/components/responses/Unauthorized"}
+        '403': {"$ref": "#/components/responses/Forbidden"}
+        '404': {"$ref": "#/components/responses/NotFound"}
+        '409': {"$ref": "#/components/responses/Conflict"}
+        '503': {"$ref": "#/components/responses/ServiceUnavailable"}
+        default: {"$ref": "#/components/responses/DefaultError"}
+  "/accounts/handovers":
+    get:
+      tags: [Admin]
+      summary: 列出账号交接记录
+      description: 权限码：account:handover:read 或 account:handover。含操作人、时间、原责任人、承接人、转移对象清单与原因。
+      operationId: getAccountHandovers
+      responses:
+        '200': {description: 交接记录列表, content: {application/json: {schema: {type: array, items: {"$ref": "#/components/schemas/HandoverResponse"}}}}}
+        '400': {"$ref": "#/components/responses/BadRequest"}
+        '401': {"$ref": "#/components/responses/Unauthorized"}
+        '403': {"$ref": "#/components/responses/Forbidden"}
+        '404': {"$ref": "#/components/responses/NotFound"}
+        '409': {"$ref": "#/components/responses/Conflict"}
+        '503': {"$ref": "#/components/responses/ServiceUnavailable"}
+        default: {"$ref": "#/components/responses/DefaultError"}
+  "/accounts/handovers/{handoverId}":
+    get:
+      tags: [Admin]
+      summary: 查看单条账号交接记录
+      description: 权限码：account:handover:read 或 account:handover。object_ids 是具体主键清单——只记数量在事后追溯时没有用。
+      operationId: getAccountHandover
+      parameters:
+      - {name: handoverId, in: path, required: true, schema: {type: integer, format: int64}}
+      responses:
+        '200': {description: 交接记录, content: {application/json: {schema: {"$ref": "#/components/schemas/HandoverResponse"}}}}
         '400': {"$ref": "#/components/responses/BadRequest"}
         '401': {"$ref": "#/components/responses/Unauthorized"}
         '403': {"$ref": "#/components/responses/Forbidden"}

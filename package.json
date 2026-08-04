@@ -188,6 +188,7 @@
     "check:task-034-rbac-console": "node scripts/check-task-034-rbac-console.mjs",
     "check:task-034-order-rules": "node scripts/check-task-034-order-rules.mjs",
     "check:task-034-export-governance": "node scripts/check-task-034-export-governance.mjs",
+    "check:task-034-account-handover": "node scripts/check-task-034-account-handover.mjs",
     "check:local-runtime": "node scripts/check-local-runtime.mjs",
     "check:environment-runtime": "node scripts/check-environment-runtime.mjs",
     "env:start": "bash scripts/environment-runtime.sh start",
