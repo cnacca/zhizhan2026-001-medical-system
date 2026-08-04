@@ -1,6 +1,6 @@
 # GOAL-033 角色权限体系细化与下单规则后端化
 
-Status: `in_progress`
+Status: `completed`（2026-08-04）
 
 Mode: `stage-goal`
 
@@ -128,3 +128,48 @@ Mode: `stage-goal`
 - 客户三项澄清未回前，「高级客服」「管理端代操作生产」「生产资料审核员」三处的最终形态不确定。B 批次需把这三项做成配置可调，而非写死。
 - 2026-07-30 刚按 PRD 完成的生产审核授权，客户已勾「取消生产资料审核员」。改动前必须先取得澄清，否则可能返工两次。
 - 交期计算依赖客户未提供的各产品标准制作周期。F 批次只建规则引擎与默认值占位，真实数值待 CP 项到位。
+
+## Completion
+
+2026-08-04 关闭。TASK-034 的 A~F 六个批次全部完成，本 Goal 的 Acceptance 逐条对应：
+
+| Acceptance | 落点 | 证据 |
+| --- | --- | --- |
+| 新增细分角色只需配置，不改 Java | A / B | `newFineGrainedRoleGetsAccessPurelyThroughConfiguration`、`allTwentyFineGrainedRolesAreSeededAsConfigurationData` |
+| `data_scope` 可按角色配置、用户级可覆盖 | A | `roleLevelDataScopeIsAuthoritativeInsteadOfPortalRoleDefault`、`userLevelDataScopeOverridesRoleLevelConfiguration` |
+| `AccessControlService` 无纯角色白名单 | A | 全仓库 `requireAnyRole` 零命中，由 `check:task-034-authorization-baseline` 静态守住 |
+| 管理端角色/权限/组织可实操 | C | `AdminRbacPages.vue` 三页 + `RbacAdminTests`，17 个写接口全部留痕 |
+| 账号停用可转移负责关系，历史记录保留原责任人 | D | `historicalFactsKeepTheOriginalOperatorAfterHandover`；演示环境实测订单 17→0 转出、状态流转 14 条未动 |
+| 导出按客户规则受控 | E | 医生端零导出入口、敏感类需他人批准、每次下载留痕五项 |
+| 下单规则产生可验证后果 | F | 试戴计价项、每项过程确认 +1 天、加急缩短交期、缺运单号拦截、时间异常提示 |
+| 全部新增守卫有越权拒绝测试 | A~F | 六个 `check:task-034-*` 脚本 + 后端 333 项测试 |
+| Task 8 保持 `NOT_READY` | — | 未改动 |
+
+### 执行中偏离原计划的三处
+
+1. **结论三有两处事实错误**（A 批次已纠正）：`data_scope` 本来就在 `system_role` 上，不需要"提升"；
+   真正让角色级配置失效的是 `resolveDataScope` 里的入口角色短路。
+2. **结论五低估了工作量**：F 批次不只是"补后端实现"，还要先统一任务书 / 客户确认表 / 前端三处
+   互相冲突的字段叫法，并把「哪些订单类型要回寄运单号」的自相矛盾之处按验收口径定下来。
+3. **E 批次开工时发现客户第一条要求正被违反**：医生端有两个纯前端拼 CSV 的按钮，
+   无审批无留痕地带走患者姓名与金额。因此 E 不是"给现有导出加审批"，而是先把数据出口收回后端。
+
+### 顺带修掉的两个部署级缺陷
+
+都不在本 Goal 范围内，但都会让本 Goal 的成果在真实环境里失效，因此一并处理：
+
+- **D-183 业务时区**：MySQL 与 JVM 各算各的「今天」，相差 8 小时。已在三处固定，
+  并用「把 MySQL 拨到 -10:00 复现失败 → 恢复 +08:00 通过」验证。
+- **D-184 代理前缀漂移**：前端用 30 个后端前缀，生产 nginx 只代理 3 个。
+  C 批次的 `/rbac` 与 F 批次的 `/ordering-rules` 从未被加进任何代理清单——
+  **管理端 RBAC 控制台在浏览器里一直是坏的**，后端测试却全绿。
+
+### 遗留（不阻塞本 Goal 关闭）
+
+- 各产品标准制作周期、在途天数、医生确认宽限期仍是占位值，在 `ordering_rule_config` 中标记为
+  `PLACEHOLDER`，界面显示「待确认」。客户给出真实数值后改配置转正，不改代码。
+- 「高级客服=按分配客户」需要 `ASSIGNED` 数据范围档，「部门主管=本部门」需要 `DEPT` 档，
+  均依赖客户未提供的数据，当前统一按 `SELF` 配置。
+- 客户↔负责人的一级关系尚不存在（依赖 GOAL-034 G4），账号交接目前只能转订单上的 `cs_user_id`。
+- 三项待客户澄清项（高级客服保留/取消、管理端代操作生产的边界、生产资料审核员承接方）
+  已做成 `system_config` 开关，未擅自定死。
