@@ -1246,6 +1246,75 @@ components:
       properties:
         file_ids: {type: array, items: {type: integer, format: int64}}
         expected_draft_version: {type: integer, minimum: 1}
+    ExportDatasetResponse:
+      type: object
+      properties:
+        dataset_code: {type: string}
+        display_name: {type: string}
+        sensitivity: {type: string, enum: [SENSITIVE, NORMAL], description: SENSITIVE 为客户点名的客户信息/地址/账单/价格四类}
+        permission_code: {type: string, nullable: true}
+        field_list: {type: array, items: {type: string}, description: 导出字段清单，与留痕记录的字段清单是同一份}
+        description: {type: string, nullable: true}
+        requires_approval: {type: boolean}
+        available_to_me: {type: boolean}
+    CreateExportRequest:
+      type: object
+      required: [dataset_code, acknowledged]
+      properties:
+        dataset_code: {type: string}
+        filters:
+          type: object
+          description: 只认白名单键，其余一律 400
+          properties:
+            created_from: {type: string, format: date}
+            created_to: {type: string, format: date, description: 含当天}
+            status: {type: string}
+            clinic_id: {type: integer, format: int64}
+        reason: {type: string, maxLength: 512}
+        acknowledged: {type: boolean, description: 必须为 true，对应客户「导出需要反复确认」}
+    ApproveExportRequest:
+      type: object
+      properties:
+        comment: {type: string, maxLength: 512}
+    ExportRequestResponse:
+      type: object
+      properties:
+        export_request_id: {type: integer, format: int64}
+        request_no: {type: string}
+        dataset_code: {type: string}
+        dataset_name: {type: string, nullable: true}
+        sensitivity: {type: string, enum: [SENSITIVE, NORMAL]}
+        filters: {type: object}
+        reason: {type: string, nullable: true}
+        requested_by_user_id: {type: integer, format: int64, nullable: true}
+        requested_by_name: {type: string, nullable: true}
+        requested_at: {type: string, format: date-time}
+        approval_status: {type: string, enum: [NOT_REQUIRED, PENDING, APPROVED, REJECTED]}
+        approved_by_user_id: {type: integer, format: int64, nullable: true}
+        approved_by_name: {type: string, nullable: true}
+        approved_at: {type: string, format: date-time, nullable: true}
+        approval_comment: {type: string, nullable: true}
+        download_count: {type: integer}
+        last_downloaded_at: {type: string, format: date-time, nullable: true}
+        downloadable: {type: boolean}
+    ExportAuditResponse:
+      type: object
+      description: 客户点名的五项留痕内容：操作人、时间、导出范围、行数、字段清单。
+      properties:
+        export_audit_id: {type: integer, format: int64}
+        export_request_id: {type: integer, format: int64}
+        request_no: {type: string}
+        dataset_code: {type: string}
+        dataset_name: {type: string, nullable: true}
+        sensitivity: {type: string}
+        operator_user_id: {type: integer, format: int64}
+        operator_name: {type: string, nullable: true}
+        exported_at: {type: string, format: date-time}
+        filters: {type: object}
+        row_count: {type: integer}
+        field_list: {type: array, items: {type: string}}
+        approved_by_user_id: {type: integer, format: int64, nullable: true}
+        approved_by_name: {type: string, nullable: true}
     DeliveryPlanResponse:
       type: object
       description: TASK-034 F 批次交期引擎输出。各项天数均来自 ordering_rule_config，代码中无写死数字。
@@ -7818,6 +7887,132 @@ paths:
       requestBody: {required: true, content: {application/json: {schema: {"$ref": "#/components/schemas/CaseGroupSubmitRequest"}}}}
       responses:
         '200': {description: 已提交订单组}
+        '400': {"$ref": "#/components/responses/BadRequest"}
+        '401': {"$ref": "#/components/responses/Unauthorized"}
+        '403': {"$ref": "#/components/responses/Forbidden"}
+        '404': {"$ref": "#/components/responses/NotFound"}
+        '409': {"$ref": "#/components/responses/Conflict"}
+        '503': {"$ref": "#/components/responses/ServiceUnavailable"}
+        default: {"$ref": "#/components/responses/DefaultError"}
+  "/exports/datasets":
+    get:
+      tags: [Admin]
+      summary: 列出可导出数据集及其敏感级别
+      description: |
+        权限码：export:execute（ADMIN / CS / WORKER）。**注解与角色授权都不含 DOCTOR** —
+        客户要求「不允许医生直接导出」，医生端角色不持有任何 export:* 权限码。
+        sensitivity=SENSITIVE 的数据集（客户信息、地址、账单、价格）导出需他人批准。
+      operationId: getExportDatasets
+      responses:
+        '200': {description: 数据集清单, content: {application/json: {schema: {type: array, items: {"$ref": "#/components/schemas/ExportDatasetResponse"}}}}}
+        '400': {"$ref": "#/components/responses/BadRequest"}
+        '401': {"$ref": "#/components/responses/Unauthorized"}
+        '403': {"$ref": "#/components/responses/Forbidden"}
+        '404': {"$ref": "#/components/responses/NotFound"}
+        '409': {"$ref": "#/components/responses/Conflict"}
+        '503': {"$ref": "#/components/responses/ServiceUnavailable"}
+        default: {"$ref": "#/components/responses/DefaultError"}
+  "/exports":
+    get:
+      tags: [Admin]
+      summary: 列出导出申请
+      description: 权限码：export:execute。持有 export:approve 的看全部申请（否则无法审批），其余人只看自己的。
+      operationId: getExportRequests
+      responses:
+        '200': {description: 导出申请列表, content: {application/json: {schema: {type: array, items: {"$ref": "#/components/schemas/ExportRequestResponse"}}}}}
+        '400': {"$ref": "#/components/responses/BadRequest"}
+        '401': {"$ref": "#/components/responses/Unauthorized"}
+        '403': {"$ref": "#/components/responses/Forbidden"}
+        '404': {"$ref": "#/components/responses/NotFound"}
+        '409': {"$ref": "#/components/responses/Conflict"}
+        '503': {"$ref": "#/components/responses/ServiceUnavailable"}
+        default: {"$ref": "#/components/responses/DefaultError"}
+    post:
+      tags: [Admin]
+      summary: 创建导出申请
+      description: |
+        权限码：export:execute，敏感数据集另需 export:sensitive 且数据范围必须为 ALL。
+        acknowledged 必须显式为 true —— 客户要求「导出需要反复确认」，界面上的确认框绕得过去，接口调用绕不过去。
+        敏感数据集创建后 approval_status=PENDING，需他人批准；其余为 NOT_REQUIRED，可直接下载。
+      operationId: postExportRequest
+      requestBody: {required: true, content: {application/json: {schema: {"$ref": "#/components/schemas/CreateExportRequest"}}}}
+      responses:
+        '200': {description: 导出申请, content: {application/json: {schema: {"$ref": "#/components/schemas/ExportRequestResponse"}}}}
+        '400': {"$ref": "#/components/responses/BadRequest"}
+        '401': {"$ref": "#/components/responses/Unauthorized"}
+        '403': {"$ref": "#/components/responses/Forbidden"}
+        '404': {"$ref": "#/components/responses/NotFound"}
+        '409': {"$ref": "#/components/responses/Conflict"}
+        '503': {"$ref": "#/components/responses/ServiceUnavailable"}
+        default: {"$ref": "#/components/responses/DefaultError"}
+  "/exports/{exportRequestId}/approve":
+    post:
+      tags: [Admin]
+      summary: 批准敏感数据导出申请
+      description: 权限码：export:approve。**申请人不能批准自己的申请**（返回 403）——自批等于没批。
+      operationId: postExportApprove
+      parameters:
+      - {name: exportRequestId, in: path, required: true, schema: {type: integer, format: int64}}
+      requestBody: {required: false, content: {application/json: {schema: {"$ref": "#/components/schemas/ApproveExportRequest"}}}}
+      responses:
+        '200': {description: 导出申请, content: {application/json: {schema: {"$ref": "#/components/schemas/ExportRequestResponse"}}}}
+        '400': {"$ref": "#/components/responses/BadRequest"}
+        '401': {"$ref": "#/components/responses/Unauthorized"}
+        '403': {"$ref": "#/components/responses/Forbidden"}
+        '404': {"$ref": "#/components/responses/NotFound"}
+        '409': {"$ref": "#/components/responses/Conflict"}
+        '503': {"$ref": "#/components/responses/ServiceUnavailable"}
+        default: {"$ref": "#/components/responses/DefaultError"}
+  "/exports/{exportRequestId}/reject":
+    post:
+      tags: [Admin]
+      summary: 驳回敏感数据导出申请
+      description: 权限码：export:approve。驳回后该申请永久不可下载。
+      operationId: postExportReject
+      parameters:
+      - {name: exportRequestId, in: path, required: true, schema: {type: integer, format: int64}}
+      requestBody: {required: false, content: {application/json: {schema: {"$ref": "#/components/schemas/ApproveExportRequest"}}}}
+      responses:
+        '200': {description: 导出申请, content: {application/json: {schema: {"$ref": "#/components/schemas/ExportRequestResponse"}}}}
+        '400': {"$ref": "#/components/responses/BadRequest"}
+        '401': {"$ref": "#/components/responses/Unauthorized"}
+        '403': {"$ref": "#/components/responses/Forbidden"}
+        '404': {"$ref": "#/components/responses/NotFound"}
+        '409': {"$ref": "#/components/responses/Conflict"}
+        '503': {"$ref": "#/components/responses/ServiceUnavailable"}
+        default: {"$ref": "#/components/responses/DefaultError"}
+  "/exports/{exportRequestId}/download":
+    post:
+      tags: [Admin]
+      summary: 下载导出结果并留痕
+      description: |
+        权限码：export:execute。只有申请人本人可下载（批准人也不行——批准的是「谁导」而不是「谁都能导」）。
+        待审批返回 409，已驳回返回 409。每调用一次写一条 export_audit：操作人、时间、导出范围、行数、字段清单。
+        订单派生数据集按调用者的 data_scope 过滤，导出看到的不会多于界面上看得到的。
+      operationId: postExportDownload
+      parameters:
+      - {name: exportRequestId, in: path, required: true, schema: {type: integer, format: int64}}
+      responses:
+        '200':
+          description: CSV 文件
+          content:
+            text/csv:
+              schema: {type: string, format: binary}
+        '400': {"$ref": "#/components/responses/BadRequest"}
+        '401': {"$ref": "#/components/responses/Unauthorized"}
+        '403': {"$ref": "#/components/responses/Forbidden"}
+        '404': {"$ref": "#/components/responses/NotFound"}
+        '409': {"$ref": "#/components/responses/Conflict"}
+        '503': {"$ref": "#/components/responses/ServiceUnavailable"}
+        default: {"$ref": "#/components/responses/DefaultError"}
+  "/exports/audits":
+    get:
+      tags: [Admin]
+      summary: 查看导出留痕
+      description: 权限码：export:audit:read。留痕内容为客户点名的五项：操作人、时间、导出范围、行数、字段清单。
+      operationId: getExportAudits
+      responses:
+        '200': {description: 导出留痕列表, content: {application/json: {schema: {type: array, items: {"$ref": "#/components/schemas/ExportAuditResponse"}}}}}
         '400': {"$ref": "#/components/responses/BadRequest"}
         '401': {"$ref": "#/components/responses/Unauthorized"}
         '403': {"$ref": "#/components/responses/Forbidden"}

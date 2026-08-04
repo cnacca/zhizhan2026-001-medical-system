@@ -51,6 +51,9 @@ export default defineConfig({
       '/doctor': backendProxy,
       '/production': backendProxy,
       '/ai': backendProxy,
+      '/rbac': backendProxy,
+      '/ordering-rules': backendProxy,
+      '/exports': backendProxy,
       '/ws': {
         target: websocketTarget,
         ws: true,

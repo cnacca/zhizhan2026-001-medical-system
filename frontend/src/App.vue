@@ -3,6 +3,7 @@ import Uppy from '@uppy/core'
 import { computed, defineAsyncComponent, nextTick, onBeforeUnmount, onMounted, ref, watch } from 'vue'
 import AdminRemainingPages from './components/AdminRemainingPages.vue'
 import AdminRbacPages from './components/AdminRbacPages.vue'
+import AdminExportPages from './components/AdminExportPages.vue'
 import AdminConfigurationCenter from './components/AdminConfigurationCenter.vue'
 import CsPortalPages from './components/CsPortalPages.vue'
 import ProductionDesignWorkspace from './components/ProductionDesignWorkspace.vue'
@@ -2382,7 +2383,9 @@ const displayNavigationConfig: Record<PortalTone, NavigationGroup[]> = {
         { id: 'admin-ai', title: '智能服务', description: '查看全平台智能服务运行、用量与预算情况。', icon: 'ai', routePath: '/admin/ai-governance' },
         { id: 'admin-rbac-roles', title: '角色权限', description: '创建角色、分配权限码与数据范围。', icon: 'lock', routePath: '/admin/rbac/roles' },
         { id: 'admin-rbac-org', title: '组织架构', description: '维护部门层级、岗位与人员归属。', icon: 'staff', routePath: '/admin/rbac/org' },
-        { id: 'admin-rbac-matrix', title: '权限矩阵', description: '按角色核对权限码，并查看授权操作留痕。', icon: 'quality', routePath: '/admin/rbac/matrix' }
+        { id: 'admin-rbac-matrix', title: '权限矩阵', description: '按角色核对权限码，并查看授权操作留痕。', icon: 'quality', routePath: '/admin/rbac/matrix' },
+        { id: 'admin-export-center', title: '数据导出', description: '申请与下载数据导出；客户信息、地址、账单需审批。', icon: 'file', routePath: '/admin/export/center' },
+        { id: 'admin-export-audit', title: '导出留痕', description: '查看每次导出的操作人、范围、行数与字段清单。', icon: 'quality', routePath: '/admin/export/audit' }
       ]
     }
   ]
@@ -2620,6 +2623,10 @@ const adminRemainingRoutePaths = new Set([
 ])
 const adminRbacRoutePaths = new Set([
   '/admin/rbac/roles', '/admin/rbac/org', '/admin/rbac/matrix'
+])
+// TASK-034 E 批次：导出管控。医生端没有导出入口，这两条路由是全平台唯一的导出界面。
+const adminExportRoutePaths = new Set([
+  '/admin/export/center', '/admin/export/audit'
 ])
 const adminParentNavIdByRoute: Record<string, string> = {
   '/orders/internal': 'admin-orders',
@@ -11560,6 +11567,13 @@ onBeforeUnmount(() => {
           class="panel route-panel admin-remaining-shell"
         >
           <AdminRbacPages :active-route="activeRoute" :token="token" />
+        </section>
+
+        <section
+          v-else-if="portalTone === 'admin' && adminExportRoutePaths.has(activeRoute)"
+          class="panel route-panel admin-remaining-shell"
+        >
+          <AdminExportPages :active-route="activeRoute" :token="token" />
         </section>
 
         <section

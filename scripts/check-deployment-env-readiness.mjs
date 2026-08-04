@@ -88,6 +88,36 @@ if (!backendSection.includes('TZ: Asia/Shanghai')) {
   process.exit(1)
 }
 
+// 开发代理与生产 nginx 的后端前缀必须一致。
+// 这条漂过一次：前端用 30 个后端前缀，nginx 只代理了 3 个，其余全部落到 try_files
+// 返回 index.html——不报错，只是页面 JSON.parse 一个 HTML，表现为「开发环境好好的、
+// 部署上去就空白」。C 批次的 /rbac 与 F 批次的 /ordering-rules 都是这么漏掉的。
+const viteConfig = fs.readFileSync('frontend/vite.config.ts', 'utf8')
+const nginxConfig = fs.readFileSync('frontend/nginx.conf', 'utf8')
+const viteProxyPrefixes = [...viteConfig.matchAll(/^\s*'(\/[a-z0-9-]+)':/gm)]
+  .map((match) => match[1])
+  .filter((prefix) => prefix !== '/ws')
+const nginxRegexMatch = nginxConfig.match(/location ~ \^\/\(([a-z0-9|-]+)\)/)
+if (!nginxRegexMatch) {
+  console.error('frontend/nginx.conf: 找不到后端 API 前缀的正则 location 块')
+  process.exit(1)
+}
+const nginxPrefixes = new Set(nginxRegexMatch[1].split('|').map((name) => `/${name}`))
+const missingInNginx = viteProxyPrefixes.filter((prefix) => !nginxPrefixes.has(prefix))
+if (missingInNginx.length > 0) {
+  console.error(
+    `frontend/nginx.conf 缺少以下后端前缀（生产环境会返回 index.html 而不是接口数据）：${missingInNginx.join(', ')}`
+  )
+  process.exit(1)
+}
+const missingInVite = [...nginxPrefixes].filter((prefix) => !viteProxyPrefixes.includes(prefix))
+if (missingInVite.length > 0) {
+  console.error(
+    `frontend/vite.config.ts 缺少以下后端前缀（本地开发会返回 index.html）：${missingInVite.join(', ')}`
+  )
+  process.exit(1)
+}
+
 // 「今天」一律走 BusinessTime，不用无参 LocalDate.now()（取 JVM 默认时区，容器里是 UTC）。
 const businessDayCallers = [
   'backend/platform-server/src/main/java/com/yuri/aiorder/order/rules/DeliveryPlanService.java',

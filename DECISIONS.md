@@ -1,5 +1,16 @@
 # DECISIONS
 
+## D-184 前端到后端的代理前缀只维护一份，开发与生产必须一致
+
+状态：`ACCEPTED`
+
+- 前端用裸路径直接调后端（`/orders`、`/rbac`、`/exports`…），开发环境靠 `frontend/vite.config.ts` 的 `server.proxy` 转发，生产环境靠 `frontend/nginx.conf`。
+- 两份清单已经漂开：前端实际使用 30 个后端前缀，`nginx.conf` 只代理了 `/api`、`/notifications`、`/ws` 三个，其余全部落到 `try_files` 返回 `index.html`。**不报错**，只是页面把 HTML 当 JSON 解析，表现为「开发环境好好的，部署上去就空白」。C 批次的 `/rbac` 与 F 批次的 `/ordering-rules` 都是这么漏掉的，实测两者在演示环境返回 `200 text/html`。
+- 因此 `nginx.conf` 改为**一条正则 `location`** 覆盖全部后端前缀，不再逐个前缀写 `location` —— 逐个写正是漂掉的原因。WebSocket 因需要 Upgrade 头，用 `^~ /ws/` 抢在正则之前匹配。
+- 两份清单的一致性由 `npm run check:deployment-env` 静态守住：任一侧多出或少掉一个前缀都会失败。
+
+影响：管理端 RBAC 控制台（C 批次）、下单规则配置接口（F 批次）、导出中心（E 批次）在浏览器里才真正可用。新增后端路径前缀时必须同时改两个文件，否则部署门禁会拦下。
+
 ## D-183 业务时区固定为 Asia/Shanghai，数据库与 JVM 两侧同时钉死
 
 状态：`ACCEPTED`

@@ -246,7 +246,7 @@ Acceptance：
 
 ---
 
-## E. 导出管控与留痕
+## E. 导出管控与留痕 —— `COMPLETED`（2026-08-04）
 
 Scope（客户原话）：
 
@@ -254,18 +254,97 @@ Scope（客户原话）：
 - 「客户信息、地址、账单的导出是需要批准的」
 - 「各个管理端都需要数据导出，除了客户信息、价格等，别的数据需要导出留痕」
 
-实现要点：
+### 开工时的现状：客户第一条要求正被违反
 
-- 导出能力做成独立权限码，不绑定角色。
-- 敏感类导出（客户信息 / 地址 / 账单 / 价格）走审批；其余导出直接留痕。
-- 留痕内容：操作人、时间、导出范围、行数、字段清单。
+后端**一个导出接口都没有**（Controller 里 export/csv/excel 零命中），
+而医生端有两个纯前端拼 CSV 的按钮：订单页「⇩ 导出」带走订单号、**患者姓名**、诊所、状态、**金额**；
+账单页「⇩ 下载全部」带走**账单金额、已付、待付**。无审批、无留痕、不经后端。
 
-Acceptance：
+因此本批次不是「给现有导出加审批」，而是先把数据出口收回后端——
+纯前端拼 CSV 的按钮加多少权限码都拦不住，数据早已在浏览器里。
 
-- [ ] 医生端无任何导出入口。
-- [ ] 敏感导出需审批，未批准不可下载。
-- [ ] 所有导出有审计记录。
-- [ ] 越权测试：无导出权限码的账号调用导出接口返回 403。
+### 实际 Scope
+
+- [x] 三张表（V82）：`export_dataset`（数据集目录）、`export_request`（申请与审批）、`export_audit`（每次下载的留痕）。
+- [x] **敏感分类是配置不是代码**：客户点名的四类以 `sensitivity = SENSITIVE` 落在 `export_dataset`
+  （客户档案 / 客户收货地址 / 订单账单与金额 / 产品价格）；客户改口时改这一列即可，不改 Java。
+- [x] 四个权限码，不绑角色：`export:execute`（非敏感导出）、`export:sensitive`（申请敏感导出）、
+  `export:approve`（审批）、`export:audit:read`（查看留痕）。**医生端角色一个都不给**。
+- [x] 「反复确认」落成两道且都在后端强制：接口要求显式 `acknowledged=true`
+  （界面上的确认框绕得过去，接口调用绕不过去），敏感类再叠一道**他人**审批——申请人批自己的申请返回 403。
+- [x] 留痕含客户点名的五项：操作人、时间、导出范围、行数、字段清单。一次批准多次下载则留多条痕。
+- [x] **导出不绕过数据范围**：订单派生数据集套用与 `OrderProjectionQueryService` 相同的 `data_scope` 条件；
+  敏感数据集另要求数据范围为 `ALL`。权限码与数据范围是两回事，必须同时满足。
+- [x] 筛选条件只认白名单键（`created_from` / `created_to` / `status` / `clinic_id`），值一律绑定参数——
+  导出入参来自界面，拼字符串等于把注入面开在数据出口上。
+- [x] 取数 SQL 集中在 `ExportDataProvider` 一处，目录与实现一一对应，**启动时校验**：
+  少实现是「界面能选点了报错」，多实现是「有取数能力却没登记敏感级别」，后者会让数据集绕过审批分类。
+- [x] 医生端两个导出函数与两个按钮删除；check 脚本扫 `frontend/src/doctor/` 全目录，
+  出现 `text/csv` / `导出` 等痕迹即失败。
+- [x] 管理端新增 `AdminExportPages.vue` 两页（数据导出 / 导出留痕）+ 路由 + 菜单种子。
+- [x] 同步 `docs/api/openapi.yaml`（6 个 operation、5 个 schema）。
+
+### 执行中发现并修复的部署级缺陷（D-184）
+
+**前端到后端的代理前缀，开发与生产两份清单早已漂开。** 前端用裸路径直接调后端，
+开发靠 `vite.config.ts` 的 `server.proxy`，生产靠 `frontend/nginx.conf`。实测：
+前端使用 30 个后端前缀，`nginx.conf` 只代理了 3 个，其余全部落到 `try_files` 返回 `index.html`——
+不报错，只是页面把 HTML 当 JSON 解析。
+
+E 批次的导出界面本来会直接死在这上面；顺带查出 **C 批次的 `/rbac` 与 F 批次的 `/ordering-rules`
+从未被加进任何一份代理清单**，在演示环境实测返回 `200 text/html`，
+也就是说管理端 RBAC 控制台在浏览器里一直是坏的。
+
+已把 `nginx.conf` 改成一条正则 `location` 覆盖全部前缀（逐个写 `location` 正是漂掉的原因），
+两份清单的一致性由 `check:deployment-env` 静态守住。修复后实测
+`/rbac/roles` 返回 24 条、`/ordering-rules` 返回 19 条、`/exports/datasets` 返回 7 条。
+
+### Acceptance
+
+- [x] 医生端无任何导出入口（`doctorHasNoExportPermissionCodeAndEveryExportEndpointRejectsThem`
+  同时断言医生端五个角色的 `export:*` 授权数为 0、四个导出接口对医生返回 403；
+  check 脚本另扫医生端全目录无导出痕迹）。
+- [x] 敏感导出需审批，未批准不可下载（`sensitiveExportCannotBeDownloadedBeforeApproval`：
+  未批准下载返回 409 且**不产生留痕**，批准后才成功；
+  `allFourCustomerNamedCategoriesAreClassifiedAsSensitive` 逐个验证客户点名的四类）。
+- [x] 所有导出有审计记录（`everyDownloadRecordsOperatorTimeRangeRowCountAndFieldList` 逐项断言五项内容，
+  并验证同一申请下载两次留两条痕；`auditFieldListMatchesTheCsvHeaderActuallyProduced`
+  断言留痕里的字段清单**就是实际导出文件的表头**，否则审计对不上真实文件）。
+- [x] 越权测试：`accountWithoutExportPermissionCodeIsDeniedEvenWhenThePortalRoleMatches`（撤权限码后 403）、
+  `requesterCannotApproveTheirOwnSensitiveExport`、`onlyTheRequesterCanDownloadTheirOwnApprovedExport`
+  （批准人也不能替申请人下载——批准的是「谁导」不是「谁都能导」）、
+  `csCanExportNormalDataButCannotRequestOrApproveSensitiveData`、`auditTrailRequiresItsOwnPermissionCode`。
+
+Verification：
+
+```bash
+npm run test:backend
+npm run check:task-034-export-governance
+npm run check:deployment-env
+npm run check:openapi
+npm run build:frontend
+npm run demo:prepare
+```
+
+结果：后端 **319 项全绿**（干净测试库）；`check:task-034-export-governance` 51 项断言 + 4 项结构断言通过；
+OpenAPI 190 paths / 218 operations 通过；nginx 配置用 `nginx -t` 实测语法通过。
+
+另在**运行中的演示环境**用真实登录跑通（非 MockMvc）：
+医生端调导出与留痕接口均 403 → 敏感申请落 PENDING → 未批准下载 409 → 自批 403 →
+不带确认申请 400 → 客服申请敏感 403 → 客服非敏感申请直接可下载，导出 23 行、表头 8 列 →
+留痕记下操作人「本地客服」、时间、范围、行数 23、字段数 8 → 客服查留痕 403。
+
+### 遗留
+
+- 「只能由管理者账号导出」按就窄不就宽解读：敏感类只有 `ADMIN` / `ADMIN_MANAGER` / `ADMIN_SUPERVISOR`
+  能申请，非敏感类各管理端都能导。若客户本意是「所有导出都只能管理者做」，撤掉 CS / WORKER 的
+  `export:execute` 即可，是配置不是代码。需复核。
+- 医生端仍有一个 `downloadInvoice` 单据 PDF 下载：它是**单张**发票/退款单，且真实接口
+  （`httpDoctorGateway`）恒返回空列表，属演示脚手架，未按「数据导出」处理。
+  若客户认为单张账单 PDF 也算导出，需一并收掉。
+- 导出为同步取数，单次上限 50000 行。真实数据量上来后需要改异步生成 + 文件下载。
+- 导出文件本身未落对象存储、无过期回收：目前是即时生成即时返回，不留文件。
+  若客户要求「导出文件可追溯下载」，需要接 MinIO 并定义留存期。
 
 ---
 

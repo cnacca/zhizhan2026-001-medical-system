@@ -1191,24 +1191,6 @@ function togglePageSelection(checked: boolean) {
     : selectedOrderIds.value.filter((id) => !pageIds.includes(id))
 }
 
-function exportOrders() {
-  const targets = selectedOrderIds.value.length
-    ? orderRows.value.filter((item) => selectedOrderIds.value.includes(item.order_id))
-    : orderRows.value
-  const lines = [
-    ['订单号', '医生', '患者', '诊所', '产品', '标签', '公开状态', '当前操作', '创建时间', '到期时间', '金额'],
-    ...targets.map((item) => [item.order_no, item.doctor_name, item.patient_name, item.clinic_name, item.product_name, item.tags.join('|'), label(item.external_status), label(item.current_action), item.created_at, item.due_at, money(item.quote)])
-  ]
-  const csv = `\uFEFF${lines.map((row) => row.map((cell) => `"${String(cell).replaceAll('"', '""')}"`).join(',')).join('\n')}`
-  const url = URL.createObjectURL(new Blob([csv], { type: 'text/csv;charset=utf-8' }))
-  const anchor = document.createElement('a')
-  anchor.href = url
-  anchor.download = '医生端订单.csv'
-  anchor.click()
-  URL.revokeObjectURL(url)
-  ElMessage.success(`已导出 ${targets.length} 条订单`)
-}
-
 function openWizard(initialPatientId = '', initialGroupId: number | null = null) {
   if (!canCreateOrder.value) return
   wizardInitialPatientId.value = initialPatientId
@@ -1433,22 +1415,6 @@ function markThreadUnread(threadId: string) {
   if (!thread) return
   thread.unread = true
   ElMessage.success('已在当前页面标记为未读')
-}
-
-function downloadBillingCsv() {
-  if (!dataset.value) return
-  const lines = [
-    ['账单号', '订单号', '产品', '金额', '已支付', '待支付', '状态', '到期日'],
-    ...billingRows.value.map((item) => [item.bill_id, item.order_no, item.product_name, money(item.amount), money(item.paid), money(item.outstanding), label(item.payment_status), item.due_at])
-  ]
-  const csv = `\uFEFF${lines.map((row) => row.map((cell) => `"${String(cell).replaceAll('"', '""')}"`).join(',')).join('\n')}`
-  const url = URL.createObjectURL(new Blob([csv], { type: 'text/csv;charset=utf-8' }))
-  const anchor = document.createElement('a')
-  anchor.href = url
-  anchor.download = '医生端账单.csv'
-  anchor.click()
-  URL.revokeObjectURL(url)
-  ElMessage.success(`已导出 ${billingRows.value.length} 条账单`)
 }
 
 function downloadInvoice(recordId: string) {
@@ -2153,7 +2119,7 @@ onBeforeUnmount(() => window.removeEventListener('keydown', handleGlobalShortcut
                 <select v-model="orderStatus" @change="orderPage = 1"><option value="ALL">全部状态</option><option value="DRAFT">草稿</option><option value="NEEDS_INFO">待补资料</option><option value="IN_PRODUCTION">制作中</option><option value="AWAITING_PAYMENT">待付款</option><option value="SHIPPED">已发货</option><option value="COMPLETED">已完成</option></select>
                 <select v-model="orderProduct" @change="orderPage = 1"><option value="ALL">全部产品</option><option v-for="type in orderProductTypes" :key="type" :value="type">{{ productTypeLabel(type) }}</option></select>
                 <button type="button" class="dv2-filter-toggle" :class="{ active: orderFiltersExpanded }" @click="orderFiltersExpanded = !orderFiltersExpanded">⚙ 高级筛选 <i>{{ orderFiltersExpanded ? '⌃' : '⌄' }}</i></button>
-                <button type="button" class="dv2-secondary-button" @click="exportOrders">⇩ 导出</button>
+                
               </div>
               <div v-if="orderFiltersExpanded" class="dv2-advanced-filters">
                 <label><span>负责医生</span><select v-model="orderDoctor" @change="orderPage = 1"><option value="ALL">全部医生</option><option v-for="doctor in orderDoctors" :key="doctor" :value="doctor">{{ doctor }}</option></select></label>
@@ -2228,7 +2194,7 @@ onBeforeUnmount(() => window.removeEventListener('keydown', handleGlobalShortcut
           <section v-else-if="activePage === 'billing'" class="dv2-billing" data-testid="doctor-page-billing">
             <div class="dv2-billing-stats"><article v-for="item in billingStats" :key="item.label" :class="`is-${item.tone}`"><small>{{ item.label }}</small><strong>{{ item.value }}</strong><span>{{ item.note }}</span></article></div>
             <div class="dv2-billing-alert"><span>!</span><p><strong>账期提示</strong> 按单结算订单需在到期日前完成付款；逾期账单可能影响后续发货安排。</p></div>
-            <div class="dv2-tabbar dv2-billing-tabs"><button v-for="item in [{ key: 'perOrder', label: '按单结算' }, { key: 'monthly', label: '月结账单' }, { key: 'invoiceRefund', label: '发票与退款' }, { key: 'logistics', label: '物流追踪' }]" :key="item.key" type="button" :class="{ active: billingTab === item.key }" @click="billingTab = item.key as typeof billingTab">{{ item.label }}</button><button type="button" class="dv2-download-all" @click="downloadBillingCsv">⇩ 下载全部</button></div>
+            <div class="dv2-tabbar dv2-billing-tabs"><button v-for="item in [{ key: 'perOrder', label: '按单结算' }, { key: 'monthly', label: '月结账单' }, { key: 'invoiceRefund', label: '发票与退款' }, { key: 'logistics', label: '物流追踪' }]" :key="item.key" type="button" :class="{ active: billingTab === item.key }" @click="billingTab = item.key as typeof billingTab">{{ item.label }}</button></div>
             <div class="dv2-card dv2-list-card">
               <template v-if="billingTab === 'perOrder'">
                 <div class="dv2-list-toolbar"><div><strong>按单结算</strong><small>按单付款的订单需结清后发货</small></div><div class="dv2-patient-filters"><button v-for="item in [{ key: 'ALL', label: '全部' }, { key: 'UNPAID', label: '待支付' }, { key: 'OVERDUE', label: '已逾期' }, { key: 'PAID', label: '已支付' }]" :key="item.key" type="button" :class="{ active: billingStatus === item.key }" @click="billingStatus = item.key as typeof billingStatus">{{ item.label }}</button></div></div>
