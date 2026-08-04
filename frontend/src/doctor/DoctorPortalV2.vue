@@ -51,6 +51,54 @@ type DoctorOrderSpecEntry = {
   value: string
 }
 
+type ProcessConfirmation = {
+  confirmation_code: string
+  confirmation_name: string
+  confirmation_status: 'PLANNED' | 'AWAITING_DOCTOR' | 'CONFIRMED' | 'REJECTED'
+  requested_at: string | null
+  responded_at: string | null
+  doctor_comment: string | null
+  waiting_days: number
+  overdue: boolean
+}
+
+type DeliveryPlanBillItem = {
+  item_code: string
+  item_name: string
+  pricing_status: string
+  amount_cents: number | null
+  currency: string
+  remark: string | null
+}
+
+type DeliveryPlan = {
+  order_id: number
+  order_type: string
+  priority_code: string
+  shipping_method: string
+  base_cycle_days: number
+  process_confirmation_count: number
+  process_confirmation_days: number
+  waiting_days: number
+  production_days: number
+  transit_days: number
+  computed_delivery_date: string
+  doctor_requested_delivery_date: string | null
+  variance_days: number | null
+  variance_flag: string
+  delivery_alert: string | null
+  delivery_alert_message: string | null
+  estimate_status: 'PLACEHOLDER' | 'CONFIRMED'
+  placeholder_rules: string[]
+  process_confirmations: ProcessConfirmation[]
+  try_in: {
+    try_in_required: boolean
+    try_in_status: string | null
+    can_select_final_product: boolean
+  }
+  bill_items: DeliveryPlanBillItem[]
+}
+
 const upperTeeth = ['18', '17', '16', '15', '14', '13', '12', '11', '21', '22', '23', '24', '25', '26', '27', '28']
 const lowerTeeth = ['48', '47', '46', '45', '44', '43', '42', '41', '31', '32', '33', '34', '35', '36', '37', '38']
 
@@ -274,6 +322,14 @@ const selectedOrder = ref<OrderDetail | null>(null)
 const orderDetailLoading = ref(false)
 const orderDrawerMessageDraft = ref('')
 const orderDrawerMessageSending = ref(false)
+
+// TASK-034 F 批次：交期计划、过程确认与试戴。
+// estimate_status = PLACEHOLDER 表示交期用了客户尚未确认的标准周期，界面必须标「待确认」——
+// 这条不是装饰，占位值表现成正式承诺交期就是对客户的误导。
+const deliveryPlan = ref<DeliveryPlan | null>(null)
+const deliveryPlanLoading = ref(false)
+const deliveryPlanBusy = ref(false)
+const requestedDeliveryDateDraft = ref('')
 
 const patientKeyword = ref('')
 const patientStatus = ref<'ALL' | PatientSummary['treatment_status']>('ALL')
@@ -945,11 +1001,98 @@ async function chooseRole(role: ClinicRole) {
   }
 }
 
+async function deliveryApi<T>(path: string, options: RequestInit = {}): Promise<T> {
+  const response = await fetch(path, {
+    ...options,
+    headers: {
+      'Content-Type': 'application/json',
+      Authorization: `Bearer ${props.token}`,
+      ...(options.headers ?? {})
+    }
+  })
+  if (!response.ok) {
+    let detail = ''
+    try {
+      const body = await response.json() as { message?: string; msg?: string; error?: string }
+      detail = body.message || body.msg || body.error || ''
+    } catch {
+      detail = ''
+    }
+    throw new Error(detail || `请求失败（${response.status}）`)
+  }
+  const payload = await response.json() as { data: T }
+  return payload.data
+}
+
+async function loadDeliveryPlan(orderId: string) {
+  deliveryPlan.value = null
+  requestedDeliveryDateDraft.value = ''
+  // 交期计划在提交时才建立；草稿订单没有计划，静默跳过而不是弹错。
+  if (resolveDoctorGatewayMode() !== 'api') return
+  deliveryPlanLoading.value = true
+  try {
+    const plan = await deliveryApi<DeliveryPlan>(`/orders/${orderId}/delivery-plan`)
+    deliveryPlan.value = plan
+    requestedDeliveryDateDraft.value = plan.doctor_requested_delivery_date ?? plan.computed_delivery_date
+  } catch {
+    deliveryPlan.value = null
+  } finally {
+    deliveryPlanLoading.value = false
+  }
+}
+
+async function saveRequestedDeliveryDate() {
+  const orderId = selectedOrder.value?.order_id
+  if (!orderId || !requestedDeliveryDateDraft.value || deliveryPlanBusy.value) return
+  deliveryPlanBusy.value = true
+  try {
+    deliveryPlan.value = await deliveryApi<DeliveryPlan>(
+      `/orders/${orderId}/delivery-plan/requested-date`,
+      {
+        method: 'PUT',
+        body: JSON.stringify({ requested_delivery_date: requestedDeliveryDateDraft.value })
+      }
+    )
+    ElMessage.success(deliveryPlan.value.variance_flag === 'EARLIER_THAN_FEASIBLE'
+      ? '已提交；该时间早于系统可行交期，订单服务会与您确认'
+      : '要求到货时间已更新')
+  } catch (cause) {
+    ElMessage.error(cause instanceof Error ? cause.message : '更新到货时间失败')
+  } finally {
+    deliveryPlanBusy.value = false
+  }
+}
+
+async function respondProcessConfirmation(confirmation: ProcessConfirmation, accepted: boolean) {
+  const orderId = selectedOrder.value?.order_id
+  if (!orderId || deliveryPlanBusy.value) return
+  deliveryPlanBusy.value = true
+  try {
+    await deliveryApi(
+      `/orders/${orderId}/process-confirmations/${confirmation.confirmation_code}/respond`,
+      { method: 'POST', body: JSON.stringify({ accepted }) }
+    )
+    await loadDeliveryPlan(orderId)
+    ElMessage.success(accepted ? '已确认' : '已提交修改要求')
+  } catch (cause) {
+    ElMessage.error(cause instanceof Error ? cause.message : '提交确认结果失败')
+  } finally {
+    deliveryPlanBusy.value = false
+  }
+}
+
+function deliveryDateLabel(plan: DeliveryPlan) {
+  return plan.estimate_status === 'PLACEHOLDER'
+    ? `${plan.computed_delivery_date}（待确认）`
+    : plan.computed_delivery_date
+}
+
 async function openOrder(orderId: string) {
   orderDrawerOpen.value = true
   orderDetailLoading.value = true
   selectedOrder.value = null
   orderDrawerMessageDraft.value = ''
+  void loadDeliveryPlan(orderId)
   try {
     const detail = await gateway.loadOrderDetail(orderId)
     selectedOrder.value = detail
@@ -2180,6 +2323,72 @@ onBeforeUnmount(() => window.removeEventListener('keydown', handleGlobalShortcut
               <div class="dv2-current-action">
                 <div><strong>{{ label(selectedOrder.current_action) }}</strong><p>完成后订单将按公开流程继续推进。</p></div>
                 <button v-if="selectedOrder.current_action === 'PAYMENT_REQUIRED'" type="button" class="dv2-primary-button" @click="orderDrawerOpen = false; switchPage('billing')">去付款</button>
+              </div>
+            </section>
+
+            <section v-if="deliveryPlanLoading" class="dv2-detail-section">
+              <h3>交期与过程确认</h3>
+              <div class="dv2-loading-card"><span class="dv2-spinner" />正在读取交期计划…</div>
+            </section>
+            <section v-else-if="deliveryPlan" class="dv2-detail-section dv2-delivery-plan" data-testid="doctor-delivery-plan">
+              <h3>交期与过程确认</h3>
+
+              <div v-if="deliveryPlan.estimate_status === 'PLACEHOLDER'" class="dv2-delivery-placeholder" data-testid="doctor-delivery-placeholder">
+                <strong>预计到货时间待确认</strong>
+                <p>以下时间按暂定标准周期估算，尚未成为正式承诺交期：{{ deliveryPlan.placeholder_rules.join('、') }}。正式交期由订单服务受理后确认。</p>
+              </div>
+
+              <dl class="dv2-delivery-grid">
+                <div><dt>预计到货</dt><dd data-testid="doctor-delivery-date">{{ deliveryDateLabel(deliveryPlan) }}</dd></div>
+                <div><dt>制作天数</dt><dd>{{ deliveryPlan.production_days }} 天</dd></div>
+                <div><dt>在途天数</dt><dd>{{ deliveryPlan.transit_days }} 天</dd></div>
+                <div><dt>过程确认</dt><dd>{{ deliveryPlan.process_confirmation_count }} 项 · +{{ deliveryPlan.process_confirmation_days }} 天</dd></div>
+                <div v-if="deliveryPlan.waiting_days > 0"><dt>等待顺延</dt><dd>+{{ deliveryPlan.waiting_days }} 天</dd></div>
+              </dl>
+
+              <div v-if="deliveryPlan.delivery_alert_message" class="dv2-delivery-alert" data-testid="doctor-delivery-alert">
+                {{ deliveryPlan.delivery_alert_message }}
+              </div>
+
+              <div class="dv2-delivery-adjust">
+                <label>
+                  <span>要求到货时间</span>
+                  <input v-model="requestedDeliveryDateDraft" type="date" data-testid="doctor-requested-delivery-date">
+                </label>
+                <button type="button" class="dv2-secondary-button" :disabled="deliveryPlanBusy" data-testid="doctor-save-requested-delivery-date" @click="saveRequestedDeliveryDate">保存到货时间</button>
+              </div>
+
+              <div v-if="deliveryPlan.process_confirmations.length" class="dv2-delivery-confirmations">
+                <article v-for="confirmation in deliveryPlan.process_confirmations" :key="confirmation.confirmation_code" :class="{ overdue: confirmation.overdue }">
+                  <div>
+                    <strong>{{ confirmation.confirmation_name }}</strong>
+                    <small>
+                      {{ ({ PLANNED: '尚未到达该环节', AWAITING_DOCTOR: '等待您确认', CONFIRMED: '已确认', REJECTED: '已要求修改' } as Record<string, string>)[confirmation.confirmation_status] }}
+                      <template v-if="confirmation.overdue"> · 已超期 {{ confirmation.waiting_days }} 天，交期已顺延</template>
+                    </small>
+                  </div>
+                  <div v-if="confirmation.confirmation_status === 'AWAITING_DOCTOR'" class="dv2-delivery-confirm-actions">
+                    <button type="button" class="dv2-primary-button" :disabled="deliveryPlanBusy" @click="respondProcessConfirmation(confirmation, true)">确认</button>
+                    <button type="button" class="dv2-secondary-button" :disabled="deliveryPlanBusy" @click="respondProcessConfirmation(confirmation, false)">要求修改</button>
+                  </div>
+                </article>
+              </div>
+
+              <div v-if="deliveryPlan.try_in.try_in_required" class="dv2-delivery-tryin" data-testid="doctor-try-in">
+                <strong>试戴</strong>
+                <p>
+                  {{ ({ REQUESTED: '已登记试戴需求，等待工厂安排', COMPLETED: '试戴已完成，可在本订单继续选择成品与材料，无需新建订单', FINALIZED: '成品已选定' } as Record<string, string>)[deliveryPlan.try_in.try_in_status ?? 'REQUESTED'] }}
+                </p>
+              </div>
+
+              <div v-if="deliveryPlan.bill_items.length" class="dv2-delivery-bill-items" data-testid="doctor-bill-items">
+                <strong>计价项</strong>
+                <ul>
+                  <li v-for="item in deliveryPlan.bill_items" :key="item.item_code">
+                    <span>{{ item.item_name }}</span>
+                    <em>{{ item.pricing_status === 'PRICED' && item.amount_cents !== null ? `${(item.amount_cents / 100).toFixed(2)} ${item.currency}` : '待报价' }}</em>
+                  </li>
+                </ul>
               </div>
             </section>
 

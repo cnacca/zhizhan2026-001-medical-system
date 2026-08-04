@@ -186,6 +186,7 @@
     "check:task-034-authorization-baseline": "node scripts/check-task-034-authorization-baseline.mjs",
     "check:task-034-fine-grained-roles": "node scripts/check-task-034-fine-grained-roles.mjs",
     "check:task-034-rbac-console": "node scripts/check-task-034-rbac-console.mjs",
+    "check:task-034-order-rules": "node scripts/check-task-034-order-rules.mjs",
     "check:local-runtime": "node scripts/check-local-runtime.mjs",
     "check:environment-runtime": "node scripts/check-environment-runtime.mjs",
     "env:start": "bash scripts/environment-runtime.sh start",

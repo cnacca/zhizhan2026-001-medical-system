@@ -4,6 +4,7 @@ import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.yuri.aiorder.common.BootstrapIdentity;
+import com.yuri.aiorder.common.BusinessTime;
 import com.yuri.aiorder.common.UserRole;
 import com.yuri.aiorder.common.auth.AccessControlService;
 import com.yuri.aiorder.design.DesignTaskService;
@@ -34,7 +35,7 @@ import org.springframework.web.server.ResponseStatusException;
 @Service
 public class WorkflowRuntimeService {
 
-    private static final ZoneId BUSINESS_ZONE = ZoneId.of("Asia/Shanghai");
+    private static final ZoneId BUSINESS_ZONE = BusinessTime.ZONE;
 
     private static final String DESIGN_START_ALLOWED_SQL = """
             (

@@ -1246,6 +1246,120 @@ components:
       properties:
         file_ids: {type: array, items: {type: integer, format: int64}}
         expected_draft_version: {type: integer, minimum: 1}
+    DeliveryPlanResponse:
+      type: object
+      description: TASK-034 F 批次交期引擎输出。各项天数均来自 ordering_rule_config，代码中无写死数字。
+      properties:
+        order_id: {type: integer, format: int64}
+        order_no: {type: string}
+        order_type: {type: string, enum: [ONLINE, IMPRESSION, REWORK, RETURN, DESIGN_ONLY], description: 客户口径「订单类型」（任务书称产品类型）}
+        priority_code: {type: string, enum: [NORMAL, RUSH_3_DAYS, SAME_DAY], description: 界面标签「订单周期」（任务书称订单类型）}
+        shipping_method: {type: string, enum: [COURIER, SALES_DELIVERY, SELF_PICKUP]}
+        inbound_tracking_no: {type: string, nullable: true, description: 印模/返工/退货订单必填，缺失时提交被拦截}
+        baseline_date: {type: string, format: date}
+        base_cycle_days: {type: integer}
+        priority_cap_days: {type: integer, description: 制作天数上限，-1 表示不设上限}
+        process_confirmation_count: {type: integer}
+        process_confirmation_days: {type: integer, description: 每增加一项过程确认 +1 天}
+        waiting_days: {type: integer, description: 医生超出宽限期未确认导致的顺延天数}
+        production_days: {type: integer}
+        transit_days: {type: integer}
+        computed_delivery_date: {type: string, format: date}
+        doctor_requested_delivery_date: {type: string, format: date, nullable: true}
+        variance_days: {type: integer, nullable: true}
+        variance_flag: {type: string, enum: [NONE, EARLIER_THAN_FEASIBLE, LATER_THAN_PLAN]}
+        delivery_alert: {type: string, nullable: true, enum: [EARLIER_THAN_FEASIBLE, WAITING_DOCTOR_CONFIRMATION, LATER_THAN_PLAN]}
+        delivery_alert_message: {type: string, nullable: true}
+        estimate_status: {type: string, enum: [PLACEHOLDER, CONFIRMED], description: PLACEHOLDER 时界面必须标注「待确认」}
+        placeholder_rules: {type: array, items: {type: string}, description: 本次计算用到的占位规则名称}
+        process_confirmations: {type: array, items: {"$ref": "#/components/schemas/ProcessConfirmationResponse"}}
+        try_in: {"$ref": "#/components/schemas/TryInResponse"}
+        bill_items: {type: array, items: {"$ref": "#/components/schemas/OrderBillItemResponse"}}
+    ProcessConfirmationResponse:
+      type: object
+      properties:
+        confirmation_id: {type: integer, format: int64}
+        order_id: {type: integer, format: int64}
+        confirmation_code: {type: string, enum: [CAD_DESIGN, POST_MILLING_PHOTOS, POST_GLAZING_PHOTOS]}
+        confirmation_name: {type: string}
+        sequence_no: {type: integer}
+        confirmation_status: {type: string, enum: [PLANNED, AWAITING_DOCTOR, CONFIRMED, REJECTED]}
+        requested_at: {type: string, format: date-time, nullable: true}
+        responded_at: {type: string, format: date-time, nullable: true}
+        doctor_comment: {type: string, nullable: true}
+        waiting_days: {type: integer}
+        overdue: {type: boolean}
+    TryInResponse:
+      type: object
+      properties:
+        order_id: {type: integer, format: int64}
+        try_in_required: {type: boolean}
+        try_in_status: {type: string, nullable: true, enum: [REQUESTED, COMPLETED, FINALIZED]}
+        completed_at: {type: string, format: date-time, nullable: true}
+        finalized_at: {type: string, format: date-time, nullable: true}
+        finalize_note: {type: string, nullable: true}
+        can_select_final_product: {type: boolean}
+    OrderBillItemResponse:
+      type: object
+      description: 系统按下单规则生成的计价项，供客服核价对照；order_bill 的账单 PDF 与总额语义不变。
+      properties:
+        bill_item_id: {type: integer, format: int64}
+        order_id: {type: integer, format: int64}
+        item_code: {type: string, description: PRODUCT / TRY_IN}
+        item_name: {type: string}
+        quantity: {type: integer}
+        pricing_status: {type: string, enum: [PRICED, PENDING_QUOTE]}
+        amount_cents: {type: integer, format: int64, nullable: true}
+        currency: {type: string}
+        source_type: {type: string}
+        remark: {type: string, nullable: true}
+    AdjustDeliveryDateRequest:
+      type: object
+      required: [requested_delivery_date]
+      properties:
+        requested_delivery_date: {type: string, format: date}
+        reason: {type: string, maxLength: 255}
+    ProcessConfirmationRequestBody:
+      type: object
+      properties:
+        remark: {type: string, maxLength: 512}
+    ProcessConfirmationRespondRequest:
+      type: object
+      required: [accepted]
+      properties:
+        accepted: {type: boolean}
+        comment: {type: string, maxLength: 512}
+    TryInCompleteRequest:
+      type: object
+      properties:
+        note: {type: string, maxLength: 512}
+    TryInFinalizeRequest:
+      type: object
+      properties:
+        product_id: {type: integer, format: int64}
+        variant_id: {type: integer, format: int64, nullable: true}
+        material_selections:
+          type: array
+          items:
+            type: object
+            properties:
+              item_id: {type: integer, format: int64}
+              quantity: {type: integer, minimum: 1}
+        note: {type: string, maxLength: 512}
+    OrderingRuleResponse:
+      type: object
+      properties:
+        rule_type: {type: string, enum: [PRODUCT_CYCLE, PRIORITY_CAP, PROCESS_CONFIRMATION, SHIPPING_TRANSIT]}
+        rule_key: {type: string}
+        numeric_value: {type: integer}
+        confirmation_status: {type: string, enum: [PLACEHOLDER, CONFIRMED]}
+        display_name: {type: string}
+    UpdateOrderingRuleRequest:
+      type: object
+      required: [numeric_value]
+      properties:
+        numeric_value: {type: integer}
+        confirmation_status: {type: string, enum: [PLACEHOLDER, CONFIRMED], default: CONFIRMED}
     OrthodonticPrescriptionRequest:
       type: object
       required:
@@ -7704,6 +7818,162 @@ paths:
       requestBody: {required: true, content: {application/json: {schema: {"$ref": "#/components/schemas/CaseGroupSubmitRequest"}}}}
       responses:
         '200': {description: 已提交订单组}
+        '400': {"$ref": "#/components/responses/BadRequest"}
+        '401': {"$ref": "#/components/responses/Unauthorized"}
+        '403': {"$ref": "#/components/responses/Forbidden"}
+        '404': {"$ref": "#/components/responses/NotFound"}
+        '409': {"$ref": "#/components/responses/Conflict"}
+        '503': {"$ref": "#/components/responses/ServiceUnavailable"}
+        default: {"$ref": "#/components/responses/DefaultError"}
+  "/orders/{orderId}/delivery-plan":
+    get:
+      tags: [Order]
+      summary: 读取订单交期计划、过程确认、试戴与计价项
+      description: |
+        权限码：order:read-internal 或 order:read-doctor。医生仅限本人订单。
+        交期 = min(产品标准周期, 订单周期上限) + 过程确认项数 × 每项天数 + 等待天数 + 在途天数，
+        各项均取自 ordering_rule_config。estimate_status = PLACEHOLDER 表示用到了客户尚未确认的占位周期，
+        界面必须标注「待确认」，不得表现为正式承诺交期。
+      operationId: getOrderDeliveryPlan
+      parameters:
+      - {name: orderId, in: path, required: true, schema: {type: integer, format: int64}}
+      responses:
+        '200': {description: 交期计划, content: {application/json: {schema: {"$ref": "#/components/schemas/DeliveryPlanResponse"}}}}
+        '400': {"$ref": "#/components/responses/BadRequest"}
+        '401': {"$ref": "#/components/responses/Unauthorized"}
+        '403': {"$ref": "#/components/responses/Forbidden"}
+        '404': {"$ref": "#/components/responses/NotFound"}
+        '409': {"$ref": "#/components/responses/Conflict"}
+        '503': {"$ref": "#/components/responses/ServiceUnavailable"}
+        default: {"$ref": "#/components/responses/DefaultError"}
+  "/orders/{orderId}/delivery-plan/requested-date":
+    put:
+      tags: [Order]
+      summary: 医生调整要求到货时间
+      description: |
+        权限码：order:write-doctor（DOCTOR，仅本人订单）。调整后重算与系统可行交期的差异；
+        早于可行交期时 variance_flag = EARLIER_THAN_FEASIBLE，客服端订单视图出现时间异常提示并收到通知。
+      operationId: putOrderDeliveryRequestedDate
+      parameters:
+      - {name: orderId, in: path, required: true, schema: {type: integer, format: int64}}
+      requestBody: {required: true, content: {application/json: {schema: {"$ref": "#/components/schemas/AdjustDeliveryDateRequest"}}}}
+      responses:
+        '200': {description: 交期计划, content: {application/json: {schema: {"$ref": "#/components/schemas/DeliveryPlanResponse"}}}}
+        '400': {"$ref": "#/components/responses/BadRequest"}
+        '401': {"$ref": "#/components/responses/Unauthorized"}
+        '403': {"$ref": "#/components/responses/Forbidden"}
+        '404': {"$ref": "#/components/responses/NotFound"}
+        '409': {"$ref": "#/components/responses/Conflict"}
+        '503': {"$ref": "#/components/responses/ServiceUnavailable"}
+        default: {"$ref": "#/components/responses/DefaultError"}
+  "/orders/{orderId}/process-confirmations/{confirmationCode}/request":
+    post:
+      tags: [Order]
+      summary: 内部发起过程确认请求
+      description: |
+        权限码：order:process-confirm-request（CS / 生产 / ADMIN）。confirmationCode 取值：
+        CAD_DESIGN / POST_MILLING_PHOTOS / POST_GLAZING_PHOTOS，且必须是医生下单时勾选过的环节。
+        医生超过宽限期未回复时订单进入等待状态并按超时天数顺延交期。
+      operationId: postOrderProcessConfirmationRequest
+      parameters:
+      - {name: orderId, in: path, required: true, schema: {type: integer, format: int64}}
+      - {name: confirmationCode, in: path, required: true, schema: {type: string}}
+      requestBody: {required: false, content: {application/json: {schema: {"$ref": "#/components/schemas/ProcessConfirmationRequestBody"}}}}
+      responses:
+        '200': {description: 过程确认清单, content: {application/json: {schema: {type: array, items: {"$ref": "#/components/schemas/ProcessConfirmationResponse"}}}}}
+        '400': {"$ref": "#/components/responses/BadRequest"}
+        '401': {"$ref": "#/components/responses/Unauthorized"}
+        '403': {"$ref": "#/components/responses/Forbidden"}
+        '404': {"$ref": "#/components/responses/NotFound"}
+        '409': {"$ref": "#/components/responses/Conflict"}
+        '503': {"$ref": "#/components/responses/ServiceUnavailable"}
+        default: {"$ref": "#/components/responses/DefaultError"}
+  "/orders/{orderId}/process-confirmations/{confirmationCode}/respond":
+    post:
+      tags: [Order]
+      summary: 医生回复过程确认
+      description: 权限码：order:process-confirm-doctor（DOCTOR，仅本人订单）。回复后停止累计等待天数，已顺延的天数保留。
+      operationId: postOrderProcessConfirmationRespond
+      parameters:
+      - {name: orderId, in: path, required: true, schema: {type: integer, format: int64}}
+      - {name: confirmationCode, in: path, required: true, schema: {type: string}}
+      requestBody: {required: true, content: {application/json: {schema: {"$ref": "#/components/schemas/ProcessConfirmationRespondRequest"}}}}
+      responses:
+        '200': {description: 过程确认清单, content: {application/json: {schema: {type: array, items: {"$ref": "#/components/schemas/ProcessConfirmationResponse"}}}}}
+        '400': {"$ref": "#/components/responses/BadRequest"}
+        '401': {"$ref": "#/components/responses/Unauthorized"}
+        '403': {"$ref": "#/components/responses/Forbidden"}
+        '404': {"$ref": "#/components/responses/NotFound"}
+        '409': {"$ref": "#/components/responses/Conflict"}
+        '503': {"$ref": "#/components/responses/ServiceUnavailable"}
+        default: {"$ref": "#/components/responses/DefaultError"}
+  "/orders/{orderId}/try-in/complete":
+    post:
+      tags: [Order]
+      summary: 登记试戴完成
+      description: 权限码：order:try-in-manage（CS / ADMIN）。登记后医生可在同一订单上选择成品与材料。
+      operationId: postOrderTryInComplete
+      parameters:
+      - {name: orderId, in: path, required: true, schema: {type: integer, format: int64}}
+      requestBody: {required: false, content: {application/json: {schema: {"$ref": "#/components/schemas/TryInCompleteRequest"}}}}
+      responses:
+        '200': {description: 交期计划, content: {application/json: {schema: {"$ref": "#/components/schemas/DeliveryPlanResponse"}}}}
+        '400': {"$ref": "#/components/responses/BadRequest"}
+        '401': {"$ref": "#/components/responses/Unauthorized"}
+        '403': {"$ref": "#/components/responses/Forbidden"}
+        '404': {"$ref": "#/components/responses/NotFound"}
+        '409': {"$ref": "#/components/responses/Conflict"}
+        '503': {"$ref": "#/components/responses/ServiceUnavailable"}
+        default: {"$ref": "#/components/responses/DefaultError"}
+  "/orders/{orderId}/try-in/finalize":
+    post:
+      tags: [Order]
+      summary: 试戴完成后在同一订单上选定成品与材料
+      description: |
+        权限码：order:write-doctor（DOCTOR，仅本人订单）。**不新建订单**：订单号、历史与工序都留在原订单上，
+        仅更新产品、变体、材料与计价项，并按新的产品类型重算交期。
+      operationId: postOrderTryInFinalize
+      parameters:
+      - {name: orderId, in: path, required: true, schema: {type: integer, format: int64}}
+      requestBody: {required: false, content: {application/json: {schema: {"$ref": "#/components/schemas/TryInFinalizeRequest"}}}}
+      responses:
+        '200': {description: 交期计划, content: {application/json: {schema: {"$ref": "#/components/schemas/DeliveryPlanResponse"}}}}
+        '400': {"$ref": "#/components/responses/BadRequest"}
+        '401': {"$ref": "#/components/responses/Unauthorized"}
+        '403': {"$ref": "#/components/responses/Forbidden"}
+        '404': {"$ref": "#/components/responses/NotFound"}
+        '409': {"$ref": "#/components/responses/Conflict"}
+        '503': {"$ref": "#/components/responses/ServiceUnavailable"}
+        default: {"$ref": "#/components/responses/DefaultError"}
+  "/ordering-rules":
+    get:
+      tags: [Admin]
+      summary: 读取下单规则与标准周期配置
+      description: 权限码：ordering-rule:manage。各产品标准制作周期属客户未提供项，confirmation_status = PLACEHOLDER 的条目即占位值。
+      operationId: getOrderingRules
+      responses:
+        '200': {description: 规则配置清单, content: {application/json: {schema: {type: array, items: {"$ref": "#/components/schemas/OrderingRuleResponse"}}}}}
+        '400': {"$ref": "#/components/responses/BadRequest"}
+        '401': {"$ref": "#/components/responses/Unauthorized"}
+        '403': {"$ref": "#/components/responses/Forbidden"}
+        '404': {"$ref": "#/components/responses/NotFound"}
+        '409': {"$ref": "#/components/responses/Conflict"}
+        '503': {"$ref": "#/components/responses/ServiceUnavailable"}
+        default: {"$ref": "#/components/responses/DefaultError"}
+  "/ordering-rules/{ruleType}/{ruleKey}":
+    put:
+      tags: [Admin]
+      summary: 维护下单规则数值并将占位值转正
+      description: |
+        权限码：ordering-rule:manage。客户给出真实标准周期后在此改配置，不需要改代码重新发版。
+        ruleType 取值：PRODUCT_CYCLE / PRIORITY_CAP / PROCESS_CONFIRMATION / SHIPPING_TRANSIT。
+      operationId: putOrderingRule
+      parameters:
+      - {name: ruleType, in: path, required: true, schema: {type: string}}
+      - {name: ruleKey, in: path, required: true, schema: {type: string}}
+      requestBody: {required: true, content: {application/json: {schema: {"$ref": "#/components/schemas/UpdateOrderingRuleRequest"}}}}
+      responses:
+        '200': {description: 规则配置清单, content: {application/json: {schema: {type: array, items: {"$ref": "#/components/schemas/OrderingRuleResponse"}}}}}
         '400': {"$ref": "#/components/responses/BadRequest"}
         '401': {"$ref": "#/components/responses/Unauthorized"}
         '403': {"$ref": "#/components/responses/Forbidden"}

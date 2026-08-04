@@ -40,6 +40,13 @@ type OrderItem = {
   reject_reason: string | null
   form_schema_snapshot?: unknown
   form_data: Record<string, unknown>
+  // TASK-034 F 批次：交期引擎的输出。delivery_alert 非空即客户要求的「时间异常提示」。
+  promised_delivery_date?: string | null
+  doctor_requested_delivery_date?: string | null
+  delivery_variance_days?: number | null
+  delivery_alert?: string | null
+  delivery_alert_message?: string | null
+  delivery_estimate_status?: string | null
   created_at?: string
   updated_at?: string
 }
@@ -2399,7 +2406,7 @@ watch(billingTab, (tab) => {
             <td><strong>{{ order.clinic_name }}</strong><small>{{ orderFormValue(order, ['patient_name']) || '患者信息按权限显示' }}</small></td>
             <td><strong>{{ productLabel(order.product_type) }}</strong><small>{{ orderFormValue(order, ['tooth_position','tooth','teeth']) || '牙位待确认' }}</small></td>
             <td><span class="cs-r-badge" :class="registrationStatus(order) === 'NEW' ? 'is-amber' : 'is-green'">{{ registrationStatus(order) === 'NEW' ? '新订单' : '已登记' }}</span></td>
-            <td>{{ informationStatus(order) }}</td><td><span class="cs-r-badge is-violet">{{ statusLabel(order.internal_status) }}</span></td>
+            <td>{{ informationStatus(order) }}</td><td><span class="cs-r-badge is-violet">{{ statusLabel(order.internal_status) }}</span><span v-if="order.delivery_alert" class="cs-r-badge is-red" data-testid="cs-delivery-alert-badge" :title="order.delivery_alert_message ?? ''">⏱ 时间异常</span></td>
             <td><button class="cs-r-link" type="button" @click.stop="openOrder(order)">查看</button></td>
           </tr></tbody>
         </table>
@@ -2412,6 +2419,10 @@ watch(billingTab, (tab) => {
           </header>
 
           <div class="cs-r-order-drawer-body">
+            <section v-if="selectedOrder.delivery_alert" class="cs-r-order-delivery-alert" data-testid="cs-delivery-alert">
+              <strong>⏱ 交期时间异常</strong>
+              <p>{{ selectedOrder.delivery_alert_message }}</p>
+            </section>
             <section class="cs-r-order-summary">
               <div class="cs-r-summary-grid">
                 <div><span>客户</span><strong>{{ selectedOrder.clinic_name }}</strong></div>
@@ -2424,6 +2435,8 @@ watch(billingTab, (tab) => {
                 <div><span>客服负责人</span><strong>{{ selectedOrder.cs_user_id ? `人员 #${selectedOrder.cs_user_id}` : '未分配' }}</strong></div>
                 <div><span>应收金额</span><strong>{{ orderBill ? money(orderBill.amount_cents, orderBill.currency || 'CNY') : '金额待录入' }}</strong></div>
                 <div class="is-state"><span>登记状态</span><strong>{{ registrationStatus(selectedOrder) === 'NEW' ? '新订单' : '已登记' }}</strong></div>
+                <div><span>系统可行交期</span><strong data-testid="cs-promised-delivery-date">{{ selectedOrder.promised_delivery_date ? (selectedOrder.delivery_estimate_status === 'PLACEHOLDER' ? `${selectedOrder.promised_delivery_date}（待确认）` : selectedOrder.promised_delivery_date) : '尚未生成交期计划' }}</strong></div>
+                <div><span>医生要求到货</span><strong>{{ selectedOrder.doctor_requested_delivery_date || '未指定' }}</strong></div>
                 <div><span>订单创建时间</span><strong>{{ compactDateTime(selectedOrder.created_at) }}</strong></div>
                 <div><span>最近更新</span><strong>{{ compactDateTime(selectedOrder.updated_at) }}</strong></div>
                 <div><span>生产创建时间</span><strong>{{ orderProcess ? compactDateTime(orderProcess.created_at) : '尚未创建生产流程' }}</strong></div>

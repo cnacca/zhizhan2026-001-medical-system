@@ -80,6 +80,33 @@ InternalOrderStatus  ──投影──▶  ExternalOrderStatus  ──前端 st
 
 > `PENDING_DOCTOR_CONFIRMATION` 是**错误拼写**，后端与全部迁移中都不存在。曾出现在 `seed-doctor-portal-demo-data.sql`，导致相关设计稿被医生端可见性白名单过滤、医生完全看不到。已于 2026-08-02 修正。
 
+## 下单规则的三个独立域（TASK-034 F 批次）
+
+试戴、过程确认、交期异常**都不是订单状态**。把它们塞进 `InternalOrderStatus` / `ExternalOrderStatus`
+会让一期验收 11.2-03 的「7 个外部状态」口径当场失效，因此各自独立成域。
+权威定义在 `backend/.../order/rules/OrderRuleVocabulary.java`，
+静态守卫在 `npm run check:task-034-order-rules`（会检查订单状态枚举里没有混入这三个域的值）。
+
+| 列 | 合法值 | 含义 |
+| --- | --- | --- |
+| `order_try_in.try_in_status` | `REQUESTED` / `COMPLETED` / `FINALIZED` | `COMPLETED` 后医生可在**同一订单**上继续选成品，不新建订单 |
+| `order_process_confirmation.confirmation_status` | `PLANNED` / `AWAITING_DOCTOR` / `CONFIRMED` / `REJECTED` | `AWAITING_DOCTOR` 超出宽限期即进入等待，按超时天数顺延交期 |
+| `order_delivery_plan.variance_flag` | `NONE` / `EARLIER_THAN_FEASIBLE` / `LATER_THAN_PLAN` | `EARLIER_THAN_FEASIBLE` 就是客服端的「时间异常提示」 |
+| `order_delivery_plan.estimate_status` | `PLACEHOLDER` / `CONFIRMED` | `PLACEHOLDER` 表示用了客户尚未确认的标准周期，**界面必须标「待确认」** |
+| `ordering_rule_config.confirmation_status` | `PLACEHOLDER` / `CONFIRMED` | 同上，逐条规则记录 |
+| `order_bill_item.pricing_status` | `PRICED` / `PENDING_QUOTE` | 与 `catalog_product_v2.pricing_status` 同义 |
+
+下单规则的三组取值同样只在 `OrderRuleVocabulary` 定义一次。三处叫法不一致，以数据列为准：
+
+| 数据列 | 前端字段 | 界面标签 | 任务书用词 | 合法值 |
+| --- | --- | --- | --- | --- |
+| `priority_code` | `case_priority` | 订单周期 | 订单类型 | `NORMAL` / `RUSH_3_DAYS` / `SAME_DAY` |
+| `order_type` | `order_type` | 订单类型 | 产品类型 | `ONLINE` / `IMPRESSION` / `REWORK` / `RETURN` / `DESIGN_ONLY` |
+| `shipping_method` | `shipping_method` | 运输类型 | 运输类型 | `COURIER` / `SALES_DELIVERY` / `SELF_PICKUP` |
+
+> 这些字段**缺省时按默认值处理，存在但取值不认识时直接 400**。反过来做（未知值静默当默认值）
+> 正是 F 批次要消除的「前端能选、后端不认」——那种写法不抛错，只让规则悄悄不生效。
+
 ## 其他状态列
 
 | 列 | 合法值 |

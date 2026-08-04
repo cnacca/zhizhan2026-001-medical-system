@@ -4,6 +4,7 @@ import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.yuri.aiorder.common.BootstrapIdentity;
+import com.yuri.aiorder.common.BusinessTime;
 import com.yuri.aiorder.common.UserRole;
 import com.yuri.aiorder.common.auth.AccessControlService;
 import java.time.LocalDate;
@@ -392,7 +393,7 @@ public class CaseGroupService {
     }
 
     private String nextGroupNo() {
-        String date = LocalDate.now().format(DateTimeFormatter.BASIC_ISO_DATE);
+        String date = BusinessTime.today().format(DateTimeFormatter.BASIC_ISO_DATE);
         String suffix = UUID.randomUUID().toString()
                 .replace("-", "")
                 .substring(0, 10)

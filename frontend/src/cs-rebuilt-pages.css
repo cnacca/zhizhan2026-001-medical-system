@@ -404,6 +404,11 @@
 .cs-r-badge.is-amber { border-color: #f1d49e; background: var(--csr-amber-soft); color: var(--csr-amber); }
 .cs-r-badge.is-red { border-color: #f1c3c8; background: var(--csr-red-soft); color: var(--csr-red); }
 
+/* TASK-034 F 批次：医生调整到货时间早于系统可行交期时的提示。 */
+.cs-r-order-delivery-alert { margin-bottom: 12px; padding: 10px 12px; border: 1px solid #f1c3c8; border-radius: 10px; background: var(--csr-red-soft); }
+.cs-r-order-delivery-alert strong { display: block; color: var(--csr-red); font-size: 12px; }
+.cs-r-order-delivery-alert p { margin: 4px 0 0; color: #7f1d1d; font-size: 11px; line-height: 1.6; }
+
 .cs-r-state {
   display: flex;
   flex-direction: column;

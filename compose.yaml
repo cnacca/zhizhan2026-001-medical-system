@@ -2,7 +2,13 @@ services:
   mysql:
     image: mysql:8.4
     container_name: ai-order-mysql
+    command: ["--default-time-zone=+08:00"]
+    # 业务时区必须固定：mysql / eclipse-temurin 官方镜像默认都是 UTC，
+    # 而工厂在中国，「今天」按 Asia/Shanghai 算。两者不一致会让「今日」指标和交期
+    # 在上海时间 00:00-08:00 之间错一天（详见 common/BusinessTime.java）。
+    # TZ 与 --default-time-zone 必须表示同一时区，改一个就要改另一个。
     environment:
+      TZ: Asia/Shanghai
       MYSQL_DATABASE: ${MYSQL_DATABASE:-ai_order_platform}
       MYSQL_USER: ${MYSQL_USER:-ai_order}
       MYSQL_PASSWORD: ${MYSQL_PASSWORD:-change-me}

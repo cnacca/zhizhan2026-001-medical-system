@@ -4,6 +4,7 @@ import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.core.type.TypeReference;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.yuri.aiorder.common.BootstrapIdentity;
+import com.yuri.aiorder.common.BusinessTime;
 import com.yuri.aiorder.common.auth.AccessControlService;
 import com.yuri.aiorder.common.auth.SystemConfigService;
 import com.yuri.aiorder.workflow.runtime.WorkflowRuntimeService;
@@ -37,7 +38,7 @@ import org.springframework.web.server.ResponseStatusException;
 public class WorkflowExecutionService {
 
     private static final String PERFORMANCE_FORMULA_VERSION = "PHASE_ONE_DEFAULT_V1";
-    private static final ZoneId WORKBENCH_ZONE = ZoneId.of("Asia/Shanghai");
+    private static final ZoneId WORKBENCH_ZONE = BusinessTime.ZONE;
     private static final List<WorkbenchDepartmentDefinition> WORKBENCH_DEPARTMENTS = List.of(
             new WorkbenchDepartmentDefinition("DATA_REVIEW", "数据处理", "Data Review", 10),
             new WorkbenchDepartmentDefinition("CAD", "CAD", "Design", 20),

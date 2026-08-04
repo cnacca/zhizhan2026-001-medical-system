@@ -6,6 +6,8 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.databind.node.ObjectNode;
 import com.yuri.aiorder.common.BootstrapIdentity;
 import com.yuri.aiorder.common.auth.AccessControlService;
+import com.yuri.aiorder.order.rules.DeliveryPlanService;
+import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.util.ArrayList;
 import java.util.HashMap;
@@ -32,12 +34,17 @@ public class OrderProjectionQueryService {
     private final JdbcClient jdbcClient;
     private final ObjectMapper objectMapper;
     private final AccessControlService accessControlService;
+    private final DeliveryPlanService deliveryPlanService;
 
     public OrderProjectionQueryService(
-            JdbcClient jdbcClient, ObjectMapper objectMapper, AccessControlService accessControlService) {
+            JdbcClient jdbcClient,
+            ObjectMapper objectMapper,
+            AccessControlService accessControlService,
+            DeliveryPlanService deliveryPlanService) {
         this.jdbcClient = jdbcClient;
         this.objectMapper = objectMapper;
         this.accessControlService = accessControlService;
+        this.deliveryPlanService = deliveryPlanService;
     }
 
     public DoctorOrderVO getDoctorOrder(long orderId, BootstrapIdentity identity) {
@@ -191,6 +198,7 @@ public class OrderProjectionQueryService {
         spec = spec.param("dataScope", dataScope)
                 .param("userId", identity.userId())
                 .param("clinicId", identity.clinicId())
+                .param("confirmationGraceDays", deliveryPlanService.doctorConfirmationGraceDays())
                 .param("canReviewProduction", accessControlService.canReviewProduction(identity));
         if (externalStatus != null && !externalStatus.isBlank()) {
             spec = spec.param("externalStatus", externalStatus);
@@ -221,7 +229,9 @@ public class OrderProjectionQueryService {
                         %s
                         %s
                         """.formatted(baseOrderSelect(), whereClause))
-                .param("orderId", orderId);
+                .param("orderId", orderId)
+                // 宽限期是配置项，SQL 里的超期判定必须用当前配置值，因此每次查询都绑定。
+                .param("confirmationGraceDays", deliveryPlanService.doctorConfirmationGraceDays());
         if (identity != null) {
             spec = spec.param("dataScope", dataScope)
                     .param("userId", identity.userId())
@@ -261,7 +271,22 @@ public class OrderProjectionQueryService {
                     p.public_message,
                     b.bill_status,
                     l.logistics_status,
-                    l.tracking_no
+                    l.tracking_no,
+                    plan.computed_delivery_date,
+                    plan.doctor_requested_delivery_date,
+                    plan.variance_days,
+                    plan.variance_flag,
+                    plan.waiting_days,
+                    plan.estimate_status AS delivery_estimate_status,
+                    EXISTS (
+                        SELECT 1
+                        FROM order_process_confirmation overdue
+                        WHERE overdue.order_id = o.order_id
+                          AND overdue.confirmation_status = 'AWAITING_DOCTOR'
+                          AND overdue.requested_at IS NOT NULL
+                          AND DATE_ADD(DATE(overdue.requested_at), INTERVAL :confirmationGraceDays DAY)
+                              < CURRENT_DATE()
+                    ) AS confirmation_overdue
                 FROM orders o
                 JOIN clinic c ON c.clinic_id = o.clinic_id
                 LEFT JOIN system_user doctor ON doctor.user_id = o.doctor_user_id
@@ -270,6 +295,7 @@ public class OrderProjectionQueryService {
                 LEFT JOIN order_catalog_snapshot snapshot ON snapshot.order_id = o.order_id
                 LEFT JOIN order_bill b ON b.order_id = o.order_id
                 LEFT JOIN order_logistics l ON l.order_id = o.order_id
+                LEFT JOIN order_delivery_plan plan ON plan.order_id = o.order_id
                 """;
     }
 
@@ -299,7 +325,14 @@ public class OrderProjectionQueryService {
                 rs.getString("public_message"),
                 rs.getString("bill_status"),
                 rs.getString("logistics_status"),
-                rs.getString("tracking_no"));
+                rs.getString("tracking_no"),
+                rs.getObject("computed_delivery_date", LocalDate.class),
+                rs.getObject("doctor_requested_delivery_date", LocalDate.class),
+                rs.getObject("variance_days", Integer.class),
+                rs.getString("variance_flag"),
+                rs.getInt("waiting_days"),
+                rs.getString("delivery_estimate_status"),
+                rs.getBoolean("confirmation_overdue"));
     }
 
     private DoctorOrderVO toDoctorOrder(OrderReadRow row, List<DoctorOrderProgressItem> publicProgress) {
@@ -407,8 +440,47 @@ public class OrderProjectionQueryService {
                 row.rejectReason(),
                 row.formSchemaSnapshot() == null ? null : readJson(row.formSchemaSnapshot()),
                 internalFormData(row),
+                row.computedDeliveryDate(),
+                row.doctorRequestedDeliveryDate(),
+                row.varianceDays(),
+                deliveryAlert(row),
+                deliveryAlertMessage(row),
+                row.deliveryEstimateStatus(),
                 row.createdAt(),
                 row.updatedAt());
+    }
+
+    /**
+     * 时间异常提示。医生把到货时间调早于系统可行交期是最需要客服介入的一类，因此优先级最高；
+     * 其次是过程确认超期未回复导致的等待。没有交期计划（F 批次之前的订单）时不提示。
+     */
+    private String deliveryAlert(OrderReadRow row) {
+        if ("EARLIER_THAN_FEASIBLE".equals(row.varianceFlag())) {
+            return "EARLIER_THAN_FEASIBLE";
+        }
+        if (row.confirmationOverdue()) {
+            return "WAITING_DOCTOR_CONFIRMATION";
+        }
+        if ("LATER_THAN_PLAN".equals(row.varianceFlag())) {
+            return "LATER_THAN_PLAN";
+        }
+        return null;
+    }
+
+    private String deliveryAlertMessage(OrderReadRow row) {
+        String alert = deliveryAlert(row);
+        if (alert == null) {
+            return null;
+        }
+        return switch (alert) {
+            case "EARLIER_THAN_FEASIBLE" -> "医生要求到货 " + row.doctorRequestedDeliveryDate()
+                    + "，早于系统可行交期 " + row.computedDeliveryDate() + "（相差 "
+                    + Math.abs(row.varianceDays() == null ? 0 : row.varianceDays()) + " 天），请与医生确认。";
+            case "WAITING_DOCTOR_CONFIRMATION" -> "有过程确认环节超过宽限期未获医生确认，订单处于等待状态。";
+            case "LATER_THAN_PLAN" -> "医生要求到货 " + row.doctorRequestedDeliveryDate()
+                    + "，晚于系统可行交期 " + row.computedDeliveryDate() + "。";
+            default -> null;
+        };
     }
 
     private JsonNode internalFormData(OrderReadRow row) {
@@ -536,7 +608,14 @@ public class OrderProjectionQueryService {
             String publicMessage,
             String billStatus,
             String logisticsStatus,
-            String trackingNo) {
+            String trackingNo,
+            LocalDate computedDeliveryDate,
+            LocalDate doctorRequestedDeliveryDate,
+            Integer varianceDays,
+            String varianceFlag,
+            int waitingDays,
+            String deliveryEstimateStatus,
+            boolean confirmationOverdue) {
     }
 
     public record OrderListResponse<T>(List<T> items, long total, int page, int size) {

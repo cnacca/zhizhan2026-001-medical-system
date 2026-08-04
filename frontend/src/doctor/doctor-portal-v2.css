@@ -3354,6 +3354,34 @@
 .dv2-upload-checklist span.done { color: #047857; background: #d1fae5; }
 .dv2-upload-checklist span.optional { color: #64748b; }
 
+/* TASK-034 F 批次：交期计划、过程确认与试戴。 */
+.dv2-delivery-placeholder { padding: 10px 12px; border: 1px dashed #f59e0b; border-radius: 8px; background: #fffbeb; }
+.dv2-delivery-placeholder strong { display: block; color: #b45309; font-size: 11px; }
+.dv2-delivery-placeholder p { margin: 4px 0 0; color: #92400e; font-size: 9px; line-height: 1.6; }
+.dv2-delivery-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(120px, 1fr)); gap: 10px; margin: 12px 0 0; }
+.dv2-delivery-grid > div { padding: 8px 10px; border-radius: 8px; background: #f8fafc; }
+.dv2-delivery-grid dt { color: #64748b; font-size: 9px; }
+.dv2-delivery-grid dd { margin: 3px 0 0; color: #0f172a; font-size: 12px; font-weight: 600; }
+.dv2-delivery-alert { margin-top: 10px; padding: 9px 11px; border-radius: 8px; color: #b91c1c; font-size: 10px; line-height: 1.6; background: #fef2f2; }
+.dv2-delivery-adjust { display: flex; gap: 10px; align-items: flex-end; margin-top: 12px; }
+.dv2-delivery-adjust label { display: flex; flex-direction: column; gap: 4px; }
+.dv2-delivery-adjust label span { color: #64748b; font-size: 9px; }
+.dv2-delivery-adjust input { padding: 6px 9px; border: 1px solid #cbd5f5; border-radius: 7px; color: #0f172a; font-size: 11px; }
+.dv2-delivery-confirmations { display: flex; flex-direction: column; gap: 8px; margin-top: 12px; }
+.dv2-delivery-confirmations article { display: flex; gap: 10px; align-items: center; justify-content: space-between; padding: 9px 11px; border: 1px solid #e2e8f0; border-radius: 8px; }
+.dv2-delivery-confirmations article.overdue { border-color: #fca5a5; background: #fef2f2; }
+.dv2-delivery-confirmations strong { display: block; color: #0f172a; font-size: 11px; }
+.dv2-delivery-confirmations small { color: #64748b; font-size: 9px; }
+.dv2-delivery-confirm-actions { display: flex; gap: 6px; }
+.dv2-delivery-tryin { margin-top: 12px; padding: 9px 11px; border-radius: 8px; background: #eff6ff; }
+.dv2-delivery-tryin strong { color: #1d4ed8; font-size: 11px; }
+.dv2-delivery-tryin p { margin: 4px 0 0; color: #1e3a8a; font-size: 9px; line-height: 1.6; }
+.dv2-delivery-bill-items { margin-top: 12px; }
+.dv2-delivery-bill-items strong { color: #0f172a; font-size: 11px; }
+.dv2-delivery-bill-items ul { margin: 6px 0 0; padding: 0; list-style: none; }
+.dv2-delivery-bill-items li { display: flex; justify-content: space-between; padding: 6px 0; border-bottom: 1px dashed #e2e8f0; color: #334155; font-size: 10px; }
+.dv2-delivery-bill-items li em { color: #64748b; font-style: normal; }
+
 @media (max-width: 1100px) {
   .dv2-billing-stats { grid-template-columns: repeat(3, minmax(0, 1fr)); }
   .dv2-wizard-catalog { grid-template-columns: 210px minmax(0, 1fr); }

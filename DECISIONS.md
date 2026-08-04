@@ -1,5 +1,17 @@
 # DECISIONS
 
+## D-183 业务时区固定为 Asia/Shanghai，数据库与 JVM 两侧同时钉死
+
+状态：`ACCEPTED`
+
+- 工厂在中国，业务上的「今天」是 Asia/Shanghai 的今天。而 `mysql` 与 `eclipse-temurin` 官方镜像默认都是 UTC，此前项目未在任何地方固定时区。
+- 后果已实测：MySQL 的 `CURRENT_TIMESTAMP(3)` 与 Java 的 `LocalDate.now(Asia/Shanghai)` 相差 8 小时，同一张表里 Java 写入的 `DATE` 列与 MySQL 写入的 `DATETIME` 列日期口径不同。`ProductionWorkbenchDepartmentSummaryTests` 在本地 00:00–08:00 期间必然失败即源于此，生产环境的「今日」指标与交期会同样错一天。
+- 因此在三处同时固定，缺一不可：MySQL 以 `--default-time-zone=+08:00` 启动；容器设 `TZ=Asia/Shanghai`；镜像 ENTRYPOINT 追加 `-Duser.timezone=Asia/Shanghai`（只设 `TZ` 时若镜像缺 tzdata 会静默回落 UTC）。
+- 应用侧新增 `common/BusinessTime`，「今天」一律走 `BusinessTime.today()`，不用取 JVM 默认时区的无参 `LocalDate.now()`。即使部署环境时区没设对，业务日期仍然正确。
+- 一致性由 `npm run check:deployment-env` 静态守住：三处时区固定、部署 compose 的 backend 带 `TZ`、交期与病例组两个服务不出现无参 `LocalDate.now()`。
+
+影响：交期计算、订单号与病例组号中的日期、生产工作台「今日」指标口径统一。**改动时区设置会改变已有 `DATETIME` 数据的解读**（原按 UTC 写入的值会被当作 Asia/Shanghai 读出），开发与演示库需重建或重新灌数；项目尚未部署生产，无历史数据需要迁移。
+
 ## D-182 隐形正畸使用来源可追溯的正式产品并接通医生七步处方
 
 状态：`ACCEPTED`

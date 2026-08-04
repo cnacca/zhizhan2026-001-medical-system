@@ -4,6 +4,7 @@ import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.yuri.aiorder.common.BootstrapIdentity;
+import com.yuri.aiorder.common.BusinessTime;
 import com.yuri.aiorder.common.auth.AccessControlService;
 import com.yuri.aiorder.order.status.InternalOrderStatus;
 import com.yuri.aiorder.order.status.OrderStatusService;
@@ -468,7 +469,7 @@ public class OrderCreationService {
     }
 
     private String nextOrderNo() {
-        String date = LocalDate.now().format(DateTimeFormatter.BASIC_ISO_DATE);
+        String date = BusinessTime.today().format(DateTimeFormatter.BASIC_ISO_DATE);
         String suffix = UUID.randomUUID().toString().replace("-", "").substring(0, 10).toUpperCase(Locale.ROOT);
         return "ORD" + date + "-" + suffix;
     }

@@ -77,7 +77,10 @@ npm run check:task-034-authorization-baseline
 结果：268 项中 266 通过。两条失败均与 A 批次无关，已分别登记：
 
 - `OrderCaseGroupTests.migrationLeavesNoUngroupedOrDuplicateLegacyOrders`：断言全库不变量，被其它非事务测试的残留污染；干净库上通过。
-- `ProductionWorkbenchDepartmentSummaryTests`：服务按 `Asia/Shanghai` 算「今天」而 MySQL 存 UTC，本地 00:00–08:00 期间必然失败；生产环境的「今日」指标同样错 8 小时。
+- ~~`ProductionWorkbenchDepartmentSummaryTests`：服务按 `Asia/Shanghai` 算「今天」而 MySQL 存 UTC，本地 00:00–08:00 期间必然失败；生产环境的「今日」指标同样错 8 小时。~~
+  **已于 2026-08-04 修复**（D-183）：MySQL 以 `--default-time-zone=+08:00` 启动、容器与 JVM 固定 `Asia/Shanghai`，
+  应用侧「今天」统一走 `common/BusinessTime`。已用「把 MySQL 临时拨到 `-10:00` 复现失败 → 恢复 `+08:00` 通过」验证，
+  不是靠换个时间点跑一次侥幸通过。
 
 **注意**：改动了已应用的迁移时需要重建测试库（`DROP DATABASE ai_order_platform_test` 后跑 `scripts/ensure-test-database.sh`），否则 Flyway 校验和不匹配。
 
@@ -266,30 +269,116 @@ Acceptance：
 
 ---
 
-## F. 下单规则后端化
+## F. 下单规则后端化 —— `COMPLETED`（2026-08-03）
 
-**目标**：消除"前端能选、后端不认"。可与 A~E 并行。
+**目标**：消除"前端能选、后端不认"。与 A~E 无依赖。
 
 现状（已核实）：`try_in_required`、过程确认、订单类型、运输类型在 `DoctorCaseGroupWizard.vue` 有字段，后端零命中；后端**完全没有交期计算逻辑**。
 
-Scope：
+### 执行前先统一三处不一致的叫法
 
-- **试戴**：作为独立计价项落入账单；试戴完成后同一订单可继续选择成品与材料，不新建订单。
-- **过程确认**：每增加一项，交期自动 +1 天；医生长时间未确认时订单进入等待状态并延后交期，需有可见提示。
-- **订单类型**：正常出货周期 / 3 天加急 / 当天出货，影响交期计算。
-- **运输类型**：快递 / 业务员配送 / 自取，影响物流环节。
-- **产品类型**：网络订单 / 印模订单 / 返工订单 / 退货订单 / 仅设计订单；后三类需回寄运单号，缺失时拦截提交。
-- **交期计算引擎**：按产品类型标准周期 + 订单类型系数 + 过程确认项数计算到货时间；医生可调整，调整后客服端出现时间异常提示。
-- **患者联动**：下单时选择既有患者直接带出资料；新患者填写后自动写入患者管理。
+任务书、客户确认表、前端对同一批字段用词互相冲突，落地前先定死以数据列为准，并写入 `status-vocabulary.md`：
 
-Acceptance：
+| 数据列 | 前端字段 | 界面标签 | 本文件原用词 |
+| --- | --- | --- | --- |
+| `priority_code` | `case_priority` | 订单周期 | 「订单类型」 |
+| `order_type` | `order_type` | 订单类型 | 「产品类型」 |
 
-- [ ] 勾选试戴后账单出现对应计价项。
-- [ ] 每增加一项过程确认，系统给出的到货时间 +1 天。
-- [ ] 选择加急后交期缩短，且与正常周期可区分。
-- [ ] 印模/返工/退货订单未填回寄运单号时提交被拦截。
-- [ ] 医生调整到货时间后，客服端出现时间异常提示。
-- [ ] 新患者下单后自动出现在患者管理中。
+前端字段名保持不变——为统一叫法去改 18k 行的下单向导，收益不抵风险。
+
+**回寄运单号的必填范围，本文件上下自相矛盾**：Scope 写「后三类」（返工/退货/仅设计），Acceptance 写「印模/返工/退货」。
+按 Acceptance 与前端现有校验取**印模/返工/退货**——仅设计订单不寄实体模型，要求运单号会拦住正常下单。需与客户复核。
+
+### 实际 Scope
+
+- [x] 规则数值全部落 `ordering_rule_config`（V81），**代码里没有一个写死的天数**；每条规则带 `confirmation_status`，
+  客户未提供的标准周期与在途天数一律 `PLACEHOLDER`。`npm run check:task-034-order-rules` 静态守住「引擎里不出现写死天数」。
+- [x] **交期计算引擎**（`DeliveryPlanService`）：
+  `到货日 = 起算日 + min(产品标准周期, 订单周期上限) + 过程确认项数×每项天数 + 等待天数 + 在途天数`。
+  上限 `-1` 表示不设上限；3 天加急 = 3，当天出货 = 0，这两条客户已写死故为 `CONFIRMED`。
+- [x] **试戴**：`order_bill_item` 新表承载计价项，试戴是独立一条且不预填金额（客户原话）；
+  `POST /orders/{id}/try-in/complete` 由客服/管理端登记完成，之后 `POST /orders/{id}/try-in/finalize`
+  让医生在**同一 order_id** 上选定成品与材料——订单号、历史、工序都留在原订单。
+- [x] **过程确认**：`order_process_confirmation` 新表，内部发起 → 医生回复。
+  等待天数**按读取时的日期现算**（`requested_at + 宽限期` 与今天的差），不引入定时任务：少一个会静默停摆的组件。
+  医生回复时把已耽误的天数落库，之后不再累加也不倒回。
+- [x] **运输类型**影响在途天数，进而影响到货日；自取 0 天为 `CONFIRMED`，快递/业务员配送是占位值。
+- [x] **订单类型**（网络/印模/返工/退货/仅设计）：印模/返工/退货缺回寄运单号时**提交整体回滚**，
+  不会出现「一部分子订单进了初审、另一部分没进」的半提交。
+- [x] **未知取值直接 400**，不静默当默认值——静默兜底就是把「前端能选后端不认」换个形式保留下来。
+  缺省仍按默认值处理，兼容 F 批次之前提交的订单。
+- [x] **医生调整到货时间**：`PUT /orders/{id}/delivery-plan/requested-date`；早于可行交期时
+  `variance_flag = EARLIER_THAN_FEASIBLE`，客服端订单列表与抽屉出现时间异常提示，并给受理客服推送通知。
+- [x] **占位值转正走配置**：`PUT /ordering-rules/{ruleType}/{ruleKey}`（`ordering-rule:manage`），
+  客户给出真实周期后改配置即可，不改代码不发版。
+- [x] **患者联动**已具备，本批补测试固化：新患者经 `POST /patients` 立即出现在患者管理，
+  病例组带 `patient_id` 提交后客服端直接看到患者姓名。
+- [x] 前端：医生端订单抽屉新增「交期与过程确认」区块（天数构成、过程确认回复、试戴状态、计价项、调整到货时间），
+  客服端订单列表与抽屉新增时间异常提示与交期两项。占位交期一律显示为 `日期（待确认）`。
+- [x] 同步 `docs/api/openapi.yaml`（7 个 operation、11 个 schema）与 `docs/development/status-vocabulary.md`。
+
+### 执行中发现并处理的问题
+
+1. **不能为这批功能扩订单状态枚举**。「试戴中」「等待医生确认」看起来很像订单状态，但塞进
+   `InternalOrderStatus` / `ExternalOrderStatus` 会让一期验收 11.2-03 的「7 个外部状态」口径当场失效。
+   已各自独立成域（`order_try_in.try_in_status` / `order_process_confirmation.confirmation_status`），
+   并在 check 脚本里加了反向断言：订单状态枚举中一旦出现 `TRY_IN` / `AWAITING_DOCTOR` 即失败。
+2. **目录读取逻辑此前只有病例组草稿一处**。试戴后选成品要读同一套「当前生效版本」的产品与材料绑定，
+   两处各写一份迟早在目录换版时给出不一致的结果。已抽出 `ActiveCatalogProductReader` 共用，
+   `CaseGroupDraftService` 改为委托，行为不变（288→305 项测试全绿）。
+3. **占位来源要按是否真的影响结果判定**。当天出货把制作天数压到 0 时，产品标准周期并没有参与计算，
+   此时仍标「待确认」会让客服无谓地去追一个不影响结果的数。已按 `cap < 0 || 周期 <= cap` 判定。
+
+### Acceptance
+
+- [x] 勾选试戴后账单出现对应计价项（`tryInSelectionCreatesItsOwnBillItemAndTheFinalProductStaysOnTheSameOrder`，
+  同时断言成品落在原 `order_id`、订单号与订单数不变）。
+- [x] 每增加一项过程确认，到货时间 +1 天（`eachProcessConfirmationAddsExactlyOneDayToTheDeliveryDate`，0/1/2 项逐一比对）。
+- [x] 加急交期缩短且可区分（`rushOrderShortensTheDeliveryDateAndStaysDistinguishableFromTheNormalCycle`，
+  断言日期先后与 `priority_cap_days` 两层）。
+- [x] 印模/返工/退货未填回寄运单号时提交被拦截（`impressionReworkAndReturnOrdersCannotBeSubmittedWithoutInboundTrackingNo`，
+  三种类型逐一验证，并证明补上运单号后同一份草稿能提交——拦的是缺运单号不是订单类型）。
+- [x] 医生调整到货时间后客服端出现时间异常提示（`doctorPullingTheDeliveryDateForwardRaisesTheCsVarianceAlert`，
+  含「放回可行范围后提示消失」——不能只会亮不会灭）。
+- [x] 新患者下单后自动出现在患者管理中（`patientCreatedWhileOrderingImmediatelyAppearsInPatientManagementAndCarriesIntoTheOrder`）。
+- [x] 医生长时间未确认时订单进入等待并延后交期，医生端与客服端都有提示
+  （`processConfirmationLeftUnansweredPostponesDeliveryAndSurfacesAWaitingAlert`）。
+- [x] 占位周期在界面标「待确认」（`deliveryEstimateIsMarkedPlaceholderUntilCustomerConfirmsTheStandardCycle`）；
+  改配置即可转正且交期随之变化（`confirmingStandardCycleThroughConfigurationChangesDeliveryWithoutCodeChange`）。
+- [x] 未知取值被拒而非静默兜底（`unknownOrderingRuleValuesAreRejectedInsteadOfSilentlyDefaulted`，四类字段各一条）。
+- [x] 越权测试：`processConfirmationRolesAreSeparated`（医生不能替内部发起、客服不能替医生确认、别的医生不能确认他人订单）、
+  `removingTryInPermissionFromCsDeniesTryInCompletionEvenThoughThePortalRoleMatches`（删权限码真的产生 403）、
+  `orderingRuleConfigurationRequiresItsOwnPermission`、`doctorCannotReadAnotherDoctorsDeliveryPlan`。
+
+Verification：
+
+```bash
+npm run test:backend
+npm run check:task-034-order-rules
+npm run check:openapi
+npm run check:status-vocabulary
+npm run build:frontend
+npm run demo:prepare
+```
+
+结果：后端 **305 项全部通过**（干净测试库上）。A 批次登记的两条既有失败已分别处理：
+全库不变量那条只在被其它非事务测试污染时失败，重建测试库后通过；时区那条已按 D-183 真正修掉。
+`check:task-034-order-rules` 64 项断言通过；OpenAPI 184 paths / 212 operations 校验通过；
+`demo:prepare` 在演示环境上重新迁移、灌数并校验通过。
+
+另在**运行中的演示环境**用真实登录跑通完整链路（非 MockMvc）：印模订单缺运单号提交返回 400 →
+未知订单类型返回 400 → 补运单号后提交 200 → 交期 5+2+2=9 天、`estimate_status=PLACEHOLDER`
+且占位来源为「常规冠修复标准制作周期、快递在途天数」、计价项含「打印氧化锆冠 / 试戴」两条 →
+医生提前 3 天 → 客服端返回 `EARLIER_THAN_FEASIBLE` 与完整提示文案 → 试戴完成登记 → 成品在原订单选定。
+
+### 遗留
+
+- 各产品标准制作周期、快递与业务员配送在途天数、医生确认宽限天数**全部是占位值**，
+  在 `ordering_rule_config` 中以 `PLACEHOLDER` 标记，界面显示为「日期（待确认）」。客户资料到位后改配置转正。
+- 过程确认的发起目前是独立接口，尚未挂到具体工序节点上（做完 CAD 设计自动发起 CAD 确认）。
+  挂钩需要工序节点与确认环节的对应关系，属客户未提供的工序清单范围。
+- 「回寄运单号必填范围」按 Acceptance 取印模/返工/退货，与本文件 Scope 原文的「后三类」不一致，需与客户复核。
+- 客服端目前只展示时间异常提示，尚无「按提示改期/与医生协商」的操作入口；客户未提出该要求，未擅自添加。
 
 **边界**：各产品的标准制作周期属客户未提供数据（CP 项）。本批只建规则引擎并使用占位默认值，**占位值必须在界面上标注为"待确认"**，不得表现为正式承诺交期。
 

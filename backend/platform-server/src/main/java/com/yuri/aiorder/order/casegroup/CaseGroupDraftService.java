@@ -5,7 +5,11 @@ import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.databind.node.ArrayNode;
 import com.fasterxml.jackson.databind.node.ObjectNode;
+import com.yuri.aiorder.catalog.ActiveCatalogProductReader;
+import com.yuri.aiorder.catalog.ActiveCatalogProductReader.ActiveProduct;
+import com.yuri.aiorder.catalog.ActiveCatalogProductReader.BindingRow;
 import com.yuri.aiorder.common.BootstrapIdentity;
+import com.yuri.aiorder.common.BusinessTime;
 import com.yuri.aiorder.common.auth.AccessControlService;
 import com.yuri.aiorder.order.casegroup.CaseGroupItemModels.BindSharedFilesRequest;
 import com.yuri.aiorder.order.casegroup.CaseGroupItemModels.CopyGroupItemRequest;
@@ -14,6 +18,8 @@ import com.yuri.aiorder.order.casegroup.CaseGroupItemModels.DeleteGroupItemReque
 import com.yuri.aiorder.order.casegroup.CaseGroupItemModels.QuantitySelection;
 import com.yuri.aiorder.order.casegroup.CaseGroupItemModels.SubmitCaseGroupRequest;
 import com.yuri.aiorder.order.casegroup.CaseGroupItemModels.UpdateGroupItemRequest;
+import com.yuri.aiorder.order.rules.OrderRuleSelections;
+import com.yuri.aiorder.order.rules.OrderRuleService;
 import com.yuri.aiorder.order.status.InternalOrderStatus;
 import com.yuri.aiorder.order.status.OrderStatusService;
 import java.math.BigDecimal;
@@ -54,18 +60,24 @@ public class CaseGroupDraftService {
     private final AccessControlService accessControlService;
     private final OrderStatusService orderStatusService;
     private final CaseGroupService caseGroupService;
+    private final ActiveCatalogProductReader catalogReader;
+    private final OrderRuleService orderRuleService;
 
     public CaseGroupDraftService(
             JdbcClient jdbcClient,
             ObjectMapper objectMapper,
             AccessControlService accessControlService,
             OrderStatusService orderStatusService,
-            CaseGroupService caseGroupService) {
+            CaseGroupService caseGroupService,
+            ActiveCatalogProductReader catalogReader,
+            OrderRuleService orderRuleService) {
         this.jdbcClient = jdbcClient;
         this.objectMapper = objectMapper;
         this.accessControlService = accessControlService;
         this.orderStatusService = orderStatusService;
         this.caseGroupService = caseGroupService;
+        this.catalogReader = catalogReader;
+        this.orderRuleService = orderRuleService;
     }
 
     @Transactional
@@ -90,6 +102,9 @@ public class CaseGroupDraftService {
                 false);
         requireObject(request.formValues(), "form_values");
         validateFormSchema(product, request.formValues(), false);
+        // 订单类型 / 订单周期 / 运输类型在草稿阶段就校验：认识的值才收，未知值直接 400。
+        // 回寄运单号留到提交时才强制——草稿允许先选类型后补运单号。
+        OrderRuleSelections.parse(request.formValues(), false);
 
         int lineNo = nextLineNo(groupId);
         String orderNo = nextOrderNo();
@@ -163,6 +178,9 @@ public class CaseGroupDraftService {
                 false);
         requireObject(request.formValues(), "form_values");
         validateFormSchema(product, request.formValues(), false);
+        // 订单类型 / 订单周期 / 运输类型在草稿阶段就校验：认识的值才收，未知值直接 400。
+        // 回寄运单号留到提交时才强制——草稿允许先选类型后补运单号。
+        OrderRuleSelections.parse(request.formValues(), false);
         Map<String, Object> before = orderSnapshot(orderId);
         jdbcClient.sql("""
                         UPDATE orders
@@ -388,6 +406,7 @@ public class CaseGroupDraftService {
             throw badRequest("case group must contain at least one product");
         }
 
+        LocalDate submittedOn = BusinessTime.today();
         for (DraftOrder order : orders) {
             ActiveProduct product = loadActiveProduct(order.productId(), order.variantId());
             ParsedFormData parsed = parseFormData(order.formData());
@@ -398,7 +417,16 @@ public class CaseGroupDraftService {
                     true);
             validateFormSchema(product, parsed.formValues(), true);
             validateUploadRules(product, group, order.orderId());
+            // 提交时才强制回寄运单号：印模 / 返工 / 退货订单缺运单号会在这里抛 400，
+            // 整个提交回滚——不能出现「一部分子订单进了初审、另一部分没进」的半提交状态。
+            OrderRuleSelections selections = OrderRuleSelections.parse(parsed.formValues(), true);
             freezeSnapshot(order, product, parsed.formValues(), selection);
+            orderRuleService.initializeOnSubmit(
+                    order.orderId(),
+                    product.workflowProductType(),
+                    product.productName(),
+                    selections,
+                    submittedOn);
         }
         for (DraftOrder order : orders) {
             orderStatusService.updateOrderState(
@@ -520,144 +548,11 @@ public class CaseGroupDraftService {
     }
 
     private List<BindingRow> loadBindings(ActiveProduct product, String bindingType) {
-        if ("MATERIAL".equals(bindingType)) {
-            return jdbcClient.sql("""
-                            SELECT binding.material_id AS selectable_id,
-                                   binding.selection_group_code,
-                                   binding.required_flag, binding.selection_mode,
-                                   binding.min_quantity, binding.max_quantity,
-                                   binding.price_increment_cents,
-                                   material.material_code AS item_code,
-                                   material.display_name AS item_name
-                            FROM catalog_product_material_binding_v2 binding
-                            JOIN catalog_material_v2 material
-                              ON material.material_id = binding.material_id
-                            WHERE binding.config_version_id = :versionId
-                              AND binding.product_id = :productId
-                              AND (binding.variant_id IS NULL OR binding.variant_id <=> :variantId)
-                              AND binding.status = 'ACTIVE'
-                              AND material.status = 'ACTIVE'
-                            ORDER BY binding.sort_order, binding.binding_id
-                            """)
-                    .param("versionId", product.versionId())
-                    .param("productId", product.productId())
-                    .param("variantId", product.variantId())
-                    .query((rs, rowNum) -> mapBinding(rs, "MATERIAL"))
-                    .list();
-        }
-        return jdbcClient.sql("""
-                        SELECT binding.accessory_id AS selectable_id,
-                               binding.selection_group_code,
-                               binding.required_flag, 'MULTIPLE' AS selection_mode,
-                               binding.min_quantity, binding.max_quantity,
-                               binding.price_increment_cents,
-                               accessory.accessory_code AS item_code,
-                               accessory.display_name AS item_name
-                        FROM catalog_product_accessory_binding_v2 binding
-                        JOIN catalog_accessory_v2 accessory
-                          ON accessory.accessory_id = binding.accessory_id
-                        WHERE binding.config_version_id = :versionId
-                          AND binding.product_id = :productId
-                          AND (binding.variant_id IS NULL OR binding.variant_id <=> :variantId)
-                          AND binding.status = 'ACTIVE'
-                          AND accessory.status = 'ACTIVE'
-                        ORDER BY binding.sort_order, binding.binding_id
-                        """)
-                .param("versionId", product.versionId())
-                .param("productId", product.productId())
-                .param("variantId", product.variantId())
-                .query((rs, rowNum) -> mapBinding(rs, "ACCESSORY"))
-                .list();
-    }
-
-    private static BindingRow mapBinding(ResultSet rs, String type) throws SQLException {
-        return new BindingRow(
-                type,
-                rs.getLong("selectable_id"),
-                rs.getString("selection_group_code"),
-                rs.getBoolean("required_flag"),
-                rs.getString("selection_mode"),
-                rs.getObject("min_quantity", Integer.class),
-                rs.getObject("max_quantity", Integer.class),
-                rs.getObject("price_increment_cents", Long.class),
-                rs.getString("item_code"),
-                rs.getString("item_name"));
+        return catalogReader.loadBindings(product, bindingType);
     }
 
     private ActiveProduct loadActiveProduct(long productId, Long variantId) {
-        try {
-            ActiveProduct product = jdbcClient.sql("""
-                            SELECT product.product_id, product.config_version_id,
-                                   product.product_code, product.display_name,
-                                   product.workflow_product_type, product.tooth_rule_code,
-                                   product.pricing_status, product.base_price_cents,
-                                   product.currency, category.category_code,
-                                   category.display_name AS category_name
-                            FROM catalog_product_v2 product
-                            JOIN catalog_category_v2 category
-                              ON category.category_id = product.category_id
-                            JOIN catalog_config_version version
-                              ON version.config_version_id = product.config_version_id
-                            WHERE product.product_id = :productId
-                              AND product.status = 'ACTIVE'
-                              AND category.status = 'ACTIVE'
-                              AND version.publication_status = 'ACTIVE'
-                              AND version.effective_at <= CURRENT_TIMESTAMP(3)
-                            """)
-                    .param("productId", productId)
-                    .query((rs, rowNum) -> new ActiveProduct(
-                            rs.getLong("product_id"),
-                            rs.getLong("config_version_id"),
-                            rs.getString("product_code"),
-                            rs.getString("display_name"),
-                            rs.getString("workflow_product_type"),
-                            rs.getString("tooth_rule_code"),
-                            rs.getString("pricing_status"),
-                            rs.getObject("base_price_cents", Long.class),
-                            rs.getString("currency"),
-                            rs.getString("category_code"),
-                            rs.getString("category_name"),
-                            null,
-                            null,
-                            null))
-                    .single();
-            if (variantId == null) {
-                return product;
-            }
-            VariantRow variant = jdbcClient.sql("""
-                            SELECT variant_id, variant_code, display_name
-                            FROM catalog_product_variant_v2
-                            WHERE variant_id = :variantId
-                              AND product_id = :productId
-                              AND config_version_id = :versionId
-                              AND status = 'ACTIVE'
-                            """)
-                    .param("variantId", variantId)
-                    .param("productId", productId)
-                    .param("versionId", product.versionId())
-                    .query((rs, rowNum) -> new VariantRow(
-                            rs.getLong("variant_id"),
-                            rs.getString("variant_code"),
-                            rs.getString("display_name")))
-                    .single();
-            return new ActiveProduct(
-                    product.productId(),
-                    product.versionId(),
-                    product.productCode(),
-                    product.productName(),
-                    product.workflowProductType(),
-                    product.toothRuleCode(),
-                    product.pricingStatus(),
-                    product.basePriceCents(),
-                    product.currency(),
-                    product.categoryCode(),
-                    product.categoryName(),
-                    variant.variantId(),
-                    variant.variantCode(),
-                    variant.variantName());
-        } catch (EmptyResultDataAccessException ex) {
-            throw badRequest("selected product or variant is not available in the active catalog");
-        }
+        return catalogReader.loadActiveProduct(productId, variantId);
     }
 
     private void validateFormSchema(ActiveProduct product, JsonNode values, boolean requireRequiredFields) {
@@ -1417,7 +1312,7 @@ public class CaseGroupDraftService {
     }
 
     private String nextOrderNo() {
-        String date = LocalDate.now().format(DateTimeFormatter.BASIC_ISO_DATE);
+        String date = BusinessTime.today().format(DateTimeFormatter.BASIC_ISO_DATE);
         String suffix = UUID.randomUUID().toString()
                 .replace("-", "")
                 .substring(0, 10)
@@ -1453,39 +1348,6 @@ public class CaseGroupDraftService {
             String itemClientKey,
             String formData,
             String internalStatus) {
-    }
-
-    private record ActiveProduct(
-            long productId,
-            long versionId,
-            String productCode,
-            String productName,
-            String workflowProductType,
-            String toothRuleCode,
-            String pricingStatus,
-            Long basePriceCents,
-            String currency,
-            String categoryCode,
-            String categoryName,
-            Long variantId,
-            String variantCode,
-            String variantName) {
-    }
-
-    private record VariantRow(long variantId, String variantCode, String variantName) {
-    }
-
-    private record BindingRow(
-            String bindingType,
-            long selectableId,
-            String selectionGroupCode,
-            boolean required,
-            String selectionMode,
-            Integer minQuantity,
-            Integer maxQuantity,
-            Long priceIncrementCents,
-            String itemCode,
-            String itemName) {
     }
 
     private record PriceResult(
