@@ -1,5 +1,8 @@
 # Deployment Readiness Checklist
 
+> ⚠️ **本文件是追加式历史日志**，开头是 2026-07 的阶段锚点，读正文容易误判还有几十项没做。
+> **当前真实缺口请看 `docs/DELIVERY-GAP.md`**，机器可读版 `npm run check:task8-readiness-gaps`。
+
 更新日期：2026-07-06
 
 ## 2026-07-15 当前覆盖口径

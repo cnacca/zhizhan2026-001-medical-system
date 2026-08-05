@@ -17,6 +17,11 @@ This file is the thin operating index for agents working in this repository.
 
 ## Reading Order
 
+**新会话请先读 `docs/INDEX.md`** —— 它是唯一导航入口，说明哪些文件是当前状态、
+哪些是追加式历史日志、哪些是存档。直接从 `STATUS.md` 读起容易把 2026-07 的历史
+结论当成当前状态。交付缺口以 `docs/DELIVERY-GAP.md` 为准。
+
+0. `docs/INDEX.md`（导航入口）
 1. `STATUS.md`
 2. `tasks/README.md`
 3. `acceptance.json`
