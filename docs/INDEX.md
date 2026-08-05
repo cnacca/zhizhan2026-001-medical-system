@@ -14,10 +14,24 @@
 
 ## 一句话现状
 
-一期四端功能主体已完成（后端 333 项测试全绿），**当前阶段是部署上线**，
-卡在「本地全链路演练」尚未开始。客户正在采购服务器。
+一期四端功能主体已完成（后端 333 项测试全绿），**当前是交付冲刺阶段**，
+三条线并行：①部署上线 ②医生端英文化 ③AI key 前端配置。客户正在采购服务器。
 
-**Task 8 = `NOT_READY`**，且本次部署 ≠ 一期整体验收通过。
+**交付标准（2026-08-04 已确认）＝ 一期 38 项验收签字通过。**
+当前 38 项为 30 PASS / 1 PARTIAL / 7 EXTERNAL_ACCEPTANCE。
+
+**Task 8 = `NOT_READY`**，且部署完成 ≠ 一期整体验收通过。
+
+### 当前三个 P0（详见 `DELIVERY-GAP.md` §三）
+
+| P0 | 事项 | 工作量 | 能否立即开工 |
+| --- | --- | --- | --- |
+| 1 | 本地全链路演练 + compose 资源限制/JVM 参数 | 1–2 天 | ✅ 不依赖任何人 |
+| 2 | **医生端英文化（i18n）** | **2–3 周** | ✅ 可开工（术语表可后补） |
+| 3 | **AI key 前端配置（C10）** | 3–5 天 | ✅ 不依赖任何人 |
+
+⚠️ **P0-2 与 P0-3 都不在原 38 项验收表内**，属新增范围，
+商务上如何计入验收尚未拍板 —— 见 `DELIVERY-GAP.md` 顶部的「必须现在摆出来的矛盾」。
 
 ---
 
@@ -26,6 +40,8 @@
 | 你要做什么 | 先读 | 再读 |
 | --- | --- | --- |
 | **推进部署** | `deployment/SESSION-HANDOVER-deployment.md` | `deployment/go-live-plan-20260804.md` |
+| **做医生端英文化** | `DELIVERY-GAP.md` 的 C3 小节（含技术方案与范围界定） | `frontend/src/doctor/` 两个主文件 |
+| **做 AI key 前端配置** | `DELIVERY-GAP.md` 的 C10 行（含建表与安全要点） | `tasks/TASK-034-*.md` C 批次的密码处理做法可参照 |
 | **给客户答疑 / 要资料** | `deployment/customer-confirmation-checklist-20260804.md` | `deployment/server-recommendation-20260804.md` |
 | **改订单状态相关代码** | `development/status-vocabulary.md` ⚠️ **必读** | — |
 | **改权限相关代码** | `development/status-vocabulary.md` 的「角色与权限」章节 | `tasks/TASK-034-*.md` |
