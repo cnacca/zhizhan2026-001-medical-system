@@ -28,6 +28,7 @@ import java.util.UUID;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.TimeUnit;
 import org.springframework.dao.EmptyResultDataAccessException;
+import org.springframework.beans.factory.annotation.Qualifier;
 import org.springframework.http.HttpStatus;
 import org.springframework.jdbc.core.simple.JdbcClient;
 import org.springframework.stereotype.Service;
@@ -41,6 +42,7 @@ public class FileResourceService {
 
     private final JdbcClient jdbcClient;
     private final MinioClient minioClient;
+    private final MinioClient presignMinioClient;
     private final MinioAsyncClient minioAsyncClient;
     private final FileStorageProperties properties;
     private final AccessControlService accessControlService;
@@ -48,11 +50,13 @@ public class FileResourceService {
     public FileResourceService(
             JdbcClient jdbcClient,
             MinioClient minioClient,
+            @Qualifier("presignMinioClient") MinioClient presignMinioClient,
             MinioAsyncClient minioAsyncClient,
             FileStorageProperties properties,
             AccessControlService accessControlService) {
         this.jdbcClient = jdbcClient;
         this.minioClient = minioClient;
+        this.presignMinioClient = presignMinioClient;
         this.minioAsyncClient = minioAsyncClient;
         this.properties = properties;
         this.accessControlService = accessControlService;
@@ -503,7 +507,7 @@ public class FileResourceService {
 
     private String presignedUrl(Method method, String objectKey, int ttlSeconds) {
         try {
-            return minioClient.getPresignedObjectUrl(GetPresignedObjectUrlArgs.builder()
+            return presignMinioClient.getPresignedObjectUrl(GetPresignedObjectUrlArgs.builder()
                     .method(method)
                     .bucket(properties.bucket())
                     .object(objectKey)
@@ -516,7 +520,7 @@ public class FileResourceService {
 
     private String presignedMultipartPartUrl(String objectKey, String uploadId, int partNumber) {
         try {
-            return minioClient.getPresignedObjectUrl(GetPresignedObjectUrlArgs.builder()
+            return presignMinioClient.getPresignedObjectUrl(GetPresignedObjectUrlArgs.builder()
                     .method(Method.PUT)
                     .bucket(properties.bucket())
                     .object(objectKey)
@@ -855,6 +859,7 @@ public class FileResourceService {
                             LEFT JOIN order_case_group case_group
                               ON case_group.group_id = f.case_group_id
                             WHERE f.file_id = :fileId
+                              AND f.status = 'ACTIVE'
                               AND (
                                   :dataScope = 'ALL'
                                   OR (:dataScope = 'CLINIC'

@@ -1,5 +1,18 @@
 # DECISIONS
 
+## D-185 8088 部署修复采用同源 CORS、MinIO 双端点和删除文件拒签门禁
+
+状态：`ACCEPTED`
+
+- 浏览器 Origin 是部署配置，不是开发期常量。所有登录入口统一消费 `app.cors.allowed-origin` / `APP_CORS_ALLOWED_ORIGIN`，部署值必须精确包含协议、主机和端口；未列入的 Origin 继续在控制器前返回 403。
+- MinIO 存储操作与浏览器签名使用两个 client：`MINIO_INTERNAL_ENDPOINT` 只用于容器内部读写，`MINIO_PUBLIC_ENDPOINT` 用于生成 AWS V4 签名 URL。Host 参与签名，禁止签完后替换内网主机名；公网端点与对应端口/域名是部署硬门禁。
+- 文件软删除保留对象与历史审计，但 `status != ACTIVE` 时医生、客服和管理员都不得生成新的预览/下载 URL，并记录 DENIED 审计。已经签发的 URL 只能等待 TTL 到期；若业务要求立即吊销，需另行确认物理删除/隔离或改为后端代理下载的保留策略。
+- 医生下单向导离开当前步骤前先执行本步必填校验，保存、下一步和提交共用一个同步互斥锁，避免快速连点形成并发 PUT 与乐观锁 409。
+- `UserRole` 只表示四端入口，生产审核动作继续由权限码授权；9D.4 不再恢复 `UserRole.WORKER` 的角色专属断言。BUG-015 已有 fixed table layout 与两行备注截断，只加回归而不重复改样式。
+- 生产前端不得预填或打包 `change-me-*` 演示密码；真实数据库账号轮换仍是服务器重新部署前硬门禁，不能以“前端隐藏”代替。
+
+影响：GOAL-035 / TASK-036 的 completed 仅代表本地代码和自动化闭环。服务器必须按 `docs/deployment/8088-redeployment-checklist-20260811.md` 重新部署和真实复测后，才能判断 8088 是否恢复；Task 8 继续保持 `NOT_READY`。
+
 ## D-184 前端到后端的代理前缀只维护一份，开发与生产必须一致
 
 状态：`ACCEPTED`

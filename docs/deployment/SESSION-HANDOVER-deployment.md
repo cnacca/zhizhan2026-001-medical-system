@@ -1,13 +1,13 @@
 # 部署推进 · 新会话交接文档
 
-状态：ACTIVE / 2026-08-04
+状态：ACTIVE / 2026-08-11
 用途：新会话从这里开始，不必重读全部历史。
 
 ---
 
 ## 一句话现状
 
-TASK-034（A~F 六批）与 GOAL-033 已全部完成并推送；**部署卡在「阶段一：本地全链路演练」还没开始**。
+GOAL-035 / TASK-036 已完成 8088 联调缺陷的本地代码与自动化收口；**线上仍在旧部署状态，卡在重新注入环境变量、开放 MinIO 公网访问、轮换账号、重建容器和真实浏览器复测**。执行入口为 `8088-redeployment-checklist-20260811.md`。
 
 > **注意：本文件只覆盖「部署」这一条线。** 2026-08-04 交付标准确认为「38 项验收签字通过」后，
 > 当前共有三条 P0 并行：部署、医生端英文化、AI key 前端配置。
@@ -17,23 +17,28 @@ TASK-034（A~F 六批）与 GOAL-033 已全部完成并推送；**部署卡在�
 
 | 项 | 值 |
 | --- | --- |
-| 仓库 | `/Users/joe/Desktop/Vibecoding/zhizhan2026-001-medical-system`（**不是** `医疗下单`，那里只有原始 docx） |
-| 分支 | `dev`（已推 `origin/dev`） |
-| 后端测试 | 333 项，干净测试库上全绿 |
+| 仓库 | `/Users/yuri/Documents/AI智能下单平台` |
+| 分支 | `dev`（GOAL-035 本地改动尚未提交或推送） |
+| 后端测试 | 336 项，独立全新数据库与 MinIO bucket 上全绿 |
 | 迁移 | 已到 **V83** |
 | OpenAPI | 194 paths / 223 operations |
 
 ### 必读的三份文档
 
-1. `docs/deployment/go-live-plan-20260804.md` —— **上线方案主文档**，五个阶段
-2. `docs/deployment/customer-confirmation-checklist-20260804.md` —— 待客户回答的 20 项
-3. `docs/development/status-vocabulary.md` —— 状态值口径，改任何状态前必读
+1. `docs/deployment/8088-redeployment-checklist-20260811.md` —— **当前重新部署与复测入口**
+2. `docs/deployment/go-live-plan-20260804.md` —— 上线方案主文档，五个阶段
+3. `docs/deployment/customer-confirmation-checklist-20260804.md` —— 待客户回答的 20 项
+4. `docs/development/status-vocabulary.md` —— 状态值口径，改任何状态前必读
 
 ---
 
 ## 下一步要做什么
 
-### 阶段一：本地全链路演练（**未开始，可立即开工，不依赖客户**）
+### 当前第一步：按 8088 清单重新部署（**代码已就绪，服务器执行未开始**）
+
+先配置 `APP_CORS_ALLOWED_ORIGIN=http://43.129.232.106:8088`、浏览器可达的 `MINIO_PUBLIC_ENDPOINT` 和正式密钥，确认 MinIO API 端口/域名从用户网络可达，再重建容器。随后必须复测四端登录、上传/预览/下载、删除后拒绝访问、医生步骤必填和快速连点。
+
+### 后续阶段：本地/服务器全链路演练
 
 目标：把 `deploy/docker-compose.phase-one.yml` 整套真正跑起来，四端用浏览器点一遍。
 
@@ -75,7 +80,8 @@ Windows Server 2016 Standard / Xeon E-2314 **4 核 4 线程** / 32GB / 未激活
 
 | 坑 | 症状 | 处理 |
 | --- | --- | --- |
-| **测试库被污染** | `OrderCaseGroupTests.migrationLeavesNoUngroupedOrDuplicateLegacyOrders` 失败（断言全库不变量） | 单跑过其它测试后必然发生。跑全量前先重建：<br>`docker exec ai-order-mysql mysql -uroot -p"$MYSQL_ROOT_PASSWORD" -e "DROP DATABASE IF EXISTS ai_order_platform_test;"` 然后 `bash scripts/ensure-test-database.sh` |
+| **测试库被污染** | `OrderCaseGroupTests.migrationLeavesNoUngroupedOrDuplicateLegacyOrders` 失败（断言全库不变量） | 不要对共享库执行破坏性重建；为全量回归指定新的 `MYSQL_TEST_DATABASE` 与 `MINIO_TEST_BUCKET`。2026-08-11 已用第二套全新隔离库验证 336 项全绿 |
+| **旧构建产物假装迁移仍存在** | 已从源码删除的 V77 仍出现在 `target/classes/db/migration` | 先核对 Git 与源码，再只清理对应 `target` 生成物；不要修改生产库 Flyway 历史 |
 | **演示库被冒烟数据污染** | `demo:prepare` 报 `Duplicate entry ... patient_record` | `npm run demo:stop` → `DEMO_RESET_CONFIRM=RESET_DEMO_DATA npm run demo:reset` → `npm run demo:prepare` |
 | **改了已应用的迁移** | Flyway 校验和不匹配 | 重建测试库 |
 | **新增后端路径前缀** | 页面能打开但拿不到数据 | 必须**同时**改 `frontend/vite.config.ts` 与 `frontend/nginx.conf`，`check:deployment-env` 会拦 |
@@ -90,6 +96,7 @@ npm run test:backend                    # 后端全量（跑前先重建测试�
 npm run demo:prepare                    # 演示环境：起服务+灌数+校验
 npm run demo:status / demo:stop
 npm run check:deployment-env            # 时区固定 + 代理前缀一致性
+npm run check:deployment-bugfixes-20260811 # 8088 / 文件 / 医生下单回归
 npm run check:openapi
 npm run build:frontend
 ```

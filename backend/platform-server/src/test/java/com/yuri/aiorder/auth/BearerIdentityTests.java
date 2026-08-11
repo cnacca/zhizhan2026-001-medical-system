@@ -7,6 +7,7 @@ import static org.junit.jupiter.api.Assertions.assertNotEquals;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.content;
+import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.header;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
@@ -27,7 +28,9 @@ import org.springframework.jdbc.core.simple.JdbcClient;
 import org.springframework.test.web.servlet.MockMvc;
 import org.springframework.test.web.servlet.MvcResult;
 
-@SpringBootTest
+@SpringBootTest(properties = {
+        "app.cors.allowed-origin=http://localhost:5173,http://127.0.0.1:5173,http://phase-one.example.test:8088"
+})
 @AutoConfigureMockMvc
 class BearerIdentityTests {
 
@@ -264,6 +267,22 @@ class BearerIdentityTests {
                         .contentType(MediaType.APPLICATION_JSON)
                         .content("{\"username\":\"doctor\",\"password\":\"change-me-doctor\",\"portal\":\"DOCTOR\"}"))
                 .andExpect(status().isOk());
+    }
+
+    @Test
+    void databaseLoginAllowsConfiguredDeploymentOriginAndRejectsUnknownOrigin() throws Exception {
+        mockMvc.perform(post("/api/auth/login")
+                        .header("Origin", "http://phase-one.example.test:8088")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"username\":\"doctor\",\"password\":\"change-me-doctor\",\"portal\":\"DOCTOR\"}"))
+                .andExpect(status().isOk())
+                .andExpect(header().string("Access-Control-Allow-Origin", "http://phase-one.example.test:8088"));
+
+        mockMvc.perform(post("/api/auth/login")
+                        .header("Origin", "http://untrusted.example.test:8088")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"username\":\"doctor\",\"password\":\"change-me-doctor\",\"portal\":\"DOCTOR\"}"))
+                .andExpect(status().isForbidden());
     }
 
     @Test

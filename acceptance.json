@@ -1,8 +1,8 @@
 {
   "version": 1,
   "managed_by": "RepoFrame",
-  "active_goal": "GOAL-031",
-  "active_goal_file": "goals/GOAL-031-product-ordering-v2-case-group-20260731.md",
+  "active_goal": "GOAL-035",
+  "active_goal_file": "goals/GOAL-035-deployment-defect-closure-20260811.md",
   "phase_two_milestone_gaps": "docs/acceptance/phase-two-milestone-gap-matrix-20260728.md",
   "linter": "repo-init/scripts/lint_acceptance.py",
   "task8_readiness_gaps": [
@@ -3401,9 +3401,65 @@
           ]
         }
       ]
+    },
+    {
+      "id": "GOAL-035",
+      "file": "goals/GOAL-035-deployment-defect-closure-20260811.md",
+      "status": "completed",
+      "checks": [
+        {
+          "id": "deployment-defect-closure-files",
+          "type": "files_exist",
+          "paths": [
+            "goals/GOAL-035-deployment-defect-closure-20260811.md",
+            "tasks/TASK-036-deployment-defect-closure-20260811.md",
+            "docs/deployment/8088-redeployment-checklist-20260811.md",
+            "scripts/check-deployment-bugfixes-20260811.mjs",
+            "backend/platform-server/src/test/java/com/yuri/aiorder/file/FileStorageConfigurationTests.java"
+          ]
+        },
+        {
+          "id": "deployment-defect-closure-contract",
+          "type": "required_text",
+          "paths": [
+            "backend/platform-server/src/main/java/com/yuri/aiorder/bootstrap/BootstrapAuthController.java",
+            "backend/platform-server/src/main/java/com/yuri/aiorder/file/api/FileResourceService.java",
+            "backend/platform-server/src/main/resources/application.yml",
+            "frontend/src/doctor/DoctorCaseGroupWizard.vue",
+            "frontend/src/App.vue",
+            "deploy/docker-compose.phase-one.yml",
+            "docs/deployment/8088-redeployment-checklist-20260811.md",
+            "package.json"
+          ],
+          "patterns": [
+            "app.cors.allowed-origin",
+            "presignMinioClient",
+            "MINIO_PUBLIC_ENDPOINT",
+            "saveAllItemsUnlocked",
+            "currentStepErrors",
+            "APP_CORS_ALLOWED_ORIGIN",
+            "check:deployment-bugfixes-20260811"
+          ]
+        },
+        {
+          "id": "deployment-defect-closure-no-fake-online-ready",
+          "type": "forbidden_text",
+          "paths": [
+            "goals/GOAL-035-deployment-defect-closure-20260811.md",
+            "tasks/TASK-036-deployment-defect-closure-20260811.md",
+            "docs/deployment/8088-redeployment-checklist-20260811.md"
+          ],
+          "patterns": [
+            "Task 8 状态：READY",
+            "8088 已恢复",
+            "真实环境验收已完成",
+            "正式账号已轮换"
+          ]
+        }
+      ]
     }
   ],
-  "active_task_file": "tasks/TASK-032-product-ordering-v2-case-group-20260731.md",
+  "active_task_file": "tasks/TASK-036-deployment-defect-closure-20260811.md",
   "legacy_check_ids": [
     "task-deployment-env-readiness-required-text",
     "npm run check:task9d951",
@@ -3413,6 +3469,7 @@
     "npm run check:task9d955",
     "task-9d61-bill-logistics-preview-entry-required-text",
     "task-9d64-cs-design-draft-preview-required-text",
+    "task-9d78-bucket-isolation-readiness-required-text",
     "task-9d57-rework-impact-visualization-required-text",
     "task-9d86-staff-workload-required-text",
     "task-9d91-logistics-exception-required-text",

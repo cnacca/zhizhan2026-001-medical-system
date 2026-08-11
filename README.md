@@ -4,6 +4,8 @@
 
 ## 当前仓库状态
 
+2026-08-11 已完成 GOAL-035 / TASK-036 的 8088 部署缺陷本地收口：登录 CORS 配置化、软删除文件拒绝新签名、MinIO 内部/公网双端点、医生向导步骤门禁与互斥锁、9D.4 权限模型回归及生产构建演示密码清理均已落地；独立全新数据库与 MinIO bucket 上后端 336 tests、前端生产构建和部署检查通过。线上尚未重新部署，必须按 `docs/deployment/8088-redeployment-checklist-20260811.md` 配置公网端点、网络与正式账号并复测；Task 8 保持 `NOT_READY`。
+
 2026-08-01 已按 D-182 开放医生端隐形正畸：发布目录新增“无托槽隐形矫治器”，原“A 型”占位项继续停用；医生可选择全颌／上颌／下颌、常规／联合矫治，上传专项资料并填写既有七步处方，处方未提交时不能提交病例订单。V76 使用新目录版本，不改旧发布版本和历史订单；价格继续待报价，Task 8 保持 `NOT_READY`。
 
 2026-08-01 已按 D-178 增加管理端“下单内容设置”：产品、材料、适用绑定和更多配置分区维护，草稿支持新增、修改、停用和安全删除未引用项；历史订单继续保留原快照。该页与“工序工时设置”已统一为管理端蓝色紧凑样式。V75 全新库迁移、23 项目标后端测试、前端构建、OpenAPI、产品 V2 检查和真实浏览器增改删/材料绑定/视觉验收均通过；正式业务值仍需团队逐步补充，Task 8 保持 `NOT_READY`。
@@ -310,7 +312,9 @@ NOTIFICATION_REDIS_BROADCAST_ENABLED=false
 NOTIFICATION_REDIS_CHANNEL=ai-order:notifications
 MINIO_ROOT_USER=minioadmin
 MINIO_ROOT_PASSWORD=change-me-minio
-MINIO_ENDPOINT=http://127.0.0.1:9000
+MINIO_INTERNAL_ENDPOINT=http://127.0.0.1:9000
+MINIO_PUBLIC_ENDPOINT=http://127.0.0.1:9000
+MINIO_REGION=us-east-1
 MINIO_API_PORT=9000
 MINIO_CONSOLE_PORT=9001
 MINIO_BUCKET=ai-order-private
@@ -387,6 +391,10 @@ doctor / change-me-doctor
 ```
 
 这些账号密码是本地占位值，数据库中存储 PBKDF2-SHA256 hash；正式环境必须替换为真实账号体系和安全密钥。
+
+生产前端不会预填或打包上述 `change-me-*` 演示密码。正式部署仍必须在后端轮换或停用演示账号；隐藏前端默认值不能替代账号治理。
+
+MinIO 的内部存储地址与浏览器签名地址必须分开配置：`MINIO_INTERNAL_ENDPOINT` 可使用容器名，`MINIO_PUBLIC_ENDPOINT` 必须是用户浏览器可达的完整 origin。8088 登录 CORS、文件端口和部署后复测步骤见 `docs/deployment/8088-redeployment-checklist-20260811.md`。
 
 生产 profile 使用 `backend/platform-server/src/main/resources/application-prod.yml`。当 `spring.profiles.active=prod` 时，后端启动门禁会强制关闭 `X-Bootstrap-*` 本地兼容，固定 `APP_AUTH_ALLOW_ROLE_FALLBACK=false`，并要求外部注入非本地占位的 `APP_AUTH_TOKEN_SECRET`。严格权限模式下，声明权限码的接口必须由 Bearer token 中的权限码放行，角色-only token 不再绕过权限码。
 

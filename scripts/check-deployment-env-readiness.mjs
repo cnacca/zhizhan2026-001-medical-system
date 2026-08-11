@@ -24,6 +24,8 @@ const checks = [
     'AI_EXTERNAL_ALERT_WEBHOOK_SIGNING_ENABLED=false',
     'AI_EXTERNAL_ALERT_RECEIVER_VERIFICATION_ENABLED=false',
     'AI_EXTERNAL_ALERT_RECEIVER_SIGNING_SECRET=',
+    'MINIO_INTERNAL_ENDPOINT=http://127.0.0.1:9000',
+    'MINIO_PUBLIC_ENDPOINT=http://127.0.0.1:9000',
   ]],
   ['backend/platform-server/src/main/resources/application.yml', [
     'provider: ${AI_PROVIDER:deterministic}',
@@ -32,6 +34,8 @@ const checks = [
     'scheduler-enabled: ${AI_EXTERNAL_ALERT_SCHEDULER_ENABLED:false}',
     'webhook-signing-enabled: ${AI_EXTERNAL_ALERT_WEBHOOK_SIGNING_ENABLED:false}',
     'receiver-verification-enabled: ${AI_EXTERNAL_ALERT_RECEIVER_VERIFICATION_ENABLED:false}',
+    'MINIO_INTERNAL_ENDPOINT',
+    'MINIO_PUBLIC_ENDPOINT',
     // 默认值必须是 false：本检查此前写的是 :true，而代码早已收紧成 :false，
     // 于是「部署前检查」这个动作本身长期是红的。安全默认在代码这边，改检查不改代码。
     // 本地开发要用角色兜底时由 .env.example 的 APP_AUTH_ALLOW_ROLE_FALLBACK=true 显式打开。
@@ -51,6 +55,7 @@ const checks = [
     'AI_EXTERNAL_ALERT_WEBHOOK_SIGNING_SECRET',
     'AI_EXTERNAL_ALERT_RECEIVER_SIGNING_SECRET',
     'APP_AUTH_ALLOW_ROLE_FALLBACK=false',
+    'MINIO_PUBLIC_ENDPOINT',
   ]],
   ['acceptance.json', ['task-deployment-env-readiness-required-text']],
   ['tasks/README.md', ['任务 Task 8 readiness：部署安全 / 环境变量检查第一增量']],

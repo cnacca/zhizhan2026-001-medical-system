@@ -88,7 +88,7 @@ const missing = [
   ...requiredFactoryPortalCssFragments.filter((fragment) => !factoryPortalCss.includes(fragment)).map((fragment) => `frontend/src/factory-portal.css -> ${fragment}`),
   ...requiredProxyFragments.filter((fragment) => !viteConfig.includes(fragment)).map((fragment) => `frontend/vite.config.ts -> ${fragment}`),
   ...[
-    [accessControl, 'identity.role() == UserRole.WORKER', 'AccessControlService'],
+    [accessControl, 'requirePermission(identity, "workflow:review-production"', 'AccessControlService'],
     [accessControl, 'identity.hasPermission("workflow:review-production")', 'AccessControlService'],
     [runtimeController, 'roles = {UserRole.ADMIN, UserRole.WORKER}', 'WorkflowRuntimeController'],
     [runtimeService, 'normalizeApprovalRequest', 'WorkflowRuntimeService'],
@@ -130,6 +130,10 @@ for (const [file, content] of [
   if (content.includes('canAccessUnassignedProductionPool')) {
     missing.push(`${file} -> must not expose a generic unassigned production pool`)
   }
+}
+
+if (/requireProductionReview[\s\S]{0,400}identity\.role\(\)\s*==\s*UserRole\.WORKER/.test(accessControl)) {
+  missing.push('AccessControlService -> must not restore role-specific production review authorization')
 }
 
 if (missing.length > 0) {

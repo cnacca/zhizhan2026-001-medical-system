@@ -27,7 +27,7 @@ import org.springframework.web.server.ResponseStatusException;
 
 @RestController
 @RequestMapping("/api/auth")
-@CrossOrigin(originPatterns = {"http://localhost:*", "http://127.0.0.1:*"})
+@CrossOrigin(origins = "${app.cors.allowed-origin:http://localhost:5173,http://127.0.0.1:5173}")
 public class BootstrapAuthController {
 
     private final BearerTokenService tokenService;

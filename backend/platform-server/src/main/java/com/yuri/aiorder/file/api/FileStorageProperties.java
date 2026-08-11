@@ -6,6 +6,8 @@ import org.springframework.boot.context.properties.ConfigurationProperties;
 @ConfigurationProperties(prefix = "app.file")
 public record FileStorageProperties(
         String endpoint,
+        String publicEndpoint,
+        String region,
         String accessKey,
         String secretKey,
         String bucket,
