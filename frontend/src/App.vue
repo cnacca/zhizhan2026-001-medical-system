@@ -1521,15 +1521,17 @@ type AccountProfile = {
   summary: string
 }
 
-const isDoctorAcceptanceMode = new URLSearchParams(window.location.search).get('doctorMock') === '1'
+const isDoctorAcceptanceMode = import.meta.env.DEV && (
+  new URLSearchParams(window.location.search).get('doctorMock') === '1'
   || String(import.meta.env.VITE_DOCTOR_DATA_SOURCE ?? '').toLowerCase() === 'mock'
+)
 const doctorAcceptanceCredentials = {
-  username: 'doctor',
-  password: 'change-me-doctor'
+  username: import.meta.env.DEV ? 'doctor' : '',
+  password: import.meta.env.DEV ? 'change-me-doctor' : ''
 } as const
 
-const username = ref('admin')
-const password = ref('change-me-admin')
+const username = ref(import.meta.env.DEV ? 'admin' : '')
+const password = ref(import.meta.env.DEV ? 'change-me-admin' : '')
 const selectedPortal = ref<LoginPortal | null>(null)
 const token = ref('')
 const refreshToken = ref('')
@@ -2158,8 +2160,8 @@ const portalOptions: PortalOption[] = [
     subtitle: '客服中台',
     icon: 'support_agent',
     tone: 'cs',
-    defaultUsername: 'cs',
-    defaultPassword: 'change-me-cs'
+    defaultUsername: import.meta.env.DEV ? 'cs' : '',
+    defaultPassword: import.meta.env.DEV ? 'change-me-cs' : ''
   },
   {
     value: 'PRODUCTION',
@@ -2167,8 +2169,8 @@ const portalOptions: PortalOption[] = [
     subtitle: '技工 / 生产人员',
     icon: 'factory',
     tone: 'production',
-    defaultUsername: 'worker',
-    defaultPassword: 'change-me-worker'
+    defaultUsername: import.meta.env.DEV ? 'worker' : '',
+    defaultPassword: import.meta.env.DEV ? 'change-me-worker' : ''
   },
   {
     value: 'ADMIN',
@@ -2176,8 +2178,8 @@ const portalOptions: PortalOption[] = [
     subtitle: '超级管理员',
     icon: 'admin_panel_settings',
     tone: 'admin',
-    defaultUsername: 'admin',
-    defaultPassword: 'change-me-admin'
+    defaultUsername: import.meta.env.DEV ? 'admin' : '',
+    defaultPassword: import.meta.env.DEV ? 'change-me-admin' : ''
   }
 ]
 
@@ -5709,7 +5711,7 @@ async function requestLoginPayload(loginUsername: string, loginPassword: string,
   if (response.status === 403) {
     const responseText = await response.text()
     if (responseText.includes('Invalid CORS request')) {
-      throw new Error('本地前端代理被后端 CORS 拦截，请重启前端服务后重试')
+      throw new Error('登录来源被后端 CORS 策略拒绝，请联系管理员核对 APP_CORS_ALLOWED_ORIGIN 与当前访问地址')
     }
     return null
   }

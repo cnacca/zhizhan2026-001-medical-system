@@ -8,6 +8,7 @@
   },
   "scripts": {
     "acceptance": "node -e \"const fs=require('fs'); JSON.parse(fs.readFileSync('acceptance.json','utf8')); console.log('acceptance.json valid')\"",
+    "check:deployment-bugfixes-20260811": "node scripts/check-deployment-bugfixes-20260811.mjs",
     "check:product-ordering-v2": "node scripts/check-product-ordering-v2.mjs",
     "check:phase-two-m2-ruoyi-runtime-bridge": "node scripts/check-phase-two-m2-ruoyi-runtime-bridge.mjs",
     "check:phase-two-design-collaboration": "node scripts/check-phase-two-design-collaboration.mjs",

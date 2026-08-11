@@ -31,6 +31,9 @@
 - 测试环境和正式环境使用不同 MYSQL_DATABASE。
 - 测试环境和正式环境使用不同 MINIO_BUCKET。
 - 测试环境和正式环境使用不同 `APP_AUTH_TOKEN_SECRET`。
+- MinIO 存储读写使用容器内 `MINIO_INTERNAL_ENDPOINT=http://minio:9000`；签名 URL 使用浏览器可达的 `MINIO_PUBLIC_ENDPOINT`。Host 参与 AWS V4 签名，禁止先用内部地址签名再字符串替换。
+- 一期 compose 只暴露 MinIO API 的 `MINIO_PUBLIC_PORT`，不暴露管理控制台。正式环境优先使用独立 HTTPS 文件域名；若临时使用 `http://服务器IP:9000`，必须同步开放云防火墙 / 系统防火墙并完成浏览器实测。
+- `APP_CORS_ALLOWED_ORIGIN` 必须填写用户实际访问前端的完整 origin（协议 + 主机 + 端口），例如 `http://服务器IP:8088`；只填 localhost 会让登录在控制器前被 403 拒绝。
 - APP_AUTH_TOKEN_SECRET 必须外部注入，不能使用本地 smoke 默认值。
 - APP_AUTH_ALLOW_ROLE_FALLBACK 必须为 false，不能让角色-only token 绕过权限码校验。
 - `.env.example` 只保留本地 smoke 默认值。
@@ -63,3 +66,5 @@ npm run compose:phase-one:config
 ```
 
 后续正式上线前还需要补 Nginx HTTPS、镜像仓库、备份恢复演练、日志留存、监控告警和真实测试/正式环境联调。
+
+8088 本轮重新部署和复测步骤见 `docs/deployment/8088-redeployment-checklist-20260811.md`。代码修复或 compose 渲染通过不等同于线上已恢复。

@@ -16,6 +16,10 @@ MYSQL_ROOT_PASSWORD=replace-with-external-mysql-root-password
 MINIO_ROOT_USER=replace-with-external-minio-user
 MINIO_ROOT_PASSWORD=replace-with-external-minio-password
 MINIO_BUCKET=replace-with-phase-one-prod-bucket
+# Must be reachable from the end user's browser. Prefer a dedicated HTTPS file domain.
+MINIO_PUBLIC_ENDPOINT=https://replace-with-phase-one-files-domain.example
+MINIO_PUBLIC_PORT=9000
+MINIO_REGION=us-east-1
 
 FRONTEND_HTTP_PORT=8088
 

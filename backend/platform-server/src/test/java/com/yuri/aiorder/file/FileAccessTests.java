@@ -131,6 +131,31 @@ class FileAccessTests {
     }
 
     @Test
+    void deletedFileCannotIssueNewPreviewOrDownloadUrlsForAnyPortal() throws Exception {
+        long fileId = insertCompletedFile(orderId, "DOCTOR");
+        jdbcClient.sql("UPDATE file_resource SET status = 'DELETED' WHERE file_id = :fileId")
+                .param("fileId", fileId)
+                .update();
+
+        mockMvc.perform(get("/files/{fileId}/preview-url", fileId)
+                        .header("X-Bootstrap-Role", "DOCTOR")
+                        .header("X-Bootstrap-User-Id", DOCTOR_USER_ID)
+                        .header("X-Bootstrap-Clinic-Id", clinicId))
+                .andExpect(status().isForbidden());
+        mockMvc.perform(get("/files/{fileId}/download-url", fileId)
+                        .header("X-Bootstrap-Role", "CS"))
+                .andExpect(status().isForbidden());
+        mockMvc.perform(get("/files/{fileId}/download-url", fileId)
+                        .header("X-Bootstrap-Role", "ADMIN"))
+                .andExpect(status().isForbidden());
+
+        assertThat(auditCount(fileId, "PREVIEW", "DENIED")).isEqualTo(1L);
+        assertThat(auditCount(fileId, "DOWNLOAD", "DENIED")).isEqualTo(2L);
+        assertThat(auditCount(fileId, "PREVIEW", "ALLOWED")).isZero();
+        assertThat(auditCount(fileId, "DOWNLOAD", "ALLOWED")).isZero();
+    }
+
+    @Test
     void multipartUploadCanInitiateUploadPartCompleteAndAuditWithoutExposingObjectKey() throws Exception {
         byte[] bytes = "multipart-pdf-bytes".getBytes(StandardCharsets.UTF_8);
         MultipartUploadInfo upload = initiateMultipartUpload(bytes.length);

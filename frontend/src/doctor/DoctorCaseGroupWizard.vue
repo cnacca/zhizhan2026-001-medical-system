@@ -1340,7 +1340,7 @@ async function saveItem(item: CaseGroupItem, silent = false) {
   }
 }
 
-async function saveAllItems() {
+async function saveAllItemsUnlocked() {
   if (!group.value) return false
   const orderIds = group.value.items.map((item) => item.order_id)
   for (const orderId of orderIds) {
@@ -1349,6 +1349,16 @@ async function saveAllItems() {
   }
   notice.value = `草稿已保存 · ${new Date().toLocaleTimeString('zh-CN', { hour: '2-digit', minute: '2-digit' })}`
   return true
+}
+
+async function saveAllItems() {
+  if (busy.value || fileUploading.value) return false
+  busy.value = true
+  try {
+    return await saveAllItemsUnlocked()
+  } finally {
+    busy.value = false
+  }
 }
 
 async function changeVariant(item: CaseGroupItem) {
@@ -1419,8 +1429,18 @@ async function nextStep() {
     ElMessage.warning(!patientId.value ? '请先选择患者' : '请至少选择一个产品')
     return
   }
-  if (step.value <= 5 && !(await saveAllItems())) return
-  step.value = Math.min(6, step.value + 1)
+  const currentStepErrors = group.value?.items.flatMap((item) => itemStepErrors(item, step.value)) ?? []
+  if (currentStepErrors.length) {
+    ElMessage.warning(Array.from(new Set(currentStepErrors)).join('；'))
+    return
+  }
+  busy.value = true
+  try {
+    if (step.value <= 5 && !(await saveAllItemsUnlocked())) return
+    step.value = Math.min(6, step.value + 1)
+  } finally {
+    busy.value = false
+  }
 }
 
 function priceLabel(_item: CaseGroupItem) {
@@ -1433,18 +1453,18 @@ async function submitGroup() {
     ElMessage.warning('请确认报价、制作要求和制作周期口径')
     return
   }
-  group.value.items.forEach((item) => {
-    item.form_values.doctor_confirmed_quote_status = true
-    item.form_values.doctor_confirmed_requirements = true
-    item.form_values.doctor_confirmed_cycle_status = true
-  })
-  if (!(await saveAllItems())) return
-  if (incompleteItems.value.length) {
-    ElMessage.warning(`还有 ${incompleteItems.value.length} 个子产品配置不完整`)
-    return
-  }
   busy.value = true
   try {
+    group.value.items.forEach((item) => {
+      item.form_values.doctor_confirmed_quote_status = true
+      item.form_values.doctor_confirmed_requirements = true
+      item.form_values.doctor_confirmed_cycle_status = true
+    })
+    if (!(await saveAllItemsUnlocked())) return
+    if (incompleteItems.value.length) {
+      ElMessage.warning(`还有 ${incompleteItems.value.length} 个子产品配置不完整`)
+      return
+    }
     const submitted = await api<CaseGroup>(`/order-case-groups/${group.value.group_id}/submit`, {
       method: 'POST',
       body: JSON.stringify({

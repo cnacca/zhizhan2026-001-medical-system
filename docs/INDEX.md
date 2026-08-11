@@ -1,6 +1,6 @@
 # 项目导航（新会话从这里开始）
 
-状态：ACTIVE / 2026-08-04
+状态：ACTIVE / 2026-08-11
 
 ## 为什么有这份文件
 
@@ -14,8 +14,11 @@
 
 ## 一句话现状
 
-一期四端功能主体已完成（后端 333 项测试全绿），**当前是交付冲刺阶段**，
+一期四端功能主体已完成（后端 336 项测试全绿），**当前是交付冲刺阶段**，
 三条线并行：①部署上线 ②医生端英文化 ③AI key 前端配置。客户正在采购服务器。
+
+2026-08-11 的 8088 联调缺陷已完成本地代码与自动化修复，但线上尚未重新部署；部署入口改为
+`deployment/8088-redeployment-checklist-20260811.md`，完成公网 MinIO、网络、账号轮换和真实复测前不得写成线上恢复。
 
 **交付标准（2026-08-04 已确认）＝ 一期 38 项验收签字通过。**
 当前 38 项为 30 PASS / 1 PARTIAL / 7 EXTERNAL_ACCEPTANCE。
@@ -39,14 +42,14 @@
 
 | 你要做什么 | 先读 | 再读 |
 | --- | --- | --- |
-| **推进部署** | `deployment/SESSION-HANDOVER-deployment.md` | `deployment/go-live-plan-20260804.md` |
+| **推进部署 / 修复 8088** | `deployment/8088-redeployment-checklist-20260811.md` | `deployment/SESSION-HANDOVER-deployment.md`、`deployment/go-live-plan-20260804.md` |
 | **做医生端英文化** | `DELIVERY-GAP.md` 的 C3 小节（含技术方案与范围界定） | `frontend/src/doctor/` 两个主文件 |
 | **做 AI key 前端配置** | `DELIVERY-GAP.md` 的 C10 行（含建表与安全要点） | `tasks/TASK-034-*.md` C 批次的密码处理做法可参照 |
 | **给客户答疑 / 要资料** | `deployment/customer-confirmation-checklist-20260804.md` | `deployment/server-recommendation-20260804.md` |
 | **改订单状态相关代码** | `development/status-vocabulary.md` ⚠️ **必读** | — |
 | **改权限相关代码** | `development/status-vocabulary.md` 的「角色与权限」章节 | `tasks/TASK-034-*.md` |
 | **看还差什么才能交付** | `DELIVERY-GAP.md`（本目录） | `deployment/readiness-checklist.md` |
-| **看某个决定为什么这么做** | 根目录 `DECISIONS.md`，**从最新的 D-184 往回读** | — |
+| **看某个决定为什么这么做** | 根目录 `DECISIONS.md`，**从最新的 D-185 往回读** | — |
 | **接手某个批次的历史** | `tasks/TASK-0xx-*.md` 对应小节 | 同名 `goals/GOAL-0xx-*.md` |
 
 ---
@@ -85,7 +88,8 @@
 
 ```bash
 npm run check:task8-readiness-gaps    # 当前 9 项交付缺口，权威来源
-npm run test:backend                  # 333 项，跑前先重建测试库（见交接文档的坑）
+npm run test:backend                  # 336 项，必须使用干净隔离测试库（见交接文档的坑）
+npm run check:deployment-bugfixes-20260811 # 8088 / 文件 / 下单回归门禁
 npm run check:deployment-env          # 部署前门禁：时区固定 + 代理前缀一致性
 npm run check:openapi                 # 194 paths / 223 operations
 ```
