@@ -136,7 +136,7 @@ type Management = {
   change_logs: ChangeLog[]
 }
 
-const props = defineProps<{ token: string }>()
+const props = defineProps<{ token: string; permissions: string[] }>()
 
 const clinics = ref<ClinicSummary[]>([])
 const loading = ref(false)
@@ -194,6 +194,7 @@ const stats = computed(() => ({
 
 const selectedTemplate = computed(() => detail.value?.available_templates.find((item) =>
   item.document_type === printType.value && item.template_id === bindingDraft.value[printType.value]) || null)
+const canCreateCustomer = computed(() => props.permissions.includes('clinic:create'))
 
 function isComplete(clinic: ClinicSummary) {
   return Boolean(clinic.clinic_code && clinic.contact_name && clinic.contact_phone && clinic.business_region
@@ -424,7 +425,7 @@ watch(() => props.token, () => { if (props.token) void loadClinics() }, { immedi
   <section class="cmp-page" data-testid="customer-management-v2">
     <header class="cmp-heading">
       <div><span class="cmp-eyebrow">CUSTOMER OPERATIONS</span><h1>客户管理</h1><p>统一管理客户档案、商务资料、专属价格、打印模板和下单风险。</p></div>
-      <button class="cmp-primary" type="button" data-testid="customer-create-button" @click="createVisible=true"><span>＋</span>新增客户</button>
+      <button v-if="canCreateCustomer" class="cmp-primary" type="button" data-testid="customer-create-button" @click="createVisible=true"><span>＋</span>新增客户</button>
     </header>
 
     <div v-if="error" class="cmp-alert is-danger"><span>!</span><div><strong>客户资料暂时不可用</strong><p>{{ error }}</p></div><button type="button" @click="loadClinics">重试</button></div>

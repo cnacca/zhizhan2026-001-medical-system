@@ -2691,7 +2691,7 @@ watch(billingTab, (tab) => {
     </template>
 
     <template v-else-if="activeRoute === '/cs/customers'">
-      <CustomerManagementPage :token="token" />
+      <CustomerManagementPage :token="token" :permissions="user?.permissions ?? []" />
     </template>
 
     <template v-else-if="activeRoute === '/__legacy-customers' && selectedClinic">

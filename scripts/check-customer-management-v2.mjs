@@ -27,14 +27,15 @@ requireIncludes('page', [
   'data-testid="customer-management-v2"', '搜索客户编码、客户名称、联系人、电话或业务员',
   '客户主档', '开票信息', '收货地址与发货方式', '主要医生及联系方式', '资质证件与合同管理',
   '客户专属产品价格', '客户单据与打印模板', '制作偏好', '黑名单与下单风险', '操作记录',
-  'statusLabel(clinic.customer_type)', 'statusLabel(clinic.settlement_type)', 'window.print()'
+  'statusLabel(clinic.customer_type)', 'statusLabel(clinic.settlement_type)', 'window.print()',
+  "props.permissions.includes('clinic:create')", 'v-if="canCreateCustomer"'
 ])
 requireIncludes('style', [
   'font-family: Lora', 'Plus Jakarta Sans', 'border: 1.5px solid', '@media (max-width: 1100px)', '@media print'
 ])
 requireIncludes('portal', [
   "import CustomerManagementPage from './CustomerManagementPage.vue'",
-  "activeRoute === '/cs/customers'", '<CustomerManagementPage :token="token" />'
+  "activeRoute === '/cs/customers'", '<CustomerManagementPage :token="token" :permissions="user?.permissions ?? []" />'
 ])
 requireIncludes('migration', [
   'clinic_code', 'clinic_invoice_profile', 'clinic_shipping_address', 'clinic_doctor_contact',

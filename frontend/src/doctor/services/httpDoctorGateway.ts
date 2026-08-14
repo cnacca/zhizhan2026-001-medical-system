@@ -310,11 +310,17 @@ function fallbackPublicProgress(order: LegacyOrder): PublicProgressItem[] {
 const hiddenFormKey = /(internal|process|worklog|work_log|employee|staff|technician|operator|assignee|inspection|quality|qc|rework|performance|responsibility|工序|员工|技师|质检|返工|工时|绩效|责任)/i
 const unsafeDoctorContent = /(内部工序|生产员工|员工编号|技师姓名|入检|出检|质检|工时|返工|绩效|责任分类|internal_status|node_instance|worker_user|assigned_user|work_log|rework|performance|responsibility)/i
 
+function isHiddenDoctorFormKey(key: string): boolean {
+  // 医生在下单时主动选择的过程确认节点，不是内部生产工序数据。
+  if (key === 'process_reviews') return false
+  return hiddenFormKey.test(key)
+}
+
 function assertSafeOrderPayload(value: unknown): void {
   const visit = (candidate: unknown): boolean => {
     if (Array.isArray(candidate)) return candidate.some(visit)
     if (!candidate || typeof candidate !== 'object') return false
-    return Object.entries(candidate).some(([key, nested]) => hiddenFormKey.test(key) || visit(nested))
+    return Object.entries(candidate).some(([key, nested]) => isHiddenDoctorFormKey(key) || visit(nested))
   }
   if (visit(value)) throw new DoctorApiError('医生端订单投影包含内部字段，已阻止页面加载', 403)
 }
@@ -322,7 +328,7 @@ function assertSafeOrderPayload(value: unknown): void {
 function safeFormSnapshot(form: Record<string, unknown>): Record<string, string> {
   return Object.fromEntries(
     Object.entries(form)
-      .filter(([key, value]) => !hiddenFormKey.test(key) && (value == null || ['string', 'number', 'boolean'].includes(typeof value)))
+      .filter(([key, value]) => !isHiddenDoctorFormKey(key) && (value == null || ['string', 'number', 'boolean'].includes(typeof value)))
       .map(([key, value]) => [key, asText(value)])
   )
 }
