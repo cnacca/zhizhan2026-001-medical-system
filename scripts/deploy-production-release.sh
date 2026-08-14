@@ -153,6 +153,20 @@ old_frontend_id="$(docker image inspect ai-order-platform-frontend:phase-one --f
 rollback_backend_tag="ai-order-platform-backend:rollback-before-${short_revision}-${timestamp}"
 rollback_frontend_tag="ai-order-platform-frontend:rollback-before-${short_revision}-${timestamp}"
 
+deploy_started=false
+deploy_completed=false
+on_exit() {
+  local exit_code=$?
+  if [[ "$deploy_started" == "true" && "$deploy_completed" != "true" ]]; then
+    printf '\nDeployment did not complete. No database/schema rollback was attempted.\n' >&2
+    printf 'Pre-deploy backup: %s\n' "$backup_dir/mysql.sql.gz" >&2
+    printf 'Previous backend image: %s\n' "$rollback_backend_tag" >&2
+    printf 'Previous frontend image: %s\n' "$rollback_frontend_tag" >&2
+  fi
+  return "$exit_code"
+}
+trap on_exit EXIT
+
 if [[ -n "$old_backend_id" ]]; then
   docker image tag "$old_backend_id" "$rollback_backend_tag"
 fi
@@ -160,26 +174,14 @@ if [[ -n "$old_frontend_id" ]]; then
   docker image tag "$old_frontend_id" "$rollback_frontend_tag"
 fi
 
+deploy_started=true
 gzip -dc "$image_archive" | docker load
 docker image inspect "ai-order-platform-backend:${revision}" >/dev/null
 docker image inspect "ai-order-platform-frontend:${revision}" >/dev/null
 docker image tag "ai-order-platform-backend:${revision}" ai-order-platform-backend:phase-one
 docker image tag "ai-order-platform-frontend:${revision}" ai-order-platform-frontend:phase-one
 
-deploy_started=true
-on_error() {
-  local exit_code=$?
-  if [[ "${deploy_started:-false}" == "true" ]]; then
-    printf '\nDeployment did not complete. No database/schema rollback was attempted.\n' >&2
-    printf 'Pre-deploy backup: %s\n' "$backup_dir/mysql.sql.gz" >&2
-    printf 'Previous backend image: %s\n' "$rollback_backend_tag" >&2
-    printf 'Previous frontend image: %s\n' "$rollback_frontend_tag" >&2
-  fi
-  exit "$exit_code"
-}
-trap on_error ERR
-
-"${compose[@]}" up -d --no-build --force-recreate --wait backend frontend
+"${compose[@]}" up -d --no-build --no-deps --force-recreate --wait backend frontend
 
 healthy=false
 for _attempt in $(seq 1 36); do
@@ -199,7 +201,8 @@ deployed_revision_tmp="$RELEASE_ROOT/.current-production-revision.$short_revisio
 printf '%s\n' "$revision" >"$deployed_revision_tmp"
 mv "$deployed_revision_tmp" "$deployed_revision_file"
 
-trap - ERR
+deploy_completed=true
+trap - EXIT
 printf 'production deploy succeeded: %s\n' "$revision"
 printf 'pre-deploy backup: %s\n' "$backup_dir/mysql.sql.gz"
 printf 'rollback backend image: %s\n' "$rollback_backend_tag"

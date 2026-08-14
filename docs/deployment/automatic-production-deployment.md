@@ -24,12 +24,14 @@
 6. 服务器获取互斥锁、复核校验和、渲染正式 Compose 配置。
 7. 在变更容器前执行 MySQL 单事务逻辑备份并校验 gzip。
 8. 保留当前前后端镜像为 `rollback-before-<sha>-<timestamp>`。
-9. 加载新镜像，只重建 backend / frontend，不删除 volume。
+9. 加载新镜像，以 `--no-deps` 只强制重建 backend / frontend，不重建 MySQL、Redis、MinIO，也不删除 volume。
 10. 等待 Compose 和 loopback HTTP 健康检查通过，再记录当前 revision。
 
-前端镜像构建固定使用 pnpm 11.7.0，并只安装前端 workspace 及其依赖，避免把根工作区的 Playwright 等 CI 依赖装进镜像构建阶段。
+前端镜像构建固定使用 pnpm 11.7.0，并以 frontend workspace 作为安装过滤目标。由于当前仍共享根锁文件，冷构建会解析部分根 workspace 依赖元数据，首次构建速度仍受 npm 网络影响；这属于效率问题，不应通过放宽 lockfile 校验规避。
 
 部署脚本不会执行 `docker compose down -v`、删除 bucket、清理历史 release 或修改 Flyway 历史。健康检查失败时也不会自动回退数据库 schema；日志会输出备份位置和上一版镜像标签，由负责人按迁移兼容性判断回滚。
+
+脚本也不会自动删除旧 release、备份或 rollback image。启用连续部署后必须监控服务器磁盘水位；在真实恢复和回滚演练通过、保留周期得到确认前，不应加入自动清理命令。
 
 ## GitHub 配置
 

@@ -59,7 +59,7 @@ for (const fragment of [
   'sha256sum --check',
   'mysqldump',
   'rollback-before-',
-  '--no-build --force-recreate --wait backend frontend',
+  '--no-build --no-deps --force-recreate --wait backend frontend',
   'No database/schema rollback was attempted',
   'HEALTHCHECK_URL must use a loopback HTTP address'
 ]) {
