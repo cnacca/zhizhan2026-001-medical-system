@@ -1297,12 +1297,35 @@ type BusinessCard = {
 
 type PrototypeTone = 'blue' | 'sky' | 'green' | 'amber' | 'rose' | 'violet' | 'orange' | 'teal' | 'slate'
 
+type CsPortalFocusTask =
+  | 'ALL_ORDERS'
+  | 'ORDER_REVIEW'
+  | 'MESSAGE_REVIEW'
+  | 'WAITING_REPLY'
+  | 'DESIGN_UPDATE'
+  | 'DELIVERY_FOLLOW_UP'
+  | 'SHIPPING_PENDING'
+  | 'BILLING_PENDING'
+  | 'QUALITY_FOLLOW_UP'
+
+type DashboardMetricAction = {
+  label: string
+  value: string
+  routePath: string
+  navId: string
+  focusTask: CsPortalFocusTask
+}
+
 type DashboardMetric = {
   title: string
   value: string
   note: string
   icon: string
   tone: PrototypeTone
+  routePath?: string
+  navId?: string
+  focusTask?: CsPortalFocusTask
+  splitActions?: DashboardMetricAction[]
 }
 
 type DashboardAction = {
@@ -1313,6 +1336,8 @@ type DashboardAction = {
   actionLabel: string
   routePath?: string
   navId?: string
+  focusOrderId?: number
+  focusTask?: CsPortalFocusTask
   doctorSection?: string
   doctorDetailTab?: string
 }
@@ -1323,6 +1348,9 @@ type DashboardPanel = {
   tone?: PrototypeTone
   emptyText?: string
   items: DashboardAction[]
+  routePath?: string
+  navId?: string
+  focusTask?: CsPortalFocusTask
 }
 
 type DashboardTrend = {
@@ -1744,7 +1772,7 @@ const customerAttentionItems = ref<MessageAttentionItem[]>([])
 const customerAttentionLoading = ref(false)
 const customerAttentionExpanded = ref(false)
 const csPortalFocusOrderId = ref<number | null>(null)
-const csPortalFocusTask = ref<'ORDER_REVIEW' | 'MESSAGE_REVIEW' | null>(null)
+const csPortalFocusTask = ref<CsPortalFocusTask | null>(null)
 const customerCollaborationMentionableUsers = ref<MentionableUser[]>([])
 const customerCollaborationMentionUserIds = ref<number[]>([])
 const customerCollaborationDraft = ref('')
@@ -2264,6 +2292,7 @@ const displayNavigationConfig: Record<PortalTone, NavigationGroup[]> = {
         { id: 'cs-products', title: '产品管理', description: '维护已有产品资料和医生下单要求。', icon: 'product', routePath: '/cs/products' },
         { id: 'cs-billing', title: '账单管理', description: '处理按单账单、收款记录和月结账单。', icon: 'bill', routePath: '/cs/billing' },
         { id: 'cs-delivery', title: '配送管理', description: '登记发货并跟进物流与异常。', icon: 'delivery', routePath: '/cs/delivery' },
+        { id: 'cs-quality', title: '投诉/返工', description: '查看客户外返、投诉和返工跟进状态。', icon: 'quality', routePath: '/cs/quality' },
         { id: 'cs-outsourcing', title: '外协管理', description: '按外发地点和合作方跟进外协履约。', icon: 'partner', routePath: '/cs/outsourcing' }
       ]
     },
@@ -2740,9 +2769,7 @@ function isCsShipmentReady(order: DeliveryOrderItem, dashboardOrder?: InternalOr
 function csShipmentReminderPriority(order: DeliveryOrderItem, dashboardOrder?: InternalOrderItem) {
   if (order.logistics_status === 'PENDING' && isCsShipmentReady(order, dashboardOrder)) return 0
   if (order.logistics_status === 'EXCEPTION') return 1
-  if (order.logistics_status === 'FOLLOWING') return 2
-  if (order.logistics_status === 'SHIPPED') return 3
-  if (order.logistics_status === 'RESOLVED') return 4
+  if (['FOLLOWING', 'FOLLOWING_UP'].includes(order.logistics_status)) return 2
   return 5
 }
 const csShippingReminderItems = computed<DashboardAction[]>(() => {
@@ -2750,8 +2777,8 @@ const csShippingReminderItems = computed<DashboardAction[]>(() => {
   return phaseOneAbDashboardDeliveryOrders.value
     .filter((order) => {
       const dashboardOrder = orderMap.get(order.order_id)
-      return isCsShipmentReady(order, dashboardOrder)
-        || ['EXCEPTION', 'FOLLOWING', 'SHIPPED', 'RESOLVED'].includes(order.logistics_status)
+      return (order.logistics_status === 'PENDING' && isCsShipmentReady(order, dashboardOrder))
+        || ['EXCEPTION', 'FOLLOWING', 'FOLLOWING_UP'].includes(order.logistics_status)
     })
     .sort((left, right) => {
       const priorityDelta = csShipmentReminderPriority(left, orderMap.get(left.order_id))
@@ -2763,30 +2790,24 @@ const csShippingReminderItems = computed<DashboardAction[]>(() => {
       const dashboardOrder = orderMap.get(order.order_id)
       const readyToShip = order.logistics_status === 'PENDING' && isCsShipmentReady(order, dashboardOrder)
       const logisticsException = order.logistics_status === 'EXCEPTION'
-      const following = order.logistics_status === 'FOLLOWING'
-      const shipped = order.logistics_status === 'SHIPPED'
       const statusMeta = readyToShip
         ? '优先发货'
         : logisticsException
           ? '异常待处理'
-          : following
-            ? '跟进中'
-            : shipped
-              ? '已发货'
-              : '已处理'
+          : '跟进中'
       const shippingDetail = readyToShip
         ? `${productTypeLabel(order.product_type)} · 已完成质检，等待录入物流`
-        : logisticsException || following
-          ? `${productTypeLabel(order.product_type)} · ${order.last_follow_up_note?.replace(/^\[物流跟进\]\s*/, '') || statusLabel(order.logistics_status)}`
-          : `${productTypeLabel(order.product_type)} · ${[order.carrier, order.tracking_no].filter(Boolean).join(' / ') || statusLabel(order.logistics_status)}`
+        : `${productTypeLabel(order.product_type)} · ${order.last_follow_up_note?.replace(/^\[物流跟进\]\s*/, '') || statusLabel(order.logistics_status)}`
       return {
         title: order.order_no,
         detail: shippingDetail,
         meta: statusMeta,
-        tone: readyToShip || logisticsException ? 'rose' : following ? 'amber' : shipped ? 'green' : 'slate',
-        actionLabel: readyToShip ? '去发货' : logisticsException || following ? '去处理' : '查看',
+        tone: readyToShip || logisticsException ? 'rose' : 'amber',
+        actionLabel: readyToShip ? '去发货' : '去处理',
         routePath: '/cs/delivery',
-        navId: 'cs-delivery'
+        navId: 'cs-delivery',
+        focusOrderId: order.order_id,
+        focusTask: readyToShip ? 'SHIPPING_PENDING' : 'DELIVERY_FOLLOW_UP'
       }
     })
 })
@@ -2815,7 +2836,9 @@ const csBillingReminderItems = computed<DashboardAction[]>(() => {
         tone: partiallyPaid ? 'orange' : billUploaded ? 'rose' : 'amber',
         actionLabel: partiallyPaid || billUploaded ? '去跟进' : '去处理',
         routePath: '/cs/billing',
-        navId: 'cs-billing'
+        navId: 'cs-billing',
+        focusOrderId: order.order_id,
+        focusTask: 'BILLING_PENDING'
       }
     })
 })
@@ -2849,22 +2872,21 @@ const phaseOneAbCsDashboardStats = computed(() => {
     !['PAID', 'NOT_REQUIRED', 'SETTLED'].includes(order.payment_status)
   ).length
   const logisticsManualFollowUpCount = deliveryOrdersForDashboard.filter((order) =>
-    ['EXCEPTION', 'FOLLOWING'].includes(order.logistics_status)
+    ['EXCEPTION', 'FOLLOWING', 'FOLLOWING_UP'].includes(order.logistics_status)
   ).length
   const dashboardOrderMap = new Map(orders.map((order) => [order.order_id, order]))
   const shippingAttentionCount = deliveryOrdersForDashboard.filter((order) => {
     const dashboardOrder = dashboardOrderMap.get(order.order_id)
-    return (order.logistics_status === 'PENDING' && isCsShipmentReady(order, dashboardOrder))
-      || ['EXCEPTION', 'FOLLOWING'].includes(order.logistics_status)
+    return order.logistics_status === 'PENDING' && isCsShipmentReady(order, dashboardOrder)
   }).length
   const source: PhaseOneAbDashboardSource = phaseOneAbDashboardDataError.value ? 'partial' : 'reused-api'
   return {
     source,
-    orderCount: phaseOneAbDashboardSummary.value?.current_month.order_count ?? orderCount,
-    itemCount: phaseOneAbDashboardSummary.value?.current_month.item_count ?? itemCount,
+    orderCount,
+    itemCount,
     pendingReviewCount: countOrdersByStatus(orders, ['PENDING_CS_REVIEW', 'CS_REJECTED']),
     pendingMessageReviewCount: pendingMessages.length,
-    pendingReplyCount: unreadCount.value,
+    pendingReplyCount: customerAttentionItems.value.length,
     designUpdateCount: countOrdersByStatus(orders, ['DESIGN_UPLOADED', 'PENDING_DOCTOR_CONFIRM']),
     shipmentFollowUpCount: countDeliveryByStatus(deliveryOrdersForDashboard, ['SHIPPED', 'IN_TRANSIT', 'DELIVERED']),
     shippingAttentionCount,
@@ -3351,14 +3373,27 @@ const prototypeDashboards = computed<Record<PortalTone, PrototypeDashboard>>(() 
         navId: 'cs-orders'
       },
       metrics: [
-        { title: '订单数量 / 件数', value: `${phaseOneAbCsDashboardStats.value.orderCount} / ${phaseOneAbCsDashboardStats.value.itemCount}`, note: '当前订单总量与累计件数', icon: 'order', tone: 'violet' },
-        { title: '信息评审 / 翻译待审', value: `${phaseOneAbCsDashboardStats.value.pendingReviewCount} / ${phaseOneAbCsDashboardStats.value.pendingMessageReviewCount}`, note: '订单资料 / AI 结果待确认', icon: 'audit', tone: 'amber' },
-        { title: '待回复', value: String(phaseOneAbCsDashboardStats.value.pendingReplyCount), note: '客户与内部消息待回复', icon: 'chat', tone: 'sky' },
-        { title: '设计更新', value: String(phaseOneAbCsDashboardStats.value.designUpdateCount), note: '设计进度有更新，请及时跟进', icon: 'design', tone: 'green' },
-        { title: '物流跟进', value: String(phaseOneAbCsDashboardStats.value.logisticsManualFollowUpCount), note: '异常与跟进中物流事项', icon: 'timer', tone: 'orange' },
-        { title: '发货待办', value: String(phaseOneAbCsDashboardStats.value.shippingAttentionCount), note: '待发货与物流异常优先处理', icon: 'delivery', tone: 'teal' },
-        { title: '账单待处理', value: String(phaseOneAbCsDashboardStats.value.billManualFollowUpCount), note: '待上传、待收款或部分付款', icon: 'bill', tone: 'rose' },
-        { title: '投诉/返工', value: String(phaseOneAbCsDashboardStats.value.reworkFollowUpCount), note: '客诉与返工事项待跟进', icon: 'quality', tone: 'rose' }
+        { title: '订单数量 / 件数', value: `${phaseOneAbCsDashboardStats.value.orderCount} / ${phaseOneAbCsDashboardStats.value.itemCount}`, note: '当前订单总量与累计件数', icon: 'order', tone: 'violet', routePath: '/cs/orders', navId: 'cs-orders', focusTask: 'ALL_ORDERS' },
+        {
+          title: '信息评审 / 翻译待审',
+          value: `${phaseOneAbCsDashboardStats.value.pendingReviewCount} / ${phaseOneAbCsDashboardStats.value.pendingMessageReviewCount}`,
+          note: '订单资料 / AI 结果待确认',
+          icon: 'audit',
+          tone: 'amber',
+          routePath: '/cs/information-translation',
+          navId: 'cs-information-translation',
+          focusTask: 'ORDER_REVIEW',
+          splitActions: [
+            { label: '资料', value: String(phaseOneAbCsDashboardStats.value.pendingReviewCount), routePath: '/cs/information-translation', navId: 'cs-information-translation', focusTask: 'ORDER_REVIEW' },
+            { label: '消息', value: String(phaseOneAbCsDashboardStats.value.pendingMessageReviewCount), routePath: '/cs/inquiries', navId: 'cs-inquiries', focusTask: 'MESSAGE_REVIEW' }
+          ]
+        },
+        { title: '待回复', value: String(phaseOneAbCsDashboardStats.value.pendingReplyCount), note: '客户与内部消息待回复', icon: 'chat', tone: 'sky', routePath: '/cs/inquiries', navId: 'cs-inquiries', focusTask: 'WAITING_REPLY' },
+        { title: '设计更新', value: String(phaseOneAbCsDashboardStats.value.designUpdateCount), note: '设计进度有更新，请及时跟进', icon: 'design', tone: 'green', routePath: '/cs/designs', navId: 'cs-designs', focusTask: 'DESIGN_UPDATE' },
+        { title: '物流跟进', value: String(phaseOneAbCsDashboardStats.value.logisticsManualFollowUpCount), note: '异常与跟进中物流事项', icon: 'timer', tone: 'orange', routePath: '/cs/delivery', navId: 'cs-delivery', focusTask: 'DELIVERY_FOLLOW_UP' },
+        { title: '发货待办', value: String(phaseOneAbCsDashboardStats.value.shippingAttentionCount), note: '已具备条件、等待登记发货', icon: 'delivery', tone: 'teal', routePath: '/cs/delivery', navId: 'cs-delivery', focusTask: 'SHIPPING_PENDING' },
+        { title: '账单待处理', value: String(phaseOneAbCsDashboardStats.value.billManualFollowUpCount), note: '待上传、待收款或部分付款', icon: 'bill', tone: 'rose', routePath: '/cs/billing', navId: 'cs-billing', focusTask: 'BILLING_PENDING' },
+        { title: '投诉/返工', value: String(phaseOneAbCsDashboardStats.value.reworkFollowUpCount), note: '客诉与返工事项待跟进', icon: 'quality', tone: 'rose', routePath: '/cs/quality', navId: 'cs-quality', focusTask: 'QUALITY_FOLLOW_UP' }
       ],
       panels: [
         {
@@ -3366,18 +3401,24 @@ const prototypeDashboards = computed<Record<PortalTone, PrototypeDashboard>>(() 
           badge: `${phaseOneAbCsDashboardStats.value.shippingAttentionCount} 项待处理`,
           tone: 'teal',
           emptyText: '当前没有待发货或物流异常事项',
-          items: csShippingReminderItems.value
+          items: csShippingReminderItems.value,
+          routePath: '/cs/delivery',
+          navId: 'cs-delivery',
+          focusTask: 'SHIPPING_PENDING'
         },
         {
           title: '账单待处理',
           badge: `${phaseOneAbCsDashboardStats.value.billManualFollowUpCount} 单`,
           tone: 'rose',
           emptyText: '当前没有需要处理的账单',
-          items: csBillingReminderItems.value
+          items: csBillingReminderItems.value,
+          routePath: '/cs/billing',
+          navId: 'cs-billing',
+          focusTask: 'BILLING_PENDING'
         }
       ],
       trends: [
-        { label: '本月订单', value: `${phaseOneAbCsDashboardStats.value.orderCount} 单`, percent: phaseOneProgress(phaseOneAbCsDashboardStats.value.orderCount * 4), tone: 'violet' },
+        { label: '本月订单', value: `${phaseOneAbDashboardSummary.value?.current_month.order_count ?? phaseOneAbCsDashboardStats.value.orderCount} 单`, percent: phaseOneProgress((phaseOneAbDashboardSummary.value?.current_month.order_count ?? phaseOneAbCsDashboardStats.value.orderCount) * 4), tone: 'violet' },
         { label: '本月 / 上月对比', value: phaseOneAbMonthlyComparison.value.orderLabel, percent: phaseOneAbMonthlyComparison.value.orderPercent, tone: 'green' },
         { label: '十大客户排名', value: phaseOneAbCsDashboardStats.value.customerRanking.clinicName, percent: phaseOneProgress(phaseOneAbCsDashboardStats.value.customerRanking.orderCount * 10), tone: 'blue' },
         { label: '发货待办', value: `${phaseOneAbCsDashboardStats.value.shippingAttentionCount} 单`, percent: phaseOneProgress(phaseOneAbCsDashboardStats.value.shippingAttentionCount * 12), tone: 'teal' },
@@ -3746,6 +3787,7 @@ const csRebuiltRoutePaths = new Set([
   '/cs/products',
   '/cs/billing',
   '/cs/delivery',
+  '/cs/quality',
   '/cs/outsourcing',
   '/cs/settings',
   '/cs/notifications',
@@ -4280,6 +4322,7 @@ const routeChrome = computed<RouteChrome>(() => {
       '/cs/products': { title: '产品管理', description: '维护已有产品资料和医生下单要求。', icon: 'product' },
       '/cs/billing': { title: '账单管理', description: '处理按单账单、收款记录和月结账单。', icon: 'bill' },
       '/cs/delivery': { title: '配送管理', description: '登记发货并跟进物流与异常。', icon: 'delivery' },
+      '/cs/quality': { title: '投诉/返工', description: '查看客户外返、投诉和返工跟进状态。', icon: 'quality' },
       '/cs/outsourcing': { title: '外协管理', description: '按外发地点和合作方跟进外协履约。', icon: 'partner' },
       '/cs/settings': { title: '设置与账号', description: '查看团队范围并维护常用回复和通知偏好。', icon: 'settings' },
       '/cs/notifications': { title: '通知中心', description: '查看本人业务通知和未读提醒。', icon: 'notification' },
@@ -6095,16 +6138,15 @@ function openCsHelpCenter() {
   navigateToRoute('/cs/help')
 }
 
-function navigateFromCsPage(routePath: string, focusOrderId?: number) {
-  if (focusOrderId !== undefined) {
-    csPortalFocusOrderId.value = focusOrderId
-    csPortalFocusTask.value = routePath === '/cs/information-translation' ? 'ORDER_REVIEW' : null
-  }
+function navigateFromCsPage(routePath: string, focusOrderId?: number, focusTask?: CsPortalFocusTask) {
+  csPortalFocusOrderId.value = focusOrderId ?? null
+  csPortalFocusTask.value = focusTask
+    ?? (focusOrderId !== undefined && routePath === '/cs/information-translation' ? 'ORDER_REVIEW' : null)
   const matchedItem = findDisplayItemByRoute(routePath)
   if (matchedItem) {
     activeNavId.value = matchedItem.id
   }
-  navigateToRoute(routePath, focusOrderId !== undefined)
+  navigateToRoute(routePath, focusOrderId !== undefined || Boolean(focusTask))
 }
 
 async function openAdminRemainingOrder(orderId: number) {
@@ -6508,6 +6550,10 @@ function selectBusinessShortcut(shortcut: BusinessShortcut) {
 }
 
 function selectDashboardAction(action: DashboardAction) {
+  if (portalTone.value === 'cs' && action.routePath && (action.focusTask || action.focusOrderId !== undefined)) {
+    navigateFromCsPage(action.routePath, action.focusOrderId, action.focusTask)
+    return
+  }
   if (action.navId) {
     const displayItem = findDisplayItemById(action.navId)
     if (displayItem) {
@@ -6528,6 +6574,16 @@ function selectDashboardAction(action: DashboardAction) {
   if (action.routePath) {
     navigateToRoute(action.routePath)
   }
+}
+
+function selectDashboardMetric(metric: DashboardMetric | DashboardMetricAction) {
+  if (!metric.routePath) return
+  navigateFromCsPage(metric.routePath, undefined, metric.focusTask)
+}
+
+function selectDashboardPanel(panel: DashboardPanel) {
+  if (!panel.routePath) return
+  navigateFromCsPage(panel.routePath, undefined, panel.focusTask)
 }
 
 async function apiFetch<T>(path: string, options: RequestInit = {}) {
@@ -8599,9 +8655,11 @@ function openCsDashboardAttentionItem(item: CsDashboardAttentionItem) {
     }
     return
   }
-  csPortalFocusOrderId.value = item.orderId
-  csPortalFocusTask.value = item.kind
-  navigateToRoute(item.kind === 'ORDER_REVIEW' ? '/cs/information-translation' : '/cs/inquiries', true)
+  navigateFromCsPage(
+    item.kind === 'ORDER_REVIEW' ? '/cs/information-translation' : '/cs/inquiries',
+    item.orderId,
+    item.kind
+  )
 }
 
 async function resolveCustomerAttentionItem(item: MessageAttentionItem) {
@@ -11574,6 +11632,7 @@ onBeforeUnmount(() => {
             :focus-order-id="csPortalFocusOrderId"
             :focus-task="csPortalFocusTask"
             @navigate="navigateFromCsPage"
+            @focus-consumed="clearCsPortalFocusContext"
             @refresh-notifications="loadNotifications"
           />
         </section>
@@ -16472,11 +16531,22 @@ onBeforeUnmount(() => {
               v-for="metric in activePrototypeDashboard.metrics"
               :key="metric.title"
               class="prototype-stat-card"
-              :class="`tone-${metric.tone}`"
+              :class="[`tone-${metric.tone}`, { 'is-actionable': metric.routePath }]"
+              :role="metric.splitActions?.length ? 'group' : metric.routePath ? 'link' : undefined"
+              :aria-label="metric.splitActions?.length ? `${metric.title}快捷入口` : undefined"
+              :tabindex="metric.routePath ? 0 : undefined"
+              @click="selectDashboardMetric(metric)"
+              @keydown.enter.self.prevent="selectDashboardMetric(metric)"
+              @keydown.space.self.prevent="selectDashboardMetric(metric)"
             >
               <span class="prototype-card-accent" />
               <span class="prototype-stat-label">{{ metric.title }}</span>
-              <strong>{{ metric.value }}</strong>
+              <div v-if="metric.splitActions?.length" class="prototype-stat-split-actions">
+                <button v-for="action in metric.splitActions" :key="action.label" type="button" :title="`${action.label}待审 ${action.value}`" @click.stop="selectDashboardMetric(action)">
+                  <strong>{{ action.value }}</strong><span>{{ action.label }}</span>
+                </button>
+              </div>
+              <strong v-else>{{ metric.value }}</strong>
               <small>{{ metric.note }}</small>
             </article>
           </div>
@@ -16535,7 +16605,7 @@ onBeforeUnmount(() => {
             </div>
             <div v-if="csDashboardAttentionLoading" class="empty-state">正在同步待办事项…</div>
             <div v-else-if="visibleCustomerAttentionItems.length === 0" class="empty-state">暂无需要关注的事项</div>
-            <article v-for="item in visibleCustomerAttentionItems" :key="item.key" class="customer-attention-item" data-testid="customer-attention-item" @click="openCsDashboardAttentionItem(item)">
+            <article v-for="item in visibleCustomerAttentionItems" :key="item.key" class="customer-attention-item" data-testid="customer-attention-item" role="group" :aria-label="item.title" tabindex="0" @click="openCsDashboardAttentionItem(item)" @keydown.enter.self.prevent="openCsDashboardAttentionItem(item)" @keydown.space.self.prevent="openCsDashboardAttentionItem(item)">
               <span class="attention-dot" :class="`tone-${item.tone}`" />
               <div>
                 <strong>{{ item.title }}</strong>
@@ -16559,11 +16629,11 @@ onBeforeUnmount(() => {
           </section>
           <div class="cs-dashboard-side-stack">
             <section v-for="panel in activePrototypeDashboard.panels" :key="panel.title" class="prototype-panel-card cs-dashboard-side-card">
-              <div class="prototype-panel-head">
+              <div class="prototype-panel-head" :class="{ 'is-actionable': panel.routePath }" :role="panel.routePath ? 'link' : undefined" :tabindex="panel.routePath ? 0 : undefined" @click="selectDashboardPanel(panel)" @keydown.enter.prevent="selectDashboardPanel(panel)" @keydown.space.prevent="selectDashboardPanel(panel)">
                 <h3>{{ panel.title }}</h3>
                 <span v-if="panel.badge" class="prototype-badge" :class="`tone-${panel.tone ?? 'slate'}`">{{ panel.badge }}</span>
               </div>
-              <div v-if="panel.items.length === 0" class="cs-dashboard-side-empty">{{ panel.emptyText ?? '暂无待处理事项' }}</div>
+              <button v-if="panel.items.length === 0" type="button" class="cs-dashboard-side-empty is-actionable" @click="selectDashboardPanel(panel)">{{ panel.emptyText ?? '暂无待处理事项' }}<b>查看全部</b></button>
               <button
                 v-for="item in panel.items"
                 :key="`${panel.title}-${item.title}`"

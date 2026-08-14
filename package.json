@@ -182,6 +182,7 @@
     "check:production-board-action-summary": "node scripts/check-production-board-action-summary.mjs",
     "check:production-board-reference-clone": "node scripts/check-production-board-reference-clone.mjs",
     "check:customer-dashboard-attention": "node scripts/check-customer-dashboard-attention.mjs",
+    "check:cs-dashboard-navigation": "node scripts/check-cs-dashboard-navigation.mjs",
     "check:customer-special-requirements": "node scripts/check-customer-special-requirement-snapshot.mjs",
     "check:staff-order-identity": "node scripts/check-staff-order-identity.mjs",
     "check:goal-034-dashboard-metrics": "node scripts/check-goal-034-dashboard-metrics.mjs",
