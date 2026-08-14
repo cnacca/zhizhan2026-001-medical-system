@@ -392,7 +392,7 @@ doctor / change-me-doctor
 
 这些账号密码是本地占位值，数据库中存储 PBKDF2-SHA256 hash；正式环境必须替换为真实账号体系和安全密钥。
 
-生产前端不会预填或打包上述 `change-me-*` 演示密码。正式部署仍必须在后端轮换或停用演示账号；隐藏前端默认值不能替代账号治理。
+生产前端默认不会预填或打包上述 `change-me-*` 演示密码。2026-08-14 起按用户明确要求增加临时演示例外：只有构建变量 `VITE_TEMP_DEMO_LOGIN_PREFILL_ENABLED=true` 时才按四端入口预填演示账号；生产自动部署通过仓库变量 `TEMP_DEMO_LOGIN_PREFILL_ENABLED` 控制。正式账号启用时必须关闭变量并重新部署，同时在后端轮换或停用演示账号；隐藏前端默认值不能替代账号治理。
 
 MinIO 的内部存储地址与浏览器签名地址必须分开配置：`MINIO_INTERNAL_ENDPOINT` 可使用容器名，`MINIO_PUBLIC_ENDPOINT` 必须是用户浏览器可达的完整 origin。8088 登录 CORS、文件端口和部署后复测步骤见 `docs/deployment/8088-redeployment-checklist-20260811.md`。
 

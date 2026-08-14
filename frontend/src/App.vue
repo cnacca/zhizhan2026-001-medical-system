@@ -1522,17 +1522,19 @@ type AccountProfile = {
   summary: string
 }
 
+const temporaryDemoLoginPrefillEnabled = import.meta.env.DEV
+  || import.meta.env.VITE_TEMP_DEMO_LOGIN_PREFILL_ENABLED === 'true'
 const isDoctorAcceptanceMode = import.meta.env.DEV && (
   new URLSearchParams(window.location.search).get('doctorMock') === '1'
   || String(import.meta.env.VITE_DOCTOR_DATA_SOURCE ?? '').toLowerCase() === 'mock'
 )
 const doctorAcceptanceCredentials = {
-  username: import.meta.env.DEV ? 'doctor' : '',
-  password: import.meta.env.DEV ? 'change-me-doctor' : ''
+  username: temporaryDemoLoginPrefillEnabled ? 'doctor' : '',
+  password: temporaryDemoLoginPrefillEnabled ? 'change-me-doctor' : ''
 } as const
 
-const username = ref(import.meta.env.DEV ? 'admin' : '')
-const password = ref(import.meta.env.DEV ? 'change-me-admin' : '')
+const username = ref(temporaryDemoLoginPrefillEnabled ? 'admin' : '')
+const password = ref(temporaryDemoLoginPrefillEnabled ? 'change-me-admin' : '')
 const selectedPortal = ref<LoginPortal | null>(null)
 const token = ref('')
 const refreshToken = ref('')
@@ -2161,8 +2163,8 @@ const portalOptions: PortalOption[] = [
     subtitle: '客服中台',
     icon: 'support_agent',
     tone: 'cs',
-    defaultUsername: import.meta.env.DEV ? 'cs' : '',
-    defaultPassword: import.meta.env.DEV ? 'change-me-cs' : ''
+    defaultUsername: temporaryDemoLoginPrefillEnabled ? 'cs' : '',
+    defaultPassword: temporaryDemoLoginPrefillEnabled ? 'change-me-cs' : ''
   },
   {
     value: 'PRODUCTION',
@@ -2170,8 +2172,8 @@ const portalOptions: PortalOption[] = [
     subtitle: '技工 / 生产人员',
     icon: 'factory',
     tone: 'production',
-    defaultUsername: import.meta.env.DEV ? 'worker' : '',
-    defaultPassword: import.meta.env.DEV ? 'change-me-worker' : ''
+    defaultUsername: temporaryDemoLoginPrefillEnabled ? 'worker' : '',
+    defaultPassword: temporaryDemoLoginPrefillEnabled ? 'change-me-worker' : ''
   },
   {
     value: 'ADMIN',
@@ -2179,8 +2181,8 @@ const portalOptions: PortalOption[] = [
     subtitle: '超级管理员',
     icon: 'admin_panel_settings',
     tone: 'admin',
-    defaultUsername: import.meta.env.DEV ? 'admin' : '',
-    defaultPassword: import.meta.env.DEV ? 'change-me-admin' : ''
+    defaultUsername: temporaryDemoLoginPrefillEnabled ? 'admin' : '',
+    defaultPassword: temporaryDemoLoginPrefillEnabled ? 'change-me-admin' : ''
   }
 ]
 
@@ -11531,7 +11533,7 @@ onBeforeUnmount(() => {
                 >
               </label>
               <div class="login-options">
-                <span class="login-session-note">为保护账号安全，关闭页面后需重新登录</span>
+                <span class="login-session-note">{{ temporaryDemoLoginPrefillEnabled ? '临时演示账号已预填，请勿录入正式数据' : '为保护账号安全，关闭页面后需重新登录' }}</span>
                 <button class="text-link" type="button" @click="showPasswordResetHelp">忘记密码？</button>
               </div>
               <button class="login-submit" type="submit" :disabled="loading" aria-label="登录">
