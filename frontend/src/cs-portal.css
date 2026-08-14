@@ -343,6 +343,63 @@
   line-height: 1.25;
 }
 
+.cs-reference-dashboard-menu .prototype-stat-card.is-actionable {
+  cursor: pointer;
+}
+
+.cs-reference-dashboard-menu .prototype-stat-card.is-actionable:hover,
+.cs-reference-dashboard-menu .prototype-stat-card.is-actionable:focus-visible {
+  border-color: currentColor;
+  box-shadow: 0 8px 22px rgba(76, 29, 149, .12);
+  outline: none;
+  transform: translateY(-2px);
+}
+
+.prototype-stat-split-actions {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 4px;
+}
+
+.prototype-stat-split-actions button {
+  display: grid;
+  gap: 2px;
+  min-width: 0;
+  padding: 3px 4px;
+  border: 1px solid rgba(124, 58, 237, .16);
+  border-radius: 7px;
+  background: rgba(124, 58, 237, .04);
+  color: inherit;
+  cursor: pointer;
+  text-align: left;
+}
+
+.cs-reference-dashboard-menu .prototype-stat-split-actions button strong {
+  font-size: 18px;
+}
+
+.prototype-stat-split-actions button span {
+  overflow: hidden;
+  color: var(--cs-muted);
+  font-size: 9px;
+  font-weight: 700;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.prototype-stat-split-actions button:hover,
+.prototype-stat-split-actions button:focus-visible,
+.cs-reference-dashboard-menu .prototype-panel-head.is-actionable:hover,
+.cs-reference-dashboard-menu .prototype-panel-head.is-actionable:focus-visible {
+  border-color: currentColor;
+  background: rgba(124, 58, 237, .08);
+  outline: none;
+}
+
+.cs-reference-dashboard-menu .prototype-panel-head.is-actionable {
+  cursor: pointer;
+}
+
 .cs-reference-dashboard-menu .customer-dashboard-pair {
   grid-template-columns: minmax(0, 1.6fr) minmax(280px, 1fr);
   gap: 16px;
@@ -391,6 +448,26 @@
   color: var(--cs-faint);
   font-size: 10px;
   text-align: center;
+}
+
+button.cs-dashboard-side-empty {
+  width: 100%;
+  border: 0;
+  background: transparent;
+  cursor: pointer;
+}
+
+button.cs-dashboard-side-empty b {
+  display: block;
+  margin-top: 5px;
+  color: var(--cs-violet);
+  font-size: 10px;
+}
+
+button.cs-dashboard-side-empty:hover,
+button.cs-dashboard-side-empty:focus-visible {
+  background: var(--cs-violet-soft);
+  outline: none;
 }
 
 .cs-reference-dashboard-menu .cs-dashboard-side-card .prototype-attention-item {

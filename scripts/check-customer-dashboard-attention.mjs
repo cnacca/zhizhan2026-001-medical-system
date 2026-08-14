@@ -16,13 +16,13 @@ const required = [
   [app, 'App.vue', ':focus-task="csPortalFocusTask"'],
   [app, 'App.vue', 'function clearCsPortalFocusContext()'],
   [app, 'App.vue', 'function navigateToRoute(routePath: string, preserveCsPortalFocus = false)'],
-  [app, 'App.vue', 'navigateToRoute(routePath, focusOrderId !== undefined)'],
-  [app, 'App.vue', "navigateToRoute(item.kind === 'ORDER_REVIEW' ? '/cs/information-translation' : '/cs/inquiries', true)"],
+  [app, 'App.vue', 'navigateToRoute(routePath, focusOrderId !== undefined || Boolean(focusTask))'],
+  [app, 'App.vue', "item.kind === 'ORDER_REVIEW' ? '/cs/information-translation' : '/cs/inquiries'"],
   [csPages, 'CsPortalPages.vue', 'focusOrderId: number | null'],
-  [csPages, 'CsPortalPages.vue', 'navigate: [routePath: string, focusOrderId?: number]'],
+  [csPages, 'CsPortalPages.vue', 'navigate: [routePath: string, focusOrderId?: number, focusTask?: CsPortalFocusTask]'],
   [csPages, 'CsPortalPages.vue', "emit('navigate', route, order.order_id)"],
   [csPages, 'CsPortalPages.vue', "emit('navigate', '/cs/inquiries', orderId)"],
-  [csPages, 'CsPortalPages.vue', "if (props.focusTask === 'MESSAGE_REVIEW') inquiryTab.value = 'REVIEW'"],
+  [csPages, 'CsPortalPages.vue', "if (focusTask === 'MESSAGE_REVIEW') inquiryTab.value = 'REVIEW'"],
   [styles, 'styles.css', '-webkit-line-clamp: 2;']
 ]
 

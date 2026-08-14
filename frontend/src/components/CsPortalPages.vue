@@ -184,6 +184,37 @@ type DeliveryItem = {
   last_follow_up_note: string | null
 }
 
+type QualityRecordItem = {
+  quality_record_id: number
+  quality_record_type: string
+  order_id: number
+  order_no: string
+  product_type: string
+  clinic_name: string
+  check_id: number
+  check_result: string
+  rework_id: number | null
+  reason_category: string
+  reason_detail: string
+  responsibility_type: string
+  status: string
+  status_note: string
+  created_at: string
+  status_updated_at: string
+  updated_at: string
+}
+
+type CsPortalFocusTask =
+  | 'ALL_ORDERS'
+  | 'ORDER_REVIEW'
+  | 'MESSAGE_REVIEW'
+  | 'WAITING_REPLY'
+  | 'DESIGN_UPDATE'
+  | 'DELIVERY_FOLLOW_UP'
+  | 'SHIPPING_PENDING'
+  | 'BILLING_PENDING'
+  | 'QUALITY_FOLLOW_UP'
+
 type ClinicItem = {
   clinic_id: number
   clinic_name: string
@@ -295,11 +326,12 @@ const props = defineProps<{
   user: LoginUser | null
   searchKeyword: string
   focusOrderId: number | null
-  focusTask: 'ORDER_REVIEW' | 'MESSAGE_REVIEW' | null
+  focusTask: CsPortalFocusTask | null
 }>()
 
 const emit = defineEmits<{
-  navigate: [routePath: string, focusOrderId?: number]
+  navigate: [routePath: string, focusOrderId?: number, focusTask?: CsPortalFocusTask]
+  focusConsumed: []
   refreshNotifications: []
 }>()
 
@@ -313,6 +345,7 @@ const unreadCount = ref(0)
 const clinics = ref<ClinicItem[]>([])
 const products = ref<ProductItem[]>([])
 const deliveryItems = ref<DeliveryItem[]>([])
+const qualityRecords = ref<QualityRecordItem[]>([])
 const outsourcingItems = ref<OutsourcingItem[]>([])
 
 const orderKeyword = ref('')
@@ -371,6 +404,7 @@ const aiLoading = ref(false)
 
 const designOrderId = ref<number | null>(null)
 const designKeyword = ref('')
+const designFilter = ref<'ALL' | 'UPDATED'>('ALL')
 const designDrafts = ref<DesignDraft[]>([])
 const designPreviewUrls = ref<Record<number, string>>({})
 const designDrawerVisible = ref(false)
@@ -398,6 +432,7 @@ const productDrawerVisible = ref(false)
 const productDetailState = ref<DetailLoadState>({ loading: false, error: '' })
 
 const billingTab = ref<'ORDER' | 'MONTHLY'>('ORDER')
+const billingFilter = ref<'ALL' | 'PENDING'>('ALL')
 const selectedBillingOrderId = ref<number | null>(null)
 const selectedBill = ref<BillInfo | null>(null)
 const selectedPayments = ref<PaymentItem[]>([])
@@ -420,6 +455,11 @@ const logisticsStatusDraft = ref('EXCEPTION')
 const logisticsFollowUpDraft = ref('')
 const deliveryDrawerVisible = ref(false)
 const shippingDialogVisible = ref(false)
+
+const qualityStatus = ref<'ACTIVE' | 'ALL' | 'PENDING' | 'IN_PROGRESS' | 'RESOLVED' | 'CLOSED'>('ACTIVE')
+const selectedQualityRecordId = ref<number | null>(null)
+const qualityDrawerVisible = ref(false)
+const activeFocusKey = ref('')
 
 const outsourcingStatus = ref('ALL')
 const selectedOutsourcingId = ref<number | null>(null)
@@ -535,7 +575,7 @@ function statusLabel(status?: string | null) {
     SHIPPED: '已发货', COMPLETED: '已完成', REJECTED: '已退回', APPROVED: '已通过',
     PENDING: '待处理', PENDING_PAYMENT: '待收款', PARTIALLY_PAID: '部分收款', PAID: '已收款',
     UNPAID: '待收款', UPLOADED: '已上传', SENT: '已发送', DELIVERED: '已签收',
-    EXCEPTION: '配送异常', FOLLOWING_UP: '跟进中', RESOLVED: '已解决', DELAYED: '已延迟',
+    EXCEPTION: '配送异常', FOLLOWING: '跟进中', FOLLOWING_UP: '跟进中', RESOLVED: '已解决', CLOSED: '已关闭', DELAYED: '已延迟',
     RETURNED: '已返回', CANCELLED: '已取消', ACTIVE: '启用', INACTIVE: '停用', PENDING_CS_REVIEW_DESIGN: '待内部审核',
     PENDING_DOCTOR_REVIEW: '待客户确认', PENDING_DOCTOR: '待客户确认',
     INTERNAL_REJECTED: '内审已退回', DOCTOR_CONFIRMED: '客户已确认', DOCTOR_REJECTED: '客户要求修改',
@@ -549,7 +589,9 @@ function statusLabel(status?: string | null) {
     NOT_REQUIRED: '无需处理', UPLOADING: '上传中', VALID: '有效', INVALID: '无效',
     ARCHIVED: '已归档', OUTSOURCED: '外协中', IN_TRANSIT: '运输中', OVERDUE: '已超期',
     ASSIGNED: '已分配生产', IN_DESIGN: '设计处理中', IN_QC: '质检中',
-    DESIGNING: '设计中', QC: '质检中'
+    DESIGNING: '设计中', QC: '质检中', FAIL: '不通过', PASS: '通过',
+    FIT_ISSUE: '适配问题', MATERIAL_ISSUE: '材料问题', DESIGN_ISSUE: '设计问题', OTHER: '其他',
+    WORKER: '生产', DOCTOR: '医生', CS: '客服', SYSTEM: '系统'
   }
   if (!status) return '状态未记录'
   return labels[status] || (/[一-鿿]/.test(status) ? status : '状态待确认')
@@ -1266,6 +1308,11 @@ async function loadDelivery() {
   deliveryItems.value = (await apiFetch<DeliveryItem[]>('/logistics/orders?limit=100')).data
 }
 
+async function loadQualityRecords() {
+  const payload = await apiFetch<Paged<QualityRecordItem>>('/quality-records?record_type=EXTERNAL_RETURN&page=1&size=100')
+  qualityRecords.value = payload.data.items
+}
+
 async function loadOutsourcing() {
   outsourcingItems.value = (await apiFetch<OutsourcingItem[]>('/production/outsourcing')).data
 }
@@ -1980,27 +2027,41 @@ async function markAllNotifications() {
 
 async function loadRoute(route: string) {
   if (!props.token) return
+  const focusOrderId = props.focusOrderId
+  const focusTask = props.focusTask
+  const focusKey = focusTask || focusOrderId !== null ? `${route}:${focusTask ?? ''}:${focusOrderId ?? ''}` : ''
+  if (focusKey && activeFocusKey.value === focusKey) return
+  if (focusKey) activeFocusKey.value = focusKey
   pageLoading.value = true
   pageError.value = ''
   pageResult.value = ''
   try {
-    if (route === '/cs/orders') await Promise.all([loadOrders(), loadOrderAttention()])
+    if (route === '/cs/orders') {
+      if (focusTask === 'ALL_ORDERS') orderFilter.value = 'ALL'
+      await Promise.all([loadOrders(), loadOrderAttention()])
+      const focusOrder = orders.value.find((item) => item.order_id === focusOrderId)
+      if (focusOrder) await openOrder(focusOrder)
+    }
     if (route === '/cs/information-translation') {
+      if (focusTask === 'ORDER_REVIEW') translationFilter.value = 'PENDING'
       await loadOrders()
-      const first = orders.value.find((item) => item.order_id === props.focusOrderId)
+      const first = orders.value.find((item) => item.order_id === focusOrderId)
         || orders.value.find((item) => item.order_id === translationOrderId.value)
         || filteredTranslationOrders.value[0]
         || orders.value[0]
       if (first) await selectTranslationOrder(first)
     }
     if (route === '/cs/designs') {
+      if (focusTask === 'DESIGN_UPDATE') designFilter.value = 'UPDATED'
       await loadOrders()
       designDrawerVisible.value = false
+      if (focusOrderId !== null && orders.value.some((item) => item.order_id === focusOrderId)) await selectDesignOrder(focusOrderId)
     }
     if (route === '/cs/inquiries') {
+      if (focusTask === 'WAITING_REPLY') inquiryTab.value = 'WAITING'
+      if (focusTask === 'MESSAGE_REVIEW') inquiryTab.value = 'REVIEW'
       await loadInquiryBase()
-      if (props.focusTask === 'MESSAGE_REVIEW') inquiryTab.value = 'REVIEW'
-      const focusOrder = orders.value.find((item) => item.order_id === props.focusOrderId)
+      const focusOrder = orders.value.find((item) => item.order_id === focusOrderId)
       if (focusOrder) await loadInquiryMessages(focusOrder.order_id)
     }
     if (route === '/cs/customers') {
@@ -2012,12 +2073,28 @@ async function loadRoute(route: string) {
       productDrawerVisible.value = false
     }
     if (route === '/cs/billing') {
+      if (focusTask === 'BILLING_PENDING') {
+        billingTab.value = 'ORDER'
+        billingFilter.value = 'PENDING'
+      }
       await Promise.all([loadOrders(), loadDelivery()])
       billingDrawerVisible.value = false
+      if (focusOrderId !== null && deliveryItems.value.some((item) => item.order_id === focusOrderId)) await selectBillingOrder(focusOrderId)
     }
     if (route === '/cs/delivery') {
+      if (focusTask === 'DELIVERY_FOLLOW_UP') deliveryStatus.value = 'FOLLOW_UP'
+      if (focusTask === 'SHIPPING_PENDING') deliveryStatus.value = 'PENDING'
       await loadDelivery()
       deliveryDrawerVisible.value = false
+      const focusDelivery = deliveryItems.value.find((item) => item.order_id === focusOrderId)
+      if (focusDelivery) selectDeliveryOrder(focusDelivery)
+    }
+    if (route === '/cs/quality') {
+      if (focusTask === 'QUALITY_FOLLOW_UP') qualityStatus.value = 'ACTIVE'
+      await loadQualityRecords()
+      qualityDrawerVisible.value = false
+      const focusQuality = qualityRecords.value.find((item) => item.order_id === focusOrderId)
+      if (focusQuality) selectQualityRecord(focusQuality)
     }
     if (route === '/cs/outsourcing') {
       await loadOutsourcing()
@@ -2029,6 +2106,7 @@ async function loadRoute(route: string) {
     pageError.value = error instanceof Error ? error.message : '页面数据加载失败'
   } finally {
     pageLoading.value = false
+    if (focusKey) emit('focusConsumed')
   }
 }
 
@@ -2302,11 +2380,35 @@ const filteredProducts = computed(() => {
 
 const filteredDesignOrders = computed(() => {
   const keyword = designKeyword.value.trim().toLowerCase()
-  return orders.value.filter((order) => !keyword || csOrderMatchesKeyword(order, keyword))
+  return orders.value.filter((order) => {
+    if (designFilter.value === 'UPDATED' && !['DESIGN_UPLOADED', 'PENDING_DOCTOR_CONFIRM'].includes(order.internal_status)) return false
+    return !keyword || csOrderMatchesKeyword(order, keyword)
+  })
 })
 
-const filteredDelivery = computed(() => deliveryItems.value.filter((item) => deliveryStatus.value === 'ALL' || item.logistics_status === deliveryStatus.value))
+const filteredBillingItems = computed(() => deliveryItems.value.filter((item) =>
+  billingFilter.value === 'ALL' || !['PAID', 'NOT_REQUIRED', 'SETTLED', 'NO_PAYMENT_REQUIRED'].includes(item.payment_status)))
+const filteredDelivery = computed(() => deliveryItems.value.filter((item) => {
+  if (deliveryStatus.value === 'FOLLOW_UP') return ['EXCEPTION', 'FOLLOWING', 'FOLLOWING_UP'].includes(item.logistics_status)
+  return deliveryStatus.value === 'ALL' || item.logistics_status === deliveryStatus.value
+}))
+const filteredQualityRecords = computed(() => qualityRecords.value.filter((item) => {
+  if (qualityStatus.value === 'ACTIVE') return ['PENDING', 'IN_PROGRESS'].includes(item.status)
+  return qualityStatus.value === 'ALL' || item.status === qualityStatus.value
+}))
+const selectedQualityRecord = computed(() => qualityRecords.value.find((item) => item.quality_record_id === selectedQualityRecordId.value) || null)
 const filteredOutsourcing = computed(() => outsourcingItems.value.filter((item) => outsourcingStatus.value === 'ALL' || item.status === outsourcingStatus.value))
+
+function selectQualityRecord(item: QualityRecordItem) {
+  selectedQualityRecordId.value = item.quality_record_id
+  qualityDrawerVisible.value = true
+}
+
+function setQualityStatus(status: string) {
+  if (['ACTIVE', 'ALL', 'PENDING', 'IN_PROGRESS', 'RESOLVED', 'CLOSED'].includes(status)) {
+    qualityStatus.value = status as typeof qualityStatus.value
+  }
+}
 
 function setDeliveryStatus(status: string) {
   deliveryStatus.value = status
@@ -2385,9 +2487,11 @@ async function openSearchResult(result: { type: string; route: string; id: numbe
 watch(() => props.searchKeyword, (value) => { searchInput.value = value })
 watch([() => props.activeRoute, () => props.token], ([route]) => { void loadRoute(route) }, { immediate: true })
 watch([() => props.focusOrderId, () => props.focusTask], () => {
-  if (props.activeRoute === '/cs/information-translation' || props.activeRoute === '/cs/inquiries') {
-    void loadRoute(props.activeRoute)
+  if (props.focusOrderId === null && props.focusTask === null) {
+    activeFocusKey.value = ''
+    return
   }
+  if (props.activeRoute.startsWith('/cs/')) void loadRoute(props.activeRoute)
 })
 watch([orderFilter, orderKeyword], () => {
   if (selectedOrder.value && !filteredOrders.value.some((item) => item.order_id === selectedOrder.value?.order_id)) {
@@ -2399,7 +2503,7 @@ watch(productKeyword, () => {
     productDrawerVisible.value = false
   }
 })
-watch(designKeyword, () => {
+watch([designKeyword, designFilter], () => {
   if (designOrderId.value && !filteredDesignOrders.value.some((item) => item.order_id === designOrderId.value)) {
     designDrawerVisible.value = false
   }
@@ -2684,6 +2788,7 @@ watch(billingTab, (tab) => {
 
     <template v-else-if="activeRoute === '/cs/designs'">
       <header class="cs-r-heading"><div><h1>设计稿进度</h1><p>只读查看已提交医生的设计版本和客户确认结果；技术设计内审由生产负责人处理。</p></div><span class="cs-r-count">{{ designDrafts.length }} 个医生可见版本</span></header>
+      <section class="cs-r-filter-card"><div class="cs-r-segmented"><button type="button" :class="{active:designFilter==='ALL'}" @click="designFilter='ALL'">全部订单</button><button type="button" :class="{active:designFilter==='UPDATED'}" @click="designFilter='UPDATED'">有设计更新</button></div></section>
       <section class="cs-r-table-card">
         <header class="cs-r-table-toolbar"><div><h3>设计订单</h3><span>{{ filteredDesignOrders.length }} / {{ orders.length }} 个订单</span></div><label class="cs-r-search"><span>⌕</span><input v-model="designKeyword" type="search" placeholder="搜索客户、患者、病例号、牙位、材料、颜色或系统单号" aria-label="搜索设计订单"></label></header>
         <table v-if="filteredDesignOrders.length">
@@ -2786,7 +2891,8 @@ watch(billingTab, (tab) => {
     <template v-else-if="activeRoute === '/cs/billing'">
       <header class="cs-r-heading"><div><h1>账单管理</h1><p>管理真实按单账单和收款事实；月结自动归集仅在后端规则接入后启用。</p></div><span class="cs-r-count">{{ deliveryItems.length }} 条账单关联记录</span></header>
       <div class="cs-r-tab-strip is-large"><button type="button" :class="{active:billingTab==='ORDER'}" @click="billingTab='ORDER'">按单账单</button><button type="button" :class="{active:billingTab==='MONTHLY'}" @click="billingTab='MONTHLY'">月结账单</button></div>
-      <section v-if="billingTab === 'ORDER'" class="cs-r-table-card"><header class="cs-r-table-toolbar"><div><h3>按单账单</h3><span>{{ deliveryItems.length }} 条记录</span></div></header><table><thead><tr><th>订单</th><th>产品</th><th>账单状态</th><th>收款状态</th><th>配送状态</th><th>操作</th></tr></thead><tbody><tr v-for="item in deliveryItems" :key="item.order_id" @click="selectBillingOrder(item.order_id)"><td><strong>{{ item.order_no }}</strong><small>#{{ item.order_id }}</small></td><td>{{ productLabel(item.product_type) }}</td><td><span class="cs-r-badge is-violet">{{ statusLabel(item.bill_status) }}</span></td><td><span class="cs-r-badge" :class="item.payment_status === 'PAID' ? 'is-green' : 'is-amber'">{{ statusLabel(item.payment_status) }}</span></td><td>{{ statusLabel(item.logistics_status) }}</td><td><button class="cs-r-link" type="button" @click.stop="selectBillingOrder(item.order_id)">查看账单</button></td></tr></tbody></table><div v-if="deliveryItems.length === 0" class="cs-r-state">暂无账单关联记录</div></section>
+      <section v-if="billingTab === 'ORDER'" class="cs-r-filter-card"><div class="cs-r-segmented"><button type="button" :class="{active:billingFilter==='ALL'}" @click="billingFilter='ALL'">全部账单</button><button type="button" :class="{active:billingFilter==='PENDING'}" @click="billingFilter='PENDING'">待处理</button></div></section>
+      <section v-if="billingTab === 'ORDER'" class="cs-r-table-card"><header class="cs-r-table-toolbar"><div><h3>按单账单</h3><span>{{ filteredBillingItems.length }} / {{ deliveryItems.length }} 条记录</span></div></header><table v-if="filteredBillingItems.length"><thead><tr><th>订单</th><th>产品</th><th>账单状态</th><th>收款状态</th><th>配送状态</th><th>操作</th></tr></thead><tbody><tr v-for="item in filteredBillingItems" :key="item.order_id" @click="selectBillingOrder(item.order_id)"><td><strong>{{ item.order_no }}</strong><small>#{{ item.order_id }}</small></td><td>{{ productLabel(item.product_type) }}</td><td><span class="cs-r-badge is-violet">{{ statusLabel(item.bill_status) }}</span></td><td><span class="cs-r-badge" :class="item.payment_status === 'PAID' ? 'is-green' : 'is-amber'">{{ statusLabel(item.payment_status) }}</span></td><td>{{ statusLabel(item.logistics_status) }}</td><td><button class="cs-r-link" type="button" @click.stop="selectBillingOrder(item.order_id)">查看账单</button></td></tr></tbody></table><div v-else class="cs-r-state">当前筛选下没有账单记录</div></section>
       <el-drawer v-model="billingDrawerVisible" size="540px" :with-header="false" class="cs-r-drawer" modal-class="cs-r-drawer-overlay"><div class="cs-r-drawer-shell"><header class="cs-r-detail-head"><div><small>BILLING DETAILS</small><h2>{{ selectedBillingOrder?.order_no || '账单记录' }}</h2></div><div><span class="cs-r-badge" :class="selectedBill?.payment_status==='PAID'?'is-green':'is-amber'">{{ statusLabel(selectedBill?.payment_status) }}</span><button type="button" aria-label="关闭账单详情" @click="billingDrawerVisible=false">×</button></div></header>
         <div v-if="billingDetailState.loading" class="cs-r-state cs-r-detail-loading"><span class="cs-r-loading-orbit">💳</span><strong>正在核对账单与收款记录</strong></div>
         <template v-else>
@@ -2815,7 +2921,7 @@ watch(billingTab, (tab) => {
 
     <template v-else-if="activeRoute === '/cs/delivery'">
       <header class="cs-r-heading"><div><h1>配送管理</h1><p>核对发货门禁、登记承运商与运单，并跟进物流异常。</p></div><span class="cs-r-count">{{ deliveryItems.length }} 个配送订单</span></header>
-      <section class="cs-r-filter-card"><div class="cs-r-segmented"><button v-for="item in [{key:'ALL',label:'全部'},{key:'PENDING',label:'待发货'},{key:'SHIPPED',label:'已发货'},{key:'EXCEPTION',label:'异常'}]" :key="item.key" type="button" :class="{active:deliveryStatus===item.key}" @click="setDeliveryStatus(item.key)">{{ item.label }}</button></div></section>
+      <section class="cs-r-filter-card"><div class="cs-r-segmented"><button v-for="item in [{key:'ALL',label:'全部'},{key:'PENDING',label:'待发货'},{key:'SHIPPED',label:'已发货'},{key:'FOLLOW_UP',label:'异常 / 跟进中'}]" :key="item.key" type="button" :class="{active:deliveryStatus===item.key}" @click="setDeliveryStatus(item.key)">{{ item.label }}</button></div></section>
       <section class="cs-r-table-card"><header class="cs-r-table-toolbar"><div><h3>配送订单</h3><span>{{ filteredDelivery.length }} / {{ deliveryItems.length }} 个订单</span></div></header><table v-if="filteredDelivery.length"><thead><tr><th>订单</th><th>产品</th><th>收款 / 结算</th><th>承运商</th><th>运单号</th><th>配送状态</th><th>操作</th></tr></thead><tbody><tr v-for="item in filteredDelivery" :key="item.order_id" @click="selectDeliveryOrder(item)"><td><strong>{{ item.order_no }}</strong><small>#{{ item.order_id }}</small></td><td>{{ productLabel(item.product_type) }}</td><td><span class="cs-r-badge" :class="item.payment_status==='PAID'||item.payment_status==='NO_PAYMENT_REQUIRED'?'is-green':'is-amber'">{{ statusLabel(item.payment_status) }}</span></td><td>{{ item.carrier || '待登记' }}</td><td>{{ item.tracking_no || '待登记' }}</td><td><span class="cs-r-badge" :class="item.logistics_status==='EXCEPTION'?'is-red':item.logistics_status==='SHIPPED'?'is-green':'is-amber'">{{ statusLabel(item.logistics_status) }}</span></td><td><button class="cs-r-link" type="button" @click.stop="selectDeliveryOrder(item)">查看配送</button></td></tr></tbody></table><div v-else class="cs-r-state">当前筛选下没有配送订单</div></section>
       <el-drawer v-model="deliveryDrawerVisible" size="540px" :with-header="false" class="cs-r-drawer" modal-class="cs-r-drawer-overlay"><div v-if="selectedDelivery" class="cs-r-drawer-shell"><header class="cs-r-detail-head"><div><small>DELIVERY DETAILS</small><h2>{{ selectedDelivery.order_no }}</h2></div><div><span class="cs-r-badge" :class="selectedDelivery.logistics_status==='EXCEPTION'?'is-red':deliveryAlreadyShipped?'is-green':'is-amber'">{{ statusLabel(selectedDelivery.logistics_status) }}</span><button type="button" aria-label="关闭配送详情" @click="deliveryDrawerVisible=false">×</button></div></header>
         <section class="cs-r-delivery-hero"><span>{{ deliveryAlreadyShipped ? '🚚' : '📦' }}</span><div><small>{{ productLabel(selectedDelivery.product_type) }}</small><strong>{{ statusLabel(selectedDelivery.logistics_status) }}</strong><p>{{ selectedDelivery.carrier ? `${selectedDelivery.carrier} · ${selectedDelivery.tracking_no}` : '尚未登记承运商和运单号' }}</p></div></section><section><div class="cs-r-section-title"><div><span class="cs-r-section-emoji">🚦</span><div><h3>发货门禁</h3><p>真实门禁由提交时后端再次校验</p></div></div></div><div class="cs-r-gate-grid"><article><span>✅</span><div><strong>最终出检</strong><small>提交时由后端检查真实出检记录</small></div><b>服务端校验</b></article><article :class="deliveryPaymentReady?'is-ready':'is-blocked'"><span>{{ deliveryPaymentReady ? '💳' : '⚠️' }}</span><div><strong>收款 / 结算</strong><small>{{ statusLabel(selectedDelivery.payment_status) }}</small></div><b>{{ deliveryPaymentReady ? '已满足' : '待处理' }}</b></article><article><span>📍</span><div><strong>收货地址</strong><small>当前配送接口未返回地址字段</small></div><b>人工核对</b></article></div></section><section class="cs-r-summary-grid"><div><span>账单状态</span><strong>{{ statusLabel(selectedDelivery.bill_status) }}</strong></div><div><span>收款状态</span><strong>{{ statusLabel(selectedDelivery.payment_status) }}</strong></div><div><span>承运商</span><strong>{{ selectedDelivery.carrier || '待登记' }}</strong></div><div><span>运单号</span><strong>{{ selectedDelivery.tracking_no || '待登记' }}</strong></div></section><section v-if="deliveryCanRegister" class="cs-r-drawer-actions"><span>发货后不可在此重复登记。</span><button class="is-primary" type="button" @click="shippingDialogVisible=true; carrierDraft=''; trackingDraft=''">🚀 登记发货</button></section><section v-else-if="selectedDelivery.logistics_status==='PENDING'" class="cs-r-detail-alert is-warning"><span>⚠️</span><div><strong>暂不能登记发货</strong><p>请先完成收款或确认无需收款，再由服务端校验最终出检。</p></div></section><section v-else class="cs-r-detail-alert is-success"><span>✓</span><div><strong>该订单已经登记物流</strong><p>为避免重复覆盖，不再显示发货登记表单。</p></div></section>
@@ -2824,6 +2930,13 @@ watch(billingTab, (tab) => {
         <section><div class="cs-r-section-title"><div><span class="cs-r-section-emoji">🕘</span><div><h3>操作记录</h3><p>仅展示当前配送接口返回的真实记录</p></div></div></div><div class="cs-r-record-list"><article><div><strong>当前配送状态</strong><span>{{ statusLabel(selectedDelivery.logistics_status) }}</span></div><span class="cs-r-badge is-violet">实时读取</span></article><article v-if="selectedDelivery.last_follow_up_note"><div><strong>最近一次内部跟进</strong><span>{{ selectedDelivery.last_follow_up_note }}</span></div><span class="cs-r-badge is-amber">已保存</span></article></div><div class="cs-r-capability-empty is-compact"><span>🕘</span><strong>完整物流审计接口尚未接入</strong><p>操作人和精确事件时间不会用静态内容代替。</p></div></section>
       </div></el-drawer>
       <el-dialog v-model="shippingDialogVisible" width="760px" :show-close="false" :close-on-click-modal="false" align-center class="cs-r-shipping-dialog" modal-class="cs-r-drawer-overlay"><div v-if="selectedDelivery" class="cs-r-shipping-panel"><header><div><small>REGISTER SHIPMENT</small><h2>登记发货 · {{ selectedDelivery.order_no }}</h2><p>选择承运商并填写真实运单号，提交时服务端再次检查最终出检。</p></div><button type="button" aria-label="关闭发货登记" @click="shippingDialogVisible=false">×</button></header><section><div class="cs-r-section-title"><div><span class="cs-r-section-emoji">🚚</span><div><h3>选择承运商</h3><p>可参考常用承运商视觉卡片，也可手工填写</p></div></div></div><div class="cs-r-carrier-grid"><button v-for="option in carrierOptions" :key="option.name" type="button" :class="{active:carrierDraft===option.name || (option.name==='其他承运商' && carrierDraft && !carrierOptions.slice(0,3).some(item=>item.name===carrierDraft))}" @click="carrierDraft=option.name==='其他承运商'?'':option.name"><span>{{ option.icon }}</span><strong>{{ option.mark }}</strong><small>{{ option.name }}</small></button></div></section><section class="cs-r-form-grid"><label><span>承运商名称</span><input v-model="carrierDraft" placeholder="选择上方承运商或手工填写"></label><label><span>真实运单号</span><input v-model="trackingDraft" placeholder="请核对后填写"></label></section><section class="cs-r-gate-grid is-compact"><article><span>✅</span><div><strong>最终出检</strong><small>服务端强制校验</small></div></article><article class="is-ready"><span>💳</span><div><strong>收款 / 结算</strong><small>{{ statusLabel(selectedDelivery.payment_status) }}</small></div></article><article><span>📍</span><div><strong>收货地址</strong><small>请按线下确认地址发件</small></div></article></section><footer><button type="button" @click="shippingDialogVisible=false">取消</button><button class="cs-r-primary" type="button" :disabled="pageLoading || !carrierDraft.trim() || !trackingDraft.trim()" @click="shipSelectedOrder">{{ pageLoading ? '提交中…' : '确认登记发货' }}</button></footer></div></el-dialog>
+    </template>
+
+    <template v-else-if="activeRoute === '/cs/quality'">
+      <header class="cs-r-heading"><div><h1>投诉 / 返工跟进</h1><p>查看客户外返、投诉原因、责任归类和处理状态；当前页面只读，不会修改质量记录。</p></div><span class="cs-r-count">{{ filteredQualityRecords.length }} / {{ qualityRecords.length }} 条记录</span></header>
+      <section class="cs-r-filter-card"><div class="cs-r-segmented"><button v-for="item in [{key:'ACTIVE',label:'待跟进'},{key:'ALL',label:'全部'},{key:'PENDING',label:'待处理'},{key:'IN_PROGRESS',label:'处理中'},{key:'RESOLVED',label:'已解决'},{key:'CLOSED',label:'已关闭'}]" :key="item.key" type="button" :class="{active:qualityStatus===item.key}" @click="setQualityStatus(item.key)">{{ item.label }}</button></div></section>
+      <section class="cs-r-table-card"><header class="cs-r-table-toolbar"><div><h3>客户外返与投诉记录</h3><span>按最新记录优先显示</span></div></header><table v-if="filteredQualityRecords.length"><thead><tr><th>客户 / 订单</th><th>产品</th><th>问题分类</th><th>责任归类</th><th>处理状态</th><th>更新时间</th><th>操作</th></tr></thead><tbody><tr v-for="item in filteredQualityRecords" :key="item.quality_record_id" @click="selectQualityRecord(item)"><td><strong>{{ item.clinic_name }}</strong><small>{{ item.order_no }}</small></td><td>{{ productLabel(item.product_type) }}</td><td><strong>{{ statusLabel(item.reason_category) }}</strong><small>{{ item.reason_detail || '未补充具体说明' }}</small></td><td>{{ statusLabel(item.responsibility_type) }}</td><td><span class="cs-r-badge" :class="item.status==='CLOSED'||item.status==='RESOLVED'?'is-green':item.status==='IN_PROGRESS'?'is-violet':'is-amber'">{{ statusLabel(item.status) }}</span></td><td>{{ compactDateTime(item.status_updated_at || item.updated_at) }}</td><td><button class="cs-r-link" type="button" @click.stop="selectQualityRecord(item)">查看详情</button></td></tr></tbody></table><div v-else class="cs-r-state"><strong>当前筛选下没有投诉或返工记录</strong><span>可切换“全部”查看已解决和已关闭记录。</span></div></section>
+      <el-drawer v-model="qualityDrawerVisible" size="540px" :with-header="false" class="cs-r-drawer" modal-class="cs-r-drawer-overlay"><div v-if="selectedQualityRecord" class="cs-r-drawer-shell"><header class="cs-r-detail-head"><div><small>QUALITY FOLLOW-UP</small><h2>{{ selectedQualityRecord.clinic_name }}</h2><p>{{ selectedQualityRecord.order_no }} · {{ productLabel(selectedQualityRecord.product_type) }}</p></div><div><span class="cs-r-badge" :class="selectedQualityRecord.status==='CLOSED'||selectedQualityRecord.status==='RESOLVED'?'is-green':selectedQualityRecord.status==='IN_PROGRESS'?'is-violet':'is-amber'">{{ statusLabel(selectedQualityRecord.status) }}</span><button type="button" aria-label="关闭投诉返工详情" @click="qualityDrawerVisible=false">×</button></div></header><section class="cs-r-summary-grid"><div><span>记录编号</span><strong>#{{ selectedQualityRecord.quality_record_id }}</strong></div><div><span>关联订单</span><strong>{{ selectedQualityRecord.order_no }}</strong></div><div><span>问题分类</span><strong>{{ statusLabel(selectedQualityRecord.reason_category) }}</strong></div><div><span>责任归类</span><strong>{{ statusLabel(selectedQualityRecord.responsibility_type) }}</strong></div><div><span>检查结论</span><strong>{{ statusLabel(selectedQualityRecord.check_result) }}</strong></div><div><span>返工记录</span><strong>{{ selectedQualityRecord.rework_id ? `#${selectedQualityRecord.rework_id}` : '未关联' }}</strong></div></section><section class="cs-r-readonly-note"><strong>问题说明</strong><p>{{ selectedQualityRecord.reason_detail || '当前记录未补充问题说明。' }}</p></section><section class="cs-r-readonly-note"><strong>跟进备注</strong><p>{{ selectedQualityRecord.status_note || '当前记录未补充跟进备注。' }}</p></section><section class="cs-r-record-list"><article><div><strong>记录建立</strong><span>{{ compactDateTime(selectedQualityRecord.created_at) }}</span></div><span class="cs-r-badge is-violet">真实记录</span></article><article><div><strong>状态更新</strong><span>{{ compactDateTime(selectedQualityRecord.status_updated_at || selectedQualityRecord.updated_at) }}</span></div><span class="cs-r-badge" :class="selectedQualityRecord.status==='CLOSED'||selectedQualityRecord.status==='RESOLVED'?'is-green':'is-amber'">{{ statusLabel(selectedQualityRecord.status) }}</span></article></section><section class="cs-r-drawer-actions"><span>如需联系客户，可进入该订单的问单会话。</span><button class="is-primary" type="button" @click="emit('navigate','/cs/inquiries',selectedQualityRecord.order_id,'WAITING_REPLY')">进入问单沟通</button></section></div></el-drawer>
     </template>
 
     <template v-else-if="activeRoute === '/cs/outsourcing'">
