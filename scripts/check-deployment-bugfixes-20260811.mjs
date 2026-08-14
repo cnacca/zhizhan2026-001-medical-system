@@ -58,7 +58,8 @@ if (!wizard.includes('itemStepErrors(item, step.value)')) {
 
 const app = requireText('frontend/src/App.vue', [
   'import.meta.env.DEV &&',
-  "import.meta.env.DEV ? 'change-me-doctor' : ''",
+  'VITE_TEMP_DEMO_LOGIN_PREFILL_ENABLED',
+  "temporaryDemoLoginPrefillEnabled ? 'change-me-doctor' : ''",
   'APP_CORS_ALLOWED_ORIGIN'
 ])
 if (app.includes('本地前端代理被后端 CORS 拦截')) {

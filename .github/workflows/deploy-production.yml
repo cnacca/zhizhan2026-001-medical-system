@@ -87,6 +87,7 @@ jobs:
             .
           docker build \
             --file frontend/Dockerfile \
+            --build-arg "VITE_TEMP_DEMO_LOGIN_PREFILL_ENABLED=${{ vars.TEMP_DEMO_LOGIN_PREFILL_ENABLED || 'false' }}" \
             --tag "ai-order-platform-frontend:${GITHUB_SHA}" \
             .
 

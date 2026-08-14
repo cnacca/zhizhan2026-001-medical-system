@@ -36,7 +36,9 @@ for (const fragment of [
   'StrictHostKeyChecking=yes',
   'scripts/deploy-production-release.sh',
   'PRODUCTION_SSH_PRIVATE_KEY',
-  'PRODUCTION_SSH_KNOWN_HOSTS'
+  'PRODUCTION_SSH_KNOWN_HOSTS',
+  'TEMP_DEMO_LOGIN_PREFILL_ENABLED',
+  'VITE_TEMP_DEMO_LOGIN_PREFILL_ENABLED'
 ]) {
   if (!workflow.includes(fragment)) {
     failures.push(`${workflowPath} missing required text: ${fragment}`)
@@ -95,7 +97,9 @@ for (const content of [workflow, deployScript, config]) {
 
 for (const fragment of [
   'corepack prepare pnpm@11.7.0 --activate',
-  'pnpm install --frozen-lockfile --filter ai-order-platform-frontend...'
+  'pnpm install --frozen-lockfile --filter ai-order-platform-frontend...',
+  'ARG VITE_TEMP_DEMO_LOGIN_PREFILL_ENABLED=false',
+  'ENV VITE_TEMP_DEMO_LOGIN_PREFILL_ENABLED=${VITE_TEMP_DEMO_LOGIN_PREFILL_ENABLED}'
 ]) {
   if (!frontendDockerfile.includes(fragment)) {
     failures.push(`${frontendDockerfilePath} missing required text: ${fragment}`)
