@@ -111,6 +111,8 @@ for (const text of [
   'DoctorReviewSubmittedRefreshError',
   '订单设计确认状态加载失败',
   'assertSafeOrderPayload',
+  "if (key === 'process_reviews') return false",
+  'isHiddenDoctorFormKey(key)',
   'unsafeDoctorContent',
   'const logisticsCandidates = legacyOrders.filter',
   '`/orders/${order.order_id}/logistics`',
