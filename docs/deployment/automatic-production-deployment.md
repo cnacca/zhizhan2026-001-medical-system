@@ -8,7 +8,7 @@
 
 ## 触发边界
 
-- 自动触发：`main` 收到 push，且仓库变量 `PRODUCTION_AUTO_DEPLOY_ENABLED=true`。
+- 自动触发：`main` 收到 push，仓库变量 `PRODUCTION_AUTO_DEPLOY_ENABLED=true`，并且该提交能够由 GitHub API 证明是合并到 `main` 的 PR merge commit。直接 push 到 `main` 会被工作流拒绝。
 - 手工触发：GitHub Actions 页面从 `main` 执行 `Deploy production`；功能分支即使手工选择也不会进入部署 job。
 - 并发：同一时间只允许一个正式部署；新的提交不会取消正在进行的发布。
 - 环境：工作流固定使用 GitHub `production` environment。建议只允许受保护的 `main` 部署，并配置 required reviewer 完成首次验证。
@@ -35,9 +35,11 @@
 
 ## GitHub 配置
 
-在仓库 Settings 中创建名为 `production` 的 environment，限制为受保护的 `main`。首次上线建议配置 required reviewer。
+在仓库 Settings 中创建名为 `production` 的 environment。若 GitHub 套餐支持，限制为受保护的 `main` 并配置 required reviewer。
 
-添加以下 environment secrets（也可使用 repository secrets）：
+当前新仓库为不支持私有仓库 Environment 保护规则和 branch protection 的套餐，因此工作流额外通过 GitHub API 校验自动发布提交必须来自已合并到 `main` 的 PR。该门禁不能替代付费套餐的服务端分支保护；仓库管理员仍应避免直接 push，并在套餐允许后补上 branch protection。
+
+添加以下 repository secrets。若后续套餐支持私有仓库 Environment secrets，可迁移到 `production` environment：
 
 | 名称 | 内容 |
 | --- | --- |
