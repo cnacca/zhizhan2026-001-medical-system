@@ -18,6 +18,7 @@
     "check:repoframe-docs": "node scripts/check-repoframe-docs.mjs",
     "check:openapi": "ruby scripts/check-openapi-contract.rb && npx --yes @apidevtools/swagger-cli validate docs/api/openapi.yaml && npx --yes @redocly/cli lint docs/api/openapi.yaml",
     "check:deployment-env": "node scripts/check-deployment-env-readiness.mjs",
+    "check:acceptance-environment": "node scripts/check-acceptance-environment.mjs",
     "check:scope-baseline-20260706": "node scripts/check-scope-baseline-20260706.mjs",
     "check:phase-one-closure-plan": "node scripts/check-phase-one-closure-plan.mjs",
     "check:phase-one-workflow": "node scripts/check-phase-one-workflow.mjs",

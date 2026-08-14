@@ -1,0 +1,151 @@
+services:
+  mysql:
+    image: mysql:8.4
+    container_name: ai-order-acceptance-mysql
+    command: ["--default-time-zone=+08:00"]
+    environment:
+      TZ: Asia/Shanghai
+      MYSQL_DATABASE: ${ACCEPTANCE_MYSQL_DATABASE:?inject isolated acceptance database name}
+      MYSQL_USER: ${ACCEPTANCE_MYSQL_USER:?inject isolated acceptance database user}
+      MYSQL_PASSWORD: ${ACCEPTANCE_MYSQL_PASSWORD:?inject isolated acceptance database password}
+      MYSQL_ROOT_PASSWORD: ${ACCEPTANCE_MYSQL_ROOT_PASSWORD:?inject isolated acceptance root password}
+    volumes:
+      - mysql-data:/var/lib/mysql
+    healthcheck:
+      test: ["CMD-SHELL", "mysqladmin ping -h 127.0.0.1 -uroot -p$${MYSQL_ROOT_PASSWORD}"]
+      interval: 10s
+      timeout: 5s
+      retries: 12
+
+  redis:
+    image: redis:7.4-alpine
+    container_name: ai-order-acceptance-redis
+    volumes:
+      - redis-data:/data
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 12
+
+  minio:
+    image: minio/minio:RELEASE.2025-09-07T16-13-09Z
+    container_name: ai-order-acceptance-minio
+    command: server /data --console-address ":9001"
+    environment:
+      MINIO_ROOT_USER: ${ACCEPTANCE_MINIO_ROOT_USER:?inject isolated acceptance MinIO user}
+      MINIO_ROOT_PASSWORD: ${ACCEPTANCE_MINIO_ROOT_PASSWORD:?inject isolated acceptance MinIO password}
+    ports:
+      - "127.0.0.1:${ACCEPTANCE_MINIO_PORT:-19002}:9000"
+    volumes:
+      - minio-data:/data
+    healthcheck:
+      test: ["CMD", "mc", "ready", "local"]
+      interval: 10s
+      timeout: 5s
+      retries: 12
+
+  backend:
+    image: ${ACCEPTANCE_BACKEND_IMAGE:-ai-order-platform-backend:phase-one}
+    container_name: ai-order-acceptance-backend
+    environment:
+      TZ: Asia/Shanghai
+      SPRING_PROFILES_ACTIVE: prod
+      SERVER_PORT: 8080
+      APP_CORS_ALLOWED_ORIGIN: ${ACCEPTANCE_PUBLIC_ORIGIN:?inject acceptance frontend origin}
+      APP_AUTH_TOKEN_SECRET: ${ACCEPTANCE_AUTH_TOKEN_SECRET:?inject acceptance token secret}
+      APP_AUTH_ALLOW_BOOTSTRAP_HEADERS: "false"
+      APP_AUTH_ALLOW_ROLE_FALLBACK: "false"
+      MYSQL_HOST: mysql
+      MYSQL_PORT: 3306
+      MYSQL_DATABASE: ${ACCEPTANCE_MYSQL_DATABASE:?inject isolated acceptance database name}
+      MYSQL_USER: ${ACCEPTANCE_MYSQL_USER:?inject isolated acceptance database user}
+      MYSQL_PASSWORD: ${ACCEPTANCE_MYSQL_PASSWORD:?inject isolated acceptance database password}
+      REDIS_HOST: redis
+      REDIS_PORT: 6379
+      MINIO_INTERNAL_ENDPOINT: http://minio:9000
+      MINIO_PUBLIC_ENDPOINT: ${ACCEPTANCE_MINIO_PUBLIC_ENDPOINT:?inject acceptance file origin}
+      MINIO_ROOT_USER: ${ACCEPTANCE_MINIO_ROOT_USER:?inject isolated acceptance MinIO user}
+      MINIO_ROOT_PASSWORD: ${ACCEPTANCE_MINIO_ROOT_PASSWORD:?inject isolated acceptance MinIO password}
+      MINIO_BUCKET: ${ACCEPTANCE_MINIO_BUCKET:?inject isolated acceptance bucket}
+      WORKFLOW_STANDARD_TIME_FORMAL_ENABLED: "false"
+      AI_PROVIDER: deterministic
+      AI_DEEPSEEK_ENABLED: "false"
+      AI_EXTERNAL_ALERT_WEBHOOK_ENABLED: "false"
+      AI_EXTERNAL_ALERT_SCHEDULER_ENABLED: "false"
+    depends_on:
+      mysql:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+      minio:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD-SHELL", "wget -qO- http://127.0.0.1:8080/api/bootstrap/health | grep -q '\"status\":\"ok\"'"]
+      interval: 10s
+      timeout: 5s
+      retries: 18
+
+  permission-bootstrap:
+    image: mysql:8.4
+    container_name: ai-order-acceptance-permission-bootstrap
+    environment:
+      MYSQL_PWD: ${ACCEPTANCE_MYSQL_PASSWORD:?inject isolated acceptance database password}
+      ACCEPTANCE_DB_USER: ${ACCEPTANCE_MYSQL_USER:?inject isolated acceptance database user}
+      ACCEPTANCE_DB_NAME: ${ACCEPTANCE_MYSQL_DATABASE:?inject isolated acceptance database name}
+    depends_on:
+      backend:
+        condition: service_healthy
+    command:
+      - sh
+      - -ec
+      - |
+        mysql --host=mysql --user="$${ACCEPTANCE_DB_USER}" "$${ACCEPTANCE_DB_NAME}" --execute="
+          INSERT IGNORE INTO system_role_permission (role_id, permission_id)
+          SELECT role.role_id, permission.permission_id
+          FROM system_role role
+          JOIN system_permission permission ON permission.permission_code = 'clinic:create'
+          WHERE role.role_code = 'CS';
+        "
+    restart: "no"
+
+  frontend:
+    image: ai-order-platform-frontend:acceptance
+    container_name: ai-order-acceptance-frontend
+    build:
+      context: ..
+      dockerfile: frontend/Dockerfile.acceptance
+      args:
+        VITE_ACCEPTANCE_MODE: "true"
+        VITE_ACCEPTANCE_DOCTOR_USERNAME: ${ACCEPTANCE_DOCTOR_USERNAME:?inject acceptance doctor username}
+        VITE_ACCEPTANCE_DOCTOR_PASSWORD: ${ACCEPTANCE_DOCTOR_PASSWORD:?inject acceptance doctor password}
+        VITE_ACCEPTANCE_CS_USERNAME: ${ACCEPTANCE_CS_USERNAME:?inject acceptance CS username}
+        VITE_ACCEPTANCE_CS_PASSWORD: ${ACCEPTANCE_CS_PASSWORD:?inject acceptance CS password}
+        VITE_ACCEPTANCE_PRODUCTION_USERNAME: ${ACCEPTANCE_PRODUCTION_USERNAME:?inject acceptance production username}
+        VITE_ACCEPTANCE_PRODUCTION_PASSWORD: ${ACCEPTANCE_PRODUCTION_PASSWORD:?inject acceptance production password}
+        VITE_ACCEPTANCE_ADMIN_USERNAME: ${ACCEPTANCE_ADMIN_USERNAME:?inject acceptance admin username}
+        VITE_ACCEPTANCE_ADMIN_PASSWORD: ${ACCEPTANCE_ADMIN_PASSWORD:?inject acceptance admin password}
+    ports:
+      - "127.0.0.1:${ACCEPTANCE_FRONTEND_PORT:-18088}:80"
+    depends_on:
+      backend:
+        condition: service_healthy
+      permission-bootstrap:
+        condition: service_completed_successfully
+    healthcheck:
+      test: ["CMD-SHELL", "wget -qO- http://127.0.0.1/ >/dev/null"]
+      interval: 10s
+      timeout: 5s
+      retries: 12
+
+volumes:
+  mysql-data:
+    name: ai-order-acceptance-mysql-data
+  redis-data:
+    name: ai-order-acceptance-redis-data
+  minio-data:
+    name: ai-order-acceptance-minio-data
+
+networks:
+  default:
+    name: ai-order-acceptance-network

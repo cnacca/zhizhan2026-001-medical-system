@@ -1525,6 +1525,25 @@ const isDoctorAcceptanceMode = import.meta.env.DEV && (
   new URLSearchParams(window.location.search).get('doctorMock') === '1'
   || String(import.meta.env.VITE_DOCTOR_DATA_SOURCE ?? '').toLowerCase() === 'mock'
 )
+const isDedicatedAcceptanceMode = String(import.meta.env.VITE_ACCEPTANCE_MODE ?? '').toLowerCase() === 'true'
+const dedicatedAcceptanceCredentials: Record<LoginPortal, { username: string; password: string }> = {
+  DOCTOR: {
+    username: String(import.meta.env.VITE_ACCEPTANCE_DOCTOR_USERNAME ?? ''),
+    password: String(import.meta.env.VITE_ACCEPTANCE_DOCTOR_PASSWORD ?? '')
+  },
+  CS: {
+    username: String(import.meta.env.VITE_ACCEPTANCE_CS_USERNAME ?? ''),
+    password: String(import.meta.env.VITE_ACCEPTANCE_CS_PASSWORD ?? '')
+  },
+  PRODUCTION: {
+    username: String(import.meta.env.VITE_ACCEPTANCE_PRODUCTION_USERNAME ?? ''),
+    password: String(import.meta.env.VITE_ACCEPTANCE_PRODUCTION_PASSWORD ?? '')
+  },
+  ADMIN: {
+    username: String(import.meta.env.VITE_ACCEPTANCE_ADMIN_USERNAME ?? ''),
+    password: String(import.meta.env.VITE_ACCEPTANCE_ADMIN_PASSWORD ?? '')
+  }
+}
 const doctorAcceptanceCredentials = {
   username: import.meta.env.DEV ? 'doctor' : '',
   password: import.meta.env.DEV ? 'change-me-doctor' : ''
@@ -1533,6 +1552,11 @@ const doctorAcceptanceCredentials = {
 const username = ref(import.meta.env.DEV ? 'admin' : '')
 const password = ref(import.meta.env.DEV ? 'change-me-admin' : '')
 const selectedPortal = ref<LoginPortal | null>(null)
+const activeDedicatedAcceptanceCredentials = computed(() => {
+  if (!isDedicatedAcceptanceMode || !selectedPortal.value) return null
+  const credentials = dedicatedAcceptanceCredentials[selectedPortal.value]
+  return credentials.username && credentials.password ? credentials : null
+})
 const token = ref('')
 const refreshToken = ref('')
 const currentUser = ref<LoginResponse | null>(null)
@@ -2151,8 +2175,8 @@ const portalOptions: PortalOption[] = [
     subtitle: '医生 / 诊所',
     icon: 'stethoscope',
     tone: 'doctor',
-    defaultUsername: doctorAcceptanceCredentials.username,
-    defaultPassword: doctorAcceptanceCredentials.password
+    defaultUsername: isDedicatedAcceptanceMode ? dedicatedAcceptanceCredentials.DOCTOR.username : doctorAcceptanceCredentials.username,
+    defaultPassword: isDedicatedAcceptanceMode ? dedicatedAcceptanceCredentials.DOCTOR.password : doctorAcceptanceCredentials.password
   },
   {
     value: 'CS',
@@ -2160,8 +2184,8 @@ const portalOptions: PortalOption[] = [
     subtitle: '客服中台',
     icon: 'support_agent',
     tone: 'cs',
-    defaultUsername: import.meta.env.DEV ? 'cs' : '',
-    defaultPassword: import.meta.env.DEV ? 'change-me-cs' : ''
+    defaultUsername: isDedicatedAcceptanceMode ? dedicatedAcceptanceCredentials.CS.username : (import.meta.env.DEV ? 'cs' : ''),
+    defaultPassword: isDedicatedAcceptanceMode ? dedicatedAcceptanceCredentials.CS.password : (import.meta.env.DEV ? 'change-me-cs' : '')
   },
   {
     value: 'PRODUCTION',
@@ -2169,8 +2193,8 @@ const portalOptions: PortalOption[] = [
     subtitle: '技工 / 生产人员',
     icon: 'factory',
     tone: 'production',
-    defaultUsername: import.meta.env.DEV ? 'worker' : '',
-    defaultPassword: import.meta.env.DEV ? 'change-me-worker' : ''
+    defaultUsername: isDedicatedAcceptanceMode ? dedicatedAcceptanceCredentials.PRODUCTION.username : (import.meta.env.DEV ? 'worker' : ''),
+    defaultPassword: isDedicatedAcceptanceMode ? dedicatedAcceptanceCredentials.PRODUCTION.password : (import.meta.env.DEV ? 'change-me-worker' : '')
   },
   {
     value: 'ADMIN',
@@ -2178,8 +2202,8 @@ const portalOptions: PortalOption[] = [
     subtitle: '超级管理员',
     icon: 'admin_panel_settings',
     tone: 'admin',
-    defaultUsername: import.meta.env.DEV ? 'admin' : '',
-    defaultPassword: import.meta.env.DEV ? 'change-me-admin' : ''
+    defaultUsername: isDedicatedAcceptanceMode ? dedicatedAcceptanceCredentials.ADMIN.username : (import.meta.env.DEV ? 'admin' : ''),
+    defaultPassword: isDedicatedAcceptanceMode ? dedicatedAcceptanceCredentials.ADMIN.password : (import.meta.env.DEV ? 'change-me-admin' : '')
   }
 ]
 
@@ -5687,6 +5711,13 @@ function selectPortal(option: PortalOption) {
 function fillDoctorAcceptanceCredentials() {
   username.value = doctorAcceptanceCredentials.username
   password.value = doctorAcceptanceCredentials.password
+  loginError.value = ''
+}
+
+function fillDedicatedAcceptanceCredentials() {
+  if (!activeDedicatedAcceptanceCredentials.value) return
+  username.value = activeDedicatedAcceptanceCredentials.value.username
+  password.value = activeDedicatedAcceptanceCredentials.value.password
   loginError.value = ''
 }
 
@@ -11482,7 +11513,24 @@ onBeforeUnmount(() => {
                 data-testid="login-portal-value"
               >
               <div
-                v-if="selectedPortal === 'DOCTOR' && isDoctorAcceptanceMode"
+                v-if="activeDedicatedAcceptanceCredentials"
+                class="login-demo-credentials"
+                data-testid="dedicated-acceptance-credentials"
+              >
+                <div class="login-demo-credentials-header">
+                  <div>
+                    <strong>{{ selectedPortalOption?.title }}验收账号</strong>
+                    <span>仅独立验收环境显示，禁止用于正式站</span>
+                  </div>
+                  <button type="button" @click="fillDedicatedAcceptanceCredentials">一键填入</button>
+                </div>
+                <div class="login-demo-credentials-values">
+                  <span>账号 <code>{{ activeDedicatedAcceptanceCredentials.username }}</code></span>
+                  <span>密码 <code>{{ activeDedicatedAcceptanceCredentials.password }}</code></span>
+                </div>
+              </div>
+              <div
+                v-else-if="selectedPortal === 'DOCTOR' && isDoctorAcceptanceMode"
                 class="login-demo-credentials"
                 data-testid="doctor-demo-credentials"
               >
