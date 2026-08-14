@@ -2,6 +2,9 @@ FROM node:22-alpine AS build
 
 WORKDIR /workspace
 
+ARG VITE_TEMP_DEMO_LOGIN_PREFILL_ENABLED=false
+ENV VITE_TEMP_DEMO_LOGIN_PREFILL_ENABLED=${VITE_TEMP_DEMO_LOGIN_PREFILL_ENABLED}
+
 RUN corepack enable && corepack prepare pnpm@11.7.0 --activate
 
 COPY package.json pnpm-lock.yaml pnpm-workspace.yaml ./
