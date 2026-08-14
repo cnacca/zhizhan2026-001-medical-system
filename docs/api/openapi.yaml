@@ -346,6 +346,15 @@ components:
         editable:
           type: boolean
           description: 是否允许医生继续编辑或补资料；仅草稿、客服驳回、生产驳回状态为 true，不暴露内部状态。
+        cancellation_request_status:
+          type: string
+          nullable: true
+          enum:
+          - PENDING
+          - APPROVED
+          - REJECTED
+          - WITHDRAWN
+          description: 医生取消申请的最新状态；为空表示尚未申请。申请只保留记录，不直接删除订单。
         form_data:
           type: object
         public_message:
@@ -1052,6 +1061,60 @@ components:
           "$ref": "#/components/schemas/OrderStatus"
         form_data:
           type: object
+    DeleteDraftOrdersRequest:
+      type: object
+      required:
+      - order_ids
+      properties:
+        order_ids:
+          type: array
+          minItems: 1
+          maxItems: 50
+          uniqueItems: true
+          items:
+            type: integer
+            format: int64
+          description: 待删除的医生本人草稿订单 ID；任一订单不符合条件时整批不执行。
+    DeleteDraftOrdersResponse:
+      type: object
+      properties:
+        order_ids:
+          type: array
+          items:
+            type: integer
+            format: int64
+        deleted_count:
+          type: integer
+          minimum: 0
+    OrderCancellationRequest:
+      type: object
+      required:
+      - reason
+      properties:
+        reason:
+          type: string
+          minLength: 2
+          maxLength: 500
+          description: 医生提交的取消原因。
+    OrderCancellationResponse:
+      type: object
+      properties:
+        request_id:
+          type: integer
+          format: int64
+        order_id:
+          type: integer
+          format: int64
+        request_status:
+          type: string
+          enum:
+          - PENDING
+          - APPROVED
+          - REJECTED
+          - WITHDRAWN
+        created_at:
+          type: string
+          format: date-time
     CreateCaseGroupRequest:
       type: object
       required:
@@ -8620,6 +8683,109 @@ paths:
         '503':
           "$ref": "#/components/responses/ServiceUnavailable"
       operationId: putOrdersByOrderId
+  "/orders/{orderId}/draft":
+    delete:
+      tags:
+      - Order
+      summary: 删除医生本人草稿
+      description: |
+        权限：DOCTOR。仅允许删除医生本人、当前诊所且仍为 DRAFT 的单产品草稿。
+        服务端执行审计式软删除；已提交订单、历史订单和多产品病例组不能使用本接口删除。
+      parameters:
+      - name: orderId
+        in: path
+        required: true
+        schema:
+          type: integer
+          format: int64
+      responses:
+        '200':
+          description: 草稿已软删除。
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data:
+                    "$ref": "#/components/schemas/DeleteDraftOrdersResponse"
+        '400': {"$ref": "#/components/responses/BadRequest"}
+        '401': {"$ref": "#/components/responses/Unauthorized"}
+        '403': {"$ref": "#/components/responses/Forbidden"}
+        '404': {"$ref": "#/components/responses/NotFound"}
+        '409': {"$ref": "#/components/responses/Conflict"}
+        '503': {"$ref": "#/components/responses/ServiceUnavailable"}
+        default: {"$ref": "#/components/responses/DefaultError"}
+      operationId: deleteDoctorDraftOrder
+  "/orders/drafts/batch-delete":
+    post:
+      tags:
+      - Order
+      summary: 批量删除医生本人草稿
+      description: |
+        权限：DOCTOR。一次最多 50 个单产品草稿，采用原子事务；任一订单非本人、非当前诊所、非草稿或属于多产品病例组时整批不执行。
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              "$ref": "#/components/schemas/DeleteDraftOrdersRequest"
+      responses:
+        '200':
+          description: 所选草稿已软删除。
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data:
+                    "$ref": "#/components/schemas/DeleteDraftOrdersResponse"
+        '400': {"$ref": "#/components/responses/BadRequest"}
+        '401': {"$ref": "#/components/responses/Unauthorized"}
+        '403': {"$ref": "#/components/responses/Forbidden"}
+        '404': {"$ref": "#/components/responses/NotFound"}
+        '409': {"$ref": "#/components/responses/Conflict"}
+        '503': {"$ref": "#/components/responses/ServiceUnavailable"}
+        default: {"$ref": "#/components/responses/DefaultError"}
+      operationId: batchDeleteDoctorDraftOrders
+  "/orders/{orderId}/cancellation-requests":
+    post:
+      tags:
+      - Order
+      summary: 医生申请取消待审核订单
+      description: |
+        权限：DOCTOR。仅允许医生本人对当前诊所、仍处于客服或生产待审核状态的订单申请取消。
+        重复提交返回既有待处理申请；该动作不会删除订单或自动改变订单状态。
+      parameters:
+      - name: orderId
+        in: path
+        required: true
+        schema:
+          type: integer
+          format: int64
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              "$ref": "#/components/schemas/OrderCancellationRequest"
+      responses:
+        '200':
+          description: 取消申请已创建或返回现有待处理申请。
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data:
+                    "$ref": "#/components/schemas/OrderCancellationResponse"
+        '400': {"$ref": "#/components/responses/BadRequest"}
+        '401': {"$ref": "#/components/responses/Unauthorized"}
+        '403': {"$ref": "#/components/responses/Forbidden"}
+        '404': {"$ref": "#/components/responses/NotFound"}
+        '409': {"$ref": "#/components/responses/Conflict"}
+        '503': {"$ref": "#/components/responses/ServiceUnavailable"}
+        default: {"$ref": "#/components/responses/DefaultError"}
+      operationId: requestDoctorOrderCancellation
   "/orders/{orderId}/review":
     post:
       tags:

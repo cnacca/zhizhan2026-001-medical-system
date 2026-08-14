@@ -8,6 +8,7 @@ import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.not;
 import static org.hamcrest.Matchers.nullValue;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.delete;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.put;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.content;
@@ -437,6 +438,174 @@ class OrderStatusProjectionTests {
                         .header("X-Bootstrap-User-Id", OTHER_DOCTOR_USER_ID)
                         .header("X-Bootstrap-Clinic-Id", clinicId))
                 .andExpect(status().isForbidden());
+    }
+
+    @Test
+    void doctorCanSoftDeleteOwnDraftAndItDisappearsFromDoctorReads() throws Exception {
+        long fileId = insertFileResource(null, DOCTOR_USER_ID, "ORDER_ATTACHMENT", "DOCTOR", "COMPLETED");
+        String response = mockMvc.perform(post("/orders")
+                        .header("X-Bootstrap-Role", "DOCTOR")
+                        .header("X-Bootstrap-User-Id", DOCTOR_USER_ID)
+                        .header("X-Bootstrap-Clinic-Id", clinicId)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("""
+                                {
+                                  "product_type": "REGULAR_CROWN",
+                                  "form_data": {"patient_name": "待删除草稿"},
+                                  "file_ids": [%d],
+                                  "is_draft": true
+                                }
+                                """.formatted(fileId)))
+                .andExpect(status().isOk())
+                .andReturn()
+                .getResponse()
+                .getContentAsString();
+        long draftOrderId = ((Number) com.jayway.jsonpath.JsonPath.read(response, "$.data.order_id")).longValue();
+
+        mockMvc.perform(delete("/orders/{orderId}/draft", draftOrderId)
+                        .header("X-Bootstrap-Role", "DOCTOR")
+                        .header("X-Bootstrap-User-Id", DOCTOR_USER_ID)
+                        .header("X-Bootstrap-Clinic-Id", clinicId))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.deleted_count").value(1))
+                .andExpect(jsonPath("$.data.order_ids[0]").value(draftOrderId));
+
+        mockMvc.perform(get("/orders/{orderId}", draftOrderId)
+                        .header("X-Bootstrap-Role", "DOCTOR")
+                        .header("X-Bootstrap-User-Id", DOCTOR_USER_ID)
+                        .header("X-Bootstrap-Clinic-Id", clinicId))
+                .andExpect(status().isNotFound());
+
+        Long deletedBy = jdbcClient.sql("SELECT draft_deleted_by FROM orders WHERE order_id = :orderId")
+                .param("orderId", draftOrderId)
+                .query(Long.class)
+                .single();
+        String fileStatus = jdbcClient.sql("SELECT status FROM file_resource WHERE file_id = :fileId")
+                .param("fileId", fileId)
+                .query(String.class)
+                .single();
+        long fileDeleteAuditCount = jdbcClient.sql("""
+                        SELECT COUNT(*)
+                        FROM file_access_audit
+                        WHERE file_id = :fileId
+                          AND order_id = :orderId
+                          AND actor_user_id = :actorUserId
+                          AND action = 'DELETE'
+                          AND access_result = 'ALLOWED'
+                        """)
+                .param("fileId", fileId)
+                .param("orderId", draftOrderId)
+                .param("actorUserId", DOCTOR_USER_ID)
+                .query(Long.class)
+                .single();
+        org.assertj.core.api.Assertions.assertThat(deletedBy).isEqualTo(DOCTOR_USER_ID);
+        org.assertj.core.api.Assertions.assertThat(fileStatus).isEqualTo("DELETED");
+        org.assertj.core.api.Assertions.assertThat(fileDeleteAuditCount).isEqualTo(1L);
+    }
+
+    @Test
+    void batchDraftDeleteIsAtomicWhenAnySelectedOrderIsNotDraft() throws Exception {
+        long firstDraftId = createDraft("批量草稿一");
+        long secondDraftId = createDraft("批量草稿二");
+        jdbcClient.sql("""
+                        UPDATE orders
+                        SET internal_status = 'PENDING_CS_REVIEW', external_status = 'PENDING_REVIEW'
+                        WHERE order_id = :orderId
+                        """)
+                .param("orderId", secondDraftId)
+                .update();
+
+        mockMvc.perform(post("/orders/drafts/batch-delete")
+                        .header("X-Bootstrap-Role", "DOCTOR")
+                        .header("X-Bootstrap-User-Id", DOCTOR_USER_ID)
+                        .header("X-Bootstrap-Clinic-Id", clinicId)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"order_ids\":[%d,%d]}".formatted(firstDraftId, secondDraftId)))
+                .andExpect(status().isConflict());
+
+        long deletedCount = jdbcClient.sql("""
+                        SELECT COUNT(*) FROM orders
+                        WHERE order_id IN (:firstId, :secondId)
+                          AND draft_deleted_at IS NOT NULL
+                        """)
+                .param("firstId", firstDraftId)
+                .param("secondId", secondDraftId)
+                .query(Long.class)
+                .single();
+        org.assertj.core.api.Assertions.assertThat(deletedCount).isZero();
+    }
+
+    @Test
+    void doctorCancellationRequestIsIdempotentAndVisibleWithoutDeletingOrder() throws Exception {
+        String firstResponse = mockMvc.perform(post("/orders/{orderId}/cancellation-requests", orderId)
+                        .header("X-Bootstrap-Role", "DOCTOR")
+                        .header("X-Bootstrap-User-Id", DOCTOR_USER_ID)
+                        .header("X-Bootstrap-Clinic-Id", clinicId)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"reason\":\"患者方案有变，请暂停审核\"}"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.request_status").value("PENDING"))
+                .andReturn()
+                .getResponse()
+                .getContentAsString();
+        long requestId = ((Number) com.jayway.jsonpath.JsonPath.read(
+                firstResponse, "$.data.request_id")).longValue();
+
+        mockMvc.perform(post("/orders/{orderId}/cancellation-requests", orderId)
+                        .header("X-Bootstrap-Role", "DOCTOR")
+                        .header("X-Bootstrap-User-Id", DOCTOR_USER_ID)
+                        .header("X-Bootstrap-Clinic-Id", clinicId)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"reason\":\"重复提交不应创建第二条\"}"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.request_id").value(requestId));
+
+        mockMvc.perform(get("/orders/{orderId}", orderId)
+                        .header("X-Bootstrap-Role", "DOCTOR")
+                        .header("X-Bootstrap-User-Id", DOCTOR_USER_ID)
+                        .header("X-Bootstrap-Clinic-Id", clinicId))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.cancellation_request_status").value("PENDING"));
+
+        long requestCount = jdbcClient.sql("""
+                        SELECT COUNT(*) FROM order_cancellation_request
+                        WHERE order_id = :orderId AND request_status = 'PENDING'
+                        """)
+                .param("orderId", orderId)
+                .query(Long.class)
+                .single();
+        String internalStatus = jdbcClient.sql("SELECT internal_status FROM orders WHERE order_id = :orderId")
+                .param("orderId", orderId)
+                .query(String.class)
+                .single();
+        org.assertj.core.api.Assertions.assertThat(requestCount).isEqualTo(1L);
+        org.assertj.core.api.Assertions.assertThat(internalStatus).isEqualTo("PENDING_CS_REVIEW");
+    }
+
+    @Test
+    void doctorCanRequestCancellationWhileProductionReviewIsPending() throws Exception {
+        jdbcClient.sql("""
+                        UPDATE orders
+                        SET internal_status = 'PENDING_PRODUCTION_REVIEW', external_status = 'PENDING_REVIEW'
+                        WHERE order_id = :orderId
+                        """)
+                .param("orderId", orderId)
+                .update();
+
+        mockMvc.perform(post("/orders/{orderId}/cancellation-requests", orderId)
+                        .header("X-Bootstrap-Role", "DOCTOR")
+                        .header("X-Bootstrap-User-Id", DOCTOR_USER_ID)
+                        .header("X-Bootstrap-Clinic-Id", clinicId)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"reason\":\"生产审核期间患者要求取消\"}"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.request_status").value("PENDING"));
+
+        String internalStatus = jdbcClient.sql("SELECT internal_status FROM orders WHERE order_id = :orderId")
+                .param("orderId", orderId)
+                .query(String.class)
+                .single();
+        org.assertj.core.api.Assertions.assertThat(internalStatus).isEqualTo("PENDING_PRODUCTION_REVIEW");
     }
 
     @Test
@@ -1100,6 +1269,26 @@ class OrderStatusProjectionTests {
             String visibility,
             String uploadStatus) {
         return insertFileResource(fileOrderId, ownerUserId, sourceType, visibility, uploadStatus, "case.stl");
+    }
+
+    private long createDraft(String patientName) throws Exception {
+        String response = mockMvc.perform(post("/orders")
+                        .header("X-Bootstrap-Role", "DOCTOR")
+                        .header("X-Bootstrap-User-Id", DOCTOR_USER_ID)
+                        .header("X-Bootstrap-Clinic-Id", clinicId)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("""
+                                {
+                                  "product_type": "REGULAR_CROWN",
+                                  "form_data": {"patient_name": "%s"},
+                                  "is_draft": true
+                                }
+                                """.formatted(patientName)))
+                .andExpect(status().isOk())
+                .andReturn()
+                .getResponse()
+                .getContentAsString();
+        return ((Number) com.jayway.jsonpath.JsonPath.read(response, "$.data.order_id")).longValue();
     }
 
     private long insertFileResource(

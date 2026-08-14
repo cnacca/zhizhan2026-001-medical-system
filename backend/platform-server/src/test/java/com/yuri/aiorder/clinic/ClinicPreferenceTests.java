@@ -1,11 +1,19 @@
 package com.yuri.aiorder.clinic;
 
+import static org.assertj.core.api.Assertions.assertThat;
 import static org.hamcrest.Matchers.hasSize;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.put;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
+import com.yuri.aiorder.common.BootstrapIdentity;
+import com.yuri.aiorder.common.UserRole;
+import com.yuri.aiorder.common.auth.AuthenticatedUser;
+import com.yuri.aiorder.common.auth.BearerTokenService;
+import com.yuri.aiorder.common.auth.DatabaseAuthService;
+import java.util.Set;
 import java.util.UUID;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -25,6 +33,12 @@ class ClinicPreferenceTests {
 
     @Autowired
     private MockMvc mockMvc;
+
+    @Autowired
+    private DatabaseAuthService databaseAuthService;
+
+    @Autowired
+    private BearerTokenService bearerTokenService;
 
     private long clinicId;
     private long otherClinicId;
@@ -79,6 +93,42 @@ class ClinicPreferenceTests {
                         .header("X-Bootstrap-User-Id", 8002L))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.data.preferences.material").value("氧化锆"));
+    }
+
+    @Test
+    void databaseCsPermissionCanCreateClinicWithBearerToken() throws Exception {
+        AuthenticatedUser cs = databaseAuthService.loadAuthenticatedUser(8002L);
+        assertThat(cs.permissions()).contains("clinic:create");
+        String token = bearerTokenService.issue(cs.identity());
+        String newClinicName = "客服建档权限测试-" + UUID.randomUUID().toString().replace("-", "");
+
+        mockMvc.perform(post("/clinics")
+                        .header("Authorization", "Bearer " + token)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("""
+                                {"clinic_name":"%s","contact_name":"客服建档","contact_phone":"13800003333"}
+                                """.formatted(newClinicName)))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.clinic_name").value(newClinicName));
+    }
+
+    @Test
+    void csPortalRoleWithoutClinicCreatePermissionCannotCreateClinic() throws Exception {
+        String token = bearerTokenService.issue(new BootstrapIdentity(
+                UserRole.CS,
+                8002L,
+                null,
+                null,
+                Set.of("clinic:read-internal"),
+                "ALL"));
+
+        mockMvc.perform(post("/clinics")
+                        .header("Authorization", "Bearer " + token)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("""
+                                {"clinic_name":"无建档权限客服不可创建"}
+                                """))
+                .andExpect(status().isForbidden());
     }
 
     @Test

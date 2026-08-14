@@ -71,6 +71,7 @@ public class OrderProjectionQueryService {
         accessControlService.requireScopedIdentity(identity, dataScope);
 
         List<String> filters = new ArrayList<>();
+        filters.add("o.draft_deleted_at IS NULL");
         filters.add(scopedWhereClause(identity));
         if (externalStatus != null && !externalStatus.isBlank()) {
             filters.add("o.external_status = :externalStatus");
@@ -123,10 +124,11 @@ public class OrderProjectionQueryService {
         try {
             return queryOrder("""
                             WHERE o.order_id = :orderId
+                              AND o.draft_deleted_at IS NULL
                               AND %s
                             """.formatted(scopedWhereClause(identity)), orderId, identity, dataScope);
         } catch (EmptyResultDataAccessException ex) {
-            if (orderExists(orderId)) {
+            if (activeOrderExists(orderId)) {
                 throw new ResponseStatusException(HttpStatus.FORBIDDEN, forbiddenMessage, ex);
             }
             throw new ResponseStatusException(HttpStatus.NOT_FOUND, "order not found", ex);
@@ -214,7 +216,7 @@ public class OrderProjectionQueryService {
 
     private OrderReadRow loadOrder(long orderId) {
         try {
-            return queryOrder("WHERE o.order_id = :orderId", orderId, null, null);
+            return queryOrder("WHERE o.order_id = :orderId AND o.draft_deleted_at IS NULL", orderId, null, null);
         } catch (EmptyResultDataAccessException ex) {
             throw new ResponseStatusException(HttpStatus.NOT_FOUND, "order not found", ex);
         }
@@ -260,6 +262,13 @@ public class OrderProjectionQueryService {
                     o.product_type,
                     o.internal_status,
                     o.external_status,
+                    (
+                        SELECT cancellation.request_status
+                        FROM order_cancellation_request cancellation
+                        WHERE cancellation.order_id = o.order_id
+                        ORDER BY cancellation.request_id DESC
+                        LIMIT 1
+                    ) AS cancellation_request_status,
                     o.production_note,
                     o.reject_reason,
                     o.form_data,
@@ -314,6 +323,7 @@ public class OrderProjectionQueryService {
                 rs.getString("product_type"),
                 rs.getString("internal_status"),
                 rs.getString("external_status"),
+                rs.getString("cancellation_request_status"),
                 rs.getString("production_note"),
                 rs.getString("reject_reason"),
                 rs.getString("form_data"),
@@ -343,6 +353,7 @@ public class OrderProjectionQueryService {
                 row.patientId(),
                 row.productType(),
                 row.externalStatus(),
+                row.cancellationRequestStatus(),
                 isDoctorEditable(row.internalStatus()),
                 internalFormData(row),
                 row.publicMessage(),
@@ -544,8 +555,8 @@ public class OrderProjectionQueryService {
         }
     }
 
-    private boolean orderExists(long orderId) {
-        return jdbcClient.sql("SELECT COUNT(*) FROM orders WHERE order_id = :orderId")
+    private boolean activeOrderExists(long orderId) {
+        return jdbcClient.sql("SELECT COUNT(*) FROM orders WHERE order_id = :orderId AND draft_deleted_at IS NULL")
                 .param("orderId", orderId)
                 .query(Long.class)
                 .single() > 0;
@@ -597,6 +608,7 @@ public class OrderProjectionQueryService {
             String productType,
             String internalStatus,
             String externalStatus,
+            String cancellationRequestStatus,
             String productionNote,
             String rejectReason,
             String formData,

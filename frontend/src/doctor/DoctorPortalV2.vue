@@ -320,6 +320,7 @@ const selectedOrderIds = ref<string[]>([])
 const orderDrawerOpen = ref(false)
 const selectedOrder = ref<OrderDetail | null>(null)
 const orderDetailLoading = ref(false)
+const orderLifecycleBusy = ref(false)
 const orderDrawerMessageDraft = ref('')
 const orderDrawerMessageSending = ref(false)
 
@@ -1189,6 +1190,103 @@ function togglePageSelection(checked: boolean) {
   selectedOrderIds.value = checked
     ? Array.from(new Set([...selectedOrderIds.value, ...pageIds]))
     : selectedOrderIds.value.filter((id) => !pageIds.includes(id))
+}
+
+function resumeDraftOrder(order: OrderSummary) {
+  if (order.external_status !== 'DRAFT') return
+  if (!order.group_id) {
+    ElMessage.warning('该历史草稿缺少病例组信息，请先进入详情检查')
+    void openOrder(order.order_id)
+    return
+  }
+  openWizard(order.patient_id, order.group_id)
+}
+
+function removeOrdersFromDataset(orderIds: string[]) {
+  if (!dataset.value) return
+  const deleted = new Set(orderIds)
+  dataset.value.orders = dataset.value.orders.filter((item) => !deleted.has(item.order_id))
+  selectedOrderIds.value = selectedOrderIds.value.filter((orderId) => !deleted.has(orderId))
+  if (selectedOrder.value && deleted.has(selectedOrder.value.order_id)) {
+    selectedOrder.value = null
+    orderDrawerOpen.value = false
+  }
+}
+
+async function deleteDraftOrder(order: OrderSummary) {
+  if (order.external_status !== 'DRAFT' || orderLifecycleBusy.value) return
+  try {
+    await ElMessageBox.confirm(
+      `确认删除草稿 ${order.order_no}？删除后不会进入生产流程，相关草稿附件将停止使用。`,
+      '删除草稿',
+      { confirmButtonText: '删除草稿', cancelButtonText: '取消', type: 'warning' }
+    )
+    orderLifecycleBusy.value = true
+    await gateway.deleteDraft(order.order_id)
+    removeOrdersFromDataset([order.order_id])
+    ElMessage.success('草稿已删除')
+  } catch (cause) {
+    if (cause === 'cancel' || cause === 'close') return
+    ElMessage.error(cause instanceof Error ? cause.message : '删除草稿失败')
+  } finally {
+    orderLifecycleBusy.value = false
+  }
+}
+
+async function deleteSelectedDrafts() {
+  if (orderQuick.value !== 'DRAFT' || orderLifecycleBusy.value || !selectedOrderIds.value.length) return
+  const selected = (dataset.value?.orders ?? []).filter((item) => selectedOrderIds.value.includes(item.order_id))
+  if (selected.length !== selectedOrderIds.value.length || selected.some((item) => item.external_status !== 'DRAFT')) {
+    ElMessage.warning('批量删除只能选择草稿箱中的草稿订单')
+    return
+  }
+  try {
+    await ElMessageBox.confirm(
+      `确认删除选中的 ${selected.length} 个草稿？此操作不会影响已提交订单。`,
+      '批量删除草稿',
+      { confirmButtonText: '删除草稿', cancelButtonText: '取消', type: 'warning' }
+    )
+    orderLifecycleBusy.value = true
+    const deletedIds = await gateway.deleteDrafts(selected.map((item) => item.order_id))
+    removeOrdersFromDataset(deletedIds)
+    ElMessage.success(`已删除 ${deletedIds.length} 个草稿`)
+  } catch (cause) {
+    if (cause === 'cancel' || cause === 'close') return
+    ElMessage.error(cause instanceof Error ? cause.message : '批量删除草稿失败')
+  } finally {
+    orderLifecycleBusy.value = false
+  }
+}
+
+async function requestOrderCancellation(order: OrderSummary) {
+  if (!order.allowed_actions.includes('REQUEST_CANCELLATION') || orderLifecycleBusy.value) return
+  try {
+    const result = await ElMessageBox.prompt(
+      '取消申请提交后由订单服务审核，订单和历史记录会继续保留。请填写取消原因。',
+      `申请取消 ${order.order_no}`,
+      {
+        confirmButtonText: '提交申请',
+        cancelButtonText: '暂不取消',
+        inputType: 'textarea',
+        inputPlaceholder: '请说明取消原因（必填）',
+        inputValidator: (value) => value.trim().length >= 2 ? true : '取消原因至少填写 2 个字符'
+      }
+    )
+    orderLifecycleBusy.value = true
+    await gateway.requestCancellation(order.order_id, result.value.trim())
+    order.cancellation_request_status = 'PENDING'
+    order.allowed_actions = order.allowed_actions.filter((action) => action !== 'REQUEST_CANCELLATION')
+    if (selectedOrder.value?.order_id === order.order_id) {
+      selectedOrder.value.cancellation_request_status = 'PENDING'
+      selectedOrder.value.allowed_actions = selectedOrder.value.allowed_actions.filter((action) => action !== 'REQUEST_CANCELLATION')
+    }
+    ElMessage.success('取消申请已提交')
+  } catch (cause) {
+    if (cause === 'cancel' || cause === 'close') return
+    ElMessage.error(cause instanceof Error ? cause.message : '取消申请提交失败')
+  } finally {
+    orderLifecycleBusy.value = false
+  }
 }
 
 function openWizard(initialPatientId = '', initialGroupId: number | null = null) {
@@ -2131,6 +2229,7 @@ onBeforeUnmount(() => window.removeEventListener('keydown', handleGlobalShortcut
               <div class="dv2-quick-filters">
                 <button v-for="item in [{ key: 'ALL', label: '全部订单' }, { key: 'TODO', label: '待我处理' }, { key: 'DUE', label: '临近到期' }, { key: 'DELIVERY', label: '配送中' }, { key: 'PAYMENT', label: '待付款' }, { key: 'DRAFT', label: '草稿箱' }]" :key="item.key" type="button" :class="{ active: orderQuick === item.key }" @click="orderQuick = item.key; orderPage = 1">{{ item.label }}</button>
                 <span v-if="selectedOrderIds.length">已选 {{ selectedOrderIds.length }} 项</span>
+                <button v-if="orderQuick === 'DRAFT' && selectedOrderIds.length" type="button" class="dv2-batch-delete" :disabled="orderLifecycleBusy" @click="deleteSelectedDrafts">批量删除草稿</button>
               </div>
               <div class="dv2-table-wrap">
                 <table class="dv2-table dv2-order-table">
@@ -2143,9 +2242,21 @@ onBeforeUnmount(() => window.removeEventListener('keydown', handleGlobalShortcut
                       <td>{{ order.clinic_name }}</td><td><strong>{{ productNameLabel(order.product_name, order.product_type) }}</strong><small>{{ productTypeLabel(order.product_type) }}</small></td>
                       <td><span v-for="tag in order.tags" :key="tag" class="dv2-tag">{{ tag }}</span><span v-if="!order.tags.length">-</span></td>
                       <td><span :class="`dv2-status is-${statusTone(order.external_status)}`">{{ label(order.external_status) }}</span></td>
-                      <td><span :class="{ 'dv2-action-text': order.current_action !== 'NONE' }">{{ label(order.current_action) }}</span></td>
+                      <td><span v-if="order.cancellation_request_status === 'PENDING'" class="dv2-action-text">取消申请处理中</span><span v-else :class="{ 'dv2-action-text': order.current_action !== 'NONE' }">{{ label(order.current_action) }}</span></td>
                       <td><span>{{ compactDoctorDateTime(order.created_at) }}</span><small>到期 {{ order.due_at }}</small></td><td>{{ money(order.quote) }}</td>
-                      <td><span class="dv2-row-chevron" aria-hidden="true">›</span></td>
+                      <td class="dv2-order-actions" @click.stop>
+                        <template v-if="order.external_status === 'DRAFT'">
+                          <button type="button" class="dv2-row-action is-primary" @click="resumeDraftOrder(order)">继续编辑</button>
+                          <button type="button" class="dv2-row-action is-danger" :disabled="orderLifecycleBusy" @click="deleteDraftOrder(order)">删除草稿</button>
+                        </template>
+                        <template v-else>
+                          <button type="button" class="dv2-row-action" @click="openOrder(order.order_id)">查看详情</button>
+                          <details v-if="order.allowed_actions.includes('REQUEST_CANCELLATION')" class="dv2-more-actions" @click.stop>
+                            <summary>更多</summary>
+                            <button type="button" :disabled="orderLifecycleBusy" @click="requestOrderCancellation(order)">申请取消</button>
+                          </details>
+                        </template>
+                      </td>
                     </tr>
                   </tbody>
                 </table>
@@ -2283,7 +2394,14 @@ onBeforeUnmount(() => window.removeEventListener('keydown', handleGlobalShortcut
               <div class="dv2-current-action">
                 <div><strong>病例订单草稿尚未提交</strong><p>继续编辑该病例下的全部产品和资料。</p></div>
                 <button type="button" class="dv2-primary-button" data-testid="doctor-resume-case-group" @click="resumeSelectedCaseGroup">继续编辑订单</button>
+                <button type="button" class="dv2-danger-button" :disabled="orderLifecycleBusy" @click="deleteDraftOrder(selectedOrder)">删除草稿</button>
               </div>
+            </section>
+            <section v-else-if="selectedOrder.cancellation_request_status === 'PENDING'" class="dv2-detail-section dv2-action-alert">
+              <div class="dv2-current-action"><div><strong>取消申请处理中</strong><p>订单服务正在审核，订单与历史记录会继续保留。</p></div></div>
+            </section>
+            <section v-else-if="selectedOrder.allowed_actions.includes('REQUEST_CANCELLATION')" class="dv2-detail-section dv2-action-alert">
+              <div class="dv2-current-action"><div><strong>需要取消订单？</strong><p>资料审核中的订单可提交取消申请。</p></div><button type="button" class="dv2-secondary-button" :disabled="orderLifecycleBusy" @click="requestOrderCancellation(selectedOrder)">申请取消</button></div>
             </section>
             <section v-if="selectedOrder.current_action !== 'NONE'" class="dv2-detail-section dv2-action-alert">
               <div class="dv2-current-action">

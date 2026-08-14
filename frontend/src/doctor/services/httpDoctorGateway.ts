@@ -38,6 +38,7 @@ type LegacyOrder = {
   patient_id: number | null
   product_type: string
   external_status: string
+  cancellation_request_status?: 'PENDING' | 'APPROVED' | 'REJECTED' | 'WITHDRAWN' | null
   editable?: boolean
   form_data?: Record<string, unknown>
   public_message?: string | null
@@ -84,6 +85,15 @@ type LegacyDesignDraft = {
 }
 
 type LegacyCreateOrderResponse = Pick<LegacyOrder, 'order_id' | 'order_no' | 'product_type' | 'external_status' | 'form_data'>
+
+type LegacyDeleteDraftResponse = {
+  deleted_count: number
+  order_ids: number[]
+}
+
+type LegacyCancellationResponse = {
+  request_status: 'PENDING'
+}
 
 type LegacyDoctorProduct = {
   product_id: number
@@ -447,11 +457,14 @@ export class LegacyHttpDoctorGateway implements DoctorGateway {
     const isDraft = order.external_status === 'DRAFT'
     const patientName = asText(form.patient_name)
     const receiptPending = order.external_status === 'SHIPPED'
+    const canRequestCancellation = order.external_status === 'PENDING_REVIEW'
+      && order.cancellation_request_status !== 'PENDING'
     const allowedActions: OrderSummary['allowed_actions'] = isDraft
-      ? ['VIEW_ORDER', 'SUBMIT_ORDER']
+      ? ['VIEW_ORDER', 'SUBMIT_ORDER', 'DELETE_DRAFT']
       : editable
         ? ['VIEW_ORDER', 'SUPPLEMENT_ORDER', 'SEND_MESSAGE']
         : ['VIEW_ORDER', 'SEND_MESSAGE']
+    if (canRequestCancellation) allowedActions.push('REQUEST_CANCELLATION')
     if (receiptPending) allowedActions.push('CONFIRM_RECEIPT')
     return {
       order_id: String(order.order_id),
@@ -466,6 +479,7 @@ export class LegacyHttpDoctorGateway implements DoctorGateway {
       product_name: productLabels[order.product_type] ?? order.product_type,
       tags: [],
       external_status: statusMap[order.external_status] ?? order.external_status,
+      cancellation_request_status: order.cancellation_request_status ?? null,
       current_action: receiptPending
         ? 'RECEIPT_CONFIRMATION_REQUIRED'
         : isDraft
@@ -980,6 +994,28 @@ export class LegacyHttpDoctorGateway implements DoctorGateway {
       editable: true,
       created_at: new Date().toISOString()
     })
+  }
+
+  async deleteDraft(orderId: string): Promise<void> {
+    await this.request<LegacyDeleteDraftResponse>(`/orders/${encodeURIComponent(orderId)}/draft`, {
+      method: 'DELETE'
+    })
+  }
+
+  async deleteDrafts(orderIds: string[]): Promise<string[]> {
+    const response = await this.request<LegacyDeleteDraftResponse>('/orders/drafts/batch-delete', {
+      method: 'POST',
+      body: JSON.stringify({ order_ids: orderIds.map(Number) })
+    })
+    return response.order_ids.map(String)
+  }
+
+  async requestCancellation(orderId: string, reason: string): Promise<'PENDING'> {
+    const response = await this.request<LegacyCancellationResponse>(
+      `/orders/${encodeURIComponent(orderId)}/cancellation-requests`,
+      { method: 'POST', body: JSON.stringify({ reason }) }
+    )
+    return response.request_status
   }
 
   private async findPendingOrderUpload(orderId: number, file: File): Promise<MultipartPendingUpload | null> {

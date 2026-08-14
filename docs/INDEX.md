@@ -1,6 +1,6 @@
 # 项目导航（新会话从这里开始）
 
-状态：ACTIVE / 2026-08-11
+状态：ACTIVE / 2026-08-14
 
 ## 为什么有这份文件
 
@@ -17,8 +17,9 @@
 一期四端功能主体已完成（后端 336 项测试全绿），**当前是交付冲刺阶段**，
 三条线并行：①部署上线 ②医生端英文化 ③AI key 前端配置。客户正在采购服务器。
 
-2026-08-11 的 8088 联调缺陷已完成本地代码与自动化修复，但线上尚未重新部署；部署入口改为
-`deployment/8088-redeployment-checklist-20260811.md`，完成公网 MinIO、网络、账号轮换和真实复测前不得写成线上恢复。
+2026-08-11 的 8088 联调缺陷已完成本地代码与自动化修复。2026-08-14 已完成腾讯云真实服务器的首次非停机备份、GitHub 只读部署来源、正式 MinIO loopback、GoDaddy DNS、宿主 Nginx 三域名 HTTPS、证书自动续期 dry-run、正式 CORS / 文件公网地址和后端重启；正式域名登录页与 CORS 预检已验证。仍待四端真实业务浏览器验收、文件全链路、WebSocket / 通知、公网 `8088 / 8080` 收口、SSH 来源限制和真实恢复演练，不能写成正式上线完成。当前部署入口为 `deployment/production-domain-deployment-progress-20260813.md`。
+
+医生订单“删除草稿 / 批量删除 / 申请取消”的本地第一段已实现于 `fix/doctor-order-delete-cancel`，但改动尚未提交、合并或部署；取消审批、驳回、真正进入已取消状态、医生结果通知和多产品草稿一致性留待后续实现。接手前必须阅读 `development/doctor-order-delete-cancel-handoff-20260814.md`。
 
 **交付标准（2026-08-04 已确认）＝ 一期 38 项验收签字通过。**
 当前 38 项为 30 PASS / 1 PARTIAL / 7 EXTERNAL_ACCEPTANCE。
@@ -42,14 +43,15 @@
 
 | 你要做什么 | 先读 | 再读 |
 | --- | --- | --- |
-| **推进部署 / 修复 8088** | `deployment/8088-redeployment-checklist-20260811.md` | `deployment/SESSION-HANDOVER-deployment.md`、`deployment/go-live-plan-20260804.md` |
+| **推进正式域名部署 / 修复 8088** | `deployment/production-domain-deployment-progress-20260813.md` | `deployment/8088-redeployment-checklist-20260811.md`、`deployment/SESSION-HANDOVER-deployment.md` |
+| **继续订单草稿删除 / 取消申请闭环** | `development/doctor-order-delete-cancel-handoff-20260814.md` | `DECISIONS.md` 的 D-187 / D-186、`development/status-vocabulary.md` |
 | **做医生端英文化** | `DELIVERY-GAP.md` 的 C3 小节（含技术方案与范围界定） | `frontend/src/doctor/` 两个主文件 |
 | **做 AI key 前端配置** | `DELIVERY-GAP.md` 的 C10 行（含建表与安全要点） | `tasks/TASK-034-*.md` C 批次的密码处理做法可参照 |
 | **给客户答疑 / 要资料** | `deployment/customer-confirmation-checklist-20260804.md` | `deployment/server-recommendation-20260804.md` |
 | **改订单状态相关代码** | `development/status-vocabulary.md` ⚠️ **必读** | — |
 | **改权限相关代码** | `development/status-vocabulary.md` 的「角色与权限」章节 | `tasks/TASK-034-*.md` |
 | **看还差什么才能交付** | `DELIVERY-GAP.md`（本目录） | `deployment/readiness-checklist.md` |
-| **看某个决定为什么这么做** | 根目录 `DECISIONS.md`，**从最新的 D-185 往回读** | — |
+| **看某个决定为什么这么做** | 根目录 `DECISIONS.md`，**从最新的 D-187 往回读** | — |
 | **接手某个批次的历史** | `tasks/TASK-0xx-*.md` 对应小节 | 同名 `goals/GOAL-0xx-*.md` |
 
 ---
@@ -63,6 +65,8 @@
 | `docs/INDEX.md` | 本文件，唯一入口 |
 | `docs/DELIVERY-GAP.md` | **交付缺口的唯一权威清单** |
 | `docs/deployment/SESSION-HANDOVER-deployment.md` | 部署推进的当前状态与下一步 |
+| `docs/deployment/production-domain-deployment-progress-20260813.md` | 正式域名部署的实时事实、备份证据、阻塞与下一步 |
+| `docs/development/doctor-order-delete-cancel-handoff-20260814.md` | 医生订单删除 / 取消第一段的实现事实、延期范围与接力顺序 |
 | `docs/deployment/customer-confirmation-checklist-20260804.md` | 待客户回答的问题，客户答了就回填 |
 | `docs/development/status-vocabulary.md` | 状态值口径，改状态前必读 |
 | `DECISIONS.md` | durable 决定，只增不改，**从最新往回读** |

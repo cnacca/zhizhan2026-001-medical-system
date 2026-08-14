@@ -427,6 +427,7 @@ public class OrderCreationService {
                             WHERE order_id = :orderId
                               AND doctor_user_id = :doctorUserId
                               AND clinic_id = :clinicId
+                              AND draft_deleted_at IS NULL
                             FOR UPDATE
                             """)
                     .param("orderId", orderId)

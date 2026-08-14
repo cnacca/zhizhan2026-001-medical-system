@@ -1,0 +1,3 @@
+branch=fix/cs-clinic-create-permission
+commit=24cfd5dc7b91004b3c2713d74e2775be4186eb84
+scope=frontend customer create permission gate

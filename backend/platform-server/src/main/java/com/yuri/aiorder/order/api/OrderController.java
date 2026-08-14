@@ -7,6 +7,7 @@ import com.yuri.aiorder.common.auth.RequirePermission;
 import com.yuri.aiorder.collaboration.CollaborationService;
 import jakarta.validation.Valid;
 import org.springframework.web.bind.annotation.CrossOrigin;
+import org.springframework.web.bind.annotation.DeleteMapping;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
@@ -23,16 +24,19 @@ public class OrderController {
     private final CollaborationService collaborationService;
     private final OrderCreationService creationService;
     private final OrderReviewService reviewService;
+    private final DoctorOrderLifecycleService lifecycleService;
 
     public OrderController(
             OrderProjectionQueryService queryService,
             CollaborationService collaborationService,
             OrderCreationService creationService,
-            OrderReviewService reviewService) {
+            OrderReviewService reviewService,
+            DoctorOrderLifecycleService lifecycleService) {
         this.queryService = queryService;
         this.collaborationService = collaborationService;
         this.creationService = creationService;
         this.reviewService = reviewService;
+        this.lifecycleService = lifecycleService;
     }
 
     @GetMapping("/orders")
@@ -63,6 +67,31 @@ public class OrderController {
             @Valid @RequestBody UpdateOrderRequest request,
             BootstrapIdentity identity) {
         return new DataResponse<>(creationService.updateDoctorOrder(orderId, request, identity));
+    }
+
+    @DeleteMapping("/orders/{orderId}/draft")
+    @RequirePermission(value = "order:write-doctor", roles = {UserRole.DOCTOR})
+    public DataResponse<DeleteDraftOrdersResponse> deleteDoctorDraft(
+            @PathVariable long orderId,
+            BootstrapIdentity identity) {
+        return new DataResponse<>(lifecycleService.deleteDraft(orderId, identity));
+    }
+
+    @PostMapping("/orders/drafts/batch-delete")
+    @RequirePermission(value = "order:write-doctor", roles = {UserRole.DOCTOR})
+    public DataResponse<DeleteDraftOrdersResponse> deleteDoctorDrafts(
+            @Valid @RequestBody DeleteDraftOrdersRequest request,
+            BootstrapIdentity identity) {
+        return new DataResponse<>(lifecycleService.deleteDrafts(request.orderIds(), identity));
+    }
+
+    @PostMapping("/orders/{orderId}/cancellation-requests")
+    @RequirePermission(value = "order:write-doctor", roles = {UserRole.DOCTOR})
+    public DataResponse<OrderCancellationResponse> requestOrderCancellation(
+            @PathVariable long orderId,
+            @Valid @RequestBody OrderCancellationRequest request,
+            BootstrapIdentity identity) {
+        return new DataResponse<>(lifecycleService.requestCancellation(orderId, request, identity));
     }
 
     @PostMapping("/orders/{orderId}/review")

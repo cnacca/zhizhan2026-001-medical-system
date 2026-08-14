@@ -4,6 +4,12 @@
 
 ## 当前仓库状态
 
+2026-08-14 客服新增客户 403 热修复已部署到正式域名：线上幂等补授 `CS -> clinic:create`，前端切换到 `fix/cs-clinic-create-permission@24cfd5dc` 的验证构建；权限表与旧前端镜像均已备份。公网首页新资源、后端健康、CORS 和一期容器正常，空请求体权限探测返回 400 而非 403 且未创建客户数据。客服需重新登录获取最新权限后完成真实建档复测；Task 8 仍为 `NOT_READY`。
+
+2026-08-14 正式域名基础部署已推进到：`chinesedigitaldental.com`、`www.chinesedigitaldental.com` 与 `files.chinesedigitaldental.com` 的 DNS、Nginx HTTPS 和证书自动续期 dry-run 已完成；正式 CORS / MinIO 公网地址已注入并重建后端，正式域名登录页及 CORS 预检已验证。尚未关闭四端真实业务浏览器验收、文件全链路、WebSocket / 通知、公网 `8088 / 8080` 与 SSH 来源收口、真实备份恢复演练，因此 Task 8 继续为 `NOT_READY`。部署事实以 `docs/deployment/production-domain-deployment-progress-20260813.md` 为准。
+
+同日，医生订单“删除草稿 / 批量删除 / 申请取消”的本地第一段已实现，但当前工作区改动尚未提交、合并或部署。取消审批工作台、驳回、真正取消状态、医生结果通知和多产品草稿一致性明确延期；后续窗口先读 `docs/development/doctor-order-delete-cancel-handoff-20260814.md`，不得把当前 `PENDING` 申请写成订单已取消。
+
 2026-08-11 已完成 GOAL-035 / TASK-036 的 8088 部署缺陷本地收口：登录 CORS 配置化、软删除文件拒绝新签名、MinIO 内部/公网双端点、医生向导步骤门禁与互斥锁、9D.4 权限模型回归及生产构建演示密码清理均已落地；独立全新数据库与 MinIO bucket 上后端 336 tests、前端生产构建和部署检查通过。线上尚未重新部署，必须按 `docs/deployment/8088-redeployment-checklist-20260811.md` 配置公网端点、网络与正式账号并复测；Task 8 保持 `NOT_READY`。
 
 2026-08-01 已按 D-182 开放医生端隐形正畸：发布目录新增“无托槽隐形矫治器”，原“A 型”占位项继续停用；医生可选择全颌／上颌／下颌、常规／联合矫治，上传专项资料并填写既有七步处方，处方未提交时不能提交病例订单。V76 使用新目录版本，不改旧发布版本和历史订单；价格继续待报价，Task 8 保持 `NOT_READY`。
@@ -1621,6 +1627,8 @@ npm run build:frontend
 ```
 
 9D.85 复用 `clinic` 和 `customer_preference`，新增 `ClinicPreferenceTests`、`/clinics`、`/clinics/{clinicId}`、`/clinics/{clinicId}/preference`、客服端 `/customers`、管理端 `/admin/clinics`、医生端 `/doctor/account/clinic` 和 `npm run check:task9d85`。CS / ADMIN 可创建基础诊所档案并维护客户偏好，医生只能只读查看本人诊所偏好，WORKER 不能访问。本轮不做客户开户审批、定价体系、真实客户数据导入、复杂 CRM 或客户 / PM 字段最终确认。
+
+2026-08-14 修正上述权限口径的部署偏差：V85 将 `clinic:create` 增量授予 CS，后端继续以权限码作为真实门禁；客服客户管理只向持有该权限的账号显示新增按钮。升级后已登录客服需要刷新令牌或重新登录，再复测 `POST /clinics`。
 
 2026-07-20 在该基础上完成客户管理本地全栈扩展：V46 增加客户编码和商务主档字段，并新增开票、收货地址、主要医生、资质合同、客户专属价格、打印模板绑定、黑名单和客户操作记录；`GET/PUT /clinics/{clinicId}/management` 维护聚合档案，黑名单接口控制客户级下单门禁。订单创建和可编辑订单更新会保存客户价优先、全局基础价回退的价格快照。客服端客户管理按现有参考视觉使用单页连续档案和浏览器 A4 打印。定向验证入口：
 

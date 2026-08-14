@@ -161,6 +161,7 @@ public class PatientManagementService {
                         WHERE patient_id = :patientId
                           AND clinic_id = :clinicId
                           AND doctor_user_id = :doctorUserId
+                          AND draft_deleted_at IS NULL
                         ORDER BY created_at DESC, order_id DESC
                         LIMIT :limit OFFSET :offset
                         """)
@@ -182,6 +183,7 @@ public class PatientManagementService {
                         WHERE patient_id = :patientId
                           AND clinic_id = :clinicId
                           AND doctor_user_id = :doctorUserId
+                          AND draft_deleted_at IS NULL
                         """)
                 .param("patientId", patient.patientId())
                 .param("clinicId", identity.clinicId())
@@ -246,11 +248,13 @@ public class PatientManagementService {
                         SELECT COUNT(*)
                         FROM orders o
                         WHERE o.patient_id = p.patient_id
+                          AND o.draft_deleted_at IS NULL
                     ) AS order_count,
                     (
                         SELECT o.order_no
                         FROM orders o
                         WHERE o.patient_id = p.patient_id
+                          AND o.draft_deleted_at IS NULL
                         ORDER BY o.created_at DESC, o.order_id DESC
                         LIMIT 1
                     ) AS latest_order_no,
@@ -258,6 +262,7 @@ public class PatientManagementService {
                         SELECT o.product_type
                         FROM orders o
                         WHERE o.patient_id = p.patient_id
+                          AND o.draft_deleted_at IS NULL
                         ORDER BY o.created_at DESC, o.order_id DESC
                         LIMIT 1
                     ) AS latest_product_type,
@@ -265,6 +270,7 @@ public class PatientManagementService {
                         SELECT MAX(o.created_at)
                         FROM orders o
                         WHERE o.patient_id = p.patient_id
+                          AND o.draft_deleted_at IS NULL
                     ) AS latest_order_at,
                     p.created_at,
                     p.updated_at

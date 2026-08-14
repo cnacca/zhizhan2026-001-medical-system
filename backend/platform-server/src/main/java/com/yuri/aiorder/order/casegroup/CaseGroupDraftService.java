@@ -1075,6 +1075,7 @@ public class CaseGroupDraftService {
                             WHERE order_id = :orderId
                               AND group_id = :groupId
                               AND internal_status = 'DRAFT'
+                              AND draft_deleted_at IS NULL
                             FOR UPDATE
                             """)
                     .param("orderId", orderId)
@@ -1093,6 +1094,7 @@ public class CaseGroupDraftService {
                         FROM orders
                         WHERE group_id = :groupId
                           AND internal_status = 'DRAFT'
+                          AND draft_deleted_at IS NULL
                         ORDER BY line_no, order_id
                         FOR UPDATE
                         """)
@@ -1108,6 +1110,7 @@ public class CaseGroupDraftService {
                         FROM orders
                         WHERE group_id = :groupId
                           AND item_client_key = :clientKey
+                          AND draft_deleted_at IS NULL
                         """)
                 .param("groupId", groupId)
                 .param("clientKey", clientKey)

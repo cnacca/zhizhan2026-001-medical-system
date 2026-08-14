@@ -6,6 +6,8 @@ export type DoctorAction =
   | 'VIEW_ORDER'
   | 'CREATE_ORDER'
   | 'SUBMIT_ORDER'
+  | 'DELETE_DRAFT'
+  | 'REQUEST_CANCELLATION'
   | 'SUPPLEMENT_ORDER'
   | 'SEND_MESSAGE'
   | 'APPROVE_REVIEW'
@@ -78,6 +80,7 @@ export type OrderSummary = {
   product_name: string
   tags: string[]
   external_status: string
+  cancellation_request_status?: 'PENDING' | 'APPROVED' | 'REJECTED' | 'WITHDRAWN' | null
   current_action: string
   created_at: string
   due_at: string
@@ -343,6 +346,9 @@ export interface DoctorGateway {
   createPatient(input: PatientCreateInput): Promise<PatientSummary>
   updatePatient(input: PatientUpdateInput): Promise<PatientSummary>
   saveDraft(input: OrderDraftInput): Promise<OrderSummary>
+  deleteDraft(orderId: string): Promise<void>
+  deleteDrafts(orderIds: string[]): Promise<string[]>
+  requestCancellation(orderId: string, reason: string): Promise<'PENDING'>
   uploadOrderFiles(orderId: string, files: File[]): Promise<DoctorFile[]>
   submitOrder(input: OrderDraftInput): Promise<OrderSummary>
   submitReview(input: ReviewDecisionInput): Promise<OrderReview>

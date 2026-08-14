@@ -194,6 +194,7 @@ public class CaseGroupService {
                         LEFT JOIN order_catalog_snapshot snapshot
                           ON snapshot.order_id = orders.order_id
                         WHERE orders.group_id = :groupId
+                          AND orders.draft_deleted_at IS NULL
                         ORDER BY orders.line_no, orders.order_id
                         """)
                 .param("groupId", groupId)

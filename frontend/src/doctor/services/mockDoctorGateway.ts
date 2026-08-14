@@ -176,7 +176,7 @@ const orders: OrderSummary[] = [
     order_id: '1007', order_no: 'ORD20260702-1007', doctor_name: '陈医生', patient_id: 'P-1002', patient_code: 'A031', patient_name: '李*', clinic_name: '明悦口腔诊所', product_type: 'FIXED_CROWN', product_name: '常规牙冠', tags: [], external_status: 'COMPLETED', current_action: 'NONE', created_at: '2026-07-02 09:15', due_at: '2026-07-12', quote: { amount_minor: 98000, currency: 'CNY' }, allowed_actions: ['VIEW_ORDER', 'SEND_MESSAGE'], state_version: 36
   },
   {
-    order_id: '1008', order_no: 'DRAFT-20260718-08', doctor_name: '陈医生', patient_id: 'P-1003', patient_code: 'B008', patient_name: '王*', clinic_name: '明悦口腔诊所', product_type: 'FIXED_BRIDGE', product_name: '固定桥', tags: ['草稿'], external_status: 'DRAFT', current_action: 'NONE', created_at: '2026-07-18 13:10', due_at: '-', quote: null, allowed_actions: ['VIEW_ORDER', 'SUBMIT_ORDER'], state_version: 2
+    order_id: '1008', order_no: 'DRAFT-20260718-08', doctor_name: '陈医生', patient_id: 'P-1003', patient_code: 'B008', patient_name: '王*', clinic_name: '明悦口腔诊所', product_type: 'FIXED_BRIDGE', product_name: '固定桥', tags: ['草稿'], external_status: 'DRAFT', current_action: 'NONE', created_at: '2026-07-18 13:10', due_at: '-', quote: null, allowed_actions: ['VIEW_ORDER', 'SUBMIT_ORDER', 'DELETE_DRAFT'], state_version: 2
   }
 ]
 
@@ -507,7 +507,7 @@ export class MockDoctorGateway implements DoctorGateway {
       created_at: existing?.created_at ?? now,
       due_at: '-',
       quote: null,
-      allowed_actions: ['VIEW_ORDER', 'SUBMIT_ORDER'],
+      allowed_actions: ['VIEW_ORDER', 'SUBMIT_ORDER', 'DELETE_DRAFT'],
       state_version: (existing?.state_version ?? 0) + 1
     }
     if (existing) Object.assign(existing, saved)
@@ -524,6 +524,38 @@ export class MockDoctorGateway implements DoctorGateway {
       bill_summary: { bill_status: 'PENDING_QUOTE', payment_status: 'UNPAID', outstanding: null }
     })
     return clone(saved)
+  }
+
+  async deleteDraft(orderId: string): Promise<void> {
+    const order = orders.find((item) => item.order_id === orderId)
+    if (!order || order.external_status !== 'DRAFT') throw new Error('只有草稿订单可以删除')
+    orders.splice(orders.indexOf(order), 1)
+    details.delete(orderId)
+  }
+
+  async deleteDrafts(orderIds: string[]): Promise<string[]> {
+    const targets = orderIds.map((orderId) => orders.find((item) => item.order_id === orderId))
+    if (targets.some((item) => !item || item.external_status !== 'DRAFT')) {
+      throw new Error('批量删除只能包含草稿订单')
+    }
+    for (const orderId of orderIds) await this.deleteDraft(orderId)
+    return [...orderIds]
+  }
+
+  async requestCancellation(orderId: string, reason: string): Promise<'PENDING'> {
+    if (!reason.trim()) throw new Error('请填写取消原因')
+    const order = orders.find((item) => item.order_id === orderId)
+    if (!order || !['UNDER_REVIEW', 'PENDING_REVIEW'].includes(order.external_status)) {
+      throw new Error('只有资料审核中的订单可以申请取消')
+    }
+    order.cancellation_request_status = 'PENDING'
+    order.allowed_actions = order.allowed_actions.filter((action) => action !== 'REQUEST_CANCELLATION')
+    const detail = details.get(orderId)
+    if (detail) {
+      detail.cancellation_request_status = 'PENDING'
+      detail.allowed_actions = detail.allowed_actions.filter((action) => action !== 'REQUEST_CANCELLATION')
+    }
+    return 'PENDING'
   }
 
   async uploadOrderFiles(_orderId: string, files: File[]): Promise<DoctorFile[]> {

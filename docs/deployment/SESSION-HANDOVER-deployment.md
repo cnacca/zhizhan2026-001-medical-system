@@ -1,13 +1,13 @@
 # 部署推进 · 新会话交接文档
 
-状态：ACTIVE / 2026-08-11
+状态：ACTIVE / 2026-08-14
 用途：新会话从这里开始，不必重读全部历史。
 
 ---
 
 ## 一句话现状
 
-GOAL-035 / TASK-036 已完成 8088 联调缺陷的本地代码与自动化收口；**线上仍在旧部署状态，卡在重新注入环境变量、开放 MinIO 公网访问、轮换账号、重建容器和真实浏览器复测**。执行入口为 `8088-redeployment-checklist-20260811.md`。
+GOAL-035 / TASK-036 已完成 8088 联调缺陷的本地代码与自动化收口。腾讯云香港服务器 `43.129.232.106` 已完成首次非停机备份、GitHub 只读 deploy key、干净代码副本、正式 MinIO loopback、GoDaddy DNS、宿主 Nginx 三域名 HTTPS、证书续期 dry-run、正式 CORS / 文件公网地址和后端重启；正式域名登录页与 CORS 预检已验证。**仍缺四端真实业务浏览器验收、文件全链路、WebSocket / 通知、公网 `8088 / 8080` 与 SSH 来源收口、备份恢复演练和监控日志闭环**。当前实时入口为 `production-domain-deployment-progress-20260813.md`，专项复测按 `8088-redeployment-checklist-20260811.md`。
 
 > **注意：本文件只覆盖「部署」这一条线。** 2026-08-04 交付标准确认为「38 项验收签字通过」后，
 > 当前共有三条 P0 并行：部署、医生端英文化、AI key 前端配置。
@@ -18,25 +18,27 @@ GOAL-035 / TASK-036 已完成 8088 联调缺陷的本地代码与自动化收口
 | 项 | 值 |
 | --- | --- |
 | 仓库 | `/Users/yuri/Documents/AI智能下单平台` |
-| 分支 | `dev`（GOAL-035 本地改动尚未提交或推送） |
-| 后端测试 | 336 项，独立全新数据库与 MinIO bucket 上全绿 |
-| 迁移 | 已到 **V83** |
-| OpenAPI | 194 paths / 223 operations |
+| 分支 | `fix/doctor-order-delete-cancel`（当前订单删除 / 取消申请改动尚未提交、合并或部署） |
+| 后端测试 | `dev@2fea96af` 基线 336 项全绿；当前功能分支已通过 24 项订单目标测试与 29 项组合目标测试 |
+| 迁移 | 本地代码已到 **V84**；生产是否应用必须通过 Flyway / 数据库记录单独核实 |
+| OpenAPI | 当前功能分支校验为 197 paths / 226 operations |
 
-### 必读的三份文档
+### 必读文档
 
-1. `docs/deployment/8088-redeployment-checklist-20260811.md` —— **当前重新部署与复测入口**
-2. `docs/deployment/go-live-plan-20260804.md` —— 上线方案主文档，五个阶段
-3. `docs/deployment/customer-confirmation-checklist-20260804.md` —— 待客户回答的 20 项
-4. `docs/development/status-vocabulary.md` —— 状态值口径，改任何状态前必读
+1. `docs/deployment/production-domain-deployment-progress-20260813.md` —— **当前正式域名部署事实与执行入口**
+2. `docs/deployment/8088-redeployment-checklist-20260811.md` —— 8088 / 文件 / 医生下单专项复测
+3. `docs/deployment/go-live-plan-20260804.md` —— 上线方案主文档，五个阶段
+4. `docs/deployment/customer-confirmation-checklist-20260804.md` —— 待客户回答的 20 项
+5. `docs/development/status-vocabulary.md` —— 状态值口径，改任何状态前必读
+6. `docs/development/doctor-order-delete-cancel-handoff-20260814.md` —— 订单删除 / 取消申请第一段与延期闭环
 
 ---
 
 ## 下一步要做什么
 
-### 当前第一步：按 8088 清单重新部署（**代码已就绪，服务器执行未开始**）
+### 当前第一步：真实业务浏览器验收（**DNS、HTTPS 与正式运行变量已完成**）
 
-先配置 `APP_CORS_ALLOWED_ORIGIN=http://43.129.232.106:8088`、浏览器可达的 `MINIO_PUBLIC_ENDPOINT` 和正式密钥，确认 MinIO API 端口/域名从用户网络可达，再重建容器。随后必须复测四端登录、上传/预览/下载、删除后拒绝访问、医生步骤必填和快速连点。
+先在 `https://chinesedigitaldental.com` 完成四端登录、医生患者选择与所有产品逐项点击、上传/预览/下载、删除后拒绝访问、步骤必填、快速连点、WebSocket / 通知和原数据核对。通过后关闭公网 `8088 / 8080`、限制 `22` 来源并复核数据端口规则；随后做一次真实恢复演练。完整证据边界见 `production-domain-deployment-progress-20260813.md`。
 
 ### 后续阶段：本地/服务器全链路演练
 
@@ -111,8 +113,8 @@ TASK-034 六批各自的静态校验：
 
 | 缺口 | 现状 | 判断 |
 | --- | --- | --- |
-| **HTTPS** | `nginx.conf` 只有 `listen 80` | **硬门槛**。医生端传患者资料与病例照片，明文不该上线 |
-| **备份** | 完全没有 | **硬门槛**。且必须做一次真实恢复演练 |
+| **HTTPS 与真实业务验收** | 三域名证书、Nginx HTTPS、续期 dry-run、正式 CORS / 文件地址和后端重启已完成；仅登录页与 CORS 预检已核实 | **硬门槛仍未关闭**。还需四端业务、文件、WebSocket / 通知和数据完整性验收 |
+| **备份** | 已完成一次非停机手工备份，尚无自动化、异地副本和恢复演练 | **硬门槛仍未关闭**。必须建立持续备份并做一次真实恢复演练 |
 | 监控告警 | 无 | 至少容器存活 + 磁盘水位 + 备份成功与否 |
 | 日志轮转 | 无 | 会撑爆磁盘 |
 | UPS | 未知 | 客户自有机器当服务器，断电丢事务 |
@@ -139,7 +141,9 @@ TASK-034 六批各自的静态校验：
 完整 20 项见 `customer-confirmation-checklist-20260804.md`。最阻塞的三条：
 
 1. **磁盘容量/类型/RAID** —— 不知道就没法规划虚机磁盘与备份
-2. **诊所从局域网还是公网访问** —— 决定是否需要公网 IP、域名、备案
-3. **域名与 HTTPS 证书谁提供**
+2. **正式访问范围与账号清单** —— 需要哪些诊所、医生、客服、生产和管理员参与真实验收
+3. **标准制作周期、工时、价格和正式 AI key / 预算** —— 这些仍是业务配置或外部验收输入
+
+域名、DNS 与 HTTPS 基础已经完成，不再是当前客户阻塞项。
 
 客户已回复的内容请回填到该清单里。
