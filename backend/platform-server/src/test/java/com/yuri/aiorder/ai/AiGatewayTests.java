@@ -61,6 +61,14 @@ class AiGatewayTests {
                 .param("clinicName", "AI测试诊所-" + suffix)
                 .update();
         clinicId = jdbcClient.sql("SELECT LAST_INSERT_ID()").query(Long.class).single();
+        jdbcClient.sql("""
+                        INSERT INTO customer_preference (clinic_id, preference_key, preference_value)
+                        VALUES
+                            (:clinicId, 'contact', JSON_QUOTE('邻接偏紧')),
+                            (:clinicId, 'occlusion', JSON_QUOTE('咬合空开 1mm'))
+                        """)
+                .param("clinicId", clinicId)
+                .update();
 
         jdbcClient.sql("""
                         INSERT INTO orders
@@ -163,7 +171,9 @@ class AiGatewayTests {
                         .contentType(MediaType.APPLICATION_JSON)
                         .content("{\"order_id\":" + orderId + "}"))
                 .andExpect(status().isOk())
-                .andExpect(jsonPath("$.data.draft_note").value(containsString("生产备注草稿")))
+                .andExpect(jsonPath("$.data.draft_note").value(containsString("客户档案特殊要求")))
+                .andExpect(jsonPath("$.data.draft_note").value(containsString("邻接：邻接偏紧")))
+                .andExpect(jsonPath("$.data.draft_note").value(containsString("咬合：咬合空开 1mm")))
                 .andExpect(jsonPath("$.data.template_version").value("PHASE_ONE_DEFAULT_V1"))
                 .andExpect(jsonPath("$.data.knowledge_context_notes").value(hasItem(containsString("客户模板未确认"))))
                 .andExpect(content().string(not(containsString("自动发送"))));
@@ -181,7 +191,8 @@ class AiGatewayTests {
                         .contentType(MediaType.APPLICATION_JSON)
                         .content("{\"order_id\":" + orderId + "}"))
                 .andExpect(status().isOk())
-                .andExpect(jsonPath("$.data.draft_note").value(containsString("生产备注草稿")))
+                .andExpect(jsonPath("$.data.draft_note").value(containsString("客户档案特殊要求")))
+                .andExpect(jsonPath("$.data.draft_note").value(containsString("邻接：邻接偏紧")))
                 .andExpect(jsonPath("$.data.template_version").value("PHASE_ONE_DEFAULT_V1"))
                 .andExpect(jsonPath("$.data.knowledge_context_notes").value(hasItem(containsString("客户模板未确认"))))
                 .andExpect(jsonPath("$.data.knowledge_context_notes").value(hasItem(containsString("订单基础"))))
@@ -203,15 +214,14 @@ class AiGatewayTests {
                                 }
                                 """.formatted(orderId)))
                 .andExpect(status().isOk())
-                .andExpect(jsonPath("$.data.production_note").value(containsString("AI-5 生产备注（人工确认）")))
-                .andExpect(jsonPath("$.data.production_note").value(containsString("PHASE_ONE_DEFAULT_V1")))
-                .andExpect(jsonPath("$.data.production_note").value(containsString("生产组长已确认可写入")))
+                .andExpect(jsonPath("$.data.production_note").value(containsString("请按默认模板确认：A2")))
+                .andExpect(jsonPath("$.data.production_note").value(not(containsString("PHASE_ONE_DEFAULT_V1"))))
                 .andExpect(jsonPath("$.data.requires_customer_template_confirmation").value(true));
 
         assertThat(orderProductionNote())
                 .contains("内部工序备注：车瓷由7700处理")
-                .contains("AI-5 生产备注（人工确认）")
-                .contains("请按默认模板确认");
+                .contains("请按默认模板确认")
+                .doesNotContain("AI-5 生产备注（人工确认）", "PHASE_ONE_DEFAULT_V1");
         assertThat(auditCountByContext("PRODUCTION_NOTE_HUMAN_CONFIRMED")).isEqualTo(1L);
     }
 

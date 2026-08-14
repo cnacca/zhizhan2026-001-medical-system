@@ -334,10 +334,10 @@ PRD V2 本地功能差异收口 D 已推进为 GOAL-010 / TASK-011，新增 `npm
 
 未完成原因：本轮不接真实支付平台，不接真实物流平台，不做真实账期逾期，不把本地聚合写成客户最终统计口径，不替代客户签字或真实环境验收。Task 8 仍保持 `NOT_READY`。
 
-## 9D.98 AI-5 生产备注客户模板 / 知识上下文补强第一增量
+## D-186 客户特殊生产要求与订单快照（取代 9D.98 当前口径）
 
 状态：completed-first-increment / PARTIAL。
 
-证据：`/ai/production-note` 响应新增 `template_version=PHASE_ONE_DEFAULT_V1`、`knowledge_context_notes` 和 `requires_customer_template_confirmation`，默认模板明确标注客户模板未确认；`/ai/production-note/confirm` 只在 CS / WORKER / ADMIN 人工确认后追加写入 `orders.production_note` 并写 AI 审计；客服初审页展示 AI-5 生产备注草稿、知识上下文说明和人工确认写入入口；`npm run check:task9d98` 复核 AI-1、AI-2、AI-4、AI-5 入口与文档证据；`AiGatewayTests#productionNoteDraftUsesDefaultTemplateAndHumanConfirmationWritesOrderNote` 覆盖草稿不写库和确认后写库。
+证据：客户档案按邻接、咬合等业务大类维护特殊生产要求；客服初审按 `clinic_id` 自动带入并展示分类来源，审核通过时把最终纯业务文本写入 `orders.production_note` 形成订单快照；档案后续修改不反向改写历史订单。`npm run check:customer-special-requirements` 覆盖静态链路，`AiGatewayTests` 与 `ClinicPreferenceTests` 覆盖 AI 业务文本和快照不变性。旧 `check:task9d98` 已退役，历史 9D.98 记录继续保留。
 
-未完成原因：本轮不新增数据库迁移，不接真实 DeepSeek key，不伪装真实客户模板或客户签字，不自动下发生产指令。AI-5 仍需客户 / PM 提供正式生产备注模板、真实 key 环境验收、生产联调和最终 AI 验收。Task 8 仍保持 `NOT_READY`。
+未完成原因：本轮不接真实 DeepSeek key，不自动下发生产指令；仍需真实 key 环境验收、生产联调和最终 AI 验收。Task 8 仍保持 `NOT_READY`。

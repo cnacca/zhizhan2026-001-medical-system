@@ -32,7 +32,7 @@ import org.springframework.web.server.ResponseStatusException;
 public class ClinicManagementService {
 
     private static final Set<String> ALLOWED_PREFERENCE_KEYS = Set.of(
-            "color", "contact", "margin", "shape", "material", "note");
+            "color", "contact", "occlusion", "margin", "shape", "material", "note");
     private static final Set<String> ALLOWED_CLINIC_STATUSES = Set.of("ACTIVE", "INACTIVE");
     private static final Set<String> ALLOWED_DOCUMENT_CATEGORIES = Set.of("QUALIFICATION", "CONTRACT");
     private static final Set<String> ALLOWED_DOCUMENT_TYPES = Set.of(

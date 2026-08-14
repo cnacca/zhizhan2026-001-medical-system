@@ -76,6 +76,14 @@ public class AiGatewayService {
     private static final int PRODUCT_RECOMMENDATION_LIMIT = 3;
     private static final int PRODUCT_CANDIDATE_LIMIT = 30;
     private static final String RECOMMENDED_IDS_MARKER = "RECOMMENDED_IDS:";
+    private static final List<Map.Entry<String, String>> CUSTOMER_REQUIREMENT_CATEGORIES = List.of(
+            Map.entry("contact", "邻接"),
+            Map.entry("occlusion", "咬合"),
+            Map.entry("color", "颜色"),
+            Map.entry("material", "材料"),
+            Map.entry("margin", "边缘"),
+            Map.entry("shape", "形态"),
+            Map.entry("note", "其他要求"));
     private static final List<String> OUTPUT_GUARD_PATTERNS = List.of(
             "deepseek_api_key",
             "app_auth_token_secret",
@@ -382,20 +390,21 @@ public class AiGatewayService {
         accessControlService.requireAnyPermission(identity, "AI-5 requires ai:production or ai:cs", "ai:production", "ai:cs");
         OrderAiContext context = loadOrderContext(orderId, identity, "identity cannot access this order");
         JsonNode normalizedFormData = orderProjectionQueryService.getNormalizedFormData(orderId, identity);
-        List<String> knowledgeContextNotes = buildProductionNoteKnowledgeContextNotes(context);
+        Map<String, String> customerRequirements = loadCustomerProductionRequirements(context.clinicId());
+        List<String> knowledgeContextNotes = buildProductionNoteKnowledgeContextNotes(context, customerRequirements);
+        String businessDraftBaseline = defaultProductionNoteDraft(normalizedFormData, customerRequirements);
         enforceAiRateLimit(orderId, identity, "AI_PRODUCTION_NOTE", "PRODUCTION_NOTE_DRAFT",
                 "production-note:" + orderId);
         AiModelResult draft = completeWithModel(
-                "你是生产备注助手。只生成草稿，不写入订单字段，不下发生产指令。"
-                        + "客户正式模板尚未确认，必须使用默认一期模板并提示人工确认。",
-                "订单号：" + context.orderNo()
-                        + "\n产品类型：" + context.productType()
-                        + "\n表单数据：" + normalizedFormData
-                        + "\n已有生产备注：" + nullToBlank(context.productionNote())
-                        + "\n模板版本：" + PRODUCTION_NOTE_TEMPLATE_VERSION
-                        + "\n知识上下文：\n" + String.join("\n", knowledgeContextNotes)
-                        + "\n请按默认模板输出：订单基础、医生/客户需求、生产关注点、资料/附件依据、待人工确认项。",
-                () -> deterministic(defaultProductionNoteDraft(context, knowledgeContextNotes)),
+                "你是牙科生产信息整理助手。只输出生产人员可直接执行的中文制作要求草稿。"
+                        + "必须保留客户档案中已维护的特殊要求，不得自行改变数值或松紧方向。"
+                        + "严禁输出模板版本、数据库字段、数据来源、知识上下文、内部状态、审计说明或 AI 说明。"
+                        + "不写入订单字段、不自动下发生产指令，最终内容必须由客服人工确认。",
+                "订单业务资料：" + normalizedFormData
+                        + "\n客户档案特殊要求：" + customerRequirementSummary(customerRequirements)
+                        + "\n业务草稿基线：\n" + businessDraftBaseline
+                        + "\n请只整理上述业务内容；没有明确要求的项目不要猜测或补写。",
+                () -> deterministic(businessDraftBaseline),
                 orderId,
                 identity,
                 "AI_PRODUCTION_NOTE",
@@ -1262,11 +1271,13 @@ public class AiGatewayService {
         return notes;
     }
 
-    private List<String> buildProductionNoteKnowledgeContextNotes(OrderAiContext context) {
+    private List<String> buildProductionNoteKnowledgeContextNotes(
+            OrderAiContext context, Map<String, String> customerRequirements) {
         List<String> notes = new ArrayList<>();
         notes.add("默认模板：PHASE_ONE_DEFAULT_V1；客户模板未确认，不能声明为真实客户模板");
         notes.add("订单基础：orders.order_no、product_type、external_status、internal_status");
         notes.add("表单数据：orders.form_data 与订单提交快照的兼容投影，用于整理医生/客户需求和资料完整性");
+        notes.add("客户档案特殊要求：" + customerRequirementSummary(customerRequirements));
         notes.add("已有生产备注：orders.production_note，仅作为内部增量上下文，不覆盖历史备注");
         notes.add(messageReferenceNote(context.orderId()));
         notes.add(fileReferenceNote(context.orderId()));
@@ -1276,41 +1287,140 @@ public class AiGatewayService {
         return notes;
     }
 
-    private String defaultProductionNoteDraft(OrderAiContext context, List<String> knowledgeContextNotes) {
-        return """
-                AI-5 生产备注草稿（人工确认后保存）
-                模板版本：%s（默认模板，客户模板未确认）
-                1. 订单基础：订单号 %s，产品类型 %s。
-                2. 医生/客户需求：请结合表单数据、公开沟通和附件补充材料、颜色、牙位、邻接、咬合等要求。
-                3. 生产关注点：请生产人员复核资料完整性、设计稿版本、终检与返工风险。
-                4. 知识上下文：%s。
-                5. 待人工确认项：本草稿不会自行保存或外发，需确认后写入生产备注。
-                """.formatted(
-                PRODUCTION_NOTE_TEMPLATE_VERSION,
-                context.orderNo(),
-                context.productType(),
-                String.join("；", knowledgeContextNotes));
+    private String defaultProductionNoteDraft(
+            JsonNode normalizedFormData, Map<String, String> customerRequirements) {
+        JsonNode formValues = normalizedFormData.path("form_values").isObject()
+                ? normalizedFormData.path("form_values")
+                : normalizedFormData;
+        List<String> orderLines = new ArrayList<>();
+        addBusinessField(orderLines, formValues, "牙位", "tooth_position", "tooth", "teeth");
+        addBusinessField(orderLines, formValues, "颜色", "shade", "color");
+        addBusinessField(orderLines, formValues, "材料", "material");
+
+        StringBuilder draft = new StringBuilder("订单制作信息");
+        if (orderLines.isEmpty()) {
+            draft.append("\n- 订单制作参数请按页面已提交资料核对");
+        } else {
+            orderLines.forEach(line -> draft.append("\n- ").append(line));
+        }
+
+        draft.append("\n\n客户档案特殊要求（初审时自动带入）");
+        if (customerRequirements.isEmpty()) {
+            draft.append("\n- 当前客户档案未维护特殊要求");
+        } else {
+            customerRequirements.forEach((label, value) -> draft.append("\n- ").append(label).append("：").append(value));
+        }
+
+        String instruction = firstBusinessValue(
+                formValues, "instruction", "customer_instruction", "description", "special_requirements", "notes", "doctor_note");
+        if (!instruction.isBlank()) {
+            draft.append("\n\n本单客户指示\n").append(instruction);
+        }
+        return draft.toString();
     }
 
     private String confirmedProductionNoteBlock(String draftNote, String confirmationNote, BootstrapIdentity identity) {
-        String note = confirmationNote == null || confirmationNote.isBlank()
-                ? "未填写额外确认说明"
-                : confirmationNote.trim();
-        return """
-                AI-5 生产备注（人工确认）
-                模板版本：%s（默认模板，客户模板未确认）
-                确认人：%s/%d
-                确认时间：%s
-                草稿内容：
-                %s
-                确认说明：%s
-                """.formatted(
-                PRODUCTION_NOTE_TEMPLATE_VERSION,
-                identity.role(),
-                identity.userId(),
-                LocalDateTime.now(),
-                draftNote,
-                note);
+        return draftNote;
+    }
+
+    private Map<String, String> loadCustomerProductionRequirements(long clinicId) {
+        Map<String, String> storedValues = new LinkedHashMap<>();
+        jdbcClient.sql("""
+                        SELECT preference_key, CAST(preference_value AS CHAR) AS preference_value
+                        FROM customer_preference
+                        WHERE clinic_id = :clinicId
+                        """)
+                .param("clinicId", clinicId)
+                .query((rs, rowNum) -> {
+                    storedValues.put(
+                            rs.getString("preference_key"),
+                            preferenceDisplayValue(rs.getString("preference_value")));
+                    return 1;
+                })
+                .list();
+
+        Map<String, String> requirements = new LinkedHashMap<>();
+        for (Map.Entry<String, String> category : CUSTOMER_REQUIREMENT_CATEGORIES) {
+            String value = nullToBlank(storedValues.get(category.getKey())).trim();
+            if (!value.isBlank()) {
+                requirements.put(category.getValue(), value);
+            }
+        }
+        return requirements;
+    }
+
+    private String preferenceDisplayValue(String storedJson) {
+        if (storedJson == null || storedJson.isBlank()) {
+            return "";
+        }
+        try {
+            return businessJsonValue(objectMapper.readTree(storedJson));
+        } catch (JsonProcessingException ex) {
+            return "";
+        }
+    }
+
+    private String businessJsonValue(JsonNode value) {
+        if (value == null || value.isNull()) {
+            return "";
+        }
+        if (value.isTextual()) {
+            return value.asText().trim();
+        }
+        if (value.isNumber() || value.isBoolean()) {
+            return value.asText();
+        }
+        if (value.isArray()) {
+            List<String> items = new ArrayList<>();
+            value.forEach(item -> {
+                String display = businessJsonValue(item);
+                if (!display.isBlank()) {
+                    items.add(display);
+                }
+            });
+            return String.join("、", items);
+        }
+        if (value.isObject()) {
+            List<String> items = new ArrayList<>();
+            value.fields().forEachRemaining(entry -> {
+                String display = businessJsonValue(entry.getValue());
+                if (!display.isBlank()) {
+                    items.add(entry.getKey() + "：" + display);
+                }
+            });
+            return String.join("；", items);
+        }
+        return "";
+    }
+
+    private String customerRequirementSummary(Map<String, String> customerRequirements) {
+        if (customerRequirements.isEmpty()) {
+            return "当前客户档案未维护特殊要求";
+        }
+        return customerRequirements.entrySet().stream()
+                .map(entry -> entry.getKey() + "：" + entry.getValue())
+                .reduce((left, right) -> left + "；" + right)
+                .orElse("当前客户档案未维护特殊要求");
+    }
+
+    private void addBusinessField(List<String> lines, JsonNode formValues, String label, String... keys) {
+        String value = firstBusinessValue(formValues, keys);
+        if (!value.isBlank()) {
+            lines.add(label + "：" + value);
+        }
+    }
+
+    private String firstBusinessValue(JsonNode formValues, String... keys) {
+        if (formValues == null || !formValues.isObject()) {
+            return "";
+        }
+        for (String key : keys) {
+            String display = businessJsonValue(formValues.get(key));
+            if (!display.isBlank()) {
+                return display;
+            }
+        }
+        return "";
     }
 
     private String messageReferenceNote(long orderId) {

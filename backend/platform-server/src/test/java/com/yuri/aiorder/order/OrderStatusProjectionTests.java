@@ -980,6 +980,34 @@ class OrderStatusProjectionTests {
     }
 
     @Test
+    void internalOrderListCanSearchHumanFriendlyOrderIdentityFields() throws Exception {
+        String customerCaseNo = "CASE-" + UUID.randomUUID().toString().replace("-", "").substring(0, 10);
+        jdbcClient.sql("""
+                        UPDATE orders
+                        SET form_data = JSON_SET(
+                            form_data,
+                            '$.customer_case_no', :customerCaseNo,
+                            '$.material', '氧化锆搜索样本',
+                            '$.shade', 'A3.5搜索样本',
+                            '$.tooth_position', '36-37搜索样本')
+                        WHERE order_id = :orderId
+                        """)
+                .param("customerCaseNo", customerCaseNo)
+                .param("orderId", orderId)
+                .update();
+
+        for (String keyword : new String[]{customerCaseNo, "氧化锆搜索样本", "A3.5搜索样本", "36-37搜索样本"}) {
+            mockMvc.perform(get("/orders")
+                            .param("keyword", keyword)
+                            .header("X-Bootstrap-Role", "CS")
+                            .header("X-Bootstrap-User-Id", 8002L))
+                    .andExpect(status().isOk())
+                    .andExpect(jsonPath("$.data.items", hasSize(1)))
+                    .andExpect(jsonPath("$.data.items[0].order_id").value(orderId));
+        }
+    }
+
+    @Test
     void csCanRejectPendingDoctorOrderAndDoctorStillSeesOnlyExternalProjection() throws Exception {
         mockMvc.perform(post("/orders/{orderId}/review", orderId)
                         .header("X-Bootstrap-Role", "CS")
