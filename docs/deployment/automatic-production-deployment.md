@@ -1,10 +1,12 @@
 # 提交后自动部署正式站
 
-状态：`IMPLEMENTED_LOCALLY / NOT_ENABLED / NOT_VERIFIED_ON_SERVER`
+状态：`ENABLED / MANUAL_PRODUCTION_DEPLOY_VERIFIED`
 
 本方案在代码合并到 `main` 后，由 GitHub Actions 构建前后端镜像并通过 SSH 部署到正式服务器。它不会把真实密钥写入仓库，也不会在服务器上临时编译源码。
 
-当前只完成本地工作流、服务器部署脚本和静态校验。GitHub secrets、服务器部署账号、首次手工运行及真实回滚演练尚未配置或验证；Task 8 继续保持 `NOT_READY`。
+2026-08-14 已完成 GitHub secrets、独立部署密钥、服务器部署配置和首次手工生产发布。已验证正式站运行提交为 `c3e678108addfcca63bd0b046e1cc39af4b65817`，本机与公网健康检查均为 200，发布前 MySQL 备份和前后端旧镜像回滚标签均存在。仓库变量 `PRODUCTION_AUTO_DEPLOY_ENABLED=true` 已启用。
+
+本次只验证了回滚所需的备份与镜像标签，没有实际把正式站切回旧版本；完整业务验收与真实回滚演练仍未完成，因此 Task 8 继续保持 `NOT_READY`。
 
 ## 触发边界
 
@@ -50,7 +52,7 @@
 
 不要在 CI 中临时用 `ssh-keyscan` 接受未知主机。部署私钥不要复用服务器现有的 GitHub deploy key。
 
-确认首次手工部署和回滚点有效后，再添加 repository variable：
+首次手工部署和回滚点验证通过后，repository variable 已设置为：
 
 ```text
 PRODUCTION_AUTO_DEPLOY_ENABLED=true
@@ -73,11 +75,11 @@ PRODUCTION_AUTO_DEPLOY_ENABLED=true
 
 ## 首次启用顺序
 
-1. 保持 `PRODUCTION_AUTO_DEPLOY_ENABLED` 未设置。
+1. 保持 `PRODUCTION_AUTO_DEPLOY_ENABLED` 未设置或为 `false`。
 2. 从 GitHub Actions 手工执行一次 `Deploy production`。
-3. 核对四端登录、患者与产品选择、文件上传/预览/下载、WebSocket、通知和原数据。
-4. 记录 MySQL 备份路径和两个 rollback image tag，实际演练一次回滚。
-5. 首次验证通过后再启用 repository variable。
+3. 核对线上 revision、容器镜像、MySQL 备份、rollback image tag 和 HTTP 健康检查。
+4. 首次技术验证通过后启用 repository variable。
+5. 另行完成四端业务验收和真实回滚演练；在此之前不得据此把 Task 8 改为 `READY`。
 
 ## 本地验证
 
