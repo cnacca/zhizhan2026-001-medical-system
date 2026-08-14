@@ -41,7 +41,7 @@ npm run check:ai-production-governance-local-hardening
 npm run check:task9d80
 npm run check:task9d94
 npm run check:task9d97
-npm run check:task9d98
+npm run check:customer-special-requirements
 npm run check:task8-readiness-gaps
 npm run check:openapi
 npm run build:frontend
@@ -49,11 +49,13 @@ npm run acceptance
 git diff --check
 ```
 
+注：本任务原引用的 `check:task9d98` 已被 D-186 的客户特殊要求与订单快照验收取代；历史任务结论保留，当前验证使用上述新命令。
+
 ## Checklist
 
 - [x] Stage machine check.
   - Scope: add `scripts/check-ai-production-governance-local-hardening.mjs` and `check:ai-production-governance-local-hardening` to validate GOAL-019 / TASK-020, active RepoFrame pointers, backend / frontend / OpenAPI evidence, docs writeback, readiness gaps, and fake READY language.
-  - Non-goals: do not weaken existing 9D.80 / 9D.94 / 9D.97 / 9D.98 checks; do not close external blockers.
+  - Non-goals: do not weaken existing 9D.80 / 9D.94 / 9D.97 checks; preserve 9D.98 as historical evidence while allowing a later accepted decision to replace its current gate; do not close external blockers.
   - Acceptance: the check fails before implementation / writeback and passes after all checklist items are complete.
   - Verification: `npm run check:ai-production-governance-local-hardening`.
 
@@ -80,11 +82,11 @@ git diff --check
 - GOAL-018 remains completed and continues to guard local 12-step main-chain acceptance hardening history.
 - 9D.80 remains a template only; all real environment fields stay `待填写` / `待确认`.
 - 9D.94 remains local provider foundation; real key and production verification remain external.
-- 9D.98 `PHASE_ONE_DEFAULT_V1` remains a default local template requiring customer / PM confirmation.
+- 9D.98 `PHASE_ONE_DEFAULT_V1` remains compatibility and historical governance metadata; D-186 replaces its default-template / independent-confirmation UI as the current production-note workflow.
 
 ## Downstream Impact
 
-- Later work can focus on real AI key validation, production webhook integration, customer AI-5 template confirmation, guarded streaming, or RAG / tool calling if explicitly authorized.
+- Later work can focus on real AI key validation, production webhook integration, optional customer AI-5 template input, guarded streaming, or RAG / tool calling if explicitly authorized.
 
 ## Completion Record
 
@@ -97,5 +99,5 @@ git diff --check
 
 - Real DeepSeek key validation remains external and must be recorded through 9D.80 when an approved environment exists.
 - Production webhook sender / receiver integration, signing secrets, real URL, and receiver verification remain pending.
-- Customer / PM AI-5 official template confirmation remains pending; `PHASE_ONE_DEFAULT_V1` is not a customer official template.
+- Customer / PM AI-5 official template input remains pending as an external enhancement; it is not the current D-186 order-snapshot gate, and `PHASE_ONE_DEFAULT_V1` is not a customer official template.
 - Guarded streaming, RAG / tool calling, and production-grade external alert operations remain future work only after explicit confirmation.

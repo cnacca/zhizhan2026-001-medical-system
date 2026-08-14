@@ -56,6 +56,7 @@
 .portal-admin.admin-reference-mode .aor-cell-main,.portal-admin.admin-reference-mode .aor-cell-sub{display:block;max-width:155px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
 .portal-admin.admin-reference-mode .aor-cell-main{color:#0f172a;font-weight:700}
 .portal-admin.admin-reference-mode .aor-order-no{color:#1d4ed8}
+.portal-admin.admin-reference-mode .aor-order-no{display:-webkit-box;line-height:1.35;white-space:normal;-webkit-box-orient:vertical;-webkit-line-clamp:2}
 .portal-admin.admin-reference-mode .aor-cell-sub{margin-top:3px;color:#94a3b8;font-size:8px}
 .portal-admin.admin-reference-mode .aor-cell-sub.is-warning{color:#e11d48}
 .portal-admin.admin-reference-mode .aor-code-chip,.aor-drawer .aor-code-chip{display:inline-flex;padding:3px 7px;border:1px solid #bfdbfe;border-radius:5px;background:#eff6ff;color:#1d4ed8;font-size:9px;font-weight:800}

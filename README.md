@@ -1819,19 +1819,19 @@ npm run build:frontend
 
 9D.97 继续复用 `/ai/cs-query`，响应新增 `reference_data_notes`。CS / ADMIN 查询时，后端按客服权限范围返回订单基础、生产上下文、沟通消息、附件、账单和物流只读来源说明；客服端 `/ai/cs` 展示“引用数据说明”。本轮不新增数据库迁移，不接真实 DeepSeek key，不做 RAG / tool calling，不自动发送医生消息，不自动写入订单、生产备注、客服消息或审核结论。Task 8 仍保持 NOT_READY。
 
-## 9D.98 AI-5 生产备注客户模板 / 知识上下文补强第一增量
+## 9D.98 AI-5 生产备注第一增量（已被 D-186 取代）
 
 检查命令：
 
 ```bash
-npm run check:task9d98
-./scripts/with-jdk21.sh mvn -f backend/platform-server/pom.xml -Dtest=AiGatewayTests#productionNoteDraftUsesDefaultTemplateAndHumanConfirmationWritesOrderNote test
+npm run check:customer-special-requirements
+./scripts/with-jdk21.sh mvn -f backend/platform-server/pom.xml -Dtest=AiGatewayTests,ClinicPreferenceTests test
 npm run check:openapi
 npm run build:frontend
 npm run acceptance
 ```
 
-9D.98 继续复用 `/ai/production-note` 生成生产备注草稿，响应新增 `template_version=PHASE_ONE_DEFAULT_V1`、`knowledge_context_notes` 和 `requires_customer_template_confirmation`。新增 `/ai/production-note/confirm`，CS / WORKER / ADMIN 在订单数据范围内人工确认后才追加写入 `orders.production_note` 并写 AI 审计。客服初审页新增 AI-5 生产备注草稿、知识上下文说明和人工确认写入入口；`npm run check:task9d98` 同时复核 AI-1、AI-2、AI-4 和 AI-5 入口。本轮不新增数据库迁移，不接真实 DeepSeek key，不伪装真实客户模板或客户签字，不自动下发生产指令。Task 8 仍保持 NOT_READY。
+9D.98 的默认模板、知识上下文展示和独立确认页属于历史第一增量。D-186 已将当前口径调整为：客户档案按邻接、咬合等业务大类维护特殊生产要求，客服初审自动带入，审核通过时把纯业务文本冻结到订单 `production_note`；操作人、时间和 AI 元数据继续独立审计，不进入生产执行文本。旧 `check:task9d98` 已退役，当前由客户特殊要求专项检查与后端快照测试覆盖。Task 8 仍保持 NOT_READY。
 
 ## Codex Token 成本治理
 

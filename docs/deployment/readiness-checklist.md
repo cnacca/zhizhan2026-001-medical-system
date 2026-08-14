@@ -303,6 +303,6 @@ GOAL-009 / TASK-010 已补 `npm run check:prd-v2-gap-closure-c`，`/ai/cs-query`
 
 GOAL-010 / TASK-011 已补 `npm run check:prd-v2-gap-closure-d`，新增 `/dashboards/phase-one-ab` 本地月度趋势 / 客户排名聚合接口，后端按既有身份与 DataScope 约束返回 current-month / previous-month 汇总、月度差值、Top 客户、生产异常、待问异常、出货率和完成率；客服 / 生产工作台消费该聚合；OpenAPI 新增 `PhaseOneAbDashboardResponse`、`PhaseOneAbMonthSummary` 和 `PhaseOneAbCustomerRanking`。本轮不新增真实外部平台接入，不做真实账期逾期，不把本地聚合写成客户最终统计口径，不替代客户签字或真实环境验收。Task 8 仍保持 `NOT_READY`。
 
-## 9D.98 AI-5 生产备注客户模板 / 知识上下文补强第一增量
+## D-186 客户特殊生产要求与订单快照（取代 9D.98 当前口径）
 
-9D.98 已补 `npm run check:task9d98`，`/ai/production-note` 响应新增 `template_version=PHASE_ONE_DEFAULT_V1`、`knowledge_context_notes` 和 `requires_customer_template_confirmation`，明确默认模板不是客户最终模板；新增 `/ai/production-note/confirm`，CS / WORKER / ADMIN 在订单数据范围内人工确认后才追加写入 `orders.production_note` 并写 AI 审计；客服初审页新增 AI-5 草稿、上下文说明和人工确认写入入口。本轮不新增迁移，不接真实 DeepSeek key，不伪装真实客户模板或客户签字，不自动下发生产指令。客户模板仍待客户 / PM 最终确认；Task 8 仍保持 `NOT_READY`。
+D-186 已取代 9D.98 的默认模板和独立确认页口径：客户档案按业务大类维护特殊生产要求，客服初审自动带入，审核通过时将纯业务文本冻结为订单快照，审计元数据不进入生产执行文本。旧 `check:task9d98` 已退役，当前以 `npm run check:customer-special-requirements`、`AiGatewayTests` 和 `ClinicPreferenceTests` 验收。本轮不接真实 DeepSeek key、不自动下发生产指令；真实环境 AI 验收仍未完成，Task 8 保持 `NOT_READY`。

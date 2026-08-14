@@ -9,7 +9,8 @@ const requiredPatterns = [
   "const isComplete = await checkMissingInfo()",
   '订单资料仍有缺失，不能通过客服初审',
   '检测到外文客户指示，请先生成或填写翻译稿并人工核对',
-  "'/ai/production-note/confirm'",
+  'isLegacyTechnicalProductionNote',
+  'const confirmedProductionNote = reviewedDraft',
   '`/orders/${orderId}/review`',
   "action: 'APPROVE'",
   "pageResult.value = '客服初审已通过，订单已进入生产审核。'",
@@ -37,11 +38,11 @@ for (const bucket of ['NOT_STARTED', 'PENDING', 'CONFIRMED', 'REJECTED']) {
 }
 
 const missingCheckIndex = source.indexOf('const isComplete = await checkMissingInfo()')
-const noteConfirmIndex = source.indexOf("'/ai/production-note/confirm'", missingCheckIndex)
+const noteConfirmIndex = source.indexOf('const confirmedProductionNote = reviewedDraft', missingCheckIndex)
 const reviewIndex = source.indexOf('`/orders/${orderId}/review`', noteConfirmIndex)
 
 if (!(missingCheckIndex >= 0 && noteConfirmIndex > missingCheckIndex && reviewIndex > noteConfirmIndex)) {
-  console.error('客服初审调用顺序不正确：应先检查资料，再确认生产信息，最后推进订单状态。')
+  console.error('客服初审调用顺序不正确：应先检查资料，再冻结生产信息快照，最后推进订单状态。')
   process.exit(1)
 }
 

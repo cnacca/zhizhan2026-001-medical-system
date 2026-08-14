@@ -809,6 +809,9 @@ components:
             contact:
               type: string
               nullable: true
+            occlusion:
+              type: string
+              nullable: true
             margin:
               type: string
               nullable: true
@@ -835,6 +838,10 @@ components:
           type: string
           nullable: true
           description: 邻接关系偏好
+        occlusion:
+          type: string
+          nullable: true
+          description: 咬合关系偏好
         margin:
           type: string
           nullable: true
@@ -5001,6 +5008,7 @@ components:
           format: date-time
     AiProductionNoteResponse:
       type: object
+      description: 生产信息草稿只包含订单制作信息、客户档案分类特殊要求和本单客户指示；不向生产文本暴露模板版本、数据库字段或知识上下文说明。
       properties:
         draft_note:
           type: string
@@ -12973,7 +12981,8 @@ paths:
       summary: AI-5 生产备注助手（客服端 + 生产端）
       description: |
         权限：CS / WORKER / ADMIN
-        返回生产备注草稿和知识上下文说明。客户正式模板仍未确认，当前使用 PHASE_ONE_DEFAULT_V1 默认模板并要求人工确认。
+        根据订单业务资料和客户档案中按邻接、咬合等大类维护的特殊要求生成生产信息草稿；生产文本不包含模板版本、数据库字段或知识上下文等技术信息。
+        响应仍保留知识上下文元数据用于治理审计；客户正式模板仍未确认，当前使用 PHASE_ONE_DEFAULT_V1 默认模板并要求人工确认。
         本接口不写入任何数据，草稿需通过 /ai/production-note/confirm 人工确认后才追加保存到订单内部 production_note。
         任务 9D.15 第一增量：可通过后端 DeepSeek 适配层生成草稿；本接口仍不自动写入订单字段。
         任务 9D.98 第一增量：补默认模板版本、知识上下文说明和人工确认写入链路。

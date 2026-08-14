@@ -3348,7 +3348,7 @@
   box-shadow: inset 3px 0 0 var(--csr-violet);
 }
 
-.cs-r-side-list button strong { color: var(--csr-text); font-size: 11px; }
+.cs-r-side-list button strong { color: var(--csr-text); font-size: 11px; line-height: 1.45; white-space: normal; }
 .cs-r-side-list button span { color: var(--csr-muted); font-size: 10px; }
 .cs-r-side-list button small { color: var(--csr-faint); font-size: 9px; }
 
@@ -3642,6 +3642,36 @@
   color: var(--csr-muted);
   font-size: 11px;
   line-height: 1.55;
+}
+
+.cs-r-requirement-list {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 8px;
+  margin-top: 10px;
+}
+
+.cs-r-requirement-list p {
+  display: grid;
+  grid-template-columns: 64px minmax(0, 1fr);
+  gap: 8px;
+  margin: 0;
+  padding: 8px 10px;
+  border: 1px solid #e5ddff;
+  border-radius: 8px;
+  background: #faf8ff;
+}
+
+.cs-r-requirement-list b {
+  color: var(--csr-violet);
+  font-size: 12px;
+}
+
+.cs-r-requirement-list span {
+  color: var(--csr-ink);
+  font-size: 12px;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
 }
 
 .cs-r-editor-card textarea,

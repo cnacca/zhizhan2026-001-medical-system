@@ -1,5 +1,11 @@
 # Tasks
 
+- 2026-08-14：内部订单业务可读标识局部开发已完成。客服、生产和管理端高频队列以“客户 · 患者 · 牙位”为第一识别信息；客服与管理端显示完整患者姓名，生产端普通人员显示脱敏姓名。页面辅以产品／材料／色号／交期、客户单号（已有病例号／委托单号时）和系统尾号；完整系统订单号继续保留作唯一追踪。前端和后端订单搜索扩展到病例号、牙位、材料和色号。前端构建、专项／客服初审／客户特殊要求静态检查、acceptance、开发库接口搜索和客服／管理端真实浏览器回归通过；生产普通技工当前 `SELF` 范围无订单，只验证了新表头与空态。后端目标测试已编译，但测试库既有 V73 Flyway checksum 不一致阻止测试上下文启动，未执行 repair。本轮未改历史订单、权限或正式数据，未部署网站，Task 8 保持 `NOT_READY`。
+
+- 2026-08-14：客户特殊生产要求自动带入客服初审的局部开发已完成。客户档案新增咬合大类并继续按七类维护；客服待初审页按订单客户自动读取、展示并生成生产信息，确认通过后保存到 `production_note` 作为订单快照。AI-5 草稿不再把模板、数据库、知识上下文和审计说明写给生产人员；待初审订单保存的 9D.98 旧技术草稿会被识别并按当前档案重新生成，真正的人工生产备注仍保留。全新隔离库 AI 目标测试 26 项、客户偏好/快照专项 4 项、前端构建、OpenAPI、客户管理/客服初审/专项静态检查和差异检查通过；本地开发后端已按当前源码重启并自动将开发库从 V84 迁移到 V85，浏览器在目标订单上实际点击“根据档案重新整理”后确认旧模板和 `orders.*` 不再显示，控制台 0 error / 0 warning；未修改正式数据或部署网站，Task 8 保持 `NOT_READY`。
+
+- 2026-08-14：客服端订单详情进入“信息审核”跳错订单的局部缺陷已完成本地修复。旧工作台待办聚焦不再覆盖后续显式选择；订单详情跳转会携带当前订单 ID，普通导航和退出登录会清理旧聚焦上下文。客服专项检查、前端生产构建、代码差异检查和真实浏览器 A→B 订单切换回归通过，控制台 0 error / 0 warning。正式网站尚未合并或部署，本轮不改变 Task 8 `NOT_READY`。
+
 - 2026-08-11：TASK-036 已完成 8088 部署缺陷的本地修复与自动化收口。已修 CORS 配置漂移、软删除文件仍可签名、MinIO 内网签名地址、医生向导必填门禁/并发保存、9D.4 过期角色断言和生产构建演示密码；BUG-015 纳入回归。独立全新数据库与 MinIO bucket 上后端 336 tests、前端生产构建及部署检查全绿。线上尚未重新部署，需按 `docs/deployment/8088-redeployment-checklist-20260811.md` 完成公网端点、网络、账号轮换和真实浏览器复测；Task 8 保持 `NOT_READY`。
 
 - 2026-08-01：TASK-032 的隐形正畸入口按 D-182 补齐。V76 新目录版本启用 `CLEAR_ALIGNER_BRACELESS / 无托槽隐形矫治器`，医生端接通牙颌、常规／联合矫治、资料槽位和七步处方；A 型继续停用，价格和正式必传规则仍待维护，Task 8 保持 `NOT_READY`。
@@ -118,7 +124,7 @@
 
 任务 9D.97：AI-2 客服查询引用数据说明 / 知识上下文补强第一增量已完成。`/ai/cs-query` 响应新增 `reference_data_notes`，覆盖订单基础、生产上下文、沟通消息、附件、账单和物流只读来源说明；客服端 `/ai/cs` 展示“引用数据说明”。本轮不新增迁移、不接真实 DeepSeek key、不做 RAG / tool calling、不自动发送消息、不自动写入订单、生产备注或客服消息。验收命令：`npm run check:task9d97`、`AiGatewayTests#csQueryReturnsReferenceDataNotesForAuditableInternalSources`、`npm run check:openapi`、`npm run build:frontend`。
 
-任务 9D.98：AI-5 生产备注客户模板 / 知识上下文补强第一增量已完成。`/ai/production-note` 返回默认模板版本、知识上下文说明和客户模板未确认标记；`/ai/production-note/confirm` 只在 CS / WORKER / ADMIN 人工确认后追加写入 `production_note` 并审计；客服初审页新增 AI-5 草稿、上下文说明和确认写入入口。本轮不新增迁移、不接真实 DeepSeek key、不伪装真实客户模板或客户签字、不自动下发生产指令。验收命令：`npm run check:task9d98`、`AiGatewayTests#productionNoteDraftUsesDefaultTemplateAndHumanConfirmationWritesOrderNote`、`npm run check:openapi`、`npm run build:frontend`、`npm run acceptance`。
+任务 9D.98：历史第一增量已被 D-186 取代。原默认模板、知识上下文展示和独立确认页不再作为当前客服初审口径；当前按客户档案分类要求自动带入，并在初审通过时冻结订单生产信息快照。旧 `check:task9d98` 已退役，当前验收命令为 `npm run check:customer-special-requirements`、`AiGatewayTests`、`ClinicPreferenceTests`、`npm run check:openapi`、`npm run build:frontend` 和 `npm run acceptance`。
 
 任务 9D.99：A/B 类一期范围对齐第一段已完成。前端展示层按 2026-07-06 基准完成第一段命名和基础统计收口：生产端删除独立“工作单”入口，生产展示“生产中”改为“生产异常”，菜单“物料异常”改为“物料管理”，统一“待问异常”；客服工作台补客服统计基础版，包括翻译待审、账单超期、本月 / 上月对比、订单数量 / 件数和十大客户排名；生产工作台补生产统计基础版，包括生产异常、待问异常、员工异常、部门今日 vs 上月平均、返工率、出货率、完成率和内返 / 外返；账单 / 物流人工状态继续按一期人工维护能力展示。本轮不新增后端接口、不新增迁移、不接真实支付 / 物流平台、不伪造真实经营统计。验收命令：`npm run check:task9d99`、`npm run check:task9d36`、`npm run build:frontend`、`npm run acceptance`。
 
@@ -6126,7 +6132,7 @@ Verification：
 - `npm run check:task9d80`
 - `npm run check:task9d94`
 - `npm run check:task9d97`
-- `npm run check:task9d98`
+- `npm run check:customer-special-requirements`
 - `npm run check:task8-readiness-gaps`
 - `npm run check:openapi`
 - `npm run build:frontend`

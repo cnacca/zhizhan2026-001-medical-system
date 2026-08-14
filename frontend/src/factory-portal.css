@@ -582,6 +582,8 @@
 .portal-production .factory-order-number {
   color: #087b73;
   font-size: 13px;
+  line-height: 1.4;
+  white-space: normal;
 }
 
 .portal-production .factory-order-status {
@@ -907,6 +909,8 @@
 
 .portal-production .production-review-panel .aor-order-no {
   color: #087b73;
+  line-height: 1.4;
+  white-space: normal;
 }
 
 .portal-production .production-review-panel .aor-cell-sub {

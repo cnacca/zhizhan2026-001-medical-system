@@ -2,6 +2,7 @@
 import { computed, defineAsyncComponent, ref, watch } from 'vue'
 import CustomerManagementPage from './CustomerManagementPage.vue'
 import { productionProgressNodes } from '../utils/productionProgress'
+import { staffOrderIdentity } from '../utils/orderIdentity'
 
 const StlViewerDialog = defineAsyncComponent(() => import('./StlViewerDialog.vue'))
 
@@ -32,6 +33,7 @@ type OrderItem = {
   clinic_name: string
   doctor_user_id: number | null
   patient_id?: number | null
+  patient_name?: string | null
   cs_user_id: number | null
   product_type: string
   internal_status: string
@@ -278,7 +280,6 @@ type ProductionNoteResponse = {
   knowledge_context_notes: string[]
   requires_customer_template_confirmation: boolean
 }
-type ProductionNoteConfirmResponse = { production_note: string }
 type PreviewResponse = { preview_url: string }
 type HelpTopic = {
   key: 'START' | 'ORDER' | 'TRANSLATION' | 'INQUIRY' | 'BILLING' | 'PERMISSION'
@@ -298,7 +299,7 @@ const props = defineProps<{
 }>()
 
 const emit = defineEmits<{
-  navigate: [routePath: string]
+  navigate: [routePath: string, focusOrderId?: number]
   refreshNotifications: []
 }>()
 
@@ -362,8 +363,8 @@ const translationSource = ref('')
 const translationDraft = ref('')
 const translationFiles = ref<OrderFile[]>([])
 const translationRequirements = ref<FormRequirement[]>([])
+const translationClinicPreference = ref<ClinicPreference | null>(null)
 const productionNoteDraft = ref('')
-const productionNoteConfirmation = ref('')
 const missingInfoItems = ref<MissingInfoItem[]>([])
 const missingInfoChecked = ref(false)
 const aiLoading = ref(false)
@@ -616,10 +617,6 @@ function requiresTranslationReview(source: string) {
   return /[A-Za-z]{2,}|[\u3040-\u30ff\uac00-\ud7af]/u.test(text)
 }
 
-function hasHumanConfirmedProductionNote(value: string | null | undefined) {
-  return /AI-5 生产备注（人工确认）/.test(value || '')
-}
-
 function orderMayHaveProcess(order: OrderItem) {
   return [
     'PROCESS_INSTANCE_CREATED', 'PRODUCING', 'IN_PRODUCTION', 'PENDING_SHIP',
@@ -636,6 +633,14 @@ function orderFormValue(order: OrderItem | null, keys: string[]) {
     if (Array.isArray(value) && value.length) return value.join('、')
   }
   return ''
+}
+
+function csOrderIdentity(order: OrderItem) {
+  return staffOrderIdentity(order, productLabel(order.product_type), { maskPatient: false })
+}
+
+function csOrderMatchesKeyword(order: OrderItem, keyword: string) {
+  return csOrderIdentity(order).searchValues.some((value) => value.toLowerCase().includes(keyword))
 }
 
 const reviewFieldLabels: Record<string, string> = {
@@ -716,8 +721,61 @@ function fieldTypeLabel(type?: string | null) {
 }
 
 function preferenceLabel(key: string) {
-  const labels: Record<string, string> = { color: '颜色偏好', contact: '邻接偏好', margin: '边缘偏好', shape: '形态偏好', material: '材料偏好', note: '其他制作说明' }
+  const labels: Record<string, string> = { color: '颜色偏好', contact: '邻接偏好', occlusion: '咬合偏好', margin: '边缘偏好', shape: '形态偏好', material: '材料偏好', note: '其他制作说明' }
   return labels[key] || '其他偏好'
+}
+
+const productionRequirementFields = [
+  { key: 'contact', label: '邻接' },
+  { key: 'occlusion', label: '咬合' },
+  { key: 'color', label: '颜色' },
+  { key: 'material', label: '材料' },
+  { key: 'margin', label: '边缘' },
+  { key: 'shape', label: '形态' },
+  { key: 'note', label: '其他要求' }
+]
+
+function productionPreferenceText(value: unknown): string {
+  if (value == null) return ''
+  if (typeof value === 'string') return value.trim()
+  if (typeof value === 'number' || typeof value === 'boolean') return String(value)
+  if (Array.isArray(value)) return value.map(productionPreferenceText).filter(Boolean).join('、')
+  if (typeof value === 'object') {
+    return Object.entries(value as Record<string, unknown>)
+      .map(([key, item]) => {
+        const text = productionPreferenceText(item)
+        return text ? `${key}：${text}` : ''
+      })
+      .filter(Boolean)
+      .join('；')
+  }
+  return ''
+}
+
+function customerRequirementItems(preferences?: Record<string, unknown>) {
+  return productionRequirementFields.flatMap((field) => {
+    const value = productionPreferenceText(preferences?.[field.key])
+    return value ? [{ ...field, value }] : []
+  })
+}
+
+function buildAutomaticProductionNote(order: OrderItem, preference: ClinicPreference) {
+  const orderLines = [
+    { label: '产品', value: productLabel(order.product_type) },
+    { label: '牙位', value: orderFormValue(order, ['tooth_position', 'tooth', 'teeth']) },
+    { label: '颜色', value: orderFormValue(order, ['shade', 'color']) },
+    { label: '材料', value: orderFormValue(order, ['material']) }
+  ].filter((item) => item.value)
+  const requirements = customerRequirementItems(preference.preferences)
+  const instruction = orderFormValue(order, ['instruction', 'customer_instruction', 'description', 'special_requirements', 'notes', 'doctor_note'])
+  const sections = [
+    ['订单制作信息', ...orderLines.map((item) => `- ${item.label}：${item.value}`)].join('\n'),
+    requirements.length
+      ? ['客户档案特殊要求（初审时自动带入）', ...requirements.map((item) => `- ${item.label}：${item.value}`)].join('\n')
+      : '客户档案特殊要求（初审时自动带入）\n- 当前客户档案未维护特殊要求'
+  ]
+  if (instruction) sections.push(`本单客户指示\n${instruction}`)
+  return sections.join('\n\n')
 }
 
 function preferenceText(value: unknown) {
@@ -854,9 +912,14 @@ const selectedOrderClinicalNotes = computed(() => {
 function businessProductionNote(value: string | null | undefined): string {
   const note = value?.trim() || ''
   if (!note) return ''
+  if (isLegacyTechnicalProductionNote(note)) return ''
   if (/(?:^|\s)(?:task\s*)?9D\.\d+(?:\.\d+)?|\u56fa\u5b9a\u6f14\u793a\u6570\u636e|\u9a8c\u6536(?:\u6807\u8bb0|\u6570\u636e)|acceptance|fixture|mock/i.test(note)) return ''
   if (/^\u5ba2\u670d\u521d\u5ba1\u901a\u8fc7[\uff0c,]?\s*\u8fdb\u5165\u751f\u4ea7\u5ba1\u6838[\u3002.]?$/.test(note)) return ''
   return note
+}
+
+function isLegacyTechnicalProductionNote(note: string): boolean {
+  return /AI-5\s*\u751f\u4ea7\u5907\u6ce8(?:\u8349\u7a3f|\uff08\u4eba\u5de5\u786e\u8ba4\uff09)|PHASE_ONE_DEFAULT_V1|\u77e5\u8bc6\u4e0a\u4e0b\u6587\s*[\uff1a:]|\u5ba2\u6237\u6a21\u677f\u672a\u786e\u8ba4|\borders\.(?:order_no|product_type|form_data|production_note|internal_status|external_status)\b/i.test(note)
 }
 
 const roleNames: Record<string, string> = {
@@ -1420,12 +1483,12 @@ async function navigateFromOrderDrawer(route: '/cs/inquiries' | '/cs/information
   } else if (route === '/cs/delivery') {
     selectedDeliveryOrderId.value = order.order_id
   }
-  emit('navigate', route)
+  emit('navigate', route, order.order_id)
 }
 
 function openInquiryForOrder(orderId: number) {
   inquiryOrderId.value = orderId
-  emit('navigate', '/cs/inquiries')
+  emit('navigate', '/cs/inquiries', orderId)
 }
 
 async function selectTranslationOrder(order: OrderItem) {
@@ -1437,16 +1500,22 @@ async function selectTranslationOrder(order: OrderItem) {
   translationDraft.value = ''
   translationFiles.value = []
   translationRequirements.value = []
+  translationClinicPreference.value = null
   const frozenRequirements = frozenFormRequirements(order)
-  const [files, requirements] = await Promise.all([
+  const [files, requirements, preference] = await Promise.all([
     safeData<OrderFile[]>(`/orders/${order.order_id}/files`, []),
     frozenRequirements == null
       ? safeData<FormRequirement[]>(`/form-configs?product_type=${encodeURIComponent(order.product_type)}`, [])
-      : Promise.resolve(frozenRequirements)
+      : Promise.resolve(frozenRequirements),
+    safeData<ClinicPreference | null>(`/clinics/${order.clinic_id}/preference`, null)
   ])
   if (translationOrderId.value !== order.order_id) return
   translationFiles.value = files
   translationRequirements.value = requirements.filter((item) => item.status === 'ACTIVE')
+  translationClinicPreference.value = preference
+  if (!productionNoteDraft.value && preference && order.internal_status === 'PENDING_CS_REVIEW') {
+    productionNoteDraft.value = buildAutomaticProductionNote(order, preference)
+  }
   missingInfoItems.value = []
   missingInfoChecked.value = false
 }
@@ -1560,8 +1629,7 @@ async function confirmProductionNote() {
   }
 
   const existingConfirmedNote = businessProductionNote(order.production_note)
-  const translationAlreadyConfirmed = hasHumanConfirmedProductionNote(existingConfirmedNote)
-    && /客服确认译文：/.test(existingConfirmedNote)
+  const translationAlreadyConfirmed = /客服确认译文：/.test(existingConfirmedNote)
   if (requiresTranslationReview(translationSource.value) && !translationDraft.value.trim() && !translationAlreadyConfirmed) {
     pageError.value = '检测到外文客户指示，请先生成或填写翻译稿并人工核对。'
     return
@@ -1576,23 +1644,7 @@ async function confirmProductionNote() {
       && !productionNoteDraft.value.includes(translatedBlock)
       ? `${productionNoteDraft.value.trim()}\n\n客服确认译文：${translatedText}`
       : productionNoteDraft.value.trim()
-    let confirmedProductionNote = reviewedDraft
-
-    if (hasHumanConfirmedProductionNote(existingConfirmedNote)) {
-      confirmedProductionNote = reviewedDraft
-    } else {
-      const confirmation = await apiFetch<ProductionNoteConfirmResponse>('/ai/production-note/confirm', {
-        method: 'POST',
-        body: JSON.stringify({
-          order_id: orderId,
-          draft_note: reviewedDraft,
-          confirmation_note: productionNoteConfirmation.value.trim() || '客服已核对订单资料、翻译内容和生产信息'
-        })
-      })
-      confirmedProductionNote = confirmation.data.production_note
-      productionNoteDraft.value = confirmedProductionNote
-      order.production_note = confirmedProductionNote
-    }
+    const confirmedProductionNote = reviewedDraft
 
     const reviewedOrder = await apiFetch<OrderItem>(`/orders/${orderId}/review`, {
       method: 'POST',
@@ -1604,7 +1656,6 @@ async function confirmProductionNote() {
     })
     orders.value = orders.value.map((item) => item.order_id === orderId ? reviewedOrder.data : item)
     productionNoteDraft.value = businessProductionNote(reviewedOrder.data.production_note)
-    productionNoteConfirmation.value = ''
     translationTab.value = 'HISTORY'
     pageResult.value = '客服初审已通过，订单已进入生产审核。'
     emit('refreshNotifications')
@@ -1984,8 +2035,7 @@ async function loadRoute(route: string) {
 const filteredOrders = computed(() => {
   const keyword = orderKeyword.value.trim().toLowerCase()
   return orders.value.filter((order) => {
-    const matchesKeyword = !keyword || [order.order_no, order.clinic_name, order.product_type, orderFormValue(order, ['patient_name'])]
-      .some((value) => String(value || '').toLowerCase().includes(keyword))
+    const matchesKeyword = !keyword || csOrderMatchesKeyword(order, keyword)
     if (!matchesKeyword) return false
     if (orderFilter.value === 'NEW') return registrationStatus(order) === 'NEW'
     if (orderFilter.value === 'REGISTERED') return registrationStatus(order) === 'REGISTERED'
@@ -2077,7 +2127,8 @@ const orderTimeline = computed<TimelineStep[]>(() => {
   return steps.map((step, index) => ({ ...step, state: index < activeIndex ? 'done' : index === activeIndex ? 'current' : 'pending' })) as TimelineStep[]
 })
 
-const clinicPreferenceKeys = computed(() => ['color', 'contact', 'margin', 'shape', 'material', 'note'])
+const clinicPreferenceKeys = computed(() => ['color', 'contact', 'occlusion', 'margin', 'shape', 'material', 'note'])
+const translationCustomerRequirementItems = computed(() => customerRequirementItems(translationClinicPreference.value?.preferences))
 const clinicUnknownPreferences = computed(() => {
   const known = new Set(clinicPreferenceKeys.value)
   return Object.entries(clinicPreference?.value?.preferences || {}).filter(([key, value]) => !known.has(key) && value != null)
@@ -2129,8 +2180,7 @@ const conversationOrders = computed(() => {
   return orders.value.filter((order) => {
     if (inquiryTab.value === 'WAITING' && !waitingOrderIds.has(order.order_id)) return false
     if (inquiryTab.value === 'REVIEW' && !reviewOrderIds.has(order.order_id)) return false
-    return !keyword || [order.order_no, order.clinic_name, productLabel(order.product_type)]
-      .some((value) => value.toLowerCase().includes(keyword))
+    return !keyword || csOrderMatchesKeyword(order, keyword)
   })
 })
 
@@ -2138,8 +2188,7 @@ const filteredTranslationOrders = computed(() => {
   const keyword = translationKeyword.value.trim().toLowerCase()
   return orders.value.filter((order) => {
     if (translationFilter.value !== 'ALL' && translationReviewBucket(order) !== translationFilter.value) return false
-    return !keyword || [order.order_no, order.clinic_name, productLabel(order.product_type)]
-      .some((value) => value.toLowerCase().includes(keyword))
+    return !keyword || csOrderMatchesKeyword(order, keyword)
   }).sort((left, right) => {
     const confirmationOrder = Number(hasPassedCsReview(left)) - Number(hasPassedCsReview(right))
     if (confirmationOrder !== 0) return confirmationOrder
@@ -2253,8 +2302,7 @@ const filteredProducts = computed(() => {
 
 const filteredDesignOrders = computed(() => {
   const keyword = designKeyword.value.trim().toLowerCase()
-  return orders.value.filter((order) => !keyword || [order.order_no, order.clinic_name, productLabel(order.product_type)]
-    .some((value) => value.toLowerCase().includes(keyword)))
+  return orders.value.filter((order) => !keyword || csOrderMatchesKeyword(order, keyword))
 })
 
 const filteredDelivery = computed(() => deliveryItems.value.filter((item) => deliveryStatus.value === 'ALL' || item.logistics_status === deliveryStatus.value))
@@ -2395,16 +2443,16 @@ watch(billingTab, (tab) => {
         </div>
       </section>
       <section class="cs-r-table-card">
-        <header class="cs-r-table-toolbar"><div><h3>订单列表</h3><span>{{ filteredOrders.length }} / {{ orderTotal }} 单</span></div><label class="cs-r-search"><span>⌕</span><input v-model="orderKeyword" type="search" placeholder="搜索订单号、客户、患者或产品" aria-label="搜索订单"></label></header>
+        <header class="cs-r-table-toolbar"><div><h3>订单列表</h3><span>{{ filteredOrders.length }} / {{ orderTotal }} 单</span></div><label class="cs-r-search"><span>⌕</span><input v-model="orderKeyword" type="search" placeholder="搜索客户、患者、病例号、牙位、材料、颜色或系统单号" aria-label="搜索订单"></label></header>
         <div v-if="pageLoading" class="cs-r-state">正在加载真实订单…</div>
         <div v-else-if="filteredOrders.length === 0" class="cs-r-state"><strong>没有符合条件的订单</strong><span>调整筛选条件后重试。</span></div>
         <table v-else data-testid="cs-orders-table">
           <colgroup><col style="width:17%"><col style="width:15%"><col style="width:15%"><col style="width:11%"><col style="width:17%"><col style="width:13%"><col style="width:12%"></colgroup>
-          <thead><tr><th>订单编号</th><th>客户 / 患者</th><th>产品 / 牙位</th><th>登记状态</th><th>信息状态</th><th>订单阶段</th><th>操作</th></tr></thead>
+          <thead><tr><th>订单识别</th><th>产品信息</th><th>客户单号 / 系统号</th><th>登记状态</th><th>信息状态</th><th>订单阶段</th><th>操作</th></tr></thead>
           <tbody><tr v-for="order in filteredOrders" :key="order.order_id" :class="{ 'is-new': registrationStatus(order) === 'NEW' }" @click="openOrder(order)">
-            <td><strong>{{ order.order_no }}</strong><small>#{{ order.order_id }}</small></td>
-            <td><strong>{{ order.clinic_name }}</strong><small>{{ orderFormValue(order, ['patient_name']) || '患者信息按权限显示' }}</small></td>
-            <td><strong>{{ productLabel(order.product_type) }}</strong><small>{{ orderFormValue(order, ['tooth_position','tooth','teeth']) || '牙位待确认' }}</small></td>
+            <td><strong>{{ csOrderIdentity(order).primary }}</strong><small>{{ csOrderIdentity(order).secondary }}</small></td>
+            <td><strong>{{ productLabel(order.product_type) }}</strong><small>{{ orderFormValue(order, ['material','material_name','material_spec']) || '材料待确认' }} · {{ orderFormValue(order, ['shade','color','shade_code']) || '色号待确认' }}</small></td>
+            <td><strong>{{ csOrderIdentity(order).reference }}</strong><small>{{ csOrderIdentity(order).systemOrderNo }}</small></td>
             <td><span class="cs-r-badge" :class="registrationStatus(order) === 'NEW' ? 'is-amber' : 'is-green'">{{ registrationStatus(order) === 'NEW' ? '新订单' : '已登记' }}</span></td>
             <td>{{ informationStatus(order) }}</td><td><span class="cs-r-badge is-violet">{{ statusLabel(order.internal_status) }}</span><span v-if="order.delivery_alert" class="cs-r-badge is-red" data-testid="cs-delivery-alert-badge" :title="order.delivery_alert_message ?? ''">⏱ 时间异常</span></td>
             <td><button class="cs-r-link" type="button" @click.stop="openOrder(order)">查看</button></td>
@@ -2414,7 +2462,7 @@ watch(billingTab, (tab) => {
       <el-drawer v-model="orderDrawerVisible" size="540px" :with-header="false" class="cs-r-drawer cs-r-order-drawer" modal-class="cs-r-drawer-overlay" @closed="resetOrderPreview">
         <div v-if="selectedOrder" class="cs-r-drawer-shell cs-r-order-drawer-shell">
           <header class="cs-r-order-drawer-head">
-            <div><small>订单详情</small><h2>{{ selectedOrder.order_no }}</h2><p>{{ selectedOrder.clinic_name }} · {{ productLabel(selectedOrder.product_type) }}</p></div>
+            <div><small>订单详情</small><h2>{{ csOrderIdentity(selectedOrder).primary }}</h2><p>{{ csOrderIdentity(selectedOrder).secondary }} · {{ selectedOrder.order_no }}</p></div>
             <div class="cs-r-order-head-actions"><button type="button" @click="navigateFromOrderDrawer('/cs/information-translation')">信息审核</button><button type="button" aria-label="关闭订单详情" @click="orderDrawerVisible = false">×</button></div>
           </header>
 
@@ -2586,9 +2634,9 @@ watch(billingTab, (tab) => {
     <template v-else-if="activeRoute === '/cs/information-translation'">
       <header class="cs-r-heading"><div><h1>信息审核/翻译</h1><p>在现有页面完成资料核对、翻译确认和客服初审；通过后进入生产审核。</p></div><span class="cs-r-count">{{ orders.length }} 项任务</span></header>
       <div class="cs-r-workspace is-translation">
-        <aside class="cs-r-side-list"><header><strong>处理队列</strong><span>{{ filteredTranslationOrders.length }}</span></header><label class="cs-r-search"><span>⌕</span><input v-model="translationKeyword" type="search" placeholder="搜索订单、客户或产品" aria-label="搜索信息审核任务"></label><div class="cs-r-conversation-tabs"><button type="button" :class="{active:translationFilter==='ALL'}" @click="translationFilter='ALL'">全部 {{ translationFilterCounts.ALL }}</button><button type="button" :class="{active:translationFilter==='NOT_STARTED'}" @click="translationFilter='NOT_STARTED'">未进入 {{ translationFilterCounts.NOT_STARTED }}</button><button type="button" :class="{active:translationFilter==='PENDING'}" @click="translationFilter='PENDING'">待初审 {{ translationFilterCounts.PENDING }}</button><button type="button" :class="{active:translationFilter==='CONFIRMED'}" @click="translationFilter='CONFIRMED'">已初审 {{ translationFilterCounts.CONFIRMED }}</button><button type="button" :class="{active:translationFilter==='REJECTED'}" @click="translationFilter='REJECTED'">已退回 {{ translationFilterCounts.REJECTED }}</button></div><button v-for="order in filteredTranslationOrders" :key="order.order_id" type="button" :class="{ active: translationOrderId === order.order_id }" @click="selectTranslationOrder(order)"><strong>{{ order.order_no }}</strong><span>{{ order.clinic_name }} · {{ productLabel(order.product_type) }}</span><small>{{ informationStatus(order) }}</small></button><div v-if="filteredTranslationOrders.length === 0" class="cs-r-state">当前筛选下暂无任务</div></aside>
+        <aside class="cs-r-side-list"><header><strong>处理队列</strong><span>{{ filteredTranslationOrders.length }}</span></header><label class="cs-r-search"><span>⌕</span><input v-model="translationKeyword" type="search" placeholder="搜索客户、患者、病例号、牙位、材料、颜色或系统单号" aria-label="搜索信息审核任务"></label><div class="cs-r-conversation-tabs"><button type="button" :class="{active:translationFilter==='ALL'}" @click="translationFilter='ALL'">全部 {{ translationFilterCounts.ALL }}</button><button type="button" :class="{active:translationFilter==='NOT_STARTED'}" @click="translationFilter='NOT_STARTED'">未进入 {{ translationFilterCounts.NOT_STARTED }}</button><button type="button" :class="{active:translationFilter==='PENDING'}" @click="translationFilter='PENDING'">待初审 {{ translationFilterCounts.PENDING }}</button><button type="button" :class="{active:translationFilter==='CONFIRMED'}" @click="translationFilter='CONFIRMED'">已初审 {{ translationFilterCounts.CONFIRMED }}</button><button type="button" :class="{active:translationFilter==='REJECTED'}" @click="translationFilter='REJECTED'">已退回 {{ translationFilterCounts.REJECTED }}</button></div><button v-for="order in filteredTranslationOrders" :key="order.order_id" type="button" :class="{ active: translationOrderId === order.order_id }" @click="selectTranslationOrder(order)"><strong>{{ csOrderIdentity(order).primary }}</strong><span>{{ csOrderIdentity(order).secondary }}</span><small>{{ informationStatus(order) }} · {{ csOrderIdentity(order).reference }}</small></button><div v-if="filteredTranslationOrders.length === 0" class="cs-r-state">当前筛选下暂无任务</div></aside>
         <section v-if="selectedTranslationOrder" class="cs-r-work-content">
-          <header class="cs-r-work-head"><div><h2>{{ selectedTranslationOrder.order_no }}</h2><p>{{ selectedTranslationOrder.clinic_name }} · {{ productLabel(selectedTranslationOrder.product_type) }}</p></div><span class="cs-r-badge is-amber">{{ informationStatus(selectedTranslationOrder) }}</span></header>
+          <header class="cs-r-work-head"><div><h2>{{ csOrderIdentity(selectedTranslationOrder).primary }}</h2><p>{{ csOrderIdentity(selectedTranslationOrder).secondary }} · {{ selectedTranslationOrder.order_no }}</p></div><span class="cs-r-badge is-amber">{{ informationStatus(selectedTranslationOrder) }}</span></header>
           <div class="cs-r-tab-strip"><button type="button" :class="{active:translationTab==='INFO'}" @click="translationTab='INFO'">信息审核</button><button type="button" :class="{active:translationTab==='TRANSLATION'}" @click="translationTab='TRANSLATION'">翻译整理</button><button type="button" :class="{active:translationTab==='FILES'}" @click="translationTab='FILES'">附件 {{ translationFiles.length }}</button><button type="button" :class="{active:translationTab==='HISTORY'}" @click="translationTab='HISTORY'">处理记录</button></div>
           <section class="cs-r-info-band"><div><span>颜色</span><strong>{{ orderFormValue(selectedTranslationOrder,['shade','color']) || '待确认' }}</strong></div><div><span>牙位</span><strong>{{ orderFormValue(selectedTranslationOrder,['tooth_position','tooth','teeth']) || '待确认' }}</strong></div><div><span>材料</span><strong>{{ orderFormValue(selectedTranslationOrder,['material']) || '待确认' }}</strong></div><div><span>产品</span><strong>{{ productLabel(selectedTranslationOrder.product_type) }}</strong></div></section>
           <template v-if="translationTab==='INFO'">
@@ -2626,7 +2674,7 @@ watch(billingTab, (tab) => {
               </footer>
             </section>
           </template>
-          <template v-else-if="translationTab==='TRANSLATION'"><section class="cs-r-readonly-note"><strong>需要翻译的客户文字</strong><p class="cs-r-preserve-text">{{ translationSource || '该订单未单独填写外文指示，可跳过翻译并直接确认生产信息。' }}</p></section><section class="cs-r-editor-card"><header><div><h3>翻译确认稿</h3><p>检测到外文时必须生成或填写并人工核对；中文订单可跳过。</p></div><button type="button" :disabled="aiLoading || !translationSource.trim()" @click="generateTranslation">生成翻译草稿</button></header><textarea v-model="translationDraft" rows="5" placeholder="生成后由翻译人员逐项校对" aria-label="翻译草稿"></textarea></section><section class="cs-r-editor-card"><header><div><h3>客服初审生产信息</h3><p>通过时写入确认稿并进入生产审核，保留修改人与时间。</p></div><button type="button" :disabled="aiLoading" @click="generateProductionNote">生成生产信息建议</button></header><textarea v-model="productionNoteDraft" rows="6" placeholder="整理颜色、材料、牙位及客户全部指示" aria-label="生产信息确认稿"></textarea><input v-model="productionNoteConfirmation" placeholder="填写本次初审确认说明（可选）" aria-label="初审确认说明"><footer><button type="button" @click="openInquiryForOrder(selectedTranslationOrder.order_id)">发现疑点，创建问单</button><button class="is-primary" type="button" :disabled="aiLoading || !productionNoteDraft.trim() || selectedTranslationOrder.internal_status !== 'PENDING_CS_REVIEW'" @click="confirmProductionNote">{{ selectedTranslationOrder.internal_status === 'PENDING_CS_REVIEW' ? '确认并通过客服初审' : '客服初审已完成' }}</button></footer></section></template>
+          <template v-else-if="translationTab==='TRANSLATION'"><section class="cs-r-readonly-note"><strong>需要翻译的客户文字</strong><p class="cs-r-preserve-text">{{ translationSource || '该订单未单独填写外文指示，可跳过翻译并直接确认生产信息。' }}</p></section><section class="cs-r-editor-card"><header><div><h3>翻译确认稿</h3><p>检测到外文时必须生成或填写并人工核对；中文订单可跳过。</p></div><button type="button" :disabled="aiLoading || !translationSource.trim()" @click="generateTranslation">生成翻译草稿</button></header><textarea v-model="translationDraft" rows="5" placeholder="生成后由翻译人员逐项校对" aria-label="翻译草稿"></textarea></section><section class="cs-r-readonly-note" data-testid="cs-customer-requirement-reminder"><strong>客户档案特殊要求（已自动带入确认稿）</strong><div v-if="translationCustomerRequirementItems.length" class="cs-r-requirement-list"><p v-for="item in translationCustomerRequirementItems" :key="item.key"><b>{{ item.label }}</b><span>{{ item.value }}</span></p></div><p v-else>{{ translationClinicPreference ? '当前客户档案未维护特殊要求。' : '客户档案特殊要求暂未读取，请到客户管理核对。' }}</p></section><section class="cs-r-editor-card"><header><div><h3>客服初审生产信息</h3><p>客户档案要求会自动带入；通过初审后保存为订单快照，档案后续修改不会改变本单。</p></div><button type="button" :disabled="aiLoading" @click="generateProductionNote">根据档案重新整理</button></header><textarea v-model="productionNoteDraft" rows="9" placeholder="客户档案要求会自动带入，也可在确认前补充或修正" aria-label="生产信息确认稿"></textarea><footer><button type="button" @click="openInquiryForOrder(selectedTranslationOrder.order_id)">发现疑点，创建问单</button><button class="is-primary" type="button" :disabled="aiLoading || !productionNoteDraft.trim() || selectedTranslationOrder.internal_status !== 'PENDING_CS_REVIEW'" @click="confirmProductionNote">{{ selectedTranslationOrder.internal_status === 'PENDING_CS_REVIEW' ? '确认并通过客服初审' : '客服初审已完成' }}</button></footer></section></template>
           <section v-else-if="translationTab==='FILES'" class="cs-r-editor-card"><header><div><h3>订单附件</h3><p>只显示当前账号可访问的真实文件记录。</p></div><span>{{ translationFiles.length }} 个</span></header><div v-if="translationFiles.length" class="cs-r-record-list"><article v-for="file in translationFiles" :key="file.file_id"><div><strong>{{ file.original_filename }}</strong><span>{{ file.content_type || '类型未记录' }} · {{ file.file_size == null ? '大小未记录' : `${file.file_size} B` }}</span></div><span class="cs-r-badge">{{ statusLabel(file.upload_status) }}</span></article></div><div v-else class="cs-r-state">当前订单没有可查看附件</div></section>
           <section v-else class="cs-r-editor-card"><header><div><h3>处理记录</h3><p>显示当前订单已有的真实时间和客服初审结果。</p></div></header><div class="cs-r-record-list"><article><div><strong>订单建立</strong><span>{{ compactDateTime(selectedTranslationOrder.created_at) }}</span></div><span class="cs-r-badge">{{ statusLabel(selectedTranslationOrder.internal_status) }}</span></article><article><div><strong>最近更新</strong><span>{{ compactDateTime(selectedTranslationOrder.updated_at) }}</span></div><span class="cs-r-badge" :class="hasPassedCsReview(selectedTranslationOrder) ? 'is-green':'is-amber'">{{ informationStatus(selectedTranslationOrder) }}</span></article></div><section class="cs-r-readonly-note"><strong>客服初审确认的制作要求</strong><p>{{ businessProductionNote(selectedTranslationOrder.production_note) || '尚未形成客服初审确认的制作要求。' }}</p></section></section>
         </section>
@@ -2637,15 +2685,15 @@ watch(billingTab, (tab) => {
     <template v-else-if="activeRoute === '/cs/designs'">
       <header class="cs-r-heading"><div><h1>设计稿进度</h1><p>只读查看已提交医生的设计版本和客户确认结果；技术设计内审由生产负责人处理。</p></div><span class="cs-r-count">{{ designDrafts.length }} 个医生可见版本</span></header>
       <section class="cs-r-table-card">
-        <header class="cs-r-table-toolbar"><div><h3>设计订单</h3><span>{{ filteredDesignOrders.length }} / {{ orders.length }} 个订单</span></div><label class="cs-r-search"><span>⌕</span><input v-model="designKeyword" type="search" placeholder="搜索订单、客户或产品" aria-label="搜索设计订单"></label></header>
+        <header class="cs-r-table-toolbar"><div><h3>设计订单</h3><span>{{ filteredDesignOrders.length }} / {{ orders.length }} 个订单</span></div><label class="cs-r-search"><span>⌕</span><input v-model="designKeyword" type="search" placeholder="搜索客户、患者、病例号、牙位、材料、颜色或系统单号" aria-label="搜索设计订单"></label></header>
         <table v-if="filteredDesignOrders.length">
-          <thead><tr><th>订单编号</th><th>客户</th><th>产品</th><th>颜色 / 牙位</th><th>订单阶段</th><th>操作</th></tr></thead>
-          <tbody><tr v-for="order in filteredDesignOrders" :key="order.order_id" @click="selectDesignOrder(order.order_id)"><td><strong>{{ order.order_no }}</strong><small>#{{ order.order_id }}</small></td><td>{{ order.clinic_name }}</td><td>{{ productLabel(order.product_type) }}</td><td><strong>{{ orderFormValue(order,['shade','color']) || '待确认' }}</strong><small>{{ orderFormValue(order,['tooth_position','tooth','teeth']) || '牙位待确认' }}</small></td><td><span class="cs-r-badge is-violet">{{ statusLabel(order.internal_status) }}</span></td><td><button class="cs-r-link" type="button" @click.stop="selectDesignOrder(order.order_id)">查看版本</button></td></tr></tbody>
+          <thead><tr><th>订单识别</th><th>客户单号 / 系统号</th><th>产品</th><th>颜色 / 牙位</th><th>订单阶段</th><th>操作</th></tr></thead>
+          <tbody><tr v-for="order in filteredDesignOrders" :key="order.order_id" @click="selectDesignOrder(order.order_id)"><td><strong>{{ csOrderIdentity(order).primary }}</strong><small>{{ csOrderIdentity(order).secondary }}</small></td><td><strong>{{ csOrderIdentity(order).reference }}</strong><small>{{ order.order_no }}</small></td><td>{{ productLabel(order.product_type) }}</td><td><strong>{{ orderFormValue(order,['shade','color']) || '待确认' }}</strong><small>{{ orderFormValue(order,['tooth_position','tooth','teeth']) || '牙位待确认' }}</small></td><td><span class="cs-r-badge is-violet">{{ statusLabel(order.internal_status) }}</span></td><td><button class="cs-r-link" type="button" @click.stop="selectDesignOrder(order.order_id)">查看版本</button></td></tr></tbody>
         </table>
         <div v-else class="cs-r-state"><strong>没有符合条件的设计订单</strong><span>调整搜索条件，或等待生产端上传设计文件。</span></div>
       </section>
       <el-drawer v-model="designDrawerVisible" size="540px" :with-header="false" class="cs-r-drawer" modal-class="cs-r-drawer-overlay">
-        <div v-if="selectedDesignOrder" class="cs-r-drawer-shell"><header class="cs-r-detail-head"><div><small>DESIGN REVIEW</small><h2>{{ selectedDesignOrder.order_no }}</h2></div><div><span class="cs-r-badge is-violet">{{ designDrafts.length }} 个版本</span><button type="button" aria-label="关闭设计稿详情" @click="designDrawerVisible=false">×</button></div></header>
+        <div v-if="selectedDesignOrder" class="cs-r-drawer-shell"><header class="cs-r-detail-head"><div><small>DESIGN REVIEW</small><h2>{{ csOrderIdentity(selectedDesignOrder).primary }}</h2><p>{{ csOrderIdentity(selectedDesignOrder).secondary }} · {{ selectedDesignOrder.order_no }}</p></div><div><span class="cs-r-badge is-violet">{{ designDrafts.length }} 个版本</span><button type="button" aria-label="关闭设计稿详情" @click="designDrawerVisible=false">×</button></div></header>
           <div v-if="designDetailState.loading" class="cs-r-state cs-r-detail-loading"><span class="cs-r-loading-orbit">🎨</span><strong>正在读取设计版本</strong></div>
           <template v-else>
             <section v-if="designDetailState.error" class="cs-r-detail-alert is-danger"><span>!</span><div><strong>设计版本加载失败</strong><p>{{ designDetailState.error }}</p></div><button type="button" @click="selectDesignOrder(selectedDesignOrder.order_id)">重试</button></section>
