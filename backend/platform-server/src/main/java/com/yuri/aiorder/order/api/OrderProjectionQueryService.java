@@ -84,7 +84,27 @@ public class OrderProjectionQueryService {
                      OR c.clinic_name LIKE :keyword
                      OR doctor.display_name LIKE :keyword
                      OR patient.patient_name LIKE :keyword
-                     OR JSON_UNQUOTE(JSON_EXTRACT(o.form_data, '$.patient_name')) LIKE :keyword)
+                     OR o.product_type LIKE :keyword
+                     OR JSON_UNQUOTE(JSON_EXTRACT(o.form_data, '$.patient_name')) LIKE :keyword
+                     OR JSON_UNQUOTE(JSON_EXTRACT(o.form_data, '$.tooth_position')) LIKE :keyword
+                     OR JSON_UNQUOTE(JSON_EXTRACT(o.form_data, '$.tooth_positions')) LIKE :keyword
+                     OR JSON_UNQUOTE(JSON_EXTRACT(o.form_data, '$.tooth')) LIKE :keyword
+                     OR JSON_UNQUOTE(JSON_EXTRACT(o.form_data, '$.teeth')) LIKE :keyword
+                     OR JSON_UNQUOTE(JSON_EXTRACT(o.form_data, '$.material')) LIKE :keyword
+                     OR JSON_UNQUOTE(JSON_EXTRACT(o.form_data, '$.material_name')) LIKE :keyword
+                     OR JSON_UNQUOTE(JSON_EXTRACT(o.form_data, '$.material_spec')) LIKE :keyword
+                     OR JSON_UNQUOTE(JSON_EXTRACT(o.form_data, '$.shade')) LIKE :keyword
+                     OR JSON_UNQUOTE(JSON_EXTRACT(o.form_data, '$.color')) LIKE :keyword
+                     OR JSON_UNQUOTE(JSON_EXTRACT(o.form_data, '$.shade_code')) LIKE :keyword
+                     OR JSON_UNQUOTE(JSON_EXTRACT(o.form_data, '$.customer_case_no')) LIKE :keyword
+                     OR JSON_UNQUOTE(JSON_EXTRACT(o.form_data, '$.customer_case_number')) LIKE :keyword
+                     OR JSON_UNQUOTE(JSON_EXTRACT(o.form_data, '$.case_no')) LIKE :keyword
+                     OR JSON_UNQUOTE(JSON_EXTRACT(o.form_data, '$.case_number')) LIKE :keyword
+                     OR JSON_UNQUOTE(JSON_EXTRACT(o.form_data, '$.customer_order_no')) LIKE :keyword
+                     OR JSON_UNQUOTE(JSON_EXTRACT(o.form_data, '$.clinic_order_no')) LIKE :keyword
+                     OR JSON_UNQUOTE(JSON_EXTRACT(o.form_data, '$.external_order_no')) LIKE :keyword
+                     OR JSON_UNQUOTE(JSON_EXTRACT(o.form_data, '$.doctor_case_no')) LIKE :keyword
+                     OR JSON_UNQUOTE(JSON_EXTRACT(o.form_data, '$.patient_code')) LIKE :keyword)
                     """);
         }
         String whereClause = "WHERE " + String.join(" AND ", filters);

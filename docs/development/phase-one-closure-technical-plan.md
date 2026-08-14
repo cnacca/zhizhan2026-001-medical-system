@@ -130,7 +130,7 @@ npm run check:task8-readiness-gaps
 | 9D.91 配送管理 / 异常跟进 | `GET /logistics/orders`、`POST /orders/{orderId}/logistics/exception` | `/delivery` | 已同步 `docs/api/openapi.yaml` | `npm run check:task9d91` | `MessageDesignBillNotificationTests`、`npm run build:frontend` |
 | 9D.92 AI-2 客服查询入口 | `POST /ai/cs-query` | `/ai/cs` | 复用既有 AI-2 契约 | `npm run check:task9d92` | 前端静态检查、`npm run build:frontend` |
 | 9D.97 AI-2 引用数据说明 | `POST /ai/cs-query`，响应含 `reference_data_notes` | `/ai/cs` 展示“引用数据说明” | 已同步 `docs/api/openapi.yaml` | `npm run check:task9d97` | `AiGatewayTests#csQueryReturnsReferenceDataNotesForAuditableInternalSources` |
-| 9D.98 AI-5 模板上下文 / 人工确认 | `POST /ai/production-note`、`POST /ai/production-note/confirm` | 客服初审页 AI-5 草稿和人工确认写入入口 | 已同步 `docs/api/openapi.yaml` | `npm run check:task9d98` | `AiGatewayTests#productionNoteDraftUsesDefaultTemplateAndHumanConfirmationWritesOrderNote` |
+| D-186（取代 9D.98）客户特殊生产要求快照 | `GET /clinics/{clinicId}/preference`、`POST /ai/production-note`、`POST /orders/{orderId}/review` | 客服初审自动带入分类要求并在通过时冻结订单快照 | 已同步 `docs/api/openapi.yaml` | `npm run check:customer-special-requirements` | `AiGatewayTests`、`ClinicPreferenceTests` |
 
 前端业务页判定规则：
 
@@ -200,7 +200,7 @@ npm run check:task9d72
 npm run check:task9d80
 npm run check:task9d81
 npm run check:task9d97
-npm run check:task9d98
+npm run check:customer-special-requirements
 npm run check:task8-readiness-gaps
 npm run check:openapi
 npm run build:frontend

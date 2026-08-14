@@ -14,7 +14,14 @@ const required = [
   [app, 'App.vue', 'openCsDashboardAttentionItem(item)'],
   [app, 'App.vue', ':focus-order-id="csPortalFocusOrderId"'],
   [app, 'App.vue', ':focus-task="csPortalFocusTask"'],
+  [app, 'App.vue', 'function clearCsPortalFocusContext()'],
+  [app, 'App.vue', 'function navigateToRoute(routePath: string, preserveCsPortalFocus = false)'],
+  [app, 'App.vue', 'navigateToRoute(routePath, focusOrderId !== undefined)'],
+  [app, 'App.vue', "navigateToRoute(item.kind === 'ORDER_REVIEW' ? '/cs/information-translation' : '/cs/inquiries', true)"],
   [csPages, 'CsPortalPages.vue', 'focusOrderId: number | null'],
+  [csPages, 'CsPortalPages.vue', 'navigate: [routePath: string, focusOrderId?: number]'],
+  [csPages, 'CsPortalPages.vue', "emit('navigate', route, order.order_id)"],
+  [csPages, 'CsPortalPages.vue', "emit('navigate', '/cs/inquiries', orderId)"],
   [csPages, 'CsPortalPages.vue', "if (props.focusTask === 'MESSAGE_REVIEW') inquiryTab.value = 'REVIEW'"],
   [styles, 'styles.css', '-webkit-line-clamp: 2;']
 ]

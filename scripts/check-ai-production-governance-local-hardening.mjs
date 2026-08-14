@@ -66,7 +66,7 @@ requireText('package.json', [
   'check:task9d80',
   'check:task9d94',
   'check:task9d97',
-  'check:task9d98'
+  'check:customer-special-requirements'
 ])
 
 requireText('backend/platform-server/src/main/java/com/yuri/aiorder/ai/AiGatewayController.java', [
@@ -104,12 +104,13 @@ requireText('frontend/src/App.vue', [
   'isAdminAiGovernanceRoute',
   '/ai/governance/local-hardening',
   'ai-governance-local-hardening',
-  '提示词版本',
-  '输出安全边界',
-  '预算 / 熔断',
-  'AI-3 安全矩阵',
-  'AI-5 模板状态',
-  '真实 key / webhook 仍待验收'
+  '智能功能管理',
+  '内容保护',
+  '每日使用上限',
+  '医生端信息保护',
+  '生产信息使用规则',
+  '客户档案分类要求',
+  '档案修改不回写'
 ])
 
 requireText('docs/api/openapi.yaml', [

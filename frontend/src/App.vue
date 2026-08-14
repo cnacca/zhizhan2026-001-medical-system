@@ -8,6 +8,7 @@ import AdminHandoverPages from './components/AdminHandoverPages.vue'
 import AdminConfigurationCenter from './components/AdminConfigurationCenter.vue'
 import CsPortalPages from './components/CsPortalPages.vue'
 import ProductionDesignWorkspace from './components/ProductionDesignWorkspace.vue'
+import { staffOrderIdentity } from './utils/orderIdentity'
 import { productionProgressNodes, productionProgressSummary } from './utils/productionProgress'
 
 const StlViewerDialog = defineAsyncComponent(() => import('./components/StlViewerDialog.vue'))
@@ -3884,15 +3885,11 @@ const filteredProductionReviewOrders = computed(() => {
   const keyword = productionReviewKeyword.value.trim().toLowerCase()
   if (!keyword) return productionReviewOrders.value
   return productionReviewOrders.value.filter((order) => [
-    order.order_no,
     String(order.order_id),
-    order.clinic_name,
     String(order.clinic_id),
-    order.product_type,
-    productTypeLabel(order.product_type),
     order.production_note,
     order.reject_reason,
-    ...Object.values(order.form_data ?? {})
+    ...internalOrderIdentity(order).searchValues
   ].some((value) => String(value ?? '').toLowerCase().includes(keyword)))
 })
 const selectedProcessNode = computed(() => selectedProcessInstance.value?.nodes.find((node) => node.node_instance_id === selectedProcessNodeId.value) ?? null)
@@ -4168,13 +4165,10 @@ const adminOrderRows = computed(() => {
   const keyword = adminOrderKeyword.value.trim().toLowerCase()
   return internalOrders.value.filter((order) => {
     const keywordMatches = !keyword || [
-      order.order_no,
-      order.clinic_name,
-      order.patient_name || '',
       order.doctor_name || '',
-      productTypeLabel(order.product_type),
       statusLabel(order.internal_status),
-      statusLabel(order.external_status)
+      statusLabel(order.external_status),
+      ...internalOrderIdentity(order).searchValues
     ].some((value) => value.toLowerCase().includes(keyword))
     const statusMatches = adminOrderStatusFilter.value === 'ALL' || order.internal_status === adminOrderStatusFilter.value
     const productMatches = adminOrderProductFilter.value === 'ALL' || order.product_type === adminOrderProductFilter.value
@@ -4745,6 +4739,9 @@ const reworkImpactSteps = computed<ReworkImpactStep[]>(() => {
 })
 function productTypeLabel(type: string | null | undefined) {
   return type ? (productTypeLabelMap[type] ?? type.replaceAll('_', ' ')) : '未分类'
+}
+function internalOrderIdentity(order: InternalOrderItem) {
+  return staffOrderIdentity(order, productTypeLabel(order.product_type), { maskPatient: portalTone.value === 'production' })
 }
 function notificationEventLabel(event: string | null | undefined) {
   return event ? (notificationEventLabelMap[event] ?? '业务通知') : '业务通知'
@@ -5968,10 +5965,17 @@ function clearLoginSession() {
   salesDashboardSummary.value = null
   aiGovernanceLocalHardening.value = null
   aiGovernanceLocalHardeningError.value = ''
+  clearCsPortalFocusContext()
   closeNotificationSocket()
 }
 
-function navigateToRoute(routePath: string) {
+function clearCsPortalFocusContext() {
+  csPortalFocusOrderId.value = null
+  csPortalFocusTask.value = null
+}
+
+function navigateToRoute(routePath: string, preserveCsPortalFocus = false) {
+  if (!preserveCsPortalFocus) clearCsPortalFocusContext()
   const normalizedRoutePath = ['/admin/staff/roles', '/admin/staff/organization'].includes(routePath)
     ? '/admin/staff'
     : routePath
@@ -6089,12 +6093,16 @@ function openCsHelpCenter() {
   navigateToRoute('/cs/help')
 }
 
-function navigateFromCsPage(routePath: string) {
+function navigateFromCsPage(routePath: string, focusOrderId?: number) {
+  if (focusOrderId !== undefined) {
+    csPortalFocusOrderId.value = focusOrderId
+    csPortalFocusTask.value = routePath === '/cs/information-translation' ? 'ORDER_REVIEW' : null
+  }
   const matchedItem = findDisplayItemByRoute(routePath)
   if (matchedItem) {
     activeNavId.value = matchedItem.id
   }
-  navigateToRoute(routePath)
+  navigateToRoute(routePath, focusOrderId !== undefined)
 }
 
 async function openAdminRemainingOrder(orderId: number) {
@@ -8591,7 +8599,7 @@ function openCsDashboardAttentionItem(item: CsDashboardAttentionItem) {
   }
   csPortalFocusOrderId.value = item.orderId
   csPortalFocusTask.value = item.kind
-  navigateToRoute(item.kind === 'ORDER_REVIEW' ? '/cs/information-translation' : '/cs/inquiries')
+  navigateToRoute(item.kind === 'ORDER_REVIEW' ? '/cs/information-translation' : '/cs/inquiries', true)
 }
 
 async function resolveCustomerAttentionItem(item: MessageAttentionItem) {
@@ -11650,7 +11658,7 @@ onBeforeUnmount(() => {
               <div class="aor-filter-main">
                 <label class="aor-filter-search">
                   <i class="admin-menu-icon" aria-hidden="true" v-html="businessIconSvg('search')" />
-                  <input v-model="adminOrderKeyword" type="search" placeholder="搜索订单号、客户、患者或产品">
+                  <input v-model="adminOrderKeyword" type="search" placeholder="搜索客户、患者、病例号、牙位、材料、颜色或系统单号">
                 </label>
                 <select v-model="adminOrderStatusFilter" aria-label="订单状态"><option value="ALL">订单状态</option><option v-for="status in adminOrderStatusOptions" :key="status" :value="status">{{ statusLabel(status) }}</option></select>
                 <select v-model="adminOrderDoctorFilter" aria-label="医生"><option value="ALL">医生</option><option v-for="doctor in adminOrderDoctorOptions" :key="doctor.id" :value="String(doctor.id)">{{ doctor.name }}</option></select>
@@ -11680,12 +11688,12 @@ onBeforeUnmount(() => {
                 <div class="aor-table-scroll">
                   <table aria-label="订单列表">
                     <colgroup><col class="aor-col-check"><col class="aor-col-order"><col class="aor-col-customer"><col class="aor-col-product"><col class="aor-col-doctor"><col class="aor-col-stage"><col class="aor-col-due"><col class="aor-col-review"><col class="aor-col-updated"><col class="aor-col-action"></colgroup>
-                    <thead><tr><th><input type="checkbox" disabled aria-label="批量操作暂未开放" title="批量操作暂未开放"></th><th>订单编号 ↓</th><th>诊所 / 患者 · 医生</th><th>产品 / 牙位</th><th>医生状态</th><th>生产阶段</th><th>交期</th><th>审核标记</th><th>更新时间</th><th>操作</th></tr></thead>
+                    <thead><tr><th><input type="checkbox" disabled aria-label="批量操作暂未开放" title="批量操作暂未开放"></th><th>订单识别</th><th>客户单号 / 系统号</th><th>产品 / 牙位</th><th>医生状态</th><th>生产阶段</th><th>交期</th><th>审核标记</th><th>更新时间</th><th>操作</th></tr></thead>
                     <tbody>
                       <tr v-for="order in adminOrderPagedRows" :key="order.order_id" tabindex="0" @click="openAdminOrderDrawer(order)" @keydown.enter="openAdminOrderDrawer(order)" @keydown.space.prevent="openAdminOrderDrawer(order)">
                         <td><input type="checkbox" disabled aria-label="批量操作暂未开放" title="批量操作暂未开放" @click.stop></td>
-                        <td><span class="aor-cell-main aor-order-no">{{ order.order_no }}</span><span class="aor-cell-sub">编号 {{ order.order_id }}</span></td>
-                        <td><span class="aor-cell-main">{{ order.clinic_name || '诊所未关联' }}</span><span class="aor-cell-sub">{{ order.patient_name || '患者未关联' }} · {{ order.doctor_name || '医生未关联' }}</span></td>
+                        <td><span class="aor-cell-main aor-order-no">{{ internalOrderIdentity(order).primary }}</span><span class="aor-cell-sub">{{ internalOrderIdentity(order).secondary }}</span></td>
+                        <td><span class="aor-cell-main">{{ internalOrderIdentity(order).reference }}</span><span class="aor-cell-sub">{{ order.order_no }} · {{ order.doctor_name || '医生未关联' }}</span></td>
                         <td><span class="aor-cell-main">{{ productTypeLabel(order.product_type) }}</span><span class="aor-cell-sub">{{ adminOrderFormValue(order, ['tooth_position', 'tooth', 'tooth_no', 'teeth']) || '牙位暂未提供' }}</span></td>
                         <td><em class="aor-badge" :class="adminOrderStatusClass(order.external_status)">{{ statusLabel(order.external_status) }}</em><span v-if="adminOrderExceptionLabel(order) !== '无异常'" class="aor-cell-sub is-warning">{{ adminOrderExceptionLabel(order) }}</span></td>
                         <td><span class="aor-cell-main">{{ adminOrderProductionStage(order) }}</span><span class="aor-stages" :aria-label="`订单流转第 ${adminOrderLifecycle(order).step} 阶段`"><i v-for="step in 6" :key="step" :class="{ done: step <= adminOrderLifecycle(order).step, active: step === Math.max(1, adminOrderLifecycle(order).step) }" /></span></td>
@@ -12283,7 +12291,7 @@ onBeforeUnmount(() => {
                     <col class="admin-flow-col-note">
                     <col class="admin-flow-col-action">
                   </colgroup>
-                  <thead><tr><th>订单编号</th><th>客户</th><th>产品</th><th>审核状态</th><th>生产备注</th><th>操作</th></tr></thead>
+                  <thead><tr><th>订单识别</th><th>客户单号 / 系统号</th><th>产品</th><th>审核状态</th><th>生产备注</th><th>操作</th></tr></thead>
                   <tbody>
                     <tr
                       v-for="order in filteredProductionReviewOrders"
@@ -12292,8 +12300,8 @@ onBeforeUnmount(() => {
                       @click="openProductionReviewDrawer(order)"
                       @keydown.enter="openProductionReviewDrawer(order)"
                     >
-                      <td><span class="aor-cell-main aor-order-no">{{ order.order_no }}</span><span class="aor-cell-sub">编号 {{ order.order_id }}</span></td>
-                      <td><span class="aor-cell-main">{{ order.clinic_name || '诊所未设置' }}</span><span class="aor-cell-sub">客户编号 {{ order.clinic_id }}</span></td>
+                      <td><span class="aor-cell-main aor-order-no">{{ internalOrderIdentity(order).primary }}</span><span class="aor-cell-sub">{{ internalOrderIdentity(order).secondary }}</span></td>
+                      <td><span class="aor-cell-main">{{ internalOrderIdentity(order).reference }}</span><span class="aor-cell-sub">{{ order.order_no }}</span></td>
                       <td><span class="aor-cell-main">{{ productTypeLabel(order.product_type) }}</span><span class="aor-cell-sub">系统自动匹配工艺</span></td>
                       <td><em class="aor-badge" :class="adminOrderStatusClass(order.internal_status)">{{ statusLabel(order.internal_status) }}</em><span class="aor-cell-sub">{{ statusLabel(order.external_status) }}</span></td>
                       <td class="aor-note-cell">
@@ -12449,7 +12457,7 @@ onBeforeUnmount(() => {
                     <col class="admin-flow-col-note">
                     <col class="admin-flow-col-action">
                   </colgroup>
-                  <thead><tr><th>订单编号</th><th>客户</th><th>产品</th><th>生产状态</th><th>派工提示</th><th>操作</th></tr></thead>
+                  <thead><tr><th>订单识别</th><th>客户单号 / 系统号</th><th>产品</th><th>生产状态</th><th>派工提示</th><th>操作</th></tr></thead>
                   <tbody>
                     <tr
                       v-for="order in processInstanceOrders"
@@ -12458,8 +12466,8 @@ onBeforeUnmount(() => {
                       @click="openProcessAssignmentDrawer(order)"
                       @keydown.enter="openProcessAssignmentDrawer(order)"
                     >
-                      <td><span class="aor-cell-main aor-order-no">{{ order.order_no }}</span><span class="aor-cell-sub">编号 {{ order.order_id }}</span></td>
-                      <td><span class="aor-cell-main">{{ order.clinic_name || '诊所未设置' }}</span><span class="aor-cell-sub">客户编号 {{ order.clinic_id }}</span></td>
+                      <td><span class="aor-cell-main aor-order-no">{{ internalOrderIdentity(order).primary }}</span><span class="aor-cell-sub">{{ internalOrderIdentity(order).secondary }}</span></td>
+                      <td><span class="aor-cell-main">{{ internalOrderIdentity(order).reference }}</span><span class="aor-cell-sub">{{ order.order_no }}</span></td>
                       <td><span class="aor-cell-main">{{ productTypeLabel(order.product_type) }}</span><span class="aor-cell-sub">查看工序后安排员工</span></td>
                       <td><em class="aor-badge" :class="adminOrderStatusClass(order.internal_status)">{{ statusLabel(order.internal_status) }}</em><span class="aor-cell-sub">{{ statusLabel(order.external_status) }}</span></td>
                       <td><span class="aor-cell-main">按工序安排执行人</span><span class="aor-cell-sub">不要求一次派完全部节点</span></td>
@@ -13620,7 +13628,7 @@ onBeforeUnmount(() => {
             <div>
               <label class="factory-orders-global-search">
                 <span aria-hidden="true">⌕</span>
-                <input v-model="productionBoardKeyword" type="search" placeholder="搜索订单号、诊所或产品" @keyup.enter="loadProductionBoardOrders">
+                <input v-model="productionBoardKeyword" type="search" placeholder="搜索客户、患者、病例号、牙位、材料、颜色或系统单号" @keyup.enter="loadProductionBoardOrders">
               </label>
               <button type="button" aria-label="查看通知" @click="openNotificationCenter">🔔</button>
             </div>
@@ -13655,7 +13663,7 @@ onBeforeUnmount(() => {
               </div>
               <label class="factory-table-search">
                 <span aria-hidden="true">⌕</span>
-                <input v-model="productionBoardKeyword" type="search" placeholder="搜索订单号、诊所或产品" @keyup.enter="loadProductionBoardOrders">
+                <input v-model="productionBoardKeyword" type="search" placeholder="搜索客户、患者、病例号、牙位、材料、颜色或系统单号" @keyup.enter="loadProductionBoardOrders">
               </label>
             </header>
 
@@ -13672,8 +13680,8 @@ onBeforeUnmount(() => {
                         @change="toggleProductionOrdersAll(checkboxChecked($event))"
                       >
                     </th>
-                    <th>订单编号</th>
-                    <th>诊所</th>
+                    <th>订单识别</th>
+                    <th>客户单号 / 系统号</th>
                     <th>产品与牙位</th>
                     <th>生产状态</th>
                     <th>负责人</th>
@@ -13698,8 +13706,8 @@ onBeforeUnmount(() => {
                         @change="toggleProductionOrderSelection(order.order_id, checkboxChecked($event))"
                       >
                     </td>
-                    <td><strong class="factory-order-number">{{ order.order_no }}</strong><small>#{{ order.order_id }}</small></td>
-                    <td>{{ order.clinic_name || '暂无信息' }}</td>
+                    <td><strong class="factory-order-number">{{ internalOrderIdentity(order).primary }}</strong><small>{{ internalOrderIdentity(order).secondary }}</small></td>
+                    <td><strong>{{ internalOrderIdentity(order).reference }}</strong><small>{{ order.order_no }}</small></td>
                     <td><strong>{{ productTypeLabel(order.product_type) }}</strong><small>{{ productionBoardToothLabel(order) }}</small></td>
                     <td>
                       <span class="factory-order-status">{{ statusLabel(order.internal_status) }}</span>
@@ -17315,9 +17323,9 @@ onBeforeUnmount(() => {
                 <small>超出提醒{{ aiGovernanceLocalHardening.budget_circuit_breaker_policy.budget_notification_enabled ? '已开启' : '未开启' }} · 自动保护{{ aiGovernanceLocalHardening.budget_circuit_breaker_policy.budget_circuit_breaker_enabled ? '已开启' : '未开启' }}</small>
               </article>
               <article class="performance-card">
-                <span>生产备注模板</span>
-                <strong>{{ aiTemplateLabel(aiGovernanceLocalHardening.ai5_template_boundary.template_version) }}</strong>
-                <small>{{ aiGovernanceStatusLabel(aiGovernanceLocalHardening.ai5_template_boundary.customer_template_status) }}</small>
+                <span>生产信息口径</span>
+                <strong>客户档案分类要求</strong>
+                <small>客服初审确认后冻结订单快照</small>
               </article>
               <article class="performance-card">
                 <span>外部智能服务</span>
@@ -17371,27 +17379,27 @@ onBeforeUnmount(() => {
             <div class="prototype-queue-card">
               <div class="prototype-table-head">
                 <div>
-                  <h3>生产备注使用规则</h3>
-                  <small>当前使用通用整理模板，生成后由工作人员确认再写入订单。</small>
+                  <h3>生产信息使用规则</h3>
+                  <small>客户档案分类要求自动带入，生成后由客服确认再写入订单。</small>
                 </div>
-                <el-tag type="warning" round>客户版本待提供</el-tag>
+                <el-tag type="success" round>订单快照</el-tag>
               </div>
               <div class="doctor-order-summary">
                 <div>
-                  <span>当前模板</span>
-                  <strong>{{ aiTemplateLabel(aiGovernanceLocalHardening.ai5_template_boundary.template_version) }}</strong>
+                  <span>业务来源</span>
+                  <strong>客户档案 + 本单指示</strong>
                 </div>
                 <div>
-                  <span>客户版本</span>
-                  <strong>{{ aiGovernanceStatusLabel(aiGovernanceLocalHardening.ai5_template_boundary.customer_template_status) }}</strong>
+                  <span>保存时点</span>
+                  <strong>客服初审通过</strong>
                 </div>
                 <div>
-                  <span>自动写入</span>
-                  <strong>{{ aiGovernanceLocalHardening.ai5_template_boundary.auto_write_allowed ? '可以' : '不可以' }}</strong>
+                  <span>历史订单</span>
+                  <strong>档案修改不回写</strong>
                 </div>
                 <div>
                   <span>人工确认</span>
-                  <strong>{{ aiGovernanceLocalHardening.ai5_template_boundary.human_confirmation_required ? '必须' : '否' }}</strong>
+                  <strong>必须</strong>
                 </div>
               </div>
             </div>

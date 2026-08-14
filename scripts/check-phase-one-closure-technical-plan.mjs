@@ -64,7 +64,7 @@ requireText(planPath, [
   'npm run check:task9d80',
   'npm run check:task9d81',
   'npm run check:task9d97',
-  'npm run check:task9d98',
+  'npm run check:customer-special-requirements',
   'npm run check:task8-readiness-gaps',
   'npm run check:openapi',
   'npm run build:frontend',

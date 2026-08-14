@@ -26,7 +26,7 @@ import org.springframework.web.server.ResponseStatusException;
 public class ClinicService {
 
     private static final Set<String> ALLOWED_PREFERENCE_KEYS = Set.of(
-            "color", "contact", "margin", "shape", "material", "note");
+            "color", "contact", "occlusion", "margin", "shape", "material", "note");
 
     private final JdbcClient jdbcClient;
     private final ObjectMapper objectMapper;

@@ -46,10 +46,10 @@
       "id": "ai-production-governance",
       "status": "PARTIAL",
       "source": "docs/deployment/readiness-checklist.md#AI 接入",
-      "current_evidence": "DeepSeek 默认关闭、限流、成本审计、重试、失败审计、预算、熔断、输出防护、外部告警发送/调度/死信/幂等/签名/监控/列表/失败可见性已落地；9D.71 已补默认关闭的 AI 外部告警接收端验签 / 防重放本地验收桩；9D.80 已新增 AI 真实 key / 生产 webhook 联调记录模板和 check:task9d80；9D.94 已补 LangChain4j + DeepSeek 底座对齐第一增量；9D.97 和 PRD V2 本地功能差异收口 C 已补 AI-2 引用数据说明与 attachment_contexts 附件预览上下文第一段；9D.98 已补 AI-5 PHASE_ONE_DEFAULT_V1 默认模板、知识上下文说明和人工确认写入链路。GOAL-019 / TASK-020 已补本地只读 AI 治理总览：GET /ai/governance/local-hardening、管理端 /admin/ai-governance、提示词版本、输出安全边界、预算 / 熔断、AI-3 安全矩阵、AI-5 默认模板边界和真实外部集成待验状态，并新增 check:ai-production-governance-local-hardening。真实 key、生产 webhook、客户正式模板和客户 / PM 签字仍为待填写 / 待确认。 AI-5 人工确认写入入口保留 /ai/production-note/confirm 作为本地证据。",
-      "remaining_reason": "仍缺真实 key 环境联调、生产 webhook 联调、外部 secret 注入验收、客户提供 AI-5 正式模板和真实环境 AI 验收。guarded streaming、RAG / tool calling、生产级成本看板未被 PRD V2 列为一期 P0。",
-      "minimum_closure_loop": "真实 AI 环境具备后按 9D.80 模板完成 AI-1 至 AI-5 验收；客户提供 AI-5 正式模板后替换 PHASE_ONE_DEFAULT_V1，并把结果纳入一期总体验收记录。额外 AI 能力如新增另走变更。",
-      "verification": "npm run check:ai-production-governance-local-hardening; npm run check:task9d71; npm run check:task9d80; npm run check:task9d94; npm run check:task9d97; npm run check:task9d98; npm run check:openapi; AiGatewayTests; AiGatewayDeepSeekTests; npm run check:prd-v2-gap-closure-c; task-9d94-langchain-deepseek-foundation; task-9d98-ai5-production-note-template-context"
+      "current_evidence": "DeepSeek 默认关闭、限流、成本审计、重试、失败审计、预算、熔断、输出防护、外部告警发送/调度/死信/幂等/签名/监控/列表/失败可见性已落地；9D.71 已补默认关闭的 AI 外部告警接收端验签 / 防重放本地验收桩；9D.80 已新增 AI 真实 key / 生产 webhook 联调记录模板和 check:task9d80；9D.94 已补 LangChain4j + DeepSeek 底座对齐第一增量；9D.97 和 PRD V2 本地功能差异收口 C 已补 AI-2 引用数据说明与 attachment_contexts 附件预览上下文第一段。D-186 已取代 9D.98 的默认模板 / 独立确认页方案：客户特殊生产要求按邻接、咬合等业务大类维护，客服初审自动带入，审核通过时将纯业务文本写入 orders.production_note 形成订单快照；AI 审计继续独立记录，不混入生产执行文本。GOAL-019 / TASK-020 的本地只读 AI 治理总览继续保留。真实 key、生产 webhook 和真实环境 AI 验收仍待完成。",
+      "remaining_reason": "仍缺真实 key 环境联调、生产 webhook 联调、外部 secret 注入验收和真实环境 AI 验收。guarded streaming、RAG / tool calling、生产级成本看板未被 PRD V2 列为一期 P0。",
+      "minimum_closure_loop": "真实 AI 环境具备后按 9D.80 模板完成 AI-1 至 AI-5 验收；AI-5 按 D-186 使用客户档案分类要求和订单快照口径验收。额外 AI 能力如新增另走变更。",
+      "verification": "npm run check:ai-production-governance-local-hardening; npm run check:task9d71; npm run check:task9d80; npm run check:task9d94; npm run check:task9d97; npm run check:customer-special-requirements; npm run check:openapi; AiGatewayTests; AiGatewayDeepSeekTests; ClinicPreferenceTests; npm run check:prd-v2-gap-closure-c; task-9d94-langchain-deepseek-foundation; customer-special-requirement-snapshot"
     },
     {
       "id": "deployment-infrastructure",
