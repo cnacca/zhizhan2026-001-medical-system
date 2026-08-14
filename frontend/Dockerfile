@@ -2,7 +2,7 @@ FROM node:22-alpine AS build
 
 WORKDIR /workspace
 
-RUN corepack enable
+RUN corepack enable && corepack prepare pnpm@11.7.0 --activate
 
 COPY package.json pnpm-lock.yaml pnpm-workspace.yaml ./
 COPY frontend/package.json frontend/package.json
@@ -11,7 +11,7 @@ COPY frontend/vite.config.ts frontend/vite.config.ts
 COPY frontend/index.html frontend/index.html
 COPY frontend/src frontend/src
 
-RUN pnpm install --frozen-lockfile
+RUN pnpm install --frozen-lockfile --filter ai-order-platform-frontend...
 RUN pnpm --filter ai-order-platform-frontend build
 
 FROM nginx:1.27-alpine
