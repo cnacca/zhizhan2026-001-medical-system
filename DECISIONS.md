@@ -1,5 +1,18 @@
 # DECISIONS
 
+## D-191 正式站只保留裸域名为规范入口，兼容已打开的 www 页面并用公网登录探针守住 CORS
+
+状态：已确认并执行。
+
+决策：
+
+- 正式站规范 Origin 固定为 `https://chinesedigitaldental.com`；`https://www.chinesedigitaldental.com` 和当前直接 `:8088` 入口由前端 Nginx 以 308 保留路径重定向到规范 Origin，避免同一前端产生多个浏览器 Origin。
+- 生产后端同时允许裸域名与受控 `www` Origin，兼容已经加载、尚未刷新或仍在发送请求的旧 `www` 页面；不得改成通配 Origin。
+- 自动发布完成后必须从公网对裸域名和 `www` Origin 分别调用登录接口，以无效凭据得到 401 且精确回显相同 `Access-Control-Allow-Origin` 为通过条件；同时验证 `www` 与直接端口均 308 到裸域名。
+- 容器内部首页和 health 检查继续保留，但不能代替浏览器 Origin／CORS 验证。
+
+影响：生产环境先原子备份并修正 CORS 环境值、仅重建后端完成止血；仓库增加入口规范化和自动发布公网门禁。未放宽未知来源访问，不修改业务数据或账号，Task 8 继续保持 `NOT_READY`。
+
 ## D-190 医生新建订单先暂选产品，点击下一步时再绑定患者并统一落库
 
 状态：已确认并执行。
