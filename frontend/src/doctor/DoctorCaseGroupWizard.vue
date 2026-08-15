@@ -292,6 +292,7 @@ const recommendError = ref('')
 const recommendNote = ref('')
 const productRecommendations = ref<DoctorProductRecommendation[]>([])
 const selectedCategoryCode = ref('')
+const pendingProductIds = ref<number[]>([])
 const selectedOrderId = ref<number | null>(null)
 const notice = ref('')
 const itemFiles = reactive<Record<number, DoctorFile[]>>({})
@@ -358,6 +359,11 @@ const catalogCategories = computed(() => {
 const selectedCategoryProducts = computed(() =>
   catalogProducts.value.filter((product) => product.category_code === selectedCategoryCode.value)
 )
+const pendingProducts = computed(() => pendingProductIds.value
+  .map((productId) => catalog.value?.products.find((product) => product.product_id === productId))
+  .filter((product): product is CatalogProduct => Boolean(product))
+)
+const selectedProductCount = computed(() => (group.value?.items.length ?? 0) + pendingProducts.value.length)
 const selectedProductGroups = computed(() => {
   if (selectedCategoryCode.value !== 'CONVENTIONAL_ORTHODONTICS') {
     return [{ label: '', products: selectedCategoryProducts.value }]
@@ -726,30 +732,39 @@ async function ensureGroup() {
   return created
 }
 
-async function addProduct(product: CatalogProduct) {
-  if (busy.value) return
-  busy.value = true
+async function persistPendingProductsUnlocked() {
   try {
-    const current = await ensureGroup()
-    const next = await api<CaseGroup>(`/order-case-groups/${current.group_id}/items`, {
-      method: 'POST',
-      body: JSON.stringify({
-        product_id: product.product_id,
-        item_client_key: crypto.randomUUID(),
-        form_values: caseSettingsSnapshot(),
-        material_selections: [],
-        accessory_selections: [],
-        file_ids: [],
-        expected_draft_version: current.draft_version
+    for (const productId of [...pendingProductIds.value]) {
+      const product = catalog.value?.products.find((candidate) => candidate.product_id === productId)
+      if (!product || group.value?.items.some((item) => item.product_id === productId)) {
+        pendingProductIds.value = pendingProductIds.value.filter((candidate) => candidate !== productId)
+        continue
+      }
+      const current = await ensureGroup()
+      const next = await api<CaseGroup>(`/order-case-groups/${current.group_id}/items`, {
+        method: 'POST',
+        body: JSON.stringify({
+          product_id: product.product_id,
+          item_client_key: crypto.randomUUID(),
+          form_values: caseSettingsSnapshot(),
+          material_selections: [],
+          accessory_selections: [],
+          file_ids: [],
+          expected_draft_version: current.draft_version
+        })
       })
-    })
-    group.value = next
-    selectedOrderId.value = next.items.at(-1)?.order_id ?? null
-    ElMessage.success(`已添加 ${product.display_name}`)
+      group.value = next
+      selectedOrderId.value = next.items.at(-1)?.order_id ?? null
+      pendingProductIds.value = pendingProductIds.value.filter((candidate) => candidate !== productId)
+    }
+    if (!group.value?.items.length) {
+      ElMessage.error('所选产品已不可用，请重新选择')
+      return false
+    }
+    return true
   } catch (cause) {
-    ElMessage.error(cause instanceof Error ? cause.message : '添加产品失败')
-  } finally {
-    busy.value = false
+    ElMessage.error(cause instanceof Error ? cause.message : '保存所选产品失败')
+    return false
   }
 }
 
@@ -929,16 +944,22 @@ function commitItemObjectFields(item: CaseGroupItem) {
     .every((field) => commitObjectField(item, field.key))
 }
 
+function caseStepOneErrors() {
+  const errors: string[] = []
+  if (!caseSettings.required_delivery_date) errors.push('请选择要求到货日期')
+  if (['IMPRESSION', 'REWORK', 'RETURN'].includes(caseSettings.order_type)
+    && !caseSettings.inbound_tracking_no.trim()) {
+    errors.push('请填写寄模运单号')
+  }
+  return errors
+}
+
 function itemStepErrors(item: CaseGroupItem, targetStep: number) {
   const errors: string[] = []
   const product = catalog.value?.products.find((candidate) => candidate.product_id === item.product_id)
   if (!product) errors.push('所选产品暂不可用，请重新选择')
   if (targetStep === 1) {
-    if (!caseSettings.required_delivery_date) errors.push('请选择要求到货日期')
-    if (['IMPRESSION', 'REWORK', 'RETURN'].includes(caseSettings.order_type)
-      && !caseSettings.inbound_tracking_no.trim()) {
-      errors.push('请填写寄模运单号')
-    }
+    errors.push(...caseStepOneErrors())
   }
   if (targetStep === 2 && product?.tooth_rule_code && !selectedTeeth(item).length) {
     errors.push('请选择牙位')
@@ -1247,8 +1268,19 @@ function toothGestureHelp(item: CaseGroupItem) {
   return '单击标单冠，拖拽标桥，双击任意牙位全口选择'
 }
 
-function productSelected(product: CatalogProduct) {
+function persistedProductSelected(product: CatalogProduct) {
   return Boolean(group.value?.items.some((item) => item.product_id === product.product_id))
+}
+
+function productSelected(product: CatalogProduct) {
+  return persistedProductSelected(product) || pendingProductIds.value.includes(product.product_id)
+}
+
+function toggleProductSelection(product: CatalogProduct) {
+  if (busy.value || persistedProductSelected(product)) return
+  pendingProductIds.value = pendingProductIds.value.includes(product.product_id)
+    ? pendingProductIds.value.filter((productId) => productId !== product.product_id)
+    : [...pendingProductIds.value, product.product_id]
 }
 
 // AI-7：推荐只作建议，必须由医生点击「采用」才加入订单，系统不自动填表。
@@ -1256,6 +1288,11 @@ function recommendationProduct(recommendation: DoctorProductRecommendation) {
   return (catalog.value?.products ?? []).find(
     (product) => String(product.product_id) === recommendation.productId
   )
+}
+
+function recommendationPersisted(recommendation: DoctorProductRecommendation) {
+  const product = recommendationProduct(recommendation)
+  return Boolean(product && persistedProductSelected(product))
 }
 
 async function loadProductRecommendations() {
@@ -1285,7 +1322,8 @@ async function applyRecommendation(recommendation: DoctorProductRecommendation) 
     ElMessage.info('该产品已经在当前病例中')
     return
   }
-  await addProduct(product)
+  toggleProductSelection(product)
+  ElMessage.success(`已暂存 ${product.display_name}，点击下一步后保存`)
 }
 
 function categoryIcon(categoryCode: string) {
@@ -1425,17 +1463,29 @@ async function uploadSharedFiles(event: Event) {
 
 async function nextStep() {
   if (busy.value || fileUploading.value) return
-  if (step.value === 1 && (!patientId.value || !group.value?.items.length)) {
-    ElMessage.warning(!patientId.value ? '请先选择患者' : '请至少选择一个产品')
-    return
-  }
-  const currentStepErrors = group.value?.items.flatMap((item) => itemStepErrors(item, step.value)) ?? []
-  if (currentStepErrors.length) {
-    ElMessage.warning(Array.from(new Set(currentStepErrors)).join('；'))
-    return
+  if (step.value === 1) {
+    if (!patientId.value) {
+      ElMessage.warning('请选择患者后再进入下一步')
+      return
+    }
+    if (!selectedProductCount.value) {
+      ElMessage.warning('请至少选择一个产品')
+      return
+    }
+    const errors = caseStepOneErrors()
+    if (errors.length) {
+      ElMessage.warning(errors.join('；'))
+      return
+    }
   }
   busy.value = true
   try {
+    if (step.value === 1 && !(await persistPendingProductsUnlocked())) return
+    const currentStepErrors = group.value?.items.flatMap((item) => itemStepErrors(item, step.value)) ?? []
+    if (currentStepErrors.length) {
+      ElMessage.warning(Array.from(new Set(currentStepErrors)).join('；'))
+      return
+    }
     if (step.value <= 5 && !(await saveAllItemsUnlocked())) return
     step.value = Math.min(6, step.value + 1)
   } finally {
@@ -1548,9 +1598,10 @@ onMounted(async () => {
                     :key="product.product_id"
                     type="button"
                     :class="{ active: productSelected(product) }"
-                    :disabled="busy || productSelected(product)"
+                    :disabled="busy || persistedProductSelected(product)"
+                    :title="persistedProductSelected(product) ? '该产品已保存' : productSelected(product) ? `取消选择${product.display_name}` : `选择${product.display_name}`"
                     :data-testid="`case-add-product-${product.product_id}`"
-                    @click="addProduct(product)"
+                    @click="toggleProductSelection(product)"
                   >
                     <span><strong>{{ product.display_name }}</strong><small>待报价</small></span>
                     <i>{{ productSelected(product) ? '✓' : '＋' }}</i>
@@ -1569,7 +1620,7 @@ onMounted(async () => {
           <div class="case-source-content">
             <header class="case-source-intro">
               <h1>开始新订单</h1>
-              <p>从左侧选择产品大类和具体产品（均支持多选），再检索或新建患者。同一病例可以添加多个真实产品。</p>
+              <p>先从左侧选择一个或多个具体产品，再检索或新建患者；点击下一步时统一保存病例订单。</p>
             </header>
 
             <div v-if="catalog?.publication_status !== 'ACTIVE'" class="case-alert warning">
@@ -1597,7 +1648,7 @@ onMounted(async () => {
                   v-for="recommendation in productRecommendations"
                   :key="recommendation.productId"
                   type="button"
-                  :disabled="busy || !recommendationProduct(recommendation)"
+                  :disabled="busy || !recommendationProduct(recommendation) || recommendationPersisted(recommendation)"
                   @click="applyRecommendation(recommendation)"
                 >
                   <span>
@@ -1671,13 +1722,18 @@ onMounted(async () => {
               </section>
             </div>
 
-            <aside v-if="group?.items.length" class="case-basket case-basket-inline">
-              <header><strong>已选产品</strong><span>{{ group?.items.length ?? 0 }} 项</span></header>
+            <aside v-if="selectedProductCount" class="case-basket case-basket-inline">
+              <header><strong>已选产品</strong><span>{{ selectedProductCount }} 项</span></header>
               <article v-for="item in group?.items ?? []" :key="item.order_id">
                 <div><strong>{{ item.product_name }}</strong><small>产品订单 {{ item.order_no }}</small></div>
                 <span>待报价</span>
                 <button type="button" @click="copyItem(item)">复制</button>
                 <button type="button" class="danger" @click="removeItem(item)">移除</button>
+              </article>
+              <article v-for="product in pendingProducts" :key="`pending-${product.product_id}`">
+                <div><strong>{{ product.display_name }}</strong><small>尚未保存，点击下一步后创建产品订单</small></div>
+                <span>待报价</span>
+                <button type="button" class="danger" @click="toggleProductSelection(product)">取消选择</button>
               </article>
             </aside>
           </div>
