@@ -155,6 +155,7 @@
     "check:prd-v2-gap-closure-d": "node scripts/check-prd-v2-local-gap-closure-d.mjs",
     "check:auth-refresh": "node scripts/check-auth-refresh.mjs",
     "check:doctor-portal-v2": "node scripts/check-doctor-portal-v2.mjs",
+    "check:doctor-order-product-first": "node scripts/check-doctor-order-product-first.mjs",
     "smoke:task9d10-large-upload": "playwright test scripts/smoke-task-9d10-large-upload.spec.mjs --browser=chromium --workers=1",
     "smoke:task9d10-server-resume": "playwright test scripts/smoke-task-9d10-server-resume.spec.mjs --browser=chromium --workers=1",
     "smoke:task9d10-interrupted-resume": "playwright test scripts/smoke-task-9d10-interrupted-resume.spec.mjs --browser=chromium --workers=1",
