@@ -38,7 +38,14 @@ for (const fragment of [
   'PRODUCTION_SSH_PRIVATE_KEY',
   'PRODUCTION_SSH_KNOWN_HOSTS',
   'TEMP_DEMO_LOGIN_PREFILL_ENABLED',
-  'VITE_TEMP_DEMO_LOGIN_PREFILL_ENABLED'
+  'VITE_TEMP_DEMO_LOGIN_PREFILL_ENABLED',
+  'Verify public login origins and canonical redirects',
+  'https://chinesedigitaldental.com',
+  'https://www.chinesedigitaldental.com',
+  'Access-Control-Allow-Origin:',
+  'nonexistent-cors-check',
+  'public login CORS probe failed',
+  'canonical redirect probe failed'
 ]) {
   if (!workflow.includes(fragment)) {
     failures.push(`${workflowPath} missing required text: ${fragment}`)

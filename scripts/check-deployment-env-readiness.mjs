@@ -99,6 +99,16 @@ if (!backendSection.includes('TZ: Asia/Shanghai')) {
 // 部署上去就空白」。C 批次的 /rbac 与 F 批次的 /ordering-rules 都是这么漏掉的。
 const viteConfig = fs.readFileSync('frontend/vite.config.ts', 'utf8')
 const nginxConfig = fs.readFileSync('frontend/nginx.conf', 'utf8')
+for (const fragment of [
+  'server_name www.chinesedigitaldental.com 43.129.232.106;',
+  'return 308 https://chinesedigitaldental.com$request_uri;',
+  'listen 80 default_server;',
+]) {
+  if (!nginxConfig.includes(fragment)) {
+    console.error(`frontend/nginx.conf 缺少生产入口规范化配置：${fragment}`)
+    process.exit(1)
+  }
+}
 const viteProxyPrefixes = [...viteConfig.matchAll(/^\s*'(\/[a-z0-9-]+)':/gm)]
   .map((match) => match[1])
   .filter((prefix) => prefix !== '/ws')

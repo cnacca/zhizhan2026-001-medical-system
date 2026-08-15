@@ -5,17 +5,6 @@ on:
     branches:
       - main
   workflow_dispatch:
-    inputs:
-      diagnose_only:
-        description: Run read-only production CORS diagnostics without deploying
-        required: false
-        default: false
-        type: boolean
-      repair_cors_alias:
-        description: Add the controlled www origin to production CORS and recreate only the backend
-        required: false
-        default: false
-        type: boolean
 
 concurrency:
   group: ai-order-production
@@ -26,169 +15,6 @@ permissions:
   pull-requests: read
 
 jobs:
-  diagnose-production-cors:
-    if: github.event_name == 'workflow_dispatch' && (inputs.diagnose_only == true || inputs.repair_cors_alias == true)
-    runs-on: ubuntu-24.04
-    timeout-minutes: 10
-    environment:
-      name: production
-
-    steps:
-      - name: Configure production SSH identity
-        shell: bash
-        env:
-          SSH_PRIVATE_KEY: ${{ secrets.PRODUCTION_SSH_PRIVATE_KEY }}
-          SSH_KNOWN_HOSTS: ${{ secrets.PRODUCTION_SSH_KNOWN_HOSTS }}
-        run: |
-          set -euo pipefail
-          : "${SSH_PRIVATE_KEY:?missing PRODUCTION_SSH_PRIVATE_KEY}"
-          : "${SSH_KNOWN_HOSTS:?missing PRODUCTION_SSH_KNOWN_HOSTS}"
-          install -d -m 700 "${HOME}/.ssh"
-          install -m 600 /dev/null "${HOME}/.ssh/id_ed25519"
-          printf '%s\n' "${SSH_PRIVATE_KEY}" >"${HOME}/.ssh/id_ed25519"
-          install -m 600 /dev/null "${HOME}/.ssh/known_hosts"
-          printf '%s\n' "${SSH_KNOWN_HOSTS}" >"${HOME}/.ssh/known_hosts"
-
-      - name: Collect filtered CORS runtime evidence
-        if: inputs.diagnose_only == true
-        shell: bash
-        env:
-          SSH_HOST: ${{ secrets.PRODUCTION_SSH_HOST }}
-          SSH_USER: ${{ secrets.PRODUCTION_SSH_USER }}
-        run: |
-          set -euo pipefail
-          : "${SSH_HOST:?missing PRODUCTION_SSH_HOST}"
-          : "${SSH_USER:?missing PRODUCTION_SSH_USER}"
-          ssh \
-            -i "${HOME}/.ssh/id_ed25519" \
-            -o BatchMode=yes \
-            -o StrictHostKeyChecking=yes \
-            "${SSH_USER}@${SSH_HOST}" \
-            'bash -s' <<'REMOTE'
-          set -euo pipefail
-          evidence_since='2026-08-15T07:55:00Z'
-          evidence_until='2026-08-15T08:06:00Z'
-
-          date -u '+server_now=%Y-%m-%dT%H:%M:%SZ'
-          docker inspect ai-order-backend \
-            --format 'backend_id={{.Id}} backend_started={{.State.StartedAt}} backend_restart_count={{.RestartCount}} backend_image={{.Config.Image}}'
-          docker inspect ai-order-frontend \
-            --format 'frontend_id={{.Id}} frontend_started={{.State.StartedAt}} frontend_restart_count={{.RestartCount}} frontend_image={{.Config.Image}}'
-          docker inspect ai-order-backend \
-            --format '{{range .Config.Env}}{{println .}}{{end}}' \
-            | sed -n -E '/^(APP_CORS_ALLOWED_ORIGIN|SPRING_PROFILES_ACTIVE|SERVER_PORT)=/p'
-
-          docker events \
-            --since "${evidence_since}" \
-            --until "${evidence_until}" \
-            --filter container=ai-order-backend \
-            --filter container=ai-order-frontend \
-            --format 'docker_event={{.Time}}|{{.Type}}|{{.Action}}|{{.Actor.Attributes.name}}' \
-            || true
-
-          docker logs \
-            --since "${evidence_since}" \
-            --until "${evidence_until}" \
-            ai-order-backend 2>&1 \
-            | grep -E 'Invalid CORS|CORS|origin|Origin|Tomcat started|Started PlatformServerApplication|Stopping service' \
-            | tail -n 200 \
-            || true
-
-          docker logs \
-            --since "${evidence_since}" \
-            --until "${evidence_until}" \
-            ai-order-frontend 2>&1 \
-            | grep -E 'POST /api/auth/login' \
-            | tail -n 200 \
-            || true
-          REMOTE
-
-      - name: Repair production CORS alias atomically
-        if: inputs.repair_cors_alias == true
-        shell: bash
-        env:
-          SSH_HOST: ${{ secrets.PRODUCTION_SSH_HOST }}
-          SSH_USER: ${{ secrets.PRODUCTION_SSH_USER }}
-        run: |
-          set -euo pipefail
-          : "${SSH_HOST:?missing PRODUCTION_SSH_HOST}"
-          : "${SSH_USER:?missing PRODUCTION_SSH_USER}"
-          ssh \
-            -i "${HOME}/.ssh/id_ed25519" \
-            -o BatchMode=yes \
-            -o StrictHostKeyChecking=yes \
-            "${SSH_USER}@${SSH_HOST}" \
-            'bash -s' <<'REMOTE'
-          set -euo pipefail
-          config_file="${AI_ORDER_DEPLOY_CONFIG:-$HOME/.config/ai-order-platform/deploy.conf}"
-          [[ -f "${config_file}" && ! -L "${config_file}" ]]
-          # shellcheck disable=SC1090
-          source "${config_file}"
-          : "${RELEASE_ROOT:?RELEASE_ROOT missing}"
-          : "${PRODUCTION_ENV_FILE:?PRODUCTION_ENV_FILE missing}"
-          : "${COMPOSE_OVERRIDE_FILE:?COMPOSE_OVERRIDE_FILE missing}"
-          : "${COMPOSE_PROJECT_NAME:?COMPOSE_PROJECT_NAME missing}"
-
-          canonical_origin='https://chinesedigitaldental.com'
-          alias_origin='https://www.chinesedigitaldental.com'
-          expected_line="APP_CORS_ALLOWED_ORIGIN=${canonical_origin}"
-          repaired_line="APP_CORS_ALLOWED_ORIGIN=${canonical_origin},${alias_origin}"
-          current_line="$(grep -E '^APP_CORS_ALLOWED_ORIGIN=' "${PRODUCTION_ENV_FILE}")"
-          [[ "${current_line}" == "${expected_line}" || "${current_line}" == "${repaired_line}" ]]
-
-          if [[ "${current_line}" != "${repaired_line}" ]]; then
-            backup_file="${PRODUCTION_ENV_FILE}.cors-backup-$(date -u +%Y%m%dT%H%M%SZ)"
-            temp_file="${PRODUCTION_ENV_FILE}.cors-update.$$"
-            trap 'rm -f "${temp_file:-}"' EXIT
-            install -m 600 "${PRODUCTION_ENV_FILE}" "${backup_file}"
-            awk -v replacement="${repaired_line}" '
-              BEGIN { count = 0 }
-              /^APP_CORS_ALLOWED_ORIGIN=/ { print replacement; count += 1; next }
-              { print }
-              END { if (count != 1) exit 42 }
-            ' "${PRODUCTION_ENV_FILE}" >"${temp_file}"
-            chmod --reference="${PRODUCTION_ENV_FILE}" "${temp_file}"
-            mv "${temp_file}" "${PRODUCTION_ENV_FILE}"
-            trap - EXIT
-            printf 'production CORS env updated; backup=%s\n' "${backup_file}"
-          else
-            printf 'production CORS env already includes canonical and www origins\n'
-          fi
-
-          revision="$(<"${RELEASE_ROOT}/current-production-revision")"
-          [[ "${revision}" =~ ^[0-9a-f]{40}$ ]]
-          release_dir="${RELEASE_ROOT}/ai-order-${revision:0:12}"
-          compose_file="${release_dir}/deploy/docker-compose.phase-one.yml"
-          [[ -f "${compose_file}" && ! -L "${compose_file}" ]]
-          compose=(
-            docker compose
-            --project-name "${COMPOSE_PROJECT_NAME}"
-            --file "${compose_file}"
-            --file "${COMPOSE_OVERRIDE_FILE}"
-            --env-file "${PRODUCTION_ENV_FILE}"
-          )
-          "${compose[@]}" config >/dev/null
-          "${compose[@]}" up -d --no-build --no-deps --force-recreate --wait backend
-
-          for allowed_origin in "${canonical_origin}" "${alias_origin}"; do
-            header_file="$(mktemp)"
-            body_file="$(mktemp)"
-            status_code="$(curl \
-              --silent --show-error --max-time 10 \
-              --dump-header "${header_file}" \
-              --output "${body_file}" \
-              --write-out '%{http_code}' \
-              --request POST http://127.0.0.1:8088/api/auth/login \
-              --header "Origin: ${allowed_origin}" \
-              --header 'Content-Type: application/json' \
-              --data '{"username":"nonexistent-cors-check","password":"invalid","portal":"DOCTOR"}')"
-            [[ "${status_code}" == '401' ]]
-            grep -Fqi "Access-Control-Allow-Origin: ${allowed_origin}" "${header_file}"
-            rm -f "${header_file}" "${body_file}"
-            printf 'CORS probe passed for %s\n' "${allowed_origin}"
-          done
-          REMOTE
-
   build-and-deploy:
     if: github.ref == 'refs/heads/main' && (github.event_name == 'workflow_dispatch' || vars.PRODUCTION_AUTO_DEPLOY_ENABLED == 'true')
     runs-on: ubuntu-24.04
@@ -357,3 +183,73 @@ jobs:
               '${remote_stage}/source-${GITHUB_SHA}.tar.gz' \
               '${remote_stage}/images-${GITHUB_SHA}.tar.gz' \
               '${remote_stage}/checksums-${GITHUB_SHA}.sha256'"
+
+      - name: Verify public login origins and canonical redirects
+        shell: bash
+        run: |
+          set -euo pipefail
+          canonical_origin='https://chinesedigitaldental.com'
+          alias_origin='https://www.chinesedigitaldental.com'
+          direct_origin='http://43.129.232.106:8088'
+          header_file="$(mktemp)"
+          body_file="$(mktemp)"
+          trap 'rm -f "${header_file}" "${body_file}"' EXIT
+
+          probe_login_cors() {
+            local allowed_origin="$1"
+            local status_code=''
+            for _attempt in $(seq 1 12); do
+              : >"${header_file}"
+              : >"${body_file}"
+              status_code="$(curl \
+                --silent --show-error --max-time 10 \
+                --dump-header "${header_file}" \
+                --output "${body_file}" \
+                --write-out '%{http_code}' \
+                --request POST "${canonical_origin}/api/auth/login" \
+                --header "Origin: ${allowed_origin}" \
+                --header 'Content-Type: application/json' \
+                --data '{"username":"nonexistent-cors-check","password":"invalid","portal":"DOCTOR"}' \
+                || true)"
+              if [[ "${status_code}" == '401' ]] \
+                && grep -Fqi "Access-Control-Allow-Origin: ${allowed_origin}" "${header_file}"; then
+                printf 'public login CORS probe passed for %s\n' "${allowed_origin}"
+                return 0
+              fi
+              sleep 5
+            done
+            printf 'public login CORS probe failed for %s (last status %s)\n' \
+              "${allowed_origin}" "${status_code}" >&2
+            return 1
+          }
+
+          probe_redirect() {
+            local source_url="$1"
+            local expected_location="$2"
+            local status_code=''
+            for _attempt in $(seq 1 12); do
+              : >"${header_file}"
+              : >"${body_file}"
+              status_code="$(curl \
+                --silent --show-error --max-time 10 \
+                --dump-header "${header_file}" \
+                --output "${body_file}" \
+                --write-out '%{http_code}' \
+                "${source_url}" \
+                || true)"
+              if [[ "${status_code}" == '308' ]] \
+                && grep -Fqi "Location: ${expected_location}" "${header_file}"; then
+                printf 'canonical redirect probe passed for %s\n' "${source_url}"
+                return 0
+              fi
+              sleep 5
+            done
+            printf 'canonical redirect probe failed for %s (last status %s)\n' \
+              "${source_url}" "${status_code}" >&2
+            return 1
+          }
+
+          probe_login_cors "${canonical_origin}"
+          probe_login_cors "${alias_origin}"
+          probe_redirect "${alias_origin}/" "${canonical_origin}/"
+          probe_redirect "${direct_origin}/" "${canonical_origin}/"
