@@ -5,6 +5,12 @@ on:
     branches:
       - main
   workflow_dispatch:
+    inputs:
+      diagnose_only:
+        description: Run read-only production CORS diagnostics without deploying
+        required: false
+        default: false
+        type: boolean
 
 concurrency:
   group: ai-order-production
@@ -15,6 +21,82 @@ permissions:
   pull-requests: read
 
 jobs:
+  diagnose-production-cors:
+    if: github.event_name == 'workflow_dispatch' && inputs.diagnose_only == true
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    environment:
+      name: production
+
+    steps:
+      - name: Configure production SSH identity
+        shell: bash
+        env:
+          SSH_PRIVATE_KEY: ${{ secrets.PRODUCTION_SSH_PRIVATE_KEY }}
+          SSH_KNOWN_HOSTS: ${{ secrets.PRODUCTION_SSH_KNOWN_HOSTS }}
+        run: |
+          set -euo pipefail
+          : "${SSH_PRIVATE_KEY:?missing PRODUCTION_SSH_PRIVATE_KEY}"
+          : "${SSH_KNOWN_HOSTS:?missing PRODUCTION_SSH_KNOWN_HOSTS}"
+          install -d -m 700 "${HOME}/.ssh"
+          install -m 600 /dev/null "${HOME}/.ssh/id_ed25519"
+          printf '%s\n' "${SSH_PRIVATE_KEY}" >"${HOME}/.ssh/id_ed25519"
+          install -m 600 /dev/null "${HOME}/.ssh/known_hosts"
+          printf '%s\n' "${SSH_KNOWN_HOSTS}" >"${HOME}/.ssh/known_hosts"
+
+      - name: Collect filtered CORS runtime evidence
+        shell: bash
+        env:
+          SSH_HOST: ${{ secrets.PRODUCTION_SSH_HOST }}
+          SSH_USER: ${{ secrets.PRODUCTION_SSH_USER }}
+        run: |
+          set -euo pipefail
+          : "${SSH_HOST:?missing PRODUCTION_SSH_HOST}"
+          : "${SSH_USER:?missing PRODUCTION_SSH_USER}"
+          ssh \
+            -i "${HOME}/.ssh/id_ed25519" \
+            -o BatchMode=yes \
+            -o StrictHostKeyChecking=yes \
+            "${SSH_USER}@${SSH_HOST}" \
+            'bash -s' <<'REMOTE'
+          set -euo pipefail
+          evidence_since='2026-08-15T07:55:00Z'
+          evidence_until='2026-08-15T08:06:00Z'
+
+          date -u '+server_now=%Y-%m-%dT%H:%M:%SZ'
+          docker inspect ai-order-backend \
+            --format 'backend_id={{.Id}} backend_started={{.State.StartedAt}} backend_restart_count={{.RestartCount}} backend_image={{.Config.Image}}'
+          docker inspect ai-order-frontend \
+            --format 'frontend_id={{.Id}} frontend_started={{.State.StartedAt}} frontend_restart_count={{.RestartCount}} frontend_image={{.Config.Image}}'
+          docker inspect ai-order-backend \
+            --format '{{range .Config.Env}}{{println .}}{{end}}' \
+            | sed -n -E '/^(APP_CORS_ALLOWED_ORIGIN|SPRING_PROFILES_ACTIVE|SERVER_PORT)=/p'
+
+          docker events \
+            --since "${evidence_since}" \
+            --until "${evidence_until}" \
+            --filter container=ai-order-backend \
+            --filter container=ai-order-frontend \
+            --format 'docker_event={{.Time}}|{{.Type}}|{{.Action}}|{{.Actor.Attributes.name}}' \
+            || true
+
+          docker logs \
+            --since "${evidence_since}" \
+            --until "${evidence_until}" \
+            ai-order-backend 2>&1 \
+            | grep -E 'Invalid CORS|CORS|origin|Origin|Tomcat started|Started PlatformServerApplication|Stopping service' \
+            | tail -n 200 \
+            || true
+
+          docker logs \
+            --since "${evidence_since}" \
+            --until "${evidence_until}" \
+            ai-order-frontend 2>&1 \
+            | grep -E 'POST /api/auth/login' \
+            | tail -n 200 \
+            || true
+          REMOTE
+
   build-and-deploy:
     if: github.ref == 'refs/heads/main' && (github.event_name == 'workflow_dispatch' || vars.PRODUCTION_AUTO_DEPLOY_ENABLED == 'true')
     runs-on: ubuntu-24.04
