@@ -212,3 +212,73 @@ jobs:
               '${remote_stage}/source-${GITHUB_SHA}.tar.gz' \
               '${remote_stage}/images-${GITHUB_SHA}.tar.gz' \
               '${remote_stage}/checksums-${GITHUB_SHA}.sha256'"
+
+      - name: Verify public login origins and canonical redirects
+        shell: bash
+        run: |
+          set -euo pipefail
+          canonical_origin='https://chinesedigitaldental.com'
+          alias_origin='https://www.chinesedigitaldental.com'
+          direct_origin='http://43.129.232.106:8088'
+          header_file="$(mktemp)"
+          body_file="$(mktemp)"
+          trap 'rm -f "${header_file}" "${body_file}"' EXIT
+
+          probe_login_cors() {
+            local allowed_origin="$1"
+            local status_code=''
+            for _attempt in $(seq 1 12); do
+              : >"${header_file}"
+              : >"${body_file}"
+              status_code="$(curl \
+                --silent --show-error --max-time 10 \
+                --dump-header "${header_file}" \
+                --output "${body_file}" \
+                --write-out '%{http_code}' \
+                --request POST "${canonical_origin}/api/auth/login" \
+                --header "Origin: ${allowed_origin}" \
+                --header 'Content-Type: application/json' \
+                --data '{"username":"nonexistent-cors-check","password":"invalid","portal":"DOCTOR"}' \
+                || true)"
+              if [[ "${status_code}" == '401' ]] \
+                && grep -Fqi "Access-Control-Allow-Origin: ${allowed_origin}" "${header_file}"; then
+                printf 'public login CORS probe passed for %s\n' "${allowed_origin}"
+                return 0
+              fi
+              sleep 5
+            done
+            printf 'public login CORS probe failed for %s (last status %s)\n' \
+              "${allowed_origin}" "${status_code}" >&2
+            return 1
+          }
+
+          probe_redirect() {
+            local source_url="$1"
+            local expected_location="$2"
+            local status_code=''
+            for _attempt in $(seq 1 12); do
+              : >"${header_file}"
+              : >"${body_file}"
+              status_code="$(curl \
+                --silent --show-error --max-time 10 \
+                --dump-header "${header_file}" \
+                --output "${body_file}" \
+                --write-out '%{http_code}' \
+                "${source_url}" \
+                || true)"
+              if [[ "${status_code}" == '308' ]] \
+                && grep -Fqi "Location: ${expected_location}" "${header_file}"; then
+                printf 'canonical redirect probe passed for %s\n' "${source_url}"
+                return 0
+              fi
+              sleep 5
+            done
+            printf 'canonical redirect probe failed for %s (last status %s)\n' \
+              "${source_url}" "${status_code}" >&2
+            return 1
+          }
+
+          probe_login_cors "${canonical_origin}"
+          probe_login_cors "${alias_origin}"
+          probe_redirect "${alias_origin}/" "${canonical_origin}/"
+          probe_redirect "${direct_origin}/" "${canonical_origin}/"

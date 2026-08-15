@@ -50,7 +50,14 @@ for (const fragment of [
   'npm run check:frontend-bug-audit-20260815',
   'npm run check:logout-refresh-race',
   'Verify final release images',
-  'scripts/check-production-release-images.sh'
+  'scripts/check-production-release-images.sh',
+  'Verify public login origins and canonical redirects',
+  'https://chinesedigitaldental.com',
+  'https://www.chinesedigitaldental.com',
+  'Access-Control-Allow-Origin:',
+  'nonexistent-cors-check',
+  'public login CORS probe failed',
+  'canonical redirect probe failed'
 ]) {
   if (!workflow.includes(fragment)) {
     failures.push(`${workflowPath} missing required text: ${fragment}`)
