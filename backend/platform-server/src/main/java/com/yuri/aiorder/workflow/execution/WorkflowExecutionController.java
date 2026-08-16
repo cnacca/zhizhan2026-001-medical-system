@@ -127,7 +127,7 @@ public class WorkflowExecutionController {
     }
 
     @PutMapping("/production/equipment/approvals/{eventId}")
-    @RequirePermission(value = "check:write", roles = UserRole.ADMIN)
+    @RequirePermission("production:equipment:approve")
     public DataResponse<ProductionEquipmentEventResponse> decideProductionEquipmentApproval(
             BootstrapIdentity identity,
             @PathVariable long eventId,
@@ -144,7 +144,7 @@ public class WorkflowExecutionController {
     }
 
     @PostMapping("/production/equipment")
-    @RequirePermission(value = "check:write", roles = {UserRole.ADMIN, UserRole.WORKER})
+    @RequirePermission("production:equipment:write")
     public DataResponse<ProductionEquipmentResponse> createProductionEquipment(
             BootstrapIdentity identity,
             @Valid @RequestBody ProductionEquipmentRequest request) {
@@ -152,7 +152,7 @@ public class WorkflowExecutionController {
     }
 
     @PostMapping("/production/equipment/{equipmentCode}/events")
-    @RequirePermission(value = "check:write", roles = {UserRole.ADMIN, UserRole.WORKER})
+    @RequirePermission("production:equipment:write")
     public DataResponse<ProductionEquipmentEventResponse> createProductionEquipmentEvent(
             BootstrapIdentity identity,
             @PathVariable String equipmentCode,
@@ -188,7 +188,7 @@ public class WorkflowExecutionController {
     }
 
     @PostMapping("/production/material-exceptions")
-    @RequirePermission(value = "check:write", roles = {UserRole.ADMIN, UserRole.WORKER})
+    @RequirePermission("production:material:write")
     public DataResponse<ProductionMaterialExceptionResponse> createProductionMaterialException(
             BootstrapIdentity identity,
             @Valid @RequestBody ProductionMaterialExceptionRequest request) {
@@ -196,7 +196,7 @@ public class WorkflowExecutionController {
     }
 
     @PutMapping("/production/material-exceptions/{exceptionNo}/status")
-    @RequirePermission(value = "check:write", roles = {UserRole.ADMIN, UserRole.WORKER})
+    @RequirePermission("production:material:write")
     public DataResponse<ProductionMaterialExceptionResponse> updateProductionMaterialExceptionStatus(
             BootstrapIdentity identity,
             @PathVariable String exceptionNo,
@@ -238,7 +238,7 @@ public class WorkflowExecutionController {
     }
 
     @PostMapping("/production/safety-environment/events")
-    @RequirePermission(value = "check:write", roles = {UserRole.ADMIN, UserRole.WORKER})
+    @RequirePermission("production:safety:write")
     public DataResponse<ProductionSafetyEnvironmentEventResponse> createProductionSafetyEnvironmentEvent(
             BootstrapIdentity identity,
             @Valid @RequestBody ProductionSafetyEnvironmentEventRequest request) {
@@ -247,7 +247,7 @@ public class WorkflowExecutionController {
     }
 
     @PutMapping("/production/safety-environment/events/{eventNo}/status")
-    @RequirePermission(value = "check:write", roles = {UserRole.ADMIN, UserRole.WORKER})
+    @RequirePermission("production:safety:write")
     public DataResponse<ProductionSafetyEnvironmentEventResponse> updateProductionSafetyEnvironmentEventStatus(
             BootstrapIdentity identity,
             @PathVariable String eventNo,
@@ -282,7 +282,7 @@ public class WorkflowExecutionController {
     }
 
     @PutMapping("/production/cost-management/records/{costNo}/status")
-    @RequirePermission(value = "check:write", roles = UserRole.ADMIN)
+    @RequirePermission("production:cost:confirm")
     public DataResponse<ProductionCostRecordResponse> updateProductionCostRecordStatus(
             BootstrapIdentity identity,
             @PathVariable String costNo,
@@ -308,7 +308,7 @@ public class WorkflowExecutionController {
     }
 
     @PostMapping("/production/cost-management/records")
-    @RequirePermission(value = "check:write", roles = {UserRole.ADMIN, UserRole.WORKER})
+    @RequirePermission("production:cost:write")
     public DataResponse<ProductionCostRecordResponse> createProductionCostRecord(
             BootstrapIdentity identity,
             @Valid @RequestBody ProductionCostRecordRequest request) {
@@ -325,7 +325,7 @@ public class WorkflowExecutionController {
     }
 
     @PostMapping("/production/reward-penalty/records")
-    @RequirePermission(value = "check:write", roles = {UserRole.ADMIN, UserRole.WORKER})
+    @RequirePermission("production:reward-penalty:write")
     public DataResponse<ProductionRewardPenaltyRecordResponse> createProductionRewardPenaltyRecord(
             BootstrapIdentity identity,
             @Valid @RequestBody ProductionRewardPenaltyRecordRequest request) {
@@ -334,7 +334,7 @@ public class WorkflowExecutionController {
     }
 
     @PutMapping("/production/reward-penalty/records/{recordNo}/status")
-    @RequirePermission(value = "check:write", roles = {UserRole.ADMIN, UserRole.WORKER})
+    @RequirePermission("production:reward-penalty:write")
     public DataResponse<ProductionRewardPenaltyRecordResponse> updateProductionRewardPenaltyRecordStatus(
             BootstrapIdentity identity,
             @PathVariable String recordNo,
@@ -353,7 +353,7 @@ public class WorkflowExecutionController {
     }
 
     @PostMapping("/final-inspection-reports")
-    @RequirePermission(value = "final-inspection:manage", roles = UserRole.ADMIN)
+    @RequirePermission("final-inspection:manage")
     public DataResponse<FinalInspectionReportResponse> createFinalInspectionReport(
             @RequestBody FinalInspectionReportRequest request,
             BootstrapIdentity identity) {

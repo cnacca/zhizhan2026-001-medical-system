@@ -7,6 +7,7 @@ public record RbacUserResponse(
         @JsonProperty("user_id") long userId,
         String username,
         @JsonProperty("display_name") String displayName,
+        @JsonProperty("user_type") String userType,
         String status,
         @JsonProperty("dept_id") Long deptId,
         @JsonProperty("dept_name") String deptName,

@@ -1044,7 +1044,10 @@ public class WorkflowExecutionService {
     @Transactional
     public ProductionEquipmentEventResponse decideProductionEquipmentApproval(
             long eventId, ProductionEquipmentApprovalRequest request, BootstrapIdentity identity) {
-        requirePermission(identity, "production:equipment:approve", "equipment approval requires production:equipment:approve");
+        requireAdminOrWorkerPermission(
+                identity,
+                "production:equipment:approve",
+                "equipment approval requires production:equipment:approve");
         String decision = normalizeRequired(request.decision(), "decision").toUpperCase(Locale.ROOT);
         if (!Set.of("APPROVED", "REJECTED").contains(decision)) {
             throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "unsupported equipment approval decision");
@@ -1119,6 +1122,11 @@ public class WorkflowExecutionService {
         requireProductionEquipmentWrite(identity);
         String normalizedEquipmentCode = normalizeEquipmentCode(equipmentCode);
         EquipmentEventInput input = normalizeProductionEquipmentEvent(request);
+        if (EQUIPMENT_APPROVAL_TYPES.contains(input.eventType()) && !"PENDING".equals(input.status())) {
+            throw new ResponseStatusException(
+                    HttpStatus.BAD_REQUEST,
+                    "repair or scrap request must be created as PENDING and decided through the approval endpoint");
+        }
         long equipmentId = findEquipmentIdByCode(normalizedEquipmentCode);
         jdbcClient.sql("""
                         INSERT INTO production_equipment_event
@@ -1579,7 +1587,10 @@ public class WorkflowExecutionService {
     @Transactional
     public ProductionCostRecordResponse updateProductionCostRecordStatus(
             String costNo, ProductionCostStatusRequest request, BootstrapIdentity identity) {
-        requirePermission(identity, "production:cost:confirm", "cost confirmation requires production:cost:confirm");
+        requireAdminOrWorkerPermission(
+                identity,
+                "production:cost:confirm",
+                "cost confirmation requires production:cost:confirm");
         String normalizedCostNo = normalizeCostNo(costNo);
         String normalizedStatus = normalizeProductionCostStatus(request.status());
         int updated = jdbcClient.sql("""
@@ -1644,14 +1655,19 @@ public class WorkflowExecutionService {
             ProductionCostRecordRequest request, BootstrapIdentity identity) {
         requireProductionCostWrite(identity);
         CostRecordInput input = normalizeProductionCostRecord(request);
+        if ("CONFIRMED".equals(input.status())) {
+            throw new ResponseStatusException(
+                    HttpStatus.BAD_REQUEST,
+                    "cost record must be confirmed through the confirmation endpoint");
+        }
         try {
             jdbcClient.sql("""
-                            INSERT INTO production_cost_record
-                                (cost_no, order_id, node_instance_id, cost_type, amount, status,
-                                 department_name, supplier_name, description, confirmed_at)
-                            VALUES
-                                (:costNo, :orderId, :nodeInstanceId, :costType, :amount, :status,
-                                 :departmentName, :supplierName, :description, :confirmedAt)
+                        INSERT INTO production_cost_record
+                            (cost_no, order_id, node_instance_id, cost_type, amount, status,
+                             department_name, supplier_name, description)
+                        VALUES
+                            (:costNo, :orderId, :nodeInstanceId, :costType, :amount, :status,
+                             :departmentName, :supplierName, :description)
                             """)
                     .param("costNo", input.costNo())
                     .param("orderId", input.orderId())
@@ -1662,7 +1678,6 @@ public class WorkflowExecutionService {
                     .param("departmentName", input.departmentName())
                     .param("supplierName", input.supplierName())
                     .param("description", input.description())
-                    .param("confirmedAt", "CONFIRMED".equals(input.status()) ? LocalDateTime.now() : null)
                     .update();
         } catch (DuplicateKeyException ex) {
             throw new ResponseStatusException(HttpStatus.CONFLICT, "cost_no already exists", ex);
@@ -1860,6 +1875,10 @@ public class WorkflowExecutionService {
     @Transactional
     public FinalInspectionReportResponse createFinalInspectionReport(
             FinalInspectionReportRequest request, BootstrapIdentity identity) {
+        requireAdminOrWorkerPermission(
+                identity,
+                "final-inspection:manage",
+                "final inspection report requires final-inspection:manage");
         if (request.orderId() == null) {
             throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "order_id is required");
         }
@@ -2836,6 +2855,15 @@ public class WorkflowExecutionService {
 
     private void requirePermission(BootstrapIdentity identity, String permissionCode, String message) {
         accessControlService.requirePermission(identity, permissionCode, message);
+    }
+
+    private void requireAdminOrWorkerPermission(
+            BootstrapIdentity identity, String permissionCode, String message) {
+        requirePermission(identity, permissionCode, message);
+        if (identity.role() != com.yuri.aiorder.common.UserRole.ADMIN
+                && identity.role() != com.yuri.aiorder.common.UserRole.WORKER) {
+            throw new ResponseStatusException(HttpStatus.FORBIDDEN, "production portal access is required");
+        }
     }
 
     private void requireProductionMaterialExceptionWrite(BootstrapIdentity identity) {

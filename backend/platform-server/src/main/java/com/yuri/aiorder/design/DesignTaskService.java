@@ -1313,9 +1313,8 @@ public class DesignTaskService {
     }
 
     private boolean canInternalReview(BootstrapIdentity identity) {
-        return identity.role() == UserRole.ADMIN
-                || (identity.role() == UserRole.WORKER
-                        && identity.hasPermission("design-draft:internal-review"));
+        return Set.of(UserRole.ADMIN, UserRole.CS, UserRole.WORKER).contains(identity.role())
+                && identity.hasPermission("design-draft:internal-review");
     }
 
     private void requireActiveWorker(long userId) {

@@ -55,7 +55,8 @@ public class OrthodonticService {
                             "appliance_and_combination", "tooth_targets", "plan_parameters",
                             "preview_and_submission"));
         }
-        return caseResponse(caseId);
+        Map<String, Object> response = caseResponse(caseId);
+        return identity.role() == UserRole.DOCTOR ? doctorCaseResponse(response) : response;
     }
 
     @Transactional
@@ -111,7 +112,7 @@ public class OrthodonticService {
                     .update();
             long caseId = Objects.requireNonNull(findCaseId(orderId));
             audit(caseId, "ORTHODONTIC_CASE", caseId, "CREATE_PRESCRIPTION", null, caseResponse(caseId), identity, null);
-            return caseResponse(caseId);
+            return doctorCaseResponse(caseResponse(caseId));
         }
 
         Map<String, Object> before = caseResponse(existingCaseId);
@@ -141,7 +142,7 @@ public class OrthodonticService {
         }
         Map<String, Object> after = caseResponse(existingCaseId);
         audit(existingCaseId, "ORTHODONTIC_CASE", existingCaseId, "UPDATE_PRESCRIPTION", before, after, identity, null);
-        return after;
+        return doctorCaseResponse(after);
     }
 
     @Transactional
@@ -204,6 +205,10 @@ public class OrthodonticService {
             long planVersionId,
             ReviewPlanRequest request,
             BootstrapIdentity identity) {
+        requirePortalPermission(
+                identity,
+                "design-draft:internal-review",
+                Set.of(UserRole.ADMIN, UserRole.CS, UserRole.WORKER));
         PlanScope plan = requirePlan(planVersionId);
         requireInternalRead(requireOrder(plan.orderId()), identity);
         if (!"PENDING_INTERNAL_REVIEW".equals(plan.status())) {
@@ -241,7 +246,7 @@ public class OrthodonticService {
         recordReview(planVersionId, "DOCTOR", request, identity);
         updateCaseStatus(plan.caseId(), nextCase);
         audit(plan.caseId(), "PLAN_VERSION", planVersionId, "DOCTOR_" + request.decision(), null, planSnapshot(planVersionId), identity, request.reason());
-        return caseResponse(plan.caseId());
+        return doctorCaseResponse(caseResponse(plan.caseId()));
     }
 
     @Transactional
@@ -249,6 +254,10 @@ public class OrthodonticService {
             long orderId,
             CreateProductionBatchRequest request,
             BootstrapIdentity identity) {
+        requirePortalPermission(
+                identity,
+                "workflow:orthodontic-batch:manage",
+                Set.of(UserRole.ADMIN, UserRole.WORKER));
         OrderScope order = requireOrder(orderId);
         requireInternalRead(order, identity);
         long caseId = requireCaseId(orderId);
@@ -359,7 +368,8 @@ public class OrthodonticService {
         audit(caseId, "CHANGE_REQUEST", null, "CREATE_" + request.requestType(), null, Map.of(
                 "source_plan_version_id", request.sourcePlanVersionId(),
                 "request_type", request.requestType()), identity, request.reason());
-        return caseResponse(caseId);
+        Map<String, Object> response = caseResponse(caseId);
+        return identity.role() == UserRole.DOCTOR ? doctorCaseResponse(response) : response;
     }
 
     private Map<String, Object> caseResponse(long caseId) {
@@ -418,6 +428,48 @@ public class OrthodonticService {
                 ORDER BY created_at DESC, change_request_id DESC
                 """, caseId));
         return result;
+    }
+
+    /**
+     * 医生端只返回医生完成处方和方案确认所需的业务字段。内审、生产批次和员工标识
+     * 属于内部生产信息，即使验收账号在医生端拥有全功能也不得返回。
+     */
+    private Map<String, Object> doctorCaseResponse(Map<String, Object> source) {
+        Map<String, Object> result = new LinkedHashMap<>(source);
+        result.remove("production_batches");
+        if (Set.of("PLAN_DESIGN", "INTERNAL_REVIEW").contains(result.get("case_status"))) {
+            result.put("case_status", "PLAN_PROCESSING");
+        }
+        result.put("plan_versions", sanitizedRows(
+                source.get("plan_versions"),
+                Set.of("created_by_user_id"),
+                row -> !Set.of("PENDING_INTERNAL_REVIEW", "INTERNAL_REJECTED")
+                        .contains(row.get("plan_status"))));
+        result.put("reviews", sanitizedRows(
+                source.get("reviews"),
+                Set.of("reviewer_user_id"),
+                row -> "DOCTOR".equals(row.get("review_gate"))));
+        result.put("change_requests", sanitizedRows(
+                source.get("change_requests"),
+                Set.of("requested_by_user_id", "reviewed_by_user_id", "source_batch_id"),
+                null));
+        return result;
+    }
+
+    @SuppressWarnings("unchecked")
+    private List<Map<String, Object>> sanitizedRows(
+            Object value,
+            Set<String> removedFields,
+            java.util.function.Predicate<Map<String, Object>> filter) {
+        if (!(value instanceof List<?> rows)) {
+            return List.of();
+        }
+        return rows.stream()
+                .filter(Map.class::isInstance)
+                .map(row -> (Map<String, Object>) new LinkedHashMap<>((Map<String, Object>) row))
+                .filter(row -> filter == null || filter.test(row))
+                .peek(row -> removedFields.forEach(row::remove))
+                .toList();
     }
 
     private List<Map<String, Object>> queryRows(String sql, long caseId) {
@@ -626,6 +678,10 @@ public class OrthodonticService {
         if (identity.role() != UserRole.WORKER || identity.userId() == null) {
             throw new ResponseStatusException(HttpStatus.FORBIDDEN, "internal orthodontic access is required");
         }
+        if (identity.hasPermission("workflow:orthodontic-case:read")
+                && "ALL".equalsIgnoreCase(identity.dataScope())) {
+            return;
+        }
         long assigned = jdbcClient.sql("""
                         SELECT
                             (SELECT COUNT(*) FROM design_task
@@ -643,6 +699,15 @@ public class OrthodonticService {
                 .single();
         if (assigned == 0) {
             throw new ResponseStatusException(HttpStatus.FORBIDDEN, "worker is not assigned to this orthodontic order");
+        }
+    }
+
+    private void requirePortalPermission(
+            BootstrapIdentity identity, String permissionCode, Set<UserRole> allowedPortals) {
+        boolean portalAllowed = allowedPortals.contains(identity.role());
+        boolean permissionAllowed = identity.role() == UserRole.ADMIN || identity.hasPermission(permissionCode);
+        if (!portalAllowed || !permissionAllowed) {
+            throw new ResponseStatusException(HttpStatus.FORBIDDEN, "internal portal permission is required");
         }
     }
 
