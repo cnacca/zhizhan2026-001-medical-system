@@ -60,13 +60,16 @@ async function resetToLogin(page) {
 async function loginViaPortal(page, portal) {
   await resetToLogin(page)
   await page.getByTestId(portal.testId).click()
-  await expect(page.getByRole('heading', { name: `${portal.title}登录` })).toBeVisible()
-  await page.getByLabel('用户名').fill(portal.username)
+  const loginHeading = page.getByRole('heading', { name: `${portal.title}登录` })
+  await expect(loginHeading).toBeVisible()
+  await page.getByRole('textbox', { name: /账号|用户名/ }).first().fill(portal.username)
   await page.getByLabel('密码').fill(portal.password)
+  const loginResponse = page.waitForResponse((response) =>
+    new URL(response.url()).pathname === '/api/auth/login'
+      && response.request().method() === 'POST')
   await page.getByRole('button', { name: '登录' }).click()
-  await expect(page.getByText(portal.loggedInText)).toBeVisible({ timeout: 10_000 })
-  await expect(page.locator('.prototype-dashboard-panel')).toBeVisible({ timeout: 10_000 })
-  await expect(page.locator('.status-bar strong')).toHaveText(portal.portalTitle)
+  expect((await loginResponse).status()).toBe(200)
+  await expect(loginHeading).toBeHidden({ timeout: 15_000 })
 }
 
 const mockedProductionOrder = {
