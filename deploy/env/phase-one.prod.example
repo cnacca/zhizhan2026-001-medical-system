@@ -32,6 +32,7 @@ FILE_PREVIEW_URL_TTL_SECONDS=900
 FILE_DOWNLOAD_URL_TTL_SECONDS=7200
 FILE_MAX_FILE_SIZE_BYTES=524288000
 FILE_ALLOWED_CONTENT_TYPES=application/pdf,model/stl,application/sla,application/octet-stream,text/plain,image/png,image/jpeg,image/webp,application/msword,application/vnd.openxmlformats-officedocument.wordprocessingml.document,application/zip,application/x-zip-compressed
+FILE_ALLOWED_FILENAME_EXTENSIONS=stl,sla,ply,obj,pdf,jpg,jpeg,png,webp,dcm,dicom,zip,doc,docx,txt
 FILE_MAX_FILES_PER_ORDER=30
 
 FRONTEND_HTTP_PORT=8088

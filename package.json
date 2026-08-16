@@ -9,6 +9,7 @@
   "scripts": {
     "acceptance": "node -e \"const fs=require('fs'); JSON.parse(fs.readFileSync('acceptance.json','utf8')); console.log('acceptance.json valid')\"",
     "check:deployment-bugfixes-20260811": "node scripts/check-deployment-bugfixes-20260811.mjs",
+    "check:regression-bugs-20260816": "node scripts/check-regression-bugs-20260816.mjs",
     "check:production-auto-deploy": "node scripts/check-production-auto-deploy.mjs",
     "check:product-ordering-v2": "node scripts/check-product-ordering-v2.mjs",
     "check:phase-two-m2-ruoyi-runtime-bridge": "node scripts/check-phase-two-m2-ruoyi-runtime-bridge.mjs",
@@ -168,6 +169,7 @@
     "smoke:workflow-standard-time-draft": "playwright test scripts/smoke-workflow-standard-time-draft.spec.mjs --browser=chromium --workers=1",
     "smoke:admin-ordering-configuration": "playwright test scripts/smoke-admin-ordering-configuration.spec.mjs --browser=chromium --workers=1",
     "smoke:production-reference-pages": "playwright test scripts/smoke-production-reference-pages.spec.mjs --browser=chromium --workers=1",
+    "smoke:regression-bugs-20260816": "playwright test scripts/smoke-regression-bugs-20260816.spec.mjs --browser=chromium --workers=1",
     "smoke:test-feedback-20260710": "playwright test scripts/smoke-test-feedback-20260710.spec.mjs --browser=chromium --workers=1",
     "check:toolchain": "scripts/check-toolchain.sh",
     "compose:config": "docker compose config",
