@@ -10106,13 +10106,14 @@ async function createProductionEquipmentEvent() {
   productionEquipmentResult.value = ''
   try {
     const equipmentCode = productionEquipmentEventCode.value.trim()
+    const requiresApproval = ['REPAIR_REQUEST', 'SCRAP_REQUEST'].includes(productionEquipmentEventType.value)
     const response = await apiFetch<ProductionEquipmentEventResponse>(
       `/production/equipment/${encodeURIComponent(equipmentCode)}/events`,
       {
         method: 'POST',
         body: JSON.stringify({
           event_type: productionEquipmentEventType.value,
-          status: productionEquipmentEventStatus.value,
+          status: requiresApproval ? 'PENDING' : productionEquipmentEventStatus.value,
           downtime_minutes: productionEquipmentEventDowntimeMinutes.value,
           description: productionEquipmentEventDescription.value.trim()
         })
@@ -11666,6 +11667,7 @@ onBeforeUnmount(() => {
             ref="adminRemainingRef"
             :active-route="activeRoute"
             :token="token"
+            :permissions="currentUser?.permissions ?? []"
             :notifications="notifications"
             :notifications-loading="notificationsLoading"
             :notification-error="notificationError"
@@ -17502,6 +17504,21 @@ onBeforeUnmount(() => {
               <el-tag v-else round>暂未开放</el-tag>
             </div>
           </header>
+          <AdminRemainingPages
+            v-if="portalTone === 'production' && ['/production/devices', '/production/cost-management'].includes(activeRoute)"
+            class="production-approval-workspace"
+            :active-route="activeRoute"
+            :token="token"
+            :permissions="currentUser?.permissions ?? []"
+            :notifications="notifications"
+            :notifications-loading="notificationsLoading"
+            :notification-error="notificationError"
+            :unread-count="unreadCount"
+            @refresh-notifications="loadNotifications"
+            @mark-notification-read="markNotificationRead"
+            @mark-all-notifications-read="markAllNotificationsRead"
+            @open-order="openAdminRemainingOrder"
+          />
           <div v-if="!isProductizedProductionSupportRoute" class="placeholder-hero">
             <span class="admin-menu-icon" aria-hidden="true" v-html="businessIconSvg(activeDisplayItem.icon)" />
             <div>
@@ -17687,8 +17704,15 @@ onBeforeUnmount(() => {
                   <el-option label="保养计划" value="MAINTENANCE_PLAN" />
                   <el-option label="故障报修" value="FAULT_REPAIR" />
                   <el-option label="停机记录" value="DOWNTIME" />
+                  <el-option label="维修申请（需审批）" value="REPAIR_REQUEST" />
+                  <el-option label="报废申请（需审批）" value="SCRAP_REQUEST" />
                 </el-select>
-                <el-select v-model="productionEquipmentEventStatus" size="small" placeholder="处理状态">
+                <el-select
+                  v-model="productionEquipmentEventStatus"
+                  size="small"
+                  placeholder="处理状态"
+                  :disabled="['REPAIR_REQUEST', 'SCRAP_REQUEST'].includes(productionEquipmentEventType)"
+                >
                   <el-option label="待处理" value="PENDING" />
                   <el-option label="处理中" value="IN_PROGRESS" />
                   <el-option label="已完成" value="DONE" />
@@ -18061,7 +18085,6 @@ onBeforeUnmount(() => {
                 <el-select v-model="productionCostCreateStatus" size="small" placeholder="成本状态">
                   <el-option label="正常" value="NORMAL" />
                   <el-option label="预警" value="WARNING" />
-                  <el-option label="已确认" value="CONFIRMED" />
                 </el-select>
                 <el-input v-model="productionCostCreateDepartment" size="small" placeholder="责任部门" />
                 <el-input v-model="productionCostCreateSupplier" size="small" placeholder="供应商/来源" />

@@ -15,10 +15,48 @@ const expected = [
 ]
 
 const portals = [
-  ['ADMIN', 'admin', 'change-me-admin'],
-  ['CS', 'cs', 'change-me-cs'],
-  ['PRODUCTION', 'worker', 'change-me-worker'],
-  ['DOCTOR', 'doctor', 'change-me-doctor']
+  {
+    portal: 'ADMIN', username: 'admin', password: 'change-me-admin',
+    acceptanceRole: 'ACCEPTANCE_ADMIN_FULL', dataScope: 'ALL',
+    requiredPermissions: ['rbac:role:manage', 'account:create', 'workflow:orthodontic-batch:manage']
+  },
+  {
+    portal: 'CS', username: 'cs', password: 'change-me-cs',
+    acceptanceRole: 'ACCEPTANCE_CS_FULL', dataScope: 'ALL',
+    requiredPermissions: [
+      'design-draft:internal-review', 'logistics:receive', 'logistics:ship',
+      'message:translate', 'product:manage'
+    ]
+  },
+  {
+    portal: 'PRODUCTION', username: 'worker', password: 'change-me-worker',
+    acceptanceRole: 'ACCEPTANCE_PRODUCTION_FULL', dataScope: 'ALL',
+    requiredPermissions: [
+      'design-draft:internal-review', 'workflow:orthodontic-case:read', 'workflow:orthodontic-batch:manage',
+      'production:equipment:approve', 'production:cost:confirm',
+      'production:equipment:write', 'production:material:write',
+      'production:safety:write', 'production:cost:write',
+      'production:reward-penalty:write',
+      'final-inspection:manage', 'check:gate-inspect'
+    ]
+  },
+  {
+    portal: 'DOCTOR', username: 'doctor', password: 'change-me-doctor',
+    acceptanceRole: 'ACCEPTANCE_DOCTOR_FULL', dataScope: 'CLINIC',
+    requiredPermissions: ['order:write-doctor', 'patient:manage-doctor', 'clinic:read-self'],
+    forbiddenPermissions: [
+      'design-draft:internal-review', 'workflow:orthodontic-case:read', 'workflow:orthodontic-batch:manage',
+      'production:equipment:approve', 'production:cost:confirm',
+      'workflow:read-internal', 'order:read-internal', 'order:read-case-group-internal',
+      'check:read-internal',
+      'file:manage-internal', 'ai:production', 'ai:governance:read', 'ai:cs',
+      'message:manage', 'dashboard:read-internal', 'dashboard:read-sales', 'clinic:manage'
+    ],
+    forbiddenPermissionPrefixes: [
+      'workflow:', 'check:', 'staff:', 'performance:', 'worklog:',
+      'rework:', 'production:', 'quality:'
+    ]
+  }
 ]
 
 async function apiFetch(pathname, token, options = {}) {
@@ -70,9 +108,31 @@ async function main() {
   await apiFetch('/api/bootstrap/health')
 
   const sessions = {}
-  for (const [portal, username, password] of portals) {
-    sessions[portal] = await login(portal, username, password)
-    assert(sessions[portal].accessToken, `${portal} login did not return accessToken`)
+  for (const account of portals) {
+    const session = await login(account.portal, account.username, account.password)
+    sessions[account.portal] = session
+    assert(session.accessToken, `${account.portal} login did not return accessToken`)
+    assert(session.roles.includes(account.acceptanceRole),
+      `${account.portal} is missing acceptance role ${account.acceptanceRole}`)
+    assert(session.dataScope === account.dataScope,
+      `${account.portal} expected data scope ${account.dataScope}, got ${session.dataScope}`)
+    for (const permission of account.requiredPermissions) {
+      assert(session.permissions.includes(permission),
+        `${account.portal} is missing acceptance permission ${permission}`)
+    }
+    for (const permission of account.forbiddenPermissions ?? []) {
+      assert(!session.permissions.includes(permission),
+        `${account.portal} must not receive cross-portal permission ${permission}`)
+    }
+    for (const prefix of account.forbiddenPermissionPrefixes ?? []) {
+      const leakedPermission = session.permissions.find((permission) => permission.startsWith(prefix))
+      assert(!leakedPermission,
+        `${account.portal} must not receive internal permission ${leakedPermission} from prefix ${prefix}`)
+    }
+    for (const menu of session.menus ?? []) {
+      assert(!menu.permissionCode || session.permissions.includes(menu.permissionCode),
+        `${account.portal} menu ${menu.menuCode} is not backed by an effective permission`)
+    }
   }
 
   const checked = []

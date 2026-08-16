@@ -26,6 +26,7 @@ class OrthodonticFlowTests {
 
     private static final long DOCTOR_ID = 88101L;
     private static final long WORKER_ID = 88102L;
+    private static final long ACCEPTANCE_WORKER_ID = 9601L;
 
     @Autowired
     private JdbcClient jdbcClient;
@@ -188,9 +189,13 @@ class OrthodonticFlowTests {
                                 }
                                 """.formatted(thirdPlan)))
                 .andExpect(status().isOk())
-                .andExpect(jsonPath("$.data.plan_versions.length()").value(3))
-                .andExpect(jsonPath("$.data.production_batches.length()").value(2))
-                .andExpect(jsonPath("$.data.change_requests.length()").value(1));
+                .andExpect(jsonPath("$.data.plan_versions.length()").value(2))
+                .andExpect(jsonPath("$.data.production_batches").doesNotExist())
+                .andExpect(jsonPath("$.data.change_requests.length()").value(1))
+                .andExpect(jsonPath("$.data.change_requests[0].requested_by_user_id").doesNotExist())
+                .andExpect(jsonPath("$.data.change_requests[0].source_batch_id").doesNotExist())
+                .andExpect(jsonPath("$.data.reviews[0].review_gate").value("DOCTOR"))
+                .andExpect(jsonPath("$.data.reviews[0].reviewer_user_id").doesNotExist());
 
         long auditCount = jdbcClient.sql("""
                         SELECT COUNT(*) FROM orthodontic_audit
@@ -270,6 +275,55 @@ class OrthodonticFlowTests {
                         .header("X-Bootstrap-Role", "WORKER")
                         .header("X-Bootstrap-User-Id", WORKER_ID + 1))
                 .andExpect(status().isForbidden());
+    }
+
+    @Test
+    void acceptanceWorkerWithAllScopeCanReadUnassignedOrthodonticCase() throws Exception {
+        jdbcClient.sql("""
+                        INSERT INTO orthodontic_case
+                            (order_id, aligner_type_code, case_status, prescription_json,
+                             total_steps, created_by_user_id)
+                        VALUES
+                            (:orderId, :alignerTypeCode, 'PRESCRIPTION_SUBMITTED', JSON_OBJECT(),
+                             12, :doctorId)
+                        """)
+                .param("orderId", orderId)
+                .param("alignerTypeCode", alignerTypeCode)
+                .param("doctorId", DOCTOR_ID)
+                .update();
+
+        jdbcClient.sql("""
+                        INSERT IGNORE INTO system_user_permission (user_id, permission_id)
+                        SELECT :userId, permission_id FROM system_permission
+                        WHERE permission_code = 'workflow:orthodontic-case:read'
+                        """)
+                .param("userId", ACCEPTANCE_WORKER_ID)
+                .update();
+        jdbcClient.sql("UPDATE system_user SET data_scope = 'ALL' WHERE user_id = :userId")
+                .param("userId", ACCEPTANCE_WORKER_ID)
+                .update();
+        String allScopeToken = workerToken();
+        mockMvc.perform(get("/orders/{orderId}/orthodontic-case", orderId)
+                        .header("Authorization", "Bearer " + allScopeToken))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.case_status").value("PRESCRIPTION_SUBMITTED"));
+
+        jdbcClient.sql("UPDATE system_user SET data_scope = 'SELF' WHERE user_id = :userId")
+                .param("userId", ACCEPTANCE_WORKER_ID)
+                .update();
+        String selfScopeToken = workerToken();
+        mockMvc.perform(get("/orders/{orderId}/orthodontic-case", orderId)
+                        .header("Authorization", "Bearer " + selfScopeToken))
+                .andExpect(status().isForbidden());
+    }
+
+    private String workerToken() throws Exception {
+        MvcResult login = mockMvc.perform(post("/api/auth/login")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"username\":\"worker\",\"password\":\"change-me-worker\",\"portal\":\"PRODUCTION\"}"))
+                .andExpect(status().isOk())
+                .andReturn();
+        return objectMapper.readTree(login.getResponse().getContentAsString()).path("accessToken").asText();
     }
 
     @Test

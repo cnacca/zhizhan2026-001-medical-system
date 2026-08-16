@@ -19,6 +19,7 @@ type Notice = {
 const props = defineProps<{
   activeRoute: string
   token: string
+  permissions: string[]
   notifications: Notice[]
   notificationsLoading: boolean
   notificationError: string
@@ -68,6 +69,10 @@ const safetyRules = ref<Row[]>([])
 const outsourcingRows = ref<Row[]>([])
 const actionBusy = ref<string | number | null>(null)
 const actionMessage = ref('')
+const canApproveEquipment = computed(() => props.permissions.includes('production:equipment:approve'))
+const canWriteMaterial = computed(() => props.permissions.includes('production:material:write'))
+const canWriteSafety = computed(() => props.permissions.includes('production:safety:write'))
+const canConfirmCost = computed(() => props.permissions.includes('production:cost:confirm'))
 const products = ref<Row[]>([])
 const aiSummary = ref<Row | null>(null)
 const aiTrend = ref<Row | null>(null)
@@ -678,6 +683,10 @@ async function openOutsourcing(row: Row) {
 }
 
 async function decideEquipmentApproval(row: Row, decision: 'APPROVED' | 'REJECTED') {
+  if (!canApproveEquipment.value) {
+    actionMessage.value = '当前账号没有设备审批权限'
+    return
+  }
   actionBusy.value = row.event_id
   actionMessage.value = ''
   try {
@@ -695,6 +704,18 @@ async function decideEquipmentApproval(row: Row, decision: 'APPROVED' | 'REJECTE
 }
 
 async function advanceSupportStatus(row: Row) {
+  if (props.activeRoute === '/production/material-exceptions' && !canWriteMaterial.value) {
+    actionMessage.value = '当前账号没有物料异常维护权限'
+    return
+  }
+  if (props.activeRoute === '/production/safety-environment' && !canWriteSafety.value) {
+    actionMessage.value = '当前账号没有安环事项维护权限'
+    return
+  }
+  if (props.activeRoute === '/production/cost-management' && !canConfirmCost.value) {
+    actionMessage.value = '当前账号没有成本确认权限'
+    return
+  }
   actionBusy.value = row.exception_no ?? row.event_no ?? row.cost_no
   actionMessage.value = ''
   try {

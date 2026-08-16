@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import { computed, onMounted, ref, watch } from 'vue'
+import OrthodonticWorkflowPanel from './OrthodonticWorkflowPanel.vue'
 
 type LoginUser = {
   userId: string | number | null
@@ -250,6 +251,14 @@ function draftFiles(draft?: DesignDraft | null): DesignFile[] {
 function latestDraft(task: DesignTask) {
   if (task.latest_draft) return task.latest_draft
   return [...(task.drafts ?? [])].sort((left, right) => right.version - left.version)[0] ?? null
+}
+
+function isOrthodonticTask(task: DesignTask) {
+  return ['ORTHODONTICS', 'ORTHODONTIC', 'CLEAR_ALIGNER'].includes(task.product_type?.toUpperCase())
+}
+
+function latestDesignFileId(task: DesignTask) {
+  return draftFiles(latestDraft(task))[0]?.file_id ?? null
 }
 
 function allDrafts(task: DesignTask) {
@@ -600,6 +609,15 @@ watch(() => [props.activeRoute, props.token], () => void loadWorkspace())
             <button type="button" :disabled="busyTaskId === task.task_id" @click="transferTask(task)">确认转派</button>
           </div>
         </section>
+
+        <OrthodonticWorkflowPanel
+          v-if="mode !== 'POOL' && isOrthodonticTask(task)"
+          :token="token"
+          :order-id="task.order_id"
+          mode="INTERNAL"
+          :permissions="user?.permissions ?? []"
+          :latest-design-file-id="latestDesignFileId(task)"
+        />
 
         <footer v-if="allDrafts(task).length > 1 || task.review_history?.length">
           <button type="button" @click="toggleHistory(task.task_id)">
