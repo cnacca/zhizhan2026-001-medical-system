@@ -28,11 +28,11 @@ import org.springframework.test.web.servlet.MvcResult;
 @AutoConfigureMockMvc
 class MessageDesignBillNotificationTests {
 
-    private static final long CS_USER_ID = 9801L;
-    private static final long WORKER_USER_ID = 9802L;
-    private static final long DOCTOR_USER_ID = 9803L;
-    private static final long OTHER_DOCTOR_USER_ID = 9804L;
-    private static final long INTERNAL_REVIEWER_USER_ID = 9805L;
+    private static final long CS_USER_ID = 19801L;
+    private static final long WORKER_USER_ID = 19802L;
+    private static final long DOCTOR_USER_ID = 19803L;
+    private static final long OTHER_DOCTOR_USER_ID = 19804L;
+    private static final long INTERNAL_REVIEWER_USER_ID = 19805L;
 
     @Autowired
     private JdbcClient jdbcClient;

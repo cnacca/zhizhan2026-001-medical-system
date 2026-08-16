@@ -133,11 +133,16 @@ class OrderCaseGroupTests {
     }
 
     @Test
-    void migrationLeavesNoUngroupedOrDuplicateLegacyOrders() {
-        long ungroupedOrderCount = jdbcClient.sql("""
+    void migrationLeavesNoOrphanedOrDuplicateLegacyGroups() {
+        long orphanedLegacyGroupCount = jdbcClient.sql("""
                         SELECT COUNT(*)
-                        FROM orders
-                        WHERE group_id IS NULL
+                        FROM order_case_group legacy_group
+                        WHERE legacy_group.group_no LIKE 'CG-%'
+                          AND NOT EXISTS (
+                              SELECT 1
+                              FROM orders
+                              WHERE orders.group_id = legacy_group.group_id
+                          )
                         """)
                 .query(Long.class)
                 .single();
@@ -156,7 +161,7 @@ class OrderCaseGroupTests {
                 .query(Long.class)
                 .single();
 
-        org.assertj.core.api.Assertions.assertThat(ungroupedOrderCount).isZero();
+        org.assertj.core.api.Assertions.assertThat(orphanedLegacyGroupCount).isZero();
         org.assertj.core.api.Assertions.assertThat(duplicateLegacyGroupCount).isZero();
     }
 
