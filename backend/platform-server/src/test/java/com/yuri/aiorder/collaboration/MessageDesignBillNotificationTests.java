@@ -32,6 +32,7 @@ class MessageDesignBillNotificationTests {
     private static final long WORKER_USER_ID = 9802L;
     private static final long DOCTOR_USER_ID = 9803L;
     private static final long OTHER_DOCTOR_USER_ID = 9804L;
+    private static final long INTERNAL_REVIEWER_USER_ID = 9805L;
 
     @Autowired
     private JdbcClient jdbcClient;
@@ -454,8 +455,7 @@ class MessageDesignBillNotificationTests {
         assertThat(notificationCount("DESIGN_DRAFT_SUBMITTED", "WORKER")).isEqualTo(1L);
 
         mockMvc.perform(post("/orders/{orderId}/design-drafts/{draftId}/internal-review", orderId, draftId)
-                        .header("X-Bootstrap-Role", "ADMIN")
-                        .header("X-Bootstrap-User-Id", 8001L)
+                        .header("Authorization", "Bearer " + internalReviewerToken())
                         .contentType(MediaType.APPLICATION_JSON)
                         .content("{\"action\":\"APPROVE\"}"))
                 .andExpect(status().isOk())
@@ -804,6 +804,25 @@ class MessageDesignBillNotificationTests {
         insertMentionUser(WORKER_USER_ID, "collab-worker", "WORKER");
         insertMentionUser(DOCTOR_USER_ID, "collab-doctor", "DOCTOR");
         insertMentionUser(OTHER_DOCTOR_USER_ID, "collab-other-doctor", "DOCTOR");
+        insertMentionUser(INTERNAL_REVIEWER_USER_ID, "collab-reviewer", "WORKER");
+        jdbcClient.sql("""
+                        INSERT IGNORE INTO system_user_role (user_id, role_id)
+                        SELECT :userId, role_id
+                        FROM system_role
+                        WHERE role_code = 'PROD_TEAM_LEAD'
+                        """)
+                .param("userId", INTERNAL_REVIEWER_USER_ID)
+                .update();
+    }
+
+    private String internalReviewerToken() {
+        return bearerTokenService.issue(new BootstrapIdentity(
+                UserRole.WORKER,
+                INTERNAL_REVIEWER_USER_ID,
+                null,
+                "collab-reviewer",
+                Set.of("design-draft:internal-review"),
+                "ALL"));
     }
 
     private void insertMentionUser(long userId, String username, String userType) {
@@ -879,8 +898,7 @@ class MessageDesignBillNotificationTests {
                         .header("X-Bootstrap-User-Id", WORKER_USER_ID))
                 .andExpect(status().isOk());
         mockMvc.perform(post("/orders/{orderId}/design-drafts/{draftId}/internal-review", orderId, firstDraftId)
-                        .header("X-Bootstrap-Role", "ADMIN")
-                        .header("X-Bootstrap-User-Id", 8001L)
+                        .header("Authorization", "Bearer " + internalReviewerToken())
                         .contentType(MediaType.APPLICATION_JSON)
                         .content("{\"action\":\"REJECT\",\"internal_reject_reason\":\"边缘不清晰，请重新设计\"}"))
                 .andExpect(status().isOk())
@@ -911,8 +929,7 @@ class MessageDesignBillNotificationTests {
                         .header("X-Bootstrap-User-Id", WORKER_USER_ID))
                 .andExpect(status().isOk());
         mockMvc.perform(post("/orders/{orderId}/design-drafts/{draftId}/internal-review", orderId, secondDraftId)
-                        .header("X-Bootstrap-Role", "ADMIN")
-                        .header("X-Bootstrap-User-Id", 8001L)
+                        .header("Authorization", "Bearer " + internalReviewerToken())
                         .contentType(MediaType.APPLICATION_JSON)
                         .content("{\"action\":\"APPROVE\"}"))
                 .andExpect(status().isOk());

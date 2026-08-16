@@ -16,6 +16,7 @@ import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.http.MediaType;
 import org.springframework.jdbc.core.simple.JdbcClient;
 import org.springframework.test.web.servlet.MockMvc;
+import org.springframework.transaction.annotation.Transactional;
 
 @SpringBootTest
 @AutoConfigureMockMvc
@@ -160,6 +161,7 @@ class OrderCaseGroupTests {
     }
 
     @Test
+    @Transactional
     void multiProductDraftSupportsIdempotentAddCopyDeleteTypedValidationAndAtomicSubmit()
             throws Exception {
         CatalogFixture catalog = createActiveCatalog();
