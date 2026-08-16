@@ -4,6 +4,8 @@
 
 ## 当前仓库状态
 
+2026-08-16 已按无 Git SHA 的外部黑盒回归报告复核当前源码：BUG-013 的并发保存保护已存在；其余 7 个 OPEN 项完成本地修复，覆盖医生附件刷新/软删除、扩展名白名单、四端刷新会话恢复、客服 390px 布局、生产帮助和扫码入检竞态。全新隔离库后端 350 tests、前端构建、OpenAPI、专项检查与窄屏浏览器 smoke 通过。改动尚未提交、合并或部署，线上状态不能据此判定为已修复；Task 8 保持 `NOT_READY`。
+
 2026-08-15 已关闭正式站登录的 Origin 漂移缺陷：生产运行证据确认 `www`／直接端口页面与仅允许裸域名的后端 CORS 配置不一致。生产环境已兼容裸域名和 `www`；仓库按 D-194 将非规范入口 308 跳转到 `https://chinesedigitaldental.com`，并在每次生产发布后从公网验证两个登录 Origin 和两个重定向入口。该局部生产修复不代表一期整体上线完成，Task 8 保持 `NOT_READY`。
 
 2026-08-11 已完成 GOAL-035 / TASK-036 的 8088 部署缺陷本地收口：登录 CORS 配置化、软删除文件拒绝新签名、MinIO 内部/公网双端点、医生向导步骤门禁与互斥锁、9D.4 权限模型回归及生产构建演示密码清理均已落地；独立全新数据库与 MinIO bucket 上后端 336 tests、前端生产构建和部署检查通过。线上尚未重新部署，必须按 `docs/deployment/8088-redeployment-checklist-20260811.md` 配置公网端点、网络与正式账号并复测；Task 8 保持 `NOT_READY`。
@@ -337,6 +339,7 @@ FILE_PREVIEW_URL_TTL_SECONDS=900
 FILE_DOWNLOAD_URL_TTL_SECONDS=7200
 FILE_MAX_FILE_SIZE_BYTES=209715200
 FILE_ALLOWED_CONTENT_TYPES=application/pdf,model/stl,application/sla,application/octet-stream,text/plain,image/png,image/jpeg,application/zip,application/x-zip-compressed
+FILE_ALLOWED_FILENAME_EXTENSIONS=stl,sla,ply,obj,pdf,jpg,jpeg,png,webp,dcm,dicom,zip,doc,docx,txt
 FILE_MAX_FILES_PER_ORDER=30
 AI_PROVIDER=deterministic
 AI_MAX_REQUESTS_PER_USER_HOUR=120
@@ -393,7 +396,7 @@ AI 外部告警监控第一增量：`GET /ai/governance/external-alerts/summary`
 
 AI 外部告警 outbox 列表与失败/死信可见性第一增量：`GET /ai/governance/external-alerts` 仅 CS / ADMIN 可读，支持 `send_status`、`event_type`、`created_at_from`、`created_at_to`、`limit` 查询最近记录；FAILED / DEAD_LETTER 记录额外返回 `attempts`、脱敏 `last_error` 和 `last_attempted_at`。响应不返回 payload、真实 webhook URL、密钥、Bearer token、prompt 原文、模型原始响应或上游敏感响应。
 
-9D.67 文件上传限制与 bucket 隔离第一段：`/files/upload-token` 和 `/files/multipart/initiate` 在发放预签名或初始化 Multipart 前校验 `FILE_MAX_FILE_SIZE_BYTES`、`FILE_ALLOWED_CONTENT_TYPES` 和 `FILE_MAX_FILES_PER_ORDER`；医生端选择附件时也按同口径给出大小、类型、数量提示。测试环境和正式环境必须配置不同 `MINIO_BUCKET`、对象存储账号和数据库，不得把真实 bucket 凭据或生产配置提交到仓库。
+9D.67 文件上传限制与 bucket 隔离第一段：`/files/upload-token` 和 `/files/multipart/initiate` 在发放预签名或初始化 Multipart 前校验 `FILE_MAX_FILE_SIZE_BYTES`、`FILE_ALLOWED_CONTENT_TYPES`、`FILE_ALLOWED_FILENAME_EXTENSIONS` 和 `FILE_MAX_FILES_PER_ORDER`；医生端选择附件时也按同口径给出大小、类型、数量提示。Multipart 完成态另复核对象实际大小与 MIME；扩展名/MIME 门禁不等同于文件魔数或完整内容结构识别。测试环境和正式环境必须配置不同 `MINIO_BUCKET`、对象存储账号和数据库，不得把真实 bucket 凭据或生产配置提交到仓库。
 
 本地开发账号由 Flyway `V6__auth_rbac_datascope_foundation.sql` 初始化，仅用于本地验收：
 
