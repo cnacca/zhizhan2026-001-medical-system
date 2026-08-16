@@ -1,6 +1,9 @@
 <script setup lang="ts">
-import { computed, onBeforeUnmount, onMounted, ref, watch } from 'vue'
+import { computed, inject, onBeforeUnmount, onMounted, ref, watch } from 'vue'
 import { productionProgressNodes, productionProgressSummary } from '../utils/productionProgress'
+import { authenticatedFetchKey } from '../utils/authenticatedFetch'
+
+const authenticatedFetch = inject(authenticatedFetchKey, fetch)
 
 type ApiResponse<T> = { code: number; msg: string; data: T }
 type Row = Record<string, any>
@@ -19,7 +22,6 @@ type Notice = {
 const props = defineProps<{
   activeRoute: string
   token: string
-  permissions: string[]
   notifications: Notice[]
   notificationsLoading: boolean
   notificationError: string
@@ -69,10 +71,6 @@ const safetyRules = ref<Row[]>([])
 const outsourcingRows = ref<Row[]>([])
 const actionBusy = ref<string | number | null>(null)
 const actionMessage = ref('')
-const canApproveEquipment = computed(() => props.permissions.includes('production:equipment:approve'))
-const canWriteMaterial = computed(() => props.permissions.includes('production:material:write'))
-const canWriteSafety = computed(() => props.permissions.includes('production:safety:write'))
-const canConfirmCost = computed(() => props.permissions.includes('production:cost:confirm'))
 const products = ref<Row[]>([])
 const aiSummary = ref<Row | null>(null)
 const aiTrend = ref<Row | null>(null)
@@ -98,7 +96,7 @@ const businessFailure = '数据暂时无法加载，请稍后重试'
 const failureMessage = computed(() => failureKind.value === 'permission' ? '当前账号无权查看此业务内容' : businessFailure)
 
 async function request<T>(path: string, options: RequestInit = {}) {
-  const response = await fetch(path, {
+  const response = await authenticatedFetch(path, {
     ...options,
     headers: {
       'Content-Type': 'application/json',
@@ -683,10 +681,6 @@ async function openOutsourcing(row: Row) {
 }
 
 async function decideEquipmentApproval(row: Row, decision: 'APPROVED' | 'REJECTED') {
-  if (!canApproveEquipment.value) {
-    actionMessage.value = '当前账号没有设备审批权限'
-    return
-  }
   actionBusy.value = row.event_id
   actionMessage.value = ''
   try {
@@ -704,18 +698,6 @@ async function decideEquipmentApproval(row: Row, decision: 'APPROVED' | 'REJECTE
 }
 
 async function advanceSupportStatus(row: Row) {
-  if (props.activeRoute === '/production/material-exceptions' && !canWriteMaterial.value) {
-    actionMessage.value = '当前账号没有物料异常维护权限'
-    return
-  }
-  if (props.activeRoute === '/production/safety-environment' && !canWriteSafety.value) {
-    actionMessage.value = '当前账号没有安环事项维护权限'
-    return
-  }
-  if (props.activeRoute === '/production/cost-management' && !canConfirmCost.value) {
-    actionMessage.value = '当前账号没有成本确认权限'
-    return
-  }
   actionBusy.value = row.exception_no ?? row.event_no ?? row.cost_no
   actionMessage.value = ''
   try {
@@ -879,7 +861,7 @@ function escapeClose(event: KeyboardEvent) {
   if (event.key === 'Escape' && drawerVisible.value) closeDrawer()
 }
 
-watch(() => [props.activeRoute, props.token], () => {
+watch(() => props.activeRoute, () => {
   if (!routeSet.has(props.activeRoute)) return
   resetViewState()
   void refresh()

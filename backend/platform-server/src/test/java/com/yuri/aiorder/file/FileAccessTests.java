@@ -1,6 +1,7 @@
 package com.yuri.aiorder.file;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.hamcrest.Matchers.not;
 import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.Matchers.startsWith;
@@ -15,11 +16,14 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import com.yuri.aiorder.common.BootstrapIdentity;
 import com.yuri.aiorder.common.UserRole;
 import com.yuri.aiorder.common.auth.BearerTokenService;
+import io.minio.MinioClient;
+import io.minio.StatObjectArgs;
 import java.net.URI;
 import java.net.http.HttpClient;
 import java.net.http.HttpRequest;
 import java.net.http.HttpResponse;
 import java.nio.charset.StandardCharsets;
+import java.util.List;
 import java.util.Set;
 import java.util.UUID;
 import org.junit.jupiter.api.BeforeEach;
@@ -34,6 +38,7 @@ import org.springframework.test.web.servlet.MvcResult;
 
 @SpringBootTest(properties = {
         "app.file.allowed-content-types=application/pdf,model/stl,text/plain",
+        "app.file.max-file-size-bytes=12582912",
         "app.file.max-files-per-order=3"
 })
 @AutoConfigureMockMvc
@@ -53,6 +58,9 @@ class FileAccessTests {
 
     @Autowired
     private BearerTokenService tokenService;
+
+    @Autowired
+    private MinioClient minioClient;
 
     private long clinicId;
     private long orderId;
@@ -188,6 +196,57 @@ class FileAccessTests {
         assertThat(auditCount(upload.fileId(), "MULTIPART_INITIATE", "ALLOWED")).isEqualTo(1L);
         assertThat(auditCount(upload.fileId(), "MULTIPART_PART_URL", "ALLOWED")).isEqualTo(1L);
         assertThat(auditCount(upload.fileId(), "MULTIPART_COMPLETE", "ALLOWED")).isEqualTo(1L);
+    }
+
+    @Test
+    void multipartCompletionRejectsActualMinioSizeThatDiffersFromDeclaration() throws Exception {
+        byte[] actualBytes = "actual-multipart-size".getBytes(StandardCharsets.UTF_8);
+        MultipartUploadInfo upload = initiateMultipartUpload(actualBytes.length + 1L);
+        String etag = putObject(
+                requestPartUrl(upload.fileId(), upload.uploadId(), 1),
+                actualBytes,
+                "application/pdf");
+
+        completeMultipartExpectConflict(upload, etag);
+
+        assertThat(fileStatus(upload.fileId())).isEqualTo("REJECTED");
+        assertThat(auditCount(upload.fileId(), "MULTIPART_COMPLETE", "DENIED")).isEqualTo(1L);
+        assertRejectedMultipartObjectRemoved(upload.fileId());
+    }
+
+    @Test
+    void multipartCompletionRejectsActualMinioContentTypeMismatch() throws Exception {
+        byte[] bytes = "actual-multipart-mime".getBytes(StandardCharsets.UTF_8);
+        MultipartUploadInfo upload = initiateMultipartUpload(bytes.length);
+        String etag = putObject(
+                requestPartUrl(upload.fileId(), upload.uploadId(), 1),
+                bytes,
+                "application/pdf");
+        jdbcClient.sql("UPDATE file_resource SET content_type = 'text/plain' WHERE file_id = :fileId")
+                .param("fileId", upload.fileId())
+                .update();
+
+        completeMultipartExpectConflict(upload, etag);
+
+        assertThat(fileStatus(upload.fileId())).isEqualTo("REJECTED");
+        assertThat(auditCount(upload.fileId(), "MULTIPART_COMPLETE", "DENIED")).isEqualTo(1L);
+        assertRejectedMultipartObjectRemoved(upload.fileId());
+    }
+
+    @Test
+    void multipartCompletionRejectsActualMinioObjectAboveConfiguredLimit() throws Exception {
+        byte[] oversizedBytes = new byte[13 * 1024 * 1024];
+        MultipartUploadInfo upload = initiateMultipartUpload(11L * 1024L * 1024L);
+        String etag = putObject(
+                requestPartUrl(upload.fileId(), upload.uploadId(), 1),
+                oversizedBytes,
+                "application/pdf");
+
+        completeMultipartExpectConflict(upload, etag);
+
+        assertThat(fileStatus(upload.fileId())).isEqualTo("REJECTED");
+        assertThat(auditCount(upload.fileId(), "MULTIPART_COMPLETE", "DENIED")).isEqualTo(1L);
+        assertRejectedMultipartObjectRemoved(upload.fileId());
     }
 
     @Test
@@ -783,6 +842,23 @@ class FileAccessTests {
                 .asText();
     }
 
+    private void completeMultipartExpectConflict(MultipartUploadInfo upload, String etag) throws Exception {
+        mockMvc.perform(post("/files/{fileId}/multipart/complete", upload.fileId())
+                        .header("X-Bootstrap-Role", "DOCTOR")
+                        .header("X-Bootstrap-User-Id", DOCTOR_USER_ID)
+                        .header("X-Bootstrap-Clinic-Id", clinicId)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("""
+                                {
+                                  "upload_id": "%s",
+                                  "parts": [
+                                    {"part_number": 1, "etag": "%s"}
+                                  ]
+                                }
+                                """.formatted(upload.uploadId(), etag)))
+                .andExpect(status().isConflict());
+    }
+
     private String putObject(String uploadUrl, byte[] bytes, String contentType) throws Exception {
         HttpRequest request = HttpRequest.newBuilder(URI.create(uploadUrl))
                 .header("Content-Type", contentType)
@@ -836,6 +912,25 @@ class FileAccessTests {
                 .param("result", result)
                 .query(Long.class)
                 .single();
+    }
+
+    private void assertRejectedMultipartObjectRemoved(long fileId) {
+        List<String> objectLocation = jdbcClient.sql("""
+                        SELECT bucket_name, object_key
+                        FROM file_resource
+                        WHERE file_id = :fileId
+                        """)
+                .param("fileId", fileId)
+                .query((rs, rowNum) -> List.of(
+                        rs.getString("bucket_name"),
+                        rs.getString("object_key")))
+                .single();
+        assertThatThrownBy(() -> minioClient.statObject(StatObjectArgs.builder()
+                        .bucket(objectLocation.get(0))
+                        .object(objectLocation.get(1))
+                        .build()))
+                .isInstanceOf(Exception.class);
+        assertThat(auditCount(fileId, "MULTIPART_REJECT_CLEANUP", "ALLOWED")).isEqualTo(1L);
     }
 
     private long insertCompletedFile(long targetOrderId, String visibility) {

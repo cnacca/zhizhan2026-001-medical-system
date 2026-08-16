@@ -24,9 +24,9 @@ info:
     name: Proprietary internal API
     url: https://yourdomain.com/legal/proprietary-api-license
 servers:
-- url: https://api.yourdomain.com/v1
+- url: https://api.yourdomain.com
   description: 正式环境
-- url: https://test-api.yourdomain.com/v1
+- url: https://test-api.yourdomain.com
   description: 测试环境
 tags:
 - name: Auth
@@ -5733,7 +5733,7 @@ paths:
         '503':
           "$ref": "#/components/responses/ServiceUnavailable"
       operationId: getPatientsByPatientIdOrders
-  "/auth/login":
+  "/api/auth/login":
     post:
       tags:
       - Auth
@@ -5773,7 +5773,7 @@ paths:
         '503':
           "$ref": "#/components/responses/ServiceUnavailable"
       operationId: postAuthLogin
-  "/auth/me":
+  "/api/auth/me":
     get:
       tags:
       - Auth
@@ -5800,7 +5800,7 @@ paths:
         default:
           "$ref": "#/components/responses/DefaultError"
       operationId: getAuthMe
-  "/auth/refresh":
+  "/api/auth/refresh":
     post:
       tags:
       - Auth
@@ -5835,7 +5835,7 @@ paths:
         '503':
           "$ref": "#/components/responses/ServiceUnavailable"
       operationId: postAuthRefresh
-  "/auth/logout":
+  "/api/auth/logout":
     post:
       tags:
       - Auth
@@ -5976,7 +5976,7 @@ paths:
         default:
           "$ref": "#/components/responses/DefaultError"
       operationId: postDoctorAccountPassword
-  "/users":
+  x-legacy-unimplemented-users:
     get:
       tags:
       - User
@@ -6074,7 +6074,7 @@ paths:
         '503':
           "$ref": "#/components/responses/ServiceUnavailable"
       operationId: postUsers
-  "/users/{userId}":
+  x-legacy-unimplemented-user-by-id:
     put:
       tags:
       - User
@@ -9495,6 +9495,30 @@ paths:
           "$ref": "#/components/responses/ServiceUnavailable"
       operationId: getProductionEquipmentSummary
   "/production/equipment":
+    get:
+      tags: [CheckRecord]
+      summary: 查询生产设备台账
+      description: 权限：具有 check:read-internal 的内部账号；按当前 DataScope 返回可见设备。
+      parameters:
+      - {name: keyword, in: query, schema: {type: string}}
+      - {name: status, in: query, schema: {type: string}}
+      responses:
+        '400':
+          "$ref": "#/components/responses/BadRequest"
+        '401':
+          "$ref": "#/components/responses/Unauthorized"
+        '403':
+          "$ref": "#/components/responses/Forbidden"
+        '404':
+          "$ref": "#/components/responses/NotFound"
+        '409':
+          "$ref": "#/components/responses/Conflict"
+        '503':
+          "$ref": "#/components/responses/ServiceUnavailable"
+        default:
+          "$ref": "#/components/responses/DefaultError"
+        '200': {description: 设备台账列表}
+      operationId: getProductionEquipment
     post:
       tags:
       - CheckRecord
@@ -9629,6 +9653,30 @@ paths:
           "$ref": "#/components/responses/ServiceUnavailable"
       operationId: getProductionMaterialExceptionSummary
   "/production/material-exceptions":
+    get:
+      tags: [CheckRecord]
+      summary: 查询生产物料异常
+      description: 权限：具有 check:read-internal 的内部账号；按当前 DataScope 返回可见异常。
+      parameters:
+      - {name: keyword, in: query, schema: {type: string}}
+      - {name: status, in: query, schema: {type: string}}
+      responses:
+        '400':
+          "$ref": "#/components/responses/BadRequest"
+        '401':
+          "$ref": "#/components/responses/Unauthorized"
+        '403':
+          "$ref": "#/components/responses/Forbidden"
+        '404':
+          "$ref": "#/components/responses/NotFound"
+        '409':
+          "$ref": "#/components/responses/Conflict"
+        '503':
+          "$ref": "#/components/responses/ServiceUnavailable"
+        default:
+          "$ref": "#/components/responses/DefaultError"
+        '200': {description: 物料异常列表}
+      operationId: getProductionMaterialExceptions
     post:
       tags:
       - CheckRecord
@@ -9763,6 +9811,30 @@ paths:
           "$ref": "#/components/responses/ServiceUnavailable"
       operationId: getProductionSafetyEnvironmentSummary
   "/production/safety-environment/events":
+    get:
+      tags: [CheckRecord]
+      summary: 查询生产安环事件
+      description: 权限：具有 check:read-internal 的内部账号；按当前 DataScope 返回可见事件。
+      parameters:
+      - {name: keyword, in: query, schema: {type: string}}
+      - {name: status, in: query, schema: {type: string}}
+      responses:
+        '400':
+          "$ref": "#/components/responses/BadRequest"
+        '401':
+          "$ref": "#/components/responses/Unauthorized"
+        '403':
+          "$ref": "#/components/responses/Forbidden"
+        '404':
+          "$ref": "#/components/responses/NotFound"
+        '409':
+          "$ref": "#/components/responses/Conflict"
+        '503':
+          "$ref": "#/components/responses/ServiceUnavailable"
+        default:
+          "$ref": "#/components/responses/DefaultError"
+        '200': {description: 安环事件列表}
+      operationId: getProductionSafetyEnvironmentEvents
     post:
       tags:
       - CheckRecord
@@ -9897,6 +9969,30 @@ paths:
           "$ref": "#/components/responses/ServiceUnavailable"
       operationId: getProductionCostSummary
   "/production/cost-management/records":
+    get:
+      tags: [CheckRecord]
+      summary: 查询生产成本记录
+      description: 权限：具有 check:read-internal 的内部账号；按当前 DataScope 返回可见记录。
+      parameters:
+      - {name: keyword, in: query, schema: {type: string}}
+      - {name: status, in: query, schema: {type: string}}
+      responses:
+        '400':
+          "$ref": "#/components/responses/BadRequest"
+        '401':
+          "$ref": "#/components/responses/Unauthorized"
+        '403':
+          "$ref": "#/components/responses/Forbidden"
+        '404':
+          "$ref": "#/components/responses/NotFound"
+        '409':
+          "$ref": "#/components/responses/Conflict"
+        '503':
+          "$ref": "#/components/responses/ServiceUnavailable"
+        default:
+          "$ref": "#/components/responses/DefaultError"
+        '200': {description: 成本记录列表}
+      operationId: getProductionCostRecords
     post:
       tags:
       - CheckRecord
@@ -11809,7 +11905,7 @@ paths:
       summary: 客服配送列表
       description: |
         权限：CS / ADMIN
-        任务 9D.91 第一增量：一期人工配送管理列表，可按物流状态筛选；不接真实物流 API、电子面单或物流平台 webhook。
+        任务 9D.91 第一增量：客服按账单 / 付款 / 物流状态查看配送队列；可按物流状态筛选，内部跟进说明不返回医生端。
       parameters:
       - name: logistics_status
         in: query
@@ -13775,3 +13871,597 @@ paths:
         '503':
           "$ref": "#/components/responses/ServiceUnavailable"
       operationId: postProcessInstanceNodesByNodeInstanceIdSkip
+  "/api/bootstrap/health":
+    get:
+      tags: [Auth]
+      summary: 应用启动健康检查
+      description: 无需登录；只返回应用是否已完成启动，不包含业务或凭据信息。
+      security: []
+      responses:
+        '400':
+          "$ref": "#/components/responses/BadRequest"
+        '401':
+          "$ref": "#/components/responses/Unauthorized"
+        '403':
+          "$ref": "#/components/responses/Forbidden"
+        '404':
+          "$ref": "#/components/responses/NotFound"
+        '409':
+          "$ref": "#/components/responses/Conflict"
+        '503':
+          "$ref": "#/components/responses/ServiceUnavailable"
+        default:
+          "$ref": "#/components/responses/DefaultError"
+        '200': {description: 应用可用}
+      operationId: getApiBootstrapHealth
+  "/doctor/products":
+    get:
+      tags: [Order]
+      summary: 查询医生端可下单产品
+      description: 权限：order:read-doctor；只返回启用且对医生可见的产品信息。
+      responses:
+        '400':
+          "$ref": "#/components/responses/BadRequest"
+        '401':
+          "$ref": "#/components/responses/Unauthorized"
+        '403':
+          "$ref": "#/components/responses/Forbidden"
+        '404':
+          "$ref": "#/components/responses/NotFound"
+        '409':
+          "$ref": "#/components/responses/Conflict"
+        '503':
+          "$ref": "#/components/responses/ServiceUnavailable"
+        default:
+          "$ref": "#/components/responses/DefaultError"
+        '200': {description: 医生端产品列表}
+      operationId: getDoctorProducts
+  "/orders/{orderId}/files":
+    get:
+      tags: [File]
+      summary: 查询订单文件
+      description: 按当前身份的文件权限和订单 DataScope 返回文件；医生端不返回内部文件。
+      parameters:
+      - {name: orderId, in: path, required: true, schema: {type: integer, format: int64}}
+      responses:
+        '400':
+          "$ref": "#/components/responses/BadRequest"
+        '401':
+          "$ref": "#/components/responses/Unauthorized"
+        '403':
+          "$ref": "#/components/responses/Forbidden"
+        '404':
+          "$ref": "#/components/responses/NotFound"
+        '409':
+          "$ref": "#/components/responses/Conflict"
+        '503':
+          "$ref": "#/components/responses/ServiceUnavailable"
+        default:
+          "$ref": "#/components/responses/DefaultError"
+        '200': {description: 可见订单文件列表}
+      operationId: getOrdersByOrderIdFiles
+  "/orders/{orderId}/message-mentionable-users":
+    get:
+      tags: [Message]
+      summary: 查询订单消息可提及用户
+      description: 仅返回当前订单和当前身份允许提及的用户。
+      parameters:
+      - {name: orderId, in: path, required: true, schema: {type: integer, format: int64}}
+      responses:
+        '400':
+          "$ref": "#/components/responses/BadRequest"
+        '401':
+          "$ref": "#/components/responses/Unauthorized"
+        '403':
+          "$ref": "#/components/responses/Forbidden"
+        '404':
+          "$ref": "#/components/responses/NotFound"
+        '409':
+          "$ref": "#/components/responses/Conflict"
+        '503':
+          "$ref": "#/components/responses/ServiceUnavailable"
+        default:
+          "$ref": "#/components/responses/DefaultError"
+        '200': {description: 可提及用户列表}
+      operationId: getOrdersByOrderIdMessageMentionableUsers
+  "/messages/attention-items":
+    get:
+      tags: [Message]
+      summary: 查询当前用户待关注消息
+      description: 按当前身份和订单 DataScope 返回待回复、被提及等消息待办。
+      responses:
+        '400':
+          "$ref": "#/components/responses/BadRequest"
+        '401':
+          "$ref": "#/components/responses/Unauthorized"
+        '403':
+          "$ref": "#/components/responses/Forbidden"
+        '404':
+          "$ref": "#/components/responses/NotFound"
+        '409':
+          "$ref": "#/components/responses/Conflict"
+        '503':
+          "$ref": "#/components/responses/ServiceUnavailable"
+        default:
+          "$ref": "#/components/responses/DefaultError"
+        '200': {description: 消息待办列表}
+      operationId: getMessagesAttentionItems
+  "/messages/attention-items/{messageId}/resolve":
+    post:
+      tags: [Message]
+      summary: 完成一条消息待办
+      description: 只能完成当前用户可见且有权处理的消息待办。
+      parameters:
+      - {name: messageId, in: path, required: true, schema: {type: integer, format: int64}}
+      responses:
+        '400':
+          "$ref": "#/components/responses/BadRequest"
+        '401':
+          "$ref": "#/components/responses/Unauthorized"
+        '403':
+          "$ref": "#/components/responses/Forbidden"
+        '404':
+          "$ref": "#/components/responses/NotFound"
+        '409':
+          "$ref": "#/components/responses/Conflict"
+        '503':
+          "$ref": "#/components/responses/ServiceUnavailable"
+        default:
+          "$ref": "#/components/responses/DefaultError"
+        '200': {description: 已完成的消息待办}
+      operationId: postMessagesAttentionItemsByMessageIdResolve
+  "/production/kanban":
+    get:
+      tags: [Dashboard]
+      summary: 查询指定日期生产看板
+      description: 权限：workflow:read-internal；按当前 DataScope 聚合生产看板。
+      parameters:
+      - {name: date, in: query, required: true, schema: {type: string, format: date}}
+      responses:
+        '400':
+          "$ref": "#/components/responses/BadRequest"
+        '401':
+          "$ref": "#/components/responses/Unauthorized"
+        '403':
+          "$ref": "#/components/responses/Forbidden"
+        '404':
+          "$ref": "#/components/responses/NotFound"
+        '409':
+          "$ref": "#/components/responses/Conflict"
+        '503':
+          "$ref": "#/components/responses/ServiceUnavailable"
+        default:
+          "$ref": "#/components/responses/DefaultError"
+        '200': {description: 生产看板汇总}
+      operationId: getProductionKanban
+  "/production/workbench/department-summary":
+    get:
+      tags: [CheckRecord]
+      summary: 查询生产工作台部门汇总
+      description: 权限：check:read-internal；按当前 DataScope 返回部门汇总。
+      parameters:
+      - {name: order_no_prefix, in: query, schema: {type: string}}
+      responses:
+        '400':
+          "$ref": "#/components/responses/BadRequest"
+        '401':
+          "$ref": "#/components/responses/Unauthorized"
+        '403':
+          "$ref": "#/components/responses/Forbidden"
+        '404':
+          "$ref": "#/components/responses/NotFound"
+        '409':
+          "$ref": "#/components/responses/Conflict"
+        '503':
+          "$ref": "#/components/responses/ServiceUnavailable"
+        default:
+          "$ref": "#/components/responses/DefaultError"
+        '200': {description: 部门工作台汇总}
+      operationId: getProductionWorkbenchDepartmentSummary
+  "/production/equipment/approvals":
+    get:
+      tags: [CheckRecord]
+      summary: 查询设备事件审批列表
+      description: 权限：check:read-internal；按当前 DataScope 返回审批事件。
+      parameters:
+      - {name: status, in: query, schema: {type: string}}
+      responses:
+        '400':
+          "$ref": "#/components/responses/BadRequest"
+        '401':
+          "$ref": "#/components/responses/Unauthorized"
+        '403':
+          "$ref": "#/components/responses/Forbidden"
+        '404':
+          "$ref": "#/components/responses/NotFound"
+        '409':
+          "$ref": "#/components/responses/Conflict"
+        '503':
+          "$ref": "#/components/responses/ServiceUnavailable"
+        default:
+          "$ref": "#/components/responses/DefaultError"
+        '200': {description: 设备事件审批列表}
+      operationId: getProductionEquipmentApprovals
+  "/production/equipment/approvals/{eventId}":
+    put:
+      tags: [CheckRecord]
+      summary: 审批设备事件
+      description: 权限：check:write，仅允许管理端审批。
+      parameters:
+      - {name: eventId, in: path, required: true, schema: {type: integer, format: int64}}
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: {type: object}
+      responses:
+        '400':
+          "$ref": "#/components/responses/BadRequest"
+        '401':
+          "$ref": "#/components/responses/Unauthorized"
+        '403':
+          "$ref": "#/components/responses/Forbidden"
+        '404':
+          "$ref": "#/components/responses/NotFound"
+        '409':
+          "$ref": "#/components/responses/Conflict"
+        '503':
+          "$ref": "#/components/responses/ServiceUnavailable"
+        default:
+          "$ref": "#/components/responses/DefaultError"
+        '200': {description: 审批后的设备事件}
+      operationId: putProductionEquipmentApprovalsByEventId
+  "/production/equipment/{equipmentCode}":
+    get:
+      tags: [CheckRecord]
+      summary: 查询生产设备详情
+      description: 权限：check:read-internal；按当前 DataScope 返回设备详情。
+      parameters:
+      - {name: equipmentCode, in: path, required: true, schema: {type: string}}
+      responses:
+        '400':
+          "$ref": "#/components/responses/BadRequest"
+        '401':
+          "$ref": "#/components/responses/Unauthorized"
+        '403':
+          "$ref": "#/components/responses/Forbidden"
+        '404':
+          "$ref": "#/components/responses/NotFound"
+        '409':
+          "$ref": "#/components/responses/Conflict"
+        '503':
+          "$ref": "#/components/responses/ServiceUnavailable"
+        default:
+          "$ref": "#/components/responses/DefaultError"
+        '200': {description: 设备详情}
+      operationId: getProductionEquipmentByEquipmentCode
+  "/production/material-exceptions/{exceptionNo}":
+    get:
+      tags: [CheckRecord]
+      summary: 查询生产物料异常详情
+      description: 权限：check:read-internal；按当前 DataScope 返回异常详情。
+      parameters:
+      - {name: exceptionNo, in: path, required: true, schema: {type: string}}
+      responses:
+        '400':
+          "$ref": "#/components/responses/BadRequest"
+        '401':
+          "$ref": "#/components/responses/Unauthorized"
+        '403':
+          "$ref": "#/components/responses/Forbidden"
+        '404':
+          "$ref": "#/components/responses/NotFound"
+        '409':
+          "$ref": "#/components/responses/Conflict"
+        '503':
+          "$ref": "#/components/responses/ServiceUnavailable"
+        default:
+          "$ref": "#/components/responses/DefaultError"
+        '200': {description: 物料异常详情}
+      operationId: getProductionMaterialExceptionsByExceptionNo
+  "/production/safety-environment/events/{eventNo}":
+    get:
+      tags: [CheckRecord]
+      summary: 查询生产安环事件详情
+      description: 权限：check:read-internal；按当前 DataScope 返回事件详情。
+      parameters:
+      - {name: eventNo, in: path, required: true, schema: {type: string}}
+      responses:
+        '400':
+          "$ref": "#/components/responses/BadRequest"
+        '401':
+          "$ref": "#/components/responses/Unauthorized"
+        '403':
+          "$ref": "#/components/responses/Forbidden"
+        '404':
+          "$ref": "#/components/responses/NotFound"
+        '409':
+          "$ref": "#/components/responses/Conflict"
+        '503':
+          "$ref": "#/components/responses/ServiceUnavailable"
+        default:
+          "$ref": "#/components/responses/DefaultError"
+        '200': {description: 安环事件详情}
+      operationId: getProductionSafetyEnvironmentEventsByEventNo
+  "/production/safety-environment/rules":
+    get:
+      tags: [CheckRecord]
+      summary: 查询生产安环规则
+      description: 权限：check:read-internal；返回当前内部安环规则。
+      responses:
+        '400':
+          "$ref": "#/components/responses/BadRequest"
+        '401':
+          "$ref": "#/components/responses/Unauthorized"
+        '403':
+          "$ref": "#/components/responses/Forbidden"
+        '404':
+          "$ref": "#/components/responses/NotFound"
+        '409':
+          "$ref": "#/components/responses/Conflict"
+        '503':
+          "$ref": "#/components/responses/ServiceUnavailable"
+        default:
+          "$ref": "#/components/responses/DefaultError"
+        '200': {description: 安环规则列表}
+      operationId: getProductionSafetyEnvironmentRules
+  "/production/cost-management/records/{costNo}":
+    get:
+      tags: [CheckRecord]
+      summary: 查询生产成本记录详情
+      description: 权限：check:read-internal；按当前 DataScope 返回记录详情。
+      parameters:
+      - {name: costNo, in: path, required: true, schema: {type: string}}
+      responses:
+        '400':
+          "$ref": "#/components/responses/BadRequest"
+        '401':
+          "$ref": "#/components/responses/Unauthorized"
+        '403':
+          "$ref": "#/components/responses/Forbidden"
+        '404':
+          "$ref": "#/components/responses/NotFound"
+        '409':
+          "$ref": "#/components/responses/Conflict"
+        '503':
+          "$ref": "#/components/responses/ServiceUnavailable"
+        default:
+          "$ref": "#/components/responses/DefaultError"
+        '200': {description: 成本记录详情}
+      operationId: getProductionCostManagementRecordsByCostNo
+  "/production/cost-management/records/{costNo}/status":
+    put:
+      tags: [CheckRecord]
+      summary: 更新生产成本记录状态
+      description: 权限：check:write，仅允许管理端更新状态。
+      parameters:
+      - {name: costNo, in: path, required: true, schema: {type: string}}
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: {type: object}
+      responses:
+        '400':
+          "$ref": "#/components/responses/BadRequest"
+        '401':
+          "$ref": "#/components/responses/Unauthorized"
+        '403':
+          "$ref": "#/components/responses/Forbidden"
+        '404':
+          "$ref": "#/components/responses/NotFound"
+        '409':
+          "$ref": "#/components/responses/Conflict"
+        '503':
+          "$ref": "#/components/responses/ServiceUnavailable"
+        default:
+          "$ref": "#/components/responses/DefaultError"
+        '200': {description: 更新后的成本记录}
+      operationId: putProductionCostManagementRecordsByCostNoStatus
+  "/production/outsourcing":
+    get:
+      tags: [CheckRecord]
+      summary: 查询生产外协批次
+      description: 权限：check:read-internal；按当前 DataScope 返回外协批次。
+      parameters:
+      - {name: keyword, in: query, schema: {type: string}}
+      - {name: status, in: query, schema: {type: string}}
+      responses:
+        '400':
+          "$ref": "#/components/responses/BadRequest"
+        '401':
+          "$ref": "#/components/responses/Unauthorized"
+        '403':
+          "$ref": "#/components/responses/Forbidden"
+        '404':
+          "$ref": "#/components/responses/NotFound"
+        '409':
+          "$ref": "#/components/responses/Conflict"
+        '503':
+          "$ref": "#/components/responses/ServiceUnavailable"
+        default:
+          "$ref": "#/components/responses/DefaultError"
+        '200': {description: 外协批次列表}
+      operationId: getProductionOutsourcing
+  "/production/outsourcing/{batchNo}":
+    get:
+      tags: [CheckRecord]
+      summary: 查询生产外协批次详情
+      description: 权限：check:read-internal；按当前 DataScope 返回外协详情。
+      parameters:
+      - {name: batchNo, in: path, required: true, schema: {type: string}}
+      responses:
+        '400':
+          "$ref": "#/components/responses/BadRequest"
+        '401':
+          "$ref": "#/components/responses/Unauthorized"
+        '403':
+          "$ref": "#/components/responses/Forbidden"
+        '404':
+          "$ref": "#/components/responses/NotFound"
+        '409':
+          "$ref": "#/components/responses/Conflict"
+        '503':
+          "$ref": "#/components/responses/ServiceUnavailable"
+        default:
+          "$ref": "#/components/responses/DefaultError"
+        '200': {description: 外协批次详情}
+      operationId: getProductionOutsourcingByBatchNo
+  "/staff/account-options":
+    get:
+      tags: [Staff]
+      summary: 查询生产人员账号创建选项
+      description: 权限：staff:manage，仅允许管理端读取。
+      responses:
+        '400':
+          "$ref": "#/components/responses/BadRequest"
+        '401':
+          "$ref": "#/components/responses/Unauthorized"
+        '403':
+          "$ref": "#/components/responses/Forbidden"
+        '404':
+          "$ref": "#/components/responses/NotFound"
+        '409':
+          "$ref": "#/components/responses/Conflict"
+        '503':
+          "$ref": "#/components/responses/ServiceUnavailable"
+        default:
+          "$ref": "#/components/responses/DefaultError"
+        '200': {description: 部门、岗位与角色选项}
+      operationId: getStaffAccountOptions
+  "/staff/accounts":
+    post:
+      tags: [Staff]
+      summary: 创建生产人员账号
+      description: 权限：staff:manage，仅允许管理端创建。
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: {type: object}
+      responses:
+        '400':
+          "$ref": "#/components/responses/BadRequest"
+        '401':
+          "$ref": "#/components/responses/Unauthorized"
+        '403':
+          "$ref": "#/components/responses/Forbidden"
+        '404':
+          "$ref": "#/components/responses/NotFound"
+        '409':
+          "$ref": "#/components/responses/Conflict"
+        '503':
+          "$ref": "#/components/responses/ServiceUnavailable"
+        default:
+          "$ref": "#/components/responses/DefaultError"
+        '200': {description: 新建的生产人员账号}
+      operationId: postStaffAccounts
+  "/staff/accounts/{userId}":
+    put:
+      tags: [Staff]
+      summary: 更新生产人员账号
+      description: 权限：staff:manage，仅允许管理端更新。
+      parameters:
+      - {name: userId, in: path, required: true, schema: {type: integer, format: int64}}
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: {type: object}
+      responses:
+        '400':
+          "$ref": "#/components/responses/BadRequest"
+        '401':
+          "$ref": "#/components/responses/Unauthorized"
+        '403':
+          "$ref": "#/components/responses/Forbidden"
+        '404':
+          "$ref": "#/components/responses/NotFound"
+        '409':
+          "$ref": "#/components/responses/Conflict"
+        '503':
+          "$ref": "#/components/responses/ServiceUnavailable"
+        default:
+          "$ref": "#/components/responses/DefaultError"
+        '200': {description: 更新后的生产人员账号}
+      operationId: putStaffAccountsByUserId
+  "/process-instance/nodes/{nodeInstanceId}/questions":
+    post:
+      tags: [ProcessInstance]
+      summary: 提交生产节点问题
+      description: 权限：workflow:operate-assigned，仅允许被分配人员或管理端提交。
+      parameters:
+      - {name: nodeInstanceId, in: path, required: true, schema: {type: integer, format: int64}}
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: {type: object}
+      responses:
+        '400':
+          "$ref": "#/components/responses/BadRequest"
+        '401':
+          "$ref": "#/components/responses/Unauthorized"
+        '403':
+          "$ref": "#/components/responses/Forbidden"
+        '404':
+          "$ref": "#/components/responses/NotFound"
+        '409':
+          "$ref": "#/components/responses/Conflict"
+        '503':
+          "$ref": "#/components/responses/ServiceUnavailable"
+        default:
+          "$ref": "#/components/responses/DefaultError"
+        '200': {description: 已提交的问题}
+      operationId: postProcessInstanceNodesByNodeInstanceIdQuestions
+  "/production/questions/{questionId}/resolve":
+    post:
+      tags: [ProcessInstance]
+      summary: 处理生产问题
+      description: 权限：workflow:operate-assigned，仅允许有权人员处理。
+      parameters:
+      - {name: questionId, in: path, required: true, schema: {type: integer, format: int64}}
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: {type: object}
+      responses:
+        '400':
+          "$ref": "#/components/responses/BadRequest"
+        '401':
+          "$ref": "#/components/responses/Unauthorized"
+        '403':
+          "$ref": "#/components/responses/Forbidden"
+        '404':
+          "$ref": "#/components/responses/NotFound"
+        '409':
+          "$ref": "#/components/responses/Conflict"
+        '503':
+          "$ref": "#/components/responses/ServiceUnavailable"
+        default:
+          "$ref": "#/components/responses/DefaultError"
+        '200': {description: 处理后的生产问题}
+      operationId: postProductionQuestionsByQuestionIdResolve
+  "/ai/governance/summary":
+    get:
+      tags: [AI]
+      summary: 查询 AI 治理摘要
+      description: 权限：ai:governance:read；返回本地治理指标，不代表真实外部联调完成。
+      responses:
+        '400':
+          "$ref": "#/components/responses/BadRequest"
+        '401':
+          "$ref": "#/components/responses/Unauthorized"
+        '403':
+          "$ref": "#/components/responses/Forbidden"
+        '404':
+          "$ref": "#/components/responses/NotFound"
+        '409':
+          "$ref": "#/components/responses/Conflict"
+        '503':
+          "$ref": "#/components/responses/ServiceUnavailable"
+        default:
+          "$ref": "#/components/responses/DefaultError"
+        '200': {description: AI 治理摘要}
+      operationId: getAiGovernanceSummary

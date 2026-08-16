@@ -1,4 +1,5 @@
 import fs from 'node:fs'
+import { spawnSync } from 'node:child_process'
 
 const checks = [
   ['README.md', [
@@ -143,6 +144,113 @@ for (const file of businessDayCallers) {
     console.error(`${file}: 用了无参 LocalDate.now()，业务日期必须走 BusinessTime.today()`)
     process.exit(1)
   }
+}
+
+// Text checks cannot prove that Compose actually forwards application.yml settings into
+// the backend container. Render the same production model used by deployment and compare
+// its final environment with every application placeholder.
+const applicationConfig = [
+  'backend/platform-server/src/main/resources/application.yml',
+  'backend/platform-server/src/main/resources/application-prod.yml',
+].map((file) => fs.readFileSync(file, 'utf8')).join('\n')
+const requiredBackendEnvironment = new Set(
+  [...applicationConfig.matchAll(/\$\{([A-Z][A-Z0-9_]*)/g)].map((match) => match[1])
+)
+const composeConfig = spawnSync(
+  'docker',
+  [
+    'compose',
+    '--env-file', 'deploy/env/phase-one.prod.example',
+    '-f', 'deploy/docker-compose.phase-one.yml',
+    'config',
+    '--format', 'json',
+  ],
+  { encoding: 'utf8' }
+)
+if (composeConfig.status !== 0) {
+  console.error('deploy/docker-compose.phase-one.yml: production Compose model cannot be rendered')
+  process.exit(1)
+}
+
+let renderedBackendEnvironment
+try {
+  const renderedCompose = JSON.parse(composeConfig.stdout)
+  renderedBackendEnvironment = renderedCompose.services?.backend?.environment
+} catch {
+  console.error('deploy/docker-compose.phase-one.yml: rendered Compose output is not valid JSON')
+  process.exit(1)
+}
+if (!renderedBackendEnvironment || typeof renderedBackendEnvironment !== 'object') {
+  console.error('deploy/docker-compose.phase-one.yml: rendered backend environment is missing')
+  process.exit(1)
+}
+const missingBackendEnvironment = [...requiredBackendEnvironment]
+  .filter((name) => !(name in renderedBackendEnvironment))
+  .sort()
+if (missingBackendEnvironment.length > 0) {
+  console.error(
+    `deploy/docker-compose.phase-one.yml: rendered backend environment misses application variables: ${missingBackendEnvironment.join(', ')}`
+  )
+  process.exit(1)
+}
+
+const requiredSafeProductionValues = {
+  SPRING_PROFILES_ACTIVE: 'prod',
+  APP_AUTH_ALLOW_BOOTSTRAP_HEADERS: 'false',
+  APP_AUTH_ALLOW_ROLE_FALLBACK: 'false',
+}
+for (const [name, expected] of Object.entries(requiredSafeProductionValues)) {
+  if (String(renderedBackendEnvironment[name]) !== expected) {
+    console.error(`deploy/docker-compose.phase-one.yml: rendered backend ${name} must equal ${expected}`)
+    process.exit(1)
+  }
+}
+
+const requiredUploadMimeTypes = [
+  'image/webp',
+  'application/msword',
+  'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
+]
+const renderedUploadMimeTypes = new Set(
+  String(renderedBackendEnvironment.FILE_ALLOWED_CONTENT_TYPES ?? '')
+    .split(',')
+    .map((value) => value.trim().toLowerCase())
+    .filter(Boolean)
+)
+const missingUploadMimeTypes = requiredUploadMimeTypes
+  .filter((contentType) => !renderedUploadMimeTypes.has(contentType))
+if (missingUploadMimeTypes.length > 0) {
+  console.error(
+    `deploy/docker-compose.phase-one.yml: rendered upload MIME whitelist misses frontend-supported types: ${missingUploadMimeTypes.join(', ')}`
+  )
+  process.exit(1)
+}
+
+const productionEnvKeys = new Set(
+  fs.readFileSync('deploy/env/phase-one.prod.example', 'utf8')
+    .split(/\r?\n/)
+    .filter((line) => /^[A-Z][A-Z0-9_]*=/.test(line))
+    .map((line) => line.slice(0, line.indexOf('=')))
+)
+const composeFixedEnvironment = new Set([
+  'SERVER_PORT',
+  'APP_AUTH_ALLOW_BOOTSTRAP_HEADERS',
+  'APP_AUTH_ALLOW_ROLE_FALLBACK',
+  'MYSQL_HOST',
+  'MYSQL_PORT',
+  'REDIS_HOST',
+  'REDIS_PORT',
+  'MINIO_ENDPOINT',
+  'MINIO_INTERNAL_ENDPOINT',
+])
+const missingProductionExampleKeys = [...requiredBackendEnvironment]
+  .filter((name) => !composeFixedEnvironment.has(name) && !productionEnvKeys.has(name))
+  .sort()
+if (missingProductionExampleKeys.length > 0) {
+  console.error(
+    `deploy/env/phase-one.prod.example misses configurable application variables: ${missingProductionExampleKeys.join(', ')}`
+  )
+  process.exit(1)
 }
 
 console.log('deployment env readiness check ok')

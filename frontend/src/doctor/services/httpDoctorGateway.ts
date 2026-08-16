@@ -417,7 +417,8 @@ export class LegacyHttpDoctorGateway implements DoctorGateway {
   constructor(
     private token: string,
     private readonly profile: { displayName: string; clinicName: string },
-    private readonly baseUrl = ''
+    private readonly baseUrl = '',
+    private readonly authenticatedFetch: typeof fetch = fetch
   ) {}
 
   updateToken(token: string): void {
@@ -425,7 +426,7 @@ export class LegacyHttpDoctorGateway implements DoctorGateway {
   }
 
   private async request<T>(path: string, init: RequestInit = {}): Promise<T> {
-    const response = await fetch(`${this.baseUrl}${path}`, {
+    const response = await this.authenticatedFetch(`${this.baseUrl}${path}`, {
       ...init,
       headers: {
         'Content-Type': 'application/json',

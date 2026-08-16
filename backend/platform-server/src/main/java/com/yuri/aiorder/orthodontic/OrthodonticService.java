@@ -208,7 +208,7 @@ public class OrthodonticService {
         requirePortalPermission(
                 identity,
                 "design-draft:internal-review",
-                Set.of(UserRole.ADMIN, UserRole.CS, UserRole.WORKER));
+                Set.of(UserRole.WORKER));
         PlanScope plan = requirePlan(planVersionId);
         requireInternalRead(requireOrder(plan.orderId()), identity);
         if (!"PENDING_INTERNAL_REVIEW".equals(plan.status())) {
@@ -254,10 +254,6 @@ public class OrthodonticService {
             long orderId,
             CreateProductionBatchRequest request,
             BootstrapIdentity identity) {
-        requirePortalPermission(
-                identity,
-                "workflow:orthodontic-batch:manage",
-                Set.of(UserRole.ADMIN, UserRole.WORKER));
         OrderScope order = requireOrder(orderId);
         requireInternalRead(order, identity);
         long caseId = requireCaseId(orderId);
@@ -678,10 +674,6 @@ public class OrthodonticService {
         if (identity.role() != UserRole.WORKER || identity.userId() == null) {
             throw new ResponseStatusException(HttpStatus.FORBIDDEN, "internal orthodontic access is required");
         }
-        if (identity.hasPermission("workflow:orthodontic-case:read")
-                && "ALL".equalsIgnoreCase(identity.dataScope())) {
-            return;
-        }
         long assigned = jdbcClient.sql("""
                         SELECT
                             (SELECT COUNT(*) FROM design_task
@@ -705,7 +697,7 @@ public class OrthodonticService {
     private void requirePortalPermission(
             BootstrapIdentity identity, String permissionCode, Set<UserRole> allowedPortals) {
         boolean portalAllowed = allowedPortals.contains(identity.role());
-        boolean permissionAllowed = identity.role() == UserRole.ADMIN || identity.hasPermission(permissionCode);
+        boolean permissionAllowed = identity.hasPermission(permissionCode);
         if (!portalAllowed || !permissionAllowed) {
             throw new ResponseStatusException(HttpStatus.FORBIDDEN, "internal portal permission is required");
         }

@@ -64,11 +64,27 @@ jobs:
           corepack prepare pnpm@11.7.0 --activate
           pnpm install --frozen-lockfile
 
+      - name: Prepare isolated backend test infrastructure
+        shell: bash
+        run: |
+          set -euo pipefail
+          npm run compose:up
+          scripts/ensure-test-database.sh
+
+      - name: Run backend test suite
+        shell: bash
+        run: |
+          set -euo pipefail
+          npm run test:backend
+
       - name: Run release gates
         shell: bash
         run: |
           set -euo pipefail
           npm run acceptance
+          npm run check:openapi
+          npm run check:frontend-bug-audit-20260815
+          npm run check:logout-refresh-race
           npm run check:production-auto-deploy
           npm run check:deployment-env
           npm run check:deployment-bugfixes-20260811
@@ -90,6 +106,19 @@ jobs:
             --build-arg "VITE_TEMP_DEMO_LOGIN_PREFILL_ENABLED=${{ vars.TEMP_DEMO_LOGIN_PREFILL_ENABLED || 'false' }}" \
             --tag "ai-order-platform-frontend:${GITHUB_SHA}" \
             .
+
+      - name: Verify final release images
+        shell: bash
+        env:
+          BACKEND_IMAGE: ai-order-platform-backend:${{ github.sha }}
+          FRONTEND_IMAGE: ai-order-platform-frontend:${{ github.sha }}
+          EXPECT_TEMP_DEMO_LOGIN_PREFILL: ${{ vars.TEMP_DEMO_LOGIN_PREFILL_ENABLED || 'false' }}
+        run: |
+          set -euo pipefail
+          bash scripts/check-production-release-images.sh \
+            "${FRONTEND_IMAGE}" \
+            "${EXPECT_TEMP_DEMO_LOGIN_PREFILL}" \
+            "${BACKEND_IMAGE}"
 
       - name: Package the release
         id: package

@@ -2,6 +2,7 @@ package com.yuri.aiorder.notification;
 
 import com.yuri.aiorder.common.BootstrapIdentity;
 import com.yuri.aiorder.common.auth.BearerTokenService;
+import com.yuri.aiorder.common.auth.DatabaseAuthService;
 import java.util.Map;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.server.ServerHttpRequest;
@@ -17,9 +18,12 @@ public class NotificationWebSocketAuthInterceptor implements HandshakeIntercepto
     static final String USER_ID_ATTRIBUTE = "notificationUserId";
 
     private final BearerTokenService tokenService;
+    private final DatabaseAuthService databaseAuthService;
 
-    public NotificationWebSocketAuthInterceptor(BearerTokenService tokenService) {
+    public NotificationWebSocketAuthInterceptor(
+            BearerTokenService tokenService, DatabaseAuthService databaseAuthService) {
         this.tokenService = tokenService;
+        this.databaseAuthService = databaseAuthService;
     }
 
     @Override
@@ -39,7 +43,8 @@ public class NotificationWebSocketAuthInterceptor implements HandshakeIntercepto
                 response.setStatusCode(HttpStatus.UNAUTHORIZED);
                 return false;
             }
-            attributes.put(USER_ID_ATTRIBUTE, identity.userId());
+            BootstrapIdentity activeIdentity = databaseAuthService.loadAuthenticatedUser(identity.userId()).identity();
+            attributes.put(USER_ID_ATTRIBUTE, activeIdentity.userId());
             return true;
         } catch (RuntimeException ex) {
             response.setStatusCode(HttpStatus.UNAUTHORIZED);

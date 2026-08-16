@@ -9,7 +9,6 @@ import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
-import java.util.Set;
 import org.springframework.http.HttpStatus;
 import org.springframework.jdbc.core.simple.JdbcClient;
 import org.springframework.stereotype.Service;
@@ -352,7 +351,7 @@ public class RbacAdminService {
         accessControlService.requireAnyPermission(
                 identity, "user list requires rbac:matrix:read", "rbac:matrix:read", "rbac:user:assign");
         return jdbcClient.sql("""
-                        SELECT u.user_id, u.username, u.display_name, u.user_type, u.status, u.dept_id, d.dept_name,
+                        SELECT u.user_id, u.username, u.display_name, u.status, u.dept_id, d.dept_name,
                                u.data_scope AS user_data_scope
                         FROM system_user u
                         LEFT JOIN system_dept d ON d.dept_id = u.dept_id
@@ -364,7 +363,6 @@ public class RbacAdminService {
                             userId,
                             rs.getString("username"),
                             rs.getString("display_name"),
-                            rs.getString("user_type"),
                             rs.getString("status"),
                             rs.getObject("dept_id", Long.class),
                             rs.getString("dept_name"),
@@ -402,7 +400,6 @@ public class RbacAdminService {
                 requireCanGrantLevel(identity, roleLevelOf(roleCode));
             }
         }
-        requireRoleFamilyMatchesUser(before, targetRoles);
 
         if (request.roleCodes() != null) {
             jdbcClient.sql("DELETE FROM system_user_role WHERE user_id = :userId")
@@ -630,53 +627,6 @@ public class RbacAdminService {
                 .orElseThrow(() -> new ResponseStatusException(HttpStatus.BAD_REQUEST, "unknown role_code: " + roleCode));
     }
 
-    private void requireRoleFamilyMatchesUser(RbacUserResponse user, List<String> roleCodes) {
-        String userFamily = portalFamilyForUser(user);
-        for (String roleCode : roleCodes) {
-            String roleFamily = portalFamilyForRole(roleCode);
-            if (roleFamily != null && !roleFamily.equals(userFamily)) {
-                throw new ResponseStatusException(
-                        HttpStatus.BAD_REQUEST,
-                        "role " + roleCode + " belongs to " + roleFamily
-                                + " portal and cannot be assigned to " + userFamily + " user");
-            }
-        }
-    }
-
-    private String portalFamilyForUser(RbacUserResponse user) {
-        String userType = user.userType() == null ? "" : user.userType().toUpperCase(Locale.ROOT);
-        if (Set.of("ADMIN", "CS", "WORKER", "DOCTOR").contains(userType)) {
-            return userType;
-        }
-        return user.roleCodes().stream()
-                .map(this::portalFamilyForRole)
-                .filter(java.util.Objects::nonNull)
-                .findFirst()
-                .orElseThrow(() -> new ResponseStatusException(
-                        HttpStatus.BAD_REQUEST, "user has no recognizable portal family"));
-    }
-
-    private String portalFamilyForRole(String roleCode) {
-        String normalized = roleCode == null ? "" : roleCode.toUpperCase(Locale.ROOT);
-        if (normalized.equals("ADMIN") || normalized.startsWith("ADMIN_")
-                || normalized.startsWith("ACCEPTANCE_ADMIN_")) {
-            return "ADMIN";
-        }
-        if (normalized.equals("CS") || normalized.startsWith("CS_")
-                || normalized.startsWith("ACCEPTANCE_CS_")) {
-            return "CS";
-        }
-        if (normalized.equals("WORKER") || normalized.startsWith("PROD_")
-                || normalized.startsWith("ACCEPTANCE_PRODUCTION_")) {
-            return "WORKER";
-        }
-        if (normalized.equals("DOCTOR") || normalized.startsWith("CLINIC_")
-                || normalized.startsWith("ACCEPTANCE_DOCTOR_")) {
-            return "DOCTOR";
-        }
-        return null;
-    }
-
     // ------------------------------------------------------------------ 内部装配
 
     private RbacRoleResponse loadRole(long roleId) {
@@ -769,7 +719,7 @@ public class RbacAdminService {
 
     private RbacUserResponse loadUser(long userId) {
         return jdbcClient.sql("""
-                        SELECT u.user_id, u.username, u.display_name, u.user_type, u.status, u.dept_id, d.dept_name,
+                        SELECT u.user_id, u.username, u.display_name, u.status, u.dept_id, d.dept_name,
                                u.data_scope AS user_data_scope
                         FROM system_user u
                         LEFT JOIN system_dept d ON d.dept_id = u.dept_id
@@ -780,7 +730,6 @@ public class RbacAdminService {
                         rs.getLong("user_id"),
                         rs.getString("username"),
                         rs.getString("display_name"),
-                        rs.getString("user_type"),
                         rs.getString("status"),
                         rs.getObject("dept_id", Long.class),
                         rs.getString("dept_name"),

@@ -118,6 +118,21 @@ class AiExternalAlertSenderTests {
     }
 
     @Test
+    void senderNeverDryRunsEnabledWebhookWhenUrlIsBlank() {
+        aiGatewayProperties.getExternalAlert().setWebhookEnabled(true);
+        aiGatewayProperties.getExternalAlert().setWebhookUrl("   ");
+        long alertId = insertPendingAlert("EXTERNAL_ALERT");
+
+        int sent = senderService.sendPendingAlerts(10);
+
+        assertThat(sent).isZero();
+        assertThat(alertStatus(alertId)).isEqualTo("PENDING");
+        assertThat(alertAttempts(alertId)).isEqualTo(1);
+        assertThat(alertLastError(alertId)).contains("webhook URL is required");
+        assertThat(webhookStub.requests()).isEmpty();
+    }
+
+    @Test
     void senderMarksUnsupportedPendingAlertFailedAndRecordsError() {
         long alertId = insertPendingAlert("UNSUPPORTED_CHANNEL");
 

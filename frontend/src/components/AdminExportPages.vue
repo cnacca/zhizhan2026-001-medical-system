@@ -1,5 +1,8 @@
 <script setup lang="ts">
-import { computed, ref, watch } from 'vue'
+import { computed, inject, ref, watch } from 'vue'
+import { authenticatedFetchKey } from '../utils/authenticatedFetch'
+
+const authenticatedFetch = inject(authenticatedFetchKey, fetch)
 
 // TASK-034 E 批次：导出管控与留痕。
 //
@@ -87,7 +90,7 @@ const statusLabels: Record<string, string> = {
 }
 
 async function request<T>(path: string, options: RequestInit = {}): Promise<T> {
-  const response = await fetch(path, {
+  const response = await authenticatedFetch(path, {
     ...options,
     headers: {
       'Content-Type': 'application/json',
@@ -203,7 +206,7 @@ async function download(item: ExportRequest) {
   loading.value = true
   error.value = ''
   try {
-    const response = await fetch(`/exports/${item.export_request_id}/download`, {
+    const response = await authenticatedFetch(`/exports/${item.export_request_id}/download`, {
       method: 'POST',
       headers: { Authorization: `Bearer ${props.token}` }
     })

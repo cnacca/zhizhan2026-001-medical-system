@@ -67,18 +67,20 @@ JOIN system_role target_role ON target_role.role_code = source_map.target_role_c
 JOIN system_role source_role ON source_role.role_code = source_map.source_role_code
 JOIN system_role_permission source_grant ON source_grant.role_id = source_role.role_id;
 
--- 生产端验收还要覆盖当前未完整归入细分角色的四个专项动作。
+-- 生产端验收补齐已确认属于生产侧组长的设计技术内审。
 INSERT IGNORE INTO system_role_permission (role_id, permission_id)
 SELECT target_role.role_id, permission.permission_id
 FROM system_role target_role
-JOIN system_permission permission ON permission.permission_code IN (
-    'design-draft:internal-review',
-    'workflow:orthodontic-case:read',
-    'workflow:orthodontic-batch:manage',
-    'production:equipment:approve',
-    'production:cost:confirm'
-)
+JOIN system_permission permission ON permission.permission_code = 'design-draft:internal-review'
 WHERE target_role.role_code = 'ACCEPTANCE_PRODUCTION_FULL';
+
+-- 客服和管理验收角色只聚合各自端内能力，不继承旧迁移中的技术设计内审授权。
+DELETE role_permission
+FROM system_role_permission role_permission
+JOIN system_role role ON role.role_id = role_permission.role_id
+JOIN system_permission permission ON permission.permission_id = role_permission.permission_id
+WHERE role.role_code IN ('ACCEPTANCE_CS_FULL', 'ACCEPTANCE_ADMIN_FULL')
+  AND permission.permission_code = 'design-draft:internal-review';
 
 DROP TEMPORARY TABLE tmp_acceptance_role_source;
 

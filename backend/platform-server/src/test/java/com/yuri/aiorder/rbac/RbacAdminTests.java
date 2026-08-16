@@ -147,30 +147,6 @@ class RbacAdminTests {
     }
 
     @Test
-    void portalRolesCannotBeMixedAcrossUserTypes() throws Exception {
-        long workerId = createUser("typed-worker", 120L, List.of("WORKER"));
-        jdbcClient.sql("UPDATE system_user SET user_type = 'WORKER' WHERE user_id = :userId")
-                .param("userId", workerId)
-                .update();
-
-        mockMvc.perform(put("/rbac/users/{userId}/assignment", workerId)
-                        .header("X-Bootstrap-Role", "ADMIN")
-                        .header("X-Bootstrap-User-Id", ADMIN_USER_ID)
-                        .contentType(MediaType.APPLICATION_JSON)
-                        .content("{\"role_codes\":[\"WORKER\",\"CS_AGENT\"],\"reason\":\"跨端误配\"}"))
-                .andExpect(status().isBadRequest());
-
-        mockMvc.perform(put("/rbac/users/{userId}/assignment", workerId)
-                        .header("X-Bootstrap-Role", "ADMIN")
-                        .header("X-Bootstrap-User-Id", ADMIN_USER_ID)
-                        .contentType(MediaType.APPLICATION_JSON)
-                        .content("{\"role_codes\":[\"WORKER\",\"PROD_TECHNICIAN\"],\"reason\":\"生产端角色\"}"))
-                .andExpect(status().isOk())
-                .andExpect(jsonPath("$.data.user_type").value("WORKER"))
-                .andExpect(jsonPath("$.data.role_codes", org.hamcrest.Matchers.hasItem("PROD_TECHNICIAN")));
-    }
-
-    @Test
     void supervisorCannotAssignAcrossDepartments() throws Exception {
         long managerUserId = createUser("prod-manager", 120L, List.of("WORKER", "PROD_MANAGER"));
         long sameDeptUser = createUser("prod-worker-a", 120L, List.of("WORKER"));

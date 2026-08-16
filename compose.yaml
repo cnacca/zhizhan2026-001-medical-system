@@ -14,7 +14,7 @@ services:
       MYSQL_PASSWORD: ${MYSQL_PASSWORD:-change-me}
       MYSQL_ROOT_PASSWORD: ${MYSQL_ROOT_PASSWORD:-change-me-root}
     ports:
-      - "${MYSQL_PORT:-3306}:3306"
+      - "${LOCAL_BIND_ADDRESS:-127.0.0.1}:${MYSQL_PORT:-3306}:3306"
     volumes:
       - mysql-data:/var/lib/mysql
     healthcheck:
@@ -27,7 +27,7 @@ services:
     image: redis:7.4-alpine
     container_name: ai-order-redis
     ports:
-      - "${REDIS_PORT:-6379}:6379"
+      - "${LOCAL_BIND_ADDRESS:-127.0.0.1}:${REDIS_PORT:-6379}:6379"
     volumes:
       - redis-data:/data
     healthcheck:
@@ -44,8 +44,8 @@ services:
       MINIO_ROOT_USER: ${MINIO_ROOT_USER:-minioadmin}
       MINIO_ROOT_PASSWORD: ${MINIO_ROOT_PASSWORD:-change-me-minio}
     ports:
-      - "${MINIO_API_PORT:-9000}:9000"
-      - "${MINIO_CONSOLE_PORT:-9001}:9001"
+      - "${LOCAL_BIND_ADDRESS:-127.0.0.1}:${MINIO_API_PORT:-9000}:9000"
+      - "${LOCAL_BIND_ADDRESS:-127.0.0.1}:${MINIO_CONSOLE_PORT:-9001}:9001"
     volumes:
       - minio-data:/data
     healthcheck:

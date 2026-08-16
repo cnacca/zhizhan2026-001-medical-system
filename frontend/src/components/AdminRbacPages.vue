@@ -1,5 +1,8 @@
 <script setup lang="ts">
-import { computed, ref, watch } from 'vue'
+import { computed, inject, ref, watch } from 'vue'
+import { authenticatedFetchKey } from '../utils/authenticatedFetch'
+
+const authenticatedFetch = inject(authenticatedFetchKey, fetch)
 
 // TASK-034 C 批次：管理端角色 / 权限 / 组织管理，关闭客户 CHK064-066。
 // 全部为可实操界面，不是只读展示；高风险操作走后端留痕。
@@ -117,7 +120,7 @@ const deptTree = computed(() =>
 )
 
 async function request<T>(path: string, options: RequestInit = {}): Promise<T> {
-  const response = await fetch(path, {
+  const response = await authenticatedFetch(path, {
     ...options,
     headers: {
       'Content-Type': 'application/json',
@@ -300,7 +303,6 @@ function roleHas(roleCode: string, permissionCode: string) {
 }
 
 watch(() => props.activeRoute, load, { immediate: true })
-watch(() => props.token, load)
 </script>
 
 <template>

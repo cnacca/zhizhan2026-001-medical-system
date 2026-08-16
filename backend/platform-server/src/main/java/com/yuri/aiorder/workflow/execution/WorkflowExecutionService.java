@@ -1044,10 +1044,7 @@ public class WorkflowExecutionService {
     @Transactional
     public ProductionEquipmentEventResponse decideProductionEquipmentApproval(
             long eventId, ProductionEquipmentApprovalRequest request, BootstrapIdentity identity) {
-        requireAdminOrWorkerPermission(
-                identity,
-                "production:equipment:approve",
-                "equipment approval requires production:equipment:approve");
+        requirePermission(identity, "production:equipment:approve", "equipment approval requires production:equipment:approve");
         String decision = normalizeRequired(request.decision(), "decision").toUpperCase(Locale.ROOT);
         if (!Set.of("APPROVED", "REJECTED").contains(decision)) {
             throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "unsupported equipment approval decision");
@@ -1587,10 +1584,7 @@ public class WorkflowExecutionService {
     @Transactional
     public ProductionCostRecordResponse updateProductionCostRecordStatus(
             String costNo, ProductionCostStatusRequest request, BootstrapIdentity identity) {
-        requireAdminOrWorkerPermission(
-                identity,
-                "production:cost:confirm",
-                "cost confirmation requires production:cost:confirm");
+        requirePermission(identity, "production:cost:confirm", "cost confirmation requires production:cost:confirm");
         String normalizedCostNo = normalizeCostNo(costNo);
         String normalizedStatus = normalizeProductionCostStatus(request.status());
         int updated = jdbcClient.sql("""

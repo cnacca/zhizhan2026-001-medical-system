@@ -80,7 +80,7 @@ ref：`feature/project-skeleton`
 以下均**未被覆盖**，不得据此声称部署验收完成：
 
 - **宿主侧冷启动**：pnpm store 与 `~/.m2` 由宿主共享，"依赖安装 1s""后端编译 5s"远短于真正全新机器。演练验证的是仓库侧可复现性。
-- **Linux 宿主**：`scripts/with-jdk21.sh` 硬编码 Homebrew 路径 `/opt/homebrew/opt/openjdk@21/...`，在 Linux 服务器上不存在。
+- **Linux 宿主的完整冷启动**：`scripts/with-jdk21.sh` 已改为优先保留调用方选择的 Java 21（例如 GitHub Actions `setup-java`），仅在本机存在时回退到 Homebrew JDK；但本演练仍未覆盖 Linux 的 Docker 权限、文件权限和完整依赖冷缓存。
 - **Docker 权限、防火墙、SELinux**。
 - **HTTPS / Nginx 生产网关**。
 - **多实例并存**：固定容器名与固定端口使测试环境与正式环境无法同机共存。客户若计划同机跑两套环境，需先把容器名与端口参数化。

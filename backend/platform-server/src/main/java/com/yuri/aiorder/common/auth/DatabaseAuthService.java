@@ -43,6 +43,7 @@ public class DatabaseAuthService {
     private AuthenticatedUser toAuthenticatedUser(UserAuthRow row) {
         List<String> roles = row.roleCodes();
         List<String> permissions = row.permissionCodes();
+        boolean fineGrainedRolesOnly = hasFineGrainedRole(roles);
         UserRole primaryRole = primaryRole(roles);
         String dataScope = resolveDataScope(primaryRole, row.userDataScope(), row.dataScopes());
         BootstrapIdentity identity = new BootstrapIdentity(
@@ -52,7 +53,7 @@ public class DatabaseAuthService {
                 row.username(),
                 Set.copyOf(permissions),
                 dataScope);
-        List<AuthMenu> menus = loadMenus(row.userId());
+        List<AuthMenu> menus = loadMenus(row.userId(), fineGrainedRolesOnly);
         return new AuthenticatedUser(
                 row.username(),
                 row.userId(),
@@ -68,7 +69,7 @@ public class DatabaseAuthService {
         if (identity.userId() == null) {
             return List.of();
         }
-        return loadMenus(identity.userId());
+        return loadMenus(identity.userId(), hasFineGrainedRole(identity.userId()));
     }
 
     private UserAuthRow loadUser(String username) {
@@ -123,6 +124,7 @@ public class DatabaseAuthService {
             if (roleCodes.isEmpty()) {
                 throw unauthorized();
             }
+            boolean fineGrainedRolesOnly = hasFineGrainedRole(roleCodes);
 
             List<String> dataScopes = jdbcClient.sql("""
                             SELECT DISTINCT r.data_scope
@@ -131,8 +133,13 @@ public class DatabaseAuthService {
                             WHERE ur.user_id = :userId
                               AND r.status = 'ACTIVE'
                               AND r.data_scope IS NOT NULL
+                              AND (
+                                  :fineGrainedRolesOnly = FALSE
+                                  OR r.role_code NOT IN ('ADMIN', 'CS', 'WORKER', 'DOCTOR')
+                              )
                             """)
                     .param("userId", base.userId())
+                    .param("fineGrainedRolesOnly", fineGrainedRolesOnly)
                     .query(String.class)
                     .list();
 
@@ -148,6 +155,10 @@ public class DatabaseAuthService {
                                 JOIN system_role_permission role_permission
                                   ON role_permission.role_id = active_role.role_id
                                 WHERE role_user.user_id = :userId
+                                  AND (
+                                      :fineGrainedRolesOnly = FALSE
+                                      OR active_role.role_code NOT IN ('ADMIN', 'CS', 'WORKER', 'DOCTOR')
+                                  )
                                 UNION
                                 SELECT direct_permission.permission_id
                                 FROM system_user_permission direct_permission
@@ -158,6 +169,7 @@ public class DatabaseAuthService {
                             ORDER BY p.permission_code
                             """)
                     .param("userId", base.userId())
+                    .param("fineGrainedRolesOnly", fineGrainedRolesOnly)
                     .query(String.class)
                     .list();
 
@@ -199,6 +211,24 @@ public class DatabaseAuthService {
         }
     }
 
+    private boolean hasFineGrainedRole(List<String> roleCodes) {
+        return roleCodes.stream().anyMatch(roleCode -> toPortalRole(roleCode) == null);
+    }
+
+    private boolean hasFineGrainedRole(long userId) {
+        return jdbcClient.sql("""
+                        SELECT COUNT(*)
+                        FROM system_user_role user_role
+                        JOIN system_role role ON role.role_id = user_role.role_id
+                        WHERE user_role.user_id = :userId
+                          AND role.status = 'ACTIVE'
+                          AND role.role_code NOT IN ('ADMIN', 'CS', 'WORKER', 'DOCTOR')
+                        """)
+                .param("userId", userId)
+                .query(Long.class)
+                .single() > 0;
+    }
+
     /**
      * 数据范围解析顺序：用户级覆盖 &gt; 角色级配置 &gt; 入口角色默认值。
      *
@@ -206,8 +236,9 @@ public class DatabaseAuthService {
      * 实际上永远被入口角色盖掉——客户要的「客服经理=全公司 / 普通客服=本人负责」在那种写法下无法配置出来。
      * 现在只有当该用户的所有角色都没有配置数据范围时，才回落到入口角色默认值。
      *
-     * <p>用户同时拥有多个角色时取其中最宽的范围。这是过渡口径：TASK-034 B 批次落地
-     * 「登录后选择当前身份」之后，这里应改为只按当前生效身份解析，届时不再存在多角色取并集的问题。
+     * <p>用户持有细分角色时，入口角色只负责 Portal 选择，不参与业务权限或数据范围聚合；
+     * 完全没有细分角色的历史账号仍使用入口角色配置保持兼容。多个细分角色之间仍取最宽范围，
+     * 直到后续引入显式的「当前身份」选择。
      */
     private String resolveDataScope(UserRole primaryRole, String userDataScope, List<String> dataScopes) {
         String override = normalizeDataScope(userDataScope);
@@ -251,7 +282,7 @@ public class DatabaseAuthService {
                 .collect(Collectors.toList());
     }
 
-    private List<AuthMenu> loadMenus(long userId) {
+    private List<AuthMenu> loadMenus(long userId, boolean fineGrainedRolesOnly) {
         return jdbcClient.sql("""
                         SELECT DISTINCT
                             m.menu_code,
@@ -288,6 +319,10 @@ public class DatabaseAuthService {
                                               ON role_permission.role_id = permission_role.role_id
                                             WHERE permission_user_role.user_id = ur.user_id
                                               AND role_permission.permission_id = effective_permission.permission_id
+                                              AND (
+                                                  :fineGrainedRolesOnly = FALSE
+                                                  OR permission_role.role_code NOT IN ('ADMIN', 'CS', 'WORKER', 'DOCTOR')
+                                              )
                                         )
                                         OR EXISTS (
                                             SELECT 1
@@ -301,6 +336,7 @@ public class DatabaseAuthService {
                         ORDER BY m.sort_order, m.menu_code
                         """)
                 .param("userId", userId)
+                .param("fineGrainedRolesOnly", fineGrainedRolesOnly)
                 .query((rs, rowNum) -> new AuthMenu(
                         rs.getString("menu_code"),
                         rs.getString("menu_name"),

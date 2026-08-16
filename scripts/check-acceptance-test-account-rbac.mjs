@@ -3,25 +3,19 @@ import fs from 'node:fs'
 const read = (file) => fs.readFileSync(file, 'utf8')
 const seed = read('scripts/seed-admin-portal-demo-data.sql')
 const seedLauncher = read('scripts/seed-admin-portal-demo-data.sh')
+const databaseAuth = read(
+  'backend/platform-server/src/main/java/com/yuri/aiorder/common/auth/DatabaseAuthService.java'
+)
 const designService = read(
   'backend/platform-server/src/main/java/com/yuri/aiorder/design/DesignTaskService.java'
 )
-const orthodonticService = read(
-  'backend/platform-server/src/main/java/com/yuri/aiorder/orthodontic/OrthodonticService.java'
-)
-const workflowService = read(
-  'backend/platform-server/src/main/java/com/yuri/aiorder/workflow/execution/WorkflowExecutionService.java'
-)
-const workflowController = read(
-  'backend/platform-server/src/main/java/com/yuri/aiorder/workflow/execution/WorkflowExecutionController.java'
-)
-const portalTests = read(
-  'backend/platform-server/src/test/java/com/yuri/aiorder/auth/AcceptancePortalPermissionTests.java'
-)
-const productionWriteTests = read(
-  'backend/platform-server/src/test/java/com/yuri/aiorder/production/ProductionFineGrainedWritePermissionTests.java'
+const menuTests = read(
+  'backend/platform-server/src/test/java/com/yuri/aiorder/auth/FineGrainedRoleTests.java'
 )
 const demoChecker = read('scripts/check-demo-data.mjs')
+const designRoleAlignment = read(
+  'backend/platform-server/src/main/resources/db/migration/V88__align_design_internal_review_role.sql'
+)
 
 const failures = []
 const requireFragment = (content, label, fragment) => {
@@ -63,16 +57,8 @@ for (const roleCode of sourceRoles) {
   requireFragment(acceptanceSeed, 'acceptance seed source union', `'${roleCode}'`)
 }
 
-for (const permission of [
-  'design-draft:internal-review',
-  'workflow:orthodontic-case:read',
-  'workflow:orthodontic-batch:manage',
-  'production:equipment:approve',
-  'production:cost:confirm'
-]) {
-  requireFragment(acceptanceSeed, 'production acceptance grants', `'${permission}'`)
-  requireFragment(demoChecker, 'demo checker', `'${permission}'`)
-}
+requireFragment(acceptanceSeed, 'production acceptance grants', "'design-draft:internal-review'")
+requireFragment(demoChecker, 'demo checker', "'design-draft:internal-review'")
 
 for (const forbiddenDoctorPermission of [
   'workflow:read-internal', 'order:read-internal', 'check:read-internal',
@@ -108,42 +94,24 @@ if (migrations.includes('ACCEPTANCE_DOCTOR_FULL') || migrations.includes('ACCEPT
   failures.push('acceptance-only roles must not be added to Flyway migrations')
 }
 
+requireFragment(databaseAuth, 'DatabaseAuthService', 'loadMenus(row.userId(), fineGrainedRolesOnly)')
+requireFragment(databaseAuth, 'DatabaseAuthService', 'loadMenus(identity.userId(), hasFineGrainedRole(identity.userId()))')
+requireFragment(
+  databaseAuth,
+  'DatabaseAuthService menu permission filter',
+  "OR permission_role.role_code NOT IN ('ADMIN', 'CS', 'WORKER', 'DOCTOR')"
+)
+requireFragment(databaseAuth, 'DatabaseAuthService direct menu permissions', 'FROM system_user_permission user_permission')
+
 requireFragment(
   designService,
   'DesignTaskService',
-  'Set.of(UserRole.ADMIN, UserRole.CS, UserRole.WORKER).contains(identity.role())'
+  'identity.role() == UserRole.WORKER'
 )
-requireFragment(orthodonticService, 'OrthodonticService', 'requirePortalPermission(')
-requireFragment(orthodonticService, 'OrthodonticService', 'Set.of(UserRole.ADMIN, UserRole.WORKER)')
-requireFragment(workflowService, 'WorkflowExecutionService', 'requireAdminOrWorkerPermission(')
-for (const permission of [
-  'production:equipment:write',
-  'production:material:write',
-  'production:safety:write',
-  'production:cost:write',
-  'production:reward-penalty:write'
-]) {
-  requireFragment(
-    workflowController,
-    'WorkflowExecutionController production write annotations',
-    `@RequirePermission("${permission}")`
-  )
-  requireFragment(workflowService, 'WorkflowExecutionService production write checks', `"${permission}"`)
-  requireFragment(demoChecker, 'production acceptance permissions', `'${permission}'`)
-}
-
-for (const testName of [
-  'baseWorkerAndCsWithoutDedicatedPermissionsAreForbidden',
-  'dedicatedPermissionsOnAllowedPortalsReachTheServiceLayer',
-  'dedicatedPermissionsCannotCrossPortalBoundaries'
-]) {
-  requireFragment(portalTests, 'AcceptancePortalPermissionTests', testName)
-}
-requireFragment(
-  productionWriteTests,
-  'ProductionFineGrainedWritePermissionTests',
-  'equipmentAndCostTerminalStatesRequireDedicatedApprovalEndpoints'
-)
+requireFragment(designRoleAlignment, 'design role alignment', "role.role_code = 'CS_MANAGER'")
+requireFragment(designRoleAlignment, 'design role alignment', "role.role_code = 'PROD_TEAM_LEAD'")
+requireFragment(menuTests, 'FineGrainedRoleTests', 'doesNotContain("product-catalog")')
+requireFragment(menuTests, 'FineGrainedRoleTests', 'grantDirectPermission(CS_USER_ID, "product:manage")')
 
 if (failures.length > 0) {
   console.error(failures.join('\n'))

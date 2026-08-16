@@ -1,10 +1,13 @@
 <script setup lang="ts">
 import { ElMessage } from 'element-plus'
-import { computed, onMounted, reactive, ref } from 'vue'
+import { computed, inject, onMounted, reactive, ref } from 'vue'
+import { authenticatedFetchKey } from '../utils/authenticatedFetch'
 import {
   CLEAR_ALIGNER_ARCH_OPTIONS,
   CLEAR_ALIGNER_TREATMENT_OPTIONS
 } from './customerOrderSourceSpec'
+
+const authenticatedFetch = inject(authenticatedFetchKey, fetch)
 
 type ApiResponse<T> = { data: T }
 type AlignerType = { code: string; name: string }
@@ -135,7 +138,7 @@ function applyInitialRecords() {
 }
 
 async function api<T>(path: string, options: RequestInit = {}) {
-  const response = await fetch(path, {
+  const response = await authenticatedFetch(path, {
     ...options,
     headers: {
       'Content-Type': 'application/json',

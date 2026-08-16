@@ -16,7 +16,6 @@ import com.yuri.aiorder.workflow.standardtime.WorkflowStandardTimeProperties;
 import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.time.ZoneId;
-import java.time.ZoneOffset;
 import java.util.ArrayList;
 import java.util.LinkedHashSet;
 import java.util.LinkedHashMap;
@@ -186,12 +185,8 @@ public class WorkflowRuntimeService {
         accessControlService.requireInternalAccess(identity, "doctor cannot access production kanban");
         String dataScope = accessControlService.effectiveDataScope(identity);
         accessControlService.requireScopedIdentity(identity, dataScope);
-        LocalDateTime startAt = date.atStartOfDay(BUSINESS_ZONE)
-                .withZoneSameInstant(ZoneOffset.UTC)
-                .toLocalDateTime();
-        LocalDateTime endExclusive = date.plusDays(1).atStartOfDay(BUSINESS_ZONE)
-                .withZoneSameInstant(ZoneOffset.UTC)
-                .toLocalDateTime();
+        LocalDateTime startAt = date.atStartOfDay();
+        LocalDateTime endExclusive = date.plusDays(1).atStartOfDay();
         LocalDateTime asOf = date.equals(LocalDate.now(BUSINESS_ZONE))
                 ? currentDatabaseTime()
                 : endExclusive;
@@ -941,7 +936,8 @@ public class WorkflowRuntimeService {
         if (openCount == 0) {
             jdbcClient.sql("""
                             UPDATE order_process_instance
-                            SET instance_status = 'COMPLETED'
+                            SET instance_status = 'COMPLETED',
+                                updated_at = CURRENT_TIMESTAMP(3)
                             WHERE instance_id = :instanceId
                             """)
                     .param("instanceId", instanceId)

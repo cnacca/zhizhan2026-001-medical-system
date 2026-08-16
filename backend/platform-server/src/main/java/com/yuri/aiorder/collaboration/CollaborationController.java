@@ -113,7 +113,7 @@ public class CollaborationController {
     }
 
     @PostMapping("/orders/{orderId}/design-drafts/{draftId}/cs-review")
-    @RequirePermission(value = "design-draft:internal-review", roles = UserRole.ADMIN)
+    @RequirePermission("design-draft:internal-review")
     public DataResponse<DesignDraftResponse> reviewDesignDraft(
             @PathVariable long orderId,
             @PathVariable long draftId,
@@ -123,7 +123,7 @@ public class CollaborationController {
     }
 
     @PostMapping("/orders/{orderId}/design-drafts/{draftId}/doctor-confirm")
-    @RequirePermission(value = "order:read-doctor", roles = UserRole.DOCTOR)
+    @RequirePermission(value = "order:write-doctor", roles = UserRole.DOCTOR)
     public DataResponse<DesignDraftResponse> doctorConfirmDesignDraft(
             @PathVariable long orderId,
             @PathVariable long draftId,

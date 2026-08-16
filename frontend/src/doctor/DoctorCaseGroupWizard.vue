@@ -1,8 +1,9 @@
 <script setup lang="ts">
 import { ElMessage, ElMessageBox } from 'element-plus'
-import { computed, onMounted, reactive, ref } from 'vue'
+import { computed, inject, nextTick, onMounted, reactive, ref } from 'vue'
 import type { DoctorFile, DoctorGateway, DoctorProductRecommendation, PatientSummary } from './types/contracts'
 import DoctorOrthodonticPrescription from './DoctorOrthodonticPrescription.vue'
+import { authenticatedFetchKey } from '../utils/authenticatedFetch'
 import {
   CATEGORY_NAMES,
   CLEAR_ALIGNER_ARCH_OPTIONS,
@@ -19,6 +20,8 @@ import {
   VITA_3D_SHADES,
   type SourceUploadRule
 } from './customerOrderSourceSpec'
+
+const authenticatedFetch = inject(authenticatedFetchKey, fetch)
 
 type ApiResponse<T> = { data: T; message?: string; msg?: string }
 type CatalogProduct = {
@@ -456,7 +459,7 @@ const finalConfirmationComplete = computed(() =>
 )
 
 async function api<T>(path: string, options: RequestInit = {}): Promise<T> {
-  const response = await fetch(path, {
+  const response = await authenticatedFetch(path, {
     ...options,
     headers: {
       'Content-Type': 'application/json',
@@ -736,8 +739,8 @@ async function persistPendingProductsUnlocked() {
   try {
     for (const productId of [...pendingProductIds.value]) {
       const product = catalog.value?.products.find((candidate) => candidate.product_id === productId)
-      if (!product || group.value?.items.some((item) => item.product_id === productId)) {
-        pendingProductIds.value = pendingProductIds.value.filter((candidate) => candidate !== productId)
+      if (!product) {
+        removePendingProduct(productId)
         continue
       }
       const current = await ensureGroup()
@@ -755,7 +758,7 @@ async function persistPendingProductsUnlocked() {
       })
       group.value = next
       selectedOrderId.value = next.items.at(-1)?.order_id ?? null
-      pendingProductIds.value = pendingProductIds.value.filter((candidate) => candidate !== productId)
+      removePendingProduct(productId)
     }
     if (!group.value?.items.length) {
       ElMessage.error('所选产品已不可用，请重新选择')
@@ -793,13 +796,13 @@ async function copyItem(item: CaseGroupItem) {
 
 async function removeItem(item: CaseGroupItem) {
   if (!group.value || busy.value) return
-  await ElMessageBox.confirm(`移除“${item.product_name}”？专属上传会被安全停用。`, '移除子产品', {
-    confirmButtonText: '确认移除',
-    cancelButtonText: '取消',
-    type: 'warning'
-  })
   busy.value = true
   try {
+    await ElMessageBox.confirm(`移除“${item.product_name}”？专属上传会被安全停用。`, '移除子产品', {
+      confirmButtonText: '确认移除',
+      cancelButtonText: '取消',
+      type: 'warning'
+    })
     group.value = await api<CaseGroup>(
       `/order-case-groups/${group.value.group_id}/items/${item.order_id}`,
       {
@@ -811,7 +814,9 @@ async function removeItem(item: CaseGroupItem) {
     selectedOrderId.value = group.value.items[0]?.order_id ?? null
     ElMessage.success('产品已移除')
   } catch (cause) {
-    ElMessage.error(cause instanceof Error ? cause.message : '移除失败')
+    if (cause !== 'cancel' && cause !== 'close') {
+      ElMessage.error(cause instanceof Error ? cause.message : '移除失败')
+    }
   } finally {
     busy.value = false
   }
@@ -1276,11 +1281,30 @@ function productSelected(product: CatalogProduct) {
   return persistedProductSelected(product) || pendingProductIds.value.includes(product.product_id)
 }
 
+function removePendingProduct(productId: number) {
+  const index = pendingProductIds.value.indexOf(productId)
+  if (index < 0) return
+  pendingProductIds.value = pendingProductIds.value.filter((_, candidateIndex) => candidateIndex !== index)
+}
+
+function copyPendingProduct(product: CatalogProduct) {
+  if (busy.value) return
+  pendingProductIds.value = [...pendingProductIds.value, product.product_id]
+  ElMessage.success(`已复制 ${product.display_name}，点击下一步后分别创建产品订单`)
+}
+
 function toggleProductSelection(product: CatalogProduct) {
-  if (busy.value || persistedProductSelected(product)) return
-  pendingProductIds.value = pendingProductIds.value.includes(product.product_id)
-    ? pendingProductIds.value.filter((productId) => productId !== product.product_id)
-    : [...pendingProductIds.value, product.product_id]
+  if (busy.value) return
+  const persistedItem = group.value?.items.find((item) => item.product_id === product.product_id)
+  if (persistedItem) {
+    void removeItem(persistedItem)
+    return
+  }
+  if (pendingProductIds.value.includes(product.product_id)) {
+    removePendingProduct(product.product_id)
+  } else {
+    pendingProductIds.value = [...pendingProductIds.value, product.product_id]
+  }
 }
 
 // AI-7：推荐只作建议，必须由医生点击「采用」才加入订单，系统不自动填表。
@@ -1290,9 +1314,9 @@ function recommendationProduct(recommendation: DoctorProductRecommendation) {
   )
 }
 
-function recommendationPersisted(recommendation: DoctorProductRecommendation) {
+function recommendationSelected(recommendation: DoctorProductRecommendation) {
   const product = recommendationProduct(recommendation)
-  return Boolean(product && persistedProductSelected(product))
+  return Boolean(product && productSelected(product))
 }
 
 async function loadProductRecommendations() {
@@ -1323,6 +1347,12 @@ async function applyRecommendation(recommendation: DoctorProductRecommendation) 
     return
   }
   toggleProductSelection(product)
+  selectedCategoryCode.value = product.category_code
+  activeProductGroup.value = ''
+  productKeyword.value = ''
+  await nextTick()
+  document.querySelector<HTMLElement>(`[data-testid="case-add-product-${product.product_id}"]`)
+    ?.scrollIntoView({ behavior: 'smooth', block: 'center' })
   ElMessage.success(`已暂存 ${product.display_name}，点击下一步后保存`)
 }
 
@@ -1598,8 +1628,8 @@ onMounted(async () => {
                     :key="product.product_id"
                     type="button"
                     :class="{ active: productSelected(product) }"
-                    :disabled="busy || persistedProductSelected(product)"
-                    :title="persistedProductSelected(product) ? '该产品已保存' : productSelected(product) ? `取消选择${product.display_name}` : `选择${product.display_name}`"
+                    :disabled="busy"
+                    :title="productSelected(product) ? `取消选择${product.display_name}` : `选择${product.display_name}`"
                     :data-testid="`case-add-product-${product.product_id}`"
                     @click="toggleProductSelection(product)"
                   >
@@ -1648,14 +1678,15 @@ onMounted(async () => {
                   v-for="recommendation in productRecommendations"
                   :key="recommendation.productId"
                   type="button"
-                  :disabled="busy || !recommendationProduct(recommendation) || recommendationPersisted(recommendation)"
+                  :class="{ selected: recommendationSelected(recommendation) }"
+                  :disabled="busy || !recommendationProduct(recommendation) || recommendationSelected(recommendation)"
                   @click="applyRecommendation(recommendation)"
                 >
                   <span>
                     <strong>{{ recommendation.displayName }}</strong>
                     <small>{{ recommendation.categoryName }} · {{ recommendation.reason }}</small>
                   </span>
-                  <i>{{ recommendationProduct(recommendation) ? '＋ 采用' : '不在当前目录' }}</i>
+                  <i>{{ !recommendationProduct(recommendation) ? '不在当前目录' : recommendationSelected(recommendation) ? '✓ 已采用' : '＋ 采用' }}</i>
                 </button>
               </div>
             </section>
@@ -1730,10 +1761,11 @@ onMounted(async () => {
                 <button type="button" @click="copyItem(item)">复制</button>
                 <button type="button" class="danger" @click="removeItem(item)">移除</button>
               </article>
-              <article v-for="product in pendingProducts" :key="`pending-${product.product_id}`">
+              <article v-for="(product, index) in pendingProducts" :key="`pending-${product.product_id}-${index}`">
                 <div><strong>{{ product.display_name }}</strong><small>尚未保存，点击下一步后创建产品订单</small></div>
                 <span>待报价</span>
-                <button type="button" class="danger" @click="toggleProductSelection(product)">取消选择</button>
+                <button type="button" :disabled="busy" @click="copyPendingProduct(product)">复制</button>
+                <button type="button" class="danger" :disabled="busy" @click="removePendingProduct(product.product_id)">取消选择</button>
               </article>
             </aside>
           </div>
@@ -2455,6 +2487,11 @@ onMounted(async () => {
   border-radius: 10px;
   background: #fff;
   text-align: left;
+}
+
+.case-recommend-list button.selected {
+  border-color: #a78bfa;
+  background: #f5f3ff;
 }
 
 .case-recommend-list button small {

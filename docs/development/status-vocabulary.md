@@ -143,12 +143,18 @@ InternalOrderStatus  ──投影──▶  ExternalOrderStatus  ──前端 st
 2. **权限码授予必须与实现一致**。TASK-034 A 批次清理过两处历史不一致：`workflow:assign` 曾授予 CS、六个医生端专属码曾授予 ADMIN，而实现层一直把它们挡在外面。改成纯权限码判定后，这类"看着无害"的多余授权会真的放开访问。新增授权时按接口注解和服务层实际判定核对。
 3. **角色码不是枚举值**。`DatabaseAuthService.primaryRole` 会忽略无法映射到 `UserRole` 的角色码；不要恢复成 `UserRole.valueOf` 直取，否则管理端一新建细分角色，被分配到该角色的用户就登录不进来。
 
+权限聚合的隔离规则：账号只要存在至少一个 ACTIVE 细分角色，就从角色权限与角色 DataScope 聚合中排除 `ADMIN / CS / WORKER / DOCTOR` 四个入口角色，避免入口角色的宽授权架空细分角色；直接授予用户的权限仍然叠加，用户级 DataScope 覆盖仍然最高。只有没有细分角色的旧账号才继续使用入口角色的授权和范围。
+
+四个本地演示账号是例外的**验收身份**，不是正式岗位：隔离 demo seed 会按稳定用户 ID 额外分配 `ACCEPTANCE_*_FULL` 细分角色，使其能测试所属端全部功能。该 seed 受 `DEMO_ISOLATED_ENV=true` 和 `_demo` 数据库名双重门禁保护，验收角色不进入 Flyway。前端仍按验收角色实际返回的 permission 显示导航，不得按用户名、环境变量或入口角色直接全放开；真实细分角色继续执行本节的最小权限与 DataScope 规则。
+
 数据范围解析顺序（`DatabaseAuthService.resolveDataScope`）：
 
 ```
 system_user.data_scope（用户级覆盖，可空）
       ▼ 为空时
-system_role.data_scope（角色级配置，NOT NULL；多角色取最宽）
+ACTIVE 细分角色 data_scope（存在细分角色时排除入口角色；多角色取最宽）
+      ▼ 没有细分角色时
+入口角色 system_role.data_scope（旧账号兼容）
       ▼ 身份完全未携带时（例如 bootstrap header）
 入口角色默认值：ADMIN/CS → ALL，DOCTOR → CLINIC，WORKER → SELF
 ```

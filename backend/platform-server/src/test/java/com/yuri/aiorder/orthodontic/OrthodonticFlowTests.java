@@ -7,6 +7,10 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
+import com.yuri.aiorder.common.BootstrapIdentity;
+import com.yuri.aiorder.common.UserRole;
+import com.yuri.aiorder.common.auth.BearerTokenService;
+import java.util.Set;
 import java.util.UUID;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -26,7 +30,6 @@ class OrthodonticFlowTests {
 
     private static final long DOCTOR_ID = 88101L;
     private static final long WORKER_ID = 88102L;
-    private static final long ACCEPTANCE_WORKER_ID = 9601L;
 
     @Autowired
     private JdbcClient jdbcClient;
@@ -36,6 +39,9 @@ class OrthodonticFlowTests {
 
     @Autowired
     private ObjectMapper objectMapper;
+
+    @Autowired
+    private BearerTokenService tokenService;
 
     private long clinicId;
     private long orderId;
@@ -278,55 +284,6 @@ class OrthodonticFlowTests {
     }
 
     @Test
-    void acceptanceWorkerWithAllScopeCanReadUnassignedOrthodonticCase() throws Exception {
-        jdbcClient.sql("""
-                        INSERT INTO orthodontic_case
-                            (order_id, aligner_type_code, case_status, prescription_json,
-                             total_steps, created_by_user_id)
-                        VALUES
-                            (:orderId, :alignerTypeCode, 'PRESCRIPTION_SUBMITTED', JSON_OBJECT(),
-                             12, :doctorId)
-                        """)
-                .param("orderId", orderId)
-                .param("alignerTypeCode", alignerTypeCode)
-                .param("doctorId", DOCTOR_ID)
-                .update();
-
-        jdbcClient.sql("""
-                        INSERT IGNORE INTO system_user_permission (user_id, permission_id)
-                        SELECT :userId, permission_id FROM system_permission
-                        WHERE permission_code = 'workflow:orthodontic-case:read'
-                        """)
-                .param("userId", ACCEPTANCE_WORKER_ID)
-                .update();
-        jdbcClient.sql("UPDATE system_user SET data_scope = 'ALL' WHERE user_id = :userId")
-                .param("userId", ACCEPTANCE_WORKER_ID)
-                .update();
-        String allScopeToken = workerToken();
-        mockMvc.perform(get("/orders/{orderId}/orthodontic-case", orderId)
-                        .header("Authorization", "Bearer " + allScopeToken))
-                .andExpect(status().isOk())
-                .andExpect(jsonPath("$.data.case_status").value("PRESCRIPTION_SUBMITTED"));
-
-        jdbcClient.sql("UPDATE system_user SET data_scope = 'SELF' WHERE user_id = :userId")
-                .param("userId", ACCEPTANCE_WORKER_ID)
-                .update();
-        String selfScopeToken = workerToken();
-        mockMvc.perform(get("/orders/{orderId}/orthodontic-case", orderId)
-                        .header("Authorization", "Bearer " + selfScopeToken))
-                .andExpect(status().isForbidden());
-    }
-
-    private String workerToken() throws Exception {
-        MvcResult login = mockMvc.perform(post("/api/auth/login")
-                        .contentType(MediaType.APPLICATION_JSON)
-                        .content("{\"username\":\"worker\",\"password\":\"change-me-worker\",\"portal\":\"PRODUCTION\"}"))
-                .andExpect(status().isOk())
-                .andReturn();
-        return objectMapper.readTree(login.getResponse().getContentAsString()).path("accessToken").asText();
-    }
-
-    @Test
     void alignerTypeMustComeFromPublishedConfigurationAndPrescriptionUsesOptimisticLock() throws Exception {
         mockMvc.perform(put("/orders/{orderId}/orthodontic-prescription", orderId)
                         .header("X-Bootstrap-Role", "DOCTOR")
@@ -397,12 +354,35 @@ class OrthodonticFlowTests {
 
     private void reviewInternal(long planId, String decision, String reason) throws Exception {
         mockMvc.perform(post("/orthodontic-plan-versions/{planId}/internal-review", planId)
-                        .header("X-Bootstrap-Role", "ADMIN")
+                        .header("Authorization", "Bearer " + internalReviewerToken())
                         .contentType(MediaType.APPLICATION_JSON)
                         .content("""
                                 {"decision":"%s","reason":"%s"}
                                 """.formatted(decision, reason)))
                 .andExpect(status().isOk());
+    }
+
+    private String internalReviewerToken() {
+        jdbcClient.sql("""
+                        INSERT INTO design_task
+                            (order_id, task_status, assigned_user_id, claimed_at)
+                        VALUES
+                            (:orderId, 'CLAIMED', :workerId, CURRENT_TIMESTAMP(3))
+                        ON DUPLICATE KEY UPDATE
+                            task_status = 'CLAIMED',
+                            assigned_user_id = :workerId,
+                            claimed_at = CURRENT_TIMESTAMP(3)
+                        """)
+                .param("orderId", orderId)
+                .param("workerId", WORKER_ID)
+                .update();
+        return tokenService.issue(new BootstrapIdentity(
+                UserRole.WORKER,
+                WORKER_ID,
+                null,
+                null,
+                Set.of("design-draft:internal-review", "workflow:read-internal"),
+                "SELF"));
     }
 
     private void reviewDoctor(long planId, String decision, String reason) throws Exception {

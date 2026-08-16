@@ -1,5 +1,8 @@
 <script setup lang="ts">
-import { computed, onMounted, ref, watch } from 'vue'
+import { computed, inject, onMounted, ref, watch } from 'vue'
+import { authenticatedFetchKey } from '../utils/authenticatedFetch'
+
+const authenticatedFetch = inject(authenticatedFetchKey, fetch)
 
 type ApiResponse<T> = { data: T; msg?: string }
 type Plan = {
@@ -59,12 +62,9 @@ const pendingDoctor = computed(() => plans.value.filter((plan) => plan.plan_stat
 const approvedPlan = computed(() => plans.value.find((plan) => plan.plan_status === 'DOCTOR_APPROVED') ?? null)
 const canInternalReview = computed(() => props.permissions?.includes('design-draft:internal-review') ?? true)
 const canBatch = computed(() => props.permissions?.includes('workflow:orthodontic-batch:manage') ?? true)
-const canCreatePlan = computed(() => props.permissions == null
-  || props.permissions.includes('design-task:operate-self')
-  || props.permissions.includes('design-task:manage'))
 
 async function api<T>(path: string, options: RequestInit = {}) {
-  const response = await fetch(path, {
+  const response = await authenticatedFetch(path, {
     ...options,
     headers: {
       'Content-Type': 'application/json',
@@ -192,7 +192,7 @@ watch(() => props.orderId, load)
       <div class="summary"><span>病例状态 <b>{{ data.case_status }}</b></span><span>总步数 <b>{{ data.total_steps ?? '未确认' }}</b></span><span>方案版本 <b>{{ plans.length }}</b></span><span>生产批次 <b>{{ data.production_batches?.length ?? 0 }}</b></span></div>
 
       <template v-if="mode === 'INTERNAL'">
-        <section v-if="canCreatePlan" class="block">
+        <section class="block">
           <h4>创建新方案版本</h4>
           <textarea v-model="designNote" rows="2" placeholder="本版设计说明"></textarea>
           <small>关联设计文件：{{ latestDesignFileId ? `#${latestDesignFileId}` : '未指定；仍可保存结构化方案快照' }}</small>

@@ -11,7 +11,7 @@ import java.util.Set;
  * 返工的责任人一起改写。那种改写**不报错**——绩效照算，只是算到了别人头上，
  * 等到有人对不上账才发现，而那时已经无法区分哪些是交接改的、哪些本来就是。
  *
- * <p>因此全库 78 个带用户 ID 的列逐个判定，结果就是下面两个集合。
+ * <p>因此全库所有带用户 ID 的列都逐个判定，结果就是下面两个集合。
  * {@code AccountHandoverClassificationTests} 会扫 {@code information_schema}，
  * 强制**每一个用户 ID 列都出现在其中一个集合里**：以后新增一个列不做分类就过不了测试。
  * 这条守卫比「小心一点」有用得多。
@@ -83,6 +83,9 @@ public final class AccountHandoverPlan {
             "order_message_mention.mentioned_user_id",
             "order_payment_record.created_by_user_id",
             "order_case_group_audit.operator_user_id",
+            "order_cancellation_request.requester_user_id",
+            "order_cancellation_request.resolved_by_user_id",
+            "orders.draft_deleted_by",
             "order_process_confirmation.requested_by_user_id",
             "order_process_confirmation.responded_by_user_id",
             "order_try_in.completed_by_user_id",
@@ -144,6 +147,7 @@ public final class AccountHandoverPlan {
             "system_user_post.user_id",
             "system_user_permission.user_id",
             "auth_refresh_token.user_id",
+            "auth_refresh_token.family_id",
             "user_notification.user_id",
             // 交接记录自身
             "account_handover.from_user_id",

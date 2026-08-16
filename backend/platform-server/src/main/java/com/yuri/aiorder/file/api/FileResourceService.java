@@ -11,6 +11,7 @@ import io.minio.ListPartsResponse;
 import io.minio.MakeBucketArgs;
 import io.minio.MinioAsyncClient;
 import io.minio.MinioClient;
+import io.minio.RemoveObjectArgs;
 import io.minio.StatObjectArgs;
 import io.minio.StatObjectResponse;
 import io.minio.http.Method;
@@ -382,7 +383,13 @@ public class FileResourceService {
                 .toArray(Part[]::new);
         completeMultipart(file, request.uploadId(), parts);
         StatObjectResponse stat = statObject(file);
-        String contentType = stat.contentType() == null ? file.contentType() : stat.contentType();
+        String contentType;
+        try {
+            contentType = validateCompletedObject(file, stat, "MULTIPART_COMPLETE", identity);
+        } catch (ResponseStatusException validationFailure) {
+            cleanupRejectedMultipartObject(file, identity);
+            throw validationFailure;
+        }
         jdbcClient.sql("""
                         UPDATE file_resource
                         SET upload_status = 'COMPLETED',
@@ -398,6 +405,54 @@ public class FileResourceService {
                 .update();
         audit(file.fileId(), file.orderId(), identity.userId(), "MULTIPART_COMPLETE", "ALLOWED", null);
         return new FileCompleteResponse(file.fileId(), "COMPLETED", stat.size(), contentType, stat.etag());
+    }
+
+    private void cleanupRejectedMultipartObject(FileRow file, BootstrapIdentity identity) {
+        String statusFailureDetail = null;
+        try {
+            int updatedRows = jdbcClient.sql("""
+                            UPDATE file_resource
+                            SET upload_status = 'REJECTED'
+                            WHERE file_id = :fileId
+                              AND upload_status = 'PENDING'
+                            """)
+                    .param("fileId", file.fileId())
+                    .update();
+            if (updatedRows != 1) {
+                statusFailureDetail = "rejected status update affected " + updatedRows + " rows";
+            }
+        } catch (RuntimeException statusFailure) {
+            statusFailureDetail = "rejected status update failed: "
+                    + statusFailure.getClass().getSimpleName();
+        }
+
+        String cleanupOutcome = "ALLOWED";
+        String cleanupDetail = "removed rejected completed object";
+        try {
+            minioClient.removeObject(RemoveObjectArgs.builder()
+                    .bucket(file.bucketName())
+                    .object(file.objectKey())
+                    .build());
+        } catch (Exception cleanupFailure) {
+            cleanupOutcome = "FAILED";
+            cleanupDetail = "rejected object cleanup failed: "
+                    + cleanupFailure.getClass().getSimpleName();
+        }
+        if (statusFailureDetail != null) {
+            cleanupOutcome = "FAILED";
+            cleanupDetail = cleanupDetail + "; " + statusFailureDetail;
+        }
+        try {
+            audit(
+                    file.fileId(),
+                    file.orderId(),
+                    identity.userId(),
+                    "MULTIPART_REJECT_CLEANUP",
+                    cleanupOutcome,
+                    cleanupDetail);
+        } catch (RuntimeException ignored) {
+            // Cleanup and its audit are best-effort; never mask the original validation failure.
+        }
     }
 
     public FileCompleteResponse abortMultipartUpload(
@@ -430,20 +485,7 @@ public class FileResourceService {
         requireFileActorScope(file, identity, "COMPLETE");
         requireOwnedUploadMutation(file, identity, "COMPLETE");
         StatObjectResponse stat = statObject(file);
-        if (stat.size() <= 0) {
-            audit(file.fileId(), file.orderId(), identity.userId(), "COMPLETE", "DENIED", "empty object");
-            throw new ResponseStatusException(HttpStatus.CONFLICT, "uploaded object is empty");
-        }
-        if (file.fileSize() != null && stat.size() != file.fileSize()) {
-            audit(file.fileId(), file.orderId(), identity.userId(), "COMPLETE", "DENIED", "file size mismatch");
-            throw new ResponseStatusException(HttpStatus.CONFLICT, "uploaded object size does not match token");
-        }
-        if (file.contentType() != null && stat.contentType() != null
-                && !file.contentType().equalsIgnoreCase(stat.contentType())) {
-            audit(file.fileId(), file.orderId(), identity.userId(), "COMPLETE", "DENIED", "content type mismatch");
-            throw new ResponseStatusException(HttpStatus.CONFLICT, "uploaded object content type does not match token");
-        }
-        String contentType = stat.contentType() == null ? file.contentType() : stat.contentType();
+        String contentType = validateCompletedObject(file, stat, "COMPLETE", identity);
         jdbcClient.sql("""
                         UPDATE file_resource
                         SET upload_status = 'COMPLETED',
@@ -459,6 +501,40 @@ public class FileResourceService {
                 .update();
         audit(file.fileId(), file.orderId(), identity.userId(), "COMPLETE", "ALLOWED", null);
         return new FileCompleteResponse(file.fileId(), "COMPLETED", stat.size(), contentType, stat.etag());
+    }
+
+    private String validateCompletedObject(
+            FileRow file,
+            StatObjectResponse stat,
+            String action,
+            BootstrapIdentity identity) {
+        if (stat.size() <= 0) {
+            audit(file.fileId(), file.orderId(), identity.userId(), action, "DENIED", "empty object");
+            throw new ResponseStatusException(HttpStatus.CONFLICT, "uploaded object is empty");
+        }
+        if (properties.maxFileSizeBytes() > 0 && stat.size() > properties.maxFileSizeBytes()) {
+            audit(file.fileId(), file.orderId(), identity.userId(), action, "DENIED", "actual file exceeds size limit");
+            throw new ResponseStatusException(HttpStatus.CONFLICT, "uploaded object exceeds current size limit");
+        }
+        if (file.fileSize() != null && stat.size() != file.fileSize()) {
+            audit(file.fileId(), file.orderId(), identity.userId(), action, "DENIED", "file size mismatch");
+            throw new ResponseStatusException(HttpStatus.CONFLICT, "uploaded object size does not match token");
+        }
+        String actualContentType = normalizeContentType(stat.contentType());
+        if (actualContentType.isBlank()) {
+            audit(file.fileId(), file.orderId(), identity.userId(), action, "DENIED", "missing actual content type");
+            throw new ResponseStatusException(HttpStatus.CONFLICT, "uploaded object content type is missing");
+        }
+        if (!isAllowedContentType(actualContentType)) {
+            audit(file.fileId(), file.orderId(), identity.userId(), action, "DENIED", "actual content type is not allowed");
+            throw new ResponseStatusException(HttpStatus.CONFLICT, "uploaded object content type is not allowed");
+        }
+        String declaredContentType = normalizeContentType(file.contentType());
+        if (!declaredContentType.isBlank() && !declaredContentType.equals(actualContentType)) {
+            audit(file.fileId(), file.orderId(), identity.userId(), action, "DENIED", "content type mismatch");
+            throw new ResponseStatusException(HttpStatus.CONFLICT, "uploaded object content type does not match token");
+        }
+        return actualContentType;
     }
 
     public FileSignedUrlResponse createPreviewUrl(long fileId, BootstrapIdentity identity) {
@@ -701,10 +777,19 @@ public class FileResourceService {
         if (properties.allowedContentTypes() == null || properties.allowedContentTypes().isEmpty()) {
             return true;
         }
-        String normalized = contentType == null ? "" : contentType.trim().toLowerCase(Locale.ROOT);
+        String normalized = normalizeContentType(contentType);
         return properties.allowedContentTypes().stream()
-                .map(value -> value.trim().toLowerCase(Locale.ROOT))
+                .map(this::normalizeContentType)
                 .anyMatch(normalized::equals);
+    }
+
+    private String normalizeContentType(String contentType) {
+        if (contentType == null) {
+            return "";
+        }
+        int parametersStart = contentType.indexOf(';');
+        String mediaType = parametersStart >= 0 ? contentType.substring(0, parametersStart) : contentType;
+        return mediaType.trim().toLowerCase(Locale.ROOT);
     }
 
     private long activeFileCount(long orderId) {
@@ -713,7 +798,7 @@ public class FileResourceService {
                         FROM file_resource
                         WHERE order_id = :orderId
                           AND status = 'ACTIVE'
-                          AND upload_status <> 'ABORTED'
+                          AND upload_status NOT IN ('ABORTED', 'REJECTED')
                         """)
                 .param("orderId", orderId)
                 .query(Long.class)

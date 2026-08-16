@@ -214,6 +214,9 @@ type CsPortalFocusTask =
   | 'SHIPPING_PENDING'
   | 'BILLING_PENDING'
   | 'QUALITY_FOLLOW_UP'
+  | 'SEARCH_CUSTOMER'
+  | 'SEARCH_PRODUCT'
+  | 'SEARCH_OUTSOURCING'
 
 type ClinicItem = {
   clinic_id: number
@@ -324,6 +327,7 @@ const props = defineProps<{
   activeRoute: string
   token: string
   user: LoginUser | null
+  authenticatedFetch: typeof fetch
   searchKeyword: string
   focusOrderId: number | null
   focusTask: CsPortalFocusTask | null
@@ -524,11 +528,10 @@ const helpTopics: HelpTopic[] = [
 ]
 
 async function apiFetch<T>(path: string, options: RequestInit = {}) {
-  const response = await fetch(path, {
+  const response = await props.authenticatedFetch(path, {
     ...options,
     headers: {
       'Content-Type': 'application/json',
-      Authorization: `Bearer ${props.token}`,
       ...(options.headers ?? {})
     }
   })
@@ -545,6 +548,7 @@ async function apiFetch<T>(path: string, options: RequestInit = {}) {
   return await response.json() as ApiResponse<T>
 }
 
+// 订单详情的可选附属资料允许部分降级；待办/待审消息不得走此入口。
 async function safeData<T>(path: string, fallback: T): Promise<T> {
   try {
     return (await apiFetch<T>(path)).data
@@ -1278,10 +1282,47 @@ const displayedOrderAuditTimeline = computed(() => orderDrawerShowAllHistory.val
   ? orderAuditTimeline.value
   : orderAuditTimeline.value.slice(0, 5))
 
+function clearLoadedOrderState() {
+  orders.value = []
+  orderTotal.value = 0
+  selectedOrder.value = null
+  orderDrawerVisible.value = false
+  orderMessages.value = []
+  orderDrafts.value = []
+  orderFiles.value = []
+  orderBill.value = null
+  orderLogistics.value = null
+  orderProcess.value = null
+  inquiryOrderId.value = null
+  inquiryMessages.value = []
+  translationOrderId.value = null
+  translationSource.value = ''
+  translationDraft.value = ''
+  translationFiles.value = []
+  translationRequirements.value = []
+  translationClinicPreference.value = null
+  designOrderId.value = null
+  designDrafts.value = []
+  designPreviewUrls.value = {}
+  designDrawerVisible.value = false
+  selectedBillingOrderId.value = null
+  selectedBill.value = null
+  selectedPayments.value = []
+  billingDrawerVisible.value = false
+}
+
 async function loadOrders() {
-  const payload = await apiFetch<Paged<OrderItem>>('/orders?page=1&size=100')
-  orders.value = payload.data.items
-  orderTotal.value = payload.data.total
+  clearLoadedOrderState()
+  const pageSize = 100
+  const first = await apiFetch<Paged<OrderItem>>(`/orders?page=1&size=${pageSize}`)
+  const pageCount = Math.ceil(first.data.total / pageSize)
+  const items = [...first.data.items]
+  for (let page = 2; page <= pageCount; page += 1) {
+    const payload = await apiFetch<Paged<OrderItem>>(`/orders?page=${page}&size=${pageSize}`)
+    items.push(...payload.data.items)
+  }
+  orders.value = items
+  orderTotal.value = first.data.total
 }
 
 async function loadNotifications() {
@@ -1318,19 +1359,22 @@ async function loadOutsourcing() {
 }
 
 async function loadInquiryBase() {
+  attentionItems.value = []
+  pendingMessages.value = []
   await loadOrders()
   const [attention, pending] = await Promise.all([
-    safeData<AttentionItem[]>('/messages/attention-items', []),
-    safeData<MessageItem[]>('/messages/pending-review', [])
+    apiFetch<AttentionItem[]>('/messages/attention-items'),
+    apiFetch<MessageItem[]>('/messages/pending-review')
   ])
-  attentionItems.value = attention
-  pendingMessages.value = pending
+  attentionItems.value = attention.data
+  pendingMessages.value = pending.data
   if (!inquiryOrderId.value && orders.value.length) inquiryOrderId.value = orders.value[0].order_id
   if (inquiryOrderId.value) await loadInquiryMessages(inquiryOrderId.value)
 }
 
 async function loadOrderAttention() {
-  attentionItems.value = await safeData<AttentionItem[]>('/messages/attention-items', [])
+  attentionItems.value = []
+  attentionItems.value = (await apiFetch<AttentionItem[]>('/messages/attention-items')).data
 }
 
 async function loadInquiryMessages(orderId: number) {
@@ -1379,7 +1423,7 @@ async function reviewInquiryMessage(message: MessageItem, action: 'APPROVE' | 'R
       body: JSON.stringify({ action, review_note: reviewNote || null })
     })
     delete inquiryReviewNotes.value[message.msg_id]
-    pendingMessages.value = await safeData<MessageItem[]>('/messages/pending-review', [])
+    pendingMessages.value = (await apiFetch<MessageItem[]>('/messages/pending-review')).data
     const selectedOrderId = inquiryOrderId.value
     const selectedOrderStillVisible = selectedOrderId !== null
       && conversationOrders.value.some((order) => order.order_id === selectedOrderId)
@@ -1409,8 +1453,16 @@ async function openOrder(order: OrderItem) {
   resetOrderPreview()
   selectedOrder.value = order
   orderDrawerVisible.value = true
-  const [messages, drafts, files, bill, logistics, process] = await Promise.all([
-    safeData<MessageItem[]>(`/orders/${order.order_id}/messages`, []),
+  orderMessages.value = []
+  orderDrafts.value = []
+  orderFiles.value = []
+  orderBill.value = null
+  orderLogistics.value = null
+  orderProcess.value = null
+  const [messageResult, drafts, files, bill, logistics, process] = await Promise.all([
+    apiFetch<MessageItem[]>(`/orders/${order.order_id}/messages`)
+      .then((payload) => ({ messages: payload.data, error: '' }))
+      .catch((error) => ({ messages: [] as MessageItem[], error: detailError(error, '订单消息加载失败') })),
     safeData<DesignDraft[]>(`/orders/${order.order_id}/design-drafts`, []),
     safeData<OrderFile[]>(`/orders/${order.order_id}/files`, []),
     safeData<BillInfo | null>(`/orders/${order.order_id}/bill`, null),
@@ -1419,7 +1471,8 @@ async function openOrder(order: OrderItem) {
       ? safeData<ProcessInstanceInfo | null>(`/orders/${order.order_id}/process-instance`, null)
       : Promise.resolve(null)
   ])
-  orderMessages.value = messages
+  orderMessages.value = messageResult.messages
+  orderDrawerMessageError.value = messageResult.error
   orderDrafts.value = doctorVisibleDrafts(drafts)
   orderFiles.value = files
   orderBill.value = bill
@@ -2071,6 +2124,10 @@ async function loadRoute(route: string) {
     if (route === '/cs/products') {
       await loadProducts()
       productDrawerVisible.value = false
+      if (focusTask === 'SEARCH_PRODUCT' && focusOrderId !== null
+        && products.value.some((item) => item.product_id === focusOrderId)) {
+        await selectProduct(focusOrderId)
+      }
     }
     if (route === '/cs/billing') {
       if (focusTask === 'BILLING_PENDING') {
@@ -2099,6 +2156,10 @@ async function loadRoute(route: string) {
     if (route === '/cs/outsourcing') {
       await loadOutsourcing()
       outsourcingDrawerVisible.value = false
+      const focusOutsourcing = focusTask === 'SEARCH_OUTSOURCING'
+        ? outsourcingItems.value.find((item) => item.outsourcing_id === focusOrderId)
+        : null
+      if (focusOutsourcing) await selectOutsourcing(focusOutsourcing)
     }
     if (route === '/cs/notifications') await Promise.all([loadOrders(), loadNotifications()])
     if (route === '/cs/search') await Promise.all([loadOrders(), loadClinics(), loadProducts(), loadDelivery(), loadOutsourcing()])
@@ -2106,7 +2167,7 @@ async function loadRoute(route: string) {
     pageError.value = error instanceof Error ? error.message : '页面数据加载失败'
   } finally {
     pageLoading.value = false
-    if (focusKey) emit('focusConsumed')
+    if (focusKey && !(route === '/cs/customers' && focusTask === 'SEARCH_CUSTOMER')) emit('focusConsumed')
   }
 }
 
@@ -2474,18 +2535,23 @@ const searchResults = computed(() => {
 })
 
 async function openSearchResult(result: { type: string; route: string; id: number }) {
-  if (result.type === '订单') {
-    const order = orders.value.find((item) => item.order_id === result.id)
-    if (order) await openOrder(order)
+  if (result.type === '客户') {
+    emit('navigate', result.route, result.id, 'SEARCH_CUSTOMER')
+    return
   }
-  if (result.type === '客户') selectedClinicId.value = result.id
-  if (result.type === '产品') selectedProductId.value = result.id
-  if (result.type === '外协') selectedOutsourcingId.value = result.id
-  emit('navigate', result.route)
+  if (result.type === '产品') {
+    emit('navigate', result.route, result.id, 'SEARCH_PRODUCT')
+    return
+  }
+  if (result.type === '外协') {
+    emit('navigate', result.route, result.id, 'SEARCH_OUTSOURCING')
+    return
+  }
+  emit('navigate', result.route, result.id)
 }
 
 watch(() => props.searchKeyword, (value) => { searchInput.value = value })
-watch([() => props.activeRoute, () => props.token], ([route]) => { void loadRoute(route) }, { immediate: true })
+watch(() => props.activeRoute, (route) => { void loadRoute(route) }, { immediate: true })
 watch([() => props.focusOrderId, () => props.focusTask], () => {
   if (props.focusOrderId === null && props.focusTask === null) {
     activeFocusKey.value = ''
@@ -2844,7 +2910,12 @@ watch(billingTab, (tab) => {
     </template>
 
     <template v-else-if="activeRoute === '/cs/customers'">
-      <CustomerManagementPage :token="token" :permissions="user?.permissions ?? []" />
+      <CustomerManagementPage
+        :token="token"
+        :permissions="user?.permissions ?? []"
+        :focus-clinic-id="focusTask === 'SEARCH_CUSTOMER' ? focusOrderId : null"
+        @focus-consumed="emit('focusConsumed')"
+      />
     </template>
 
     <template v-else-if="activeRoute === '/__legacy-customers' && selectedClinic">

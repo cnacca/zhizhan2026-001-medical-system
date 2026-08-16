@@ -24,16 +24,16 @@ const portals = [
     portal: 'CS', username: 'cs', password: 'change-me-cs',
     acceptanceRole: 'ACCEPTANCE_CS_FULL', dataScope: 'ALL',
     requiredPermissions: [
-      'design-draft:internal-review', 'logistics:receive', 'logistics:ship',
+      'logistics:receive', 'logistics:ship',
       'message:translate', 'product:manage'
-    ]
+    ],
+    forbiddenPermissions: ['design-draft:internal-review']
   },
   {
     portal: 'PRODUCTION', username: 'worker', password: 'change-me-worker',
     acceptanceRole: 'ACCEPTANCE_PRODUCTION_FULL', dataScope: 'ALL',
     requiredPermissions: [
-      'design-draft:internal-review', 'workflow:orthodontic-case:read', 'workflow:orthodontic-batch:manage',
-      'production:equipment:approve', 'production:cost:confirm',
+      'design-draft:internal-review',
       'production:equipment:write', 'production:material:write',
       'production:safety:write', 'production:cost:write',
       'production:reward-penalty:write',

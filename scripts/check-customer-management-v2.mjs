@@ -35,7 +35,8 @@ requireIncludes('style', [
 ])
 requireIncludes('portal', [
   "import CustomerManagementPage from './CustomerManagementPage.vue'",
-  "activeRoute === '/cs/customers'", '<CustomerManagementPage :token="token" :permissions="user?.permissions ?? []" />'
+  "activeRoute === '/cs/customers'", '<CustomerManagementPage', ':token="token"',
+  ':permissions="user?.permissions ?? []"', ':focus-clinic-id=', '@focus-consumed='
 ])
 requireIncludes('migration', [
   'clinic_code', 'clinic_invoice_profile', 'clinic_shipping_address', 'clinic_doctor_contact',

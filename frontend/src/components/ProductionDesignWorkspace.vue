@@ -1,6 +1,8 @@
 <script setup lang="ts">
-import { computed, onMounted, ref, watch } from 'vue'
-import OrthodonticWorkflowPanel from './OrthodonticWorkflowPanel.vue'
+import { computed, inject, onMounted, ref, watch } from 'vue'
+import { authenticatedFetchKey } from '../utils/authenticatedFetch'
+
+const authenticatedFetch = inject(authenticatedFetchKey, fetch)
 
 type LoginUser = {
   userId: string | number | null
@@ -153,7 +155,7 @@ function collection<T>(value: T[] | { items?: T[] } | null | undefined): T[] {
 }
 
 async function apiFetch<T>(path: string, options: RequestInit = {}): Promise<T> {
-  const response = await fetch(path, {
+  const response = await authenticatedFetch(path, {
     ...options,
     headers: {
       'Content-Type': 'application/json',
@@ -251,14 +253,6 @@ function draftFiles(draft?: DesignDraft | null): DesignFile[] {
 function latestDraft(task: DesignTask) {
   if (task.latest_draft) return task.latest_draft
   return [...(task.drafts ?? [])].sort((left, right) => right.version - left.version)[0] ?? null
-}
-
-function isOrthodonticTask(task: DesignTask) {
-  return ['ORTHODONTICS', 'ORTHODONTIC', 'CLEAR_ALIGNER'].includes(task.product_type?.toUpperCase())
-}
-
-function latestDesignFileId(task: DesignTask) {
-  return draftFiles(latestDraft(task))[0]?.file_id ?? null
 }
 
 function allDrafts(task: DesignTask) {
@@ -489,7 +483,7 @@ async function internalReview(task: DesignTask, action: 'APPROVE' | 'REJECT') {
 }
 
 onMounted(loadWorkspace)
-watch(() => [props.activeRoute, props.token], () => void loadWorkspace())
+watch(() => props.activeRoute, () => void loadWorkspace())
 </script>
 
 <template>
@@ -609,15 +603,6 @@ watch(() => [props.activeRoute, props.token], () => void loadWorkspace())
             <button type="button" :disabled="busyTaskId === task.task_id" @click="transferTask(task)">确认转派</button>
           </div>
         </section>
-
-        <OrthodonticWorkflowPanel
-          v-if="mode !== 'POOL' && isOrthodonticTask(task)"
-          :token="token"
-          :order-id="task.order_id"
-          mode="INTERNAL"
-          :permissions="user?.permissions ?? []"
-          :latest-design-file-id="latestDesignFileId(task)"
-        />
 
         <footer v-if="allDrafts(task).length > 1 || task.review_history?.length">
           <button type="button" @click="toggleHistory(task.task_id)">

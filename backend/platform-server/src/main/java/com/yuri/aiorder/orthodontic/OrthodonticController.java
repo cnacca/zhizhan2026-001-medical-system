@@ -79,7 +79,7 @@ public class OrthodonticController {
     }
 
     @PostMapping("/orders/{orderId}/orthodontic-production-batches")
-    @RequirePermission("workflow:orthodontic-batch:manage")
+    @RequirePermission(value = "workflow:orthodontic-batch:manage", roles = UserRole.ADMIN)
     public DataResponse<Map<String, Object>> createBatch(
             @PathVariable long orderId,
             @Valid @RequestBody CreateProductionBatchRequest request,

@@ -887,6 +887,13 @@ class WorkflowRuntimeTests {
 
         startNode(start, WORKER_USER_ID);
         completeNode(start, WORKER_USER_ID);
+        mockMvc.perform(post("/check-records")
+                        .header("X-Bootstrap-Role", "WORKER")
+                        .header("X-Bootstrap-User-Id", WORKER_USER_ID)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"node_instance_id\":" + start + ",\"check_type\":2,\"is_pass\":true}"))
+                .andExpect(status().isOk());
+        assertThat(instanceStatus(instanceId)).isEqualTo("COMPLETED");
 
         JsonNode completionDaySnapshot = productionKanban(selectedDate, WORKER_USER_ID);
         assertThat(visibleOrderIds(completionDaySnapshot)).contains(orderId);

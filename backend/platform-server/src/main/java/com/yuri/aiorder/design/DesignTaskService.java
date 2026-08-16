@@ -1313,7 +1313,7 @@ public class DesignTaskService {
     }
 
     private boolean canInternalReview(BootstrapIdentity identity) {
-        return Set.of(UserRole.ADMIN, UserRole.CS, UserRole.WORKER).contains(identity.role())
+        return identity.role() == UserRole.WORKER
                 && identity.hasPermission("design-draft:internal-review");
     }
 
