@@ -57,7 +57,14 @@ public class AiExternalAlertSenderService {
                 continue;
             }
             if (LOCAL_EXTERNAL_ALERT_CHANNEL.equals(pendingAlert.channel())) {
-                if (shouldSendWebhook()) {
+                if (webhookEnabled()) {
+                    if (!hasWebhookUrl()) {
+                        markWebhookFailure(
+                                pendingAlert.alertId(),
+                                pendingAlert.attempts(),
+                                "external alert webhook URL is required when webhook is enabled");
+                        continue;
+                    }
                     try {
                         sendWebhook(pendingAlert.payload());
                         sentCount += markSent(pendingAlert.alertId());
@@ -85,11 +92,13 @@ public class AiExternalAlertSenderService {
                 .update() == 1;
     }
 
-    private boolean shouldSendWebhook() {
-        AiGatewayProperties.ExternalAlert externalAlert = properties.getExternalAlert();
-        return externalAlert.isWebhookEnabled()
-                && externalAlert.getWebhookUrl() != null
-                && !externalAlert.getWebhookUrl().isBlank();
+    private boolean webhookEnabled() {
+        return properties.getExternalAlert().isWebhookEnabled();
+    }
+
+    private boolean hasWebhookUrl() {
+        String webhookUrl = properties.getExternalAlert().getWebhookUrl();
+        return webhookUrl != null && !webhookUrl.isBlank();
     }
 
     private void sendWebhook(String payload) {

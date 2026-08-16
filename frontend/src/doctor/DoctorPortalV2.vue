@@ -105,6 +105,7 @@ const lowerTeeth = ['48', '47', '46', '45', '44', '43', '42', '41', '31', '32', 
 const props = defineProps<{
   token: string
   currentUser: CurrentUser | null
+  authenticatedFetch: typeof fetch
 }>()
 
 const emit = defineEmits<{
@@ -288,7 +289,8 @@ const dataset = ref<DoctorPortalDataset | null>(null)
 const gateway = createDoctorGateway({
   token: props.token,
   displayName: props.currentUser?.username || '医生',
-  clinicName: '当前诊所'
+  clinicName: '当前诊所',
+  authenticatedFetch: props.authenticatedFetch
 })
 const dataMode = resolveDoctorGatewayMode()
 
@@ -349,6 +351,9 @@ const newPatient = reactive({
 
 const billingTab = ref<'perOrder' | 'monthly' | 'invoiceRefund' | 'logistics'>('perOrder')
 const billingStatus = ref<'ALL' | 'UNPAID' | 'PAID' | 'OVERDUE'>('ALL')
+const bulkInvoiceDownloading = ref(false)
+const downloadableInvoiceRefunds = computed(() => dataset.value?.invoiceRefunds
+  .filter((record) => Boolean(record.record_id)) ?? [])
 const logisticsDrawerOpen = ref(false)
 const selectedLogistics = ref<LogisticsRecord | null>(null)
 
@@ -1002,7 +1007,7 @@ async function chooseRole(role: ClinicRole) {
 }
 
 async function deliveryApi<T>(path: string, options: RequestInit = {}): Promise<T> {
-  const response = await fetch(path, {
+  const response = await props.authenticatedFetch(path, {
     ...options,
     headers: {
       'Content-Type': 'application/json',
@@ -1417,9 +1422,9 @@ function markThreadUnread(threadId: string) {
   ElMessage.success('已在当前页面标记为未读')
 }
 
-function downloadInvoice(recordId: string) {
+function downloadInvoice(recordId: string, notify = true) {
   const record = dataset.value?.invoiceRefunds.find((item) => item.record_id === recordId)
-  if (!record) return
+  if (!record) return false
   const pdfLines = [
     record.kind === 'INVOICE' ? 'INVOICE RECORD' : 'REFUND RECORD',
     `Record: ${record.record_id}`,
@@ -1449,9 +1454,32 @@ function downloadInvoice(recordId: string) {
   const anchor = document.createElement('a')
   anchor.href = url
   anchor.download = `${record.record_id}.pdf`
+  document.body.appendChild(anchor)
   anchor.click()
-  URL.revokeObjectURL(url)
-  ElMessage.success('PDF 记录已下载')
+  anchor.remove()
+  window.setTimeout(() => URL.revokeObjectURL(url), 0)
+  if (notify) ElMessage.success('PDF 记录已下载')
+  return true
+}
+
+async function downloadAllInvoices() {
+  if (bulkInvoiceDownloading.value) return
+  const records = [...downloadableInvoiceRefunds.value]
+  if (records.length === 0) {
+    ElMessage.info('当前没有可下载的发票或退款记录')
+    return
+  }
+  bulkInvoiceDownloading.value = true
+  let completed = 0
+  try {
+    for (const record of records) {
+      if (downloadInvoice(record.record_id, false)) completed += 1
+      await new Promise<void>((resolve) => window.setTimeout(resolve, 80))
+    }
+    ElMessage.success(`已下载 ${completed} 份发票或退款记录`)
+  } finally {
+    bulkInvoiceDownloading.value = false
+  }
 }
 
 async function submitWizard() {
@@ -2205,7 +2233,7 @@ onBeforeUnmount(() => window.removeEventListener('keydown', handleGlobalShortcut
                 <div class="dv2-table-wrap"><table class="dv2-table"><thead><tr><th>账期</th><th>诊所</th><th>订单数</th><th>账单总额</th><th>已付</th><th>待付</th><th>状态</th><th>到期日</th><th /></tr></thead><tbody><tr v-for="statement in dataset.statements" :key="statement.statement_id"><td><strong>{{ statement.period }}</strong><small>{{ statement.statement_id }}</small></td><td>{{ statement.clinic_name }}</td><td>{{ statement.order_count }}</td><td>{{ money(statement.total) }}</td><td>{{ money(statement.paid) }}</td><td>{{ money(statement.balance) }}</td><td><span :class="`dv2-status is-${statusTone(statement.status)}`">{{ label(statement.status) }}</span></td><td>{{ statement.due_at }}</td><td><button type="button" class="dv2-row-action">查看明细 →</button></td></tr></tbody></table><div v-if="!dataset.statements.length" class="dv2-empty">暂无月结账单</div></div>
               </template>
               <template v-else-if="billingTab === 'invoiceRefund'">
-                <div class="dv2-list-toolbar"><div><strong>发票与退款</strong><small>集中查看发票开具和退款申请进度</small></div><button type="button" class="dv2-secondary-button" @click="ElMessage.info('在线申请暂未开放，请联系订单支持')">＋ 发起申请</button></div>
+                <div class="dv2-list-toolbar"><div><strong>发票与退款</strong><small>集中查看发票开具和退款申请进度</small></div><button type="button" class="dv2-secondary-button" :disabled="bulkInvoiceDownloading || downloadableInvoiceRefunds.length === 0" @click="downloadAllInvoices">{{ bulkInvoiceDownloading ? '下载中…' : `下载全部 (${downloadableInvoiceRefunds.length})` }}</button><button type="button" class="dv2-secondary-button" @click="ElMessage.info('在线申请暂未开放，请联系订单支持')">＋ 发起申请</button></div>
                 <div class="dv2-table-wrap"><table class="dv2-table"><thead><tr><th>记录号</th><th>类型</th><th>关联编号</th><th>抬头 / 说明</th><th>金额</th><th>状态</th><th>申请时间</th><th /></tr></thead><tbody><tr v-for="record in dataset.invoiceRefunds" :key="record.record_id"><td><strong>{{ record.record_id }}</strong></td><td>{{ record.kind === 'INVOICE' ? '发票' : '退款' }}</td><td>{{ record.related_no }}</td><td>{{ record.title }}</td><td>{{ money(record.amount) }}</td><td><span :class="`dv2-status is-${statusTone(record.status)}`">{{ label(record.status) }}</span></td><td>{{ record.created_at }}</td><td><button type="button" class="dv2-row-action" @click="downloadInvoice(record.record_id)">{{ record.kind === 'INVOICE' ? '下载 PDF' : '下载记录' }} →</button></td></tr></tbody></table><div v-if="!dataset.invoiceRefunds.length" class="dv2-empty">暂无发票或退款记录</div></div>
               </template>
               <template v-else>

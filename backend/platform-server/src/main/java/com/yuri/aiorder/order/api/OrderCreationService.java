@@ -95,7 +95,7 @@ public class OrderCreationService {
                 .query(Long.class)
                 .single();
 
-        bindFilesToOrder(orderId, fileIds);
+        bindFilesToOrder(orderId, fileIds, identity.userId());
 
         if (draft) {
             return new CreateOrderResponse(orderId, orderNo, productType, "DRAFT", request.formData());
@@ -269,7 +269,7 @@ public class OrderCreationService {
         if (fileIds == null || fileIds.isEmpty()) {
             return List.of();
         }
-        return new LinkedHashSet<>(fileIds).stream().toList();
+        return new LinkedHashSet<>(fileIds).stream().sorted().toList();
     }
 
     private BindableFile validateBindableDoctorFile(long fileId, BootstrapIdentity identity, Long targetOrderId) {
@@ -279,6 +279,7 @@ public class OrderCreationService {
                                    visibility, upload_status, status
                             FROM file_resource
                             WHERE file_id = :fileId
+                            FOR UPDATE
                             """)
                     .param("fileId", fileId)
                     .query((rs, rowNum) -> new BindableFile(
@@ -344,17 +345,28 @@ public class OrderCreationService {
         }
     }
 
-    private void bindFilesToOrder(long orderId, List<Long> fileIds) {
+    private void bindFilesToOrder(long orderId, List<Long> fileIds, Long ownerUserId) {
         for (Long fileId : fileIds) {
-            jdbcClient.sql("""
+            int updated = jdbcClient.sql("""
                             UPDATE file_resource
                             SET order_id = :orderId,
                                 source_type = 'ORDER_ATTACHMENT'
                             WHERE file_id = :fileId
+                              AND owner_user_id = :ownerUserId
+                              AND visibility IN ('DOCTOR', 'DOCTOR_CS', 'ALL')
+                              AND upload_status = 'COMPLETED'
+                              AND status = 'ACTIVE'
+                              AND (order_id IS NULL OR order_id = :orderId)
                             """)
                     .param("orderId", orderId)
                     .param("fileId", fileId)
+                    .param("ownerUserId", ownerUserId)
                     .update();
+            if (updated != 1) {
+                throw new ResponseStatusException(
+                        HttpStatus.CONFLICT,
+                        "file binding changed concurrently; reload the order and try again");
+            }
         }
     }
 
@@ -415,7 +427,7 @@ public class OrderCreationService {
                     .param("actorUserId", actorUserId)
                     .update();
         }
-        bindFilesToOrder(orderId, selectedFileIds);
+        bindFilesToOrder(orderId, selectedFileIds, actorUserId);
     }
 
     private DoctorEditableOrder loadDoctorEditableOrder(long orderId, BootstrapIdentity identity) {

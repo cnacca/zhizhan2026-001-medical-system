@@ -7,6 +7,10 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
+import com.yuri.aiorder.common.BootstrapIdentity;
+import com.yuri.aiorder.common.UserRole;
+import com.yuri.aiorder.common.auth.BearerTokenService;
+import java.util.Set;
 import java.util.UUID;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -35,6 +39,9 @@ class OrthodonticFlowTests {
 
     @Autowired
     private ObjectMapper objectMapper;
+
+    @Autowired
+    private BearerTokenService tokenService;
 
     private long clinicId;
     private long orderId;
@@ -188,9 +195,13 @@ class OrthodonticFlowTests {
                                 }
                                 """.formatted(thirdPlan)))
                 .andExpect(status().isOk())
-                .andExpect(jsonPath("$.data.plan_versions.length()").value(3))
-                .andExpect(jsonPath("$.data.production_batches.length()").value(2))
-                .andExpect(jsonPath("$.data.change_requests.length()").value(1));
+                .andExpect(jsonPath("$.data.plan_versions.length()").value(2))
+                .andExpect(jsonPath("$.data.production_batches").doesNotExist())
+                .andExpect(jsonPath("$.data.change_requests.length()").value(1))
+                .andExpect(jsonPath("$.data.change_requests[0].requested_by_user_id").doesNotExist())
+                .andExpect(jsonPath("$.data.change_requests[0].source_batch_id").doesNotExist())
+                .andExpect(jsonPath("$.data.reviews[0].review_gate").value("DOCTOR"))
+                .andExpect(jsonPath("$.data.reviews[0].reviewer_user_id").doesNotExist());
 
         long auditCount = jdbcClient.sql("""
                         SELECT COUNT(*) FROM orthodontic_audit
@@ -343,12 +354,35 @@ class OrthodonticFlowTests {
 
     private void reviewInternal(long planId, String decision, String reason) throws Exception {
         mockMvc.perform(post("/orthodontic-plan-versions/{planId}/internal-review", planId)
-                        .header("X-Bootstrap-Role", "ADMIN")
+                        .header("Authorization", "Bearer " + internalReviewerToken())
                         .contentType(MediaType.APPLICATION_JSON)
                         .content("""
                                 {"decision":"%s","reason":"%s"}
                                 """.formatted(decision, reason)))
                 .andExpect(status().isOk());
+    }
+
+    private String internalReviewerToken() {
+        jdbcClient.sql("""
+                        INSERT INTO design_task
+                            (order_id, task_status, assigned_user_id, claimed_at)
+                        VALUES
+                            (:orderId, 'CLAIMED', :workerId, CURRENT_TIMESTAMP(3))
+                        ON DUPLICATE KEY UPDATE
+                            task_status = 'CLAIMED',
+                            assigned_user_id = :workerId,
+                            claimed_at = CURRENT_TIMESTAMP(3)
+                        """)
+                .param("orderId", orderId)
+                .param("workerId", WORKER_ID)
+                .update();
+        return tokenService.issue(new BootstrapIdentity(
+                UserRole.WORKER,
+                WORKER_ID,
+                null,
+                null,
+                Set.of("design-draft:internal-review", "workflow:read-internal"),
+                "SELF"));
     }
 
     private void reviewDoctor(long planId, String decision, String reason) throws Exception {

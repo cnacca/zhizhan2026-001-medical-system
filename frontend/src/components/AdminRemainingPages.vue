@@ -1,6 +1,9 @@
 <script setup lang="ts">
-import { computed, onBeforeUnmount, onMounted, ref, watch } from 'vue'
+import { computed, inject, onBeforeUnmount, onMounted, ref, watch } from 'vue'
 import { productionProgressNodes, productionProgressSummary } from '../utils/productionProgress'
+import { authenticatedFetchKey } from '../utils/authenticatedFetch'
+
+const authenticatedFetch = inject(authenticatedFetchKey, fetch)
 
 type ApiResponse<T> = { code: number; msg: string; data: T }
 type Row = Record<string, any>
@@ -93,7 +96,7 @@ const businessFailure = '数据暂时无法加载，请稍后重试'
 const failureMessage = computed(() => failureKind.value === 'permission' ? '当前账号无权查看此业务内容' : businessFailure)
 
 async function request<T>(path: string, options: RequestInit = {}) {
-  const response = await fetch(path, {
+  const response = await authenticatedFetch(path, {
     ...options,
     headers: {
       'Content-Type': 'application/json',
@@ -858,7 +861,7 @@ function escapeClose(event: KeyboardEvent) {
   if (event.key === 'Escape' && drawerVisible.value) closeDrawer()
 }
 
-watch(() => [props.activeRoute, props.token], () => {
+watch(() => props.activeRoute, () => {
   if (!routeSet.has(props.activeRoute)) return
   resetViewState()
   void refresh()

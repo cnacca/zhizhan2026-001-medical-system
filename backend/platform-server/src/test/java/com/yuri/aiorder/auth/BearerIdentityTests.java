@@ -16,7 +16,18 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import com.yuri.aiorder.common.BootstrapIdentity;
 import com.yuri.aiorder.common.UserRole;
 import com.yuri.aiorder.common.auth.BearerTokenService;
+import com.yuri.aiorder.common.auth.RefreshTokenService;
+import java.sql.Connection;
+import java.sql.PreparedStatement;
+import java.util.ArrayList;
+import java.util.List;
 import java.util.UUID;
+import java.util.concurrent.CountDownLatch;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Executors;
+import java.util.concurrent.Future;
+import java.util.concurrent.TimeUnit;
+import javax.sql.DataSource;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -27,6 +38,7 @@ import org.springframework.http.MediaType;
 import org.springframework.jdbc.core.simple.JdbcClient;
 import org.springframework.test.web.servlet.MockMvc;
 import org.springframework.test.web.servlet.MvcResult;
+import org.springframework.web.server.ResponseStatusException;
 
 @SpringBootTest(properties = {
         "app.cors.allowed-origin=http://localhost:5173,http://127.0.0.1:5173,http://phase-one.example.test:8088"
@@ -47,7 +59,13 @@ class BearerIdentityTests {
     private BearerTokenService tokenService;
 
     @Autowired
+    private RefreshTokenService refreshTokenService;
+
+    @Autowired
     private ObjectMapper objectMapper;
+
+    @Autowired
+    private DataSource dataSource;
 
     private long clinicId;
     private long orderId;
@@ -466,5 +484,168 @@ class BearerIdentityTests {
                         .contentType(MediaType.APPLICATION_JSON)
                         .content("{\"refresh_token\":\"" + secondRotatedRefreshToken + "\"}"))
                 .andExpect(status().isUnauthorized());
+    }
+
+    @Test
+    void concurrentRefreshRotationIssuesExactlyOneReplacementToken() throws Exception {
+        String originalToken = refreshTokenService.issue(DOCTOR_USER_ID).token();
+        int requestCount = 12;
+        ExecutorService executor = Executors.newFixedThreadPool(requestCount);
+        CountDownLatch ready = new CountDownLatch(requestCount);
+        CountDownLatch start = new CountDownLatch(1);
+        List<Future<RefreshTokenService.IssuedRefreshToken>> futures = new ArrayList<>();
+        try {
+            for (int index = 0; index < requestCount; index++) {
+                futures.add(executor.submit(() -> {
+                    ready.countDown();
+                    start.await(5, TimeUnit.SECONDS);
+                    try {
+                        return refreshTokenService.rotate(originalToken);
+                    } catch (ResponseStatusException ex) {
+                        if (ex.getStatusCode().value() != 401) {
+                            throw ex;
+                        }
+                        return null;
+                    }
+                }));
+            }
+            ready.await(5, TimeUnit.SECONDS);
+            start.countDown();
+
+            List<RefreshTokenService.IssuedRefreshToken> replacements = new ArrayList<>();
+            for (Future<RefreshTokenService.IssuedRefreshToken> future : futures) {
+                RefreshTokenService.IssuedRefreshToken replacement = future.get(10, TimeUnit.SECONDS);
+                if (replacement != null) {
+                    replacements.add(replacement);
+                }
+            }
+            org.assertj.core.api.Assertions.assertThat(replacements).hasSize(1);
+            refreshTokenService.revoke(replacements.get(0).token());
+        } finally {
+            start.countDown();
+            executor.shutdownNow();
+        }
+    }
+
+    @Test
+    void logoutWithOldTokenAfterCommittedRotationRevokesEntireTokenFamily() throws Exception {
+        String originalToken = refreshTokenService.issue(DOCTOR_USER_ID).token();
+        RefreshTokenService.IssuedRefreshToken replacement = refreshTokenService.rotate(originalToken);
+
+        mockMvc.perform(post("/api/auth/logout")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"refresh_token\":\"" + originalToken + "\"}"))
+                .andExpect(status().isOk());
+
+        String familyId = jdbcClient.sql("""
+                        SELECT family_id
+                        FROM auth_refresh_token
+                        WHERE user_id = :userId
+                        ORDER BY token_id DESC
+                        LIMIT 1
+                        """)
+                .param("userId", DOCTOR_USER_ID)
+                .query(String.class)
+                .single();
+        org.assertj.core.api.Assertions.assertThat(jdbcClient.sql("""
+                        SELECT COUNT(*)
+                        FROM auth_refresh_token
+                        WHERE family_id = :familyId
+                          AND revoked_at IS NULL
+                        """)
+                .param("familyId", familyId)
+                .query(Long.class)
+                .single()).isZero();
+        org.assertj.core.api.Assertions.assertThatThrownBy(() -> refreshTokenService.rotate(replacement.token()))
+                .isInstanceOfSatisfying(ResponseStatusException.class,
+                        ex -> org.assertj.core.api.Assertions.assertThat(ex.getStatusCode().value()).isEqualTo(401));
+    }
+
+    @Test
+    void concurrentOldTokenLogoutWaitsForRotationAndRevokesTheReplacement() throws Exception {
+        String originalToken = refreshTokenService.issue(DOCTOR_USER_ID).token();
+        ExecutorService executor = Executors.newFixedThreadPool(2);
+        try (Connection blocker = dataSource.getConnection();
+                Connection observer = dataSource.getConnection()) {
+            blocker.setAutoCommit(false);
+            try (PreparedStatement statement = blocker.prepareStatement("""
+                    SELECT user_id
+                    FROM system_user
+                    WHERE user_id = ?
+                    FOR UPDATE
+                    """)) {
+                statement.setLong(1, DOCTOR_USER_ID);
+                try (java.sql.ResultSet resultSet = statement.executeQuery()) {
+                    org.assertj.core.api.Assertions.assertThat(resultSet.next()).isTrue();
+                }
+            }
+
+            // InnoDB must check the refresh-token user FK before inserting the replacement.
+            // Holding the parent row pauses rotate after it has conditionally revoked the old
+            // token, leaving the exact race window in which logout used to miss the replacement.
+            observer.setTransactionIsolation(Connection.TRANSACTION_READ_UNCOMMITTED);
+            Future<RefreshTokenService.IssuedRefreshToken> replacementFuture = executor.submit(() -> {
+                return refreshTokenService.rotate(originalToken);
+            });
+            awaitUncommittedRevocation(observer, originalToken);
+            org.assertj.core.api.Assertions.assertThat(replacementFuture.isDone()).isFalse();
+
+            Future<Integer> logoutFuture = executor.submit(() -> mockMvc.perform(post("/api/auth/logout")
+                            .contentType(MediaType.APPLICATION_JSON)
+                            .content("{\"refresh_token\":\"" + originalToken + "\"}"))
+                    .andReturn()
+                    .getResponse()
+                    .getStatus());
+            Thread.sleep(200);
+            org.assertj.core.api.Assertions.assertThat(logoutFuture.isDone()).isFalse();
+
+            blocker.commit();
+            RefreshTokenService.IssuedRefreshToken replacement = replacementFuture.get(10, TimeUnit.SECONDS);
+            org.assertj.core.api.Assertions.assertThat(logoutFuture.get(10, TimeUnit.SECONDS)).isEqualTo(200);
+
+            String familyId = jdbcClient.sql("""
+                            SELECT family_id
+                            FROM auth_refresh_token
+                            WHERE token_hash = SHA2(:replacementToken, 256)
+                            """)
+                    .param("replacementToken", replacement.token())
+                    .query(String.class)
+                    .single();
+            org.assertj.core.api.Assertions.assertThat(jdbcClient.sql("""
+                            SELECT COUNT(*)
+                            FROM auth_refresh_token
+                            WHERE family_id = :familyId
+                              AND revoked_at IS NULL
+                            """)
+                    .param("familyId", familyId)
+                    .query(Long.class)
+                    .single()).isZero();
+            org.assertj.core.api.Assertions.assertThatThrownBy(() -> refreshTokenService.rotate(replacement.token()))
+                    .isInstanceOfSatisfying(ResponseStatusException.class,
+                            ex -> org.assertj.core.api.Assertions.assertThat(ex.getStatusCode().value()).isEqualTo(401));
+        } finally {
+            executor.shutdownNow();
+            executor.awaitTermination(5, TimeUnit.SECONDS);
+        }
+    }
+
+    private void awaitUncommittedRevocation(Connection observer, String token) throws Exception {
+        long deadline = System.nanoTime() + TimeUnit.SECONDS.toNanos(5);
+        while (System.nanoTime() < deadline) {
+            try (PreparedStatement statement = observer.prepareStatement("""
+                    SELECT revoked_at
+                    FROM auth_refresh_token
+                    WHERE token_hash = SHA2(?, 256)
+                    """)) {
+                statement.setString(1, token);
+                try (java.sql.ResultSet resultSet = statement.executeQuery()) {
+                    if (resultSet.next() && resultSet.getTimestamp(1) != null) {
+                        return;
+                    }
+                }
+            }
+            Thread.sleep(20);
+        }
+        throw new AssertionError("rotation did not reach the post-revoke insertion window");
     }
 }

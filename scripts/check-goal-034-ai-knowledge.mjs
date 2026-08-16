@@ -60,6 +60,8 @@ const required = [
   [httpGateway, 'httpDoctorGateway.ts', "'/ai/product-recommendation'"],
   [portal, 'DoctorPortalV2.vue', 'answerWithFaq'],
   [wizard, 'DoctorCaseGroupWizard.vue', 'applyRecommendation'],
+  [wizard, 'DoctorCaseGroupWizard.vue', 'selectedCategoryCode.value = product.category_code'],
+  [wizard, 'DoctorCaseGroupWizard.vue', "recommendationSelected(recommendation) ? '✓ 已采用'"],
   // 真实模型证据
   [record, 'real-model record', 'langchain-deepseek-chat'],
   [record, 'real-model record', 'SAFE_REFUSAL']

@@ -5,6 +5,7 @@ import static org.assertj.core.api.Assertions.assertThat;
 import com.yuri.aiorder.common.BootstrapIdentity;
 import com.yuri.aiorder.common.UserRole;
 import com.yuri.aiorder.common.auth.AccessControlService;
+import com.yuri.aiorder.common.auth.AuthMenu;
 import com.yuri.aiorder.common.auth.AuthenticatedUser;
 import com.yuri.aiorder.common.auth.DatabaseAuthService;
 import com.yuri.aiorder.common.auth.SystemConfigService;
@@ -162,6 +163,32 @@ class FineGrainedRoleTests {
     }
 
     @Test
+    void portalAndFineGrainedRoleUseOnlyFineGrainedPermissionsAndScope() {
+        AuthenticatedUser portalOnly = databaseAuthService.loadAuthenticatedUser(CS_USER_ID);
+        assertThat(portalOnly.dataScope()).isEqualTo("ALL");
+        assertThat(portalOnly.permissions()).contains("logistics:ship");
+
+        grantRole(CS_USER_ID, "CS_AGENT");
+
+        AuthenticatedUser agent = databaseAuthService.loadAuthenticatedUser(CS_USER_ID);
+        assertThat(agent.roles()).contains("CS", "CS_AGENT");
+        assertThat(agent.identity().role()).isEqualTo(UserRole.CS);
+        assertThat(agent.dataScope()).isEqualTo("SELF");
+        assertThat(agent.permissions()).contains("message:manage", "order:read-internal");
+        assertThat(agent.permissions()).doesNotContain("logistics:ship", "clinic:manage", "product:manage");
+        assertThat(agent.menus()).extracting(AuthMenu::menuCode)
+                .contains("internal-orders")
+                .doesNotContain("product-catalog");
+
+        grantDirectPermission(CS_USER_ID, "product:manage");
+
+        AuthenticatedUser agentWithDirectPermission = databaseAuthService.loadAuthenticatedUser(CS_USER_ID);
+        assertThat(agentWithDirectPermission.permissions()).contains("product:manage");
+        assertThat(agentWithDirectPermission.menus()).extracting(AuthMenu::menuCode)
+                .contains("product-catalog");
+    }
+
+    @Test
     void inactiveRoleGrantsNothing() {
         grantRole(CS_USER_ID, "PROD_DATA_REVIEWER");
 
@@ -221,6 +248,18 @@ class FineGrainedRoleTests {
                         """)
                 .param("userId", userId)
                 .param("roleCode", roleCode)
+                .update();
+    }
+
+    private void grantDirectPermission(long userId, String permissionCode) {
+        jdbcClient.sql("""
+                        INSERT IGNORE INTO system_user_permission (user_id, permission_id)
+                        SELECT :userId, permission_id
+                        FROM system_permission
+                        WHERE permission_code = :permissionCode
+                        """)
+                .param("userId", userId)
+                .param("permissionCode", permissionCode)
                 .update();
     }
 

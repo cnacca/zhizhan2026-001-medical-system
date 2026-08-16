@@ -61,7 +61,7 @@ public class OrthodonticController {
     }
 
     @PostMapping("/orthodontic-plan-versions/{planVersionId}/internal-review")
-    @RequirePermission(value = "design-draft:internal-review", roles = UserRole.ADMIN)
+    @RequirePermission("design-draft:internal-review")
     public DataResponse<Map<String, Object>> internalReview(
             @PathVariable long planVersionId,
             @Valid @RequestBody ReviewPlanRequest request,
@@ -70,7 +70,7 @@ public class OrthodonticController {
     }
 
     @PostMapping("/orthodontic-plan-versions/{planVersionId}/doctor-review")
-    @RequirePermission(value = "order:read-doctor", roles = UserRole.DOCTOR)
+    @RequirePermission(value = "order:write-doctor", roles = UserRole.DOCTOR)
     public DataResponse<Map<String, Object>> doctorReview(
             @PathVariable long planVersionId,
             @Valid @RequestBody ReviewPlanRequest request,

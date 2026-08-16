@@ -222,8 +222,7 @@ class DesignTaskCollaborationTests {
         assertThat(draftCount()).isEqualTo(1L);
 
         mockMvc.perform(post("/orders/{orderId}/design-drafts/{draftId}/internal-review", orderId, draftId)
-                        .header("X-Bootstrap-Role", "ADMIN")
-                        .header("X-Bootstrap-User-Id", ADMIN_USER_ID)
+                        .header("Authorization", "Bearer " + internalReviewerToken(WORKER_USER_ID))
                         .contentType(MediaType.APPLICATION_JSON)
                         .content("{\"action\":\"APPROVE\"}"))
                 .andExpect(status().isConflict());
@@ -266,12 +265,14 @@ class DesignTaskCollaborationTests {
                         .content("{\"action\":\"APPROVE\"}"))
                 .andExpect(status().isForbidden());
         internalReview(firstDraftId, "ADMIN", ADMIN_USER_ID, "{\"action\":\"REJECT\"}")
+                .andExpect(status().isForbidden());
+        internalReview(firstDraftId, "REVIEWER", WORKER_USER_ID, "{\"action\":\"REJECT\"}")
                 .andExpect(status().isBadRequest());
 
         internalReview(
                         firstDraftId,
-                        "ADMIN",
-                        ADMIN_USER_ID,
+                        "REVIEWER",
+                        WORKER_USER_ID,
                         "{\"action\":\"REJECT\",\"internal_reject_reason\":\"边缘线不连续\"}")
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.data.status").value("INTERNAL_REJECTED"))
@@ -369,8 +370,8 @@ class DesignTaskCollaborationTests {
                 rejectedFileId);
         internalReview(
                         rejectedDraftId,
-                        "ADMIN",
-                        ADMIN_USER_ID,
+                        "REVIEWER",
+                        WORKER_USER_ID,
                         "{\"action\":\"REJECT\",\"internal_reject_reason\":\"内部技术驳回原因\"}")
                 .andExpect(status().isOk());
 
@@ -385,7 +386,7 @@ class DesignTaskCollaborationTests {
                 "approved-secret-key",
                 "第二版内部上传备注",
                 approvedFileId);
-        internalReview(approvedDraftId, "ADMIN", ADMIN_USER_ID, "{\"action\":\"APPROVE\"}")
+        internalReview(approvedDraftId, "REVIEWER", WORKER_USER_ID, "{\"action\":\"APPROVE\"}")
                 .andExpect(status().isOk());
 
         assertExternalTaskHasNoInternalFacts(
@@ -431,7 +432,7 @@ class DesignTaskCollaborationTests {
                 "doctor-confirm-invalid-file",
                 "内审通过后文件失效",
                 fileId);
-        internalReview(draftId, "ADMIN", ADMIN_USER_ID, "{\"action\":\"APPROVE\"}")
+        internalReview(draftId, "REVIEWER", WORKER_USER_ID, "{\"action\":\"APPROVE\"}")
                 .andExpect(status().isOk());
 
         jdbcClient.sql("""
@@ -519,7 +520,7 @@ class DesignTaskCollaborationTests {
         long firstFileId = createDraftFile(WORKER_USER_ID, "doctor-reject-v1.stl");
         long firstDraftId = createAndSubmitDraft(
                 WORKER_USER_ID, "doctor-reject-v1", "首版", firstFileId);
-        internalReview(firstDraftId, "ADMIN", ADMIN_USER_ID, "{\"action\":\"APPROVE\"}")
+        internalReview(firstDraftId, "REVIEWER", WORKER_USER_ID, "{\"action\":\"APPROVE\"}")
                 .andExpect(status().isOk());
 
         doctorReview(firstDraftId, "ADMIN", ADMIN_USER_ID, null, "{\"action\":\"CONFIRM\"}")
@@ -537,7 +538,7 @@ class DesignTaskCollaborationTests {
         long secondFileId = createDraftFile(WORKER_USER_ID, "doctor-reject-v2.stl");
         long secondDraftId = createAndSubmitDraft(
                 WORKER_USER_ID, "doctor-reject-v2", "医生意见修订", secondFileId);
-        internalReview(secondDraftId, "ADMIN", ADMIN_USER_ID, "{\"action\":\"APPROVE\"}")
+        internalReview(secondDraftId, "REVIEWER", WORKER_USER_ID, "{\"action\":\"APPROVE\"}")
                 .andExpect(status().isOk());
         doctorReview(
                         secondDraftId,
@@ -585,7 +586,7 @@ class DesignTaskCollaborationTests {
                 fileId).andExpect(status().isForbidden());
         long draftId = createAndSubmitDraft(
                 OTHER_WORKER_USER_ID, "transferred-worker", "转派后提交", fileId);
-        internalReview(draftId, "ADMIN", ADMIN_USER_ID, "{\"action\":\"APPROVE\"}")
+        internalReview(draftId, "REVIEWER", WORKER_USER_ID, "{\"action\":\"APPROVE\"}")
                 .andExpect(status().isOk());
         startNode(nodeId, OTHER_WORKER_USER_ID).andExpect(status().isConflict());
 
@@ -661,11 +662,26 @@ class DesignTaskCollaborationTests {
 
     private org.springframework.test.web.servlet.ResultActions internalReview(
             long draftId, String role, long userId, String body) throws Exception {
-        return mockMvc.perform(post("/orders/{orderId}/design-drafts/{draftId}/internal-review", orderId, draftId)
-                .header("X-Bootstrap-Role", role)
-                .header("X-Bootstrap-User-Id", userId)
+        var request = post("/orders/{orderId}/design-drafts/{draftId}/internal-review", orderId, draftId)
                 .contentType(MediaType.APPLICATION_JSON)
-                .content(body));
+                .content(body);
+        if ("REVIEWER".equals(role)) {
+            request.header("Authorization", "Bearer " + internalReviewerToken(userId));
+        } else {
+            request.header("X-Bootstrap-Role", role)
+                    .header("X-Bootstrap-User-Id", userId);
+        }
+        return mockMvc.perform(request);
+    }
+
+    private String internalReviewerToken(long userId) {
+        return tokenService.issue(new BootstrapIdentity(
+                UserRole.WORKER,
+                userId,
+                null,
+                null,
+                Set.of("design-draft:internal-review", "workflow:read-internal"),
+                "SELF"));
     }
 
     private org.springframework.test.web.servlet.ResultActions doctorReview(

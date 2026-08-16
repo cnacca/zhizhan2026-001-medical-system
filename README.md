@@ -217,12 +217,24 @@ npm run env:start -- demo        # 只启动演示环境
 
 统一入口不会接管或停止不属于它的进程；如果固定端口被其他程序占用但健康检查失败，会直接报告 PID 和日志位置。历史临时预览端口（例如 `15175`）不作为正式入口。
 
+### 正式网站“热更新”约定
+
+本项目所称“热更新”默认复用现有正式发布流程，不单独维护前端发布通道：
+
+```text
+修改与必要验证 → 按分支规则通过 PR 合并 main → Deploy production 自动完整部署 → 最小线上检查
+```
+
+`main` 禁止直接 push。前端改动也默认走同一条完整部署流程，不直接替换服务器静态文件、不只更新运行中容器，也不新增前端专用工作流；只有用户明确要求优化部署时长时，才单独评估发布链路改造。详细决策见 D-191。
+
 一期 Docker / Compose 配置静态验收：
 
 ```bash
 npm run check:task9d69
 npm run compose:phase-one:config
 ```
+
+`Deploy production` 在构建发布镜像前会运行完整后端测试、OpenAPI 双向契约检查、前端缺陷审计和 logout/refresh 并发回归。镜像构建后还会扫描最终前端产物中的 Mock/演示 fixture，并核对后端 jar 是否包含源码目录中的全部 Flyway 迁移；不能只凭源码构建或仓库内静态文件通过发布。
 
 `deploy/env/phase-one.prod.example` 只包含占位示例值。正式环境必须通过部署平台 secret、服务器环境变量或不入库 env 文件注入真实值；不要把真实数据库密码、MinIO 密钥、DeepSeek API Key、webhook secret 或生产域名提交到仓库。
 
@@ -391,6 +403,8 @@ doctor / change-me-doctor
 ```
 
 这些账号密码是本地占位值，数据库中存储 PBKDF2-SHA256 hash；正式环境必须替换为真实账号体系和安全密钥。
+
+四个账号的产品口径是“所属端全功能验收账号”，不是正式岗位权限模板。完整验收角色只由 `DEMO_ISOLATED_ENV=true bash scripts/seed-admin-portal-demo-data.sh` 写入以 `_demo` 结尾的隔离数据库：`admin / cs / worker / doctor` 分别取得 `ACCEPTANCE_ADMIN_FULL / ACCEPTANCE_CS_FULL / ACCEPTANCE_PRODUCTION_FULL / ACCEPTANCE_DOCTOR_FULL`。前三端验收范围为 `ALL`，医生端为 `CLINIC` 且不含内部生产、员工、质检、工时、返工或绩效权限。V79 的真实细分角色仍按最小权限运行；不要把验收角色复制到正式库，也不要仅为显示菜单在前端按用户名跳过权限。
 
 生产前端默认不会预填或打包上述 `change-me-*` 演示密码。2026-08-14 起按用户明确要求增加临时演示例外：只有构建变量 `VITE_TEMP_DEMO_LOGIN_PREFILL_ENABLED=true` 时才按四端入口预填演示账号；生产自动部署通过仓库变量 `TEMP_DEMO_LOGIN_PREFILL_ENABLED` 控制。正式账号启用时必须关闭变量并重新部署，同时在后端轮换或停用演示账号；隐藏前端默认值不能替代账号治理。
 

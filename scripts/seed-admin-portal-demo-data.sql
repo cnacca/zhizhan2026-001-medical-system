@@ -1,5 +1,131 @@
 SET NAMES utf8mb4;
 
+-- 四端验收账号只用于受 DEMO_ISOLATED_ENV + *_demo 门禁保护的演示库。
+-- 真实岗位仍使用 V79/V80 的细分角色；这里用独立验收角色把每个端内的能力取并集，
+-- 既不按用户名写死，也不会把正式环境的细分角色放宽。
+INSERT INTO system_role
+    (role_code, role_name, data_scope, role_level, status, remark)
+VALUES
+    ('ACCEPTANCE_DOCTOR_FULL', '验收账号-医生端全功能', 'CLINIC', 0, 'ACTIVE', '仅限隔离演示库四端验收'),
+    ('ACCEPTANCE_CS_FULL', '验收账号-客服端全功能', 'ALL', 0, 'ACTIVE', '仅限隔离演示库四端验收'),
+    ('ACCEPTANCE_PRODUCTION_FULL', '验收账号-生产端全功能', 'ALL', 0, 'ACTIVE', '仅限隔离演示库四端验收'),
+    ('ACCEPTANCE_ADMIN_FULL', '验收账号-管理端全功能', 'ALL', 0, 'ACTIVE', '仅限隔离演示库四端验收')
+ON DUPLICATE KEY UPDATE
+    role_name = VALUES(role_name),
+    data_scope = VALUES(data_scope),
+    role_level = VALUES(role_level),
+    status = VALUES(status),
+    remark = VALUES(remark);
+
+-- 每次 seed 都把验收角色收敛到当前定义，避免旧脚本或人工误配留下跨端权限。
+DELETE role_permission
+FROM system_role_permission role_permission
+JOIN system_role role ON role.role_id = role_permission.role_id
+WHERE role.role_code IN (
+    'ACCEPTANCE_DOCTOR_FULL',
+    'ACCEPTANCE_CS_FULL',
+    'ACCEPTANCE_PRODUCTION_FULL',
+    'ACCEPTANCE_ADMIN_FULL'
+);
+
+CREATE TEMPORARY TABLE tmp_acceptance_role_source (
+    target_role_code VARCHAR(32) NOT NULL,
+    source_role_code VARCHAR(32) NOT NULL,
+    PRIMARY KEY (target_role_code, source_role_code)
+) ENGINE=Memory DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+INSERT INTO tmp_acceptance_role_source (target_role_code, source_role_code) VALUES
+    ('ACCEPTANCE_DOCTOR_FULL', 'DOCTOR'),
+    ('ACCEPTANCE_DOCTOR_FULL', 'CLINIC_ADMIN'),
+    ('ACCEPTANCE_DOCTOR_FULL', 'CLINIC_DOCTOR'),
+    ('ACCEPTANCE_DOCTOR_FULL', 'CLINIC_FRONTDESK'),
+    ('ACCEPTANCE_DOCTOR_FULL', 'CLINIC_ASSISTANT'),
+    ('ACCEPTANCE_CS_FULL', 'CS'),
+    ('ACCEPTANCE_CS_FULL', 'CS_MANAGER'),
+    ('ACCEPTANCE_CS_FULL', 'CS_SENIOR'),
+    ('ACCEPTANCE_CS_FULL', 'CS_AGENT'),
+    ('ACCEPTANCE_CS_FULL', 'CS_TRANSLATOR'),
+    ('ACCEPTANCE_CS_FULL', 'CS_RECEIVER'),
+    ('ACCEPTANCE_CS_FULL', 'CS_SHIPPER'),
+    ('ACCEPTANCE_PRODUCTION_FULL', 'WORKER'),
+    ('ACCEPTANCE_PRODUCTION_FULL', 'PROD_MANAGER'),
+    ('ACCEPTANCE_PRODUCTION_FULL', 'PROD_SUPERVISOR'),
+    ('ACCEPTANCE_PRODUCTION_FULL', 'PROD_TEAM_LEAD'),
+    ('ACCEPTANCE_PRODUCTION_FULL', 'PROD_TECHNICIAN'),
+    ('ACCEPTANCE_PRODUCTION_FULL', 'PROD_QC'),
+    ('ACCEPTANCE_PRODUCTION_FULL', 'PROD_FINAL_QC'),
+    ('ACCEPTANCE_PRODUCTION_FULL', 'PROD_DATA_REVIEWER'),
+    ('ACCEPTANCE_ADMIN_FULL', 'ADMIN'),
+    ('ACCEPTANCE_ADMIN_FULL', 'ADMIN_MANAGER'),
+    ('ACCEPTANCE_ADMIN_FULL', 'ADMIN_SUPERVISOR'),
+    ('ACCEPTANCE_ADMIN_FULL', 'ADMIN_STAFF');
+
+INSERT IGNORE INTO system_role_permission (role_id, permission_id)
+SELECT target_role.role_id, source_grant.permission_id
+FROM tmp_acceptance_role_source source_map
+JOIN system_role target_role ON target_role.role_code = source_map.target_role_code
+JOIN system_role source_role ON source_role.role_code = source_map.source_role_code
+JOIN system_role_permission source_grant ON source_grant.role_id = source_role.role_id;
+
+-- 生产端验收补齐已确认属于生产侧组长的设计技术内审。
+INSERT IGNORE INTO system_role_permission (role_id, permission_id)
+SELECT target_role.role_id, permission.permission_id
+FROM system_role target_role
+JOIN system_permission permission ON permission.permission_code = 'design-draft:internal-review'
+WHERE target_role.role_code = 'ACCEPTANCE_PRODUCTION_FULL';
+
+-- 客服和管理验收角色只聚合各自端内能力，不继承旧迁移中的技术设计内审授权。
+DELETE role_permission
+FROM system_role_permission role_permission
+JOIN system_role role ON role.role_id = role_permission.role_id
+JOIN system_permission permission ON permission.permission_id = role_permission.permission_id
+WHERE role.role_code IN ('ACCEPTANCE_CS_FULL', 'ACCEPTANCE_ADMIN_FULL')
+  AND permission.permission_code = 'design-draft:internal-review';
+
+DROP TEMPORARY TABLE tmp_acceptance_role_source;
+
+CREATE TEMPORARY TABLE tmp_acceptance_user_role (
+    user_id BIGINT NOT NULL,
+    expected_user_type VARCHAR(32) NOT NULL,
+    target_role_code VARCHAR(32) NOT NULL,
+    data_scope VARCHAR(32) NOT NULL,
+    PRIMARY KEY (user_id)
+) ENGINE=Memory DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+INSERT INTO tmp_acceptance_user_role
+    (user_id, expected_user_type, target_role_code, data_scope)
+VALUES
+    (9701, 'DOCTOR', 'ACCEPTANCE_DOCTOR_FULL', 'CLINIC'),
+    (8002, 'CS', 'ACCEPTANCE_CS_FULL', 'ALL'),
+    (9601, 'WORKER', 'ACCEPTANCE_PRODUCTION_FULL', 'ALL'),
+    (8001, 'ADMIN', 'ACCEPTANCE_ADMIN_FULL', 'ALL');
+
+DELETE user_role
+FROM system_user_role user_role
+JOIN system_role role ON role.role_id = user_role.role_id
+WHERE role.role_code IN (
+    'ACCEPTANCE_DOCTOR_FULL',
+    'ACCEPTANCE_CS_FULL',
+    'ACCEPTANCE_PRODUCTION_FULL',
+    'ACCEPTANCE_ADMIN_FULL'
+);
+
+INSERT IGNORE INTO system_user_role (user_id, role_id)
+SELECT user.user_id, role.role_id
+FROM tmp_acceptance_user_role acceptance
+JOIN system_user user
+  ON user.user_id = acceptance.user_id
+ AND user.user_type = acceptance.expected_user_type
+JOIN system_role role ON role.role_code = acceptance.target_role_code;
+
+UPDATE system_user user
+JOIN tmp_acceptance_user_role acceptance
+  ON acceptance.user_id = user.user_id
+ AND acceptance.expected_user_type = user.user_type
+SET user.data_scope = acceptance.data_scope;
+
+DROP TEMPORARY TABLE tmp_acceptance_user_role;
+
 INSERT INTO clinic (clinic_name, contact_name, contact_phone, status)
 VALUES
     ('晨曦口腔门诊部', '陈医生', '13800001001', 'ACTIVE'),

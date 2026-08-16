@@ -44,7 +44,7 @@ public class DesignTaskController {
     }
 
     @GetMapping("/design-tasks/internal-review-queue")
-    @RequirePermission(value = "design-draft:internal-review", roles = UserRole.ADMIN)
+    @RequirePermission("design-draft:internal-review")
     public DataResponse<List<DesignTaskResponse>> internalReviewQueue(BootstrapIdentity identity) {
         return new DataResponse<>(designTaskService.listInternalReviewQueue(identity));
     }
@@ -96,7 +96,7 @@ public class DesignTaskController {
     }
 
     @PostMapping("/orders/{orderId}/design-drafts/{draftId}/internal-review")
-    @RequirePermission(value = "design-draft:internal-review", roles = UserRole.ADMIN)
+    @RequirePermission("design-draft:internal-review")
     public DataResponse<DesignDraftResponse> internalReview(
             @PathVariable long orderId,
             @PathVariable long draftId,

@@ -1,5 +1,8 @@
 <script setup lang="ts">
-import { computed, onMounted, ref, watch } from 'vue'
+import { computed, inject, onMounted, ref, watch } from 'vue'
+import { authenticatedFetchKey } from '../utils/authenticatedFetch'
+
+const authenticatedFetch = inject(authenticatedFetchKey, fetch)
 
 type LoginUser = {
   userId: string | number | null
@@ -152,7 +155,7 @@ function collection<T>(value: T[] | { items?: T[] } | null | undefined): T[] {
 }
 
 async function apiFetch<T>(path: string, options: RequestInit = {}): Promise<T> {
-  const response = await fetch(path, {
+  const response = await authenticatedFetch(path, {
     ...options,
     headers: {
       'Content-Type': 'application/json',
@@ -480,7 +483,7 @@ async function internalReview(task: DesignTask, action: 'APPROVE' | 'REJECT') {
 }
 
 onMounted(loadWorkspace)
-watch(() => [props.activeRoute, props.token], () => void loadWorkspace())
+watch(() => props.activeRoute, () => void loadWorkspace())
 </script>
 
 <template>

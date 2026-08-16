@@ -5,6 +5,8 @@ const workflowPath = '.github/workflows/deploy-production.yml'
 const deployScriptPath = 'scripts/deploy-production-release.sh'
 const configPath = 'deploy/production-deploy.example.conf'
 const frontendDockerfilePath = 'frontend/Dockerfile'
+const releaseImageCheckPath = 'scripts/check-production-release-images.sh'
+const jdkWrapperPath = 'scripts/with-jdk21.sh'
 const failures = []
 
 const read = (path) => {
@@ -19,6 +21,8 @@ const workflow = read(workflowPath)
 const deployScript = read(deployScriptPath)
 const config = read(configPath)
 const frontendDockerfile = read(frontendDockerfilePath)
+const releaseImageCheck = read(releaseImageCheckPath)
+const jdkWrapper = read(jdkWrapperPath)
 
 for (const fragment of [
   'branches:',
@@ -38,7 +42,15 @@ for (const fragment of [
   'PRODUCTION_SSH_PRIVATE_KEY',
   'PRODUCTION_SSH_KNOWN_HOSTS',
   'TEMP_DEMO_LOGIN_PREFILL_ENABLED',
-  'VITE_TEMP_DEMO_LOGIN_PREFILL_ENABLED'
+  'VITE_TEMP_DEMO_LOGIN_PREFILL_ENABLED',
+  'npm run compose:up',
+  'scripts/ensure-test-database.sh',
+  'npm run test:backend',
+  'npm run check:openapi',
+  'npm run check:frontend-bug-audit-20260815',
+  'npm run check:logout-refresh-race',
+  'Verify final release images',
+  'scripts/check-production-release-images.sh'
 ]) {
   if (!workflow.includes(fragment)) {
     failures.push(`${workflowPath} missing required text: ${fragment}`)
@@ -72,6 +84,30 @@ for (const fragment of [
 ]) {
   if (!deployScript.includes(fragment)) {
     failures.push(`${deployScriptPath} missing required text: ${fragment}`)
+  }
+}
+
+const backendTestsIndex = workflow.indexOf('npm run test:backend')
+const backendPackageIndex = workflow.indexOf('-DskipTests package')
+const imageBuildIndex = workflow.indexOf('Build immutable release images')
+const finalImageCheckIndex = workflow.indexOf('Verify final release images')
+const releasePackageIndex = workflow.indexOf('Package the release')
+if (backendTestsIndex < 0 || backendPackageIndex < 0 || backendTestsIndex > backendPackageIndex) {
+  failures.push(`${workflowPath} must run backend tests before packaging the backend`)
+}
+if (imageBuildIndex < 0
+  || finalImageCheckIndex < imageBuildIndex
+  || releasePackageIndex < finalImageCheckIndex) {
+  failures.push(`${workflowPath} must verify final images after build and before release packaging`)
+}
+for (const releaseGate of [
+  'npm run check:openapi',
+  'npm run check:frontend-bug-audit-20260815',
+  'npm run check:logout-refresh-race'
+]) {
+  const gateIndex = workflow.indexOf(releaseGate)
+  if (gateIndex < 0 || imageBuildIndex < 0 || gateIndex > imageBuildIndex) {
+    failures.push(`${workflowPath} must run ${releaseGate} before building release images`)
   }
 }
 
@@ -109,6 +145,47 @@ for (const fragment of [
 const syntaxCheck = spawnSync('bash', ['-n', deployScriptPath], { encoding: 'utf8' })
 if (syntaxCheck.status !== 0) {
   failures.push(`${deployScriptPath} bash syntax check failed: ${syntaxCheck.stderr.trim()}`)
+}
+
+const releaseImageSyntaxCheck = spawnSync('bash', ['-n', releaseImageCheckPath], { encoding: 'utf8' })
+if (releaseImageSyntaxCheck.status !== 0) {
+  failures.push(`${releaseImageCheckPath} bash syntax check failed: ${releaseImageSyntaxCheck.stderr.trim()}`)
+}
+
+const jdkWrapperSyntaxCheck = spawnSync('bash', ['-n', jdkWrapperPath], { encoding: 'utf8' })
+if (jdkWrapperSyntaxCheck.status !== 0) {
+  failures.push(`${jdkWrapperPath} bash syntax check failed: ${jdkWrapperSyntaxCheck.stderr.trim()}`)
+}
+for (const fragment of [
+  '${JAVA_HOME:-}',
+  '-x "${JAVA_HOME}/bin/java"',
+  'elif [[ -x "${homebrew_jdk21}/bin/java" ]]',
+  'Java 21 is required'
+]) {
+  if (!jdkWrapper.includes(fragment)) {
+    failures.push(`${jdkWrapperPath} must preserve a caller-provided JDK and only use Homebrew as a fallback; missing: ${fragment}`)
+  }
+}
+if (/^export JAVA_HOME="\/opt\/homebrew/m.test(jdkWrapper)) {
+  failures.push(`${jdkWrapperPath} must not unconditionally override actions/setup-java on Linux`)
+}
+for (const fragment of [
+  'docker image inspect',
+  'docker create',
+  'docker cp',
+  'BOOT-INF/classes/db/migration/',
+  'final backend image is missing Flyway migration',
+  'docker run --rm --entrypoint sh',
+  '/usr/share/nginx/html/index.html',
+  '/usr/share/nginx/html/assets',
+  'ORD20260718-1001',
+  'doctorMock',
+  'mockDoctorGateway',
+  'final frontend image contains a doctor mock marker or fixture',
+]) {
+  if (!releaseImageCheck.includes(fragment)) {
+    failures.push(`${releaseImageCheckPath} missing required text: ${fragment}`)
+  }
 }
 
 if (failures.length > 0) {

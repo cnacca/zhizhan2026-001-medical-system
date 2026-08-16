@@ -1,6 +1,9 @@
 <script setup lang="ts">
-import { computed, nextTick, ref, watch } from 'vue'
+import { computed, inject, nextTick, onMounted, ref, watch } from 'vue'
 import { ElMessage } from 'element-plus'
+import { authenticatedFetchKey } from '../utils/authenticatedFetch'
+
+const authenticatedFetch = inject(authenticatedFetchKey, fetch)
 
 type ApiResponse<T> = { code: number; msg: string; data: T }
 type Paged<T> = { items: ClinicSummary[]; total: number; page: number; size: number }
@@ -136,7 +139,8 @@ type Management = {
   change_logs: ChangeLog[]
 }
 
-const props = defineProps<{ token: string; permissions: string[] }>()
+const props = defineProps<{ token: string; permissions: string[]; focusClinicId: number | null }>()
+const emit = defineEmits<{ focusConsumed: [] }>()
 
 const clinics = ref<ClinicSummary[]>([])
 const loading = ref(false)
@@ -203,7 +207,7 @@ function isComplete(clinic: ClinicSummary) {
 }
 
 async function request<T>(path: string, options: RequestInit = {}) {
-  const response = await fetch(path, {
+  const response = await authenticatedFetch(path, {
     ...options,
     headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${props.token}`, ...(options.headers ?? {}) }
   })
@@ -419,7 +423,18 @@ async function printDocument(type: string) {
   window.print()
 }
 
-watch(() => props.token, () => { if (props.token) void loadClinics() }, { immediate: true })
+let lastFocusedClinicId: number | null = null
+onMounted(() => { if (props.token) void loadClinics() })
+watch(() => props.focusClinicId, async (clinicId) => {
+  if (clinicId === null) {
+    lastFocusedClinicId = null
+    return
+  }
+  if (lastFocusedClinicId === clinicId) return
+  lastFocusedClinicId = clinicId
+  await openCustomer(clinicId)
+  emit('focusConsumed')
+}, { immediate: true })
 </script>
 
 <template>

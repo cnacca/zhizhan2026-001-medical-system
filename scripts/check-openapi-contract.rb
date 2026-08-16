@@ -2,6 +2,7 @@
 # frozen_string_literal: true
 
 require "yaml"
+require "pathname"
 
 path = "docs/api/openapi.yaml"
 data = YAML.load_file(path)
@@ -24,6 +25,8 @@ operation_ids = []
 errors = []
 
 paths.each do |api_path, operations|
+  next if api_path.start_with?("x-")
+
   operations.each do |method, operation|
     next unless http_methods.include?(method)
 
@@ -39,6 +42,59 @@ paths.each do |api_path, operations|
       errors << "#{method.upcase} #{api_path} missing #{status} response" unless responses.key?(status)
     end
   end
+end
+
+controller_root = Pathname("backend/platform-server/src/main/java")
+controller_operations = {}
+controller_root.glob("**/*.java").each do |controller_path|
+  source = controller_path.read
+  next unless source.include?("@RestController") || source.include?("@Controller")
+
+  class_declaration = source.index(/\b(?:class|record)\s+\w+/) || source.length
+  controller_header = source[0...class_declaration]
+  class_mapping = controller_header.match(/@RequestMapping\s*\(\s*"([^"]*)"\s*\)/m)
+  class_path = class_mapping&.[](1).to_s
+  parsed_method_count = 0
+  source.scan(/@(Get|Post|Put|Delete|Patch)Mapping\s*\(\s*(?:value\s*=\s*)?"([^"]*)"/m) do |kind, method_path|
+    parsed_method_count += 1
+    method = kind.downcase
+    full_path = "#{class_path}#{method_path}".gsub(%r{/+}, "/")
+    full_path = "/#{full_path}" unless full_path.start_with?("/")
+    normalized_path = full_path.gsub(/\{[^}]+\}/, "{}")
+    controller_operations[[method, normalized_path]] = controller_path.to_s
+  end
+  declared_mapping_count = source.scan(/@(Get|Post|Put|Delete|Patch|Request)Mapping\b/).length
+  expected_method_count = declared_mapping_count - (class_mapping.nil? ? 0 : 1)
+  if parsed_method_count != expected_method_count
+    errors << "unsupported Spring mapping syntax in #{controller_path}; " \
+              "parsed #{parsed_method_count} of #{expected_method_count} controller methods"
+  end
+end
+
+contract_operations = {}
+paths.each do |api_path, operations|
+  next if api_path.start_with?("x-")
+
+  http_methods.each do |method|
+    next unless operations.key?(method)
+
+    normalized_path = api_path.gsub(/\{[^}]+\}/, "{}")
+    contract_operations[[method, normalized_path]] = api_path
+  end
+end
+
+# WebSocket handshake is intentionally documented in OpenAPI for integration consumers,
+# but it is registered by WebSocketConfig rather than a Spring MVC controller.
+non_rest_contract_operations = [["get", "/ws/connect"]].freeze
+
+(controller_operations.keys - contract_operations.keys).sort.each do |method, normalized_path|
+  source = controller_operations.fetch([method, normalized_path])
+  errors << "controller operation missing from OpenAPI: #{method.upcase} #{normalized_path} (#{source})"
+end
+
+(contract_operations.keys - controller_operations.keys - non_rest_contract_operations).sort.each do |method, normalized_path|
+  api_path = contract_operations.fetch([method, normalized_path])
+  errors << "OpenAPI operation has no controller: #{method.upcase} #{api_path}"
 end
 
 operation_id_counts = Hash.new(0)

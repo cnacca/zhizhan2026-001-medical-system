@@ -13,7 +13,12 @@ const required = [
   'function toggleProductSelection(product: CatalogProduct)',
   'async function persistPendingProductsUnlocked()',
   'if (step.value === 1 && !(await persistPendingProductsUnlocked())) return',
-  ':disabled="busy || persistedProductSelected(product)"',
+  'const persistedItem = group.value?.items.find((item) => item.product_id === product.product_id)',
+  'void removeItem(persistedItem)',
+  'function copyPendingProduct(product: CatalogProduct)',
+  'pendingProductIds.value = [...pendingProductIds.value, product.product_id]',
+  '@click="copyPendingProduct(product)">复制</button>',
+  ':disabled="busy"',
   '@click="toggleProductSelection(product)"',
   '尚未保存，点击下一步后创建产品订单',
   '点击下一步时统一保存病例订单'
@@ -26,6 +31,11 @@ const failures = required
 const forbiddenPatientFirstGate = ':disabled="busy || !patientId || productSelected(product)"'
 if (wizard.includes(forbiddenPatientFirstGate)) {
   failures.push('DoctorCaseGroupWizard.vue still requires a patient before selecting products')
+}
+
+const forbiddenPersistedProductGate = ':disabled="busy || persistedProductSelected(product)"'
+if (wizard.includes(forbiddenPersistedProductGate)) {
+  failures.push('DoctorCaseGroupWizard.vue still disables an already-selected product instead of allowing deselection')
 }
 
 const toggleStart = wizard.indexOf('function toggleProductSelection(product: CatalogProduct)')

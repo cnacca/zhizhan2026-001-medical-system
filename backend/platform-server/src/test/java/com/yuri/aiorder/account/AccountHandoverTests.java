@@ -180,9 +180,10 @@ class AccountHandoverTests {
     @Test
     void handoverCanDisableTheSourceAccountAndRevokeItsSessions() throws Exception {
         jdbcClient.sql("""
-                        INSERT INTO auth_refresh_token (user_id, token_hash, expires_at)
-                        VALUES (:userId, :hash, DATE_ADD(CURRENT_TIMESTAMP(3), INTERVAL 1 DAY))
+                        INSERT INTO auth_refresh_token (family_id, user_id, token_hash, expires_at)
+                        VALUES (:familyId, :userId, :hash, DATE_ADD(CURRENT_TIMESTAMP(3), INTERVAL 1 DAY))
                         """)
+                .param("familyId", UUID.randomUUID().toString())
                 .param("userId", CS_SOURCE_ID)
                 .param("hash", "handover-test-" + UUID.randomUUID())
                 .update();

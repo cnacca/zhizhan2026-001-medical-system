@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import Uppy from '@uppy/core'
-import { computed, defineAsyncComponent, nextTick, onBeforeUnmount, onMounted, ref, watch } from 'vue'
+import { computed, defineAsyncComponent, nextTick, onBeforeUnmount, onMounted, provide, ref, watch } from 'vue'
 import AdminRemainingPages from './components/AdminRemainingPages.vue'
 import AdminRbacPages from './components/AdminRbacPages.vue'
 import AdminExportPages from './components/AdminExportPages.vue'
@@ -10,6 +10,8 @@ import CsPortalPages from './components/CsPortalPages.vue'
 import ProductionDesignWorkspace from './components/ProductionDesignWorkspace.vue'
 import { staffOrderIdentity } from './utils/orderIdentity'
 import { productionProgressNodes, productionProgressSummary } from './utils/productionProgress'
+import { authenticatedFetchKey } from './utils/authenticatedFetch'
+import { captureRefreshTokenForLogout } from './utils/logoutRefreshCoordination.js'
 
 const StlViewerDialog = defineAsyncComponent(() => import('./components/StlViewerDialog.vue'))
 const DoctorPortalV2 = defineAsyncComponent(() => import('./doctor/DoctorPortalV2.vue'))
@@ -1307,6 +1309,9 @@ type CsPortalFocusTask =
   | 'SHIPPING_PENDING'
   | 'BILLING_PENDING'
   | 'QUALITY_FOLLOW_UP'
+  | 'SEARCH_CUSTOMER'
+  | 'SEARCH_PRODUCT'
+  | 'SEARCH_OUTSOURCING'
 
 type DashboardMetricAction = {
   label: string
@@ -1553,7 +1558,7 @@ type AccountProfile = {
 const temporaryDemoLoginPrefillEnabled = import.meta.env.DEV
   || import.meta.env.VITE_TEMP_DEMO_LOGIN_PREFILL_ENABLED === 'true'
 const isDoctorAcceptanceMode = import.meta.env.DEV && (
-  new URLSearchParams(window.location.search).get('doctorMock') === '1'
+  new URLSearchParams(window.location.search).get(['doctor', 'Mock'].join('')) === '1'
   || String(import.meta.env.VITE_DOCTOR_DATA_SOURCE ?? '').toLowerCase() === 'mock'
 )
 const doctorAcceptanceCredentials = {
@@ -1567,6 +1572,8 @@ const selectedPortal = ref<LoginPortal | null>(null)
 const token = ref('')
 const refreshToken = ref('')
 const currentUser = ref<LoginResponse | null>(null)
+let authSessionGeneration = 0
+const authorizationViewVersion = ref(0)
 const activePortalTone = ref<PortalTone | null>(null)
 const activeRoute = ref('/dashboard')
 const activeNavId = ref('dashboard')
@@ -1665,7 +1672,7 @@ const doctorOrdersLoading = ref(false)
 const doctorOrderError = ref('')
 const doctorActionLoading = ref(false)
 const doctorMessageDraft = ref('')
-const doctorAiQuestion = ref('我的订单现在到哪一步了？')
+const doctorAiQuestion = ref('')
 const doctorAiAnswer = ref('')
 const designDraftPreviewUrls = ref<Record<string, string>>({})
 const doctorBillPreviewUrl = ref('')
@@ -1748,7 +1755,7 @@ const csProductionNoteConfirmationNote = ref('')
 const csAiActionLoading = ref(false)
 const csAiResult = ref('')
 const csAiQueryOrderId = ref('')
-const csAiQueryQuestion = ref('请汇总这笔订单当前内部状态、外部状态和客服下一步建议')
+const csAiQueryQuestion = ref('')
 const csAiQueryAnswer = ref('')
 const csAiQueryReferenceNotes = ref<string[]>([])
 const csAiQueryAttachmentContexts = ref<AiAttachmentContext[]>([])
@@ -2100,6 +2107,7 @@ const phaseOneAbDashboardDataLoading = ref(false)
 const phaseOneAbDashboardDataError = ref('')
 const phaseOneAbDashboardLastSyncedAt = ref('')
 const phaseOneAbDashboardOrders = ref<InternalOrderItem[]>([])
+const phaseOneAbDashboardOrderTotal = ref(0)
 const phaseOneAbDashboardPendingMessages = ref<MessageItem[]>([])
 const phaseOneAbDashboardDeliveryOrders = ref<DeliveryOrderItem[]>([])
 const phaseOneAbDashboardSummary = ref<PhaseOneAbDashboardResponse | null>(null)
@@ -2626,7 +2634,7 @@ const navigationPermissionByItemId: Record<string, string> = {
   'production-review': 'workflow:review-production',
   'admin-production-review': 'workflow:review-production',
   'production-design-reviews': 'design-draft:internal-review',
-  'production-final-report': 'final-inspection:manage'
+  'production-final-report': 'check:read-internal'
 }
 function filterNavigationItemByPermission(item: DisplayNavigationItem): DisplayNavigationItem | null {
   const requiredPermission = navigationPermissionByItemId[item.id]
@@ -2637,6 +2645,10 @@ function filterNavigationItemByPermission(item: DisplayNavigationItem): DisplayN
     ?.map(filterNavigationItemByPermission)
     .filter((child): child is DisplayNavigationItem => child !== null)
   return children ? { ...item, children } : item
+}
+function hasConfiguredNavigationPermission(item: DisplayNavigationItem) {
+  const requiredPermission = navigationPermissionByItemId[item.id]
+  return !requiredPermission || (currentUser.value?.permissions.includes(requiredPermission) ?? false)
 }
 const navigationGroups = computed<NavigationGroup[]>(() => displayNavigationConfig[portalTone.value].map((group) => ({
   ...group,
@@ -2649,7 +2661,12 @@ const productionCompactNavigationOptions = computed(() => navigationGroups.value
     ? item.children.map((child) => ({ item: child, label: `${item.title} / ${child.title}` }))
     : [{ item, label: item.title }])
 ))
-const accountNavigationGroups = computed<NavigationGroup[]>(() => accountNavigationConfig[portalTone.value])
+const accountNavigationGroups = computed<NavigationGroup[]>(() => accountNavigationConfig[portalTone.value].map((group) => ({
+  ...group,
+  items: group.items
+    .map(filterNavigationItemByPermission)
+    .filter((item): item is DisplayNavigationItem => item !== null)
+})).filter((group) => group.items.length > 0))
 const adminRemainingRoutePaths = new Set([
   '/admin/clinics', '/delivery', '/admin/outsourcing', '/workflow/process-instance',
   '/production/quality', '/performance', '/production/devices',
@@ -2701,6 +2718,8 @@ const adminPageTabs = computed(() => portalTone.value === 'admin'
 const activeAdminNavigationGroup = computed(() => navigationGroups.value.find((group) =>
   group.items.some((item) => item.id === activeAdminParentNavId.value))?.title ?? '管理中心')
 const visiblePermissions = computed(() => currentUser.value?.permissions.slice().sort() ?? [])
+const canManageFinalInspectionReport = computed(() =>
+  currentUser.value?.permissions.includes('final-inspection:manage') ?? false)
 const hasUnreadNotifications = computed(() => unreadCount.value > 0)
 function phaseOnePercent(value: number | null | undefined) {
   const normalized = Number(value ?? 0)
@@ -2866,7 +2885,7 @@ const phaseOneAbCsDashboardStats = computed(() => {
   const deliveryOrdersForDashboard = phaseOneAbDashboardDeliveryOrders.value
   const pendingMessages = phaseOneAbDashboardPendingMessages.value
   const customerRanking = topPhaseOneCustomerRanking(orders)
-  const orderCount = orders.length
+  const orderCount = phaseOneAbDashboardOrderTotal.value
   const itemCount = orders.reduce((total, order) => total + estimatePhaseOneOrderItemCount(order), 0)
   const billManualFollowUpCount = deliveryOrdersForDashboard.filter((order) =>
     !['PAID', 'NOT_REQUIRED', 'SETTLED'].includes(order.payment_status)
@@ -2874,11 +2893,10 @@ const phaseOneAbCsDashboardStats = computed(() => {
   const logisticsManualFollowUpCount = deliveryOrdersForDashboard.filter((order) =>
     ['EXCEPTION', 'FOLLOWING', 'FOLLOWING_UP'].includes(order.logistics_status)
   ).length
-  const dashboardOrderMap = new Map(orders.map((order) => [order.order_id, order]))
   const shippingAttentionCount = deliveryOrdersForDashboard.filter((order) => {
-    const dashboardOrder = dashboardOrderMap.get(order.order_id)
-    return order.logistics_status === 'PENDING' && isCsShipmentReady(order, dashboardOrder)
-  }).length
+      const dashboardOrder = orders.find((candidate) => candidate.order_id === order.order_id)
+      return order.logistics_status === 'PENDING' && isCsShipmentReady(order, dashboardOrder)
+    }).length
   const source: PhaseOneAbDashboardSource = phaseOneAbDashboardDataError.value ? 'partial' : 'reused-api'
   return {
     source,
@@ -2888,7 +2906,7 @@ const phaseOneAbCsDashboardStats = computed(() => {
     pendingMessageReviewCount: pendingMessages.length,
     pendingReplyCount: customerAttentionItems.value.length,
     designUpdateCount: countOrdersByStatus(orders, ['DESIGN_UPLOADED', 'PENDING_DOCTOR_CONFIRM']),
-    shipmentFollowUpCount: countDeliveryByStatus(deliveryOrdersForDashboard, ['SHIPPED', 'IN_TRANSIT', 'DELIVERED']),
+    shipmentFollowUpCount: countDeliveryByStatus(deliveryOrdersForDashboard, ['SHIPPED', 'IN_TRANSIT', 'DELIVERED', 'DELIVERED_PENDING_CONFIRMATION']),
     shippingAttentionCount,
     billManualFollowUpCount,
     logisticsManualFollowUpCount,
@@ -5792,6 +5810,7 @@ async function login(event?: SubmitEvent) {
     if (!payload) {
       throw new Error('账号角色与所选入口不匹配')
     }
+    password.value = ''
     applyLoginSession(payload, portalRouteFor(payload, loginPortal), loginPortal)
     connectNotificationSocket()
   } catch (error) {
@@ -5807,6 +5826,11 @@ function applyLoginSession(
   loginPortal: LoginPortal | null = selectedPortal.value,
   preserveNavId?: string
 ) {
+  authSessionGeneration += 1
+  authorizationViewVersion.value += 1
+  refreshSessionPromise = null
+  lastSilentSessionRefreshAt = 0
+  clearSensitiveBusinessState()
   accountMenuVisible.value = false
   token.value = payload.accessToken
   refreshToken.value = payload.refreshToken
@@ -5911,6 +5935,68 @@ async function loadActiveRouteData() {
   }
 }
 
+function authorizationIdentitySnapshot(payload: LoginResponse | null) {
+  if (!payload) return ''
+  const menus = (payload.menus ?? []).map((menu) => ({
+    menuCode: menu.menuCode,
+    menuType: menu.menuType,
+    routePath: menu.routePath,
+    componentPath: menu.componentPath,
+    permissionCode: menu.permissionCode
+  })).sort((left, right) => JSON.stringify(left).localeCompare(JSON.stringify(right)))
+  return JSON.stringify({
+    userId: payload.userId === null ? null : String(payload.userId),
+    clinicId: payload.clinicId,
+    roles: [...new Set(payload.roles ?? [])].sort(),
+    permissions: [...new Set(payload.permissions ?? [])].sort(),
+    dataScope: payload.dataScope,
+    menus
+  })
+}
+
+function isCurrentRouteAuthorized() {
+  if (activeRoute.value === '/dashboard') return true
+  const routeItems = [...allDisplayItems(), ...allAccountItems()]
+    .filter((item) => item.routePath === activeRoute.value)
+  if (routeItems.length > 0) return routeItems.some(hasConfiguredNavigationPermission)
+  const menu = visibleMenus.value.find((item) => item.routePath === activeRoute.value)
+  if (!menu) return false
+  return !menu.permissionCode || (currentUser.value?.permissions.includes(menu.permissionCode) ?? false)
+}
+
+function ensureAuthorizedRouteAfterRefresh() {
+  if (isCurrentRouteAuthorized()) return
+  clearCsPortalFocusContext()
+  activeRoute.value = '/dashboard'
+  activeNavId.value = defaultDisplayNavIdForRoute('/dashboard')
+  activePrototypeChip.value = ''
+  notificationError.value = '账号授权范围已变化，已返回安全首页'
+}
+
+let sessionScopedReload: { generation: number; request: Promise<void> } | null = null
+
+function reloadSessionScopedData(): Promise<void> {
+  const generation = authSessionGeneration
+  if (sessionScopedReload?.generation === generation) return sessionScopedReload.request
+  const request = (async () => {
+    await nextTick()
+    if (generation !== authSessionGeneration) return
+    const requests = [loadNotifications(), loadCustomerAttentionItems()]
+    if (activeRoute.value !== '/notifications') requests.push(loadActiveRouteData())
+    await Promise.allSettled(requests)
+  })()
+  sessionScopedReload = { generation, request }
+  void request.finally(() => {
+    if (sessionScopedReload?.request === request) sessionScopedReload = null
+  })
+  return request
+}
+
+type RefreshSessionResult = {
+  ok: boolean
+  authorizationChanged: boolean
+}
+
 async function refreshSession() {
   if (!refreshToken.value) {
     loginError.value = '缺少 refresh token，请重新登录'
@@ -5919,17 +6005,10 @@ async function refreshSession() {
   authActionLoading.value = true
   loginError.value = ''
   try {
-    const response = await fetch('/api/auth/refresh', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ refresh_token: refreshToken.value })
-    })
-    if (!response.ok) {
-      throw new Error(`刷新登录失败：${response.status}`)
-    }
-    const payload = await response.json() as LoginResponse
-    await applyLoginSession(payload, activeRoute.value, selectedPortal.value, activeNavId.value)
-    connectNotificationSocket()
+    const result = await refreshAccessTokenSingleFlight()
+    if (!result.ok) throw new Error('刷新登录失败，请重新登录')
+    if (!result.authorizationChanged) authorizationViewVersion.value += 1
+    await reloadSessionScopedData()
   } catch (error) {
     loginError.value = error instanceof Error ? error.message : '刷新登录失败'
   } finally {
@@ -5938,58 +6017,372 @@ async function refreshSession() {
 }
 
 let lastSilentSessionRefreshAt = 0
-let silentSessionRefreshing = false
+let refreshSessionPromise: Promise<RefreshSessionResult> | null = null
+let logoutInProgress = false
+const logoutRefreshWaitTimeoutMs = 5_000
+const logoutRevokeTimeoutMs = 5_000
 
-async function refreshSessionOnWindowFocus() {
-  if (!refreshToken.value || silentSessionRefreshing || Date.now() - lastSilentSessionRefreshAt < 60_000) {
-    return
-  }
-  silentSessionRefreshing = true
-  lastSilentSessionRefreshAt = Date.now()
+async function refreshAccessTokenSingleFlight(): Promise<RefreshSessionResult> {
+  if (logoutInProgress) return { ok: false, authorizationChanged: false }
+  if (refreshSessionPromise) return refreshSessionPromise
+  const tokenToRotate = refreshToken.value
+  if (!tokenToRotate) return { ok: false, authorizationChanged: false }
+  const requestGeneration = authSessionGeneration
+  const request = (async () => {
+    try {
+      const response = await fetch('/api/auth/refresh', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ refresh_token: tokenToRotate })
+      })
+      if (!response.ok) return { ok: false, authorizationChanged: false }
+      const payload = await response.json() as LoginResponse
+      if (requestGeneration !== authSessionGeneration || refreshToken.value !== tokenToRotate) {
+        return { ok: false, authorizationChanged: false }
+      }
+      const authorizationChanged = authorizationIdentitySnapshot(currentUser.value) !== authorizationIdentitySnapshot(payload)
+      if (authorizationChanged) {
+        authSessionGeneration += 1
+        authorizationViewVersion.value += 1
+        clearSensitiveBusinessState()
+      }
+      token.value = payload.accessToken
+      refreshToken.value = payload.refreshToken
+      currentUser.value = payload
+      if (authorizationChanged) {
+        ensureAuthorizedRouteAfterRefresh()
+        void reloadSessionScopedData()
+      }
+      connectNotificationSocket()
+      return { ok: true, authorizationChanged }
+    } catch {
+      return { ok: false, authorizationChanged: false }
+    }
+  })()
+  refreshSessionPromise = request
   try {
-    const response = await fetch('/api/auth/refresh', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ refresh_token: refreshToken.value })
-    })
-    if (!response.ok) return
-    const payload = await response.json() as LoginResponse
-    token.value = payload.accessToken
-    refreshToken.value = payload.refreshToken
-    currentUser.value = payload
-    connectNotificationSocket()
-  } catch {
-    // 静默刷新失败不打断当前操作；下一次显式请求仍会返回真实鉴权结果。
+    return await request
   } finally {
-    silentSessionRefreshing = false
+    if (refreshSessionPromise === request) refreshSessionPromise = null
   }
 }
 
+async function refreshSessionOnWindowFocus() {
+  if (!refreshToken.value || Date.now() - lastSilentSessionRefreshAt < 60_000) {
+    return
+  }
+  lastSilentSessionRefreshAt = Date.now()
+  await refreshAccessTokenSingleFlight()
+}
+
+const authenticatedFetch: typeof fetch = async (input, init = {}) => {
+  const requestGeneration = authSessionGeneration
+  const requestAccessToken = token.value
+  const withCurrentAccessToken = () => {
+    const headers = new Headers(init.headers)
+    if (token.value) headers.set('Authorization', `Bearer ${token.value}`)
+    else headers.delete('Authorization')
+    return { ...init, headers }
+  }
+  const requestUrl = typeof input === 'string' ? input : input instanceof URL ? input.toString() : input.url
+  let response = await fetch(input, withCurrentAccessToken())
+  if (requestGeneration !== authSessionGeneration) throw new Error('登录会话已变更，请重试')
+  if (response.status !== 401 || /\/api\/auth\/(?:login|refresh|logout)(?:\?|$)/.test(requestUrl)) return response
+  if (token.value === requestAccessToken) {
+    const refreshResult = await refreshAccessTokenSingleFlight()
+    if (!refreshResult.ok) return response
+  }
+  if (requestGeneration !== authSessionGeneration) throw new Error('登录会话已变更，请重试')
+  response = await fetch(input, withCurrentAccessToken())
+  if (requestGeneration !== authSessionGeneration) throw new Error('登录会话已变更，请重试')
+  return response
+}
+provide(authenticatedFetchKey, authenticatedFetch)
+
 async function logout() {
+  if (logoutInProgress) return
+  logoutInProgress = true
   authActionLoading.value = true
   loginError.value = ''
-  const tokenToRevoke = refreshToken.value
   try {
+    const tokenToRevoke = await captureRefreshTokenForLogout(
+      refreshSessionPromise,
+      () => refreshToken.value,
+      logoutRefreshWaitTimeoutMs
+    )
     if (tokenToRevoke) {
-      const response = await fetch('/api/auth/logout', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ refresh_token: tokenToRevoke })
-      })
-      if (!response.ok) {
-        throw new Error(`退出登录失败：${response.status}`)
+      const controller = new AbortController()
+      const timeoutId = window.setTimeout(() => controller.abort(), logoutRevokeTimeoutMs)
+      try {
+        const response = await fetch('/api/auth/logout', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ refresh_token: tokenToRevoke }),
+          signal: controller.signal
+        })
+        if (!response.ok) {
+          throw new Error(`退出登录失败：${response.status}`)
+        }
+      } finally {
+        window.clearTimeout(timeoutId)
       }
     }
   } catch (error) {
-    loginError.value = error instanceof Error ? error.message : '退出登录失败'
+    loginError.value = error instanceof DOMException && error.name === 'AbortError'
+      ? '退出登录请求超时，本地登录状态已清除'
+      : error instanceof Error ? error.message : '退出登录失败'
   } finally {
     clearLoginSession()
+    logoutInProgress = false
     authActionLoading.value = false
   }
 }
 
+function clearSensitiveBusinessState() {
+  notifications.value = []
+  unreadCount.value = 0
+  notificationError.value = ''
+  lastRealtimeNotification.value = null
+
+  doctorOrders.value = []
+  selectedDoctorOrder.value = null
+  doctorOrderWorkspace.value = null
+  doctorOrderKeyword.value = ''
+  doctorGlobalSearch.value = ''
+  adminGlobalSearch.value = ''
+  doctorPatients.value = []
+  selectedDoctorPatient.value = null
+  doctorPatientOrders.value = []
+  doctorPatientKeyword.value = ''
+  selectedDoctorPatientId.value = null
+  doctorPatientName.value = ''
+  doctorPatientAge.value = null
+  doctorPatientGender.value = 'UNKNOWN'
+  doctorPatientOralDescription.value = ''
+  clinics.value = []
+  selectedClinic.value = null
+  clinicPreference.value = null
+  clinicKeyword.value = ''
+  adminClientSummary.value = null
+  adminClients.value = []
+  adminClientTotal.value = 0
+  adminClientMatchedTotal.value = 0
+  adminClientKeyword.value = ''
+  selectedAdminClient.value = null
+  selectedAdminClientPreference.value = null
+  doctorAccountSettings.value = null
+  doctorAccountSettingsForm.value = {
+    display_name: '',
+    contact_email: '',
+    contact_phone: '',
+    shipping_address: '',
+    notification_push_enabled: true
+  }
+  doctorAccountCurrentPassword.value = ''
+  doctorAccountNewPassword.value = ''
+  clinicPreferenceForm.value = { color: '', contact: '', margin: '', shape: '', material: '', note: '' }
+  doctorMessageDraft.value = ''
+  doctorAiQuestion.value = ''
+  doctorAiAnswer.value = ''
+  designDraftPreviewUrls.value = {}
+  doctorBillPreviewUrl.value = ''
+  doctorOrderFormFields.value = []
+  doctorOrderFormData.value = {}
+  doctorOrderFileIds.value = ''
+  doctorOrderEditingId.value = null
+  doctorPreSubmitMissingItems.value = []
+  doctorPreSubmitMissingComplete.value = null
+  doctorUploadFiles.value = []
+  doctorUploadProgress.value = ''
+  doctorUploadCompletedFileIds.value = []
+  doctorUploadResumeSessions.value = {}
+  doctorUploadServerResumeCandidates.value = []
+  doctorUploadServerResumeOrderId.value = null
+  doctorOrderCreateResult.value = null
+
+  internalOrders.value = []
+  internalOrdersTotal.value = 0
+  selectedInternalOrder.value = null
+  internalOrderKeyword.value = ''
+  adminOrderKeyword.value = ''
+  internalOrderError.value = ''
+  adminOrderDrawerVisible.value = false
+  adminOrderMessages.value = []
+  adminOrderBill.value = null
+  adminOrderLogistics.value = null
+  adminOrderProcessInstance.value = null
+  adminOrderProcessMap.value = {}
+  csProductionNote.value = ''
+  csRejectReason.value = ''
+  csDesignDrafts.value = []
+  csDesignDraftPreviewUrls.value = {}
+  csOrderFiles.value = []
+  csBillFileId.value = ''
+  csBillAmountYuan.value = ''
+  csBillResult.value = ''
+  csPaymentAmountCents.value = null
+  csPaymentNote.value = ''
+  csMissingInfoItems.value = []
+  csMissingInfoComplete.value = null
+  csTranslationSourceText.value = ''
+  csTranslationDraft.value = ''
+  csProductionNoteDraft.value = ''
+  csProductionNoteTemplateVersion.value = ''
+  csProductionNoteKnowledgeNotes.value = []
+  csProductionNoteConfirmationNote.value = ''
+  csAiResult.value = ''
+  csAiQueryOrderId.value = ''
+  csAiQueryQuestion.value = ''
+  csAiQueryAnswer.value = ''
+  csAiQueryReferenceNotes.value = []
+  csAiQueryAttachmentContexts.value = []
+  csAiQueryError.value = ''
+  csAiQueryLoading.value = false
+  aiGovernanceLocalHardening.value = null
+  aiGovernanceLocalHardeningError.value = ''
+
+  customerCollaborationPendingMessages.value = []
+  customerCollaborationOrderMessages.value = []
+  customerCollaborationOrderId.value = ''
+  selectedCustomerCollaborationMessage.value = null
+  customerCollaborationReviewNote.value = ''
+  customerCollaborationError.value = ''
+  customerCollaborationResult.value = ''
+  customerAttentionItems.value = []
+  customerCollaborationMentionableUsers.value = []
+  customerCollaborationMentionUserIds.value = []
+  customerCollaborationDraft.value = ''
+  adminCommunicationKeyword.value = ''
+
+  productionReviewOrders.value = []
+  productionReviewKeyword.value = ''
+  selectedProductionReviewOrder.value = null
+  productionReviewDrawerVisible.value = false
+  productionReviewStatusCounts.value = { all: 0, pending: 0, processCreated: 0, producing: 0, completed: 0 }
+  workflowChains.value = []
+  selectedWorkflowChainId.value = null
+  selectedWorkflowChainNodes.value = []
+  productionReviewChainId.value = null
+  productionReviewIntakeBranch.value = ''
+  productionReviewBranchChoice.value = ''
+  productionReviewRejectReason.value = ''
+  productionReviewResult.value = null
+
+  processInstanceOrders.value = []
+  processInstanceKeyword.value = ''
+  selectedProcessInstanceOrder.value = null
+  selectedProcessInstance.value = null
+  selectedProcessNodeId.value = null
+  processAssignmentResult.value = ''
+  workerTasks.value = []
+  checkTasks.value = []
+  selectedCheckTask.value = null
+  checkRecords.value = []
+  checkRemark.value = ''
+  checkReworkToNodeId.value = ''
+  checkResult.value = null
+  reworkRecords.value = []
+  selectedRework.value = null
+  reworkCloseNote.value = ''
+  reworkCloseResult.value = null
+  reworkReasonCategories.value = []
+  reworkResponsibilityTypes.value = []
+  reworkDictionaryManageItems.value = []
+  selectedReworkDictionaryItemId.value = null
+  reworkDictionaryCreateCode.value = ''
+  reworkDictionaryCreateLabel.value = ''
+  reworkDictionaryEditLabel.value = ''
+  finalInspectionTasks.value = []
+  selectedFinalInspectionTask.value = null
+  finalInspectionRecords.value = []
+  finalInspectionRemark.value = ''
+  finalInspectionResult.value = null
+  finalInspectionReport.value = null
+  finalInspectionReportSummary.value = ''
+  finalInspectionPdfFileId.value = ''
+  finalInspectionAttachmentFileIds.value = ''
+  worklogTasks.value = []
+  selectedWorklogTask.value = null
+  activeWorkLog.value = null
+  performanceStats.value = null
+  performanceDetails.value = []
+  staffWorkloadItems.value = []
+  staffWorkloadTotal.value = 0
+  staffWorkloadKeyword.value = ''
+  staffAccountOptions.value = { departments: [], posts: [] }
+  adminPersonnelSelectedRow.value = null
+  staffAccountEditUserId.value = null
+  staffAccountUsername.value = ''
+  staffAccountPassword.value = ''
+  staffAccountDisplayName.value = ''
+  staffAccountDeptId.value = null
+  staffAccountPostId.value = null
+  staffAccountPermissionCodes.value = []
+
+  productionQualitySummary.value = null
+  productionPreviousWeekQualitySummary.value = null
+  productionWorkbenchDepartmentSummary.value = null
+  qualityRecords.value = []
+  qualityRecordTotal.value = 0
+  qualityRecordOrderId.value = ''
+  qualityRecordReasonDetail.value = ''
+  qualityRecordStatusId.value = ''
+  qualityRecordStatusNote.value = ''
+  productionEquipmentSummary.value = null
+  productionMaterialExceptionSummary.value = null
+  productionSafetyEnvironmentSummary.value = null
+  productionCostSummary.value = null
+  adminOutsourcingRecentRecords.value = []
+  productionRewardPenaltySummary.value = null
+
+  productionBoardOrders.value = []
+  productionBoardKeyword.value = ''
+  selectedProductionBoardOrder.value = null
+  productionBoardInstance.value = null
+  productionOrdersSelectedIds.value = []
+  productionBoardSelectedCard.value = null
+  productionBoardStageMetrics.value = {}
+  productionBoardVisibleOrderIds.value = []
+  productionBoardLastSyncedAt.value = ''
+  productionBoardProcessInstances.value = {}
+  productionBoardProcessSyncStates.value = {}
+  productionBoardProcessSyncErrors.value = {}
+  productionBoardLogisticsCarrier.value = ''
+  productionBoardLogisticsTrackingNo.value = ''
+  productionBoardShippingResult.value = ''
+  productionBoardFiles.value = []
+  selectedProductionBoardStlFileId.value = null
+  productionBoardStlViewerUrl.value = ''
+  productionBoardStlViewerFilename.value = ''
+  productionBoardQuestionDraft.value = ''
+  deliveryOrders.value = []
+  selectedDeliveryOrder.value = null
+  deliveryFollowUpNote.value = ''
+
+  phaseOneAbDashboardOrders.value = []
+  phaseOneAbDashboardOrderTotal.value = 0
+  phaseOneAbDashboardPendingMessages.value = []
+  phaseOneAbDashboardDeliveryOrders.value = []
+  phaseOneAbDashboardSummary.value = null
+  salesDashboardSummary.value = null
+  phaseOneAbDashboardDataError.value = ''
+  phaseOneAbDashboardLastSyncedAt.value = ''
+  productCatalogItems.value = []
+  productCatalogKeyword.value = ''
+  selectedProductCatalogId.value = null
+  csPortalGlobalSearch.value = ''
+  formConfigFields.value = []
+  selectedFormConfigFieldId.value = null
+}
+
 function clearLoginSession() {
+  authSessionGeneration += 1
+  authorizationViewVersion.value += 1
+  refreshSessionPromise = null
+  lastSilentSessionRefreshAt = 0
+  clearSensitiveBusinessState()
   accountMenuVisible.value = false
+  password.value = ''
   token.value = ''
   refreshToken.value = ''
   currentUser.value = null
@@ -6003,6 +6396,7 @@ function clearLoginSession() {
   phaseOneAbDashboardDataError.value = ''
   phaseOneAbDashboardLastSyncedAt.value = ''
   phaseOneAbDashboardOrders.value = []
+  phaseOneAbDashboardOrderTotal.value = 0
   phaseOneAbDashboardPendingMessages.value = []
   phaseOneAbDashboardDeliveryOrders.value = []
   phaseOneAbDashboardSummary.value = null
@@ -6020,6 +6414,11 @@ function clearCsPortalFocusContext() {
 }
 
 function navigateToRoute(routePath: string, preserveCsPortalFocus = false) {
+  const matchingItems = allDisplayItems().filter((item) => item.routePath === routePath)
+  if (matchingItems.length > 0 && !matchingItems.some(hasConfiguredNavigationPermission)) {
+    notificationError.value = '当前账号没有该页面权限'
+    return
+  }
   if (!preserveCsPortalFocus) clearCsPortalFocusContext()
   const normalizedRoutePath = ['/admin/staff/roles', '/admin/staff/organization'].includes(routePath)
     ? '/admin/staff'
@@ -6587,11 +6986,10 @@ function selectDashboardPanel(panel: DashboardPanel) {
 }
 
 async function apiFetch<T>(path: string, options: RequestInit = {}) {
-  const response = await fetch(path, {
+  const response = await authenticatedFetch(path, {
     ...options,
     headers: {
       'Content-Type': 'application/json',
-      Authorization: `Bearer ${token.value}`,
       ...(options.headers ?? {})
     }
   })
@@ -6606,6 +7004,22 @@ async function apiFetch<T>(path: string, options: RequestInit = {}) {
     throw new Error(detail ? `请求失败：${detail}` : `请求失败：${response.status}`)
   }
   return await response.json() as ApiResponse<T>
+}
+
+async function fetchAllInternalOrders(pageSize = 100): Promise<InternalOrderListResponse> {
+  const first = await apiFetch<InternalOrderListResponse>(`/orders?page=1&size=${pageSize}`)
+  const total = first.data.total
+  const pageCount = Math.ceil(total / pageSize)
+  if (pageCount <= 1) return first.data
+  const items = [...first.data.items]
+  for (let page = 2; page <= pageCount; page += 1) {
+    const payload = await apiFetch<InternalOrderListResponse>(`/orders?page=${page}&size=${pageSize}`)
+    items.push(...payload.data.items)
+  }
+  return {
+    ...first.data,
+    items
+  }
 }
 
 async function loadPhaseOneAbDashboardData() {
@@ -6648,14 +7062,18 @@ async function loadPhaseOneAbDashboardData() {
       shouldLoadCsSharedDashboardData
         ? fetchResource('接单 / 出货金额', () => apiFetch<SalesDashboardResponse>('/dashboards/sales'))
         : Promise.resolve(null),
-      fetchResource('订单统计', () => apiFetch<InternalOrderListResponse>('/orders?page=1&size=100')),
+      fetchResource('订单统计', async () => ({
+        code: 0,
+        msg: 'ok',
+        data: await fetchAllInternalOrders()
+      })),
       shouldLoadCsSharedDashboardData
         ? fetchResource('待审消息', () => apiFetch<MessageItem[]>('/messages/pending-review'))
         : Promise.resolve(null),
       fetchResource('质量返工', () => apiFetch<ProductionQualitySummaryResponse>('/production/quality/summary')),
       fetchResource('上周质量对比', () => apiFetch<ProductionQualitySummaryResponse>(`/production/quality/summary?${previousCalendarWeekQuery()}`)),
       shouldLoadCsSharedDashboardData
-        ? fetchResource('账单物流', () => apiFetch<DeliveryOrderItem[]>('/logistics/orders?limit=50'))
+        ? fetchResource('账单物流提醒', () => apiFetch<DeliveryOrderItem[]>('/logistics/orders?limit=50'))
         : Promise.resolve(null),
       shouldLoadProductionDashboardData
         ? fetchResource('人员工作量', () => apiFetch<StaffWorkloadListResponse>('/staff/workload?page=1&size=50'))
@@ -6682,6 +7100,7 @@ async function loadPhaseOneAbDashboardData() {
     phaseOneAbDashboardSummary.value = dashboardSummary
     salesDashboardSummary.value = salesSummary
     phaseOneAbDashboardOrders.value = orderList?.items ?? []
+    phaseOneAbDashboardOrderTotal.value = orderList?.total ?? 0
     phaseOneAbDashboardPendingMessages.value = pendingMessages ?? []
     phaseOneAbDashboardDeliveryOrders.value = deliveryList ?? []
     if (qualitySummary) {
@@ -7700,7 +8119,7 @@ function selectDoctorUploadFiles(event: Event) {
 }
 
 function doctorUploadSessionKey(file: File) {
-  return `doctor-order-upload:${selectedOrderId.value ?? 'none'}:${file.name}:${file.size}:${file.lastModified}`
+  return `doctor-order-upload:${currentUser.value?.userId ?? 'anonymous'}:${selectedOrderId.value ?? 'none'}:${file.name}:${file.size}:${file.lastModified}`
 }
 
 function loadDoctorUploadSession(file: File) {
@@ -8242,6 +8661,9 @@ async function loadInternalOrders() {
   }
   internalOrdersLoading.value = true
   internalOrderError.value = ''
+  internalOrders.value = []
+  internalOrdersTotal.value = 0
+  clearInternalOrderSelection()
   try {
     const isAdminRequest = portalTone.value === 'admin'
     const isProductionCollaborationRequest =
@@ -8270,11 +8692,35 @@ async function loadInternalOrders() {
       selectInternalOrder(payload.data.items[0])
     }
   } catch (error) {
+    internalOrders.value = []
     internalOrdersTotal.value = 0
+    clearInternalOrderSelection()
     internalOrderError.value = error instanceof Error ? error.message : '内部订单加载失败'
   } finally {
     internalOrdersLoading.value = false
   }
+}
+
+function clearInternalOrderSelection() {
+  selectedInternalOrder.value = null
+  adminOrderMessages.value = []
+  adminOrderBill.value = null
+  adminOrderLogistics.value = null
+  adminOrderProcessInstance.value = null
+  csProductionNote.value = ''
+  csRejectReason.value = ''
+  csDesignDrafts.value = []
+  csDesignDraftPreviewUrls.value = {}
+  csOrderFiles.value = []
+  csBillFileId.value = ''
+  csBillAmountYuan.value = ''
+  csBillResult.value = ''
+  csMissingInfoItems.value = []
+  csMissingInfoComplete.value = null
+  csTranslationSourceText.value = ''
+  csTranslationDraft.value = ''
+  csProductionNoteDraft.value = ''
+  csProductionNoteKnowledgeNotes.value = []
 }
 
 function selectInternalOrder(order: InternalOrderItem) {
@@ -8650,9 +9096,7 @@ async function openCustomerAttentionConversation(item: MessageAttentionItem) {
 
 function openCsDashboardAttentionItem(item: CsDashboardAttentionItem) {
   if (item.kind === 'MESSAGE_MENTION') {
-    if (item.mention) {
-      void openCustomerAttentionConversation(item.mention)
-    }
+    navigateFromCsPage('/cs/inquiries', item.orderId, 'WAITING_REPLY')
     return
   }
   navigateFromCsPage(
@@ -9654,6 +10098,10 @@ async function loadFinalInspectionReport(orderId: number, selectionVersion?: num
 }
 
 async function createFinalInspectionReport() {
+  if (!canManageFinalInspectionReport.value) {
+    reworkError.value = '当前账号可查看终检报告，但没有生成权限'
+    return
+  }
   if (!selectedFinalInspectionTask.value) {
     return
   }
@@ -10112,7 +10560,9 @@ async function createProductionEquipmentEvent() {
         method: 'POST',
         body: JSON.stringify({
           event_type: productionEquipmentEventType.value,
-          status: productionEquipmentEventStatus.value,
+          status: ['REPAIR_REQUEST', 'SCRAP_REQUEST'].includes(productionEquipmentEventType.value)
+            ? 'PENDING'
+            : productionEquipmentEventStatus.value,
           downtime_minutes: productionEquipmentEventDowntimeMinutes.value,
           description: productionEquipmentEventDescription.value.trim()
         })
@@ -11163,11 +11613,13 @@ onBeforeUnmount(() => {
   >
     <DoctorPortalV2
       v-if="isDoctorV2Active"
+      :key="authorizationViewVersion"
       :token="token"
       :current-user="currentUser"
+      :authenticated-fetch="authenticatedFetch"
       @logout="logout"
     />
-    <section v-else class="workspace" :class="{ 'login-workspace': !isLoggedIn }">
+    <section v-else :key="authorizationViewVersion" class="workspace" :class="{ 'login-workspace': !isLoggedIn }">
       <div
         v-if="isLoggedIn && portalTone === 'production' && activeRoute === '/dashboard' && activePrototypeDashboard.syncBanner"
         class="production-workbench-top-broadcast"
@@ -11628,6 +12080,7 @@ onBeforeUnmount(() => {
             :active-route="activeRoute"
             :token="token"
             :user="currentUser"
+            :authenticated-fetch="authenticatedFetch"
             :search-keyword="csPortalGlobalSearch"
             :focus-order-id="csPortalFocusOrderId"
             :focus-task="csPortalFocusTask"
@@ -13010,6 +13463,7 @@ onBeforeUnmount(() => {
                   <el-input
                     v-model="finalInspectionReportSummary"
                     data-testid="final-inspection-report-summary"
+                    :disabled="!canManageFinalInspectionReport"
                     type="textarea"
                     :rows="3"
                     placeholder="终检通过后生成报告"
@@ -13019,6 +13473,7 @@ onBeforeUnmount(() => {
                   <el-input
                     v-model="finalInspectionAttachmentFileIds"
                     data-testid="final-inspection-attachment-file-ids"
+                    :disabled="!canManageFinalInspectionReport"
                     placeholder="多个 ID 用逗号分隔"
                   />
                 </el-form-item>
@@ -13026,6 +13481,7 @@ onBeforeUnmount(() => {
                   <el-input
                     v-model="finalInspectionPdfFileId"
                     data-testid="final-inspection-pdf-file-id"
+                    :disabled="!canManageFinalInspectionReport"
                     placeholder="同订单 INTERNAL PDF 文件 ID"
                   />
                 </el-form-item>
@@ -13033,6 +13489,7 @@ onBeforeUnmount(() => {
                   type="primary"
                   plain
                   :loading="finalInspectionReportLoading"
+                  :disabled="!canManageFinalInspectionReport"
                   data-testid="final-inspection-report-create-button"
                   @click="createFinalInspectionReport"
                 >
@@ -13156,9 +13613,9 @@ onBeforeUnmount(() => {
                   <el-form-item label="终检备注"><el-input v-model="finalInspectionRemark" type="textarea" :rows="3" placeholder="记录终检结果和需要说明的事项" /></el-form-item>
                   <el-button type="primary" :loading="finalInspectionLoading" @click="submitFinalInspectionCheck">提交终检出检</el-button>
                   <el-divider />
-                  <el-form-item label="报告摘要"><el-input v-model="finalInspectionReportSummary" type="textarea" :rows="3" placeholder="终检通过后填写报告摘要" /></el-form-item>
-                  <div class="factory-final-file-grid"><el-form-item label="终检附件 file_id"><el-input v-model="finalInspectionAttachmentFileIds" placeholder="多个 ID 用逗号分隔" /></el-form-item><el-form-item label="终检 PDF file_id"><el-input v-model="finalInspectionPdfFileId" placeholder="已有内部 PDF 文件 ID" /></el-form-item></div>
-                  <el-button plain type="primary" :loading="finalInspectionReportLoading" @click="createFinalInspectionReport">生成终检报告</el-button>
+                  <el-form-item label="报告摘要"><el-input v-model="finalInspectionReportSummary" :disabled="!canManageFinalInspectionReport" type="textarea" :rows="3" placeholder="终检通过后填写报告摘要" /></el-form-item>
+                  <div class="factory-final-file-grid"><el-form-item label="终检附件 file_id"><el-input v-model="finalInspectionAttachmentFileIds" :disabled="!canManageFinalInspectionReport" placeholder="多个 ID 用逗号分隔" /></el-form-item><el-form-item label="终检 PDF file_id"><el-input v-model="finalInspectionPdfFileId" :disabled="!canManageFinalInspectionReport" placeholder="已有内部 PDF 文件 ID" /></el-form-item></div>
+                  <el-button plain type="primary" :loading="finalInspectionReportLoading" :disabled="!canManageFinalInspectionReport" @click="createFinalInspectionReport">生成终检报告</el-button>
                 </el-form>
                 <el-alert v-if="finalInspectionReport" :title="`终检报告 ${finalInspectionReport.report_no} / ${finalInspectionReport.conclusion}`" type="success" show-icon :closable="false">
                   <template #default>PDF {{ finalInspectionReport.pdf_file_id || '未上传' }} · 签名 {{ statusLabel(finalInspectionReport.signature_status) }} · 附件 {{ finalInspectionReport.attachment_file_ids.length ? finalInspectionReport.attachment_file_ids.join('、') : '暂无' }}</template>
@@ -17346,11 +17803,16 @@ onBeforeUnmount(() => {
               <el-select v-model="productionCostCreateStatus" placeholder="处理状态">
                 <el-option label="正常" value="NORMAL" />
                 <el-option label="需要关注" value="WARNING" />
-                <el-option label="已确认" value="CONFIRMED" />
               </el-select>
               <el-input v-model="productionCostCreateDepartment" placeholder="负责部门" />
               <el-input v-model="productionCostCreateDescription" type="textarea" :rows="3" placeholder="填写外协内容、交期或补充说明" />
-              <el-button type="primary" :loading="productionCostSaving" @click="createCurrentProductionCostRecord">登记外协记录</el-button>
+              <el-button
+                type="primary"
+                :loading="productionCostSaving"
+                @click="createCurrentProductionCostRecord"
+              >
+                登记外协记录
+              </el-button>
             </aside>
           </div>
         </section>
@@ -17687,6 +18149,8 @@ onBeforeUnmount(() => {
                   <el-option label="保养计划" value="MAINTENANCE_PLAN" />
                   <el-option label="故障报修" value="FAULT_REPAIR" />
                   <el-option label="停机记录" value="DOWNTIME" />
+                  <el-option label="维修申请（需审批）" value="REPAIR_REQUEST" />
+                  <el-option label="报废申请（需审批）" value="SCRAP_REQUEST" />
                 </el-select>
                 <el-select v-model="productionEquipmentEventStatus" size="small" placeholder="处理状态">
                   <el-option label="待处理" value="PENDING" />
@@ -18061,7 +18525,6 @@ onBeforeUnmount(() => {
                 <el-select v-model="productionCostCreateStatus" size="small" placeholder="成本状态">
                   <el-option label="正常" value="NORMAL" />
                   <el-option label="预警" value="WARNING" />
-                  <el-option label="已确认" value="CONFIRMED" />
                 </el-select>
                 <el-input v-model="productionCostCreateDepartment" size="small" placeholder="责任部门" />
                 <el-input v-model="productionCostCreateSupplier" size="small" placeholder="供应商/来源" />

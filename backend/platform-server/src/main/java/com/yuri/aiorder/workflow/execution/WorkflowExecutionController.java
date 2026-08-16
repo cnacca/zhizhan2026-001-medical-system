@@ -353,7 +353,7 @@ public class WorkflowExecutionController {
     }
 
     @PostMapping("/final-inspection-reports")
-    @RequirePermission(value = "final-inspection:manage", roles = UserRole.ADMIN)
+    @RequirePermission("final-inspection:manage")
     public DataResponse<FinalInspectionReportResponse> createFinalInspectionReport(
             @RequestBody FinalInspectionReportRequest request,
             BootstrapIdentity identity) {

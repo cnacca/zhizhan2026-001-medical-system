@@ -1,5 +1,8 @@
 <script setup lang="ts">
-import { computed, onMounted, ref, watch } from 'vue'
+import { computed, inject, onMounted, ref, watch } from 'vue'
+import { authenticatedFetchKey } from '../utils/authenticatedFetch'
+
+const authenticatedFetch = inject(authenticatedFetchKey, fetch)
 
 type ApiResponse<T> = { data: T; msg?: string }
 type Plan = {
@@ -61,7 +64,7 @@ const canInternalReview = computed(() => props.permissions?.includes('design-dra
 const canBatch = computed(() => props.permissions?.includes('workflow:orthodontic-batch:manage') ?? true)
 
 async function api<T>(path: string, options: RequestInit = {}) {
-  const response = await fetch(path, {
+  const response = await authenticatedFetch(path, {
     ...options,
     headers: {
       'Content-Type': 'application/json',

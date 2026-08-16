@@ -87,7 +87,7 @@ public class OrderController {
     }
 
     @PostMapping("/orders/{orderId}/confirm-receipt")
-    @RequirePermission(value = "order:read-doctor", roles = {UserRole.DOCTOR})
+    @RequirePermission(value = "order:write-doctor", roles = {UserRole.DOCTOR})
     public DataResponse<ConfirmReceiptResponse> confirmReceipt(
             @PathVariable long orderId,
             BootstrapIdentity identity) {

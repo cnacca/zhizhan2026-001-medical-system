@@ -1,5 +1,4 @@
 import fs from 'node:fs'
-import path from 'node:path'
 
 const failures = []
 
@@ -77,19 +76,19 @@ requireText('scripts/check-task-9d4-frontend.mjs', [
   'must not restore role-specific production review authorization'
 ])
 
-const distDir = 'frontend/dist/assets'
-if (fs.existsSync(distDir)) {
-  const builtFiles = fs.readdirSync(distDir).filter((file) => /\.(js|css|html)$/.test(file))
-  for (const file of builtFiles) {
-    const content = fs.readFileSync(path.join(distDir, file), 'utf8')
-    if (content.includes('change-me-doctor')
-      || content.includes('change-me-cs')
-      || content.includes('change-me-worker')
-      || content.includes('change-me-admin')) {
-      failures.push(`frontend/dist/assets/${file} -> production bundle contains demo credentials`)
-    }
-  }
-}
+requireText('.github/workflows/deploy-production.yml', [
+  'Verify final release images',
+  'scripts/check-production-release-images.sh'
+])
+requireText('scripts/check-production-release-images.sh', [
+  'docker run --rm --entrypoint sh',
+  '/usr/share/nginx/html',
+  'expected_demo_prefill',
+  'ORD20260718-1001',
+  'doctorMock',
+  'mockDoctorGateway',
+  'final frontend image contains a doctor mock marker or fixture'
+])
 
 if (failures.length) {
   console.error('deployment bugfix check failed:')

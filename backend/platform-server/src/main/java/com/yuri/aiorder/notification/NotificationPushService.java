@@ -7,6 +7,7 @@ import java.util.concurrent.ConcurrentHashMap;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.jdbc.core.simple.JdbcClient;
 import org.springframework.stereotype.Service;
+import org.springframework.web.socket.CloseStatus;
 import org.springframework.web.socket.TextMessage;
 import org.springframework.web.socket.WebSocketSession;
 
@@ -55,6 +56,10 @@ public class NotificationPushService {
         if (sessions == null || sessions.isEmpty()) {
             return;
         }
+        if (!isActiveUser(userId)) {
+            closeAndRemoveSessions(userId, sessions);
+            return;
+        }
         boolean delivered = false;
         for (WebSocketSession session : sessions) {
             if (!session.isOpen()) {
@@ -73,6 +78,37 @@ public class NotificationPushService {
         if (delivered) {
             markDelivered(userId, eventId);
         }
+    }
+
+    private boolean isActiveUser(long userId) {
+        try {
+            return jdbcClient.sql("""
+                            SELECT COUNT(*)
+                            FROM system_user
+                            WHERE user_id = :userId
+                              AND status = 'ACTIVE'
+                            """)
+                    .param("userId", userId)
+                    .query(Long.class)
+                    .single() == 1L;
+        } catch (RuntimeException ignored) {
+            return false;
+        }
+    }
+
+    private void closeAndRemoveSessions(long userId, Set<WebSocketSession> sessions) {
+        sessionsByUser.remove(userId, sessions);
+        for (WebSocketSession session : sessions) {
+            if (!session.isOpen()) {
+                continue;
+            }
+            try {
+                session.close(CloseStatus.POLICY_VIOLATION.withReason("account is not active"));
+            } catch (IOException ignored) {
+                // The local session is already detached, so no delivery can be acknowledged.
+            }
+        }
+        sessions.clear();
     }
 
     private void broadcast(long userId, long eventId, String payload) {
