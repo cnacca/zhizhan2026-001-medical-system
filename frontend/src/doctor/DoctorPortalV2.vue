@@ -8,6 +8,7 @@ import {
 } from './services/doctorGateway'
 import DoctorCaseGroupWizard from './DoctorCaseGroupWizard.vue'
 import DoctorDynamicFields from './DoctorDynamicFields.vue'
+import { provideDoctorLocale, translateDoctorText, type DoctorLocale } from './doctorI18n'
 import type {
   ClinicRole,
   DoctorFile,
@@ -138,11 +139,19 @@ const roleLabels: Record<ClinicRole, string> = {
   RECEPTION: '前台',
   NURSE: '护士'
 }
+const roleLabelsEn: Record<ClinicRole, string> = {
+  CLINIC_ADMIN: 'Clinic Administrator', DOCTOR: 'Doctor', RECEPTION: 'Receptionist', NURSE: 'Nurse'
+}
 
 const reviewLabels: Record<ReviewType, string> = {
   CAD_DESIGN: '设计稿确认',
   POST_MILLING_PHOTOS: '切削后照片确认',
   POST_GLAZING_PHOTOS: '上釉后照片确认'
+}
+const reviewLabelsEn: Record<ReviewType, string> = {
+  CAD_DESIGN: 'CAD design review',
+  POST_MILLING_PHOTOS: 'Post-milling photo review',
+  POST_GLAZING_PHOTOS: 'Post-glazing photo review'
 }
 
 const productTypeLabels: Record<string, string> = {
@@ -157,6 +166,13 @@ const productTypeLabels: Record<string, string> = {
   ORTHODONTICS: '正畸产品',
   CLEAR_ALIGNER: '隐形矫治',
   DIGITAL_DESIGN: '数字化设计'
+}
+const productTypeLabelsEn: Record<string, string> = {
+  FIXED_CROWN: 'Fixed Restoration', REGULAR_CROWN: 'Fixed Restoration', FIXED_BRIDGE: 'Fixed Bridge',
+  IMPLANT_RESTORATION: 'Implant Restoration', IMPLANT: 'Implant Restoration',
+  REMOVABLE_DENTURE: 'Removable Restoration', REMOVABLE: 'Removable Restoration',
+  ORTHODONTIC: 'Orthodontics', ORTHODONTICS: 'Orthodontics', CLEAR_ALIGNER: 'Clear Aligner',
+  DIGITAL_DESIGN: 'Digital Design'
 }
 
 const productNameLabels: Record<string, string> = {
@@ -176,6 +192,19 @@ const productNameLabels: Record<string, string> = {
   PRECISION_ATTACHMENT: '精密附件',
   TELESCOPIC_CROWN: '套筒冠',
   VENEER_RESTORATION: '贴面修复'
+}
+const productNameLabelsEn: Record<string, string> = {
+  FIXED_CROWN: 'Fixed Crown', REGULAR_CROWN: 'Standard Crown', FIXED_BRIDGE: 'Fixed Bridge',
+  IMPLANT_RESTORATION: 'Implant Restoration', IMPLANT: 'Implant Restoration',
+  REMOVABLE_DENTURE: 'Removable Denture', REMOVABLE: 'Removable Denture',
+  REMOVABLE_STEEL: 'Metal Framework Denture', REMOVABLE_INVISIBLE: 'Flexible Denture',
+  ORTHODONTIC: 'Orthodontic Appliance', ORTHODONTICS: 'Orthodontic Appliance', CLEAR_ALIGNER: 'Clear Aligner',
+  DIGITAL_DESIGN: 'Digital Design', PRECISION_ATTACHMENT: 'Precision Attachment',
+  TELESCOPIC_CROWN: 'Telescopic Crown', VENEER_RESTORATION: 'Veneer Restoration'
+}
+const productDisplayNamesEn: Record<string, string> = {
+  常规牙冠: 'Standard Crown', 种植冠: 'Implant Crown', 固定桥: 'Fixed Bridge', 局部活动义齿: 'Partial Denture',
+  正畸保持器: 'Orthodontic Retainer', 隐形矫治方案: 'Clear Aligner Plan', 数字化修复设计: 'Digital Restoration Design'
 }
 
 type WizardCategoryId = 'fixed' | 'implant' | 'removable' | 'ortho' | 'aligner' | 'design'
@@ -215,6 +244,15 @@ const doctorOrderFallbackLabels: Record<string, string> = {
   pontic: '桥体设计',
   arch: '牙弓范围',
   case_type: '病例类型'
+}
+const doctorOrderFallbackLabelsEn: Record<string, string> = {
+  material: 'Material', shade: 'Shade', shade_system: 'Shade System', margin: 'Margin Design',
+  margin_type: 'Margin Type', contact: 'Contact Requirement', contact_requirement: 'Contact Requirement',
+  occlusal: 'Occlusal Requirement', occlusion: 'Occlusal Requirement', manufacturing: 'Manufacturing Method',
+  method: 'Manufacturing Method', polish: 'Polishing Requirement', implant_system: 'Implant System',
+  implant_brand: 'Implant Brand', implant_dimension: 'Implant Size', implant_spec: 'Implant Size',
+  platform: 'Platform Size', emergence: 'Emergence Profile', retention: 'Retention Method', units: 'Units',
+  pontic: 'Pontic Design', arch: 'Arch', case_type: 'Case Type'
 }
 
 const doctorOrderDuplicateFieldKeys = new Set([
@@ -277,9 +315,26 @@ const statusLabels: Record<string, string> = {
   WAITING: '等待提交',
   NOT_REQUESTED: '未启用'
 }
+const statusLabelsEn: Record<string, string> = {
+  DRAFT: 'Draft', SUBMITTED: 'Submitted', UNDER_REVIEW: 'Under Review', NEEDS_INFO: 'Additional Information Required',
+  IN_PRODUCTION: 'In Production', PRODUCTION_COMPLETED: 'Production Completed', READY_TO_DISPATCH: 'Ready to Ship',
+  SHIPPED: 'Shipped', DELIVERED_PENDING_CONFIRMATION: 'Delivered — Awaiting Confirmation', COMPLETED: 'Completed',
+  AWAITING_PAYMENT: 'Payment Due', DESIGN_REVIEW_REQUIRED: 'Design Review Required',
+  POST_MILLING_REVIEW_REQUIRED: 'Photo Review Required', SUPPLEMENT_REQUIRED: 'Additional Information Required',
+  PAYMENT_REQUIRED: 'Complete Payment', RECEIPT_CONFIRMATION_REQUIRED: 'Confirm Receipt', NONE: 'No Action Required',
+  PAID: 'Paid', UNPAID: 'Unpaid', ISSUED: 'Issued', UPLOADED: 'Uploaded', PENDING_PAYMENT: 'Payment Pending',
+  PARTIALLY_PAID: 'Partially Paid', OPEN: 'Open', SETTLED: 'Settled', PENDING_REVIEW: 'Pending Review',
+  PENDING: 'Pending', IN_TRANSIT: 'In Transit', ACTIVE: 'Active', PENDING_ACTIVATION: 'Pending Activation',
+  DISABLED: 'Disabled', APPROVED: 'Approved', REJECTED: 'Rejected', UNKNOWN: 'Not Recorded',
+  PENDING_QUOTE: 'Quote Pending', DIRECT: 'Sent', SUPERSEDED: 'Superseded', REVISION_REQUESTED: 'Revision Requested',
+  REVISING: 'Under Revision', WAITING: 'Waiting for Submission', NOT_REQUESTED: 'Not Requested'
+}
 
 const categoryLabels: Record<string, string> = {
   ORDER: '订单', REVIEW: '确认', MESSAGE: '消息', BILLING: '账单', LOGISTICS: '物流', SYSTEM: '系统'
+}
+const categoryLabelsEn: Record<string, string> = {
+  ORDER: 'Order', REVIEW: 'Review', MESSAGE: 'Message', BILLING: 'Billing', LOGISTICS: 'Delivery', SYSTEM: 'System'
 }
 
 const activePage = ref<DoctorPage>('dashboard')
@@ -301,7 +356,9 @@ watch(() => props.token, (nextToken) => {
 const activeRole = ref<ClinicRole>('DOCTOR')
 const roleMenuOpen = ref(false)
 const availableRoles = ref<ClinicRole[]>(['DOCTOR'])
-const portalLanguage = ref<'ZH' | 'EN'>('ZH')
+const storedDoctorLocale = window.localStorage.getItem('doctor-portal-language')
+const portalLanguage = ref<DoctorLocale>(storedDoctorLocale === 'EN' ? 'EN' : 'ZH')
+provideDoctorLocale(portalLanguage)
 const globalKeyword = ref('')
 const globalSearchOpen = ref(false)
 const notificationOpen = ref(false)
@@ -369,7 +426,7 @@ const reviewTarget = ref<{ orderId: string; review: OrderReview } | null>(null)
 const assistantQuestion = ref('')
 const assistantLoading = ref(false)
 const assistantMessages = ref<Array<{ role: 'SELF' | 'ASSISTANT'; content: string; orderIds?: string[] }>>([
-  { role: 'ASSISTANT', content: '您好，我可以帮您查询订单公开进度、待办、账单与物流信息。' }
+  { role: 'ASSISTANT', content: t('您好，我可以帮您查询订单公开进度、待办、账单与物流信息。', 'Hello. I can help you check public order progress, actions, billing, and shipment information.') }
 ])
 
 const accountTab = ref<'profile' | 'members' | 'notifications' | 'security'>('profile')
@@ -410,20 +467,20 @@ const reviewSubmitting = ref(false)
 
 const navGroups = computed(() => [
   {
-    label: uiText('工作台', 'Workspace'),
+    label: t('工作台', 'Workspace'),
     items: [
-      { page: 'dashboard' as DoctorPage, label: uiText('首页概览', 'Dashboard'), icon: '⌂' },
-      { page: 'orders' as DoctorPage, label: uiText('我的订单', 'My Orders'), icon: '▤' },
-      ...(activeRole.value === 'DOCTOR' ? [{ page: 'assistant' as DoctorPage, label: uiText('订单助手', 'Order Assistant'), icon: '✦' }] : []),
-      { page: 'patients' as DoctorPage, label: uiText('患者档案', 'Patients'), icon: '♙' },
-      { page: 'billing' as DoctorPage, label: uiText('账单中心', 'Billing'), icon: '▧' }
+      { page: 'dashboard' as DoctorPage, label: t('首页概览', 'Dashboard'), icon: '⌂' },
+      { page: 'orders' as DoctorPage, label: t('我的订单', 'My Orders'), icon: '▤' },
+      ...(activeRole.value === 'DOCTOR' ? [{ page: 'assistant' as DoctorPage, label: t('订单助手', 'Order Assistant'), icon: '✦' }] : []),
+      { page: 'patients' as DoctorPage, label: t('患者档案', 'Patients'), icon: '♙' },
+      { page: 'billing' as DoctorPage, label: t('账单中心', 'Billing'), icon: '▧' }
     ]
   },
   {
-    label: uiText('诊所与账户', 'Clinic & Account'),
+    label: t('诊所与账户', 'Clinic & Account'),
     items: [
-      { page: 'messages' as DoctorPage, label: uiText('消息中心', 'Messages'), icon: '✉' },
-      { page: 'account' as DoctorPage, label: uiText('诊所设置', 'Clinic Settings'), icon: '⚙' }
+      { page: 'messages' as DoctorPage, label: t('消息中心', 'Messages'), icon: '✉' },
+      { page: 'account' as DoctorPage, label: t('诊所设置', 'Clinic Settings'), icon: '⚙' }
     ]
   }
 ])
@@ -483,11 +540,11 @@ const billingStats = computed(() => {
   const currency = bills[0]?.amount.currency ?? 'CNY'
   const moneyOf = (amount_minor: number): Money => ({ amount_minor, currency })
   return [
-    { label: '本期账单', value: money(moneyOf(sum((item) => item.amount.amount_minor))), note: `${bills.length} 笔订单`, tone: 'blue' },
-    { label: '待支付', value: money(moneyOf(sum((item) => item.outstanding.amount_minor))), note: '请在到期日前完成', tone: 'amber' },
-    { label: '已逾期', value: money(moneyOf(sum((item) => item.due_at < dashboardToday.value ? item.outstanding.amount_minor : 0))), note: '逾期账单需优先处理', tone: 'rose' },
-    { label: '年度已支付', value: money(moneyOf(sum((item) => item.paid.amount_minor))), note: '本年度累计', tone: 'green' },
-    { label: '账户余额', value: money(moneyOf(0)), note: '暂无可用抵扣余额', tone: 'violet' }
+    { label: t('本期账单', 'Current Billing'), value: money(moneyOf(sum((item) => item.amount.amount_minor))), note: t('{count} 笔订单', '{count} order(s)', { count: bills.length }), tone: 'blue' },
+    { label: t('待支付', 'Payment Due'), value: money(moneyOf(sum((item) => item.outstanding.amount_minor))), note: t('请在到期日前完成', 'Complete before the due date'), tone: 'amber' },
+    { label: t('已逾期', 'Overdue'), value: money(moneyOf(sum((item) => item.due_at < dashboardToday.value ? item.outstanding.amount_minor : 0))), note: t('逾期账单需优先处理', 'Overdue bills require attention'), tone: 'rose' },
+    { label: t('年度已支付', 'Paid This Year'), value: money(moneyOf(sum((item) => item.paid.amount_minor))), note: t('本年度累计', 'Year-to-date total'), tone: 'green' },
+    { label: t('账户余额', 'Account Balance'), value: money(moneyOf(0)), note: t('暂无可用抵扣余额', 'No available credit'), tone: 'violet' }
   ]
 })
 
@@ -545,7 +602,7 @@ const wizardSubmitDisabled = computed(() =>
   || wizardUploading.value
   || wizardMissingForStep(4).length > 0
 )
-const clinicRoleOptions = computed(() => (Object.entries(roleLabels) as Array<[ClinicRole, string]>).map(([value, name]) => ({ value, name })))
+const clinicRoleOptions = computed(() => (Object.keys(roleLabels) as ClinicRole[]).map((value) => ({ value, name: roleLabel(value) })))
 const filePreviewName = computed(() => filePreview.value?.name ?? '')
 const selectedOrderToothText = computed(() => orderToothText(selectedOrder.value))
 const selectedOrderTeeth = computed(() => new Set(parseDoctorTeeth(selectedOrderToothText.value)))
@@ -567,7 +624,7 @@ const orderTimelineItems = computed<DoctorTimelineEntry[]>(() => {
   if (!order) return []
   const items: DoctorTimelineEntry[] = [{
     key: `created-${order.order_id}`,
-    title: '订单已创建',
+    title: t('订单已创建', 'Order Created'),
     actor: order.doctor_name,
     occurredAt: order.created_at,
     tone: 'order'
@@ -578,7 +635,7 @@ const orderTimelineItems = computed<DoctorTimelineEntry[]>(() => {
     items.push({
       key: `progress-${progress.key}-${progress.occurred_at}`,
       title: progress.label,
-      actor: progress.note || '订单服务',
+      actor: progress.note || t('订单服务', 'Order Support'),
       occurredAt: progress.occurred_at,
       tone: 'order'
     })
@@ -587,8 +644,8 @@ const orderTimelineItems = computed<DoctorTimelineEntry[]>(() => {
   order.messages.forEach((message) => {
     items.push({
       key: `message-${message.message_id}`,
-      title: '消息已发送',
-      actor: message.sender === 'SELF' ? order.doctor_name : '订单服务',
+      title: t('消息已发送', 'Message Sent'),
+      actor: message.sender === 'SELF' ? order.doctor_name : t('订单服务', 'Order Support'),
       occurredAt: message.sent_at,
       tone: 'message'
     })
@@ -598,7 +655,7 @@ const orderTimelineItems = computed<DoctorTimelineEntry[]>(() => {
     items.push({
       key: `review-${review.review_id}-${version.version}`,
       title: `${reviewLabel(review.review_type)} V${version.version}`,
-      actor: `订单服务 · ${label(version.status)}`,
+      actor: `${t('订单服务', 'Order Support')} · ${label(version.status)}`,
       occurredAt: version.submitted_at,
       tone: 'review'
     })
@@ -614,28 +671,33 @@ const pendingTaskOrders = computed(() => (dataset.value?.orders ?? []).filter((i
 const dashboardToday = computed(() => new Date().toLocaleDateString('sv-SE'))
 const dashboardGreeting = computed(() => {
   const hour = new Date().getHours()
-  const greeting = hour < 12 ? '早上好' : hour < 18 ? '下午好' : '晚上好'
-  return `${greeting}，${account.value?.display_name || props.currentUser?.username || '医生'} 👋`
+  const greeting = hour < 12 ? t('早上好', 'Good morning') : hour < 18 ? t('下午好', 'Good afternoon') : t('晚上好', 'Good evening')
+  return `${greeting}${portalLanguage.value === 'EN' ? ', ' : '，'}${account.value?.display_name || props.currentUser?.username || t('医生', 'Doctor')} 👋`
 })
 const dashboardContext = computed(() => {
   const now = new Date()
-  const date = new Intl.DateTimeFormat('zh-CN', {
+  const locale = portalLanguage.value === 'EN' ? 'en-US' : 'zh-CN'
+  const date = new Intl.DateTimeFormat(locale, {
     year: 'numeric',
     month: 'long',
     day: 'numeric'
   }).format(now)
-  const weekday = new Intl.DateTimeFormat('zh-CN', { weekday: 'long' }).format(now)
-  return `${date} ${weekday} · ${account.value?.clinic_name || '当前诊所'} · ${dashboardAttentionCount.value} 项需要处理`
+  const weekday = new Intl.DateTimeFormat(locale, { weekday: 'long' }).format(now)
+  return t(
+    '{date} {weekday} · {clinic} · {count} 项需要处理',
+    '{date} {weekday} · {clinic} · {count} item(s) require attention',
+    { date, weekday, clinic: account.value?.clinic_name || t('当前诊所', 'Current Clinic'), count: dashboardAttentionCount.value }
+  )
 })
 const dashboardStats = computed(() => {
   const items = dataset.value?.orders ?? []
   return [
-    { key: 'today', label: '今日订单', value: items.filter((item) => doctorLocalDateKey(item.created_at) === dashboardToday.value).length, note: '今日提交与草稿', tone: 'blue', icon: '📦' },
-    { key: 'production', label: '制作中', value: items.filter((item) => item.external_status === 'IN_PRODUCTION').length, note: '公开进度更新', tone: 'indigo', icon: '🔬' },
-    { key: 'delivery', label: '即将送达', value: items.filter((item) => ['SHIPPED', 'DELIVERED_PENDING_CONFIRMATION'].includes(item.external_status)).length, note: '配送与收货', tone: 'amber', icon: '🚀' },
-    { key: 'reply', label: '待回复', value: dataset.value?.threads.filter((item) => item.unread).length ?? 0, note: '消息与沟通', tone: 'rose', icon: '⚠️' },
-    { key: 'review', label: '设计待确认', value: items.filter((item) => item.current_action.includes('REVIEW')).length, note: '确认后继续制作', tone: 'violet', icon: '✏️' },
-    { key: 'due', label: '到期提醒', value: items.filter((item) => isDueSoon(item)).length, note: '预计日期临近', tone: 'orange', icon: '🕐' }
+    { key: 'today', label: t('今日订单', "Today's Orders"), value: items.filter((item) => doctorLocalDateKey(item.created_at) === dashboardToday.value).length, note: t('今日提交与草稿', 'Submitted and drafted today'), tone: 'blue', icon: '📦' },
+    { key: 'production', label: t('制作中', 'In Production'), value: items.filter((item) => item.external_status === 'IN_PRODUCTION').length, note: t('公开进度更新', 'Public progress updates'), tone: 'indigo', icon: '🔬' },
+    { key: 'delivery', label: t('即将送达', 'Arriving Soon'), value: items.filter((item) => ['SHIPPED', 'DELIVERED_PENDING_CONFIRMATION'].includes(item.external_status)).length, note: t('配送与收货', 'Delivery and receipt'), tone: 'amber', icon: '🚀' },
+    { key: 'reply', label: t('待回复', 'Awaiting Reply'), value: dataset.value?.threads.filter((item) => item.unread).length ?? 0, note: t('消息与沟通', 'Messages and conversations'), tone: 'rose', icon: '⚠️' },
+    { key: 'review', label: t('设计待确认', 'Design Review'), value: items.filter((item) => item.current_action.includes('REVIEW')).length, note: t('确认后继续制作', 'Production continues after approval'), tone: 'violet', icon: '✏️' },
+    { key: 'due', label: t('到期提醒', 'Due Soon'), value: items.filter((item) => isDueSoon(item)).length, note: t('预计日期临近', 'Estimated date approaching'), tone: 'orange', icon: '🕐' }
   ]
 })
 const dashboardUpcomingOrders = computed(() => (dataset.value?.orders ?? [])
@@ -666,31 +728,41 @@ const dashboardTrendPoints = computed(() => {
 const dashboardTrendMax = computed(() => Math.max(1, ...dashboardWeeklyCounts.value))
 
 function money(value: Money | null | undefined): string {
-  if (!value) return '价格待确认'
+  if (!value) return t('价格待确认', 'Price Pending')
   const symbol = value.currency === 'CNY' ? '¥' : `${value.currency} `
-  return `${symbol}${(value.amount_minor / 100).toLocaleString('zh-CN', { minimumFractionDigits: 2 })}`
+  return `${symbol}${(value.amount_minor / 100).toLocaleString(portalLanguage.value === 'EN' ? 'en-US' : 'zh-CN', { minimumFractionDigits: 2 })}`
 }
 
-function uiText(zh: string, en: string): string {
-  return portalLanguage.value === 'EN' ? en : zh
+function t(zh: string, en: string, params: Record<string, string | number | null | undefined> = {}): string {
+  return translateDoctorText(portalLanguage.value, zh, en, params)
 }
 
-function setPortalLanguage(language: 'ZH' | 'EN') {
+function errorText(cause: unknown, zhFallback: string, enFallback: string): string {
+  const message = cause instanceof Error ? cause.message.trim() : ''
+  if (portalLanguage.value === 'EN') return message && !/[\u3400-\u9fff]/.test(message) ? message : enFallback
+  return message || zhFallback
+}
+
+function setPortalLanguage(language: DoctorLocale) {
   portalLanguage.value = language
-  ElMessage.success(language === 'EN' ? 'English navigation enabled' : '已切换为中文界面')
+  window.localStorage.setItem('doctor-portal-language', language)
+  if (assistantMessages.value.length === 1 && assistantMessages.value[0]?.role === 'ASSISTANT') {
+    assistantMessages.value[0].content = t('您好，我可以帮您查询订单公开进度、待办、账单与物流信息。', 'Hello. I can help you check public order progress, actions, billing, and shipment information.')
+  }
+  ElMessage.success(language === 'EN' ? 'English interface enabled' : '已切换为中文界面')
 }
 
 function compactDoctorDateTime(value?: string | null): string {
-  if (!value || value === '-') return '时间未记录'
+  if (!value || value === '-') return t('时间未记录', 'Time Not Recorded')
   const date = parseDoctorDateTime(value)
   if (Number.isNaN(date.getTime())) return value
-  return new Intl.DateTimeFormat('zh-CN', {
+  return new Intl.DateTimeFormat(portalLanguage.value === 'EN' ? 'en-US' : 'zh-CN', {
     year: 'numeric', month: '2-digit', day: '2-digit', hour: '2-digit', minute: '2-digit', hour12: false
   }).format(date)
 }
 
 function preciseDoctorDateTime(value?: string | null): string {
-  if (!value || value === '-') return '时间未记录'
+  if (!value || value === '-') return t('时间未记录', 'Time Not Recorded')
   const date = parseDoctorDateTime(value)
   if (Number.isNaN(date.getTime())) return value
   const twoDigits = (candidate: number) => String(candidate).padStart(2, '0')
@@ -698,10 +770,13 @@ function preciseDoctorDateTime(value?: string | null): string {
 }
 
 function doctorTimelineDateTime(value?: string | null): string {
-  if (!value || value === '-') return '时间未记录'
+  if (!value || value === '-') return t('时间未记录', 'Time Not Recorded')
   const date = parseDoctorDateTime(value)
   if (Number.isNaN(date.getTime())) return value
   const minutes = String(date.getMinutes()).padStart(2, '0')
+  if (portalLanguage.value === 'EN') {
+    return new Intl.DateTimeFormat('en-US', { month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit' }).format(date)
+  }
   const period = date.getHours() < 12 ? '上午' : '下午'
   const hour = date.getHours() % 12 || 12
   return `${date.getMonth() + 1}月${date.getDate()}日，${period}${hour}:${minutes}`
@@ -742,18 +817,18 @@ function doctorOrderFieldLabel(key: string): string | null {
   const normalizedKey = normalizeDoctorOrderFieldKey(key)
   if (doctorOrderDuplicateFieldKeys.has(normalizedKey) || isTechnicalDoctorOrderField(normalizedKey)) return null
   const configuredLabel = selectedOrderFieldLabels.value.get(normalizedKey)
-  if (configuredLabel && /[\u3400-\u9fff]/.test(configuredLabel)) return configuredLabel
-  if (doctorOrderFallbackLabels[normalizedKey]) return doctorOrderFallbackLabels[normalizedKey]
+  if (configuredLabel && /[\u3400-\u9fff]/.test(configuredLabel)) return portalLanguage.value === 'EN' ? (doctorOrderFallbackLabelsEn[normalizedKey] ?? configuredLabel) : configuredLabel
+  if (doctorOrderFallbackLabels[normalizedKey]) return portalLanguage.value === 'EN' ? doctorOrderFallbackLabelsEn[normalizedKey] : doctorOrderFallbackLabels[normalizedKey]
   return /[\u3400-\u9fff]/.test(key) ? key.trim() : null
 }
 
 function orderToothText(order: OrderDetail | null): string {
-  if (!order) return '暂未记录'
+  if (!order) return t('暂未记录', 'Not Recorded')
   return order.form_snapshot['牙位']
     || order.form_snapshot.tooth_position
     || order.form_snapshot.tooth
     || order.form_snapshot.teeth
-    || '暂未记录'
+    || t('暂未记录', 'Not Recorded')
 }
 
 function parseDoctorTeeth(value: string): string[] {
@@ -790,23 +865,57 @@ function currentReviewFiles(review: OrderReview): DoctorFile[] {
 
 function label(value: string | null | undefined): string {
   if (!value) return '-'
-  return statusLabels[value] ?? (/^[A-Z][A-Z0-9_]+$/.test(value) ? '处理中' : value)
+  return (portalLanguage.value === 'EN' ? statusLabelsEn[value] : statusLabels[value])
+    ?? (/^[A-Z][A-Z0-9_]+$/.test(value) ? t('处理中', 'Processing') : value)
 }
 
 function reviewLabel(value: ReviewType): string {
-  return reviewLabels[value]
+  return portalLanguage.value === 'EN' ? reviewLabelsEn[value] : reviewLabels[value]
 }
 
 function productTypeLabel(value: string): string {
-  return productTypeLabels[value] ?? '定制修复'
+  return (portalLanguage.value === 'EN' ? productTypeLabelsEn[value] : productTypeLabels[value]) ?? t('定制修复', 'Custom Restoration')
 }
 
 function productNameLabel(value: string | null | undefined, productType = ''): string {
-  if (!value?.trim()) return '定制修复'
+  if (!value?.trim()) return t('定制修复', 'Custom Restoration')
   const normalized = value.trim()
-  if (productNameLabels[normalized]) return productNameLabels[normalized]
+  if (portalLanguage.value === 'EN' && productDisplayNamesEn[normalized]) return productDisplayNamesEn[normalized]
+  if (productNameLabels[normalized]) return portalLanguage.value === 'EN' ? productNameLabelsEn[normalized] : productNameLabels[normalized]
   if (/^[A-Z][A-Z0-9_]+$/.test(normalized)) return productTypeLabel(productType || normalized)
   return normalized
+}
+
+function roleLabel(value: ClinicRole): string {
+  return portalLanguage.value === 'EN' ? roleLabelsEn[value] : roleLabels[value]
+}
+
+function categoryLabel(value: string): string {
+  return (portalLanguage.value === 'EN' ? categoryLabelsEn[value] : categoryLabels[value]) ?? value
+}
+
+function notificationPreferenceLabel(value: string): string {
+  const zh: Record<string, string> = { ORDER_STATUS: '订单状态', REVIEW_REQUEST: '确认事项', MESSAGE: '订单消息', BILLING: '账单提醒', LOGISTICS: '物流提醒' }
+  const en: Record<string, string> = { ORDER_STATUS: 'Order Status', REVIEW_REQUEST: 'Review Requests', MESSAGE: 'Order Messages', BILLING: 'Billing Alerts', LOGISTICS: 'Shipment Alerts' }
+  return (portalLanguage.value === 'EN' ? en[value] : zh[value]) ?? value
+}
+
+function processConfirmationStatusLabel(value: string): string {
+  const zh: Record<string, string> = { PLANNED: '尚未到达该环节', AWAITING_DOCTOR: '等待您确认', CONFIRMED: '已确认', REJECTED: '已要求修改' }
+  const en: Record<string, string> = { PLANNED: 'Not Reached', AWAITING_DOCTOR: 'Awaiting Your Confirmation', CONFIRMED: 'Confirmed', REJECTED: 'Changes Requested' }
+  return (portalLanguage.value === 'EN' ? en[value] : zh[value]) ?? value
+}
+
+function tryInStatusLabel(value: string): string {
+  const zh: Record<string, string> = { REQUESTED: '已登记试戴需求，等待工厂安排', COMPLETED: '试戴已完成，可在本订单继续选择成品与材料，无需新建订单', FINALIZED: '成品已选定' }
+  const en: Record<string, string> = { REQUESTED: 'Try-in requested; awaiting lab scheduling', COMPLETED: 'Try-in completed. Select the final product and material in this order; no new order is required.', FINALIZED: 'Final product selected' }
+  return (portalLanguage.value === 'EN' ? en[value] : zh[value]) ?? value
+}
+
+function patientGenderLabel(value: string | null | undefined): string {
+  if (!value) return '-'
+  const en: Record<string, string> = { 男: 'Male', 女: 'Female', 其他: 'Other' }
+  return portalLanguage.value === 'EN' ? (en[value] ?? value) : value
 }
 
 function patientTreatmentState(patient: PatientSummary): PatientSummary['treatment_status'] {
@@ -814,7 +923,9 @@ function patientTreatmentState(patient: PatientSummary): PatientSummary['treatme
 }
 
 function patientTreatmentLabel(patient: PatientSummary): string {
-  return ({ IN_TREATMENT: '治疗中', FOLLOW_UP: '待复诊', TREATMENT_ENDED: '治疗结束', ARCHIVED: '已归档' } as const)[patientTreatmentState(patient)]
+  const zh = ({ IN_TREATMENT: '治疗中', FOLLOW_UP: '待复诊', TREATMENT_ENDED: '治疗结束', ARCHIVED: '已归档' } as const)[patientTreatmentState(patient)]
+  const en = ({ IN_TREATMENT: 'In Treatment', FOLLOW_UP: 'Follow-up Due', TREATMENT_ENDED: 'Treatment Completed', ARCHIVED: 'Archived' } as const)[patientTreatmentState(patient)]
+  return t(zh, en)
 }
 
 function patientTreatmentTone(patient: PatientSummary): string {
@@ -822,15 +933,17 @@ function patientTreatmentTone(patient: PatientSummary): string {
 }
 
 function patientDurationLabel(patient: PatientSummary): string {
-  if (!patient.treatment_started_at) return '尚未记录'
+  if (!patient.treatment_started_at) return t('尚未记录', 'Not Recorded')
   const start = new Date(`${patient.treatment_started_at.slice(0, 10)}T12:00:00`)
   const endValue = patient.treatment_ended_at || new Date().toISOString().slice(0, 10)
   const end = new Date(`${endValue.slice(0, 10)}T12:00:00`)
   const days = Math.max(0, Math.floor((end.getTime() - start.getTime()) / 86400000))
-  if (days < 31) return `${days || 1} 天`
+  if (days < 31) return t('{count} 天', '{count} day(s)', { count: days || 1 })
   const months = Math.floor(days / 30)
   const rest = days % 30
-  return rest ? `${months}个月${rest}天` : `${months}个月`
+  return rest
+    ? t('{months}个月{days}天', '{months} month(s) {days} day(s)', { months, days: rest })
+    : t('{months}个月', '{months} month(s)', { months })
 }
 
 function patientDate(value: string | null | undefined): string {
@@ -930,12 +1043,12 @@ function applyRefreshedDataset(refreshed: DoctorPortalDataset, guaranteedOrder: 
 }
 
 function showHelp() {
-  ElMessage.info('帮助中心：订单资料、设计确认与账单问题可从右侧消息中心联系订单服务。')
+  ElMessage.info(t('帮助中心：订单资料、设计确认与账单问题可从右侧消息中心联系订单服务。', 'Help Center: contact Order Support from Messages for order records, design reviews, or billing questions.'))
 }
 
 function showSupport() {
   switchPage('messages')
-  ElMessage.info('已打开消息中心，请选择订单会话联系支持。')
+  ElMessage.info(t('已打开消息中心，请选择订单会话联系支持。', 'Messages opened. Select an order conversation to contact support.'))
 }
 
 function isDueSoon(order: OrderSummary): boolean {
@@ -977,7 +1090,7 @@ async function loadPortal() {
       activeRole.value = availableRoles.value[0]
     }
   } catch (cause) {
-    loadError.value = cause instanceof Error ? cause.message : '医生端数据加载失败'
+    loadError.value = errorText(cause, '医生端数据加载失败', 'Failed to load doctor portal data')
   } finally {
     loading.value = false
   }
@@ -997,10 +1110,10 @@ async function chooseRole(role: ClinicRole) {
     dataset.value = await gateway.switchRole(role)
     activeThreadId.value = dataset.value.threads[0]?.thread_id ?? ''
     selectedOrderIds.value = []
-    ElMessage.success(`已切换为${roleLabels[role]}身份`)
+    ElMessage.success(t('已切换为{role}身份', 'Switched to {role}', { role: roleLabel(role) }))
   } catch (cause) {
     activeRole.value = previousRole
-    ElMessage.error(cause instanceof Error ? cause.message : '身份切换失败')
+    ElMessage.error(errorText(cause, '身份切换失败', 'Failed to switch role'))
   } finally {
     loading.value = false
   }
@@ -1023,7 +1136,7 @@ async function deliveryApi<T>(path: string, options: RequestInit = {}): Promise<
     } catch {
       detail = ''
     }
-    throw new Error(detail || `请求失败（${response.status}）`)
+    throw new Error(detail || t('请求失败（{status}）', 'Request failed ({status})', { status: response.status }))
   }
   const payload = await response.json() as { data: T }
   return payload.data
@@ -1059,10 +1172,10 @@ async function saveRequestedDeliveryDate() {
       }
     )
     ElMessage.success(deliveryPlan.value.variance_flag === 'EARLIER_THAN_FEASIBLE'
-      ? '已提交；该时间早于系统可行交期，订单服务会与您确认'
-      : '要求到货时间已更新')
+      ? t('已提交；该时间早于系统可行交期，订单服务会与您确认', 'Submitted. This date is earlier than the feasible delivery date; Order Support will contact you.')
+      : t('要求到货时间已更新', 'Requested delivery date updated'))
   } catch (cause) {
-    ElMessage.error(cause instanceof Error ? cause.message : '更新到货时间失败')
+    ElMessage.error(errorText(cause, '更新到货时间失败', 'Failed to update the delivery date'))
   } finally {
     deliveryPlanBusy.value = false
   }
@@ -1078,9 +1191,9 @@ async function respondProcessConfirmation(confirmation: ProcessConfirmation, acc
       { method: 'POST', body: JSON.stringify({ accepted }) }
     )
     await loadDeliveryPlan(orderId)
-    ElMessage.success(accepted ? '已确认' : '已提交修改要求')
+    ElMessage.success(accepted ? t('已确认', 'Confirmed') : t('已提交修改要求', 'Change request submitted'))
   } catch (cause) {
-    ElMessage.error(cause instanceof Error ? cause.message : '提交确认结果失败')
+    ElMessage.error(errorText(cause, '提交确认结果失败', 'Failed to submit confirmation'))
   } finally {
     deliveryPlanBusy.value = false
   }
@@ -1088,7 +1201,7 @@ async function respondProcessConfirmation(confirmation: ProcessConfirmation, acc
 
 function deliveryDateLabel(plan: DeliveryPlan) {
   return plan.estimate_status === 'PLACEHOLDER'
-    ? `${plan.computed_delivery_date}（待确认）`
+    ? t('{date}（待确认）', '{date} (Pending Confirmation)', { date: plan.computed_delivery_date })
     : plan.computed_delivery_date
 }
 
@@ -1122,7 +1235,7 @@ async function openOrder(orderId: string) {
         patient_name: detail.patient_name,
         product_name: detail.product_name,
         unread: false,
-        latest_message: latestMessage?.content || '暂无沟通记录',
+        latest_message: latestMessage?.content || t('暂无沟通记录', 'No messages'),
         latest_at: latestMessage?.sent_at || detail.created_at,
         messages: detail.messages
       }
@@ -1130,7 +1243,7 @@ async function openOrder(orderId: string) {
       else dataset.value.threads.push(thread)
     }
   } catch (cause) {
-    ElMessage.error(cause instanceof Error ? cause.message : '订单详情加载失败')
+    ElMessage.error(errorText(cause, '订单详情加载失败', 'Failed to load order details'))
   } finally {
     orderDetailLoading.value = false
   }
@@ -1145,7 +1258,7 @@ async function openPatient(patientId: string) {
   try {
     selectedPatient.value = await gateway.loadPatientDetail(patientId)
   } catch (cause) {
-    ElMessage.error(cause instanceof Error ? cause.message : '患者档案加载失败')
+    ElMessage.error(errorText(cause, '患者档案加载失败', 'Failed to load patient record'))
   } finally {
     patientLoading.value = false
   }
@@ -1176,10 +1289,10 @@ async function markAllNotifications() {
   dataset.value.notifications.forEach((item) => { item.read = true })
   try {
     await gateway.markAllNotificationsRead()
-    ElMessage.success('全部通知已标记为已读')
+    ElMessage.success(t('全部通知已标记为已读', 'All notifications marked as read'))
   } catch (cause) {
     dataset.value.notifications.forEach((item, index) => { item.read = before[index] })
-    ElMessage.error(cause instanceof Error ? cause.message : '操作失败')
+    ElMessage.error(errorText(cause, '操作失败', 'Operation failed'))
   }
 }
 
@@ -1238,7 +1351,7 @@ async function handleCaseGroupSubmitted() {
   try {
     dataset.value = await gateway.loadDataset()
   } catch (cause) {
-    ElMessage.warning(cause instanceof Error ? cause.message : '订单已提交，列表刷新失败，请稍后手动刷新')
+    ElMessage.warning(errorText(cause, '订单已提交，列表刷新失败，请稍后手动刷新', 'Order submitted, but the list could not refresh. Please refresh it manually later.'))
   }
 }
 
@@ -1271,16 +1384,16 @@ function toggleWizardTooth(tooth: number) {
 function wizardMissingForStep(step: number): string[] {
   const missing: string[] = []
   if (step >= 1) {
-    if (!wizard.patientId) missing.push('患者')
-    if (!wizard.productId) missing.push('产品')
+    if (!wizard.patientId) missing.push(t('患者', 'Patient'))
+    if (!wizard.productId) missing.push(t('产品', 'Product'))
   }
-  if (step >= 2 && !wizard.caseFields.tooth?.trim()) missing.push('牙位')
+  if (step >= 2 && !wizard.caseFields.tooth?.trim()) missing.push(t('牙位', 'Tooth Position'))
   if (step >= 3) {
     selectedProductFields.value.filter((field) => field.required).forEach((field) => {
       if (!wizard.dynamicFields[field.key]?.trim()) missing.push(field.label)
     })
   }
-  if (step >= 4 && !wizard.files.some((item) => item.kind === 'STL' && item.status === 'READY')) missing.push('STL 扫描文件')
+  if (step >= 4 && !wizard.files.some((item) => item.kind === 'STL' && item.status === 'READY')) missing.push(t('STL 扫描文件', 'STL Scan'))
   return missing
 }
 
@@ -1303,7 +1416,7 @@ function wizardSubmissionDynamicFields(): Record<string, string> {
 async function saveWizardDraft(silent = false) {
   if (wizardSaving.value || wizardSubmitting.value || wizardUploading.value) return false
   if (!wizard.patientId || !wizard.productId) {
-    if (!silent) ElMessage.warning('选择患者和产品后才能保存草稿')
+    if (!silent) ElMessage.warning(t('选择患者和产品后才能保存草稿', 'Select a patient and product before saving the draft'))
     return false
   }
   wizardSaving.value = true
@@ -1319,11 +1432,11 @@ async function saveWizardDraft(silent = false) {
     wizard.draftOrderId = saved.order_id
     upsertOrderSummary(saved)
     if (wasNewDraft) resetOrderFilters()
-    wizardNotice.value = `草稿已保存 · ${new Date().toLocaleTimeString('zh-CN', { hour: '2-digit', minute: '2-digit' })}`
-    if (!silent) ElMessage.success('草稿已保存')
+    wizardNotice.value = t('草稿已保存 · {time}', 'Draft saved · {time}', { time: new Date().toLocaleTimeString(portalLanguage.value === 'EN' ? 'en-US' : 'zh-CN', { hour: '2-digit', minute: '2-digit' }) })
+    if (!silent) ElMessage.success(t('草稿已保存', 'Draft saved'))
     return true
   } catch (cause) {
-    ElMessage.error(cause instanceof Error ? cause.message : '草稿保存失败')
+    ElMessage.error(errorText(cause, '草稿保存失败', 'Failed to save draft'))
     return false
   } finally {
     wizardSaving.value = false
@@ -1334,7 +1447,7 @@ async function nextWizardStep() {
   if (wizardSaving.value || wizardSubmitting.value || wizardUploading.value) return
   const missing = wizardMissingForStep(wizardStep.value)
   if (missing.length) {
-    ElMessage.warning(`请先补充：${missing.join('、')}`)
+    ElMessage.warning(t('请先补充：{items}', 'Complete the following first: {items}', { items: missing.join(portalLanguage.value === 'EN' ? ', ' : '、') }))
     return
   }
   const saved = await saveWizardDraft(true)
@@ -1371,13 +1484,13 @@ async function removeWizardFile(file: DoctorFile) {
     wizardUploadedFileSignatures.value = previousSignatures
     return
   }
-  ElMessage.success(`已从订单中移除 ${file.name}`)
+  ElMessage.success(t('已从订单中移除 {file}', 'Removed {file} from the order', { file: file.name }))
 }
 
 async function uploadWizardFiles(list: File[]) {
   const accepted = list.filter((item) => /\.(stl|jpg|jpeg|png|pdf)$/i.test(item.name))
   const rejected = list.length - accepted.length
-  if (rejected) ElMessage.warning(`${rejected} 个文件格式不支持`)
+  if (rejected) ElMessage.warning(t('{count} 个文件格式不支持', '{count} file(s) have unsupported formats', { count: rejected }))
   const knownSignatures = new Set(Object.keys(wizardUploadedFileSignatures.value))
   const pending = accepted.filter((file) => {
     const signature = wizardFileSignature(file)
@@ -1386,7 +1499,7 @@ async function uploadWizardFiles(list: File[]) {
     return true
   })
   const alreadyUploaded = accepted.length - pending.length
-  if (alreadyUploaded) ElMessage.info(`${alreadyUploaded} 个已完成文件已跳过，未重复上传`)
+  if (alreadyUploaded) ElMessage.info(t('{count} 个已完成文件已跳过，未重复上传', '{count} previously uploaded file(s) skipped', { count: alreadyUploaded }))
   if (!pending.length) return
   if (!wizard.draftOrderId) {
     const saved = await saveWizardDraft(true)
@@ -1398,7 +1511,7 @@ async function uploadWizardFiles(list: File[]) {
     for (const file of pending) {
       const uploaded = await gateway.uploadOrderFiles(wizard.draftOrderId, [file])
       const completed = uploaded[0]
-      if (!completed) throw new Error(`文件 ${file.name} 上传完成后未返回文件记录`)
+      if (!completed) throw new Error(t('文件 {file} 上传完成后未返回文件记录', 'No file record was returned after uploading {file}', { file: file.name }))
       wizard.files.push(completed)
       wizardUploadedFileSignatures.value = {
         ...wizardUploadedFileSignatures.value,
@@ -1406,10 +1519,10 @@ async function uploadWizardFiles(list: File[]) {
       }
       completedCount += 1
     }
-    ElMessage.success(`${completedCount} 个文件已就绪`)
+    ElMessage.success(t('{count} 个文件已就绪', '{count} file(s) ready', { count: completedCount }))
   } catch (cause) {
-    const prefix = completedCount ? `已有 ${completedCount} 个文件完成并已保留；` : ''
-    ElMessage.error(`${prefix}${cause instanceof Error ? cause.message : '文件上传失败'}`)
+    const prefix = completedCount ? t('已有 {count} 个文件完成并已保留；', '{count} file(s) completed and retained; ', { count: completedCount }) : ''
+    ElMessage.error(`${prefix}${errorText(cause, '文件上传失败', 'File upload failed')}`)
   } finally {
     wizardUploading.value = false
   }
@@ -1419,7 +1532,7 @@ function markThreadUnread(threadId: string) {
   const thread = dataset.value?.threads.find((item) => item.thread_id === threadId)
   if (!thread) return
   thread.unread = true
-  ElMessage.success('已在当前页面标记为未读')
+  ElMessage.success(t('已在当前页面标记为未读', 'Marked as unread on this page'))
 }
 
 function downloadInvoice(recordId: string, notify = true) {
@@ -1458,7 +1571,7 @@ function downloadInvoice(recordId: string, notify = true) {
   anchor.click()
   anchor.remove()
   window.setTimeout(() => URL.revokeObjectURL(url), 0)
-  if (notify) ElMessage.success('PDF 记录已下载')
+  if (notify) ElMessage.success(t('PDF 记录已下载', 'PDF record downloaded'))
   return true
 }
 
@@ -1466,7 +1579,7 @@ async function downloadAllInvoices() {
   if (bulkInvoiceDownloading.value) return
   const records = [...downloadableInvoiceRefunds.value]
   if (records.length === 0) {
-    ElMessage.info('当前没有可下载的发票或退款记录')
+    ElMessage.info(t('当前没有可下载的发票或退款记录', 'No invoice or refund records are available to download'))
     return
   }
   bulkInvoiceDownloading.value = true
@@ -1476,7 +1589,7 @@ async function downloadAllInvoices() {
       if (downloadInvoice(record.record_id, false)) completed += 1
       await new Promise<void>((resolve) => window.setTimeout(resolve, 80))
     }
-    ElMessage.success(`已下载 ${completed} 份发票或退款记录`)
+    ElMessage.success(t('已下载 {count} 份发票或退款记录', 'Downloaded {count} invoice or refund record(s)', { count: completed }))
   } finally {
     bulkInvoiceDownloading.value = false
   }
@@ -1485,7 +1598,7 @@ async function downloadAllInvoices() {
 async function submitWizard() {
   const missing = wizardMissingForStep(4)
   if (missing.length) {
-    wizardNotice.value = `提交前还需补充：${missing.join('、')}`
+    wizardNotice.value = t('提交前还需补充：{items}', 'Complete before submitting: {items}', { items: missing.join(portalLanguage.value === 'EN' ? ', ' : '、') })
     ElMessage.warning(wizardNotice.value)
     return
   }
@@ -1507,9 +1620,9 @@ async function submitWizard() {
     } catch {
       upsertOrderSummary(created)
     }
-    ElMessage.success(`订单 ${created.order_no} 已提交`)
+    ElMessage.success(t('订单 {order} 已提交', 'Order {order} submitted', { order: created.order_no }))
   } catch (cause) {
-    ElMessage.error(cause instanceof Error ? cause.message : '订单提交失败')
+    ElMessage.error(errorText(cause, '订单提交失败', 'Failed to submit order'))
   } finally {
     wizardSubmitting.value = false
   }
@@ -1533,10 +1646,10 @@ async function sendMessage() {
     const item = await gateway.sendMessage(thread.thread_id, content)
     if (!thread.messages.some((message) => message.message_id === item.message_id)) thread.messages.push(item)
     thread.latest_message = content
-    thread.latest_at = '刚刚'
+    thread.latest_at = t('刚刚', 'Just now')
     messageDraft.value = ''
   } catch (cause) {
-    ElMessage.error(cause instanceof Error ? cause.message : '消息发送失败')
+    ElMessage.error(errorText(cause, '消息发送失败', 'Failed to send message'))
   } finally {
     sendingMessage.value = false
   }
@@ -1547,7 +1660,7 @@ async function sendOrderDrawerMessage() {
   const content = orderDrawerMessageDraft.value.trim()
   if (!order || !content) return
   if (!order.allowed_actions.includes('SEND_MESSAGE')) {
-    ElMessage.warning('当前订单暂不支持发送消息')
+    ElMessage.warning(t('当前订单暂不支持发送消息', 'This order does not currently support messaging'))
     return
   }
 
@@ -1580,13 +1693,13 @@ async function sendOrderDrawerMessage() {
     }
 
     orderDrawerMessageDraft.value = ''
-    ElMessage.success('消息已发送给订单服务')
+    ElMessage.success(t('消息已发送给订单服务', 'Message sent to Order Support'))
     window.setTimeout(() => {
       const stream = document.querySelector<HTMLElement>('[data-testid="doctor-order-dialogue"]')
       stream?.scrollTo({ top: stream.scrollHeight, behavior: 'smooth' })
     })
   } catch (cause) {
-    ElMessage.error(cause instanceof Error ? cause.message : '消息发送失败')
+    ElMessage.error(errorText(cause, '消息发送失败', 'Failed to send message'))
   } finally {
     orderDrawerMessageSending.value = false
   }
@@ -1602,8 +1715,8 @@ function startReviewDecision(orderId: string, review: OrderReview, decision: 'AP
     rejectDialogOpen.value = true
     return
   }
-  void ElMessageBox.confirm('同意后，对方将按当前版本继续后续制作。请确认已完成检查。', '确认同意当前版本', {
-    confirmButtonText: '确认同意', cancelButtonText: '再检查一下', type: 'warning'
+  void ElMessageBox.confirm(t('同意后，对方将按当前版本继续后续制作。请确认已完成检查。', 'After approval, production will continue using the current version. Confirm that you have completed your review.'), t('确认同意当前版本', 'Approve Current Version'), {
+    confirmButtonText: t('确认同意', 'Approve'), cancelButtonText: t('再检查一下', 'Review Again'), type: 'warning'
   }).then(() => submitReviewDecision('APPROVE')).catch(() => undefined)
 }
 
@@ -1630,7 +1743,7 @@ async function submitReviewDecision(decision: 'APPROVE' | 'REJECT') {
   const target = reviewTarget.value
   if (!target || reviewSubmitting.value) return
   if (decision === 'REJECT' && !rejectReason.value.trim()) {
-    ElMessage.warning('驳回时必须填写修改意见')
+    ElMessage.warning(t('驳回时必须填写修改意见', 'A change request is required when rejecting a version'))
     return
   }
   reviewSubmitting.value = true
@@ -1694,10 +1807,10 @@ async function submitReviewDecision(decision: 'APPROVE' | 'REJECT') {
       applyRefreshedReviewOrder(target.orderId, refreshed)
     } catch {
       ElMessage.warning(usedSubmittedFallback
-        ? '确认已提交，但最新公开状态仍无法读取；页面已保留提交结果，请稍后刷新核对'
-        : '确认已提交，但订单最新公开状态读取失败，请稍后刷新')
+        ? t('确认已提交，但最新公开状态仍无法读取；页面已保留提交结果，请稍后刷新核对', 'Confirmation submitted, but the latest public status is still unavailable. The submitted result is retained; refresh later to verify.')
+        : t('确认已提交，但订单最新公开状态读取失败，请稍后刷新', 'Confirmation submitted, but the latest public order status could not be loaded. Refresh later.'))
     }
-    ElMessage.success(decision === 'APPROVE' ? '已同意当前版本，对方可以继续制作' : '已驳回并发送修改意见')
+    ElMessage.success(decision === 'APPROVE' ? t('已同意当前版本，对方可以继续制作', 'Current version approved; production can continue') : t('已驳回并发送修改意见', 'Version rejected and change request sent'))
   } catch (cause) {
     try {
       const reconciled = await gateway.loadOrderDetail(target.orderId)
@@ -1707,14 +1820,14 @@ async function submitReviewDecision(decision: 'APPROVE' | 'REJECT') {
         applyRefreshedReviewOrder(target.orderId, reconciled)
         rejectDialogOpen.value = false
         ElMessage.success(decision === 'APPROVE'
-          ? '服务器已完成版本确认，页面状态已重新同步'
-          : '服务器已收到驳回意见，页面状态已重新同步')
+          ? t('服务器已完成版本确认，页面状态已重新同步', 'The server confirmed the version and the page has been resynchronized')
+          : t('服务器已收到驳回意见，页面状态已重新同步', 'The server received the change request and the page has been resynchronized'))
         return
       }
     } catch {
       // 提交请求结果不明确且暂时无法回读时，保留原始错误供用户重试。
     }
-    ElMessage.error(cause instanceof Error ? cause.message : '确认操作失败')
+    ElMessage.error(errorText(cause, '确认操作失败', 'Review action failed'))
   } finally {
     reviewSubmitting.value = false
   }
@@ -1734,7 +1847,7 @@ async function previewFile(item: DoctorFile) {
       filePreviewOpen.value = true
     }
   } catch (cause) {
-    ElMessage.error(cause instanceof Error ? cause.message : '文件预览失败')
+    ElMessage.error(errorText(cause, '文件预览失败', 'Failed to preview file'))
   } finally {
     filePreviewLoading.value = false
   }
@@ -1754,10 +1867,11 @@ async function askAssistant() {
       await answerWithFaq(question)
       return
     }
-    const response = await gateway.askAssistant(question, contextOrder.order_id)
+    const gatewayQuestion = portalLanguage.value === 'EN' ? `Please answer in English. ${question}` : question
+    const response = await gateway.askAssistant(gatewayQuestion, contextOrder.order_id)
     assistantMessages.value.push({ role: 'ASSISTANT', content: response.answer, orderIds: response.orderIds })
   } catch (cause) {
-    assistantMessages.value.push({ role: 'ASSISTANT', content: cause instanceof Error ? cause.message : '查询暂时不可用' })
+    assistantMessages.value.push({ role: 'ASSISTANT', content: errorText(cause, '查询暂时不可用', 'The assistant is temporarily unavailable') })
   } finally {
     assistantLoading.value = false
   }
@@ -1778,15 +1892,25 @@ async function askFaq(question: string) {
 
 async function answerWithFaq(question: string) {
   try {
-    const faq = await gateway.askFaq(question)
+    const englishFaqAnswers: Record<string, string> = {
+      'What information is required to place an order?': 'Select a patient and product, specify the tooth position and clinical requirements, and upload the required STL scan. Photos or PDF instructions may also be added when relevant.',
+      'Which intraoral scan formats are supported?': 'STL is supported for intraoral scans. You can also attach JPG, PNG, and PDF files. At least one STL file is required when the selected product calls for a scan.',
+      'How long will my order take?': 'The estimated delivery date is shown after Order Support reviews the case. Any date marked Pending Confirmation is provisional and is not a committed delivery date.',
+      'What if the product needs a remake?': 'Contact Order Support from the order conversation and describe the fit or quality issue with supporting photos or files. The lab will review the case and confirm the next action.'
+    }
+    if (portalLanguage.value === 'EN' && englishFaqAnswers[question]) {
+      assistantMessages.value.push({ role: 'ASSISTANT', content: englishFaqAnswers[question], orderIds: [] })
+      return
+    }
+    const faq = await gateway.askFaq(portalLanguage.value === 'EN' ? `Please answer in English. ${question}` : question)
     const suffix = faq.requiresCustomerConfirmation
-      ? '\n\n（以上内容引自常见问题库的示例语料，待甲方确认）'
+      ? t('\n\n（以上内容引自常见问题库的示例语料，待甲方确认）', '\n\n(This answer uses sample FAQ content and is pending customer confirmation.)')
       : ''
     assistantMessages.value.push({ role: 'ASSISTANT', content: faq.answer + suffix, orderIds: [] })
   } catch (cause) {
     assistantMessages.value.push({
       role: 'ASSISTANT',
-      content: cause instanceof Error ? cause.message : '常见问题查询暂时不可用',
+      content: errorText(cause, '常见问题查询暂时不可用', 'FAQ search is temporarily unavailable'),
       orderIds: []
     })
   }
@@ -1794,7 +1918,7 @@ async function answerWithFaq(question: string) {
 
 async function createPatient() {
   if (!dataset.value || !newPatient.name.trim()) {
-    ElMessage.warning('请填写患者姓名')
+    ElMessage.warning(t('请填写患者姓名', 'Enter the patient name'))
     return
   }
   patientSaving.value = true
@@ -1816,9 +1940,9 @@ async function createPatient() {
     dataset.value.patients.unshift(item)
     resetPatientForm()
     patientDialogOpen.value = false
-    ElMessage.success('患者已保存')
+    ElMessage.success(t('患者已保存', 'Patient saved'))
   } catch (cause) {
-    ElMessage.error(cause instanceof Error ? cause.message : '患者保存失败')
+    ElMessage.error(errorText(cause, '患者保存失败', 'Failed to save patient'))
   } finally {
     patientSaving.value = false
   }
@@ -1826,7 +1950,7 @@ async function createPatient() {
 
 async function savePatientChanges() {
   if (!dataset.value || !selectedPatient.value || !newPatient.name.trim()) {
-    ElMessage.warning('请填写患者姓名')
+    ElMessage.warning(t('请填写患者姓名', 'Enter the patient name'))
     return
   }
   patientSaving.value = true
@@ -1850,9 +1974,9 @@ async function savePatientChanges() {
     if (index >= 0) dataset.value.patients.splice(index, 1, updated)
     selectedPatient.value = { ...selectedPatient.value, ...updated, notes: updated.medical_notes }
     patientEditMode.value = false
-    ElMessage.success('患者档案已更新')
+    ElMessage.success(t('患者档案已更新', 'Patient record updated'))
   } catch (cause) {
-    ElMessage.error(cause instanceof Error ? cause.message : '患者档案更新失败')
+    ElMessage.error(errorText(cause, '患者档案更新失败', 'Failed to update patient record'))
   } finally {
     patientSaving.value = false
   }
@@ -1860,7 +1984,7 @@ async function savePatientChanges() {
 
 function addMember() {
   if (!dataset.value || !newMember.displayName.trim() || !newMember.email.trim()) {
-    ElMessage.warning('请填写成员姓名和邮箱')
+    ElMessage.warning(t('请填写成员姓名和邮箱', 'Enter the member name and email'))
     return
   }
   dataset.value.account.members.push({
@@ -1874,20 +1998,20 @@ function addMember() {
   })
   memberDialogOpen.value = false
   Object.assign(newMember, { displayName: '', email: '', role: 'DOCTOR', billing: 'VIEW', logistics: 'VIEW' })
-  ElMessage.info('成员邀请功能暂未开放')
+  ElMessage.info(t('成员邀请功能暂未开放', 'Member invitations are not available yet'))
 }
 
 function saveProfile() {
-  ElMessage.success(dataMode === 'mock' ? '设置已保存' : '资料保存功能暂未开放')
+  ElMessage.success(dataMode === 'mock' ? t('设置已保存', 'Settings saved') : t('资料保存功能暂未开放', 'Profile saving is not available yet'))
 }
 
 function updatePassword() {
   if (!passwordForm.current || passwordForm.next.length < 8 || passwordForm.next !== passwordForm.confirm) {
-    ElMessage.warning('请检查当前密码、新密码长度和两次输入是否一致')
+    ElMessage.warning(t('请检查当前密码、新密码长度和两次输入是否一致', 'Check the current password, new password length, and confirmation'))
     return
   }
   Object.assign(passwordForm, { current: '', next: '', confirm: '' })
-  ElMessage.info('安全设置功能暂未开放')
+  ElMessage.info(t('安全设置功能暂未开放', 'Security settings are not available yet'))
 }
 
 function openLogistics(item: LogisticsRecord) {
@@ -1897,8 +2021,8 @@ function openLogistics(item: LogisticsRecord) {
 
 async function confirmReceipt(item: LogisticsRecord) {
   try {
-    await ElMessageBox.confirm('请确认产品已由诊所实际收取。确认后订单将完成。', '确认收货', {
-      confirmButtonText: '确认已收货', cancelButtonText: '取消', type: 'warning'
+    await ElMessageBox.confirm(t('请确认产品已由诊所实际收取。确认后订单将完成。', 'Confirm that the clinic has physically received the product. The order will be completed after confirmation.'), t('确认收货', 'Confirm Receipt'), {
+      confirmButtonText: t('确认已收货', 'Confirm Received'), cancelButtonText: t('取消', 'Cancel'), type: 'warning'
     })
     const order = dataset.value?.orders.find((candidate) => candidate.order_id === item.order_id)
     await gateway.confirmReceipt(item.order_id, order?.state_version ?? 0)
@@ -1908,10 +2032,10 @@ async function confirmReceipt(item: LogisticsRecord) {
       order.external_status = 'COMPLETED'
       order.current_action = 'NONE'
     }
-    ElMessage.success('已确认收货，订单已完成')
+    ElMessage.success(t('已确认收货，订单已完成', 'Receipt confirmed and order completed'))
   } catch (cause) {
     if (cause === 'cancel' || cause === 'close') return
-    ElMessage.error(cause instanceof Error ? cause.message : '确认收货失败')
+    ElMessage.error(errorText(cause, '确认收货失败', 'Failed to confirm receipt'))
   }
 }
 
@@ -1955,30 +2079,30 @@ onBeforeUnmount(() => window.removeEventListener('keydown', handleGlobalShortcut
 </script>
 
 <template>
-  <div class="dv2-shell" data-testid="doctor-v2-portal">
+  <div class="dv2-shell" data-testid="doctor-v2-portal" :lang="portalLanguage === 'EN' ? 'en' : 'zh-CN'">
     <aside class="dv2-sidebar">
       <div class="dv2-brand">
         <span class="dv2-brand-mark">P</span>
-        <div><strong>PrecisionDental</strong><small>LAB · 医生工作台</small></div>
+        <div><strong>PrecisionDental</strong><small>LAB · {{ t('医生工作台', 'Doctor Portal') }}</small></div>
       </div>
 
       <div class="dv2-clinic-card">
-        <span class="dv2-avatar">{{ (account?.display_name || currentUser?.username || '医').slice(0, 1) }}</span>
+        <span class="dv2-avatar">{{ (account?.display_name || currentUser?.username || t('医', 'D')).slice(0, 1) }}</span>
         <button type="button" data-testid="doctor-role-switcher" @click="roleMenuOpen = !roleMenuOpen">
-          <strong>{{ account?.display_name || currentUser?.username || '医生' }}</strong>
-          <small>{{ account?.clinic_name || '当前诊所' }} · {{ roleLabels[activeRole] }}</small>
+          <strong>{{ account?.display_name || currentUser?.username || t('医生', 'Doctor') }}</strong>
+          <small>{{ account?.clinic_name || t('当前诊所', 'Current Clinic') }} · {{ roleLabel(activeRole) }}</small>
         </button>
         <i>⌄</i>
         <div v-if="roleMenuOpen" class="dv2-floating-menu is-sidebar">
-          <small>切换诊所身份</small>
+          <small>{{ t('切换诊所身份', 'Switch Clinic Role') }}</small>
           <button v-for="role in availableRoles" :key="role" type="button" :class="{ active: activeRole === role }" @click="chooseRole(role)">
-            <span>{{ roleLabels[role] }}</span><i>{{ activeRole === role ? '✓' : '' }}</i>
+            <span>{{ roleLabel(role) }}</span><i>{{ activeRole === role ? '✓' : '' }}</i>
           </button>
-          <p>切换后只使用所选身份的权限。</p>
+          <p>{{ t('切换后只使用所选身份的权限。', 'Only permissions assigned to the selected role will be used.') }}</p>
         </div>
       </div>
 
-      <nav class="dv2-nav" aria-label="医生端菜单">
+      <nav class="dv2-nav" :aria-label="t('医生端菜单', 'Doctor portal menu')">
         <section v-for="group in navGroups" :key="group.label">
           <small class="dv2-nav-label">{{ group.label }}</small>
           <button
@@ -1999,23 +2123,23 @@ onBeforeUnmount(() => window.removeEventListener('keydown', handleGlobalShortcut
         </section>
       </nav>
 
-      <button type="button" class="dv2-sidebar-support" @click="showSupport"><span>?</span><div><strong>{{ uiText('需要帮助？', 'Need help?') }}</strong><small>{{ uiText('联系订单支持', 'Contact support') }}</small></div><i>›</i></button>
+      <button type="button" class="dv2-sidebar-support" @click="showSupport"><span>?</span><div><strong>{{ t('需要帮助？', 'Need help?') }}</strong><small>{{ t('联系订单支持', 'Contact support') }}</small></div><i>›</i></button>
       <div class="dv2-sidebar-user">
-        <span>安全登录中</span><button type="button" title="退出登录" aria-label="退出登录" @click="emit('logout')">退出 ↗</button>
+        <span>{{ t('安全登录中', 'Secure Session') }}</span><button type="button" :title="t('退出登录', 'Sign Out')" :aria-label="t('退出登录', 'Sign Out')" @click="emit('logout')">{{ t('退出', 'Sign Out') }} ↗</button>
       </div>
     </aside>
 
     <section class="dv2-main">
       <header class="dv2-topbar">
-        <div class="dv2-topbar-context"><strong>{{ currentMeta.title }}</strong><small>{{ account?.clinic_name || '当前诊所' }}</small></div>
+        <div class="dv2-topbar-context"><strong>{{ currentMeta.title }}</strong><small>{{ account?.clinic_name || t('当前诊所', 'Current Clinic') }}</small></div>
         <div class="dv2-topbar-actions">
           <div class="dv2-global-search" :class="{ focused: globalSearchOpen }">
             <span aria-hidden="true">⌕</span>
             <input
               v-model="globalKeyword"
               type="search"
-              placeholder="搜索订单或患者"
-              aria-label="全局搜索"
+              :placeholder="t('搜索订单或患者', 'Search orders or patients')"
+              :aria-label="t('全局搜索', 'Global search')"
               data-testid="doctor-global-search"
               @focus="globalSearchOpen = true"
               @keyup.esc="globalSearchOpen = false"
@@ -2023,52 +2147,52 @@ onBeforeUnmount(() => window.removeEventListener('keydown', handleGlobalShortcut
             <kbd>⌘ K</kbd>
           </div>
 
-          <div class="dv2-language-switch" aria-label="界面语言"><button type="button" :class="{ active: portalLanguage === 'ZH' }" @click="setPortalLanguage('ZH')">中文</button><button type="button" :class="{ active: portalLanguage === 'EN' }" @click="setPortalLanguage('EN')">EN</button></div>
-          <button class="dv2-icon-button" type="button" aria-label="打开通知中心" data-testid="doctor-notification-button" @click="notificationOpen = true">
+          <div class="dv2-language-switch" :aria-label="t('界面语言', 'Interface language')"><button type="button" :class="{ active: portalLanguage === 'ZH' }" @click="setPortalLanguage('ZH')">中文</button><button type="button" :class="{ active: portalLanguage === 'EN' }" @click="setPortalLanguage('EN')">EN</button></div>
+          <button class="dv2-icon-button" type="button" :aria-label="t('打开通知中心', 'Open notifications')" data-testid="doctor-notification-button" @click="notificationOpen = true">
             🔔<i v-if="unreadCount">{{ unreadCount > 9 ? '9+' : unreadCount }}</i>
           </button>
-          <button class="dv2-icon-button" type="button" aria-label="打开帮助" title="帮助中心" @click="showHelp">?</button>
-          <button v-if="canCreateOrder" class="dv2-primary-button" type="button" data-testid="doctor-new-order" @click="openWizard()">＋ {{ uiText('新建订单', 'New Order') }}</button>
+          <button class="dv2-icon-button" type="button" :aria-label="t('打开帮助', 'Open help')" :title="t('帮助中心', 'Help Center')" @click="showHelp">?</button>
+          <button v-if="canCreateOrder" class="dv2-primary-button" type="button" data-testid="doctor-new-order" @click="openWizard()">＋ {{ t('新建订单', 'New Order') }}</button>
         </div>
       </header>
 
       <div v-if="globalSearchOpen" class="dv2-search-backdrop" @mousedown.self="globalSearchOpen = false">
         <section class="dv2-search-popover">
-          <header><strong>全局搜索</strong><span>订单与患者</span></header>
+          <header><strong>{{ t('全局搜索', 'Global Search') }}</strong><span>{{ t('订单与患者', 'Orders and Patients') }}</span></header>
           <template v-if="globalKeyword.trim()">
             <div class="dv2-search-group">
-              <small>订单</small>
+              <small>{{ t('订单', 'Orders') }}</small>
               <button v-for="order in globalResults.orders" :key="order.order_id" type="button" @click="openGlobalOrder(order.order_id)">
                 <span><strong>{{ order.order_no }}</strong><small>{{ order.patient_name }} · {{ productNameLabel(order.product_name, order.product_type) }}</small></span><em>{{ label(order.external_status) }}</em>
               </button>
-              <p v-if="!globalResults.orders.length">没有匹配订单</p>
+              <p v-if="!globalResults.orders.length">{{ t('没有匹配订单', 'No matching orders') }}</p>
             </div>
             <div class="dv2-search-group">
-              <small>患者</small>
+              <small>{{ t('患者', 'Patients') }}</small>
               <button v-for="patient in globalResults.patients" :key="patient.patient_id" type="button" @click="openGlobalPatient(patient.patient_id)">
-                <span><strong>{{ patient.patient_name }}</strong><small>{{ patient.patient_code }} · {{ patient.order_count }} 个订单</small></span><em>查看档案</em>
+                <span><strong>{{ patient.patient_name }}</strong><small>{{ patient.patient_code }} · {{ t('{count} 个订单', '{count} order(s)', { count: patient.order_count }) }}</small></span><em>{{ t('查看档案', 'View Profile') }}</em>
               </button>
-              <p v-if="!globalResults.patients.length">没有匹配患者</p>
+              <p v-if="!globalResults.patients.length">{{ t('没有匹配患者', 'No matching patients') }}</p>
             </div>
           </template>
-          <div v-else class="dv2-search-empty">输入订单号、患者姓名或患者编号开始搜索</div>
+          <div v-else class="dv2-search-empty">{{ t('输入订单号、患者姓名或患者编号开始搜索', 'Enter an order number, patient name or patient ID to search') }}</div>
         </section>
       </div>
 
       <main class="dv2-content">
         <div v-if="activePage !== 'dashboard'" class="dv2-page-heading">
           <div><h1>{{ currentMeta.title }}</h1><p>{{ currentMeta.description }}</p></div>
-          <button v-if="activePage === 'patients' && activeRole === 'DOCTOR'" type="button" class="dv2-primary-button dv2-patient-add" @click="openPatientCreate">＋ 新建患者</button>
+          <button v-if="activePage === 'patients' && activeRole === 'DOCTOR'" type="button" class="dv2-primary-button dv2-patient-add" @click="openPatientCreate">＋ {{ t('新建患者', 'New Patient') }}</button>
         </div>
 
-        <div v-if="loading" class="dv2-loading-card"><span class="dv2-spinner" />正在加载医生端数据…</div>
-        <div v-else-if="loadError" class="dv2-error-card"><strong>页面数据暂时不可用</strong><p>{{ loadError }}</p><button type="button" @click="loadPortal">重新加载</button></div>
+        <div v-if="loading" class="dv2-loading-card"><span class="dv2-spinner" />{{ t('正在加载医生端数据…', 'Loading doctor portal data…') }}</div>
+        <div v-else-if="loadError" class="dv2-error-card"><strong>{{ t('页面数据暂时不可用', 'Page data is temporarily unavailable') }}</strong><p>{{ loadError }}</p><button type="button" @click="loadPortal">{{ t('重新加载', 'Reload') }}</button></div>
 
         <template v-else-if="dataset">
           <section v-if="activePage === 'dashboard'" class="dv2-dashboard dv2-reference-dashboard" data-testid="doctor-page-dashboard">
             <header class="dv2-dashboard-reference-heading">
               <div><h2>{{ dashboardGreeting }}</h2><p>{{ dashboardContext }}</p></div>
-              <button type="button" class="dv2-primary-button" @click="switchPage('orders')">进入订单管理</button>
+              <button type="button" class="dv2-primary-button" @click="switchPage('orders')">{{ t('进入订单管理', 'Open Order Management') }}</button>
             </header>
 
             <div class="dv2-metric-grid is-six">
@@ -2079,62 +2203,62 @@ onBeforeUnmount(() => window.removeEventListener('keydown', handleGlobalShortcut
 
             <div class="dv2-dashboard-reference-columns">
               <div class="dv2-dashboard-reference-section">
-                <div class="dv2-dashboard-section-label"><span>🔴</span>需要处理</div>
+                <div class="dv2-dashboard-section-label"><span>🔴</span>{{ t('需要处理', 'Action Required') }}</div>
                 <section class="dv2-card dv2-task-card dv2-reference-action-list">
-                  <header><div><h2>需要处理</h2><p>优先处理会阻塞订单继续推进的事项</p></div><button type="button" @click="switchPage('orders')">{{ pendingTaskOrders.length }} 项 · 查看全部 →</button></header>
+                  <header><div><h2>{{ t('需要处理', 'Action Required') }}</h2><p>{{ t('优先处理会阻塞订单继续推进的事项', 'Prioritize items that block order progress') }}</p></div><button type="button" @click="switchPage('orders')">{{ t('{count} 项 · 查看全部 →', '{count} item(s) · View all →', { count: pendingTaskOrders.length }) }}</button></header>
                   <button v-for="order in pendingTaskOrders.slice(0, 4)" :key="order.order_id" type="button" class="dv2-task-row" @click="openOrder(order.order_id)">
                     <span :class="`dv2-dot is-${statusTone(order.external_status)}`" />
                     <div><strong>{{ label(order.current_action) }}</strong><small>{{ order.order_no }} · {{ order.patient_name }} · {{ productNameLabel(order.product_name, order.product_type) }}</small></div>
                     <time>{{ order.due_at }}</time><i>›</i>
                   </button>
-                  <div v-if="!pendingTaskOrders.length" class="dv2-empty">暂无待处理事项</div>
+                  <div v-if="!pendingTaskOrders.length" class="dv2-empty">{{ t('暂无待处理事项', 'No pending actions') }}</div>
                 </section>
               </div>
 
               <div class="dv2-dashboard-reference-stack">
                 <div class="dv2-dashboard-reference-section">
-                  <div class="dv2-dashboard-section-label"><span>🚚</span>即将送达</div>
+                  <div class="dv2-dashboard-section-label"><span>🚚</span>{{ t('即将送达', 'Arriving Soon') }}</div>
                   <section class="dv2-card dv2-task-card dv2-reference-compact-list">
-                    <header><div><h2>配送与收货</h2><p>医生可见的在途订单</p></div><span>{{ dashboardDeliveryOrders.length }} 单</span></header>
+                    <header><div><h2>{{ t('配送与收货', 'Delivery & Receipt') }}</h2><p>{{ t('医生可见的在途订单', 'In-transit orders visible to doctors') }}</p></div><span>{{ t('{count} 单', '{count} order(s)', { count: dashboardDeliveryOrders.length }) }}</span></header>
                     <button v-for="order in dashboardDeliveryOrders" :key="order.order_id" type="button" class="dv2-task-row" @click="openOrder(order.order_id)">
                       <span :class="`dv2-dot is-${statusTone(order.external_status)}`" />
-                      <div><strong>{{ order.patient_name }} · {{ productNameLabel(order.product_name, order.product_type) }}</strong><small>{{ order.order_no }} · {{ label(order.external_status) }}</small><div class="dv2-delivery-steps" aria-label="配送进度"><i v-for="step in 4" :key="step" :class="{ done: deliveryProgress(order) >= step }" /><span>出库</span><span>运输</span><span>派送</span><span>签收</span></div></div>
-                      <time>预计 {{ order.due_at }}</time><i>›</i>
+                      <div><strong>{{ order.patient_name }} · {{ productNameLabel(order.product_name, order.product_type) }}</strong><small>{{ order.order_no }} · {{ label(order.external_status) }}</small><div class="dv2-delivery-steps" :aria-label="t('配送进度', 'Delivery progress')"><i v-for="step in 4" :key="step" :class="{ done: deliveryProgress(order) >= step }" /><span>{{ t('出库', 'Dispatched') }}</span><span>{{ t('运输', 'In Transit') }}</span><span>{{ t('派送', 'Out for Delivery') }}</span><span>{{ t('签收', 'Received') }}</span></div></div>
+                      <time>{{ t('预计 {date}', 'Estimated {date}', { date: order.due_at }) }}</time><i>›</i>
                     </button>
-                    <div v-if="!dashboardDeliveryOrders.length" class="dv2-empty">暂无在途订单</div>
+                    <div v-if="!dashboardDeliveryOrders.length" class="dv2-empty">{{ t('暂无在途订单', 'No orders in transit') }}</div>
                   </section>
                 </div>
                 <div class="dv2-dashboard-reference-section">
-                  <div class="dv2-dashboard-section-label"><span>🕐</span>到期提醒</div>
+                  <div class="dv2-dashboard-section-label"><span>🕐</span>{{ t('到期提醒', 'Due Soon') }}</div>
                   <section class="dv2-card dv2-task-card dv2-reference-compact-list">
-                    <header><div><h2>临近交付订单</h2><p>根据预计日期排序</p></div><span>{{ dashboardDueOrders.length }} 单</span></header>
+                    <header><div><h2>{{ t('临近交付订单', 'Orders Nearing Delivery') }}</h2><p>{{ t('根据预计日期排序', 'Sorted by estimated date') }}</p></div><span>{{ t('{count} 单', '{count} order(s)', { count: dashboardDueOrders.length }) }}</span></header>
                     <button v-for="order in dashboardDueOrders" :key="order.order_id" type="button" class="dv2-task-row dv2-due-row" @click="openOrder(order.order_id)">
                       <span class="dv2-dot is-warning" />
                       <div><strong>{{ order.patient_name }} · {{ productNameLabel(order.product_name, order.product_type) }}</strong><small>{{ order.order_no }} · {{ label(order.external_status) }}</small></div>
-                      <time>预计 {{ order.due_at }}</time><i>›</i>
+                      <time>{{ t('预计 {date}', 'Estimated {date}', { date: order.due_at }) }}</time><i>›</i>
                     </button>
-                    <div v-if="!dashboardDueOrders.length" class="dv2-empty">暂无临近交付订单</div>
+                    <div v-if="!dashboardDueOrders.length" class="dv2-empty">{{ t('暂无临近交付订单', 'No orders nearing delivery') }}</div>
                   </section>
                 </div>
               </div>
             </div>
 
             <section class="dv2-card dv2-dashboard-trend dv2-reference-performance">
-              <header><div><h2>医生工作台趋势图</h2><p>近 6 周医生可见订单创建趋势</p></div><span>近 6 周</span></header>
+              <header><div><h2>{{ t('医生工作台趋势图', 'Doctor Portal Trend') }}</h2><p>{{ t('近 6 周医生可见订单创建趋势', 'Doctor-visible order creation over the last six weeks') }}</p></div><span>{{ t('近 6 周', 'Last 6 Weeks') }}</span></header>
               <div class="dv2-trend-summary dv2-reference-trend-summary">
-                <article class="is-blue"><small>本月订单</small><strong>{{ dataset.orders.filter((item) => doctorLocalDateKey(item.created_at).startsWith(dashboardToday.slice(0, 7))).length }}</strong><i /></article>
-                <article class="is-violet"><small>待确认</small><strong>{{ dataset.orders.filter((item) => item.current_action.includes('REVIEW')).length }}</strong><i /></article>
-                <article class="is-amber"><small>待付款</small><strong>{{ dataset.orders.filter((item) => item.current_action === 'PAYMENT_REQUIRED').length }}</strong><i /></article>
-                <article class="is-green"><small>已完成</small><strong>{{ dataset.orders.filter((item) => item.external_status === 'COMPLETED').length }}</strong><i /></article>
+                <article class="is-blue"><small>{{ t('本月订单', 'Orders This Month') }}</small><strong>{{ dataset.orders.filter((item) => doctorLocalDateKey(item.created_at).startsWith(dashboardToday.slice(0, 7))).length }}</strong><i /></article>
+                <article class="is-violet"><small>{{ t('待确认', 'Pending Review') }}</small><strong>{{ dataset.orders.filter((item) => item.current_action.includes('REVIEW')).length }}</strong><i /></article>
+                <article class="is-amber"><small>{{ t('待付款', 'Payment Due') }}</small><strong>{{ dataset.orders.filter((item) => item.current_action === 'PAYMENT_REQUIRED').length }}</strong><i /></article>
+                <article class="is-green"><small>{{ t('已完成', 'Completed') }}</small><strong>{{ dataset.orders.filter((item) => item.external_status === 'COMPLETED').length }}</strong><i /></article>
               </div>
               <div class="dv2-dashboard-trend-body dv2-reference-trend-body">
                 <div class="dv2-trend-chart">
-                  <svg viewBox="0 0 560 132" role="img" aria-label="近六周订单趋势">
+                  <svg viewBox="0 0 560 132" role="img" :aria-label="t('近六周订单趋势', 'Six-week order trend')">
                     <line v-for="y in [32, 68, 104]" :key="y" x1="20" :y1="y" x2="548" :y2="y" />
                     <polyline :points="dashboardTrendPoints" />
                     <circle v-for="(value, index) in dashboardWeeklyCounts" :key="index" :cx="24 + index * 103" :cy="104 - Math.round(value / dashboardTrendMax * 72)" r="4" />
                   </svg>
-                  <div><span v-for="index in 6" :key="index">第{{ index }}周</span></div>
+                  <div><span v-for="index in 6" :key="index">{{ t('第{index}周', 'Week {index}', { index }) }}</span></div>
                 </div>
               </div>
             </section>
@@ -2143,102 +2267,102 @@ onBeforeUnmount(() => window.removeEventListener('keydown', handleGlobalShortcut
           <section v-else-if="activePage === 'orders'" class="dv2-orders" data-testid="doctor-page-orders">
             <div class="dv2-card dv2-list-card">
               <div class="dv2-list-toolbar">
-                <label class="dv2-field-search"><span>⌕</span><input v-model="orderKeyword" type="search" placeholder="搜索订单、患者、诊所、产品或标签" @input="orderPage = 1"></label>
-                <select v-model="orderStatus" @change="orderPage = 1"><option value="ALL">全部状态</option><option value="DRAFT">草稿</option><option value="NEEDS_INFO">待补资料</option><option value="IN_PRODUCTION">制作中</option><option value="AWAITING_PAYMENT">待付款</option><option value="SHIPPED">已发货</option><option value="COMPLETED">已完成</option></select>
-                <select v-model="orderProduct" @change="orderPage = 1"><option value="ALL">全部产品</option><option v-for="type in orderProductTypes" :key="type" :value="type">{{ productTypeLabel(type) }}</option></select>
-                <button type="button" class="dv2-filter-toggle" :class="{ active: orderFiltersExpanded }" @click="orderFiltersExpanded = !orderFiltersExpanded">⚙ 高级筛选 <i>{{ orderFiltersExpanded ? '⌃' : '⌄' }}</i></button>
+                <label class="dv2-field-search"><span>⌕</span><input v-model="orderKeyword" type="search" :placeholder="t('搜索订单、患者、诊所、产品或标签', 'Search orders, patients, clinics, products or tags')" @input="orderPage = 1"></label>
+                <select v-model="orderStatus" @change="orderPage = 1"><option value="ALL">{{ t('全部状态', 'All Statuses') }}</option><option value="DRAFT">{{ label('DRAFT') }}</option><option value="NEEDS_INFO">{{ label('NEEDS_INFO') }}</option><option value="IN_PRODUCTION">{{ label('IN_PRODUCTION') }}</option><option value="AWAITING_PAYMENT">{{ label('AWAITING_PAYMENT') }}</option><option value="SHIPPED">{{ label('SHIPPED') }}</option><option value="COMPLETED">{{ label('COMPLETED') }}</option></select>
+                <select v-model="orderProduct" @change="orderPage = 1"><option value="ALL">{{ t('全部产品', 'All Products') }}</option><option v-for="type in orderProductTypes" :key="type" :value="type">{{ productTypeLabel(type) }}</option></select>
+                <button type="button" class="dv2-filter-toggle" :class="{ active: orderFiltersExpanded }" @click="orderFiltersExpanded = !orderFiltersExpanded">⚙ {{ t('高级筛选', 'Advanced Filters') }} <i>{{ orderFiltersExpanded ? '⌃' : '⌄' }}</i></button>
                 
               </div>
               <div v-if="orderFiltersExpanded" class="dv2-advanced-filters">
-                <label><span>负责医生</span><select v-model="orderDoctor" @change="orderPage = 1"><option value="ALL">全部医生</option><option v-for="doctor in orderDoctors" :key="doctor" :value="doctor">{{ doctor }}</option></select></label>
-                <label><span>订单标签</span><select v-model="orderTag" @change="orderPage = 1"><option value="ALL">全部标签</option><option v-for="tag in orderTags" :key="tag" :value="tag">{{ tag }}</option></select></label>
-                <label><span>创建日期从</span><input v-model="orderDateFrom" type="date" @change="orderPage = 1"></label>
-                <label><span>到</span><input v-model="orderDateTo" type="date" @change="orderPage = 1"></label>
-                <button type="button" @click="resetOrderFilters">重置筛选</button>
+                <label><span>{{ t('负责医生', 'Doctor') }}</span><select v-model="orderDoctor" @change="orderPage = 1"><option value="ALL">{{ t('全部医生', 'All Doctors') }}</option><option v-for="doctor in orderDoctors" :key="doctor" :value="doctor">{{ doctor }}</option></select></label>
+                <label><span>{{ t('订单标签', 'Order Tag') }}</span><select v-model="orderTag" @change="orderPage = 1"><option value="ALL">{{ t('全部标签', 'All Tags') }}</option><option v-for="tag in orderTags" :key="tag" :value="tag">{{ tag }}</option></select></label>
+                <label><span>{{ t('创建日期从', 'Created From') }}</span><input v-model="orderDateFrom" type="date" @change="orderPage = 1"></label>
+                <label><span>{{ t('到', 'To') }}</span><input v-model="orderDateTo" type="date" @change="orderPage = 1"></label>
+                <button type="button" @click="resetOrderFilters">{{ t('重置筛选', 'Reset Filters') }}</button>
               </div>
               <div class="dv2-quick-filters">
-                <button v-for="item in [{ key: 'ALL', label: '全部订单' }, { key: 'TODO', label: '待我处理' }, { key: 'DUE', label: '临近到期' }, { key: 'DELIVERY', label: '配送中' }, { key: 'PAYMENT', label: '待付款' }, { key: 'DRAFT', label: '草稿箱' }]" :key="item.key" type="button" :class="{ active: orderQuick === item.key }" @click="orderQuick = item.key; orderPage = 1">{{ item.label }}</button>
-                <span v-if="selectedOrderIds.length">已选 {{ selectedOrderIds.length }} 项</span>
+                <button v-for="item in [{ key: 'ALL', label: t('全部订单', 'All Orders') }, { key: 'TODO', label: t('待我处理', 'My Actions') }, { key: 'DUE', label: t('临近到期', 'Due Soon') }, { key: 'DELIVERY', label: t('配送中', 'In Delivery') }, { key: 'PAYMENT', label: t('待付款', 'Payment Due') }, { key: 'DRAFT', label: t('草稿箱', 'Drafts') }]" :key="item.key" type="button" :class="{ active: orderQuick === item.key }" @click="orderQuick = item.key; orderPage = 1">{{ item.label }}</button>
+                <span v-if="selectedOrderIds.length">{{ t('已选 {count} 项', '{count} selected', { count: selectedOrderIds.length }) }}</span>
               </div>
               <div class="dv2-table-wrap">
                 <table class="dv2-table dv2-order-table">
-                  <thead><tr><th class="is-check"><input type="checkbox" :checked="pagedOrders.length > 0 && pagedOrders.every((item) => selectedOrderIds.includes(item.order_id))" aria-label="选择当前页" @change="togglePageSelection(($event.target as HTMLInputElement).checked)"></th><th>订单</th><th>医生 / 患者</th><th>诊所</th><th>产品</th><th>标签</th><th>公开状态</th><th>当前操作</th><th>创建 / 到期</th><th>金额</th><th /></tr></thead>
+                  <thead><tr><th class="is-check"><input type="checkbox" :checked="pagedOrders.length > 0 && pagedOrders.every((item) => selectedOrderIds.includes(item.order_id))" :aria-label="t('选择当前页', 'Select current page')" @change="togglePageSelection(($event.target as HTMLInputElement).checked)"></th><th>{{ t('订单', 'Order') }}</th><th>{{ t('医生 / 患者', 'Doctor / Patient') }}</th><th>{{ t('诊所', 'Clinic') }}</th><th>{{ t('产品', 'Product') }}</th><th>{{ t('标签', 'Tags') }}</th><th>{{ t('公开状态', 'Public Status') }}</th><th>{{ t('当前操作', 'Current Action') }}</th><th>{{ t('创建 / 到期', 'Created / Due') }}</th><th>{{ t('金额', 'Amount') }}</th><th /></tr></thead>
                   <tbody>
-                    <tr v-for="order in pagedOrders" :key="order.order_id" data-testid="doctor-order-row" tabindex="0" :aria-label="`查看订单 ${order.order_no}`" @click="openOrder(order.order_id)" @keydown.enter.prevent="openOrder(order.order_id)" @keydown.space.prevent="openOrder(order.order_id)">
-                      <td class="is-check"><input type="checkbox" :checked="selectedOrderIds.includes(order.order_id)" :aria-label="`选择 ${order.order_no}`" @click.stop @change="toggleOrderSelection(order.order_id, ($event.target as HTMLInputElement).checked)"></td>
+                    <tr v-for="order in pagedOrders" :key="order.order_id" data-testid="doctor-order-row" tabindex="0" :aria-label="t('查看订单 {order}', 'View order {order}', { order: order.order_no })" @click="openOrder(order.order_id)" @keydown.enter.prevent="openOrder(order.order_id)" @keydown.space.prevent="openOrder(order.order_id)">
+                      <td class="is-check"><input type="checkbox" :checked="selectedOrderIds.includes(order.order_id)" :aria-label="t('选择 {order}', 'Select {order}', { order: order.order_no })" @click.stop @change="toggleOrderSelection(order.order_id, ($event.target as HTMLInputElement).checked)"></td>
                       <td><strong class="dv2-link-strong">{{ order.order_no }}</strong><small>#{{ order.order_id }}</small></td>
                       <td><strong>{{ order.doctor_name }}</strong><small>{{ order.patient_name }} · {{ order.patient_code }}</small></td>
                       <td>{{ order.clinic_name }}</td><td><strong>{{ productNameLabel(order.product_name, order.product_type) }}</strong><small>{{ productTypeLabel(order.product_type) }}</small></td>
                       <td><span v-for="tag in order.tags" :key="tag" class="dv2-tag">{{ tag }}</span><span v-if="!order.tags.length">-</span></td>
                       <td><span :class="`dv2-status is-${statusTone(order.external_status)}`">{{ label(order.external_status) }}</span></td>
                       <td><span :class="{ 'dv2-action-text': order.current_action !== 'NONE' }">{{ label(order.current_action) }}</span></td>
-                      <td><span>{{ compactDoctorDateTime(order.created_at) }}</span><small>到期 {{ order.due_at }}</small></td><td>{{ money(order.quote) }}</td>
+                      <td><span>{{ compactDoctorDateTime(order.created_at) }}</span><small>{{ t('到期 {date}', 'Due {date}', { date: order.due_at }) }}</small></td><td>{{ money(order.quote) }}</td>
                       <td><span class="dv2-row-chevron" aria-hidden="true">›</span></td>
                     </tr>
                   </tbody>
                 </table>
-                <div v-if="!pagedOrders.length" class="dv2-empty">没有符合当前条件的订单</div>
+                <div v-if="!pagedOrders.length" class="dv2-empty">{{ t('没有符合当前条件的订单', 'No orders match the current filters') }}</div>
               </div>
-              <footer class="dv2-pagination"><span>共 {{ orderRows.length }} 项</span><el-pagination v-model:current-page="orderPage" size="small" background layout="prev, pager, next" :page-size="orderPageSize" :total="orderRows.length" /></footer>
+              <footer class="dv2-pagination"><span>{{ t('共 {count} 项', '{count} item(s)', { count: orderRows.length }) }}</span><el-pagination v-model:current-page="orderPage" size="small" background layout="prev, pager, next" :page-size="orderPageSize" :total="orderRows.length" /></footer>
             </div>
           </section>
 
           <section v-else-if="activePage === 'assistant'" class="dv2-assistant" data-testid="doctor-page-assistant">
             <div class="dv2-card dv2-assistant-card">
-              <header><span class="dv2-assistant-mark">✦</span><div><h2>订单助手</h2><p>可查询您当前身份有权查看的订单、账单、物流与消息信息，也可以直接问下单流程、材料、交期等常见问题</p></div></header>
+              <header><span class="dv2-assistant-mark">✦</span><div><h2>{{ t('订单助手', 'Order Assistant') }}</h2><p>{{ t('可查询您当前身份有权查看的订单、账单、物流与消息信息，也可以直接问下单流程、材料、交期等常见问题', 'Ask about orders, billing, shipping, and messages available to your current role, or get help with ordering, materials, and lead times.') }}</p></div></header>
               <div class="dv2-assistant-suggestions">
-                <button v-for="question in ['哪些订单需要我处理？', '查看本周预计到期的订单', '有哪些账单待付款？']" :key="question" type="button" @click="assistantQuestion = question; askAssistant()">{{ question }}</button>
+                <button v-for="question in [t('哪些订单需要我处理？', 'Which orders need my attention?'), t('查看本周预计到期的订单', 'Show orders due this week'), t('有哪些账单待付款？', 'Which bills are awaiting payment?')]" :key="question" type="button" @click="assistantQuestion = question; askAssistant()">{{ question }}</button>
               </div>
               <div class="dv2-assistant-suggestions is-faq">
-                <span class="dv2-assistant-faq-label">常见问题</span>
-                <button v-for="question in ['下单需要提供哪些资料？', '口扫文件支持哪些格式？', '订单大概多久能做好？', '做出来不合适需要返工怎么办？']" :key="question" type="button" @click="askFaq(question)">{{ question }}</button>
+                <span class="dv2-assistant-faq-label">{{ t('常见问题', 'FAQs') }}</span>
+                <button v-for="question in [t('下单需要提供哪些资料？', 'What information is required to place an order?'), t('口扫文件支持哪些格式？', 'Which intraoral scan formats are supported?'), t('订单大概多久能做好？', 'How long will my order take?'), t('做出来不合适需要返工怎么办？', 'What if the product needs a remake?')]" :key="question" type="button" @click="askFaq(question)">{{ question }}</button>
               </div>
               <div class="dv2-chat-stream">
                 <article v-for="(message, index) in assistantMessages" :key="index" :class="{ self: message.role === 'SELF' }">
-                  <span>{{ message.role === 'SELF' ? (account?.display_name || '我').slice(0, 1) : '✦' }}</span>
-                  <div><p>{{ message.content }}</p><button v-for="orderId in message.orderIds" :key="orderId" type="button" @click="openGlobalOrder(orderId)">查看 {{ dataset.orders.find((item) => item.order_id === orderId)?.order_no }} →</button></div>
+                  <span>{{ message.role === 'SELF' ? (account?.display_name || t('我', 'Me')).slice(0, 1) : '✦' }}</span>
+                  <div><p>{{ message.content }}</p><button v-for="orderId in message.orderIds" :key="orderId" type="button" @click="openGlobalOrder(orderId)">{{ t('查看', 'View') }} {{ dataset.orders.find((item) => item.order_id === orderId)?.order_no }} →</button></div>
                 </article>
-                <article v-if="assistantLoading"><span>✦</span><div><p>正在查询…</p></div></article>
+                <article v-if="assistantLoading"><span>✦</span><div><p>{{ t('正在查询…', 'Searching…') }}</p></div></article>
               </div>
-              <form class="dv2-chat-composer" @submit.prevent="askAssistant"><textarea v-model="assistantQuestion" rows="2" placeholder="输入订单号、患者编号或您想查询的问题…" /><button type="submit" :disabled="assistantLoading || !assistantQuestion.trim()">发送</button></form>
-              <small class="dv2-scope-note">助手仅返回当前身份可见的公开业务信息，结果以订单页面为准。</small>
+              <form class="dv2-chat-composer" @submit.prevent="askAssistant"><textarea v-model="assistantQuestion" rows="2" :placeholder="t('输入订单号、患者编号或您想查询的问题…', 'Enter an order number, patient ID, or your question…')" /><button type="submit" :disabled="assistantLoading || !assistantQuestion.trim()">{{ t('发送', 'Send') }}</button></form>
+              <small class="dv2-scope-note">{{ t('助手仅返回当前身份可见的公开业务信息，结果以订单页面为准。', 'The assistant only returns public business information visible to your current role. Refer to the order page for the final record.') }}</small>
             </div>
           </section>
 
           <section v-else-if="activePage === 'patients'" class="dv2-patients" data-testid="doctor-page-patients">
             <div class="dv2-card dv2-list-card">
-              <div class="dv2-patient-list-tools"><div class="dv2-patient-filters"><button v-for="item in [{ key: 'ALL', label: '全部' }, { key: 'IN_TREATMENT', label: '治疗中' }, { key: 'FOLLOW_UP', label: '待复诊' }, { key: 'TREATMENT_ENDED', label: '治疗结束' }, { key: 'ARCHIVED', label: '已归档' }]" :key="item.key" type="button" :class="{ active: patientStatus === item.key }" @click="patientStatus = item.key as typeof patientStatus">{{ item.label }}</button></div><label class="dv2-field-search"><span>⌕</span><input v-model="patientKeyword" type="search" placeholder="搜索患者姓名、编号、电话或标签"></label></div>
+              <div class="dv2-patient-list-tools"><div class="dv2-patient-filters"><button v-for="item in [{ key: 'ALL', label: t('全部', 'All') }, { key: 'IN_TREATMENT', label: t('治疗中', 'In Treatment') }, { key: 'FOLLOW_UP', label: t('待复诊', 'Follow-up Due') }, { key: 'TREATMENT_ENDED', label: t('治疗结束', 'Treatment Complete') }, { key: 'ARCHIVED', label: t('已归档', 'Archived') }]" :key="item.key" type="button" :class="{ active: patientStatus === item.key }" @click="patientStatus = item.key as typeof patientStatus">{{ item.label }}</button></div><label class="dv2-field-search"><span>⌕</span><input v-model="patientKeyword" type="search" :placeholder="t('搜索患者姓名、编号、电话或标签', 'Search name, patient ID, phone, or tag')"></label></div>
               <div class="dv2-table-wrap">
                 <table class="dv2-table dv2-patient-table">
-                  <thead><tr><th>患者姓名</th><th>诊所</th><th>负责医生</th><th>最近产品</th><th>建档日期</th><th>订单</th><th>治疗状态</th><th>疗程</th><th /></tr></thead>
-                  <tbody><tr v-for="patient in patientRows" :key="patient.patient_id" @dblclick="openPatient(patient.patient_id)"><td><button type="button" class="dv2-link-strong" @click="openPatient(patient.patient_id)">{{ patient.patient_name }}</button><small>{{ patient.patient_code }}<span v-if="patient.tags.length"> · {{ patient.tags.join(' / ') }}</span></small></td><td>{{ patient.clinic_name }}</td><td>{{ patient.doctor_name }}</td><td><span>{{ patient.latest_product_name ? productNameLabel(patient.latest_product_name) : '暂无订单' }}</span><small>{{ patient.latest_order_no || '—' }}</small></td><td>{{ patientDate(patient.created_at) }}</td><td class="is-count">{{ patient.order_count }}</td><td><span :class="`dv2-status is-${patientTreatmentTone(patient)}`">● {{ patientTreatmentLabel(patient) }}</span></td><td><span class="dv2-duration-chip">{{ patientDurationLabel(patient) }}</span></td><td><button type="button" class="dv2-row-action is-boxed" @click="openPatient(patient.patient_id)">编辑</button></td></tr></tbody>
+                  <thead><tr><th>{{ t('患者姓名', 'Patient') }}</th><th>{{ t('诊所', 'Clinic') }}</th><th>{{ t('负责医生', 'Doctor') }}</th><th>{{ t('最近产品', 'Latest Product') }}</th><th>{{ t('建档日期', 'Created') }}</th><th>{{ t('订单', 'Orders') }}</th><th>{{ t('治疗状态', 'Treatment Status') }}</th><th>{{ t('疗程', 'Duration') }}</th><th /></tr></thead>
+                  <tbody><tr v-for="patient in patientRows" :key="patient.patient_id" @dblclick="openPatient(patient.patient_id)"><td><button type="button" class="dv2-link-strong" @click="openPatient(patient.patient_id)">{{ patient.patient_name }}</button><small>{{ patient.patient_code }}<span v-if="patient.tags.length"> · {{ patient.tags.join(' / ') }}</span></small></td><td>{{ patient.clinic_name }}</td><td>{{ patient.doctor_name }}</td><td><span>{{ patient.latest_product_name ? productNameLabel(patient.latest_product_name) : t('暂无订单', 'No orders') }}</span><small>{{ patient.latest_order_no || '—' }}</small></td><td>{{ patientDate(patient.created_at) }}</td><td class="is-count">{{ patient.order_count }}</td><td><span :class="`dv2-status is-${patientTreatmentTone(patient)}`">● {{ patientTreatmentLabel(patient) }}</span></td><td><span class="dv2-duration-chip">{{ patientDurationLabel(patient) }}</span></td><td><button type="button" class="dv2-row-action is-boxed" @click="openPatient(patient.patient_id)">{{ t('编辑', 'Edit') }}</button></td></tr></tbody>
                 </table>
-                <div v-if="!patientRows.length" class="dv2-empty">没有符合当前条件的患者</div>
+                <div v-if="!patientRows.length" class="dv2-empty">{{ t('没有符合当前条件的患者', 'No patients match the current filters') }}</div>
               </div>
-              <footer class="dv2-pagination"><span>共 {{ patientRows.length }} 位患者 · 点击姓名查看完整档案与历史订单</span></footer>
+              <footer class="dv2-pagination"><span>{{ t('共 {count} 位患者 · 点击姓名查看完整档案与历史订单', '{count} patient(s) · Select a name to view the full record and order history', { count: patientRows.length }) }}</span></footer>
             </div>
           </section>
 
           <section v-else-if="activePage === 'billing'" class="dv2-billing" data-testid="doctor-page-billing">
             <div class="dv2-billing-stats"><article v-for="item in billingStats" :key="item.label" :class="`is-${item.tone}`"><small>{{ item.label }}</small><strong>{{ item.value }}</strong><span>{{ item.note }}</span></article></div>
-            <div class="dv2-billing-alert"><span>!</span><p><strong>账期提示</strong> 按单结算订单需在到期日前完成付款；逾期账单可能影响后续发货安排。</p></div>
-            <div class="dv2-tabbar dv2-billing-tabs"><button v-for="item in [{ key: 'perOrder', label: '按单结算' }, { key: 'monthly', label: '月结账单' }, { key: 'invoiceRefund', label: '发票与退款' }, { key: 'logistics', label: '物流追踪' }]" :key="item.key" type="button" :class="{ active: billingTab === item.key }" @click="billingTab = item.key as typeof billingTab">{{ item.label }}</button></div>
+            <div class="dv2-billing-alert"><span>!</span><p><strong>{{ t('账期提示', 'Payment Notice') }}</strong> {{ t('按单结算订单需在到期日前完成付款；逾期账单可能影响后续发货安排。', 'Per-order bills must be paid by the due date. Overdue bills may affect shipment scheduling.') }}</p></div>
+            <div class="dv2-tabbar dv2-billing-tabs"><button v-for="item in [{ key: 'perOrder', label: t('按单结算', 'Per Order') }, { key: 'monthly', label: t('月结账单', 'Monthly Statements') }, { key: 'invoiceRefund', label: t('发票与退款', 'Invoices & Refunds') }, { key: 'logistics', label: t('物流追踪', 'Shipment Tracking') }]" :key="item.key" type="button" :class="{ active: billingTab === item.key }" @click="billingTab = item.key as typeof billingTab">{{ item.label }}</button></div>
             <div class="dv2-card dv2-list-card">
               <template v-if="billingTab === 'perOrder'">
-                <div class="dv2-list-toolbar"><div><strong>按单结算</strong><small>按单付款的订单需结清后发货</small></div><div class="dv2-patient-filters"><button v-for="item in [{ key: 'ALL', label: '全部' }, { key: 'UNPAID', label: '待支付' }, { key: 'OVERDUE', label: '已逾期' }, { key: 'PAID', label: '已支付' }]" :key="item.key" type="button" :class="{ active: billingStatus === item.key }" @click="billingStatus = item.key as typeof billingStatus">{{ item.label }}</button></div></div>
-                <div class="dv2-table-wrap"><table class="dv2-table"><thead><tr><th>账单 / 订单</th><th>诊所 / 医生</th><th>产品</th><th>账单金额</th><th>已付</th><th>待付</th><th>状态</th><th>到期</th><th /></tr></thead><tbody><tr v-for="bill in billingRows.filter((item) => item.settlement_type === 'PER_ORDER')" :key="bill.bill_id"><td><strong>{{ bill.bill_id }}</strong><small>{{ bill.order_no }}</small></td><td>{{ bill.clinic_name }}<small>{{ bill.doctor_name }}</small></td><td>{{ productNameLabel(bill.product_name) }}</td><td>{{ money(bill.amount) }}</td><td>{{ money(bill.paid) }}</td><td>{{ money(bill.outstanding) }}</td><td><span :class="`dv2-status is-${statusTone(bill.payment_status)}`">{{ bill.outstanding.amount_minor > 0 && bill.due_at < dashboardToday ? '已逾期' : label(bill.payment_status) }}</span></td><td>{{ bill.due_at }}</td><td><button v-if="bill.allowed_actions.includes('PAY_BILL')" type="button" class="dv2-row-action is-primary" @click="ElMessage.info('在线付款暂未开放，请联系订单支持')">去付款</button><button v-else type="button" class="dv2-row-action" @click="openOrder(bill.order_id)">查看订单</button></td></tr></tbody></table><div v-if="!billingRows.some((item) => item.settlement_type === 'PER_ORDER')" class="dv2-empty">暂无符合筛选条件的账单</div></div>
+                <div class="dv2-list-toolbar"><div><strong>{{ t('按单结算', 'Per-order Billing') }}</strong><small>{{ t('按单付款的订单需结清后发货', 'Per-order bills must be paid before shipment') }}</small></div><div class="dv2-patient-filters"><button v-for="item in [{ key: 'ALL', label: t('全部', 'All') }, { key: 'UNPAID', label: t('待支付', 'Unpaid') }, { key: 'OVERDUE', label: t('已逾期', 'Overdue') }, { key: 'PAID', label: t('已支付', 'Paid') }]" :key="item.key" type="button" :class="{ active: billingStatus === item.key }" @click="billingStatus = item.key as typeof billingStatus">{{ item.label }}</button></div></div>
+                <div class="dv2-table-wrap"><table class="dv2-table"><thead><tr><th>{{ t('账单 / 订单', 'Bill / Order') }}</th><th>{{ t('诊所 / 医生', 'Clinic / Doctor') }}</th><th>{{ t('产品', 'Product') }}</th><th>{{ t('账单金额', 'Amount') }}</th><th>{{ t('已付', 'Paid') }}</th><th>{{ t('待付', 'Outstanding') }}</th><th>{{ t('状态', 'Status') }}</th><th>{{ t('到期', 'Due') }}</th><th /></tr></thead><tbody><tr v-for="bill in billingRows.filter((item) => item.settlement_type === 'PER_ORDER')" :key="bill.bill_id"><td><strong>{{ bill.bill_id }}</strong><small>{{ bill.order_no }}</small></td><td>{{ bill.clinic_name }}<small>{{ bill.doctor_name }}</small></td><td>{{ productNameLabel(bill.product_name) }}</td><td>{{ money(bill.amount) }}</td><td>{{ money(bill.paid) }}</td><td>{{ money(bill.outstanding) }}</td><td><span :class="`dv2-status is-${statusTone(bill.payment_status)}`">{{ bill.outstanding.amount_minor > 0 && bill.due_at < dashboardToday ? t('已逾期', 'Overdue') : label(bill.payment_status) }}</span></td><td>{{ bill.due_at }}</td><td><button v-if="bill.allowed_actions.includes('PAY_BILL')" type="button" class="dv2-row-action is-primary" @click="ElMessage.info(t('在线付款暂未开放，请联系订单支持', 'Online payment is not available yet. Please contact Order Support.'))">{{ t('去付款', 'Pay Now') }}</button><button v-else type="button" class="dv2-row-action" @click="openOrder(bill.order_id)">{{ t('查看订单', 'View Order') }}</button></td></tr></tbody></table><div v-if="!billingRows.some((item) => item.settlement_type === 'PER_ORDER')" class="dv2-empty">{{ t('暂无符合筛选条件的账单', 'No bills match the current filters') }}</div></div>
               </template>
               <template v-else-if="billingTab === 'monthly'">
-                <div class="dv2-list-toolbar"><div><strong>月结账单</strong><small>月结订单可先发货，在账期内统一结算</small></div></div>
-                <div class="dv2-table-wrap"><table class="dv2-table"><thead><tr><th>账期</th><th>诊所</th><th>订单数</th><th>账单总额</th><th>已付</th><th>待付</th><th>状态</th><th>到期日</th><th /></tr></thead><tbody><tr v-for="statement in dataset.statements" :key="statement.statement_id"><td><strong>{{ statement.period }}</strong><small>{{ statement.statement_id }}</small></td><td>{{ statement.clinic_name }}</td><td>{{ statement.order_count }}</td><td>{{ money(statement.total) }}</td><td>{{ money(statement.paid) }}</td><td>{{ money(statement.balance) }}</td><td><span :class="`dv2-status is-${statusTone(statement.status)}`">{{ label(statement.status) }}</span></td><td>{{ statement.due_at }}</td><td><button type="button" class="dv2-row-action">查看明细 →</button></td></tr></tbody></table><div v-if="!dataset.statements.length" class="dv2-empty">暂无月结账单</div></div>
+                <div class="dv2-list-toolbar"><div><strong>{{ t('月结账单', 'Monthly Statements') }}</strong><small>{{ t('月结订单可先发货，在账期内统一结算', 'Monthly-account orders can ship before payment and are settled within the billing period') }}</small></div></div>
+                <div class="dv2-table-wrap"><table class="dv2-table"><thead><tr><th>{{ t('账期', 'Billing Period') }}</th><th>{{ t('诊所', 'Clinic') }}</th><th>{{ t('订单数', 'Orders') }}</th><th>{{ t('账单总额', 'Total') }}</th><th>{{ t('已付', 'Paid') }}</th><th>{{ t('待付', 'Outstanding') }}</th><th>{{ t('状态', 'Status') }}</th><th>{{ t('到期日', 'Due Date') }}</th><th /></tr></thead><tbody><tr v-for="statement in dataset.statements" :key="statement.statement_id"><td><strong>{{ statement.period }}</strong><small>{{ statement.statement_id }}</small></td><td>{{ statement.clinic_name }}</td><td>{{ statement.order_count }}</td><td>{{ money(statement.total) }}</td><td>{{ money(statement.paid) }}</td><td>{{ money(statement.balance) }}</td><td><span :class="`dv2-status is-${statusTone(statement.status)}`">{{ label(statement.status) }}</span></td><td>{{ statement.due_at }}</td><td><button type="button" class="dv2-row-action">{{ t('查看明细', 'View Details') }} →</button></td></tr></tbody></table><div v-if="!dataset.statements.length" class="dv2-empty">{{ t('暂无月结账单', 'No monthly statements') }}</div></div>
               </template>
               <template v-else-if="billingTab === 'invoiceRefund'">
-                <div class="dv2-list-toolbar"><div><strong>发票与退款</strong><small>集中查看发票开具和退款申请进度</small></div><button type="button" class="dv2-secondary-button" :disabled="bulkInvoiceDownloading || downloadableInvoiceRefunds.length === 0" @click="downloadAllInvoices">{{ bulkInvoiceDownloading ? '下载中…' : `下载全部 (${downloadableInvoiceRefunds.length})` }}</button><button type="button" class="dv2-secondary-button" @click="ElMessage.info('在线申请暂未开放，请联系订单支持')">＋ 发起申请</button></div>
-                <div class="dv2-table-wrap"><table class="dv2-table"><thead><tr><th>记录号</th><th>类型</th><th>关联编号</th><th>抬头 / 说明</th><th>金额</th><th>状态</th><th>申请时间</th><th /></tr></thead><tbody><tr v-for="record in dataset.invoiceRefunds" :key="record.record_id"><td><strong>{{ record.record_id }}</strong></td><td>{{ record.kind === 'INVOICE' ? '发票' : '退款' }}</td><td>{{ record.related_no }}</td><td>{{ record.title }}</td><td>{{ money(record.amount) }}</td><td><span :class="`dv2-status is-${statusTone(record.status)}`">{{ label(record.status) }}</span></td><td>{{ record.created_at }}</td><td><button type="button" class="dv2-row-action" @click="downloadInvoice(record.record_id)">{{ record.kind === 'INVOICE' ? '下载 PDF' : '下载记录' }} →</button></td></tr></tbody></table><div v-if="!dataset.invoiceRefunds.length" class="dv2-empty">暂无发票或退款记录</div></div>
+                <div class="dv2-list-toolbar"><div><strong>{{ t('发票与退款', 'Invoices & Refunds') }}</strong><small>{{ t('集中查看发票开具和退款申请进度', 'Track invoice issuance and refund requests in one place') }}</small></div><button type="button" class="dv2-secondary-button" :disabled="bulkInvoiceDownloading || downloadableInvoiceRefunds.length === 0" @click="downloadAllInvoices">{{ bulkInvoiceDownloading ? t('下载中…', 'Downloading…') : t('下载全部 ({count})', 'Download All ({count})', { count: downloadableInvoiceRefunds.length }) }}</button><button type="button" class="dv2-secondary-button" @click="ElMessage.info(t('在线申请暂未开放，请联系订单支持', 'Online requests are not available yet. Please contact Order Support.'))">＋ {{ t('发起申请', 'New Request') }}</button></div>
+                <div class="dv2-table-wrap"><table class="dv2-table"><thead><tr><th>{{ t('记录号', 'Record ID') }}</th><th>{{ t('类型', 'Type') }}</th><th>{{ t('关联编号', 'Related ID') }}</th><th>{{ t('抬头 / 说明', 'Title / Description') }}</th><th>{{ t('金额', 'Amount') }}</th><th>{{ t('状态', 'Status') }}</th><th>{{ t('申请时间', 'Requested') }}</th><th /></tr></thead><tbody><tr v-for="record in dataset.invoiceRefunds" :key="record.record_id"><td><strong>{{ record.record_id }}</strong></td><td>{{ record.kind === 'INVOICE' ? t('发票', 'Invoice') : t('退款', 'Refund') }}</td><td>{{ record.related_no }}</td><td>{{ record.title }}</td><td>{{ money(record.amount) }}</td><td><span :class="`dv2-status is-${statusTone(record.status)}`">{{ label(record.status) }}</span></td><td>{{ record.created_at }}</td><td><button type="button" class="dv2-row-action" @click="downloadInvoice(record.record_id)">{{ record.kind === 'INVOICE' ? t('下载 PDF', 'Download PDF') : t('下载记录', 'Download Record') }} →</button></td></tr></tbody></table><div v-if="!dataset.invoiceRefunds.length" class="dv2-empty">{{ t('暂无发票或退款记录', 'No invoice or refund records') }}</div></div>
               </template>
               <template v-else>
-                <div class="dv2-list-toolbar"><div><strong>物流</strong><small>物流信息仅在此处集中展示；已送达后需医生确认收货</small></div><label class="dv2-field-search is-small"><span>⌕</span><input type="search" placeholder="搜索订单或运单号"></label></div>
-                <div class="dv2-table-wrap"><table class="dv2-table"><thead><tr><th>订单</th><th>产品</th><th>物流公司</th><th>运单号</th><th>物流状态</th><th>更新时间</th><th /></tr></thead><tbody><tr v-for="item in dataset.logistics" :key="item.logistics_id"><td><strong>{{ item.order_no }}</strong></td><td>{{ productNameLabel(item.product_name) }}</td><td>{{ item.carrier }}</td><td class="dv2-mono">{{ item.tracking_no }}</td><td><span :class="`dv2-status is-${statusTone(item.status)}`">{{ label(item.status) }}</span></td><td>{{ item.updated_at }}</td><td><button v-if="item.can_confirm_receipt" type="button" class="dv2-row-action is-primary" @click="confirmReceipt(item)">确认收货</button><button v-else type="button" class="dv2-row-action" @click="openLogistics(item)">物流详情 →</button></td></tr></tbody></table><div v-if="!dataset.logistics.length" class="dv2-empty">暂无物流记录</div></div>
+                <div class="dv2-list-toolbar"><div><strong>{{ t('物流', 'Shipments') }}</strong><small>{{ t('物流信息仅在此处集中展示；已送达后需医生确认收货', 'Shipment details are shown here. The doctor must confirm receipt after delivery.') }}</small></div><label class="dv2-field-search is-small"><span>⌕</span><input type="search" :placeholder="t('搜索订单或运单号', 'Search order or tracking number')"></label></div>
+                <div class="dv2-table-wrap"><table class="dv2-table"><thead><tr><th>{{ t('订单', 'Order') }}</th><th>{{ t('产品', 'Product') }}</th><th>{{ t('物流公司', 'Carrier') }}</th><th>{{ t('运单号', 'Tracking Number') }}</th><th>{{ t('物流状态', 'Shipment Status') }}</th><th>{{ t('更新时间', 'Updated') }}</th><th /></tr></thead><tbody><tr v-for="item in dataset.logistics" :key="item.logistics_id"><td><strong>{{ item.order_no }}</strong></td><td>{{ productNameLabel(item.product_name) }}</td><td>{{ item.carrier }}</td><td class="dv2-mono">{{ item.tracking_no }}</td><td><span :class="`dv2-status is-${statusTone(item.status)}`">{{ label(item.status) }}</span></td><td>{{ item.updated_at }}</td><td><button v-if="item.can_confirm_receipt" type="button" class="dv2-row-action is-primary" @click="confirmReceipt(item)">{{ t('确认收货', 'Confirm Receipt') }}</button><button v-else type="button" class="dv2-row-action" @click="openLogistics(item)">{{ t('物流详情', 'Shipment Details') }} →</button></td></tr></tbody></table><div v-if="!dataset.logistics.length" class="dv2-empty">{{ t('暂无物流记录', 'No shipment records') }}</div></div>
               </template>
             </div>
           </section>
@@ -2246,30 +2370,30 @@ onBeforeUnmount(() => window.removeEventListener('keydown', handleGlobalShortcut
           <section v-else-if="activePage === 'messages'" class="dv2-messages" data-testid="doctor-page-messages">
             <div class="dv2-message-layout">
               <aside class="dv2-thread-panel">
-                <div class="dv2-thread-search"><label><span>⌕</span><input v-model="messageKeyword" type="search" placeholder="搜索订单、患者或消息"></label><div><button v-for="item in [{ key: 'ALL', label: '全部' }, { key: 'UNREAD', label: '未读' }, { key: 'READ', label: '已读' }]" :key="item.key" type="button" :class="{ active: messageFilter === item.key }" @click="messageFilter = item.key as typeof messageFilter">{{ item.label }}</button></div></div>
-                <button v-for="thread in filteredThreads" :key="thread.thread_id" type="button" class="dv2-thread-row" :class="{ active: activeThread?.thread_id === thread.thread_id }" title="右键标记为未读" @click="chooseThread(thread.thread_id)" @contextmenu.prevent="markThreadUnread(thread.thread_id)"><span class="dv2-thread-avatar">{{ productNameLabel(thread.product_name).slice(0, 1) }}</span><div><strong>{{ thread.patient_name }} · {{ productNameLabel(thread.product_name) }}</strong><small>{{ thread.order_no }}</small><p>{{ thread.latest_message }}</p></div><time>{{ thread.latest_at }}</time><i v-if="thread.unread" /></button>
-                <div v-if="!filteredThreads.length" class="dv2-empty">没有符合筛选条件的沟通</div>
+                <div class="dv2-thread-search"><label><span>⌕</span><input v-model="messageKeyword" type="search" :placeholder="t('搜索订单、患者或消息', 'Search orders, patients, or messages')"></label><div><button v-for="item in [{ key: 'ALL', label: t('全部', 'All') }, { key: 'UNREAD', label: t('未读', 'Unread') }, { key: 'READ', label: t('已读', 'Read') }]" :key="item.key" type="button" :class="{ active: messageFilter === item.key }" @click="messageFilter = item.key as typeof messageFilter">{{ item.label }}</button></div></div>
+                <button v-for="thread in filteredThreads" :key="thread.thread_id" type="button" class="dv2-thread-row" :class="{ active: activeThread?.thread_id === thread.thread_id }" :title="t('右键标记为未读', 'Right-click to mark unread')" @click="chooseThread(thread.thread_id)" @contextmenu.prevent="markThreadUnread(thread.thread_id)"><span class="dv2-thread-avatar">{{ productNameLabel(thread.product_name).slice(0, 1) }}</span><div><strong>{{ thread.patient_name }} · {{ productNameLabel(thread.product_name) }}</strong><small>{{ thread.order_no }}</small><p>{{ thread.latest_message }}</p></div><time>{{ thread.latest_at }}</time><i v-if="thread.unread" /></button>
+                <div v-if="!filteredThreads.length" class="dv2-empty">{{ t('没有符合筛选条件的沟通', 'No conversations match the current filters') }}</div>
               </aside>
               <section v-if="activeThread" class="dv2-conversation">
-                <header><div><h2>{{ activeThread.patient_name }} · {{ productNameLabel(activeThread.product_name) }}</h2><p>{{ activeThread.order_no }} <span class="dv2-translation-chip">A/文 可翻译</span></p></div><button type="button" class="dv2-secondary-button" @click="openGlobalOrder(activeThread.order_id)">查看订单</button></header>
+                <header><div><h2>{{ activeThread.patient_name }} · {{ productNameLabel(activeThread.product_name) }}</h2><p>{{ activeThread.order_no }} <span class="dv2-translation-chip">A/文 {{ t('可翻译', 'Translation available') }}</span></p></div><button type="button" class="dv2-secondary-button" @click="openGlobalOrder(activeThread.order_id)">{{ t('查看订单', 'View Order') }}</button></header>
                 <div class="dv2-message-stream">
-                  <article v-for="message in activeThread.messages" :key="message.message_id" :class="{ self: message.sender === 'SELF' }"><span>{{ message.sender === 'SELF' ? (account?.display_name || '我').slice(0, 1) : '单' }}</span><div><small>{{ message.sender === 'SELF' ? '我' : '订单服务' }} · {{ message.sent_at }}</small><p>{{ message.content }}</p><section v-if="message.review" class="dv2-review-card"><header><div><strong>{{ reviewLabel(message.review.review_type) }}</strong><small>当前版本 V{{ message.review.current_version }}</small></div><span :class="`dv2-status is-${statusTone(message.review.status)}`">{{ label(message.review.status) }}</span></header><div class="dv2-version-list"><article v-for="version in [...message.review.versions].reverse()" :key="version.version"><div><strong>V{{ version.version }}</strong><span>{{ label(version.status) }}</span><small>{{ version.submitted_at }}</small></div><button v-for="attachment in version.files" :key="attachment.file_id" type="button" @click="previewFile(attachment)"><i>{{ attachment.kind }}</i><span>{{ attachment.name }}<small>{{ attachment.size_label }}</small></span><em>预览</em></button><p v-if="version.doctor_comment">医生意见：{{ version.doctor_comment }}</p></article></div><footer v-if="message.review.status === 'PENDING_REVIEW'"><template v-if="canReview && message.review.allowed_actions.some((action) => ['APPROVE_REVIEW', 'REJECT_REVIEW'].includes(action))"><button v-if="message.review.allowed_actions.includes('REJECT_REVIEW')" type="button" class="dv2-danger-button" :disabled="reviewSubmitting" @click="startReviewDecision(activeThread.order_id, message.review, 'REJECT')">驳回并留言</button><button v-if="message.review.allowed_actions.includes('APPROVE_REVIEW')" type="button" class="dv2-primary-button" :disabled="reviewSubmitting" @click="startReviewDecision(activeThread.order_id, message.review, 'APPROVE')">同意当前版本</button></template><p v-else>当前账号不能执行此操作。</p></footer></section></div></article>
+                  <article v-for="message in activeThread.messages" :key="message.message_id" :class="{ self: message.sender === 'SELF' }"><span>{{ message.sender === 'SELF' ? (account?.display_name || t('我', 'Me')).slice(0, 1) : 'S' }}</span><div><small>{{ message.sender === 'SELF' ? t('我', 'Me') : t('订单服务', 'Order Support') }} · {{ message.sent_at }}</small><p>{{ message.content }}</p><section v-if="message.review" class="dv2-review-card"><header><div><strong>{{ reviewLabel(message.review.review_type) }}</strong><small>{{ t('当前版本 V{version}', 'Current Version V{version}', { version: message.review.current_version }) }}</small></div><span :class="`dv2-status is-${statusTone(message.review.status)}`">{{ label(message.review.status) }}</span></header><div class="dv2-version-list"><article v-for="version in [...message.review.versions].reverse()" :key="version.version"><div><strong>V{{ version.version }}</strong><span>{{ label(version.status) }}</span><small>{{ version.submitted_at }}</small></div><button v-for="attachment in version.files" :key="attachment.file_id" type="button" @click="previewFile(attachment)"><i>{{ attachment.kind }}</i><span>{{ attachment.name }}<small>{{ attachment.size_label }}</small></span><em>{{ t('预览', 'Preview') }}</em></button><p v-if="version.doctor_comment">{{ t('医生意见：', 'Doctor Comment: ') }}{{ version.doctor_comment }}</p></article></div><footer v-if="message.review.status === 'PENDING_REVIEW'"><template v-if="canReview && message.review.allowed_actions.some((action) => ['APPROVE_REVIEW', 'REJECT_REVIEW'].includes(action))"><button v-if="message.review.allowed_actions.includes('REJECT_REVIEW')" type="button" class="dv2-danger-button" :disabled="reviewSubmitting" @click="startReviewDecision(activeThread.order_id, message.review, 'REJECT')">{{ t('驳回并留言', 'Reject & Comment') }}</button><button v-if="message.review.allowed_actions.includes('APPROVE_REVIEW')" type="button" class="dv2-primary-button" :disabled="reviewSubmitting" @click="startReviewDecision(activeThread.order_id, message.review, 'APPROVE')">{{ t('同意当前版本', 'Approve Version') }}</button></template><p v-else>{{ t('当前账号不能执行此操作。', 'Your current account cannot perform this action.') }}</p></footer></section></div></article>
                 </div>
-                <div class="dv2-quick-replies"><span>快捷回复</span><button v-for="reply in ['收到，我会尽快确认。', '请补充一张更清晰的照片。', '请按当前版本继续。']" :key="reply" type="button" @click="messageDraft = reply">{{ reply }}</button></div>
-                <form class="dv2-message-composer" @submit.prevent="sendMessage"><textarea v-model="messageDraft" rows="2" placeholder="输入订单沟通内容…" @keydown.ctrl.enter.prevent="sendMessage" /><footer><span>Ctrl + Enter 发送</span><button type="submit" :disabled="sendingMessage || !messageDraft.trim()">发送</button></footer></form>
+                <div class="dv2-quick-replies"><span>{{ t('快捷回复', 'Quick Replies') }}</span><button v-for="reply in [t('收到，我会尽快确认。', 'Received. I will review it shortly.'), t('请补充一张更清晰的照片。', 'Please provide a clearer photo.'), t('请按当前版本继续。', 'Please proceed with the current version.')]" :key="reply" type="button" @click="messageDraft = reply">{{ reply }}</button></div>
+                <form class="dv2-message-composer" @submit.prevent="sendMessage"><textarea v-model="messageDraft" rows="2" :placeholder="t('输入订单沟通内容…', 'Enter your order message…')" @keydown.ctrl.enter.prevent="sendMessage" /><footer><span>{{ t('Ctrl + Enter 发送', 'Ctrl + Enter to send') }}</span><button type="submit" :disabled="sendingMessage || !messageDraft.trim()">{{ t('发送', 'Send') }}</button></footer></form>
               </section>
-              <div v-else class="dv2-empty dv2-no-thread">请选择一条沟通</div>
+              <div v-else class="dv2-empty dv2-no-thread">{{ t('请选择一条沟通', 'Select a conversation') }}</div>
             </div>
           </section>
 
           <section v-else-if="activePage === 'account'" class="dv2-account" data-testid="doctor-page-account">
             <div class="dv2-account-page">
-              <div class="dv2-tabbar dv2-settings-tabs"><button v-for="item in [{ key: 'profile', label: '账户与诊所', note: '基本资料和诊所信息' }, { key: 'members', label: '成员与权限', note: '诊所成员和角色范围' }, { key: 'notifications', label: '通知偏好', note: '站内与邮件提醒' }, { key: 'security', label: '安全设置', note: '密码和登录安全' }]" :key="item.key" type="button" :class="{ active: accountTab === item.key }" @click="accountTab = item.key as typeof accountTab"><strong>{{ item.label }}</strong></button></div>
+              <div class="dv2-tabbar dv2-settings-tabs"><button v-for="item in [{ key: 'profile', label: t('账户与诊所', 'Account & Clinic') }, { key: 'members', label: t('成员与权限', 'Members & Access') }, { key: 'notifications', label: t('通知偏好', 'Notifications') }, { key: 'security', label: t('安全设置', 'Security') }]" :key="item.key" type="button" :class="{ active: accountTab === item.key }" @click="accountTab = item.key as typeof accountTab"><strong>{{ item.label }}</strong></button></div>
               <section class="dv2-card dv2-settings-content">
-                <template v-if="accountTab === 'profile'"><header><div><h2>账户与诊所</h2><p>维护对外展示、账单和配送所需的基础资料</p></div><button v-if="canManageMembers" type="button" class="dv2-secondary-button" @click="ElMessage.info('新增诊所暂未开放，请联系订单支持')">＋ 添加诊所</button></header><div class="dv2-clinic-selector"><span class="dv2-avatar">{{ dataset.account.clinic_name.slice(0, 1) }}</span><div><small>当前诊所</small><strong>{{ dataset.account.clinic_name }}</strong><p>{{ dataset.account.clinic_address }}</p></div><i>✓</i></div><div class="dv2-form-grid"><label><span>医生姓名</span><input v-model="dataset.account.display_name"></label><label><span>登录邮箱</span><input v-model="dataset.account.email" type="email"></label><label><span>诊所名称</span><input v-model="dataset.account.clinic_name"></label><label><span>诊所联系电话</span><input v-model="dataset.account.clinic_contact"></label><label class="is-full"><span>诊所地址</span><textarea v-model="dataset.account.clinic_address" rows="3" /></label><label><span>账单抬头</span><input :value="dataset.account.clinic_name" @input="dataset.account.clinic_name = ($event.target as HTMLInputElement).value"></label><label><span>配送联系人</span><input :value="dataset.account.display_name" readonly></label><div class="is-full dv2-doc-upload"><span>诊所资质文件</span><button type="button" @click="ElMessage.info('资质文件上传暂未开放，请联系订单支持')">＋ 上传营业执照或医疗机构执业许可证</button></div></div><footer><button type="button" class="dv2-primary-button" @click="saveProfile">保存设置</button></footer></template>
-                <template v-else-if="accountTab === 'members'"><header><div><h2>成员与权限</h2><p>分别设置诊所成员可查看的账单和物流内容</p></div><button v-if="canManageMembers" type="button" class="dv2-primary-button" @click="memberDialogOpen = true">＋ 邀请成员</button></header><div v-if="!canManageMembers" class="dv2-inline-notice">当前身份可查看成员，但只有诊所管理员可以邀请或调整诊所端角色。</div><div class="dv2-member-list"><article v-for="member in dataset.account.members" :key="member.member_id"><span class="dv2-avatar">{{ member.display_name.slice(0, 1) }}</span><div><strong>{{ member.display_name }}</strong><small>{{ member.email }}</small></div><p><span v-for="role in member.roles" :key="role" class="dv2-tag">{{ roleLabels[role] }}</span></p><p><small>账单：{{ member.billing_permission }} · 物流：{{ member.logistics_permission }}</small></p><span :class="`dv2-status is-${statusTone(member.status)}`">{{ label(member.status) }}</span><button type="button" :disabled="!canManageMembers">⋯</button></article><div v-if="!dataset.account.members.length" class="dv2-empty">暂无诊所成员</div></div></template>
-                <template v-else-if="accountTab === 'notifications'"><header><h2>通知偏好</h2><p>分别设置站内通知和邮件提醒</p></header><div class="dv2-preference-table"><div class="head"><strong>通知类型</strong><span>站内</span><span>邮件</span></div><div v-for="(preference, key) in dataset.account.notification_preferences" :key="key"><strong>{{ ({ ORDER_STATUS: '订单状态', REVIEW_REQUEST: '确认事项', MESSAGE: '订单消息', BILLING: '账单提醒', LOGISTICS: '物流提醒' } as Record<string, string>)[key] || key }}</strong><el-switch v-model="preference.in_app" /><el-switch v-model="preference.email" /></div><div v-if="!Object.keys(dataset.account.notification_preferences).length" class="dv2-empty">暂无可设置的通知</div></div><footer><button type="button" class="dv2-primary-button" @click="saveProfile">保存偏好</button></footer></template>
-                <template v-else><header><h2>安全设置</h2><p>更新登录密码并保持账户安全</p></header><div class="dv2-form-stack"><label><span>当前密码</span><input v-model="passwordForm.current" type="password" autocomplete="current-password"></label><label><span>新密码</span><input v-model="passwordForm.next" type="password" autocomplete="new-password"><small>至少 8 位，建议包含大小写字母和数字</small></label><label><span>确认新密码</span><input v-model="passwordForm.confirm" type="password" autocomplete="new-password"></label></div><footer><button type="button" class="dv2-primary-button" @click="updatePassword">更新密码</button></footer></template>
+                <template v-if="accountTab === 'profile'"><header><div><h2>{{ t('账户与诊所', 'Account & Clinic') }}</h2><p>{{ t('维护对外展示、账单和配送所需的基础资料', 'Maintain profile, billing, and delivery information') }}</p></div><button v-if="canManageMembers" type="button" class="dv2-secondary-button" @click="ElMessage.info(t('新增诊所暂未开放，请联系订单支持', 'Adding clinics is not available yet. Please contact Order Support.'))">＋ {{ t('添加诊所', 'Add Clinic') }}</button></header><div class="dv2-clinic-selector"><span class="dv2-avatar">{{ dataset.account.clinic_name.slice(0, 1) }}</span><div><small>{{ t('当前诊所', 'Current Clinic') }}</small><strong>{{ dataset.account.clinic_name }}</strong><p>{{ dataset.account.clinic_address }}</p></div><i>✓</i></div><div class="dv2-form-grid"><label><span>{{ t('医生姓名', 'Doctor Name') }}</span><input v-model="dataset.account.display_name"></label><label><span>{{ t('登录邮箱', 'Login Email') }}</span><input v-model="dataset.account.email" type="email"></label><label><span>{{ t('诊所名称', 'Clinic Name') }}</span><input v-model="dataset.account.clinic_name"></label><label><span>{{ t('诊所联系电话', 'Clinic Phone') }}</span><input v-model="dataset.account.clinic_contact"></label><label class="is-full"><span>{{ t('诊所地址', 'Clinic Address') }}</span><textarea v-model="dataset.account.clinic_address" rows="3" /></label><label><span>{{ t('账单抬头', 'Billing Name') }}</span><input :value="dataset.account.clinic_name" @input="dataset.account.clinic_name = ($event.target as HTMLInputElement).value"></label><label><span>{{ t('配送联系人', 'Delivery Contact') }}</span><input :value="dataset.account.display_name" readonly></label><div class="is-full dv2-doc-upload"><span>{{ t('诊所资质文件', 'Clinic Credentials') }}</span><button type="button" @click="ElMessage.info(t('资质文件上传暂未开放，请联系订单支持', 'Credential upload is not available yet. Please contact Order Support.'))">＋ {{ t('上传营业执照或医疗机构执业许可证', 'Upload a business or medical institution license') }}</button></div></div><footer><button type="button" class="dv2-primary-button" @click="saveProfile">{{ t('保存设置', 'Save Settings') }}</button></footer></template>
+                <template v-else-if="accountTab === 'members'"><header><div><h2>{{ t('成员与权限', 'Members & Access') }}</h2><p>{{ t('分别设置诊所成员可查看的账单和物流内容', 'Control billing and shipment access for each clinic member') }}</p></div><button v-if="canManageMembers" type="button" class="dv2-primary-button" @click="memberDialogOpen = true">＋ {{ t('邀请成员', 'Invite Member') }}</button></header><div v-if="!canManageMembers" class="dv2-inline-notice">{{ t('当前身份可查看成员，但只有诊所管理员可以邀请或调整诊所端角色。', 'You can view members, but only a Clinic Administrator can invite members or change clinic roles.') }}</div><div class="dv2-member-list"><article v-for="member in dataset.account.members" :key="member.member_id"><span class="dv2-avatar">{{ member.display_name.slice(0, 1) }}</span><div><strong>{{ member.display_name }}</strong><small>{{ member.email }}</small></div><p><span v-for="role in member.roles" :key="role" class="dv2-tag">{{ roleLabel(role) }}</span></p><p><small>{{ t('账单：{billing} · 物流：{logistics}', 'Billing: {billing} · Shipments: {logistics}', { billing: member.billing_permission, logistics: member.logistics_permission }) }}</small></p><span :class="`dv2-status is-${statusTone(member.status)}`">{{ label(member.status) }}</span><button type="button" :disabled="!canManageMembers">⋯</button></article><div v-if="!dataset.account.members.length" class="dv2-empty">{{ t('暂无诊所成员', 'No clinic members') }}</div></div></template>
+                <template v-else-if="accountTab === 'notifications'"><header><h2>{{ t('通知偏好', 'Notification Preferences') }}</h2><p>{{ t('分别设置站内通知和邮件提醒', 'Configure in-app and email notifications') }}</p></header><div class="dv2-preference-table"><div class="head"><strong>{{ t('通知类型', 'Notification Type') }}</strong><span>{{ t('站内', 'In App') }}</span><span>{{ t('邮件', 'Email') }}</span></div><div v-for="(preference, key) in dataset.account.notification_preferences" :key="key"><strong>{{ notificationPreferenceLabel(key) }}</strong><el-switch v-model="preference.in_app" /><el-switch v-model="preference.email" /></div><div v-if="!Object.keys(dataset.account.notification_preferences).length" class="dv2-empty">{{ t('暂无可设置的通知', 'No notification preferences available') }}</div></div><footer><button type="button" class="dv2-primary-button" @click="saveProfile">{{ t('保存偏好', 'Save Preferences') }}</button></footer></template>
+                <template v-else><header><h2>{{ t('安全设置', 'Security') }}</h2><p>{{ t('更新登录密码并保持账户安全', 'Update your password and keep your account secure') }}</p></header><div class="dv2-form-stack"><label><span>{{ t('当前密码', 'Current Password') }}</span><input v-model="passwordForm.current" type="password" autocomplete="current-password"></label><label><span>{{ t('新密码', 'New Password') }}</span><input v-model="passwordForm.next" type="password" autocomplete="new-password"><small>{{ t('至少 8 位，建议包含大小写字母和数字', 'Use at least 8 characters with uppercase, lowercase, and numbers') }}</small></label><label><span>{{ t('确认新密码', 'Confirm New Password') }}</span><input v-model="passwordForm.confirm" type="password" autocomplete="new-password"></label></div><footer><button type="button" class="dv2-primary-button" @click="updatePassword">{{ t('更新密码', 'Update Password') }}</button></footer></template>
               </section>
             </div>
           </section>
@@ -2278,66 +2402,66 @@ onBeforeUnmount(() => window.removeEventListener('keydown', handleGlobalShortcut
     </section>
 
     <div v-if="notificationOpen" class="dv2-drawer-mask" @mousedown.self="notificationOpen = false">
-      <aside class="dv2-notification-drawer" data-testid="doctor-notification-drawer"><header><div><h2>通知中心</h2><p>{{ unreadCount }} 条未读通知</p></div><button type="button" aria-label="关闭通知中心" @click="notificationOpen = false">×</button></header><div class="dv2-notification-tools"><label><span>⌕</span><input v-model="notificationKeyword" type="search" placeholder="搜索通知"></label><button type="button" @click="markAllNotifications">全部已读</button></div><div class="dv2-chip-row"><button v-for="item in [{ key: 'ALL', label: '全部' }, { key: 'UNREAD', label: '未读' }, { key: 'READ', label: '已读' }]" :key="item.key" type="button" :class="{ active: notificationFilter === item.key }" @click="selectAllNotificationFilter(item.key as typeof notificationFilter)">{{ item.label }}</button></div><div class="dv2-notification-list"><button v-for="item in filteredNotifications" :key="item.notification_id" type="button" :class="{ unread: !item.read }" @click="openNotification(item.notification_id)"><span :class="`dv2-notification-icon is-${item.category.toLowerCase()}`">{{ categoryLabels[item.category].slice(0, 1) }}</span><div><strong>{{ item.title }}</strong><p>{{ item.summary }}</p><small>{{ item.created_at }} · {{ categoryLabels[item.category] }}</small></div><i v-if="!item.read" /></button><div v-if="!filteredNotifications.length" class="dv2-empty">没有符合筛选条件的通知</div></div></aside>
+      <aside class="dv2-notification-drawer" data-testid="doctor-notification-drawer"><header><div><h2>{{ t('通知中心', 'Notifications') }}</h2><p>{{ t('{count} 条未读通知', '{count} unread notification(s)', { count: unreadCount }) }}</p></div><button type="button" :aria-label="t('关闭通知中心', 'Close notifications')" @click="notificationOpen = false">×</button></header><div class="dv2-notification-tools"><label><span>⌕</span><input v-model="notificationKeyword" type="search" :placeholder="t('搜索通知', 'Search notifications')"></label><button type="button" @click="markAllNotifications">{{ t('全部已读', 'Mark All Read') }}</button></div><div class="dv2-chip-row"><button v-for="item in [{ key: 'ALL', label: t('全部', 'All') }, { key: 'UNREAD', label: t('未读', 'Unread') }, { key: 'READ', label: t('已读', 'Read') }]" :key="item.key" type="button" :class="{ active: notificationFilter === item.key }" @click="selectAllNotificationFilter(item.key as typeof notificationFilter)">{{ item.label }}</button></div><div class="dv2-notification-list"><button v-for="item in filteredNotifications" :key="item.notification_id" type="button" :class="{ unread: !item.read }" @click="openNotification(item.notification_id)"><span :class="`dv2-notification-icon is-${item.category.toLowerCase()}`">{{ categoryLabel(item.category).slice(0, 1) }}</span><div><strong>{{ item.title }}</strong><p>{{ item.summary }}</p><small>{{ item.created_at }} · {{ categoryLabel(item.category) }}</small></div><i v-if="!item.read" /></button><div v-if="!filteredNotifications.length" class="dv2-empty">{{ t('没有符合筛选条件的通知', 'No notifications match the current filters') }}</div></div></aside>
     </div>
 
     <div v-if="orderDrawerOpen" class="dv2-drawer-mask is-order-reference" @mousedown.self="orderDrawerOpen = false">
       <aside class="dv2-order-drawer" data-testid="doctor-order-drawer">
         <header>
           <div>
-            <small>订单详情</small>
-            <h2>{{ selectedOrder?.order_no || '正在加载' }}</h2>
+            <small>{{ t('订单详情', 'Order Details') }}</small>
+            <h2>{{ selectedOrder?.order_no || t('正在加载', 'Loading') }}</h2>
           </div>
-          <button type="button" aria-label="关闭订单详情" @click="orderDrawerOpen = false">×</button>
+          <button type="button" :aria-label="t('关闭订单详情', 'Close order details')" @click="orderDrawerOpen = false">×</button>
         </header>
 
-        <div v-if="orderDetailLoading" class="dv2-loading-card"><span class="dv2-spinner" />正在读取订单详情…</div>
+        <div v-if="orderDetailLoading" class="dv2-loading-card"><span class="dv2-spinner" />{{ t('正在读取订单详情…', 'Loading order details…') }}</div>
         <template v-else-if="selectedOrder">
           <div class="dv2-drawer-summary">
-            <div><small>患者</small><span>{{ selectedOrder.patient_name }}</span><em v-if="selectedOrder.patient_code && selectedOrder.patient_code !== '-'">{{ selectedOrder.patient_code }}</em></div>
-            <div><small>牙位</small><span>{{ selectedOrderToothText }}</span></div>
-            <div><small>产品</small><span>{{ productNameLabel(selectedOrder.product_name, selectedOrder.product_type) }}</span></div>
-            <div><small>诊所</small><span>{{ selectedOrder.clinic_name }}</span></div>
-            <div><small>负责医生</small><span>{{ selectedOrder.doctor_name }}</span></div>
-            <div class="is-amount"><small>订单金额</small><span>{{ money(selectedOrder.quote) }}</span></div>
-            <div><small>订单创建时间</small><span>{{ compactDoctorDateTime(selectedOrder.created_at) }}</span></div>
-            <div><small>预计到期</small><span>{{ compactDoctorDateTime(selectedOrder.due_at) }}</span></div>
-            <div class="is-status"><small>公开状态</small><span :class="`dv2-status is-${statusTone(selectedOrder.external_status)}`">{{ label(selectedOrder.external_status) }}</span></div>
-            <div class="is-tags"><small>订单标签</small><p><span v-for="tag in selectedOrder.tags" :key="tag" class="dv2-tag">{{ tag }}</span><em v-if="!selectedOrder.tags.length">暂无标签</em></p></div>
+            <div><small>{{ t('患者', 'Patient') }}</small><span>{{ selectedOrder.patient_name }}</span><em v-if="selectedOrder.patient_code && selectedOrder.patient_code !== '-'">{{ selectedOrder.patient_code }}</em></div>
+            <div><small>{{ t('牙位', 'Tooth Position') }}</small><span>{{ selectedOrderToothText }}</span></div>
+            <div><small>{{ t('产品', 'Product') }}</small><span>{{ productNameLabel(selectedOrder.product_name, selectedOrder.product_type) }}</span></div>
+            <div><small>{{ t('诊所', 'Clinic') }}</small><span>{{ selectedOrder.clinic_name }}</span></div>
+            <div><small>{{ t('负责医生', 'Doctor') }}</small><span>{{ selectedOrder.doctor_name }}</span></div>
+            <div class="is-amount"><small>{{ t('订单金额', 'Order Amount') }}</small><span>{{ money(selectedOrder.quote) }}</span></div>
+            <div><small>{{ t('订单创建时间', 'Created') }}</small><span>{{ compactDoctorDateTime(selectedOrder.created_at) }}</span></div>
+            <div><small>{{ t('预计到期', 'Estimated Due') }}</small><span>{{ compactDoctorDateTime(selectedOrder.due_at) }}</span></div>
+            <div class="is-status"><small>{{ t('公开状态', 'Public Status') }}</small><span :class="`dv2-status is-${statusTone(selectedOrder.external_status)}`">{{ label(selectedOrder.external_status) }}</span></div>
+            <div class="is-tags"><small>{{ t('订单标签', 'Order Tags') }}</small><p><span v-for="tag in selectedOrder.tags" :key="tag" class="dv2-tag">{{ tag }}</span><em v-if="!selectedOrder.tags.length">{{ t('暂无标签', 'No tags') }}</em></p></div>
           </div>
 
           <div class="dv2-drawer-body">
             <section v-if="selectedOrder.external_status === 'DRAFT' && selectedOrder.group_id" class="dv2-detail-section dv2-action-alert">
               <div class="dv2-current-action">
-                <div><strong>病例订单草稿尚未提交</strong><p>继续编辑该病例下的全部产品和资料。</p></div>
-                <button type="button" class="dv2-primary-button" data-testid="doctor-resume-case-group" @click="resumeSelectedCaseGroup">继续编辑订单</button>
+                <div><strong>{{ t('病例订单草稿尚未提交', 'This case order is still a draft') }}</strong><p>{{ t('继续编辑该病例下的全部产品和资料。', 'Continue editing all products and records in this case.') }}</p></div>
+                <button type="button" class="dv2-primary-button" data-testid="doctor-resume-case-group" @click="resumeSelectedCaseGroup">{{ t('继续编辑订单', 'Continue Editing') }}</button>
               </div>
             </section>
             <section v-if="selectedOrder.current_action !== 'NONE'" class="dv2-detail-section dv2-action-alert">
               <div class="dv2-current-action">
-                <div><strong>{{ label(selectedOrder.current_action) }}</strong><p>完成后订单将按公开流程继续推进。</p></div>
-                <button v-if="selectedOrder.current_action === 'PAYMENT_REQUIRED'" type="button" class="dv2-primary-button" @click="orderDrawerOpen = false; switchPage('billing')">去付款</button>
+                <div><strong>{{ label(selectedOrder.current_action) }}</strong><p>{{ t('完成后订单将按公开流程继续推进。', 'The order will proceed through the public workflow after this action is completed.') }}</p></div>
+                <button v-if="selectedOrder.current_action === 'PAYMENT_REQUIRED'" type="button" class="dv2-primary-button" @click="orderDrawerOpen = false; switchPage('billing')">{{ t('去付款', 'Pay Now') }}</button>
               </div>
             </section>
 
             <section v-if="deliveryPlanLoading" class="dv2-detail-section">
-              <h3>交期与过程确认</h3>
-              <div class="dv2-loading-card"><span class="dv2-spinner" />正在读取交期计划…</div>
+              <h3>{{ t('交期与过程确认', 'Delivery & Process Confirmations') }}</h3>
+              <div class="dv2-loading-card"><span class="dv2-spinner" />{{ t('正在读取交期计划…', 'Loading delivery plan…') }}</div>
             </section>
             <section v-else-if="deliveryPlan" class="dv2-detail-section dv2-delivery-plan" data-testid="doctor-delivery-plan">
-              <h3>交期与过程确认</h3>
+              <h3>{{ t('交期与过程确认', 'Delivery & Process Confirmations') }}</h3>
 
               <div v-if="deliveryPlan.estimate_status === 'PLACEHOLDER'" class="dv2-delivery-placeholder" data-testid="doctor-delivery-placeholder">
-                <strong>预计到货时间待确认</strong>
-                <p>以下时间按暂定标准周期估算，尚未成为正式承诺交期：{{ deliveryPlan.placeholder_rules.join('、') }}。正式交期由订单服务受理后确认。</p>
+                <strong>{{ t('预计到货时间待确认', 'Estimated Delivery Pending Confirmation') }}</strong>
+                <p>{{ t('以下时间按暂定标准周期估算，尚未成为正式承诺交期：{rules}。正式交期由订单服务受理后确认。', 'The date below is estimated using provisional standard lead times and is not a confirmed commitment: {rules}. Order Support will confirm the final delivery date after review.', { rules: deliveryPlan.placeholder_rules.join(portalLanguage === 'EN' ? ', ' : '、') }) }}</p>
               </div>
 
               <dl class="dv2-delivery-grid">
-                <div><dt>预计到货</dt><dd data-testid="doctor-delivery-date">{{ deliveryDateLabel(deliveryPlan) }}</dd></div>
-                <div><dt>制作天数</dt><dd>{{ deliveryPlan.production_days }} 天</dd></div>
-                <div><dt>在途天数</dt><dd>{{ deliveryPlan.transit_days }} 天</dd></div>
-                <div><dt>过程确认</dt><dd>{{ deliveryPlan.process_confirmation_count }} 项 · +{{ deliveryPlan.process_confirmation_days }} 天</dd></div>
-                <div v-if="deliveryPlan.waiting_days > 0"><dt>等待顺延</dt><dd>+{{ deliveryPlan.waiting_days }} 天</dd></div>
+                <div><dt>{{ t('预计到货', 'Estimated Delivery') }}</dt><dd data-testid="doctor-delivery-date">{{ deliveryDateLabel(deliveryPlan) }}</dd></div>
+                <div><dt>{{ t('制作天数', 'Production') }}</dt><dd>{{ t('{count} 天', '{count} day(s)', { count: deliveryPlan.production_days }) }}</dd></div>
+                <div><dt>{{ t('在途天数', 'Transit') }}</dt><dd>{{ t('{count} 天', '{count} day(s)', { count: deliveryPlan.transit_days }) }}</dd></div>
+                <div><dt>{{ t('过程确认', 'Confirmations') }}</dt><dd>{{ t('{count} 项 · +{days} 天', '{count} item(s) · +{days} day(s)', { count: deliveryPlan.process_confirmation_count, days: deliveryPlan.process_confirmation_days }) }}</dd></div>
+                <div v-if="deliveryPlan.waiting_days > 0"><dt>{{ t('等待顺延', 'Waiting Extension') }}</dt><dd>{{ t('+{count} 天', '+{count} day(s)', { count: deliveryPlan.waiting_days }) }}</dd></div>
               </dl>
 
               <div v-if="deliveryPlan.delivery_alert_message" class="dv2-delivery-alert" data-testid="doctor-delivery-alert">
@@ -2346,10 +2470,10 @@ onBeforeUnmount(() => window.removeEventListener('keydown', handleGlobalShortcut
 
               <div class="dv2-delivery-adjust">
                 <label>
-                  <span>要求到货时间</span>
+                  <span>{{ t('要求到货时间', 'Requested Delivery Date') }}</span>
                   <input v-model="requestedDeliveryDateDraft" type="date" data-testid="doctor-requested-delivery-date">
                 </label>
-                <button type="button" class="dv2-secondary-button" :disabled="deliveryPlanBusy" data-testid="doctor-save-requested-delivery-date" @click="saveRequestedDeliveryDate">保存到货时间</button>
+                <button type="button" class="dv2-secondary-button" :disabled="deliveryPlanBusy" data-testid="doctor-save-requested-delivery-date" @click="saveRequestedDeliveryDate">{{ t('保存到货时间', 'Save Delivery Date') }}</button>
               </div>
 
               <div v-if="deliveryPlan.process_confirmations.length" class="dv2-delivery-confirmations">
@@ -2357,108 +2481,108 @@ onBeforeUnmount(() => window.removeEventListener('keydown', handleGlobalShortcut
                   <div>
                     <strong>{{ confirmation.confirmation_name }}</strong>
                     <small>
-                      {{ ({ PLANNED: '尚未到达该环节', AWAITING_DOCTOR: '等待您确认', CONFIRMED: '已确认', REJECTED: '已要求修改' } as Record<string, string>)[confirmation.confirmation_status] }}
-                      <template v-if="confirmation.overdue"> · 已超期 {{ confirmation.waiting_days }} 天，交期已顺延</template>
+                      {{ processConfirmationStatusLabel(confirmation.confirmation_status) }}
+                      <template v-if="confirmation.overdue"> · {{ t('已超期 {count} 天，交期已顺延', '{count} day(s) overdue; delivery date extended', { count: confirmation.waiting_days }) }}</template>
                     </small>
                   </div>
                   <div v-if="confirmation.confirmation_status === 'AWAITING_DOCTOR'" class="dv2-delivery-confirm-actions">
-                    <button type="button" class="dv2-primary-button" :disabled="deliveryPlanBusy" @click="respondProcessConfirmation(confirmation, true)">确认</button>
-                    <button type="button" class="dv2-secondary-button" :disabled="deliveryPlanBusy" @click="respondProcessConfirmation(confirmation, false)">要求修改</button>
+                    <button type="button" class="dv2-primary-button" :disabled="deliveryPlanBusy" @click="respondProcessConfirmation(confirmation, true)">{{ t('确认', 'Confirm') }}</button>
+                    <button type="button" class="dv2-secondary-button" :disabled="deliveryPlanBusy" @click="respondProcessConfirmation(confirmation, false)">{{ t('要求修改', 'Request Changes') }}</button>
                   </div>
                 </article>
               </div>
 
               <div v-if="deliveryPlan.try_in.try_in_required" class="dv2-delivery-tryin" data-testid="doctor-try-in">
-                <strong>试戴</strong>
+                <strong>{{ t('试戴', 'Try-in') }}</strong>
                 <p>
-                  {{ ({ REQUESTED: '已登记试戴需求，等待工厂安排', COMPLETED: '试戴已完成，可在本订单继续选择成品与材料，无需新建订单', FINALIZED: '成品已选定' } as Record<string, string>)[deliveryPlan.try_in.try_in_status ?? 'REQUESTED'] }}
+                  {{ tryInStatusLabel(deliveryPlan.try_in.try_in_status ?? 'REQUESTED') }}
                 </p>
               </div>
 
               <div v-if="deliveryPlan.bill_items.length" class="dv2-delivery-bill-items" data-testid="doctor-bill-items">
-                <strong>计价项</strong>
+                <strong>{{ t('计价项', 'Billable Items') }}</strong>
                 <ul>
                   <li v-for="item in deliveryPlan.bill_items" :key="item.item_code">
                     <span>{{ item.item_name }}</span>
-                    <em>{{ item.pricing_status === 'PRICED' && item.amount_cents !== null ? `${(item.amount_cents / 100).toFixed(2)} ${item.currency}` : '待报价' }}</em>
+                    <em>{{ item.pricing_status === 'PRICED' && item.amount_cents !== null ? `${(item.amount_cents / 100).toFixed(2)} ${item.currency}` : t('待报价', 'Quote Pending') }}</em>
                   </li>
                 </ul>
               </div>
             </section>
 
             <section class="dv2-detail-section">
-              <h3>公开进度</h3>
+              <h3>{{ t('公开进度', 'Public Progress') }}</h3>
               <div class="dv2-progress">
                 <article v-for="item in selectedOrder.progress" :key="item.key" :class="item.status.toLowerCase()">
                   <span>{{ item.status === 'DONE' ? '✓' : ({ submitted: '📥', review: '🔎', design: '✏️', production: '⚙️', 'final-review': '✅', 'ready-to-ship': '📦', shipped: '🚀', completed: '✓' } as Record<string, string>)[item.key] || '•' }}</span>
                   <div>
                     <strong>{{ item.label }}</strong>
-                    <small>{{ item.status === 'DONE' ? '已完成' : item.status === 'ACTIVE' ? '⚡ 进行中' : '待开始' }}<template v-if="item.occurred_at"> · {{ compactDoctorDateTime(item.occurred_at) }}</template></small>
+                    <small>{{ item.status === 'DONE' ? t('已完成', 'Completed') : item.status === 'ACTIVE' ? t('⚡ 进行中', '⚡ In Progress') : t('待开始', 'Not Started') }}<template v-if="item.occurred_at"> · {{ compactDoctorDateTime(item.occurred_at) }}</template></small>
                     <p v-if="item.note">{{ item.note }}</p>
                   </div>
                 </article>
               </div>
               <div class="dv2-public-message">{{ selectedOrder.public_message }}</div>
               <div class="dv2-reference-actions">
-                <button type="button" class="dv2-secondary-button" @click="openSelectedOrderConversation">💬 进入订单沟通</button>
+                <button type="button" class="dv2-secondary-button" @click="openSelectedOrderConversation">💬 {{ t('进入订单沟通', 'Open Conversation') }}</button>
               </div>
-              <div class="dv2-order-lock-note">{{ selectedOrder.current_action === 'NONE' ? '🔒 订单正在按公开流程处理，如需调整请直接在下方联系订单服务。' : 'ℹ️ 完成当前待办后订单将继续推进；如需协助，可直接在本抽屉发送消息。' }}</div>
+              <div class="dv2-order-lock-note">{{ selectedOrder.current_action === 'NONE' ? t('🔒 订单正在按公开流程处理，如需调整请直接在下方联系订单服务。', '🔒 This order is proceeding through the public workflow. Contact Order Support below if changes are needed.') : t('ℹ️ 完成当前待办后订单将继续推进；如需协助，可直接在本抽屉发送消息。', 'ℹ️ The order will proceed after the current action is completed. You can message Order Support here for help.') }}</div>
             </section>
 
             <section class="dv2-detail-section">
-              <h3>🦷 订单资料与临床要求</h3>
+              <h3>🦷 {{ t('订单资料与临床要求', 'Order Records & Clinical Requirements') }}</h3>
               <div v-if="selectedOrder.review_options.length" class="dv2-order-flags">
                 <span v-for="reviewType in selectedOrder.review_options" :key="reviewType">{{ reviewType === 'CAD_DESIGN' ? '✏️' : '📸' }} {{ reviewLabel(reviewType) }}</span>
               </div>
               <div class="dv2-tooth-chart-card">
-                <div class="dv2-tooth-chart-title"><strong>牙位选择</strong><span>已选：{{ selectedOrderToothText }}</span></div>
+                <div class="dv2-tooth-chart-title"><strong>{{ t('牙位选择', 'Tooth Selection') }}</strong><span>{{ t('已选：{teeth}', 'Selected: {teeth}', { teeth: selectedOrderToothText }) }}</span></div>
                 <template v-if="selectedOrderTeeth.size">
-                  <small>上颌</small>
+                  <small>{{ t('上颌', 'Upper Arch') }}</small>
                   <div class="dv2-tooth-row"><span v-for="tooth in upperTeeth" :key="tooth" :class="{ selected: selectedOrderTeeth.has(tooth) }">{{ tooth }}</span></div>
-                  <small>下颌</small>
+                  <small>{{ t('下颌', 'Lower Arch') }}</small>
                   <div class="dv2-tooth-row"><span v-for="tooth in lowerTeeth" :key="tooth" :class="{ selected: selectedOrderTeeth.has(tooth) }">{{ tooth }}</span></div>
                 </template>
-                <p v-else>当前牙位以订单原始文本记录：{{ selectedOrderToothText }}</p>
+                <p v-else>{{ t('当前牙位以订单原始文本记录：{teeth}', 'Tooth position is stored as the original order text: {teeth}', { teeth: selectedOrderToothText }) }}</p>
               </div>
               <dl class="dv2-detail-grid">
                 <div v-for="item in selectedOrderSpecEntries" :key="item.key"><dt>{{ item.label }}</dt><dd>{{ item.value }}</dd></div>
               </dl>
-              <div class="dv2-clinical-note"><strong>📝 医生临床说明</strong><p>{{ selectedOrderClinicalNotes || '暂未填写额外临床说明。' }}</p></div>
+              <div class="dv2-clinical-note"><strong>📝 {{ t('医生临床说明', 'Clinical Notes') }}</strong><p>{{ selectedOrderClinicalNotes || t('暂未填写额外临床说明。', 'No additional clinical notes.') }}</p></div>
             </section>
 
             <section class="dv2-detail-section">
-              <h3>📁 订单文件与图片</h3>
+              <h3>📁 {{ t('订单文件与图片', 'Order Files & Images') }}</h3>
               <div class="dv2-file-list">
-                <button v-for="item in selectedOrder.files" :key="item.file_id" type="button" @click="previewFile(item)"><i><img v-if="item.kind === 'IMAGE' && item.preview_url" :src="item.preview_url" :alt="item.name"><template v-else>{{ fileGlyph(item) }}</template></i><div><strong>{{ item.name }}</strong><small>{{ item.kind }} · {{ item.size_label }} · {{ compactDoctorDateTime(item.uploaded_at) }}</small></div><span>预览 ↗</span></button>
-                <div v-if="!selectedOrder.files.length" class="dv2-empty">暂无医生可见文件</div>
+                <button v-for="item in selectedOrder.files" :key="item.file_id" type="button" @click="previewFile(item)"><i><img v-if="item.kind === 'IMAGE' && item.preview_url" :src="item.preview_url" :alt="item.name"><template v-else>{{ fileGlyph(item) }}</template></i><div><strong>{{ item.name }}</strong><small>{{ item.kind }} · {{ item.size_label }} · {{ compactDoctorDateTime(item.uploaded_at) }}</small></div><span>{{ t('预览', 'Preview') }} ↗</span></button>
+                <div v-if="!selectedOrder.files.length" class="dv2-empty">{{ t('暂无医生可见文件', 'No doctor-visible files') }}</div>
               </div>
             </section>
 
             <section class="dv2-detail-section">
-              <h3>📊 订单时间线</h3>
+              <h3>📊 {{ t('订单时间线', 'Order Timeline') }}</h3>
               <div class="dv2-order-timeline">
                 <article v-for="item in orderTimelineItems" :key="item.key" :class="`is-${item.tone}`">
                   <time>{{ doctorTimelineDateTime(item.occurredAt) }}</time>
                   <div><strong>{{ item.title }}</strong><span>{{ item.actor }}</span></div>
                 </article>
-                <div v-if="!orderTimelineItems.length" class="dv2-empty">此订单暂无公开时间线记录</div>
+                <div v-if="!orderTimelineItems.length" class="dv2-empty">{{ t('此订单暂无公开时间线记录', 'No public timeline records for this order') }}</div>
               </div>
             </section>
 
             <section class="dv2-detail-section">
-              <h3>💬 信息与设计评测</h3>
-              <p class="dv2-section-note">订单沟通、设计确认记录和医生反馈集中展示；可直接在这里回复订单服务。</p>
+              <h3>💬 {{ t('信息与设计评测', 'Messages & Design Review') }}</h3>
+              <p class="dv2-section-note">{{ t('订单沟通、设计确认记录和医生反馈集中展示；可直接在这里回复订单服务。', 'Order messages, design reviews, and doctor feedback are shown together. You can reply to Order Support here.') }}</p>
               <div class="dv2-order-dialogue" data-testid="doctor-order-dialogue">
                 <article v-for="message in selectedOrder.messages" :key="message.message_id" class="dv2-order-bubble" :class="{ 'is-self': message.sender === 'SELF' }">
-                  <strong>{{ message.sender === 'SELF' ? selectedOrder.doctor_name : '订单服务' }}</strong>
+                  <strong>{{ message.sender === 'SELF' ? selectedOrder.doctor_name : t('订单服务', 'Order Support') }}</strong>
                   <p>{{ message.content }}</p>
                   <time>{{ preciseDoctorDateTime(message.sent_at) }}</time>
                 </article>
               <div v-for="review in selectedOrder.reviews" :key="review.review_id" class="dv2-review-card is-drawer">
-                <header><div><strong>📐 {{ reviewLabel(review.review_type) }}</strong><small>当前版本 V{{ review.current_version }}</small></div><span :class="`dv2-status is-${statusTone(review.status)}`">{{ label(review.status) }}</span></header>
+                <header><div><strong>📐 {{ reviewLabel(review.review_type) }}</strong><small>{{ t('当前版本 V{version}', 'Current Version V{version}', { version: review.current_version }) }}</small></div><span :class="`dv2-status is-${statusTone(review.status)}`">{{ label(review.status) }}</span></header>
                 <div v-if="currentReviewFiles(review).length" class="dv2-design-preview">
-                  <strong>{{ review.review_type === 'CAD_DESIGN' ? '📐 3D 设计预览' : '📸 设计评测图片' }}</strong>
-                  <small>{{ productNameLabel(selectedOrder.product_name, selectedOrder.product_type) }} · 确认前请检查当前版本</small>
+                  <strong>{{ review.review_type === 'CAD_DESIGN' ? t('📐 3D 设计预览', '📐 3D Design Preview') : t('📸 设计评测图片', '📸 Design Review Images') }}</strong>
+                  <small>{{ productNameLabel(selectedOrder.product_name, selectedOrder.product_type) }} · {{ t('确认前请检查当前版本', 'Review the current version before confirming') }}</small>
                   <div>
                     <button v-for="item in currentReviewFiles(review)" :key="`preview-${item.file_id}`" type="button" @click="previewFile(item)"><img v-if="item.kind === 'IMAGE' && item.preview_url" :src="item.preview_url" :alt="item.name"><i v-else>{{ fileGlyph(item) }}</i><span>{{ item.name }}</span></button>
                   </div>
@@ -2466,25 +2590,25 @@ onBeforeUnmount(() => window.removeEventListener('keydown', handleGlobalShortcut
                 <div class="dv2-version-list">
                   <article v-for="version in [...review.versions].reverse()" :key="version.version">
                     <div><strong>V{{ version.version }}</strong><span>{{ label(version.status) }}</span><small>{{ preciseDoctorDateTime(version.submitted_at) }}</small></div>
-                    <button v-for="item in version.files" :key="item.file_id" type="button" @click="previewFile(item)"><i><img v-if="item.kind === 'IMAGE' && item.preview_url" :src="item.preview_url" :alt="item.name"><template v-else>{{ fileGlyph(item) }}</template></i><span>{{ item.name }}<small>{{ item.kind }} · {{ item.size_label }}</small></span><em>预览 ↗</em></button>
-                    <p v-if="version.doctor_comment">医生意见：{{ version.doctor_comment }}</p>
+                    <button v-for="item in version.files" :key="item.file_id" type="button" @click="previewFile(item)"><i><img v-if="item.kind === 'IMAGE' && item.preview_url" :src="item.preview_url" :alt="item.name"><template v-else>{{ fileGlyph(item) }}</template></i><span>{{ item.name }}<small>{{ item.kind }} · {{ item.size_label }}</small></span><em>{{ t('预览', 'Preview') }} ↗</em></button>
+                    <p v-if="version.doctor_comment">{{ t('医生意见：', 'Doctor Comment: ') }}{{ version.doctor_comment }}</p>
                   </article>
                 </div>
                 <footer v-if="review.status === 'PENDING_REVIEW'">
                   <template v-if="canReview && review.allowed_actions.some((action) => ['APPROVE_REVIEW', 'REJECT_REVIEW'].includes(action))">
-                    <button v-if="review.allowed_actions.includes('REJECT_REVIEW')" type="button" class="dv2-danger-button" :disabled="reviewSubmitting" @click="startReviewDecision(selectedOrder.order_id, review, 'REJECT')">驳回并留言</button>
-                    <button v-if="review.allowed_actions.includes('APPROVE_REVIEW')" type="button" class="dv2-primary-button" :disabled="reviewSubmitting" @click="startReviewDecision(selectedOrder.order_id, review, 'APPROVE')">同意当前版本</button>
+                    <button v-if="review.allowed_actions.includes('REJECT_REVIEW')" type="button" class="dv2-danger-button" :disabled="reviewSubmitting" @click="startReviewDecision(selectedOrder.order_id, review, 'REJECT')">{{ t('驳回并留言', 'Reject & Comment') }}</button>
+                    <button v-if="review.allowed_actions.includes('APPROVE_REVIEW')" type="button" class="dv2-primary-button" :disabled="reviewSubmitting" @click="startReviewDecision(selectedOrder.order_id, review, 'APPROVE')">{{ t('同意当前版本', 'Approve Version') }}</button>
                   </template>
-                  <p v-else>当前账号不能执行此操作。</p>
+                  <p v-else>{{ t('当前账号不能执行此操作。', 'Your current account cannot perform this action.') }}</p>
                 </footer>
               </div>
-                <div v-if="!selectedOrder.messages.length && !selectedOrder.reviews.length" class="dv2-empty">此订单暂无沟通信息和设计确认记录</div>
+                <div v-if="!selectedOrder.messages.length && !selectedOrder.reviews.length" class="dv2-empty">{{ t('此订单暂无沟通信息和设计确认记录', 'No messages or design review records for this order') }}</div>
               </div>
               <form class="dv2-order-reply" @submit.prevent="sendOrderDrawerMessage">
-                <input v-model="orderDrawerMessageDraft" type="text" maxlength="1000" placeholder="给实验室/客服的消息……" :disabled="!canSendOrderDrawerMessage || orderDrawerMessageSending">
-                <button type="submit" :disabled="!canSendOrderDrawerMessage || orderDrawerMessageSending || !orderDrawerMessageDraft.trim()">{{ orderDrawerMessageSending ? '发送中…' : '发送' }}</button>
+                <input v-model="orderDrawerMessageDraft" type="text" maxlength="1000" :placeholder="t('给实验室/客服的消息……', 'Message to the lab or Order Support…')" :disabled="!canSendOrderDrawerMessage || orderDrawerMessageSending">
+                <button type="submit" :disabled="!canSendOrderDrawerMessage || orderDrawerMessageSending || !orderDrawerMessageDraft.trim()">{{ orderDrawerMessageSending ? t('发送中…', 'Sending…') : t('发送', 'Send') }}</button>
               </form>
-              <p v-if="!canSendOrderDrawerMessage" class="dv2-order-reply-disabled">当前订单仅供查看，暂不支持发送消息。</p>
+              <p v-if="!canSendOrderDrawerMessage" class="dv2-order-reply-disabled">{{ t('当前订单仅供查看，暂不支持发送消息。', 'This order is read-only and does not currently support messaging.') }}</p>
             </section>
           </div>
 
@@ -2495,52 +2619,52 @@ onBeforeUnmount(() => window.removeEventListener('keydown', handleGlobalShortcut
     <div v-if="patientDrawerOpen" class="dv2-drawer-mask" @mousedown.self="patientDrawerOpen = false">
       <aside class="dv2-patient-drawer">
         <header>
-          <div><small>患者档案 · {{ selectedPatient?.patient_code || '读取中' }}</small><h2>{{ selectedPatient?.patient_name || '正在加载' }}</h2></div>
-          <div class="dv2-drawer-header-actions"><button v-if="selectedPatient && !patientEditMode" type="button" @click="beginPatientEdit">编辑档案</button><button type="button" class="is-close" @click="patientDrawerOpen = false">×</button></div>
+          <div><small>{{ t('患者档案', 'Patient Record') }} · {{ selectedPatient?.patient_code || t('读取中', 'Loading') }}</small><h2>{{ selectedPatient?.patient_name || t('正在加载', 'Loading') }}</h2></div>
+          <div class="dv2-drawer-header-actions"><button v-if="selectedPatient && !patientEditMode" type="button" @click="beginPatientEdit">{{ t('编辑档案', 'Edit Record') }}</button><button type="button" class="is-close" @click="patientDrawerOpen = false">×</button></div>
         </header>
-        <div v-if="patientLoading" class="dv2-loading-card"><span class="dv2-spinner" />正在读取患者档案…</div>
+        <div v-if="patientLoading" class="dv2-loading-card"><span class="dv2-spinner" />{{ t('正在读取患者档案…', 'Loading patient record…') }}</div>
         <template v-else-if="selectedPatient">
           <div class="dv2-patient-head">
             <span class="dv2-avatar is-large">{{ selectedPatient.patient_name.slice(0, 1) }}</span>
             <div><strong>{{ selectedPatient.patient_name }}</strong><small>{{ selectedPatient.clinic_name }} · {{ selectedPatient.doctor_name }}</small><p><span :class="`dv2-status is-${patientTreatmentTone(selectedPatient)}`">● {{ patientTreatmentLabel(selectedPatient) }}</span><span v-for="tag in selectedPatient.tags" :key="tag" class="dv2-tag">{{ tag }}</span></p></div>
-            <dl><div><dt>订单</dt><dd>{{ selectedPatient.order_count }}</dd></div><div><dt>疗程</dt><dd>{{ patientDurationLabel(selectedPatient) }}</dd></div></dl>
+            <dl><div><dt>{{ t('订单', 'Orders') }}</dt><dd>{{ selectedPatient.order_count }}</dd></div><div><dt>{{ t('疗程', 'Duration') }}</dt><dd>{{ patientDurationLabel(selectedPatient) }}</dd></div></dl>
           </div>
-          <div v-if="!patientEditMode" class="dv2-tabbar is-drawer"><button v-for="item in [{ key: 'basic', label: '患者资料' }, { key: 'orders', label: `订单历史 ${selectedPatient.orders.length}` }, { key: 'history', label: '历史参考' }]" :key="item.key" type="button" :class="{ active: patientDrawerTab === item.key }" @click="patientDrawerTab = item.key as typeof patientDrawerTab">{{ item.label }}</button></div>
+          <div v-if="!patientEditMode" class="dv2-tabbar is-drawer"><button v-for="item in [{ key: 'basic', label: t('患者资料', 'Patient Details') }, { key: 'orders', label: t('订单历史 {count}', 'Order History {count}', { count: selectedPatient.orders.length }) }, { key: 'history', label: t('历史参考', 'History Reference') }]" :key="item.key" type="button" :class="{ active: patientDrawerTab === item.key }" @click="patientDrawerTab = item.key as typeof patientDrawerTab">{{ item.label }}</button></div>
           <div class="dv2-drawer-body">
             <form v-if="patientEditMode" class="dv2-patient-edit-form" @submit.prevent="savePatientChanges">
-              <header><div><h3>编辑患者档案</h3><p>诊所和负责医生由当前登录身份确定，不能跨诊所修改。</p></div></header>
+              <header><div><h3>{{ t('编辑患者档案', 'Edit Patient Record') }}</h3><p>{{ t('诊所和负责医生由当前登录身份确定，不能跨诊所修改。', 'Clinic and doctor are determined by the current login and cannot be changed across clinics.') }}</p></div></header>
               <div class="dv2-form-grid">
-                <label><span>患者姓名 *</span><input v-model="newPatient.name" maxlength="128"></label>
-                <label><span>患者编号</span><input :value="selectedPatient.patient_code" disabled></label>
-                <label><span>出生日期</span><input v-model="newPatient.dateOfBirth" type="date"></label>
-                <label><span>年龄</span><input v-model="newPatient.age" type="number" min="0" max="150"></label>
-                <label><span>性别</span><select v-model="newPatient.gender"><option value="">请选择</option><option value="男">男</option><option value="女">女</option><option value="其他">其他</option></select></label>
-                <label><span>治疗状态</span><select v-model="newPatient.treatmentStatus"><option value="IN_TREATMENT">治疗中</option><option value="FOLLOW_UP">待复诊</option><option value="TREATMENT_ENDED">治疗结束</option><option value="ARCHIVED">已归档</option></select></label>
-                <label><span>联系电话</span><input v-model="newPatient.phone" maxlength="64" placeholder="请输入联系电话"></label>
-                <label><span>电子邮箱</span><input v-model="newPatient.email" type="email" maxlength="160" placeholder="patient@example.com"></label>
-                <label><span>疗程开始</span><input v-model="newPatient.treatmentStartedAt" type="date"></label>
-                <label><span>疗程结束</span><input v-model="newPatient.treatmentEndedAt" type="date" :disabled="!['TREATMENT_ENDED', 'ARCHIVED'].includes(newPatient.treatmentStatus)"></label>
-                <label class="is-full"><span>标签</span><input v-model="newPatient.tags" maxlength="512" placeholder="多个标签用逗号分隔"></label>
-                <label class="is-full"><span>口腔情况摘要</span><textarea v-model="newPatient.oralDescription" maxlength="512" rows="3" placeholder="记录牙位、口内情况及修复关注点"></textarea></label>
-                <label class="is-full"><span>病史 / 用药 / 过敏信息</span><textarea v-model="newPatient.medicalNotes" maxlength="1000" rows="4" placeholder="过敏、用药、特殊注意事项……"></textarea></label>
+                <label><span>{{ t('患者姓名 *', 'Patient Name *') }}</span><input v-model="newPatient.name" maxlength="128"></label>
+                <label><span>{{ t('患者编号', 'Patient ID') }}</span><input :value="selectedPatient.patient_code" disabled></label>
+                <label><span>{{ t('出生日期', 'Date of Birth') }}</span><input v-model="newPatient.dateOfBirth" type="date"></label>
+                <label><span>{{ t('年龄', 'Age') }}</span><input v-model="newPatient.age" type="number" min="0" max="150"></label>
+                <label><span>{{ t('性别', 'Gender') }}</span><select v-model="newPatient.gender"><option value="">{{ t('请选择', 'Select') }}</option><option value="男">{{ t('男', 'Male') }}</option><option value="女">{{ t('女', 'Female') }}</option><option value="其他">{{ t('其他', 'Other') }}</option></select></label>
+                <label><span>{{ t('治疗状态', 'Treatment Status') }}</span><select v-model="newPatient.treatmentStatus"><option value="IN_TREATMENT">{{ t('治疗中', 'In Treatment') }}</option><option value="FOLLOW_UP">{{ t('待复诊', 'Follow-up Due') }}</option><option value="TREATMENT_ENDED">{{ t('治疗结束', 'Treatment Complete') }}</option><option value="ARCHIVED">{{ t('已归档', 'Archived') }}</option></select></label>
+                <label><span>{{ t('联系电话', 'Phone') }}</span><input v-model="newPatient.phone" maxlength="64" :placeholder="t('请输入联系电话', 'Enter phone number')"></label>
+                <label><span>{{ t('电子邮箱', 'Email') }}</span><input v-model="newPatient.email" type="email" maxlength="160" placeholder="patient@example.com"></label>
+                <label><span>{{ t('疗程开始', 'Treatment Start') }}</span><input v-model="newPatient.treatmentStartedAt" type="date"></label>
+                <label><span>{{ t('疗程结束', 'Treatment End') }}</span><input v-model="newPatient.treatmentEndedAt" type="date" :disabled="!['TREATMENT_ENDED', 'ARCHIVED'].includes(newPatient.treatmentStatus)"></label>
+                <label class="is-full"><span>{{ t('标签', 'Tags') }}</span><input v-model="newPatient.tags" maxlength="512" :placeholder="t('多个标签用逗号分隔', 'Separate multiple tags with commas')"></label>
+                <label class="is-full"><span>{{ t('口腔情况摘要', 'Oral Condition Summary') }}</span><textarea v-model="newPatient.oralDescription" maxlength="512" rows="3" :placeholder="t('记录牙位、口内情况及修复关注点', 'Record tooth positions, oral findings, and restoration concerns')"></textarea></label>
+                <label class="is-full"><span>{{ t('病史 / 用药 / 过敏信息', 'Medical History / Medication / Allergies') }}</span><textarea v-model="newPatient.medicalNotes" maxlength="1000" rows="4" :placeholder="t('过敏、用药、特殊注意事项……', 'Allergies, medications, and special considerations…')"></textarea></label>
               </div>
             </form>
             <template v-else-if="patientDrawerTab === 'basic'">
-              <section class="dv2-detail-section"><h3>联系与身份</h3><dl class="dv2-detail-grid"><div><dt>患者编号</dt><dd>{{ selectedPatient.patient_code }}</dd></div><div><dt>出生日期</dt><dd>{{ patientDate(selectedPatient.date_of_birth) }}</dd></div><div><dt>年龄 / 性别</dt><dd>{{ selectedPatient.patient_age ?? '-' }} 岁 / {{ selectedPatient.patient_gender || '-' }}</dd></div><div><dt>建档日期</dt><dd>{{ patientDate(selectedPatient.created_at) }}</dd></div><div><dt>联系电话</dt><dd>{{ selectedPatient.phone || '-' }}</dd></div><div><dt>电子邮箱</dt><dd>{{ selectedPatient.email || '-' }}</dd></div></dl></section>
-              <section class="dv2-detail-section"><h3>治疗概览</h3><dl class="dv2-detail-grid"><div><dt>疗程开始</dt><dd>{{ patientDate(selectedPatient.treatment_started_at) }}</dd></div><div><dt>疗程结束</dt><dd>{{ patientDate(selectedPatient.treatment_ended_at) }}</dd></div><div class="is-full"><dt>口腔情况摘要</dt><dd>{{ selectedPatient.oral_description || '-' }}</dd></div><div class="is-full"><dt>病史 / 用药 / 过敏</dt><dd>{{ selectedPatient.medical_notes || '未记录' }}</dd></div></dl></section>
+              <section class="dv2-detail-section"><h3>{{ t('联系与身份', 'Contact & Identity') }}</h3><dl class="dv2-detail-grid"><div><dt>{{ t('患者编号', 'Patient ID') }}</dt><dd>{{ selectedPatient.patient_code }}</dd></div><div><dt>{{ t('出生日期', 'Date of Birth') }}</dt><dd>{{ patientDate(selectedPatient.date_of_birth) }}</dd></div><div><dt>{{ t('年龄 / 性别', 'Age / Gender') }}</dt><dd>{{ selectedPatient.patient_age ?? '-' }} {{ t('岁', 'years') }} / {{ patientGenderLabel(selectedPatient.patient_gender) }}</dd></div><div><dt>{{ t('建档日期', 'Created') }}</dt><dd>{{ patientDate(selectedPatient.created_at) }}</dd></div><div><dt>{{ t('联系电话', 'Phone') }}</dt><dd>{{ selectedPatient.phone || '-' }}</dd></div><div><dt>{{ t('电子邮箱', 'Email') }}</dt><dd>{{ selectedPatient.email || '-' }}</dd></div></dl></section>
+              <section class="dv2-detail-section"><h3>{{ t('治疗概览', 'Treatment Overview') }}</h3><dl class="dv2-detail-grid"><div><dt>{{ t('疗程开始', 'Treatment Start') }}</dt><dd>{{ patientDate(selectedPatient.treatment_started_at) }}</dd></div><div><dt>{{ t('疗程结束', 'Treatment End') }}</dt><dd>{{ patientDate(selectedPatient.treatment_ended_at) }}</dd></div><div class="is-full"><dt>{{ t('口腔情况摘要', 'Oral Condition Summary') }}</dt><dd>{{ selectedPatient.oral_description || '-' }}</dd></div><div class="is-full"><dt>{{ t('病史 / 用药 / 过敏', 'Medical History / Medication / Allergies') }}</dt><dd>{{ selectedPatient.medical_notes || t('未记录', 'Not Recorded') }}</dd></div></dl></section>
             </template>
-            <template v-else-if="patientDrawerTab === 'orders'"><section class="dv2-detail-section"><h3>订单历史</h3><button v-for="order in selectedPatient.orders" :key="order.order_id" type="button" class="dv2-history-order" @click="patientDrawerOpen = false; openGlobalOrder(order.order_id)"><div><strong>{{ order.order_no }}</strong><small>{{ productNameLabel(order.product_name) }} · {{ compactDoctorDateTime(order.created_at) }}</small></div><span :class="`dv2-status is-${statusTone(order.external_status)}`">{{ label(order.external_status) }}</span></button><div v-if="!selectedPatient.orders.length" class="dv2-empty">暂无历史订单</div></section></template>
-            <template v-else><section class="dv2-detail-section"><h3>历史病例参考</h3><p class="dv2-section-note">仅展示当前诊所权限范围内、可用于填写参考的历史订单。</p><article v-for="item in selectedPatient.history_references" :key="item.order_no" class="dv2-history-reference"><strong>{{ item.order_no }} · {{ productNameLabel(item.product_name) }}</strong><p>{{ item.summary }}</p><div><span v-for="field in item.matched_fields" :key="field" class="dv2-tag">{{ field }}</span></div></article><div v-if="!selectedPatient.history_references.length" class="dv2-empty">暂无可参考历史记录</div></section></template>
+            <template v-else-if="patientDrawerTab === 'orders'"><section class="dv2-detail-section"><h3>{{ t('订单历史', 'Order History') }}</h3><button v-for="order in selectedPatient.orders" :key="order.order_id" type="button" class="dv2-history-order" @click="patientDrawerOpen = false; openGlobalOrder(order.order_id)"><div><strong>{{ order.order_no }}</strong><small>{{ productNameLabel(order.product_name) }} · {{ compactDoctorDateTime(order.created_at) }}</small></div><span :class="`dv2-status is-${statusTone(order.external_status)}`">{{ label(order.external_status) }}</span></button><div v-if="!selectedPatient.orders.length" class="dv2-empty">{{ t('暂无历史订单', 'No previous orders') }}</div></section></template>
+            <template v-else><section class="dv2-detail-section"><h3>{{ t('历史病例参考', 'Case History Reference') }}</h3><p class="dv2-section-note">{{ t('仅展示当前诊所权限范围内、可用于填写参考的历史订单。', 'Only previous orders visible to the current clinic are shown as references.') }}</p><article v-for="item in selectedPatient.history_references" :key="item.order_no" class="dv2-history-reference"><strong>{{ item.order_no }} · {{ productNameLabel(item.product_name) }}</strong><p>{{ item.summary }}</p><div><span v-for="field in item.matched_fields" :key="field" class="dv2-tag">{{ field }}</span></div></article><div v-if="!selectedPatient.history_references.length" class="dv2-empty">{{ t('暂无可参考历史记录', 'No reference history available') }}</div></section></template>
           </div>
           <footer class="dv2-drawer-footer">
-            <template v-if="patientEditMode"><button type="button" class="dv2-secondary-button" @click="patientEditMode = false">取消</button><button type="button" class="dv2-primary-button" :disabled="patientSaving" @click="savePatientChanges">{{ patientSaving ? '保存中…' : '保存修改' }}</button></template>
-            <button v-else-if="canCreateOrder" type="button" class="dv2-primary-button" @click="patientDrawerOpen = false; openWizard(selectedPatient.patient_id)">＋ 为患者新建订单</button>
+            <template v-if="patientEditMode"><button type="button" class="dv2-secondary-button" @click="patientEditMode = false">{{ t('取消', 'Cancel') }}</button><button type="button" class="dv2-primary-button" :disabled="patientSaving" @click="savePatientChanges">{{ patientSaving ? t('保存中…', 'Saving…') : t('保存修改', 'Save Changes') }}</button></template>
+            <button v-else-if="canCreateOrder" type="button" class="dv2-primary-button" @click="patientDrawerOpen = false; openWizard(selectedPatient.patient_id)">＋ {{ t('为患者新建订单', 'New Order for Patient') }}</button>
           </footer>
         </template>
       </aside>
     </div>
 
-    <div v-if="logisticsDrawerOpen" class="dv2-drawer-mask" @mousedown.self="logisticsDrawerOpen = false"><aside class="dv2-logistics-drawer"><header><div><small>物流详情</small><h2>{{ selectedLogistics?.order_no }}</h2></div><button type="button" @click="logisticsDrawerOpen = false">×</button></header><template v-if="selectedLogistics"><div class="dv2-logistics-summary"><div><small>物流公司</small><strong>{{ selectedLogistics.carrier }}</strong></div><div><small>运单号</small><strong class="dv2-mono">{{ selectedLogistics.tracking_no }}</strong></div><span :class="`dv2-status is-${statusTone(selectedLogistics.status)}`">{{ label(selectedLogistics.status) }}</span></div><div class="dv2-logistics-timeline"><article v-for="(event, index) in selectedLogistics.events" :key="`${event.time}-${event.label}`" :class="{ current: index === selectedLogistics.events.length - 1 }"><span>{{ index === selectedLogistics.events.length - 1 ? '✓' : '' }}</span><div><strong>{{ event.label }}</strong><p>{{ event.location || '' }}</p><small>{{ event.time }}</small></div></article></div></template></aside></div>
+    <div v-if="logisticsDrawerOpen" class="dv2-drawer-mask" @mousedown.self="logisticsDrawerOpen = false"><aside class="dv2-logistics-drawer"><header><div><small>{{ t('物流详情', 'Shipment Details') }}</small><h2>{{ selectedLogistics?.order_no }}</h2></div><button type="button" @click="logisticsDrawerOpen = false">×</button></header><template v-if="selectedLogistics"><div class="dv2-logistics-summary"><div><small>{{ t('物流公司', 'Carrier') }}</small><strong>{{ selectedLogistics.carrier }}</strong></div><div><small>{{ t('运单号', 'Tracking Number') }}</small><strong class="dv2-mono">{{ selectedLogistics.tracking_no }}</strong></div><span :class="`dv2-status is-${statusTone(selectedLogistics.status)}`">{{ label(selectedLogistics.status) }}</span></div><div class="dv2-logistics-timeline"><article v-for="(event, index) in selectedLogistics.events" :key="`${event.time}-${event.label}`" :class="{ current: index === selectedLogistics.events.length - 1 }"><span>{{ index === selectedLogistics.events.length - 1 ? '✓' : '' }}</span><div><strong>{{ event.label }}</strong><p>{{ event.location || '' }}</p><small>{{ event.time }}</small></div></article></div></template></aside></div>
 
     <DoctorCaseGroupWizard
       v-if="wizardOpen && dataset"
@@ -2586,33 +2710,33 @@ onBeforeUnmount(() => window.removeEventListener('keydown', handleGlobalShortcut
   <dt>{{ summaryField.label }}</dt><dd>{{ wizard.dynamicFields[summaryField.key] || '-' }}</dd>
 </div></dl></section><section><h3>文件与后续确认</h3><dl><div><dt>文件</dt><dd>{{ wizard.files.length }} 个（STL {{ wizardStlCount }}）</dd></div><div><dt>设计稿确认</dt><dd>收到通知后由医生确认</dd></div></dl></section></div><div v-if="wizardMissingForStep(4).length" class="dv2-inline-notice is-warning">资料检查：还需补充 {{ wizardMissingForStep(4).join('、') }}</div><div v-else class="dv2-inline-notice is-success">资料检查：必填资料已齐全，可以提交。</div></section></main><footer><button type="button" class="dv2-secondary-button" :disabled="wizardSaving || wizardSubmitting || wizardUploading" @click="saveWizardDraft(false)">{{ wizardSaving ? '保存中…' : '保存草稿' }}</button><div><button v-if="wizardStep > 1" type="button" class="dv2-secondary-button" :disabled="wizardSaving || wizardSubmitting || wizardUploading" @click="wizardStep--">上一步</button><button v-if="wizardStep < 5" type="button" class="dv2-primary-button" :disabled="wizardSaving || wizardSubmitting || wizardUploading" @click="nextWizardStep">下一步</button><button v-else type="button" class="dv2-primary-button" :disabled="wizardSubmitDisabled" @click="submitWizard">{{ wizardSubmitting ? '提交中…' : '提交订单' }}</button></div></footer></div>
 
-    <el-dialog v-model="rejectDialogOpen" title="驳回并提交修改意见" width="520px" append-to-body><p class="dv2-dialog-note">说明需要调整的具体内容。对方提交新版本后，您可以再次确认。</p><el-input v-model="rejectReason" type="textarea" :rows="5" maxlength="500" show-word-limit placeholder="必填，请写明需要修改的位置和要求" /><template #footer><el-button :disabled="reviewSubmitting" @click="rejectDialogOpen = false">取消</el-button><el-button type="danger" :disabled="reviewSubmitting || !rejectReason.trim()" @click="submitReviewDecision('REJECT')">{{ reviewSubmitting ? '提交中…' : '确认驳回并发送' }}</el-button></template></el-dialog>
+    <el-dialog v-model="rejectDialogOpen" :title="t('驳回并提交修改意见', 'Reject and Request Changes')" width="520px" append-to-body><p class="dv2-dialog-note">{{ t('说明需要调整的具体内容。对方提交新版本后，您可以再次确认。', 'Describe the required changes. You can review again after a new version is submitted.') }}</p><el-input v-model="rejectReason" type="textarea" :rows="5" maxlength="500" show-word-limit :placeholder="t('必填，请写明需要修改的位置和要求', 'Required: specify what needs to change')" /><template #footer><el-button :disabled="reviewSubmitting" @click="rejectDialogOpen = false">{{ t('取消', 'Cancel') }}</el-button><el-button type="danger" :disabled="reviewSubmitting || !rejectReason.trim()" @click="submitReviewDecision('REJECT')">{{ reviewSubmitting ? t('提交中…', 'Submitting…') : t('确认驳回并发送', 'Reject and Send') }}</el-button></template></el-dialog>
 
-    <el-dialog v-model="patientDialogOpen" class="dv2-patient-dialog" title="新建患者" width="720px" append-to-body destroy-on-close>
-      <p class="dv2-patient-dialog-intro">建立患者档案后，可直接关联订单并持续查看治疗历史。</p>
+    <el-dialog v-model="patientDialogOpen" class="dv2-patient-dialog" :title="t('新建患者', 'New Patient')" width="720px" append-to-body destroy-on-close>
+      <p class="dv2-patient-dialog-intro">{{ t('建立患者档案后，可直接关联订单并持续查看治疗历史。', 'Create a patient record to link orders and track treatment history.') }}</p>
       <div class="dv2-form-grid">
-        <label><span>患者姓名 *</span><input v-model="newPatient.name" maxlength="128" placeholder="请输入患者姓名"></label>
-        <label><span>患者编号</span><input value="保存后自动生成" disabled></label>
-        <label><span>出生日期</span><input v-model="newPatient.dateOfBirth" type="date"></label>
-        <label><span>性别</span><select v-model="newPatient.gender"><option value="">请选择</option><option value="男">男</option><option value="女">女</option><option value="其他">其他</option></select></label>
-        <label><span>联系电话</span><input v-model="newPatient.phone" maxlength="64" placeholder="请输入联系电话"></label>
-        <label><span>电子邮箱</span><input v-model="newPatient.email" type="email" maxlength="160" placeholder="patient@example.com"></label>
-        <label><span>所属诊所</span><input :value="account?.clinic_name || '当前诊所'" disabled></label>
-        <label><span>负责医生</span><input :value="account?.display_name || '当前医生'" disabled></label>
-        <label><span>治疗状态</span><select v-model="newPatient.treatmentStatus"><option value="IN_TREATMENT">治疗中</option><option value="FOLLOW_UP">待复诊</option><option value="TREATMENT_ENDED">治疗结束</option><option value="ARCHIVED">已归档</option></select></label>
-        <label><span>疗程开始</span><input v-model="newPatient.treatmentStartedAt" type="date"></label>
-        <label class="is-full"><span>标签</span><input v-model="newPatient.tags" maxlength="512" placeholder="例如：VIP、种植、复诊；多个标签用逗号分隔"></label>
-        <label class="is-full"><span>口腔情况摘要</span><textarea v-model="newPatient.oralDescription" maxlength="512" rows="3" placeholder="记录牙位、口内情况及修复关注点"></textarea></label>
-        <label class="is-full"><span>病史 / 用药 / 过敏信息</span><textarea v-model="newPatient.medicalNotes" maxlength="1000" rows="4" placeholder="过敏、用药、特殊注意事项……"></textarea></label>
+        <label><span>{{ t('患者姓名 *', 'Patient Name *') }}</span><input v-model="newPatient.name" maxlength="128" :placeholder="t('请输入患者姓名', 'Enter patient name')"></label>
+        <label><span>{{ t('患者编号', 'Patient ID') }}</span><input :value="t('保存后自动生成', 'Generated after saving')" disabled></label>
+        <label><span>{{ t('出生日期', 'Date of Birth') }}</span><input v-model="newPatient.dateOfBirth" type="date"></label>
+        <label><span>{{ t('性别', 'Gender') }}</span><select v-model="newPatient.gender"><option value="">{{ t('请选择', 'Select') }}</option><option value="男">{{ t('男', 'Male') }}</option><option value="女">{{ t('女', 'Female') }}</option><option value="其他">{{ t('其他', 'Other') }}</option></select></label>
+        <label><span>{{ t('联系电话', 'Phone') }}</span><input v-model="newPatient.phone" maxlength="64" :placeholder="t('请输入联系电话', 'Enter phone number')"></label>
+        <label><span>{{ t('电子邮箱', 'Email') }}</span><input v-model="newPatient.email" type="email" maxlength="160" placeholder="patient@example.com"></label>
+        <label><span>{{ t('所属诊所', 'Clinic') }}</span><input :value="account?.clinic_name || t('当前诊所', 'Current Clinic')" disabled></label>
+        <label><span>{{ t('负责医生', 'Doctor') }}</span><input :value="account?.display_name || t('当前医生', 'Current Doctor')" disabled></label>
+        <label><span>{{ t('治疗状态', 'Treatment Status') }}</span><select v-model="newPatient.treatmentStatus"><option value="IN_TREATMENT">{{ t('治疗中', 'In Treatment') }}</option><option value="FOLLOW_UP">{{ t('待复诊', 'Follow-up Due') }}</option><option value="TREATMENT_ENDED">{{ t('治疗结束', 'Treatment Complete') }}</option><option value="ARCHIVED">{{ t('已归档', 'Archived') }}</option></select></label>
+        <label><span>{{ t('疗程开始', 'Treatment Start') }}</span><input v-model="newPatient.treatmentStartedAt" type="date"></label>
+        <label class="is-full"><span>{{ t('标签', 'Tags') }}</span><input v-model="newPatient.tags" maxlength="512" :placeholder="t('例如：VIP、种植、复诊；多个标签用逗号分隔', 'For example: VIP, implant, follow-up; separate tags with commas')"></label>
+        <label class="is-full"><span>{{ t('口腔情况摘要', 'Oral Condition Summary') }}</span><textarea v-model="newPatient.oralDescription" maxlength="512" rows="3" :placeholder="t('记录牙位、口内情况及修复关注点', 'Record tooth positions, oral findings, and restoration concerns')"></textarea></label>
+        <label class="is-full"><span>{{ t('病史 / 用药 / 过敏信息', 'Medical History / Medication / Allergies') }}</span><textarea v-model="newPatient.medicalNotes" maxlength="1000" rows="4" :placeholder="t('过敏、用药、特殊注意事项……', 'Allergies, medications, and special considerations…')"></textarea></label>
       </div>
-      <template #footer><el-button @click="patientDialogOpen = false">取消</el-button><el-button type="primary" :disabled="patientSaving || !newPatient.name.trim()" @click="createPatient">{{ patientSaving ? '保存中…' : '保存患者' }}</el-button></template>
+      <template #footer><el-button @click="patientDialogOpen = false">{{ t('取消', 'Cancel') }}</el-button><el-button type="primary" :disabled="patientSaving || !newPatient.name.trim()" @click="createPatient">{{ patientSaving ? t('保存中…', 'Saving…') : t('保存患者', 'Save Patient') }}</el-button></template>
     </el-dialog>
 
-    <el-dialog v-model="memberDialogOpen" title="邀请诊所成员" width="600px" append-to-body><div class="dv2-form-grid"><label><span>成员姓名 *</span><input v-model="newMember.displayName"></label><label><span>邮箱 *</span><input v-model="newMember.email" type="email"></label><label><span>诊所角色</span><select v-model="newMember.role">
+    <el-dialog v-model="memberDialogOpen" :title="t('邀请诊所成员', 'Invite Clinic Member')" width="600px" append-to-body><div class="dv2-form-grid"><label><span>{{ t('成员姓名 *', 'Member Name *') }}</span><input v-model="newMember.displayName"></label><label><span>{{ t('邮箱 *', 'Email *') }}</span><input v-model="newMember.email" type="email"></label><label><span>{{ t('诊所角色', 'Clinic Role') }}</span><select v-model="newMember.role">
   <option v-for="roleOption in clinicRoleOptions" :key="roleOption.value" :value="roleOption.value">{{ roleOption.name }}</option>
-</select></label><label><span>账单权限</span><select v-model="newMember.billing"><option value="NONE">无</option><option value="VIEW">查看</option><option value="FINANCIAL_ACTION">财务操作</option></select></label><label><span>物流权限</span><select v-model="newMember.logistics"><option value="NONE">无</option><option value="VIEW">查看</option><option value="RECEIPT">查看并确认收货</option></select></label></div><div class="dv2-inline-notice">诊所管理员只能分配医生端成员角色。</div><template #footer><el-button @click="memberDialogOpen = false">取消</el-button><el-button type="primary" @click="addMember">发送邀请</el-button></template></el-dialog>
+</select></label><label><span>{{ t('账单权限', 'Billing Access') }}</span><select v-model="newMember.billing"><option value="NONE">{{ t('无', 'None') }}</option><option value="VIEW">{{ t('查看', 'View') }}</option><option value="FINANCIAL_ACTION">{{ t('财务操作', 'Financial Actions') }}</option></select></label><label><span>{{ t('物流权限', 'Shipment Access') }}</span><select v-model="newMember.logistics"><option value="NONE">{{ t('无', 'None') }}</option><option value="VIEW">{{ t('查看', 'View') }}</option><option value="RECEIPT">{{ t('查看并确认收货', 'View and Confirm Receipt') }}</option></select></label></div><div class="dv2-inline-notice">{{ t('诊所管理员只能分配医生端成员角色。', 'Clinic Administrators can only assign doctor-portal member roles.') }}</div><template #footer><el-button @click="memberDialogOpen = false">{{ t('取消', 'Cancel') }}</el-button><el-button type="primary" @click="addMember">{{ t('发送邀请', 'Send Invitation') }}</el-button></template></el-dialog>
 
-    <el-dialog v-model="filePreviewOpen" title="文件预览" width="860px" append-to-body destroy-on-close><div class="dv2-preview-stage"><img v-if="filePreview?.kind === 'IMAGE' && filePreview.preview_url" class="dv2-preview-image" :src="filePreview.preview_url" :alt="filePreviewName"><iframe v-else-if="filePreview?.kind === 'PDF' && filePreview.preview_url" class="dv2-preview-frame" :src="filePreview.preview_url" :title="filePreviewName" /><div v-else-if="filePreview?.preview_url" class="dv2-preview-placeholder"><span>文件</span><strong>{{ filePreviewName }}</strong><p>该格式请在浏览器新窗口中查看。</p></div><div v-else class="dv2-preview-placeholder"><span>!</span><strong>{{ filePreviewName }}</strong><p>预览地址已失效，请关闭后重新打开。</p></div></div><template #footer><el-button v-if="filePreview?.preview_url" tag="a" :href="filePreview.preview_url" target="_blank" rel="noopener noreferrer">新窗口打开</el-button><el-button @click="filePreviewOpen = false">关闭</el-button></template></el-dialog>
+    <el-dialog v-model="filePreviewOpen" :title="t('文件预览', 'File Preview')" width="860px" append-to-body destroy-on-close><div class="dv2-preview-stage"><img v-if="filePreview?.kind === 'IMAGE' && filePreview.preview_url" class="dv2-preview-image" :src="filePreview.preview_url" :alt="filePreviewName"><iframe v-else-if="filePreview?.kind === 'PDF' && filePreview.preview_url" class="dv2-preview-frame" :src="filePreview.preview_url" :title="filePreviewName" /><div v-else-if="filePreview?.preview_url" class="dv2-preview-placeholder"><span>{{ t('文件', 'File') }}</span><strong>{{ filePreviewName }}</strong><p>{{ t('该格式请在浏览器新窗口中查看。', 'Open this file type in a new browser window.') }}</p></div><div v-else class="dv2-preview-placeholder"><span>!</span><strong>{{ filePreviewName }}</strong><p>{{ t('预览地址已失效，请关闭后重新打开。', 'The preview link has expired. Close and reopen the file.') }}</p></div></div><template #footer><el-button v-if="filePreview?.preview_url" tag="a" :href="filePreview.preview_url" target="_blank" rel="noopener noreferrer">{{ t('新窗口打开', 'Open in New Window') }}</el-button><el-button @click="filePreviewOpen = false">{{ t('关闭', 'Close') }}</el-button></template></el-dialog>
 
     <StlViewerDialog v-if="viewerFile" v-model:visible="viewerOpen" :source-url="viewerFile.preview_url || ''" :filename="viewerFile.name" />
   </div>
