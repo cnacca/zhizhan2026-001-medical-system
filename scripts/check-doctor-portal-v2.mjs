@@ -88,7 +88,7 @@ for (const text of [
   'compactDoctorDateTime(order.created_at)',
   'wizardSubmitDisabled',
   ':disabled="wizardSubmitDisabled"',
-  "ElMessage.success('草稿已保存')",
+  "ElMessage.success(t('草稿已保存'",
   'gateway.switchRole',
   "review.allowed_actions.includes('APPROVE_REVIEW')",
   "review.allowed_actions.includes('REJECT_REVIEW')"

@@ -17,7 +17,7 @@ const required = [
   'void removeItem(persistedItem)',
   'function copyPendingProduct(product: CatalogProduct)',
   'pendingProductIds.value = [...pendingProductIds.value, product.product_id]',
-  '@click="copyPendingProduct(product)">复制</button>',
+  "@click=\"copyPendingProduct(product)\">{{ t('复制', 'Copy') }}</button>",
   ':disabled="busy"',
   '@click="toggleProductSelection(product)"',
   '尚未保存，点击下一步后创建产品订单',
