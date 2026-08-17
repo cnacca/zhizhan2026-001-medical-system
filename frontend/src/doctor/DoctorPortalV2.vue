@@ -11,6 +11,7 @@ import DoctorDynamicFields from './DoctorDynamicFields.vue'
 import { provideDoctorLocale, translateDoctorText, type DoctorLocale } from './doctorI18n'
 import type {
   ClinicRole,
+  DoctorNotification,
   DoctorFile,
   DoctorPage,
   DoctorPortalDataset,
@@ -24,6 +25,7 @@ import type {
   PatientDetail,
   PatientSummary,
   ProductOption,
+  PublicProgressItem,
   ReviewType
 } from './types/contracts'
 
@@ -341,6 +343,62 @@ const categoryLabelsEn: Record<string, string> = {
   ORDER: 'Order', REVIEW: 'Review', MESSAGE: 'Message', BILLING: 'Billing', LOGISTICS: 'Delivery', SYSTEM: 'System'
 }
 
+const publicProgressLabelsEn: Record<string, string> = {
+  review: 'Records Review',
+  design: 'Treatment Plan Design',
+  production: 'In Production',
+  'final-review': 'Final Product Review',
+  'ready-to-ship': 'Ready to Ship',
+  shipped: 'In Delivery',
+  completed: 'Completed'
+}
+const publicProgressNotesEn: Record<string, string> = {
+  review: 'Order records are under review.',
+  design: 'The records have been approved and the treatment plan is being prepared.',
+  production: 'The plan is confirmed and production is underway.',
+  'final-review': 'The finished product is under final review.',
+  'ready-to-ship': 'The finished product is ready and awaiting dispatch.',
+  shipped: 'The order has shipped. See Billing & Delivery for tracking.',
+  completed: 'The order is complete.'
+}
+const publicOrderMessagesEn: Record<string, string> = {
+  '暂无公开进度说明': 'No public progress update is available.',
+  '订单仍为草稿，提交后进入资料审核': 'The order is still a draft. Submit it to begin records review.',
+  '订单已提交，正在审核资料': 'The order has been submitted and its records are under review.',
+  '订单已提交，等待订单服务确认资料': 'The order has been submitted and is awaiting record confirmation by Order Support.',
+  '订单已通过审核，正在进行设计相关工作': 'The records have been approved and design work is underway.',
+  '订单正在生产中': 'The order is in production.',
+  '订单正在质检中': 'The order is undergoing final quality review.',
+  '订单已通过质检，等待发货': 'The order has passed final review and is awaiting dispatch.',
+  '订单已发货，请关注物流信息': 'The order has shipped. Check Billing & Delivery for tracking.',
+  '订单已完成': 'The order is complete.',
+  '订单正按已确认的公开进度处理': 'The order is proceeding through the confirmed public workflow.',
+  '请补充比色照片，补齐后将继续审核': 'Please add a shade photo. Review will continue after the record is complete.'
+}
+const notificationTitlesEn: Record<DoctorNotification['category'], string> = {
+  ORDER: 'Order Notification',
+  REVIEW: 'Review Notification',
+  MESSAGE: 'New Message',
+  BILLING: 'Billing Notification',
+  LOGISTICS: 'Delivery Notification',
+  SYSTEM: 'System Notification'
+}
+const notificationSummariesEn: Record<string, string> = {
+  '客服审核通过，等待生产审核': 'Order Support review passed. Production review is pending.',
+  '订单已发货': 'The order has shipped.',
+  '收款记录已更新': 'The payment record has been updated.',
+  '账单已上传': 'The bill has been uploaded.',
+  '设计稿待医生确认': 'A design draft is awaiting doctor review.'
+}
+const logisticsEventLabelsEn: Record<string, string> = {
+  '医生已确认收货': 'Receipt Confirmed by Doctor',
+  '订单已发货': 'Order Shipped',
+  '配送状态已更新': 'Shipment Updated',
+  '已发出': 'Dispatched',
+  '运输中': 'In Transit',
+  '已送达': 'Delivered'
+}
+
 const activePage = ref<DoctorPage>('dashboard')
 const loading = ref(true)
 const loadError = ref('')
@@ -574,7 +632,7 @@ const filteredNotifications = computed(() => {
   const keyword = notificationKeyword.value.trim().toLowerCase()
   return (dataset.value?.notifications ?? []).filter((item) => {
     const matchesRead = notificationFilter.value === 'ALL' || (notificationFilter.value === 'UNREAD' ? !item.read : item.read)
-    return matchesRead && (!keyword || `${item.title} ${item.summary}`.toLowerCase().includes(keyword))
+    return matchesRead && (!keyword || `${notificationTitle(item)} ${notificationSummary(item)}`.toLowerCase().includes(keyword))
   })
 })
 
@@ -643,8 +701,8 @@ const orderTimelineItems = computed<DoctorTimelineEntry[]>(() => {
     if (!progress.occurred_at) return
     items.push({
       key: `progress-${progress.key}-${progress.occurred_at}`,
-      title: progress.label,
-      actor: progress.note || t('订单服务', 'Order Support'),
+      title: publicProgressLabel(progress),
+      actor: publicProgressNote(progress) || t('订单服务', 'Order Support'),
       occurredAt: progress.occurred_at,
       tone: 'order'
     })
@@ -744,6 +802,68 @@ function money(value: Money | null | undefined): string {
 
 function t(zh: string, en: string, params: Record<string, string | number | null | undefined> = {}): string {
   return translateDoctorText(portalLanguage.value, zh, en, params)
+}
+
+function normalizeSystemText(value: string): string {
+  return value.trim().replace(/[。.!！]+$/u, '')
+}
+
+function readableCode(value: string): string {
+  return value.trim().toLowerCase().split(/[_\s-]+/).filter(Boolean).map((part) => `${part.slice(0, 1).toUpperCase()}${part.slice(1)}`).join(' ')
+}
+
+function publicProgressLabel(item: PublicProgressItem): string {
+  if (portalLanguage.value !== 'EN') return item.label
+  if (item.key === 'submitted') return item.status === 'DONE' ? 'Order Submitted' : 'Order Pending Submission'
+  if (publicProgressLabelsEn[item.key]) return publicProgressLabelsEn[item.key]
+  return /[\u3400-\u9fff]/.test(item.label) ? readableCode(item.key) || 'Order Progress' : item.label
+}
+
+function publicProgressNote(item: PublicProgressItem): string {
+  if (!item.note) return ''
+  if (portalLanguage.value !== 'EN') return item.note
+  if (item.key === 'submitted') return item.status === 'DONE'
+    ? 'The order has entered the public workflow.'
+    : 'The order is still a draft. Submit it to begin records review.'
+  if (publicProgressNotesEn[item.key]) return publicProgressNotesEn[item.key]
+  return /[\u3400-\u9fff]/.test(item.note) ? 'Public progress updated.' : item.note
+}
+
+function publicOrderMessage(value: string): string {
+  if (portalLanguage.value !== 'EN' || !/[\u3400-\u9fff]/.test(value)) return value
+  return publicOrderMessagesEn[normalizeSystemText(value)] || 'Public progress updated. See the timeline above for the current stage.'
+}
+
+function notificationTitle(item: DoctorNotification): string {
+  return portalLanguage.value === 'EN' ? notificationTitlesEn[item.category] : item.title
+}
+
+function notificationSummary(item: DoctorNotification): string {
+  if (portalLanguage.value !== 'EN' || item.category === 'MESSAGE' || !/[\u3400-\u9fff]/.test(item.summary)) return item.summary
+  const translated = notificationSummariesEn[normalizeSystemText(item.summary)]
+  if (translated) return translated
+  return `${notificationTitlesEn[item.category]} updated.`
+}
+
+function processConfirmationName(confirmation: ProcessConfirmation): string {
+  if (portalLanguage.value !== 'EN') return confirmation.confirmation_name
+  const reviewName = reviewLabelsEn[confirmation.confirmation_code as ReviewType]
+  if (reviewName) return reviewName
+  return /[\u3400-\u9fff]/.test(confirmation.confirmation_name)
+    ? readableCode(confirmation.confirmation_code) || 'Process Review'
+    : confirmation.confirmation_name
+}
+
+function billItemName(item: DeliveryPlanBillItem): string {
+  if (portalLanguage.value !== 'EN' || !/[\u3400-\u9fff]/.test(item.item_name)) return item.item_name
+  if (item.item_code === 'TRY_IN') return 'Try-in'
+  if (item.item_code === 'PRODUCT') return 'Final Product'
+  return readableCode(item.item_code) || 'Billable Item'
+}
+
+function logisticsEventLabel(value: string): string {
+  if (portalLanguage.value !== 'EN' || !/[\u3400-\u9fff]/.test(value)) return value
+  return logisticsEventLabelsEn[normalizeSystemText(value)] || 'Shipment Updated'
 }
 
 function errorText(cause: unknown, zhFallback: string, enFallback: string): string {
@@ -2414,7 +2534,7 @@ onBeforeUnmount(() => {
     </section>
 
     <div v-if="notificationOpen" class="dv2-drawer-mask" @mousedown.self="notificationOpen = false">
-      <aside class="dv2-notification-drawer" data-testid="doctor-notification-drawer"><header><div><h2>{{ t('通知中心', 'Notifications') }}</h2><p>{{ t('{count} 条未读通知', '{count} unread notification(s)', { count: unreadCount }) }}</p></div><button type="button" :aria-label="t('关闭通知中心', 'Close notifications')" @click="notificationOpen = false">×</button></header><div class="dv2-notification-tools"><label><span>⌕</span><input v-model="notificationKeyword" type="search" :placeholder="t('搜索通知', 'Search notifications')"></label><button type="button" @click="markAllNotifications">{{ t('全部已读', 'Mark All Read') }}</button></div><div class="dv2-chip-row"><button v-for="item in [{ key: 'ALL', label: t('全部', 'All') }, { key: 'UNREAD', label: t('未读', 'Unread') }, { key: 'READ', label: t('已读', 'Read') }]" :key="item.key" type="button" :class="{ active: notificationFilter === item.key }" @click="selectAllNotificationFilter(item.key as typeof notificationFilter)">{{ item.label }}</button></div><div class="dv2-notification-list"><button v-for="item in filteredNotifications" :key="item.notification_id" type="button" :class="{ unread: !item.read }" @click="openNotification(item.notification_id)"><span :class="`dv2-notification-icon is-${item.category.toLowerCase()}`">{{ categoryLabel(item.category).slice(0, 1) }}</span><div><strong>{{ item.title }}</strong><p>{{ item.summary }}</p><small>{{ item.created_at }} · {{ categoryLabel(item.category) }}</small></div><i v-if="!item.read" /></button><div v-if="!filteredNotifications.length" class="dv2-empty">{{ t('没有符合筛选条件的通知', 'No notifications match the current filters') }}</div></div></aside>
+      <aside class="dv2-notification-drawer" data-testid="doctor-notification-drawer"><header><div><h2>{{ t('通知中心', 'Notifications') }}</h2><p>{{ t('{count} 条未读通知', '{count} unread notification(s)', { count: unreadCount }) }}</p></div><button type="button" :aria-label="t('关闭通知中心', 'Close notifications')" @click="notificationOpen = false">×</button></header><div class="dv2-notification-tools"><label><span>⌕</span><input v-model="notificationKeyword" type="search" :placeholder="t('搜索通知', 'Search notifications')"></label><button type="button" @click="markAllNotifications">{{ t('全部已读', 'Mark All Read') }}</button></div><div class="dv2-chip-row"><button v-for="item in [{ key: 'ALL', label: t('全部', 'All') }, { key: 'UNREAD', label: t('未读', 'Unread') }, { key: 'READ', label: t('已读', 'Read') }]" :key="item.key" type="button" :class="{ active: notificationFilter === item.key }" @click="selectAllNotificationFilter(item.key as typeof notificationFilter)">{{ item.label }}</button></div><div class="dv2-notification-list"><button v-for="item in filteredNotifications" :key="item.notification_id" type="button" :class="{ unread: !item.read }" @click="openNotification(item.notification_id)"><span :class="`dv2-notification-icon is-${item.category.toLowerCase()}`">{{ categoryLabel(item.category).slice(0, 1) }}</span><div><strong>{{ notificationTitle(item) }}</strong><p>{{ notificationSummary(item) }}</p><small>{{ item.created_at }} · {{ categoryLabel(item.category) }}</small></div><i v-if="!item.read" /></button><div v-if="!filteredNotifications.length" class="dv2-empty">{{ t('没有符合筛选条件的通知', 'No notifications match the current filters') }}</div></div></aside>
     </div>
 
     <div v-if="orderDrawerOpen" class="dv2-drawer-mask is-order-reference" @mousedown.self="orderDrawerOpen = false">
@@ -2491,7 +2611,7 @@ onBeforeUnmount(() => {
               <div v-if="deliveryPlan.process_confirmations.length" class="dv2-delivery-confirmations">
                 <article v-for="confirmation in deliveryPlan.process_confirmations" :key="confirmation.confirmation_code" :class="{ overdue: confirmation.overdue }">
                   <div>
-                    <strong>{{ confirmation.confirmation_name }}</strong>
+                    <strong>{{ processConfirmationName(confirmation) }}</strong>
                     <small>
                       {{ processConfirmationStatusLabel(confirmation.confirmation_status) }}
                       <template v-if="confirmation.overdue"> · {{ t('已超期 {count} 天，交期已顺延', '{count} day(s) overdue; delivery date extended', { count: confirmation.waiting_days }) }}</template>
@@ -2515,7 +2635,7 @@ onBeforeUnmount(() => {
                 <strong>{{ t('计价项', 'Billable Items') }}</strong>
                 <ul>
                   <li v-for="item in deliveryPlan.bill_items" :key="item.item_code">
-                    <span>{{ item.item_name }}</span>
+                    <span>{{ billItemName(item) }}</span>
                     <em>{{ item.pricing_status === 'PRICED' && item.amount_cents !== null ? `${(item.amount_cents / 100).toFixed(2)} ${item.currency}` : t('待报价', 'Quote Pending') }}</em>
                   </li>
                 </ul>
@@ -2528,13 +2648,13 @@ onBeforeUnmount(() => {
                 <article v-for="item in selectedOrder.progress" :key="item.key" :class="item.status.toLowerCase()">
                   <span>{{ item.status === 'DONE' ? '✓' : ({ submitted: '📥', review: '🔎', design: '✏️', production: '⚙️', 'final-review': '✅', 'ready-to-ship': '📦', shipped: '🚀', completed: '✓' } as Record<string, string>)[item.key] || '•' }}</span>
                   <div>
-                    <strong>{{ item.label }}</strong>
+                    <strong>{{ publicProgressLabel(item) }}</strong>
                     <small>{{ item.status === 'DONE' ? t('已完成', 'Completed') : item.status === 'ACTIVE' ? t('⚡ 进行中', '⚡ In Progress') : t('待开始', 'Not Started') }}<template v-if="item.occurred_at"> · {{ compactDoctorDateTime(item.occurred_at) }}</template></small>
-                    <p v-if="item.note">{{ item.note }}</p>
+                    <p v-if="item.note">{{ publicProgressNote(item) }}</p>
                   </div>
                 </article>
               </div>
-              <div class="dv2-public-message">{{ selectedOrder.public_message }}</div>
+              <div class="dv2-public-message">{{ publicOrderMessage(selectedOrder.public_message) }}</div>
               <div class="dv2-reference-actions">
                 <button type="button" class="dv2-secondary-button" @click="openSelectedOrderConversation">💬 {{ t('进入订单沟通', 'Open Conversation') }}</button>
               </div>
@@ -2676,7 +2796,7 @@ onBeforeUnmount(() => {
       </aside>
     </div>
 
-    <div v-if="logisticsDrawerOpen" class="dv2-drawer-mask" @mousedown.self="logisticsDrawerOpen = false"><aside class="dv2-logistics-drawer"><header><div><small>{{ t('物流详情', 'Shipment Details') }}</small><h2>{{ selectedLogistics?.order_no }}</h2></div><button type="button" @click="logisticsDrawerOpen = false">×</button></header><template v-if="selectedLogistics"><div class="dv2-logistics-summary"><div><small>{{ t('物流公司', 'Carrier') }}</small><strong>{{ selectedLogistics.carrier }}</strong></div><div><small>{{ t('运单号', 'Tracking Number') }}</small><strong class="dv2-mono">{{ selectedLogistics.tracking_no }}</strong></div><span :class="`dv2-status is-${statusTone(selectedLogistics.status)}`">{{ label(selectedLogistics.status) }}</span></div><div class="dv2-logistics-timeline"><article v-for="(event, index) in selectedLogistics.events" :key="`${event.time}-${event.label}`" :class="{ current: index === selectedLogistics.events.length - 1 }"><span>{{ index === selectedLogistics.events.length - 1 ? '✓' : '' }}</span><div><strong>{{ event.label }}</strong><p>{{ event.location || '' }}</p><small>{{ event.time }}</small></div></article></div></template></aside></div>
+    <div v-if="logisticsDrawerOpen" class="dv2-drawer-mask" @mousedown.self="logisticsDrawerOpen = false"><aside class="dv2-logistics-drawer"><header><div><small>{{ t('物流详情', 'Shipment Details') }}</small><h2>{{ selectedLogistics?.order_no }}</h2></div><button type="button" @click="logisticsDrawerOpen = false">×</button></header><template v-if="selectedLogistics"><div class="dv2-logistics-summary"><div><small>{{ t('物流公司', 'Carrier') }}</small><strong>{{ selectedLogistics.carrier }}</strong></div><div><small>{{ t('运单号', 'Tracking Number') }}</small><strong class="dv2-mono">{{ selectedLogistics.tracking_no }}</strong></div><span :class="`dv2-status is-${statusTone(selectedLogistics.status)}`">{{ label(selectedLogistics.status) }}</span></div><div class="dv2-logistics-timeline"><article v-for="(event, index) in selectedLogistics.events" :key="`${event.time}-${event.label}`" :class="{ current: index === selectedLogistics.events.length - 1 }"><span>{{ index === selectedLogistics.events.length - 1 ? '✓' : '' }}</span><div><strong>{{ logisticsEventLabel(event.label) }}</strong><p>{{ event.location || '' }}</p><small>{{ event.time }}</small></div></article></div></template></aside></div>
 
     <DoctorCaseGroupWizard
       v-if="wizardOpen && dataset"
