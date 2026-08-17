@@ -203,8 +203,12 @@ const productNameLabelsEn: Record<string, string> = {
   TELESCOPIC_CROWN: 'Telescopic Crown', VENEER_RESTORATION: 'Veneer Restoration'
 }
 const productDisplayNamesEn: Record<string, string> = {
-  常规牙冠: 'Standard Crown', 种植冠: 'Implant Crown', 固定桥: 'Fixed Bridge', 局部活动义齿: 'Partial Denture',
-  正畸保持器: 'Orthodontic Retainer', 隐形矫治方案: 'Clear Aligner Plan', 数字化修复设计: 'Digital Restoration Design'
+  固定牙冠: 'Fixed Crown', 常规牙冠: 'Standard Crown', 种植冠: 'Implant Crown', 固定桥: 'Fixed Bridge',
+  种植修复: 'Implant Restoration', 活动义齿: 'Removable Denture', 局部活动义齿: 'Partial Denture',
+  金属支架活动义齿: 'Metal Framework Denture', 隐形活动义齿: 'Flexible Denture', 正畸产品: 'Orthodontic Appliance',
+  正畸保持器: 'Orthodontic Retainer', 隐形矫治: 'Clear Aligner', 隐形矫治方案: 'Clear Aligner Plan',
+  数字化设计: 'Digital Design', 数字化修复设计: 'Digital Restoration Design', 精密附件: 'Precision Attachment',
+  套筒冠: 'Telescopic Crown', 贴面修复: 'Veneer Restoration'
 }
 
 type WizardCategoryId = 'fixed' | 'implant' | 'removable' | 'ortho' | 'aligner' | 'design'
@@ -359,6 +363,8 @@ const availableRoles = ref<ClinicRole[]>(['DOCTOR'])
 const storedDoctorLocale = window.localStorage.getItem('doctor-portal-language')
 const portalLanguage = ref<DoctorLocale>(storedDoctorLocale === 'EN' ? 'EN' : 'ZH')
 provideDoctorLocale(portalLanguage)
+const dateInputType = computed(() => portalLanguage.value === 'EN' ? 'text' : 'date')
+const dateInputPlaceholder = computed(() => portalLanguage.value === 'EN' ? 'YYYY-MM-DD' : undefined)
 const globalKeyword = ref('')
 const globalSearchOpen = ref(false)
 const notificationOpen = ref(false)
@@ -2079,7 +2085,7 @@ onBeforeUnmount(() => window.removeEventListener('keydown', handleGlobalShortcut
 </script>
 
 <template>
-  <div class="dv2-shell" data-testid="doctor-v2-portal" :lang="portalLanguage === 'EN' ? 'en' : 'zh-CN'">
+  <div class="dv2-shell" data-testid="doctor-v2-portal" :lang="portalLanguage === 'EN' ? 'en-US' : 'zh-CN'">
     <aside class="dv2-sidebar">
       <div class="dv2-brand">
         <span class="dv2-brand-mark">P</span>
@@ -2276,8 +2282,8 @@ onBeforeUnmount(() => window.removeEventListener('keydown', handleGlobalShortcut
               <div v-if="orderFiltersExpanded" class="dv2-advanced-filters">
                 <label><span>{{ t('负责医生', 'Doctor') }}</span><select v-model="orderDoctor" @change="orderPage = 1"><option value="ALL">{{ t('全部医生', 'All Doctors') }}</option><option v-for="doctor in orderDoctors" :key="doctor" :value="doctor">{{ doctor }}</option></select></label>
                 <label><span>{{ t('订单标签', 'Order Tag') }}</span><select v-model="orderTag" @change="orderPage = 1"><option value="ALL">{{ t('全部标签', 'All Tags') }}</option><option v-for="tag in orderTags" :key="tag" :value="tag">{{ tag }}</option></select></label>
-                <label><span>{{ t('创建日期从', 'Created From') }}</span><input v-model="orderDateFrom" type="date" @change="orderPage = 1"></label>
-                <label><span>{{ t('到', 'To') }}</span><input v-model="orderDateTo" type="date" @change="orderPage = 1"></label>
+                <label><span>{{ t('创建日期从', 'Created From') }}</span><input v-model="orderDateFrom" :type="dateInputType" :placeholder="dateInputPlaceholder" inputmode="numeric" pattern="\d{4}-\d{2}-\d{2}" maxlength="10" @change="orderPage = 1"></label>
+                <label><span>{{ t('到', 'To') }}</span><input v-model="orderDateTo" :type="dateInputType" :placeholder="dateInputPlaceholder" inputmode="numeric" pattern="\d{4}-\d{2}-\d{2}" maxlength="10" @change="orderPage = 1"></label>
                 <button type="button" @click="resetOrderFilters">{{ t('重置筛选', 'Reset Filters') }}</button>
               </div>
               <div class="dv2-quick-filters">
@@ -2471,7 +2477,7 @@ onBeforeUnmount(() => window.removeEventListener('keydown', handleGlobalShortcut
               <div class="dv2-delivery-adjust">
                 <label>
                   <span>{{ t('要求到货时间', 'Requested Delivery Date') }}</span>
-                  <input v-model="requestedDeliveryDateDraft" type="date" data-testid="doctor-requested-delivery-date">
+                  <input v-model="requestedDeliveryDateDraft" :type="dateInputType" :placeholder="dateInputPlaceholder" inputmode="numeric" pattern="\d{4}-\d{2}-\d{2}" maxlength="10" data-testid="doctor-requested-delivery-date">
                 </label>
                 <button type="button" class="dv2-secondary-button" :disabled="deliveryPlanBusy" data-testid="doctor-save-requested-delivery-date" @click="saveRequestedDeliveryDate">{{ t('保存到货时间', 'Save Delivery Date') }}</button>
               </div>
@@ -2636,14 +2642,14 @@ onBeforeUnmount(() => window.removeEventListener('keydown', handleGlobalShortcut
               <div class="dv2-form-grid">
                 <label><span>{{ t('患者姓名 *', 'Patient Name *') }}</span><input v-model="newPatient.name" maxlength="128"></label>
                 <label><span>{{ t('患者编号', 'Patient ID') }}</span><input :value="selectedPatient.patient_code" disabled></label>
-                <label><span>{{ t('出生日期', 'Date of Birth') }}</span><input v-model="newPatient.dateOfBirth" type="date"></label>
+                <label><span>{{ t('出生日期', 'Date of Birth') }}</span><input v-model="newPatient.dateOfBirth" :type="dateInputType" :placeholder="dateInputPlaceholder" inputmode="numeric" pattern="\d{4}-\d{2}-\d{2}" maxlength="10"></label>
                 <label><span>{{ t('年龄', 'Age') }}</span><input v-model="newPatient.age" type="number" min="0" max="150"></label>
                 <label><span>{{ t('性别', 'Gender') }}</span><select v-model="newPatient.gender"><option value="">{{ t('请选择', 'Select') }}</option><option value="男">{{ t('男', 'Male') }}</option><option value="女">{{ t('女', 'Female') }}</option><option value="其他">{{ t('其他', 'Other') }}</option></select></label>
                 <label><span>{{ t('治疗状态', 'Treatment Status') }}</span><select v-model="newPatient.treatmentStatus"><option value="IN_TREATMENT">{{ t('治疗中', 'In Treatment') }}</option><option value="FOLLOW_UP">{{ t('待复诊', 'Follow-up Due') }}</option><option value="TREATMENT_ENDED">{{ t('治疗结束', 'Treatment Complete') }}</option><option value="ARCHIVED">{{ t('已归档', 'Archived') }}</option></select></label>
                 <label><span>{{ t('联系电话', 'Phone') }}</span><input v-model="newPatient.phone" maxlength="64" :placeholder="t('请输入联系电话', 'Enter phone number')"></label>
                 <label><span>{{ t('电子邮箱', 'Email') }}</span><input v-model="newPatient.email" type="email" maxlength="160" placeholder="patient@example.com"></label>
-                <label><span>{{ t('疗程开始', 'Treatment Start') }}</span><input v-model="newPatient.treatmentStartedAt" type="date"></label>
-                <label><span>{{ t('疗程结束', 'Treatment End') }}</span><input v-model="newPatient.treatmentEndedAt" type="date" :disabled="!['TREATMENT_ENDED', 'ARCHIVED'].includes(newPatient.treatmentStatus)"></label>
+                <label><span>{{ t('疗程开始', 'Treatment Start') }}</span><input v-model="newPatient.treatmentStartedAt" :type="dateInputType" :placeholder="dateInputPlaceholder" inputmode="numeric" pattern="\d{4}-\d{2}-\d{2}" maxlength="10"></label>
+                <label><span>{{ t('疗程结束', 'Treatment End') }}</span><input v-model="newPatient.treatmentEndedAt" :type="dateInputType" :placeholder="dateInputPlaceholder" inputmode="numeric" pattern="\d{4}-\d{2}-\d{2}" maxlength="10" :disabled="!['TREATMENT_ENDED', 'ARCHIVED'].includes(newPatient.treatmentStatus)"></label>
                 <label class="is-full"><span>{{ t('标签', 'Tags') }}</span><input v-model="newPatient.tags" maxlength="512" :placeholder="t('多个标签用逗号分隔', 'Separate multiple tags with commas')"></label>
                 <label class="is-full"><span>{{ t('口腔情况摘要', 'Oral Condition Summary') }}</span><textarea v-model="newPatient.oralDescription" maxlength="512" rows="3" :placeholder="t('记录牙位、口内情况及修复关注点', 'Record tooth positions, oral findings, and restoration concerns')"></textarea></label>
                 <label class="is-full"><span>{{ t('病史 / 用药 / 过敏信息', 'Medical History / Medication / Allergies') }}</span><textarea v-model="newPatient.medicalNotes" maxlength="1000" rows="4" :placeholder="t('过敏、用药、特殊注意事项……', 'Allergies, medications, and special considerations…')"></textarea></label>
@@ -2717,14 +2723,14 @@ onBeforeUnmount(() => window.removeEventListener('keydown', handleGlobalShortcut
       <div class="dv2-form-grid">
         <label><span>{{ t('患者姓名 *', 'Patient Name *') }}</span><input v-model="newPatient.name" maxlength="128" :placeholder="t('请输入患者姓名', 'Enter patient name')"></label>
         <label><span>{{ t('患者编号', 'Patient ID') }}</span><input :value="t('保存后自动生成', 'Generated after saving')" disabled></label>
-        <label><span>{{ t('出生日期', 'Date of Birth') }}</span><input v-model="newPatient.dateOfBirth" type="date"></label>
+        <label><span>{{ t('出生日期', 'Date of Birth') }}</span><input v-model="newPatient.dateOfBirth" :type="dateInputType" :placeholder="dateInputPlaceholder" inputmode="numeric" pattern="\d{4}-\d{2}-\d{2}" maxlength="10"></label>
         <label><span>{{ t('性别', 'Gender') }}</span><select v-model="newPatient.gender"><option value="">{{ t('请选择', 'Select') }}</option><option value="男">{{ t('男', 'Male') }}</option><option value="女">{{ t('女', 'Female') }}</option><option value="其他">{{ t('其他', 'Other') }}</option></select></label>
         <label><span>{{ t('联系电话', 'Phone') }}</span><input v-model="newPatient.phone" maxlength="64" :placeholder="t('请输入联系电话', 'Enter phone number')"></label>
         <label><span>{{ t('电子邮箱', 'Email') }}</span><input v-model="newPatient.email" type="email" maxlength="160" placeholder="patient@example.com"></label>
         <label><span>{{ t('所属诊所', 'Clinic') }}</span><input :value="account?.clinic_name || t('当前诊所', 'Current Clinic')" disabled></label>
         <label><span>{{ t('负责医生', 'Doctor') }}</span><input :value="account?.display_name || t('当前医生', 'Current Doctor')" disabled></label>
         <label><span>{{ t('治疗状态', 'Treatment Status') }}</span><select v-model="newPatient.treatmentStatus"><option value="IN_TREATMENT">{{ t('治疗中', 'In Treatment') }}</option><option value="FOLLOW_UP">{{ t('待复诊', 'Follow-up Due') }}</option><option value="TREATMENT_ENDED">{{ t('治疗结束', 'Treatment Complete') }}</option><option value="ARCHIVED">{{ t('已归档', 'Archived') }}</option></select></label>
-        <label><span>{{ t('疗程开始', 'Treatment Start') }}</span><input v-model="newPatient.treatmentStartedAt" type="date"></label>
+        <label><span>{{ t('疗程开始', 'Treatment Start') }}</span><input v-model="newPatient.treatmentStartedAt" :type="dateInputType" :placeholder="dateInputPlaceholder" inputmode="numeric" pattern="\d{4}-\d{2}-\d{2}" maxlength="10"></label>
         <label class="is-full"><span>{{ t('标签', 'Tags') }}</span><input v-model="newPatient.tags" maxlength="512" :placeholder="t('例如：VIP、种植、复诊；多个标签用逗号分隔', 'For example: VIP, implant, follow-up; separate tags with commas')"></label>
         <label class="is-full"><span>{{ t('口腔情况摘要', 'Oral Condition Summary') }}</span><textarea v-model="newPatient.oralDescription" maxlength="512" rows="3" :placeholder="t('记录牙位、口内情况及修复关注点', 'Record tooth positions, oral findings, and restoration concerns')"></textarea></label>
         <label class="is-full"><span>{{ t('病史 / 用药 / 过敏信息', 'Medical History / Medication / Allergies') }}</span><textarea v-model="newPatient.medicalNotes" maxlength="1000" rows="4" :placeholder="t('过敏、用药、特殊注意事项……', 'Allergies, medications, and special considerations…')"></textarea></label>

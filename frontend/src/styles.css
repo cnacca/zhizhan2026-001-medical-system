@@ -175,6 +175,35 @@ body {
   gap: 12px;
 }
 
+.login-card-header-actions,
+.login-language-switch {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.login-language-switch {
+  padding: 3px;
+  border: 1px solid rgba(255, 255, 255, 0.22);
+  border-radius: 8px;
+}
+
+.login-language-switch button {
+  min-width: 38px;
+  min-height: 26px;
+  padding: 0 8px;
+  border: 0;
+  border-radius: 5px;
+  background: transparent;
+  color: #dbeafe;
+  cursor: pointer;
+}
+
+.login-language-switch button.active {
+  background: #ffffff;
+  color: #0d2c61;
+}
+
 .login-card-header h2 {
   margin: 0;
   color: #181c23;

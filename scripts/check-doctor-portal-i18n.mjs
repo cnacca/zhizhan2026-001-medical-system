@@ -5,6 +5,7 @@ const root = process.cwd()
 const read = (file) => fs.readFileSync(path.join(root, file), 'utf8')
 
 const files = {
+  app: read('frontend/src/App.vue'),
   portal: read('frontend/src/doctor/DoctorPortalV2.vue'),
   wizard: read('frontend/src/doctor/DoctorCaseGroupWizard.vue'),
   prescription: read('frontend/src/doctor/DoctorOrthodonticPrescription.vue'),
@@ -18,9 +19,19 @@ const requireText = (source, text, scope) => {
 }
 
 for (const text of [
+  "const doctorPortalLanguageKey = 'doctor-portal-language'",
+  "doctorLoginText('医生端登录', 'Doctor Portal Login')",
+  "doctorLoginText('请输入医生账号', 'Enter doctor account')",
+  "doctorLoginText('登录系统', 'Sign In')",
+  "setDoctorLoginLanguage('EN')"
+]) requireText(files.app, text, 'App doctor login')
+
+for (const text of [
   'provideDoctorLocale(portalLanguage)',
   "localStorage.getItem('doctor-portal-language')",
   "localStorage.setItem('doctor-portal-language'",
+  "const dateInputType = computed(() => portalLanguage.value === 'EN' ? 'text' : 'date')",
+  "正畸产品: 'Orthodontic Appliance'",
   "t('医生工作台', 'Doctor Portal')",
   "t('订单助手', 'Order Assistant')",
   "t('患者档案', 'Patients')",
@@ -33,6 +44,8 @@ for (const text of [
 
 for (const text of [
   "'Case & Products'",
+  "const dateInputType = computed(() => locale.value === 'EN' ? 'text' : 'date')",
+  "'YYYY-MM-DD'",
   "t('资料上传', 'Upload Records')",
   "t('报价、要求与周期确认', 'Quote, Requirements & Lead Time')",
   ":data-section-label=\"t('已选产品', 'Selected Products')\"",
@@ -109,6 +122,9 @@ const protectedChineseUi = [
 ]
 
 for (const [scope, template] of Object.entries(visibleTemplates)) {
+  if (/type=["']date["']/.test(template)) {
+    failures.push(`${scope} exposes browser-localized native date UI instead of the locale-aware date field`)
+  }
   const lines = template.split('\n')
   for (const phrase of protectedChineseUi) {
     lines.forEach((line, index) => {
