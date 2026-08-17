@@ -1435,7 +1435,7 @@ function categoryIcon(categoryCode: string) {
   }[categoryCode] ?? '🦷'
 }
 
-async function saveItem(item: CaseGroupItem, silent = false, fileIdsOverride?: number[]) {
+async function saveItemUnlocked(item: CaseGroupItem, silent = false, fileIdsOverride?: number[]) {
   if (!group.value) return false
   if (!commitItemObjectFields(item)) {
     if (!silent) ElMessage.warning('请先修正补充信息')
@@ -1473,12 +1473,22 @@ async function saveItem(item: CaseGroupItem, silent = false, fileIdsOverride?: n
   }
 }
 
+async function saveItem(item: CaseGroupItem, silent = false, fileIdsOverride?: number[]) {
+  if (busy.value || fileUploading.value) return false
+  busy.value = true
+  try {
+    return await saveItemUnlocked(item, silent, fileIdsOverride)
+  } finally {
+    busy.value = false
+  }
+}
+
 async function saveAllItemsUnlocked() {
   if (!group.value) return false
   const orderIds = group.value.items.map((item) => item.order_id)
   for (const orderId of orderIds) {
     const item = group.value.items.find((candidate) => candidate.order_id === orderId)
-    if (item && !(await saveItem(item, true))) return false
+    if (item && !(await saveItemUnlocked(item, true))) return false
   }
   notice.value = `草稿已保存 · ${new Date().toLocaleTimeString('zh-CN', { hour: '2-digit', minute: '2-digit' })}`
   return true
@@ -1505,7 +1515,7 @@ async function uploadProductFiles(event: Event, item: CaseGroupItem, slotCode = 
   const input = event.target as HTMLInputElement
   const files = Array.from(input.files ?? [])
   input.value = ''
-  if (!files.length || fileUploading.value) return
+  if (!files.length || fileUploading.value || busy.value) return
   fileUploading.value = true
   try {
     const uploaded = await props.gateway.uploadOrderFiles(String(item.order_id), files)
@@ -1519,7 +1529,7 @@ async function uploadProductFiles(event: Event, item: CaseGroupItem, slotCode = 
       ...uploaded.map((file) => Number(file.file_id))
     ])
     item.form_values.upload_slot_files = nextSlots
-    await saveItem(item, true)
+    await saveItemUnlocked(item, true)
     ElMessage.success(`${uploaded.length} 个专属文件已上传`)
   } catch (cause) {
     ElMessage.error(cause instanceof Error ? cause.message : '专属文件上传失败')
@@ -1533,7 +1543,7 @@ async function uploadSharedFiles(event: Event) {
   const files = Array.from(input.files ?? [])
   input.value = ''
   const firstItem = group.value?.items[0]
-  if (!files.length || !firstItem || !group.value || fileUploading.value) return
+  if (!files.length || !firstItem || !group.value || fileUploading.value || busy.value) return
   fileUploading.value = true
   try {
     const uploaded = await props.gateway.uploadOrderFiles(String(firstItem.order_id), files)
@@ -1575,7 +1585,7 @@ async function removeProductFile(item: CaseGroupItem, file: DoctorFile) {
         ]))
       : previousSlots
     item.form_values.upload_slot_files = nextSlots
-    const saved = await saveItem(item, true, itemSelectedFileIds(item).filter((id) => id !== fileId))
+    const saved = await saveItemUnlocked(item, true, itemSelectedFileIds(item).filter((id) => id !== fileId))
     if (!saved) {
       item.form_values.upload_slot_files = previousSlots
       return

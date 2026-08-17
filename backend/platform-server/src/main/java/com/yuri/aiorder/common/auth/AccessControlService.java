@@ -160,12 +160,12 @@ public class AccessControlService {
 
     public Long resolvePerformanceTargetUserId(BootstrapIdentity identity, Long requestedUserId) {
         if (identity.hasPermission("performance:read-all")) {
-            if (requestedUserId == null) {
-                throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "user_id is required");
+            if (requestedUserId != null) {
+                return requestedUserId;
             }
-            return requestedUserId;
         }
-        if (identity.hasPermission("performance:read-self")) {
+        if (identity.hasPermission("performance:read-self")
+                || identity.hasPermission("performance:read-all")) {
             if (identity.userId() == null) {
                 throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "worker user id is required");
             }
