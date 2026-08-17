@@ -365,6 +365,9 @@ const portalLanguage = ref<DoctorLocale>(storedDoctorLocale === 'EN' ? 'EN' : 'Z
 provideDoctorLocale(portalLanguage)
 const dateInputType = computed(() => portalLanguage.value === 'EN' ? 'text' : 'date')
 const dateInputPlaceholder = computed(() => portalLanguage.value === 'EN' ? 'YYYY-MM-DD' : undefined)
+watch(portalLanguage, (language) => {
+  document.title = language === 'EN' ? 'PrecisionDental Lab — Doctor Portal' : 'AI 智能下单与生产协同平台'
+}, { immediate: true })
 const globalKeyword = ref('')
 const globalSearchOpen = ref(false)
 const notificationOpen = ref(false)
@@ -2081,7 +2084,10 @@ onMounted(() => {
   window.addEventListener('keydown', handleGlobalShortcut)
   void loadPortal()
 })
-onBeforeUnmount(() => window.removeEventListener('keydown', handleGlobalShortcut))
+onBeforeUnmount(() => {
+  window.removeEventListener('keydown', handleGlobalShortcut)
+  document.title = 'AI 智能下单与生产协同平台'
+})
 </script>
 
 <template>
@@ -2381,7 +2387,7 @@ onBeforeUnmount(() => window.removeEventListener('keydown', handleGlobalShortcut
                 <div v-if="!filteredThreads.length" class="dv2-empty">{{ t('没有符合筛选条件的沟通', 'No conversations match the current filters') }}</div>
               </aside>
               <section v-if="activeThread" class="dv2-conversation">
-                <header><div><h2>{{ activeThread.patient_name }} · {{ productNameLabel(activeThread.product_name) }}</h2><p>{{ activeThread.order_no }} <span class="dv2-translation-chip">A/文 {{ t('可翻译', 'Translation available') }}</span></p></div><button type="button" class="dv2-secondary-button" @click="openGlobalOrder(activeThread.order_id)">{{ t('查看订单', 'View Order') }}</button></header>
+                <header><div><h2>{{ activeThread.patient_name }} · {{ productNameLabel(activeThread.product_name) }}</h2><p>{{ activeThread.order_no }} <span class="dv2-translation-chip">{{ t('A/文', 'A/EN') }} {{ t('可翻译', 'Translation available') }}</span></p></div><button type="button" class="dv2-secondary-button" @click="openGlobalOrder(activeThread.order_id)">{{ t('查看订单', 'View Order') }}</button></header>
                 <div class="dv2-message-stream">
                   <article v-for="message in activeThread.messages" :key="message.message_id" :class="{ self: message.sender === 'SELF' }"><span>{{ message.sender === 'SELF' ? (account?.display_name || t('我', 'Me')).slice(0, 1) : 'S' }}</span><div><small>{{ message.sender === 'SELF' ? t('我', 'Me') : t('订单服务', 'Order Support') }} · {{ message.sent_at }}</small><p>{{ message.content }}</p><section v-if="message.review" class="dv2-review-card"><header><div><strong>{{ reviewLabel(message.review.review_type) }}</strong><small>{{ t('当前版本 V{version}', 'Current Version V{version}', { version: message.review.current_version }) }}</small></div><span :class="`dv2-status is-${statusTone(message.review.status)}`">{{ label(message.review.status) }}</span></header><div class="dv2-version-list"><article v-for="version in [...message.review.versions].reverse()" :key="version.version"><div><strong>V{{ version.version }}</strong><span>{{ label(version.status) }}</span><small>{{ version.submitted_at }}</small></div><button v-for="attachment in version.files" :key="attachment.file_id" type="button" @click="previewFile(attachment)"><i>{{ attachment.kind }}</i><span>{{ attachment.name }}<small>{{ attachment.size_label }}</small></span><em>{{ t('预览', 'Preview') }}</em></button><p v-if="version.doctor_comment">{{ t('医生意见：', 'Doctor Comment: ') }}{{ version.doctor_comment }}</p></article></div><footer v-if="message.review.status === 'PENDING_REVIEW'"><template v-if="canReview && message.review.allowed_actions.some((action) => ['APPROVE_REVIEW', 'REJECT_REVIEW'].includes(action))"><button v-if="message.review.allowed_actions.includes('REJECT_REVIEW')" type="button" class="dv2-danger-button" :disabled="reviewSubmitting" @click="startReviewDecision(activeThread.order_id, message.review, 'REJECT')">{{ t('驳回并留言', 'Reject & Comment') }}</button><button v-if="message.review.allowed_actions.includes('APPROVE_REVIEW')" type="button" class="dv2-primary-button" :disabled="reviewSubmitting" @click="startReviewDecision(activeThread.order_id, message.review, 'APPROVE')">{{ t('同意当前版本', 'Approve Version') }}</button></template><p v-else>{{ t('当前账号不能执行此操作。', 'Your current account cannot perform this action.') }}</p></footer></section></div></article>
                 </div>
