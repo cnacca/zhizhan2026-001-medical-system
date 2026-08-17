@@ -24,6 +24,8 @@ import {
 
 const authenticatedFetch = inject(authenticatedFetchKey, fetch)
 const { t, locale } = useDoctorI18n()
+const dateInputType = computed(() => locale.value === 'EN' ? 'text' : 'date')
+const dateInputPlaceholder = computed(() => locale.value === 'EN' ? 'YYYY-MM-DD' : undefined)
 
 type ApiResponse<T> = { data: T; message?: string; msg?: string }
 type RestoredOrderFile = {
@@ -1947,7 +1949,7 @@ onMounted(async () => {
                 </div>
                 <div v-if="newPatientOpen" class="case-new-patient">
                   <label><span>{{ t('患者姓名 *', 'Patient Name *') }}</span><input v-model="newPatient.name"></label>
-                  <label><span>{{ t('出生日期', 'Date of Birth') }}</span><input v-model="newPatient.date_of_birth" type="date"></label>
+                  <label><span>{{ t('出生日期', 'Date of Birth') }}</span><input v-model="newPatient.date_of_birth" :type="dateInputType" :placeholder="dateInputPlaceholder" inputmode="numeric" pattern="\d{4}-\d{2}-\d{2}" maxlength="10"></label>
                   <label><span>{{ t('性别', 'Gender') }}</span><select v-model="newPatient.gender"><option value="">{{ t('请选择', 'Select') }}</option><option value="MALE">{{ t('男', 'Male') }}</option><option value="FEMALE">{{ t('女', 'Female') }}</option><option value="OTHER">{{ t('其他', 'Other') }}</option></select></label>
                   <label><span>{{ t('联系电话', 'Phone') }}</span><input v-model="newPatient.phone"></label>
                   <label><span>{{ t('邮箱', 'Email') }}</span><input v-model="newPatient.email" type="email"></label>
@@ -1960,8 +1962,8 @@ onMounted(async () => {
                 <header class="case-section-title"><div><small>{{ t('订单要求', 'Order Requirements') }}</small><h3>{{ t('出货、到货与运输信息', 'Dispatch, Delivery & Shipping') }}</h3></div></header>
                 <div class="case-field-grid">
                   <label class="case-field"><span>{{ t('订单周期 *', 'Order Priority *') }}</span><select v-model="caseSettings.priority"><option value="NORMAL">{{ t('正常出货周期', 'Standard Lead Time') }}</option><option value="RUSH_3_DAYS">{{ t('3 天加急', '3-day Rush') }}</option><option value="SAME_DAY">{{ t('当天出货', 'Same-day Dispatch') }}</option></select></label>
-                  <label class="case-field"><span>{{ t('要求到货日期 *', 'Requested Delivery Date *') }}</span><input v-model="caseSettings.required_delivery_date" type="date"></label>
-                  <label class="case-field"><span>{{ t('患者预约时间', 'Patient Appointment Date') }}</span><input v-model="caseSettings.appointment_date" type="date"></label>
+                  <label class="case-field"><span>{{ t('要求到货日期 *', 'Requested Delivery Date *') }}</span><input v-model="caseSettings.required_delivery_date" :type="dateInputType" :placeholder="dateInputPlaceholder" inputmode="numeric" pattern="\d{4}-\d{2}-\d{2}" maxlength="10"></label>
+                  <label class="case-field"><span>{{ t('患者预约时间', 'Patient Appointment Date') }}</span><input v-model="caseSettings.appointment_date" :type="dateInputType" :placeholder="dateInputPlaceholder" inputmode="numeric" pattern="\d{4}-\d{2}-\d{2}" maxlength="10"></label>
                   <label class="case-field"><span>{{ t('运输类型 *', 'Shipping Method *') }}</span><select v-model="caseSettings.shipping_method"><option value="COURIER">{{ t('快递', 'Courier') }}</option><option value="SALES_DELIVERY">{{ t('业务员配送', 'Representative Delivery') }}</option><option value="SELF_PICKUP">{{ t('自取', 'Self Pickup') }}</option></select></label>
                   <label class="case-field"><span>{{ t('订单类型 *', 'Order Type *') }}</span><select v-model="caseSettings.order_type"><option value="ONLINE">{{ t('网络订单', 'Online Order') }}</option><option value="IMPRESSION">{{ t('印模订单', 'Impression Order') }}</option><option value="REWORK">{{ t('返工订单', 'Remake Order') }}</option><option value="RETURN">{{ t('退货订单', 'Return Order') }}</option><option value="DESIGN_ONLY">{{ t('仅设计订单', 'Design-only Order') }}</option></select></label>
                   <label v-if="['IMPRESSION', 'REWORK', 'RETURN'].includes(caseSettings.order_type)" class="case-field"><span>{{ t('寄模运单号 *', 'Inbound Model Tracking Number *') }}</span><input v-model="caseSettings.inbound_tracking_no" :placeholder="t('填写寄回模型的运单号', 'Enter the tracking number for the returned model')"></label>
