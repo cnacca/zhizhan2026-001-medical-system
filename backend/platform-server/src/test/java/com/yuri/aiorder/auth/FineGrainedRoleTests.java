@@ -120,6 +120,16 @@ class FineGrainedRoleTests {
     }
 
     @Test
+    void productionManagerPerformanceDefaultsToOwnUserWithoutExplicitTarget() {
+        BootstrapIdentity manager = identityWithRolePermissions(UserRole.WORKER, "PROD_MANAGER");
+
+        assertThat(manager.hasPermission("performance:read-all")).isTrue();
+        assertThat(manager.hasPermission("performance:read-self")).isFalse();
+        assertThat(accessControlService.resolvePerformanceTargetUserId(manager, null)).isEqualTo(9999L);
+        assertThat(accessControlService.resolvePerformanceTargetUserId(manager, 12345L)).isEqualTo(12345L);
+    }
+
+    @Test
     void adminDelegationOfProductionOperationIsDrivenByConfigurationSwitch() {
         BootstrapIdentity admin = identityWithRolePermissions(UserRole.ADMIN, "ADMIN");
 

@@ -86,6 +86,7 @@ jobs:
           npm run check:frontend-bug-audit-20260815
           npm run check:logout-refresh-race
           npm run check:regression-bugs-20260816
+          npm run check:regression-bugs-20260817
           npm run check:production-auto-deploy
           npm run check:deployment-env
           npm run check:deployment-bugfixes-20260811

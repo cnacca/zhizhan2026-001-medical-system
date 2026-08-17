@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import { computed, inject, onBeforeUnmount, onMounted, ref, watch } from 'vue'
+import { orderMayHaveProcessInstance } from '../utils/orderWorkflow'
 import { productionProgressNodes, productionProgressSummary } from '../utils/productionProgress'
 import { authenticatedFetchKey } from '../utils/authenticatedFetch'
 
@@ -153,6 +154,9 @@ async function loadProcesses() {
   const orderList = await request<Row>('/orders?page=1&size=100')
   const orders = orderList.items ?? []
   processRows.value = await poolMap<Row, Row>(orders, 3, async (order) => {
+    if (!orderMayHaveProcessInstance(order)) {
+      return { order, instance: null, failed: false, missing: true }
+    }
     try {
       const instance = await request<Row>(`/orders/${order.order_id}/process-instance`)
       return { order, instance, failed: false }
