@@ -1570,16 +1570,6 @@ const doctorAcceptanceCredentials = {
 const username = ref(temporaryDemoLoginPrefillEnabled ? 'admin' : '')
 const password = ref(temporaryDemoLoginPrefillEnabled ? 'change-me-admin' : '')
 const selectedPortal = ref<LoginPortal | null>(null)
-const doctorPortalLanguageKey = 'doctor-portal-language'
-const storedDoctorLoginLanguage = (() => {
-  try {
-    return window.localStorage.getItem(doctorPortalLanguageKey)
-  } catch {
-    return null
-  }
-})()
-const doctorLoginLanguage = ref<'ZH' | 'EN'>(storedDoctorLoginLanguage === 'EN' ? 'EN' : 'ZH')
-const isDoctorLoginEnglish = computed(() => selectedPortal.value === 'DOCTOR' && doctorLoginLanguage.value === 'EN')
 const token = ref('')
 const refreshToken = ref('')
 const currentUser = ref<LoginResponse | null>(null)
@@ -5770,19 +5760,6 @@ function fillDoctorAcceptanceCredentials() {
   loginError.value = ''
 }
 
-function doctorLoginText(zh: string, en: string): string {
-  return isDoctorLoginEnglish.value ? en : zh
-}
-
-function setDoctorLoginLanguage(language: 'ZH' | 'EN') {
-  doctorLoginLanguage.value = language
-  try {
-    window.localStorage.setItem(doctorPortalLanguageKey, language)
-  } catch {
-    // The selected language still applies to the current session when storage is unavailable.
-  }
-}
-
 function portalRouteFor(payload: LoginResponse, loginPortal: LoginPortal | null = selectedPortal.value) {
   const preferredRoute = loginPortal ? portalDefaultRoute[loginPortal] : '/dashboard'
   if (payload.menus.some((menu) => menu.routePath === preferredRoute)) {
@@ -5805,21 +5782,18 @@ async function requestLoginPayload(loginUsername: string, loginPassword: string,
   if (response.status === 403) {
     const responseText = await response.text()
     if (responseText.includes('Invalid CORS request')) {
-      throw new Error(doctorLoginText(
-        '登录来源被后端 CORS 策略拒绝，请联系管理员核对 APP_CORS_ALLOWED_ORIGIN 与当前访问地址',
-        'The login origin was rejected by the server CORS policy. Ask an administrator to verify APP_CORS_ALLOWED_ORIGIN.'
-      ))
+      throw new Error('登录来源被后端 CORS 策略拒绝，请联系管理员核对 APP_CORS_ALLOWED_ORIGIN 与当前访问地址')
     }
     return null
   }
   if (!response.ok) {
-    throw new Error(doctorLoginText(`登录失败：${response.status}`, `Login failed: ${response.status}`))
+    throw new Error(`登录失败：${response.status}`)
   }
   return await response.json() as LoginResponse
 }
 
 function showPasswordResetHelp() {
-  loginError.value = doctorLoginText('请联系系统管理员重置账号密码', 'Contact the system administrator to reset your password.')
+  loginError.value = '请联系系统管理员重置账号密码'
 }
 
 function returnToPortalSelection() {
@@ -5836,7 +5810,7 @@ async function login(event?: SubmitEvent) {
   const loginUsername = String(formData?.get('username') ?? username.value)
   const loginPassword = String(formData?.get('password') ?? password.value)
   if (!loginPortal) {
-    loginError.value = doctorLoginText('请先选择登录入口', 'Select a login portal first.')
+    loginError.value = '请先选择登录入口'
     return
   }
   loading.value = true
@@ -5845,13 +5819,13 @@ async function login(event?: SubmitEvent) {
   try {
     const payload = await requestLoginPayload(loginUsername, loginPassword, loginPortal)
     if (!payload) {
-      throw new Error(doctorLoginText('账号角色与所选入口不匹配', 'This account is not authorized for the selected portal.'))
+      throw new Error('账号角色与所选入口不匹配')
     }
     password.value = ''
     applyLoginSession(payload, portalRouteFor(payload, loginPortal), loginPortal)
     connectNotificationSocket()
   } catch (error) {
-    loginError.value = error instanceof Error ? error.message : doctorLoginText('登录失败', 'Login failed.')
+    loginError.value = error instanceof Error ? error.message : '登录失败'
   } finally {
     loading.value = false
   }
@@ -12084,30 +12058,24 @@ onBeforeUnmount(() => {
           </template>
         </section>
 
-        <section v-if="!isLoggedIn" class="login-page" :lang="selectedPortal === 'DOCTOR' && doctorLoginLanguage === 'EN' ? 'en-US' : 'zh-CN'">
+        <section v-if="!isLoggedIn" class="login-page">
           <div class="login-brand">
             <div class="brand-mark" aria-hidden="true">
               <span class="svg-symbol" v-html="businessIconSvg('precision_manufacturing')" />
             </div>
-            <h1>{{ doctorLoginText('AI智能下单平台', 'AI Order Platform') }}</h1>
-            <p>{{ doctorLoginText('智能下单与生产协同平台', 'Intelligent Ordering & Production Collaboration') }}</p>
+            <h1>AI智能下单平台</h1>
+            <p>智能下单与生产协同平台</p>
           </div>
 
           <div class="login-card portal-login-panel">
             <div class="login-card-header">
               <div>
-                <h2>{{ selectedPortal === 'DOCTOR' ? doctorLoginText('医生端登录', 'Doctor Portal Login') : selectedPortalOption ? `${selectedPortalOption.title}登录` : '选择登录入口' }}</h2>
-                <span>{{ selectedPortal === 'DOCTOR' ? doctorLoginText('医生 / 诊所', 'Doctor / Clinic') : selectedPortalOption?.subtitle ?? '请选择授权端口，再输入账号密码' }}</span>
+                <h2>{{ selectedPortalOption ? `${selectedPortalOption.title}登录` : '选择登录入口' }}</h2>
+                <span>{{ selectedPortalOption?.subtitle ?? '请选择授权端口，再输入账号密码' }}</span>
               </div>
-              <div v-if="selectedPortal" class="login-card-header-actions">
-                <div v-if="selectedPortal === 'DOCTOR'" class="login-language-switch" :aria-label="doctorLoginText('界面语言', 'Interface language')">
-                  <button type="button" :class="{ active: doctorLoginLanguage === 'ZH' }" @click="setDoctorLoginLanguage('ZH')">中文</button>
-                  <button type="button" :class="{ active: doctorLoginLanguage === 'EN' }" @click="setDoctorLoginLanguage('EN')">EN</button>
-                </div>
-                <button class="ghost-icon-button" type="button" @click="returnToPortalSelection">
-                  {{ doctorLoginText('返回入口', 'Back') }}
-                </button>
-              </div>
+              <button v-if="selectedPortal" class="ghost-icon-button" type="button" @click="returnToPortalSelection">
+                返回入口
+              </button>
             </div>
 
             <div v-if="!selectedPortal" class="portal-grid" aria-label="登录入口">
@@ -12143,46 +12111,46 @@ onBeforeUnmount(() => {
               >
                 <div class="login-demo-credentials-header">
                   <div>
-                    <strong>{{ doctorLoginText('医生端验收账号', 'Doctor Acceptance Account') }}</strong>
-                    <span>{{ doctorLoginText('仅当前本地模拟环境显示', 'Shown only in the local mock environment') }}</span>
+                    <strong>医生端验收账号</strong>
+                    <span>仅当前本地模拟环境显示</span>
                   </div>
-                  <button type="button" @click="fillDoctorAcceptanceCredentials">{{ doctorLoginText('一键填入', 'Fill Credentials') }}</button>
+                  <button type="button" @click="fillDoctorAcceptanceCredentials">一键填入</button>
                 </div>
                 <div class="login-demo-credentials-values">
-                  <span>{{ doctorLoginText('账号', 'Account') }} <code>{{ doctorAcceptanceCredentials.username }}</code></span>
-                  <span>{{ doctorLoginText('密码', 'Password') }} <code>{{ doctorAcceptanceCredentials.password }}</code></span>
+                  <span>账号 <code>{{ doctorAcceptanceCredentials.username }}</code></span>
+                  <span>密码 <code>{{ doctorAcceptanceCredentials.password }}</code></span>
                 </div>
               </div>
               <label class="login-field">
-                <span class="field-label">{{ selectedPortal === 'DOCTOR' ? doctorLoginText('账号', 'Account') : '用户名' }}</span>
+                <span class="field-label">{{ selectedPortal === 'DOCTOR' ? '账号' : '用户名' }}</span>
                 <span class="field-icon svg-symbol" aria-hidden="true" v-html="businessIconSvg('person')" />
                 <input
                   v-model="username"
                   name="username"
                   autocomplete="username"
-                  :placeholder="selectedPortal === 'DOCTOR' ? doctorLoginText('请输入医生账号', 'Enter doctor account') : '请输入授权账号'"
+                  :placeholder="selectedPortal === 'DOCTOR' ? '请输入医生账号' : '请输入授权账号'"
                   type="text"
-                  :aria-label="selectedPortal === 'DOCTOR' ? doctorLoginText('账号', 'Account') : '用户名'"
+                  :aria-label="selectedPortal === 'DOCTOR' ? '账号' : '用户名'"
                 >
               </label>
               <label class="login-field">
-                <span class="field-label">{{ doctorLoginText('密码', 'Password') }}</span>
+                <span class="field-label">密码</span>
                 <span class="field-icon svg-symbol" aria-hidden="true" v-html="businessIconSvg('lock')" />
                 <input
                   v-model="password"
                   name="password"
                   autocomplete="current-password"
-                  :placeholder="doctorLoginText('请输入密码', 'Enter password')"
+                  placeholder="请输入密码"
                   type="password"
-                  :aria-label="doctorLoginText('密码', 'Password')"
+                  aria-label="密码"
                 >
               </label>
               <div class="login-options">
-                <span class="login-session-note">{{ temporaryDemoLoginPrefillEnabled ? doctorLoginText('临时演示账号已预填，请勿录入正式数据', 'Temporary demo credentials are prefilled. Do not enter production data.') : doctorLoginText('为保护账号安全，关闭页面后需重新登录', 'For security, you must sign in again after closing this page.') }}</span>
-                <button class="text-link" type="button" @click="showPasswordResetHelp">{{ doctorLoginText('忘记密码？', 'Forgot password?') }}</button>
+                <span class="login-session-note">{{ temporaryDemoLoginPrefillEnabled ? '临时演示账号已预填，请勿录入正式数据' : '为保护账号安全，关闭页面后需重新登录' }}</span>
+                <button class="text-link" type="button" @click="showPasswordResetHelp">忘记密码？</button>
               </div>
-              <button class="login-submit" type="submit" :disabled="loading" :aria-label="doctorLoginText('登录', 'Sign in')">
-                <span>{{ loading ? doctorLoginText('登录中...', 'Signing in...') : doctorLoginText('登录系统', 'Sign In') }}</span>
+              <button class="login-submit" type="submit" :disabled="loading" aria-label="登录">
+                <span>{{ loading ? '登录中...' : '登录系统' }}</span>
                 <span class="svg-symbol" aria-hidden="true" v-html="businessIconSvg('arrow_forward')" />
               </button>
             </form>
@@ -12200,9 +12168,9 @@ onBeforeUnmount(() => {
           <div class="login-footer">
             <div class="auth-note">
               <span class="svg-symbol" aria-hidden="true" v-html="businessIconSvg('gpp_maybe')" />
-              <span>{{ doctorLoginText('仅用于授权账号访问', 'Authorized accounts only') }}</span>
+              <span>仅用于授权账号访问</span>
             </div>
-            <p>© 2026 {{ doctorLoginText('AI智能下单平台', 'AI Order Platform') }}</p>
+            <p>© 2026 AI智能下单平台</p>
           </div>
         </section>
 
