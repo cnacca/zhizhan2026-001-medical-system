@@ -6,6 +6,9 @@ import {
   CLEAR_ALIGNER_ARCH_OPTIONS,
   CLEAR_ALIGNER_TREATMENT_OPTIONS
 } from './customerOrderSourceSpec'
+import { useDoctorI18n } from './doctorI18n'
+
+const { t, locale } = useDoctorI18n()
 
 const authenticatedFetch = inject(authenticatedFetchKey, fetch)
 
@@ -37,15 +40,15 @@ const emit = defineEmits<{
   treatmentSelectionChange: [selection: { treatment_arch: string; treatment_mode: string }]
 }>()
 
-const sectionLabels = [
-  '基本信息',
-  '资料与模型',
-  '临床诊断',
-  '矫治器与联合矫治',
-  '目标牙位与移动策略',
-  '方案参数',
-  '预览与提交'
-]
+const sectionLabels = computed(() => [
+  t('基本信息', 'Basic Information'),
+  t('资料与模型', 'Records & Models'),
+  t('临床诊断', 'Clinical Diagnosis'),
+  t('矫治器与联合矫治', 'Appliance & Combination'),
+  t('目标牙位与移动策略', 'Target Teeth & Movement'),
+  t('方案参数', 'Plan Parameters'),
+  t('预览与提交', 'Review & Submit')
+])
 const section = ref(1)
 const loading = ref(true)
 const saving = ref(false)
@@ -159,7 +162,7 @@ async function api<T>(path: string, options: RequestInit = {}) {
     } catch {
       detail = ''
     }
-    throw new Error(detail || `请求失败（${response.status}）`)
+    throw new Error(detail || t('请求失败（{status}）', 'Request failed ({status})', { status: response.status }))
   }
   return (await response.json() as ApiResponse<T>).data
 }
@@ -217,7 +220,8 @@ async function load() {
     emitTreatmentSelection()
     emit('ready', caseStatus.value === 'PRESCRIPTION_SUBMITTED')
   } catch (cause) {
-    ElMessage.error(cause instanceof Error ? cause.message : '正畸处方加载失败')
+    const message = cause instanceof Error ? cause.message : ''
+    ElMessage.error(locale.value === 'EN' && /[\u3400-\u9fff]/.test(message) ? 'Failed to load orthodontic prescription' : (message || t('正畸处方加载失败', 'Failed to load orthodontic prescription')))
   } finally {
     loading.value = false
   }
@@ -268,7 +272,7 @@ function payload(submit: boolean) {
 async function save(submit = false) {
   if (saving.value) return
   if (submit && !canSubmit.value) {
-    ElMessage.warning('请补齐必填资料并勾选医生确认')
+    ElMessage.warning(t('请补齐必填资料并勾选医生确认', 'Complete all required fields and confirm the prescription'))
     return
   }
   saving.value = true
@@ -280,12 +284,37 @@ async function save(submit = false) {
     lockVersion.value = data.lock_version ?? lockVersion.value
     caseStatus.value = data.case_status ?? caseStatus.value
     emit('ready', caseStatus.value === 'PRESCRIPTION_SUBMITTED')
-    ElMessage.success(submit ? '七步正畸处方已提交' : '正畸处方草稿已保存')
+    ElMessage.success(submit ? t('七步正畸处方已提交', 'Seven-step orthodontic prescription submitted') : t('正畸处方草稿已保存', 'Orthodontic prescription draft saved'))
   } catch (cause) {
-    ElMessage.error(cause instanceof Error ? cause.message : '正畸处方保存失败')
+    const message = cause instanceof Error ? cause.message : ''
+    ElMessage.error(locale.value === 'EN' && /[\u3400-\u9fff]/.test(message) ? 'Failed to save orthodontic prescription' : (message || t('正畸处方保存失败', 'Failed to save orthodontic prescription')))
   } finally {
     saving.value = false
   }
+}
+
+function archLabel(value: string) {
+  const labels: Record<string, string> = { FULL: 'Full Arch', UPPER: 'Upper Arch', LOWER: 'Lower Arch' }
+  const source = CLEAR_ALIGNER_ARCH_OPTIONS.find((item) => item.value === value)?.label ?? value
+  return t(source, labels[value] ?? value)
+}
+
+function treatmentModeLabel(value: string) {
+  const labels: Record<string, string> = { REGULAR: 'Standard Treatment', COMBINED: 'Combined Treatment' }
+  const source = CLEAR_ALIGNER_TREATMENT_OPTIONS.find((item) => item.value === value)?.label ?? value
+  return t(source, labels[value] ?? value)
+}
+
+function alignerTypeLabel(item: AlignerType | undefined) {
+  if (!item) return ''
+  if (locale.value === 'EN' && /[\u3400-\u9fff]/.test(item.name)) {
+    return item.code.toLowerCase().split(/[_-]+/).map((word) => word[0]?.toUpperCase() + word.slice(1)).join(' ')
+  }
+  return item.name
+}
+
+function relatedProductLabel(item: RelatedOrder) {
+  return locale.value === 'EN' && /[\u3400-\u9fff]/.test(item.product_name) ? 'Related Product' : item.product_name
 }
 
 onMounted(load)
@@ -294,72 +323,72 @@ onMounted(load)
 <template>
   <section v-loading="loading" class="ortho-prescription" data-testid="orthodontic-seven-step">
     <header>
-      <div><strong>隐形正畸七步处方</strong><small>方案内审、医生确认与生产审核是三个独立门禁</small></div>
-      <b :class="{ ready: caseStatus === 'PRESCRIPTION_SUBMITTED' }">{{ caseStatus === 'PRESCRIPTION_SUBMITTED' ? '处方已提交' : '处方草稿' }}</b>
+      <div><strong>{{ t('隐形正畸七步处方', 'Seven-step Clear Aligner Prescription') }}</strong><small>{{ t('方案内审、医生确认与生产审核是三个独立门禁', 'Internal review, doctor approval, and production review are separate gates') }}</small></div>
+      <b :class="{ ready: caseStatus === 'PRESCRIPTION_SUBMITTED' }">{{ caseStatus === 'PRESCRIPTION_SUBMITTED' ? t('处方已提交', 'Prescription Submitted') : t('处方草稿', 'Prescription Draft') }}</b>
     </header>
     <nav>
       <button v-for="(label, index) in sectionLabels" :key="label" type="button" :class="{ active: section === index + 1 }" @click="section = index + 1"><span>{{ index + 1 }}</span>{{ label }}</button>
     </nav>
 
     <div v-if="section === 1" class="ortho-fields">
-      <label><span>主诉 *</span><textarea v-model="form.basic_information.chief_concern" rows="3"></textarea></label>
-      <label><span>矫治目标 *</span><textarea v-model="form.basic_information.treatment_goal" rows="3"></textarea></label>
-      <label class="full"><span>病史与注意事项</span><textarea v-model="form.basic_information.medical_note" rows="3"></textarea></label>
+      <label><span>{{ t('主诉 *', 'Chief Concern *') }}</span><textarea v-model="form.basic_information.chief_concern" rows="3"></textarea></label>
+      <label><span>{{ t('矫治目标 *', 'Treatment Goals *') }}</span><textarea v-model="form.basic_information.treatment_goal" rows="3"></textarea></label>
+      <label class="full"><span>{{ t('病史与注意事项', 'Medical History & Considerations') }}</span><textarea v-model="form.basic_information.medical_note" rows="3"></textarea></label>
     </div>
     <div v-else-if="section === 2" class="ortho-fields">
-      <label><span>面像文件 ID</span><input v-model="form.records_and_models.facial_photos" placeholder="多个用逗号分隔"></label>
-      <label><span>口内照文件 ID</span><input v-model="form.records_and_models.intraoral_photos" placeholder="多个用逗号分隔"></label>
-      <label><span>全景片文件 ID</span><input v-model="form.records_and_models.panoramic"></label>
-      <label><span>头影文件 ID</span><input v-model="form.records_and_models.cephalometric"></label>
-      <label><span>上颌模型 *</span><input v-model="form.records_and_models.upper_model"></label>
-      <label><span>下颌模型 *</span><input v-model="form.records_and_models.lower_model"></label>
-      <label><span>咬合模型</span><input v-model="form.records_and_models.bite_model"></label>
-      <label><span>CBCT / 其他</span><input v-model="form.records_and_models.cbct_or_other"></label>
+      <label><span>{{ t('面像文件 ID', 'Facial Photo File IDs') }}</span><input v-model="form.records_and_models.facial_photos" :placeholder="t('多个用逗号分隔', 'Separate multiple IDs with commas')"></label>
+      <label><span>{{ t('口内照文件 ID', 'Intraoral Photo File IDs') }}</span><input v-model="form.records_and_models.intraoral_photos" :placeholder="t('多个用逗号分隔', 'Separate multiple IDs with commas')"></label>
+      <label><span>{{ t('全景片文件 ID', 'Panoramic X-ray File IDs') }}</span><input v-model="form.records_and_models.panoramic"></label>
+      <label><span>{{ t('头影文件 ID', 'Cephalometric X-ray File IDs') }}</span><input v-model="form.records_and_models.cephalometric"></label>
+      <label><span>{{ t('上颌模型 *', 'Upper Arch Model *') }}</span><input v-model="form.records_and_models.upper_model"></label>
+      <label><span>{{ t('下颌模型 *', 'Lower Arch Model *') }}</span><input v-model="form.records_and_models.lower_model"></label>
+      <label><span>{{ t('咬合模型', 'Bite Model') }}</span><input v-model="form.records_and_models.bite_model"></label>
+      <label><span>{{ t('CBCT / 其他', 'CBCT / Other') }}</span><input v-model="form.records_and_models.cbct_or_other"></label>
     </div>
     <div v-else-if="section === 3" class="ortho-fields">
-      <label><span>牙列阶段</span><input v-model="form.clinical_diagnosis.dentition_stage"></label>
-      <label><span>骨性分类</span><input v-model="form.clinical_diagnosis.skeletal_pattern"></label>
-      <label><span>拥挤度</span><input v-model="form.clinical_diagnosis.crowding"></label>
-      <label><span>覆牙合 / 覆盖</span><input v-model="form.clinical_diagnosis.overjet_overbite"></label>
-      <label class="full"><span>诊断牙位 *</span><input v-model="form.clinical_diagnosis.diagnostic_teeth" placeholder="FDI 牙位用逗号分隔"></label>
+      <label><span>{{ t('牙列阶段', 'Dentition Stage') }}</span><input v-model="form.clinical_diagnosis.dentition_stage"></label>
+      <label><span>{{ t('骨性分类', 'Skeletal Pattern') }}</span><input v-model="form.clinical_diagnosis.skeletal_pattern"></label>
+      <label><span>{{ t('拥挤度', 'Crowding') }}</span><input v-model="form.clinical_diagnosis.crowding"></label>
+      <label><span>{{ t('覆牙合 / 覆盖', 'Overbite / Overjet') }}</span><input v-model="form.clinical_diagnosis.overjet_overbite"></label>
+      <label class="full"><span>{{ t('诊断牙位 *', 'Diagnostic Teeth *') }}</span><input v-model="form.clinical_diagnosis.diagnostic_teeth" :placeholder="t('FDI 牙位用逗号分隔', 'Separate FDI tooth numbers with commas')"></label>
     </div>
     <div v-else-if="section === 4" class="ortho-fields">
-      <label><span>矫治牙颌 *</span><select v-model="form.appliance_and_combination.treatment_arch" data-testid="orthodontic-treatment-arch" @change="emitTreatmentSelection"><option value="">请选择</option><option v-for="item in CLEAR_ALIGNER_ARCH_OPTIONS" :key="item.value" :value="item.value">{{ item.label }}</option></select></label>
-      <label><span>矫治方式 *</span><select v-model="form.appliance_and_combination.treatment_mode" data-testid="orthodontic-treatment-mode" @change="emitTreatmentSelection"><option value="">请选择</option><option v-for="item in CLEAR_ALIGNER_TREATMENT_OPTIONS" :key="item.value" :value="item.value">{{ item.label }}</option></select></label>
-      <label><span>矫治器类型 *</span><select v-model="alignerTypeCode" data-testid="orthodontic-aligner-type" @change="emit('alignerTypeChange', alignerTypeCode)"><option v-for="item in alignerTypes" :key="item.code" :value="item.code">{{ item.name }}</option></select></label>
-      <label v-if="form.appliance_and_combination.treatment_mode === 'COMBINED'"><span>联合矫治子订单 *</span><select v-model.number="combinedOrderId"><option :value="null">请选择同一病例中的产品</option><option v-for="item in relatedOrders" :key="item.order_id" :value="item.order_id">{{ item.product_name }} · {{ item.order_no }}</option></select></label>
-      <label><span>矫治器说明</span><textarea v-model="form.appliance_and_combination.appliance_note" rows="3"></textarea></label>
-      <label><span>联合矫治说明</span><textarea v-model="form.appliance_and_combination.combination_note" rows="3"></textarea></label>
+      <label><span>{{ t('矫治牙颌 *', 'Treatment Arch *') }}</span><select v-model="form.appliance_and_combination.treatment_arch" data-testid="orthodontic-treatment-arch" @change="emitTreatmentSelection"><option value="">{{ t('请选择', 'Select') }}</option><option v-for="item in CLEAR_ALIGNER_ARCH_OPTIONS" :key="item.value" :value="item.value">{{ archLabel(item.value) }}</option></select></label>
+      <label><span>{{ t('矫治方式 *', 'Treatment Mode *') }}</span><select v-model="form.appliance_and_combination.treatment_mode" data-testid="orthodontic-treatment-mode" @change="emitTreatmentSelection"><option value="">{{ t('请选择', 'Select') }}</option><option v-for="item in CLEAR_ALIGNER_TREATMENT_OPTIONS" :key="item.value" :value="item.value">{{ treatmentModeLabel(item.value) }}</option></select></label>
+      <label><span>{{ t('矫治器类型 *', 'Aligner Type *') }}</span><select v-model="alignerTypeCode" data-testid="orthodontic-aligner-type" @change="emit('alignerTypeChange', alignerTypeCode)"><option v-for="item in alignerTypes" :key="item.code" :value="item.code">{{ alignerTypeLabel(item) }}</option></select></label>
+      <label v-if="form.appliance_and_combination.treatment_mode === 'COMBINED'"><span>{{ t('联合矫治子订单 *', 'Combined Treatment Sub-order *') }}</span><select v-model.number="combinedOrderId"><option :value="null">{{ t('请选择同一病例中的产品', 'Select a product from the same case') }}</option><option v-for="item in relatedOrders" :key="item.order_id" :value="item.order_id">{{ relatedProductLabel(item) }} · {{ item.order_no }}</option></select></label>
+      <label><span>{{ t('矫治器说明', 'Appliance Notes') }}</span><textarea v-model="form.appliance_and_combination.appliance_note" rows="3"></textarea></label>
+      <label><span>{{ t('联合矫治说明', 'Combined Treatment Notes') }}</span><textarea v-model="form.appliance_and_combination.combination_note" rows="3"></textarea></label>
     </div>
     <div v-else-if="section === 5" class="ortho-fields">
-      <label><span>目标牙位 *</span><input v-model="form.tooth_targets.target_teeth" placeholder="FDI 牙位用逗号分隔"></label>
-      <label><span>拔牙 / 保留策略</span><input v-model="form.tooth_targets.extraction_or_retention"></label>
-      <label class="full"><span>移动策略</span><textarea v-model="form.tooth_targets.movement_strategy" rows="5"></textarea></label>
+      <label><span>{{ t('目标牙位 *', 'Target Teeth *') }}</span><input v-model="form.tooth_targets.target_teeth" :placeholder="t('FDI 牙位用逗号分隔', 'Separate FDI tooth numbers with commas')"></label>
+      <label><span>{{ t('拔牙 / 保留策略', 'Extraction / Retention Strategy') }}</span><input v-model="form.tooth_targets.extraction_or_retention"></label>
+      <label class="full"><span>{{ t('移动策略', 'Movement Strategy') }}</span><textarea v-model="form.tooth_targets.movement_strategy" rows="5"></textarea></label>
     </div>
     <div v-else-if="section === 6" class="ortho-fields">
-      <label><span>总步数 *</span><input v-model.number="totalSteps" type="number" min="1" max="999"></label>
-      <label><span>分期策略</span><input v-model="form.plan_parameters.staging"></label>
-      <label class="check"><input v-model="form.plan_parameters.ipr" type="checkbox"><span>允许邻面去釉（IPR）</span></label>
-      <label class="check"><input v-model="form.plan_parameters.attachments" type="checkbox"><span>允许附件设计</span></label>
-      <label class="full"><span>特殊方案要求</span><textarea v-model="form.plan_parameters.special_instruction" rows="4"></textarea></label>
+      <label><span>{{ t('总步数 *', 'Total Steps *') }}</span><input v-model.number="totalSteps" type="number" min="1" max="999"></label>
+      <label><span>{{ t('分期策略', 'Staging Strategy') }}</span><input v-model="form.plan_parameters.staging"></label>
+      <label class="check"><input v-model="form.plan_parameters.ipr" type="checkbox"><span>{{ t('允许邻面去釉（IPR）', 'Allow Interproximal Reduction (IPR)') }}</span></label>
+      <label class="check"><input v-model="form.plan_parameters.attachments" type="checkbox"><span>{{ t('允许附件设计', 'Allow Attachment Design') }}</span></label>
+      <label class="full"><span>{{ t('特殊方案要求', 'Special Plan Requirements') }}</span><textarea v-model="form.plan_parameters.special_instruction" rows="4"></textarea></label>
     </div>
     <div v-else class="ortho-review">
       <dl>
-        <div><dt>矫治器类型</dt><dd>{{ alignerTypes.find((item) => item.code === alignerTypeCode)?.name || alignerTypeCode }}</dd></div>
-        <div><dt>矫治牙颌</dt><dd>{{ CLEAR_ALIGNER_ARCH_OPTIONS.find((item) => item.value === form.appliance_and_combination.treatment_arch)?.label || '未选择' }}</dd></div>
-        <div><dt>矫治方式</dt><dd>{{ CLEAR_ALIGNER_TREATMENT_OPTIONS.find((item) => item.value === form.appliance_and_combination.treatment_mode)?.label || '未选择' }}</dd></div>
-        <div><dt>总步数</dt><dd>{{ totalSteps || '未填写' }}</dd></div>
-        <div><dt>诊断牙位</dt><dd>{{ form.clinical_diagnosis.diagnostic_teeth || '未填写' }}</dd></div>
-        <div><dt>目标牙位</dt><dd>{{ form.tooth_targets.target_teeth || '未填写' }}</dd></div>
+        <div><dt>{{ t('矫治器类型', 'Aligner Type') }}</dt><dd>{{ alignerTypeLabel(alignerTypes.find((item) => item.code === alignerTypeCode)) || alignerTypeCode }}</dd></div>
+        <div><dt>{{ t('矫治牙颌', 'Treatment Arch') }}</dt><dd>{{ form.appliance_and_combination.treatment_arch ? archLabel(form.appliance_and_combination.treatment_arch) : t('未选择', 'Not Selected') }}</dd></div>
+        <div><dt>{{ t('矫治方式', 'Treatment Mode') }}</dt><dd>{{ form.appliance_and_combination.treatment_mode ? treatmentModeLabel(form.appliance_and_combination.treatment_mode) : t('未选择', 'Not Selected') }}</dd></div>
+        <div><dt>{{ t('总步数', 'Total Steps') }}</dt><dd>{{ totalSteps || t('未填写', 'Not Entered') }}</dd></div>
+        <div><dt>{{ t('诊断牙位', 'Diagnostic Teeth') }}</dt><dd>{{ form.clinical_diagnosis.diagnostic_teeth || t('未填写', 'Not Entered') }}</dd></div>
+        <div><dt>{{ t('目标牙位', 'Target Teeth') }}</dt><dd>{{ form.tooth_targets.target_teeth || t('未填写', 'Not Entered') }}</dd></div>
       </dl>
-      <label><span>处方模板 code</span><input v-model="form.preview_and_submission.template_code" placeholder="由已发布配置提供"></label>
-      <label class="check"><input v-model="form.preview_and_submission.doctor_confirmation" type="checkbox"><span>我已核对七步处方并确认提交 *</span></label>
-      <p>处方提交后，设计员创建方案版本；授权组长内审通过后才发送医生确认；医生确认后才允许生产人员建立批次。</p>
+      <label><span>{{ t('处方模板 code', 'Prescription Template Code') }}</span><input v-model="form.preview_and_submission.template_code" :placeholder="t('由已发布配置提供', 'Provided by the published configuration')"></label>
+      <label class="check"><input v-model="form.preview_and_submission.doctor_confirmation" type="checkbox"><span>{{ t('我已核对七步处方并确认提交 *', 'I have reviewed the seven-step prescription and confirm submission *') }}</span></label>
+      <p>{{ t('处方提交后，设计员创建方案版本；授权组长内审通过后才发送医生确认；医生确认后才允许生产人员建立批次。', 'After submission, a designer creates a plan version. It is sent for doctor approval only after authorized internal review, and production can create a batch only after doctor approval.') }}</p>
     </div>
 
     <footer>
-      <button type="button" :disabled="saving" @click="save(false)">保存草稿</button>
-      <div><button v-if="section > 1" type="button" @click="section--">上一步</button><button v-if="section < 7" type="button" class="primary" @click="section++">下一步</button><button v-else type="button" class="primary" data-testid="orthodontic-prescription-submit" :disabled="saving || !canSubmit" @click="save(true)">提交七步处方</button></div>
+      <button type="button" :disabled="saving" @click="save(false)">{{ t('保存草稿', 'Save Draft') }}</button>
+      <div><button v-if="section > 1" type="button" @click="section--">{{ t('上一步', 'Previous') }}</button><button v-if="section < 7" type="button" class="primary" @click="section++">{{ t('下一步', 'Next') }}</button><button v-else type="button" class="primary" data-testid="orthodontic-prescription-submit" :disabled="saving || !canSubmit" @click="save(true)">{{ t('提交七步处方', 'Submit Prescription') }}</button></div>
     </footer>
   </section>
 </template>

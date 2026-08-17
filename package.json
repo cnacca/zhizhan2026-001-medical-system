@@ -159,6 +159,7 @@
     "check:frontend-bug-audit-20260815": "node scripts/check-frontend-bug-audit-20260815.mjs",
     "check:logout-refresh-race": "node scripts/check-logout-refresh-race.mjs",
     "check:doctor-portal-v2": "node scripts/check-doctor-portal-v2.mjs",
+    "check:doctor-portal-i18n": "node scripts/check-doctor-portal-i18n.mjs",
     "check:doctor-order-product-first": "node scripts/check-doctor-order-product-first.mjs",
     "smoke:task9d10-large-upload": "playwright test scripts/smoke-task-9d10-large-upload.spec.mjs --browser=chromium --workers=1",
     "smoke:task9d10-server-resume": "playwright test scripts/smoke-task-9d10-server-resume.spec.mjs --browser=chromium --workers=1",

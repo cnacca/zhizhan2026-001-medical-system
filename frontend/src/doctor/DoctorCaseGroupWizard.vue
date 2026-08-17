@@ -4,6 +4,7 @@ import { computed, inject, nextTick, onMounted, reactive, ref } from 'vue'
 import type { DoctorFile, DoctorGateway, DoctorProductRecommendation, PatientSummary } from './types/contracts'
 import DoctorOrthodonticPrescription from './DoctorOrthodonticPrescription.vue'
 import { authenticatedFetchKey } from '../utils/authenticatedFetch'
+import { useDoctorI18n } from './doctorI18n'
 import {
   CATEGORY_NAMES,
   CLEAR_ALIGNER_ARCH_OPTIONS,
@@ -22,6 +23,7 @@ import {
 } from './customerOrderSourceSpec'
 
 const authenticatedFetch = inject(authenticatedFetchKey, fetch)
+const { t, locale } = useDoctorI18n()
 
 type ApiResponse<T> = { data: T; message?: string; msg?: string }
 type RestoredOrderFile = {
@@ -169,7 +171,80 @@ const emit = defineEmits<{
   submitted: [group: CaseGroup]
 }>()
 
-const steps = CUSTOMER_ORDER_STEPS
+const categoryNamesEn: Record<string, string> = {
+  FIXED_RESTORATION: 'Fixed Restorations', REMOVABLE_PROSTHETICS: 'Removable Prosthetics',
+  IMPLANT_RESTORATION: 'Implant Restorations', CONVENTIONAL_ORTHODONTICS: 'Orthodontic Products',
+  CLEAR_ALIGNER: 'Clear Aligners', DESIGN_SERVICE: 'Design Services'
+}
+
+const sourceTextEn: Record<string, string> = {
+  '颌垫类产品': 'Splints & Guards', '保持器类产品': 'Retainers', '功能矫治器': 'Functional Appliances',
+  '扩弓器类产品': 'Expansion Appliances', '其它正畸产品': 'Other Orthodontic Products',
+  '全颌': 'Full Arch', '上颌': 'Upper Arch', '下颌': 'Lower Arch', '常规矫治': 'Standard Treatment', '联合矫治': 'Combined Treatment',
+  '轻': 'Light', '正常': 'Normal', '重': 'Heavy', '空开': 'Clearance', '紧': 'Tight', '点接触': 'Point Contact', '面接触': 'Surface Contact',
+  '无': 'None', '中': 'Medium', '其他': 'Other', '是 / 否': 'Yes / No',
+  '金属边缘': 'Metal Margin', '包瓷边缘': 'Porcelain Margin', '3/4 金属舌侧边': '3/4 Metal Lingual Margin',
+  '螺丝固位': 'Screw-retained', '粘接固位': 'Cement-retained', '外连接': 'External Connection', '内连接': 'Internal Connection',
+  '恒牙': 'Permanent Dentition', '乳牙': 'Primary Dentition', '替牙': 'Mixed Dentition',
+  '安氏一类': 'Angle Class I', '安氏二类': 'Angle Class II', '安氏三类': 'Angle Class III', '牙型': 'Dental', '骨性': 'Skeletal',
+  '拥挤': 'Crowding', '稀疏': 'Spacing', '前突': 'Protrusion', '地包天': 'Underbite',
+  '通用': 'General', '个性化': 'Personalized', '标准基台': 'Standard Abutment', '角度基台': 'Angled Abutment', '个性化基台': 'Custom Abutment',
+  '颊侧': 'Buccal', '舌侧': 'Lingual', '咬合面': 'Occlusal', '龈上边缘': 'Supragingival Margin', '龈下边缘': 'Subgingival Margin', '肩台标准': 'Standard Shoulder',
+  '普通抛光': 'Standard Polish', '镜面抛光': 'Mirror Polish', '必选': 'Required', '可选': 'Optional'
+}
+
+function humanizeCode(value: string): string {
+  return value.toLowerCase().split(/[_-]+/).filter(Boolean).map((word) => word[0]?.toUpperCase() + word.slice(1)).join(' ')
+}
+
+function categoryName(code: string): string {
+  return locale.value === 'EN' ? (categoryNamesEn[code] ?? humanizeCode(code)) : (CATEGORY_NAMES[code] ?? code)
+}
+
+function localizedSourceText(source: string, code = ''): string {
+  if (locale.value !== 'EN') return source
+  if (!/[\u3400-\u9fff]/.test(source)) return source
+  return sourceTextEn[source] ?? (code && !/[\u3400-\u9fff]/.test(code) ? humanizeCode(code) : 'Configured Option')
+}
+
+function catalogProductName(product: Pick<CatalogProduct, 'display_name' | 'product_code'> | Pick<CaseGroupItem, 'product_name' | 'product_code'>): string {
+  const source = 'display_name' in product ? product.display_name : product.product_name
+  return locale.value === 'EN' && /[\u3400-\u9fff]/.test(source) ? humanizeCode(product.product_code) : source
+}
+
+function catalogVariantName(variant: CatalogVariant | null | undefined): string {
+  if (!variant) return ''
+  return locale.value === 'EN' && /[\u3400-\u9fff]/.test(variant.display_name) ? humanizeCode(variant.variant_code) : variant.display_name
+}
+
+function safeEnglishDynamicText(source: string, fallback: string): string {
+  return locale.value === 'EN' && /[\u3400-\u9fff]/.test(source) ? fallback : source
+}
+
+function caseErrorText(cause: unknown, zh: string, en: string): string {
+  const message = cause instanceof Error ? cause.message.trim() : ''
+  if (locale.value === 'EN') return message && !/[\u3400-\u9fff]/.test(message) ? message : en
+  return message || zh
+}
+
+function archOptionLabel(value: string, source: string): string {
+  const labels: Record<string, string> = { FULL: 'Full Arch', UPPER: 'Upper Arch', LOWER: 'Lower Arch' }
+  return t(source, labels[value] ?? humanizeCode(value))
+}
+
+function treatmentOptionLabel(value: string, source: string): string {
+  const labels: Record<string, string> = { REGULAR: 'Standard Treatment', COMBINED: 'Combined Treatment' }
+  return t(source, labels[value] ?? humanizeCode(value))
+}
+
+const steps = computed(() => CUSTOMER_ORDER_STEPS.map((label, index) => t(label, [
+  'Case & Products',
+  'Teeth & Requirements',
+  'Materials & Process',
+  'Upload Records',
+  'Try-in & Confirmations',
+  'Quote & Lead Time'
+][index] ?? label)))
 const upperTeeth = ['18', '17', '16', '15', '14', '13', '12', '11', '21', '22', '23', '24', '25', '26', '27', '28']
 const lowerTeeth = ['48', '47', '46', '45', '44', '43', '42', '41', '31', '32', '33', '34', '35', '36', '37', '38']
 const toothTypes = [
@@ -490,7 +565,7 @@ async function api<T>(path: string, options: RequestInit = {}): Promise<T> {
     } catch {
       detail = await response.text().catch(() => '')
     }
-    throw new Error(detail || `请求失败（${response.status}）`)
+    throw new Error(detail || t('请求失败（{status}）', 'Request failed ({status})', { status: response.status }))
   }
   const payload = await response.json() as ApiResponse<T>
   return payload.data
@@ -671,7 +746,7 @@ function restoredFileKind(file: Pick<RestoredOrderFile, 'original_filename' | 'c
 }
 
 function restoredFileSizeLabel(size: number | null) {
-  if (size == null || !Number.isFinite(size) || size < 0) return '大小未记录'
+  if (size == null || !Number.isFinite(size) || size < 0) return t('大小未记录', 'Size Not Recorded')
   if (size < 1024) return `${size} B`
   if (size < 1024 * 1024) return `${(size / 1024).toFixed(1)} KB`
   return `${(size / 1024 / 1024).toFixed(1)} MB`
@@ -680,7 +755,7 @@ function restoredFileSizeLabel(size: number | null) {
 function toDoctorFile(fileId: number, metadata?: RestoredOrderFile): DoctorFile {
   return {
     file_id: String(fileId),
-    name: metadata?.original_filename || `附件 #${fileId}`,
+    name: metadata?.original_filename || t('附件 #{id}', 'Attachment #{id}', { id: fileId }),
     kind: metadata ? restoredFileKind(metadata) : 'OTHER',
     size_label: restoredFileSizeLabel(metadata?.file_size ?? null),
     status: 'READY',
@@ -721,7 +796,7 @@ function toggleSourceArray(item: CaseGroupItem, key: string, value: string, chec
 
 async function createPatientFromWizard() {
   if (!newPatient.name.trim() || newPatientSaving.value) {
-    ElMessage.warning('请填写患者姓名')
+    ElMessage.warning(t('请填写患者姓名', 'Enter the patient name'))
     return
   }
   newPatientSaving.value = true
@@ -751,9 +826,9 @@ async function createPatientFromWizard() {
       email: '',
       medical_notes: ''
     })
-    ElMessage.success('患者已新增并选中')
+    ElMessage.success(t('患者已新增并选中', 'Patient created and selected'))
   } catch (cause) {
-    ElMessage.error(cause instanceof Error ? cause.message : '新增患者失败')
+    ElMessage.error(caseErrorText(cause, '新增患者失败', 'Failed to create patient'))
   } finally {
     newPatientSaving.value = false
   }
@@ -782,16 +857,16 @@ async function restoreDraft() {
       hydrateCaseSettings(restored.items[0])
       await restoreAttachedFiles(restored)
       step.value = 1
-      notice.value = `已恢复草稿 ${restored.group_no}`
+      notice.value = t('已恢复草稿 {group}', 'Draft {group} restored', { group: restored.group_no })
     }
   } catch {
-    notice.value = '草稿恢复失败，请返回草稿列表后重试'
+    notice.value = t('草稿恢复失败，请返回草稿列表后重试', 'Failed to restore the draft. Return to the draft list and try again.')
   }
 }
 
 async function ensureGroup() {
   if (group.value) return group.value
-  if (!patientId.value) throw new Error('请先选择患者')
+  if (!patientId.value) throw new Error(t('请先选择患者', 'Select a patient first'))
   const created = await api<CaseGroup>('/order-case-groups', {
     method: 'POST',
     body: JSON.stringify({
@@ -829,12 +904,12 @@ async function persistPendingProductsUnlocked() {
       removePendingProduct(productId)
     }
     if (!group.value?.items.length) {
-      ElMessage.error('所选产品已不可用，请重新选择')
+      ElMessage.error(t('所选产品已不可用，请重新选择', 'The selected product is no longer available. Select another product.'))
       return false
     }
     return true
   } catch (cause) {
-    ElMessage.error(cause instanceof Error ? cause.message : '保存所选产品失败')
+    ElMessage.error(caseErrorText(cause, '保存所选产品失败', 'Failed to save selected products'))
     return false
   }
 }
@@ -854,9 +929,9 @@ async function copyItem(item: CaseGroupItem) {
       }
     )
     selectedOrderId.value = group.value.items.at(-1)?.order_id ?? null
-    ElMessage.success('产品已复制，原产品资料未重复添加')
+    ElMessage.success(t('产品已复制，原产品资料未重复添加', 'Product copied without duplicating the original product records'))
   } catch (cause) {
-    ElMessage.error(cause instanceof Error ? cause.message : '复制失败')
+    ElMessage.error(caseErrorText(cause, '复制失败', 'Copy failed'))
   } finally {
     busy.value = false
   }
@@ -866,9 +941,9 @@ async function removeItem(item: CaseGroupItem) {
   if (!group.value || busy.value) return
   busy.value = true
   try {
-    await ElMessageBox.confirm(`移除“${item.product_name}”？专属上传会被安全停用。`, '移除子产品', {
-      confirmButtonText: '确认移除',
-      cancelButtonText: '取消',
+    await ElMessageBox.confirm(t('移除“{product}”？专属上传会被安全停用。', 'Remove “{product}”? Product-specific uploads will be disabled securely.', { product: catalogProductName(item) }), t('移除子产品', 'Remove Product'), {
+      confirmButtonText: t('确认移除', 'Remove'),
+      cancelButtonText: t('取消', 'Cancel'),
       type: 'warning'
     })
     group.value = await api<CaseGroup>(
@@ -880,10 +955,10 @@ async function removeItem(item: CaseGroupItem) {
     )
     delete itemFiles[item.order_id]
     selectedOrderId.value = group.value.items[0]?.order_id ?? null
-    ElMessage.success('产品已移除')
+    ElMessage.success(t('产品已移除', 'Product removed'))
   } catch (cause) {
     if (cause !== 'cancel' && cause !== 'close') {
-      ElMessage.error(cause instanceof Error ? cause.message : '移除失败')
+      ElMessage.error(caseErrorText(cause, '移除失败', 'Remove failed'))
     }
   } finally {
     busy.value = false
@@ -999,14 +1074,14 @@ function commitObjectField(item: CaseGroupItem, key: string) {
   try {
     const parsed = JSON.parse(raw)
     if (!parsed || typeof parsed !== 'object' || Array.isArray(parsed)) {
-      throw new Error('补充内容格式不正确')
+      throw new Error(t('补充内容格式不正确', 'Additional content has an invalid format'))
     }
     item.form_values[key] = parsed
     objectFieldDrafts[draftKey] = JSON.stringify(parsed, null, 2)
     delete objectFieldErrors[draftKey]
     return true
   } catch (cause) {
-    objectFieldErrors[draftKey] = cause instanceof Error ? cause.message : '补充内容格式不正确'
+    objectFieldErrors[draftKey] = caseErrorText(cause, '补充内容格式不正确', 'Additional content has an invalid format')
     return false
   }
 }
@@ -1019,10 +1094,10 @@ function commitItemObjectFields(item: CaseGroupItem) {
 
 function caseStepOneErrors() {
   const errors: string[] = []
-  if (!caseSettings.required_delivery_date) errors.push('请选择要求到货日期')
+  if (!caseSettings.required_delivery_date) errors.push(t('请选择要求到货日期', 'Select a requested delivery date'))
   if (['IMPRESSION', 'REWORK', 'RETURN'].includes(caseSettings.order_type)
     && !caseSettings.inbound_tracking_no.trim()) {
-    errors.push('请填写寄模运单号')
+    errors.push(t('请填写寄模运单号', 'Enter the inbound model tracking number'))
   }
   return errors
 }
@@ -1030,45 +1105,45 @@ function caseStepOneErrors() {
 function itemStepErrors(item: CaseGroupItem, targetStep: number) {
   const errors: string[] = []
   const product = catalog.value?.products.find((candidate) => candidate.product_id === item.product_id)
-  if (!product) errors.push('所选产品暂不可用，请重新选择')
+  if (!product) errors.push(t('所选产品暂不可用，请重新选择', 'The selected product is unavailable. Select another product.'))
   if (targetStep === 1) {
     errors.push(...caseStepOneErrors())
   }
   if (targetStep === 2 && product?.tooth_rule_code && !selectedTeeth(item).length) {
-    errors.push('请选择牙位')
+    errors.push(t('请选择牙位', 'Select tooth positions'))
   }
 
   const requiredSourceFields: Record<string, Array<[string, string]>> = {
     FIXED_RESTORATION: [
-      ['occlusion_level', '请选择咬合'],
-      ['contact_level', '请选择邻接'],
-      ['stain_level', '请选择染色'],
-      ['margin_type', '请选择边缘类型']
+      ['occlusion_level', t('请选择咬合', 'Select occlusion')],
+      ['contact_level', t('请选择邻接', 'Select contact')],
+      ['stain_level', t('请选择染色', 'Select staining')],
+      ['margin_type', t('请选择边缘类型', 'Select a margin type')]
     ],
     REMOVABLE_PROSTHETICS: [
-      ['occlusion_level', '请选择咬合'],
-      ['stain_level', '请选择染色']
+      ['occlusion_level', t('请选择咬合', 'Select occlusion')],
+      ['stain_level', t('请选择染色', 'Select staining')]
     ],
     IMPLANT_RESTORATION: [
-      ['retention_type', '请选择固位方式'],
-      ['implant_system', '请选择种植系统'],
-      ['implant_diameter_length', '请填写种植直径与长度'],
-      ['connection_type', '请选择连接方式']
+      ['retention_type', t('请选择固位方式', 'Select a retention type')],
+      ['implant_system', t('请选择种植系统', 'Select an implant system')],
+      ['implant_diameter_length', t('请填写种植直径与长度', 'Enter implant diameter and length')],
+      ['connection_type', t('请选择连接方式', 'Select a connection type')]
     ],
     CONVENTIONAL_ORTHODONTICS: [
-      ['dentition_stage', '请选择牙龄'],
-      ['angle_class', '请选择错颌畸形类别'],
-      ['skeletal_type', '请选择骨骼类型'],
-      ['orthodontic_concern', '请选择诉求问题']
+      ['dentition_stage', t('请选择牙龄', 'Select a dentition stage')],
+      ['angle_class', t('请选择错颌畸形类别', 'Select a malocclusion class')],
+      ['skeletal_type', t('请选择骨骼类型', 'Select a skeletal type')],
+      ['orthodontic_concern', t('请选择诉求问题', 'Select the orthodontic concerns')]
     ],
     CLEAR_ALIGNER: [
-      ['treatment_arch', '请选择矫治牙颌'],
-      ['treatment_mode', '请选择矫治方式']
+      ['treatment_arch', t('请选择矫治牙颌', 'Select a treatment arch')],
+      ['treatment_mode', t('请选择矫治方式', 'Select a treatment mode')]
     ],
     DESIGN_SERVICE: [
-      ['delivery_format', '请选择交付数据格式'],
-      ['design_standard', '请选择设计标准'],
-      ['design_requirement_turnaround', '请选择设计时间']
+      ['delivery_format', t('请选择交付数据格式', 'Select a delivery data format')],
+      ['design_standard', t('请选择设计标准', 'Select a design standard')],
+      ['design_requirement_turnaround', t('请选择设计时间', 'Select a design turnaround')]
     ]
   }
   if (targetStep === 2) {
@@ -1079,13 +1154,13 @@ function itemStepErrors(item: CaseGroupItem, targetStep: number) {
   }
   if (targetStep === 3) {
     const variants = (catalog.value?.variants ?? []).filter((candidate) => candidate.product_id === item.product_id)
-    if (variants.length && !item.variant_id) errors.push('请选择产品变体')
+    if (variants.length && !item.variant_id) errors.push(t('请选择产品变体', 'Select a product variant'))
     if (productMaterialOptions(item).length && !String(item.form_values.material_option ?? '').trim()) {
-      errors.push('请选择材料/制作项目')
+      errors.push(t('请选择材料/制作项目', 'Select a material or manufacturing item'))
     }
     if (product?.category_code === 'DESIGN_SERVICE') {
-      if (!String(item.form_values.design_delivery_format ?? '').trim()) errors.push('请选择设计交付文件格式')
-      if (!String(item.form_values.design_delivery_turnaround ?? '').trim()) errors.push('请选择设计交期')
+      if (!String(item.form_values.design_delivery_format ?? '').trim()) errors.push(t('请选择设计交付文件格式', 'Select a design delivery file format'))
+      if (!String(item.form_values.design_delivery_turnaround ?? '').trim()) errors.push(t('请选择设计交期', 'Select a design delivery time'))
     }
 
     const materialBindings = (catalog.value?.materials ?? []).filter((binding) =>
@@ -1101,13 +1176,13 @@ function itemStepErrors(item: CaseGroupItem, targetStep: number) {
     materialGroups.forEach((bindings) => {
       if (bindings.some((binding) => Boolean(binding.required_flag))
         && !bindings.some((binding) => selected(item.material_selections, binding.material_id))) {
-        errors.push('请选择必选材料')
+        errors.push(t('请选择必选材料', 'Select all required materials'))
       }
     })
     const fields = catalogFieldsForItem(item)
     fields.filter((field) => field.required && fieldVisible(field, item)).forEach((field) => {
       const value = item.form_values[field.key]
-      if (value == null || value === '' || (Array.isArray(value) && !value.length)) errors.push(`${field.label}必填`)
+      if (value == null || value === '' || (Array.isArray(value) && !value.length)) errors.push(t('{field}必填', '{field} is required', { field: localizedSourceText(field.label, field.key) }))
     })
     Object.entries(objectFieldErrors)
       .filter(([key]) => key.startsWith(`${item.order_id}:`))
@@ -1116,19 +1191,19 @@ function itemStepErrors(item: CaseGroupItem, targetStep: number) {
 
   if (targetStep === 4) {
     for (const rule of uploadRules(item).filter((rule) => rule.required)) {
-      if (!uploadedSlotIds(item, rule.code).length) errors.push(`请上传${rule.label}`)
+      if (!uploadedSlotIds(item, rule.code).length) errors.push(t('请上传{label}', 'Upload {label}', { label: localizedSourceText(rule.label, rule.code) }))
     }
   }
 
   if (targetStep === 5
     && item.form_values.physical_model_shipping_required
     && !String(item.form_values.physical_model_tracking_no ?? '').trim()) {
-    errors.push('请填写实体模型运单号或配送说明')
+    errors.push(t('请填写实体模型运单号或配送说明', 'Enter the physical model tracking number or delivery notes'))
   }
   if (targetStep === 5
     && product?.category_code === 'CLEAR_ALIGNER'
     && !orthodonticPrescriptionReady[item.order_id]) {
-    errors.push('请完成并提交隐形正畸七步处方')
+    errors.push(t('请完成并提交隐形正畸七步处方', 'Complete and submit the seven-step clear aligner prescription'))
   }
 
   return errors
@@ -1157,30 +1232,30 @@ function toothModeOptions(item: CaseGroupItem) {
   const category = productCategory(item)
   if (category === 'REMOVABLE_PROSTHETICS') {
     return [
-      { value: 'MISSING', label: '缺失位' },
-      { value: 'CLASP', label: '卡环位' }
+      { value: 'MISSING', label: t('缺失位', 'Missing Tooth') },
+      { value: 'CLASP', label: t('卡环位', 'Clasp Tooth') }
     ]
   }
   if (category === 'CONVENTIONAL_ORTHODONTICS') {
     return [
-      { value: 'ORTHO_AREA', label: '正畸区域' },
-      { value: 'BAND', label: '带环牙位' }
+      { value: 'ORTHO_AREA', label: t('正畸区域', 'Orthodontic Area') },
+      { value: 'BAND', label: t('带环牙位', 'Band Tooth') }
     ]
   }
   if (category === 'CLEAR_ALIGNER') {
-    return [{ value: 'ORTHO_AREA', label: '目标矫治牙位' }]
+    return [{ value: 'ORTHO_AREA', label: t('目标矫治牙位', 'Target Treatment Teeth') }]
   }
   if (category === 'IMPLANT_RESTORATION') {
     return [
-      { value: 'CROWN', label: '单冠' },
-      { value: 'BRIDGE', label: '桥' },
-      { value: 'ABUTMENT', label: '加基台' },
-      { value: 'FRAMEWORK', label: '加桥架' }
+      { value: 'CROWN', label: t('单冠', 'Single Crown') },
+      { value: 'BRIDGE', label: t('桥', 'Bridge') },
+      { value: 'ABUTMENT', label: t('加基台', 'Add Abutment') },
+      { value: 'FRAMEWORK', label: t('加桥架', 'Add Framework') }
     ]
   }
   return [
-    { value: 'CROWN', label: '单冠' },
-    { value: 'BRIDGE', label: '桥' }
+    { value: 'CROWN', label: t('单冠', 'Single Crown') },
+    { value: 'BRIDGE', label: t('桥', 'Bridge') }
   ]
 }
 
@@ -1301,21 +1376,21 @@ function toothSelectionSummary(item: CaseGroupItem) {
     }))
     .filter((group) => group.teeth.length)
   if (!groups.length) return toothGestureHelp(item)
-  return groups.map((group) => `${group.label}：${group.teeth.join('、')}`).join(' ｜ ')
+  return groups.map((group) => `${group.label}${locale.value === 'EN' ? ': ' : '：'}${group.teeth.join(locale.value === 'EN' ? ', ' : '、')}`).join(' | ')
 }
 
 function toothLegend(item: CaseGroupItem) {
   const category = productCategory(item)
   if (category === 'REMOVABLE_PROSTHETICS') {
-    return [{ label: '缺失位', tone: 'single' }, { label: '卡环位', tone: 'special' }]
+    return [{ label: t('缺失位', 'Missing Tooth'), tone: 'single' }, { label: t('卡环位', 'Clasp Tooth'), tone: 'special' }]
   }
   if (category === 'CONVENTIONAL_ORTHODONTICS') {
-    return [{ label: '正畸区域', tone: 'single' }, { label: '带环牙位', tone: 'special' }]
+    return [{ label: t('正畸区域', 'Orthodontic Area'), tone: 'single' }, { label: t('带环牙位', 'Band Tooth'), tone: 'special' }]
   }
   if (category === 'IMPLANT_RESTORATION') {
-    return [{ label: '单冠 / 单位', tone: 'single' }, { label: '桥体（连续拖拽）', tone: 'bridge' }, { label: '基台标记', tone: 'special' }]
+    return [{ label: t('单冠 / 单位', 'Single Crown / Unit'), tone: 'single' }, { label: t('桥体（连续拖拽）', 'Bridge (Drag Continuously)'), tone: 'bridge' }, { label: t('基台标记', 'Abutment Marker'), tone: 'special' }]
   }
-  return [{ label: '单冠 / 单位', tone: 'single' }, { label: '桥体（连续拖拽）', tone: 'bridge' }]
+  return [{ label: t('单冠 / 单位', 'Single Crown / Unit'), tone: 'single' }, { label: t('桥体（连续拖拽）', 'Bridge (Drag Continuously)'), tone: 'bridge' }]
 }
 
 function clearTeeth(item: CaseGroupItem) {
@@ -1325,20 +1400,20 @@ function clearTeeth(item: CaseGroupItem) {
 
 function toothSelectionLabel(item: CaseGroupItem) {
   const product = catalog.value?.products.find((candidate) => candidate.product_id === item.product_id)
-  if (product?.category_code === 'REMOVABLE_PROSTHETICS') return '缺失牙位'
-  if (product?.category_code === 'IMPLANT_RESTORATION') return '种植 / 修复牙位'
-  if (product?.category_code === 'CONVENTIONAL_ORTHODONTICS') return '正畸涉及牙位'
-  if (product?.category_code === 'CLEAR_ALIGNER') return '隐形正畸目标牙位'
-  return '修复牙位'
+  if (product?.category_code === 'REMOVABLE_PROSTHETICS') return t('缺失牙位', 'Missing Teeth')
+  if (product?.category_code === 'IMPLANT_RESTORATION') return t('种植 / 修复牙位', 'Implant / Restoration Teeth')
+  if (product?.category_code === 'CONVENTIONAL_ORTHODONTICS') return t('正畸涉及牙位', 'Orthodontic Teeth')
+  if (product?.category_code === 'CLEAR_ALIGNER') return t('隐形正畸目标牙位', 'Clear Aligner Target Teeth')
+  return t('修复牙位', 'Restoration Teeth')
 }
 
 function toothGestureHelp(item: CaseGroupItem) {
   const category = productCategory(item)
-  if (category === 'REMOVABLE_PROSTHETICS') return '单击标缺失位，拖拽连续选择缺失位，双击标卡环位'
-  if (category === 'CONVENTIONAL_ORTHODONTICS') return '单击或拖拽选择正畸区域，双击标带环牙位'
-  if (category === 'CLEAR_ALIGNER') return '单击或拖拽选择目标牙位，双击按已选牙颌快速选择'
-  if (category === 'IMPLANT_RESTORATION') return '单击标单冠，拖拽标桥，双击任意牙位全口选择；可切换基台/桥架后点选对应牙位'
-  return '单击标单冠，拖拽标桥，双击任意牙位全口选择'
+  if (category === 'REMOVABLE_PROSTHETICS') return t('单击标缺失位，拖拽连续选择缺失位，双击标卡环位', 'Click to mark missing teeth, drag for a continuous range, and double-click to mark a clasp tooth')
+  if (category === 'CONVENTIONAL_ORTHODONTICS') return t('单击或拖拽选择正畸区域，双击标带环牙位', 'Click or drag to select the orthodontic area; double-click to mark a band tooth')
+  if (category === 'CLEAR_ALIGNER') return t('单击或拖拽选择目标牙位，双击按已选牙颌快速选择', 'Click or drag to select target teeth; double-click to select the chosen arch')
+  if (category === 'IMPLANT_RESTORATION') return t('单击标单冠，拖拽标桥，双击任意牙位全口选择；可切换基台/桥架后点选对应牙位', 'Click for a single crown, drag for a bridge, or double-click for a full arch. Switch to abutment or framework mode to mark related teeth.')
+  return t('单击标单冠，拖拽标桥，双击任意牙位全口选择', 'Click for a single crown, drag for a bridge, or double-click for a full arch')
 }
 
 function persistedProductSelected(product: CatalogProduct) {
@@ -1358,7 +1433,7 @@ function removePendingProduct(productId: number) {
 function copyPendingProduct(product: CatalogProduct) {
   if (busy.value) return
   pendingProductIds.value = [...pendingProductIds.value, product.product_id]
-  ElMessage.success(`已复制 ${product.display_name}，点击下一步后分别创建产品订单`)
+  ElMessage.success(t('已复制 {product}，点击下一步后分别创建产品订单', 'Copied {product}. Continue to create separate product orders.', { product: catalogProductName(product) }))
 }
 
 function toggleProductSelection(product: CatalogProduct) {
@@ -1393,12 +1468,12 @@ async function loadProductRecommendations() {
   try {
     productRecommendations.value = await props.gateway.recommendProducts(recommendCaseNote.value.trim())
     recommendNote.value = productRecommendations.value.length
-      ? '以上为建议项，请确认后再选择；价格以正式报价为准。'
-      : '当前没有可推荐的产品。'
+      ? t('以上为建议项，请确认后再选择；价格以正式报价为准。', 'These are suggestions only. Review before selecting; final pricing is subject to the formal quote.')
+      : t('当前没有可推荐的产品。', 'No product recommendations are currently available.')
   } catch (cause) {
     productRecommendations.value = []
     recommendNote.value = ''
-    recommendError.value = cause instanceof Error ? cause.message : '智能推荐暂时不可用'
+    recommendError.value = caseErrorText(cause, '智能推荐暂时不可用', 'Product recommendations are temporarily unavailable')
   } finally {
     recommendLoading.value = false
   }
@@ -1407,11 +1482,11 @@ async function loadProductRecommendations() {
 async function applyRecommendation(recommendation: DoctorProductRecommendation) {
   const product = recommendationProduct(recommendation)
   if (!product) {
-    ElMessage.warning('该推荐产品不在当前生效目录中')
+    ElMessage.warning(t('该推荐产品不在当前生效目录中', 'This recommended product is not in the active catalog'))
     return
   }
   if (productSelected(product)) {
-    ElMessage.info('该产品已经在当前病例中')
+    ElMessage.info(t('该产品已经在当前病例中', 'This product is already in the current case'))
     return
   }
   toggleProductSelection(product)
@@ -1421,7 +1496,7 @@ async function applyRecommendation(recommendation: DoctorProductRecommendation) 
   await nextTick()
   document.querySelector<HTMLElement>(`[data-testid="case-add-product-${product.product_id}"]`)
     ?.scrollIntoView({ behavior: 'smooth', block: 'center' })
-  ElMessage.success(`已暂存 ${product.display_name}，点击下一步后保存`)
+  ElMessage.success(t('已暂存 {product}，点击下一步后保存', '{product} added temporarily. Continue to save it.', { product: catalogProductName(product) }))
 }
 
 function categoryIcon(categoryCode: string) {
@@ -1438,7 +1513,7 @@ function categoryIcon(categoryCode: string) {
 async function saveItemUnlocked(item: CaseGroupItem, silent = false, fileIdsOverride?: number[]) {
   if (!group.value) return false
   if (!commitItemObjectFields(item)) {
-    if (!silent) ElMessage.warning('请先修正补充信息')
+    if (!silent) ElMessage.warning(t('请先修正补充信息', 'Correct the additional information first'))
     return false
   }
   try {
@@ -1465,10 +1540,10 @@ async function saveItemUnlocked(item: CaseGroupItem, silent = false, fileIdsOver
       }
     )
     group.value = next
-    if (!silent) ElMessage.success(`${item.product_name} 已保存`)
+    if (!silent) ElMessage.success(t('{product} 已保存', '{product} saved', { product: catalogProductName(item) }))
     return true
   } catch (cause) {
-    ElMessage.error(cause instanceof Error ? cause.message : '保存配置失败')
+    ElMessage.error(caseErrorText(cause, '保存配置失败', 'Failed to save configuration'))
     return false
   }
 }
@@ -1490,7 +1565,7 @@ async function saveAllItemsUnlocked() {
     const item = group.value.items.find((candidate) => candidate.order_id === orderId)
     if (item && !(await saveItemUnlocked(item, true))) return false
   }
-  notice.value = `草稿已保存 · ${new Date().toLocaleTimeString('zh-CN', { hour: '2-digit', minute: '2-digit' })}`
+  notice.value = t('草稿已保存 · {time}', 'Draft saved · {time}', { time: new Date().toLocaleTimeString(locale.value === 'EN' ? 'en-US' : 'zh-CN', { hour: '2-digit', minute: '2-digit' }) })
   return true
 }
 
@@ -1530,9 +1605,9 @@ async function uploadProductFiles(event: Event, item: CaseGroupItem, slotCode = 
     ])
     item.form_values.upload_slot_files = nextSlots
     await saveItemUnlocked(item, true)
-    ElMessage.success(`${uploaded.length} 个专属文件已上传`)
+    ElMessage.success(t('{count} 个专属文件已上传', '{count} product-specific file(s) uploaded', { count: uploaded.length }))
   } catch (cause) {
-    ElMessage.error(cause instanceof Error ? cause.message : '专属文件上传失败')
+    ElMessage.error(caseErrorText(cause, '专属文件上传失败', 'Failed to upload product-specific files'))
   } finally {
     fileUploading.value = false
   }
@@ -1558,9 +1633,9 @@ async function uploadSharedFiles(event: Event) {
         expected_draft_version: group.value.draft_version
       })
     })
-    ElMessage.success(`${uploaded.length} 个病例共享文件已上传`)
+    ElMessage.success(t('{count} 个病例共享文件已上传', '{count} case-shared file(s) uploaded', { count: uploaded.length }))
   } catch (cause) {
-    ElMessage.error(cause instanceof Error ? cause.message : '共享文件上传失败')
+    ElMessage.error(caseErrorText(cause, '共享文件上传失败', 'Failed to upload shared files'))
   } finally {
     fileUploading.value = false
   }
@@ -1572,9 +1647,9 @@ async function removeProductFile(item: CaseGroupItem, file: DoctorFile) {
   if (!Number.isSafeInteger(fileId) || fileId <= 0) return
   busy.value = true
   try {
-    await ElMessageBox.confirm(`移除“${file.name}”？该附件将停止访问，但审计记录会保留。`, '移除专属附件', {
-      confirmButtonText: '确认移除',
-      cancelButtonText: '取消',
+    await ElMessageBox.confirm(t('移除“{file}”？该附件将停止访问，但审计记录会保留。', 'Remove “{file}”? Access will be disabled while the audit record is retained.', { file: file.name }), t('移除专属附件', 'Remove Product Attachment'), {
+      confirmButtonText: t('确认移除', 'Remove'),
+      cancelButtonText: t('取消', 'Cancel'),
       type: 'warning'
     })
     const previousSlots = item.form_values.upload_slot_files
@@ -1591,10 +1666,10 @@ async function removeProductFile(item: CaseGroupItem, file: DoctorFile) {
       return
     }
     itemFiles[item.order_id] = (itemFiles[item.order_id] ?? []).filter((candidate) => Number(candidate.file_id) !== fileId)
-    ElMessage.success('专属附件已移除')
+    ElMessage.success(t('专属附件已移除', 'Product attachment removed'))
   } catch (cause) {
     if (cause !== 'cancel' && cause !== 'close') {
-      ElMessage.error(cause instanceof Error ? cause.message : '移除附件失败')
+      ElMessage.error(caseErrorText(cause, '移除附件失败', 'Failed to remove attachment'))
     }
   } finally {
     busy.value = false
@@ -1607,9 +1682,9 @@ async function removeSharedFile(file: DoctorFile) {
   if (!Number.isSafeInteger(fileId) || fileId <= 0) return
   busy.value = true
   try {
-    await ElMessageBox.confirm(`移除“${file.name}”？该附件将停止访问，但审计记录会保留。`, '移除共享附件', {
-      confirmButtonText: '确认移除',
-      cancelButtonText: '取消',
+    await ElMessageBox.confirm(t('移除“{file}”？该附件将停止访问，但审计记录会保留。', 'Remove “{file}”? Access will be disabled while the audit record is retained.', { file: file.name }), t('移除共享附件', 'Remove Shared Attachment'), {
+      confirmButtonText: t('确认移除', 'Remove'),
+      cancelButtonText: t('取消', 'Cancel'),
       type: 'warning'
     })
     const remainingIds = distinctFileIds([
@@ -1624,10 +1699,10 @@ async function removeSharedFile(file: DoctorFile) {
       })
     })
     sharedFiles.value = sharedFiles.value.filter((candidate) => Number(candidate.file_id) !== fileId)
-    ElMessage.success('共享附件已移除')
+    ElMessage.success(t('共享附件已移除', 'Shared attachment removed'))
   } catch (cause) {
     if (cause !== 'cancel' && cause !== 'close') {
-      ElMessage.error(cause instanceof Error ? cause.message : '移除附件失败')
+      ElMessage.error(caseErrorText(cause, '移除附件失败', 'Failed to remove attachment'))
     }
   } finally {
     busy.value = false
@@ -1638,11 +1713,11 @@ async function nextStep() {
   if (busy.value || fileUploading.value) return
   if (step.value === 1) {
     if (!patientId.value) {
-      ElMessage.warning('请选择患者后再进入下一步')
+      ElMessage.warning(t('请选择患者后再进入下一步', 'Select a patient before continuing'))
       return
     }
     if (!selectedProductCount.value) {
-      ElMessage.warning('请至少选择一个产品')
+      ElMessage.warning(t('请至少选择一个产品', 'Select at least one product'))
       return
     }
     const errors = caseStepOneErrors()
@@ -1667,13 +1742,13 @@ async function nextStep() {
 }
 
 function priceLabel(_item: CaseGroupItem) {
-  return '待报价'
+  return t('待报价', 'Quote Pending')
 }
 
 async function submitGroup() {
   if (!group.value || busy.value) return
   if (!finalConfirmationComplete.value) {
-    ElMessage.warning('请确认报价、制作要求和制作周期口径')
+    ElMessage.warning(t('请确认报价、制作要求和制作周期口径', 'Confirm the quote, production requirements, and lead time'))
     return
   }
   busy.value = true
@@ -1685,7 +1760,7 @@ async function submitGroup() {
     })
     if (!(await saveAllItemsUnlocked())) return
     if (incompleteItems.value.length) {
-      ElMessage.warning(`还有 ${incompleteItems.value.length} 个子产品配置不完整`)
+      ElMessage.warning(t('还有 {count} 个子产品配置不完整', '{count} product configuration(s) are incomplete', { count: incompleteItems.value.length }))
       return
     }
     const submitted = await api<CaseGroup>(`/order-case-groups/${group.value.group_id}/submit`, {
@@ -1697,9 +1772,9 @@ async function submitGroup() {
     })
     group.value = submitted
     emit('submitted', submitted)
-    ElMessage.success(`病例订单 ${submitted.group_no} 已提交，共 ${submitted.items.length} 个产品`)
+    ElMessage.success(t('病例订单 {group} 已提交，共 {count} 个产品', 'Case order {group} submitted with {count} product(s)', { group: submitted.group_no, count: submitted.items.length }))
   } catch (cause) {
-    ElMessage.error(cause instanceof Error ? cause.message : '订单提交失败')
+    ElMessage.error(caseErrorText(cause, '订单提交失败', 'Failed to submit order'))
   } finally {
     busy.value = false
   }
@@ -1710,7 +1785,7 @@ onMounted(async () => {
     await loadCatalog()
     await restoreDraft()
   } catch (cause) {
-    notice.value = cause instanceof Error ? cause.message : '产品信息加载失败，请刷新后重试'
+    notice.value = caseErrorText(cause, '产品信息加载失败，请刷新后重试', 'Failed to load product information. Refresh and try again.')
   } finally {
     loading.value = false
   }
@@ -1720,12 +1795,12 @@ onMounted(async () => {
 <template>
   <div class="case-wizard" data-testid="doctor-case-group-wizard">
     <header class="case-wizard__header">
-      <strong>{{ group ? '继续编辑订单草稿' : selectedCategoryCode ? `新建${CATEGORY_NAMES[selectedCategoryCode]}订单` : '新建病例订单' }}</strong>
-      <small>{{ notice || (selectedCategoryCode ? `第 ${step} / ${steps.length} 步 · ${CATEGORY_NAMES[selectedCategoryCode]}` : '请选择产品大类开始') }}</small>
-      <button type="button" data-testid="case-wizard-close" aria-label="关闭新建订单" title="关闭" @click="emit('close')">×</button>
+      <strong>{{ group ? t('继续编辑订单草稿', 'Continue Editing Draft') : selectedCategoryCode ? t('新建{category}订单', 'New {category} Order', { category: categoryName(selectedCategoryCode) }) : t('新建病例订单', 'New Case Order') }}</strong>
+      <small>{{ notice || (selectedCategoryCode ? t('第 {step} / {total} 步 · {category}', 'Step {step} of {total} · {category}', { step, total: steps.length, category: categoryName(selectedCategoryCode) }) : t('请选择产品大类开始', 'Select a product category to begin')) }}</small>
+      <button type="button" data-testid="case-wizard-close" :aria-label="t('关闭新建订单', 'Close new order')" :title="t('关闭', 'Close')" @click="emit('close')">×</button>
     </header>
 
-    <nav class="case-wizard__steps" aria-label="多产品下单步骤">
+    <nav class="case-wizard__steps" :aria-label="t('多产品下单步骤', 'Multi-product order steps')">
       <template v-for="(label, index) in steps" :key="label">
         <button
           v-if="selectedCategoryCode || index === 0"
@@ -1745,7 +1820,7 @@ onMounted(async () => {
         <div class="case-source-layout">
           <aside class="case-source-sidebar">
             <section class="case-sidebar-section">
-              <header>产品大类</header>
+              <header>{{ t('产品大类', 'Product Categories') }}</header>
               <div class="case-category-cards">
                 <button
                   v-for="category in catalogCategories"
@@ -1755,64 +1830,64 @@ onMounted(async () => {
                   @click="selectedCategoryCode = category.code; activeProductGroup = ''; productKeyword = ''"
                 >
                   <span>{{ categoryIcon(category.code) }}</span>
-                  <div><strong>{{ category.name }}</strong><small>{{ catalogProducts.filter((product) => product.category_code === category.code).length }} 项产品</small></div>
+                  <div><strong>{{ categoryName(category.code) }}</strong><small>{{ t('{count} 项产品', '{count} product(s)', { count: catalogProducts.filter((product) => product.category_code === category.code).length }) }}</small></div>
                 </button>
               </div>
             </section>
 
             <section v-if="selectedCategoryCode" class="case-sidebar-section case-sidebar-products">
-              <header>具体产品 <b>*</b></header>
-              <label class="case-sidebar-search"><span>⌕</span><input v-model="productKeyword" placeholder="搜索产品"></label>
+              <header>{{ t('具体产品', 'Products') }} <b>*</b></header>
+              <label class="case-sidebar-search"><span>⌕</span><input v-model="productKeyword" :placeholder="t('搜索产品', 'Search products')"></label>
               <div class="case-product-subcards">
                 <template v-for="productGroup in selectedProductGroups" :key="productGroup.label || selectedCategoryCode">
-                  <h4 v-if="productGroup.label">{{ productGroup.label }}</h4>
+                  <h4 v-if="productGroup.label">{{ localizedSourceText(productGroup.label) }}</h4>
                   <button
                     v-for="product in productGroup.products"
                     :key="product.product_id"
                     type="button"
                     :class="{ active: productSelected(product) }"
                     :disabled="busy"
-                    :title="productSelected(product) ? `取消选择${product.display_name}` : `选择${product.display_name}`"
+                    :title="productSelected(product) ? t('取消选择{product}', 'Deselect {product}', { product: catalogProductName(product) }) : t('选择{product}', 'Select {product}', { product: catalogProductName(product) })"
                     :data-testid="`case-add-product-${product.product_id}`"
                     @click="toggleProductSelection(product)"
                   >
-                    <span><strong>{{ product.display_name }}</strong><small>待报价</small></span>
+                    <span><strong>{{ catalogProductName(product) }}</strong><small>{{ t('待报价', 'Quote Pending') }}</small></span>
                     <i>{{ productSelected(product) ? '✓' : '＋' }}</i>
                   </button>
                 </template>
-                <p v-if="!selectedCategoryProducts.length">该分类暂时没有可下单产品。</p>
+                <p v-if="!selectedCategoryProducts.length">{{ t('该分类暂时没有可下单产品。', 'No products are currently available in this category.') }}</p>
               </div>
             </section>
 
             <section v-if="selectedPatient" class="case-sidebar-patient">
-              <header>当前患者</header>
+              <header>{{ t('当前患者', 'Current Patient') }}</header>
               <div><span>{{ selectedPatient.patient_name.slice(0, 1) }}</span><p><strong>{{ selectedPatient.patient_name }}</strong><small>{{ selectedPatient.patient_code }}</small></p></div>
             </section>
           </aside>
 
           <div class="case-source-content">
             <header class="case-source-intro">
-              <h1>开始新订单</h1>
-              <p>先从左侧选择一个或多个具体产品，再检索或新建患者；点击下一步时统一保存病例订单。</p>
+              <h1>{{ t('开始新订单', 'Start a New Order') }}</h1>
+              <p>{{ t('先从左侧选择一个或多个具体产品，再检索或新建患者；点击下一步时统一保存病例订单。', 'Select one or more products on the left, then find or create a patient. The case order is saved when you continue.') }}</p>
             </header>
 
             <div v-if="catalog?.publication_status !== 'ACTIVE'" class="case-alert warning">
-              当前暂时没有可下单产品，请刷新页面或联系订单支持。
+              {{ t('当前暂时没有可下单产品，请刷新页面或联系订单支持。', 'No products are currently available. Refresh the page or contact Order Support.') }}
             </div>
 
             <section class="case-recommend-card">
               <header>
                 <div>
-                  <strong>智能推荐</strong>
-                  <small>根据本诊所历史下单与病例描述给出建议，需您确认后才会加入订单</small>
+                  <strong>{{ t('智能推荐', 'Smart Recommendations') }}</strong>
+                  <small>{{ t('根据本诊所历史下单与病例描述给出建议，需您确认后才会加入订单', 'Suggestions use clinic order history and the case description. Products are added only after your confirmation.') }}</small>
                 </div>
                 <button type="button" :disabled="recommendLoading" @click="loadProductRecommendations">
-                  {{ recommendLoading ? '推荐中…' : '让 AI 推荐' }}
+                  {{ recommendLoading ? t('推荐中…', 'Generating…') : t('让 AI 推荐', 'Get AI Suggestions') }}
                 </button>
               </header>
               <label class="case-recommend-input">
-                <span>病例描述（可选）</span>
-                <input v-model="recommendCaseNote" placeholder="例如：46 缺失，咬合力较大，患者要求美观">
+                <span>{{ t('病例描述（可选）', 'Case Description (Optional)') }}</span>
+                <input v-model="recommendCaseNote" :placeholder="t('例如：46 缺失，咬合力较大，患者要求美观', 'For example: tooth 46 missing, high bite force, esthetic priority')">
               </label>
               <p v-if="recommendError" class="case-recommend-error">{{ recommendError }}</p>
               <p v-else-if="recommendNote" class="case-recommend-note">{{ recommendNote }}</p>
@@ -1826,36 +1901,36 @@ onMounted(async () => {
                   @click="applyRecommendation(recommendation)"
                 >
                   <span>
-                    <strong>{{ recommendation.displayName }}</strong>
-                    <small>{{ recommendation.categoryName }} · {{ recommendation.reason }}</small>
+                    <strong>{{ safeEnglishDynamicText(recommendation.displayName, humanizeCode(recommendationProduct(recommendation)?.product_code || 'recommended_product')) }}</strong>
+                    <small>{{ safeEnglishDynamicText(recommendation.categoryName, categoryName(recommendationProduct(recommendation)?.category_code || '')) }} · {{ safeEnglishDynamicText(recommendation.reason, 'Recommended based on case details and clinic order history.') }}</small>
                   </span>
-                  <i>{{ !recommendationProduct(recommendation) ? '不在当前目录' : recommendationSelected(recommendation) ? '✓ 已采用' : '＋ 采用' }}</i>
+                  <i>{{ !recommendationProduct(recommendation) ? t('不在当前目录', 'Not in Active Catalog') : recommendationSelected(recommendation) ? t('✓ 已采用', '✓ Added') : t('＋ 采用', '＋ Add') }}</i>
                 </button>
               </div>
             </section>
 
             <section class="case-account-card">
-              <span>{{ (props.doctorName || '医').slice(0, 1) }}</span>
+              <span>{{ (props.doctorName || t('医', 'D')).slice(0, 1) }}</span>
               <div>
-                <small>当前下单账户（自动带出）</small>
-                <strong>{{ props.doctorName || '当前医生' }} · {{ props.clinicName || '当前诊所' }}</strong>
-                <p>{{ props.clinicContact || '联系方式以账户资料为准' }}</p>
+                <small>{{ t('当前下单账户（自动带出）', 'Current Ordering Account (Auto-filled)') }}</small>
+                <strong>{{ props.doctorName || t('当前医生', 'Current Doctor') }} · {{ props.clinicName || t('当前诊所', 'Current Clinic') }}</strong>
+                <p>{{ props.clinicContact || t('联系方式以账户资料为准', 'Contact details are taken from the account profile') }}</p>
               </div>
-              <b>✓ 已自动填写</b>
+              <b>✓ {{ t('已自动填写', 'Auto-filled') }}</b>
             </section>
 
             <div class="case-source-grid">
               <section class="case-config-form case-patient-section">
                 <header class="case-section-title">
-                  <div><small>👤 患者</small></div>
+                  <div><small>👤 {{ t('患者', 'Patient') }}</small></div>
                 </header>
                 <div v-if="selectedPatient" class="case-patient-selected">
                   <span>{{ selectedPatient.patient_name.slice(0, 1) }}</span>
                   <div><strong>{{ selectedPatient.patient_name }}</strong><small>{{ selectedPatient.patient_code }} · {{ selectedPatient.doctor_name }}</small></div>
-                  <button v-if="!group" type="button" aria-label="重新选择患者" @click="patientId = ''; patientKeyword = ''">×</button>
+                  <button v-if="!group" type="button" :aria-label="t('重新选择患者', 'Choose another patient')" @click="patientId = ''; patientKeyword = ''">×</button>
                 </div>
                 <div v-else class="case-patient-autocomplete">
-                  <label class="case-search"><span>⌕</span><input v-model="patientKeyword" placeholder="输入患者姓名或编号，搜索已有患者…" @focus="patientSearchFocused = true" @blur="closePatientResults"></label>
+                  <label class="case-search"><span>⌕</span><input v-model="patientKeyword" :placeholder="t('输入患者姓名或编号，搜索已有患者…', 'Enter a patient name or ID to search…')" @focus="patientSearchFocused = true" @blur="closePatientResults"></label>
                   <div v-if="patientSearchFocused || patientKeyword" class="case-patient-dropdown">
                     <button
                       v-for="patient in patientRows"
@@ -1866,49 +1941,49 @@ onMounted(async () => {
                     >
                       <strong>{{ patient.patient_name }}</strong><small>{{ patient.patient_code }} · {{ patient.doctor_name }}</small>
                     </button>
-                    <p v-if="!patientRows.length">没有匹配患者，可直接新建患者。</p>
+                    <p v-if="!patientRows.length">{{ t('没有匹配患者，可直接新建患者。', 'No matching patients. You can create a new patient.') }}</p>
                   </div>
-                  <p class="case-patient-create-hint">或 <button type="button" @click="newPatientOpen = !newPatientOpen">直接新建患者</button></p>
+                  <p class="case-patient-create-hint">{{ t('或', 'Or') }} <button type="button" @click="newPatientOpen = !newPatientOpen">{{ t('直接新建患者', 'Create a New Patient') }}</button></p>
                 </div>
                 <div v-if="newPatientOpen" class="case-new-patient">
-                  <label><span>患者姓名 *</span><input v-model="newPatient.name"></label>
-                  <label><span>出生日期</span><input v-model="newPatient.date_of_birth" type="date"></label>
-                  <label><span>性别</span><select v-model="newPatient.gender"><option value="">请选择</option><option value="MALE">男</option><option value="FEMALE">女</option><option value="OTHER">其他</option></select></label>
-                  <label><span>联系电话</span><input v-model="newPatient.phone"></label>
-                  <label><span>邮箱</span><input v-model="newPatient.email" type="email"></label>
-                  <label class="full"><span>病史/用药/过敏</span><textarea v-model="newPatient.medical_notes" rows="2"></textarea></label>
-                  <div class="full"><button type="button" class="case-primary" :disabled="newPatientSaving" @click="createPatientFromWizard">{{ newPatientSaving ? '保存中…' : '保存并选中患者' }}</button></div>
+                  <label><span>{{ t('患者姓名 *', 'Patient Name *') }}</span><input v-model="newPatient.name"></label>
+                  <label><span>{{ t('出生日期', 'Date of Birth') }}</span><input v-model="newPatient.date_of_birth" type="date"></label>
+                  <label><span>{{ t('性别', 'Gender') }}</span><select v-model="newPatient.gender"><option value="">{{ t('请选择', 'Select') }}</option><option value="MALE">{{ t('男', 'Male') }}</option><option value="FEMALE">{{ t('女', 'Female') }}</option><option value="OTHER">{{ t('其他', 'Other') }}</option></select></label>
+                  <label><span>{{ t('联系电话', 'Phone') }}</span><input v-model="newPatient.phone"></label>
+                  <label><span>{{ t('邮箱', 'Email') }}</span><input v-model="newPatient.email" type="email"></label>
+                  <label class="full"><span>{{ t('病史/用药/过敏', 'Medical History / Medication / Allergies') }}</span><textarea v-model="newPatient.medical_notes" rows="2"></textarea></label>
+                  <div class="full"><button type="button" class="case-primary" :disabled="newPatientSaving" @click="createPatientFromWizard">{{ newPatientSaving ? t('保存中…', 'Saving…') : t('保存并选中患者', 'Save and Select Patient') }}</button></div>
                 </div>
               </section>
 
               <section class="case-config-form">
-                <header class="case-section-title"><div><small>订单要求</small><h3>出货、到货与运输信息</h3></div></header>
+                <header class="case-section-title"><div><small>{{ t('订单要求', 'Order Requirements') }}</small><h3>{{ t('出货、到货与运输信息', 'Dispatch, Delivery & Shipping') }}</h3></div></header>
                 <div class="case-field-grid">
-                  <label class="case-field"><span>订单周期 *</span><select v-model="caseSettings.priority"><option value="NORMAL">正常出货周期</option><option value="RUSH_3_DAYS">3 天加急</option><option value="SAME_DAY">当天出货</option></select></label>
-                  <label class="case-field"><span>要求到货日期 *</span><input v-model="caseSettings.required_delivery_date" type="date"></label>
-                  <label class="case-field"><span>患者预约时间</span><input v-model="caseSettings.appointment_date" type="date"></label>
-                  <label class="case-field"><span>运输类型 *</span><select v-model="caseSettings.shipping_method"><option value="COURIER">快递</option><option value="SALES_DELIVERY">业务员配送</option><option value="SELF_PICKUP">自取</option></select></label>
-                  <label class="case-field"><span>订单类型 *</span><select v-model="caseSettings.order_type"><option value="ONLINE">网络订单</option><option value="IMPRESSION">印模订单</option><option value="REWORK">返工订单</option><option value="RETURN">退货订单</option><option value="DESIGN_ONLY">仅设计订单</option></select></label>
-                  <label v-if="['IMPRESSION', 'REWORK', 'RETURN'].includes(caseSettings.order_type)" class="case-field"><span>寄模运单号 *</span><input v-model="caseSettings.inbound_tracking_no" placeholder="填写寄回模型的运单号"></label>
-                  <label class="case-field full"><span>整单备注</span><textarea v-model="caseSettings.global_notes" rows="3" placeholder="病例整体要求，可使用中文或英文"></textarea></label>
+                  <label class="case-field"><span>{{ t('订单周期 *', 'Order Priority *') }}</span><select v-model="caseSettings.priority"><option value="NORMAL">{{ t('正常出货周期', 'Standard Lead Time') }}</option><option value="RUSH_3_DAYS">{{ t('3 天加急', '3-day Rush') }}</option><option value="SAME_DAY">{{ t('当天出货', 'Same-day Dispatch') }}</option></select></label>
+                  <label class="case-field"><span>{{ t('要求到货日期 *', 'Requested Delivery Date *') }}</span><input v-model="caseSettings.required_delivery_date" type="date"></label>
+                  <label class="case-field"><span>{{ t('患者预约时间', 'Patient Appointment Date') }}</span><input v-model="caseSettings.appointment_date" type="date"></label>
+                  <label class="case-field"><span>{{ t('运输类型 *', 'Shipping Method *') }}</span><select v-model="caseSettings.shipping_method"><option value="COURIER">{{ t('快递', 'Courier') }}</option><option value="SALES_DELIVERY">{{ t('业务员配送', 'Representative Delivery') }}</option><option value="SELF_PICKUP">{{ t('自取', 'Self Pickup') }}</option></select></label>
+                  <label class="case-field"><span>{{ t('订单类型 *', 'Order Type *') }}</span><select v-model="caseSettings.order_type"><option value="ONLINE">{{ t('网络订单', 'Online Order') }}</option><option value="IMPRESSION">{{ t('印模订单', 'Impression Order') }}</option><option value="REWORK">{{ t('返工订单', 'Remake Order') }}</option><option value="RETURN">{{ t('退货订单', 'Return Order') }}</option><option value="DESIGN_ONLY">{{ t('仅设计订单', 'Design-only Order') }}</option></select></label>
+                  <label v-if="['IMPRESSION', 'REWORK', 'RETURN'].includes(caseSettings.order_type)" class="case-field"><span>{{ t('寄模运单号 *', 'Inbound Model Tracking Number *') }}</span><input v-model="caseSettings.inbound_tracking_no" :placeholder="t('填写寄回模型的运单号', 'Enter the tracking number for the returned model')"></label>
+                  <label class="case-field full"><span>{{ t('整单备注', 'Case Notes') }}</span><textarea v-model="caseSettings.global_notes" rows="3" :placeholder="t('病例整体要求，可使用中文或英文', 'Overall case requirements')"></textarea></label>
                 </div>
-                <div class="case-alert warning">请填写期望到货日期；客服将在受理订单时确认可行的制作与配送周期。</div>
+                <div class="case-alert warning">{{ t('请填写期望到货日期；客服将在受理订单时确认可行的制作与配送周期。', 'Enter the requested delivery date. Order Support will confirm a feasible production and delivery schedule during review.') }}</div>
               </section>
             </div>
 
             <aside v-if="selectedProductCount" class="case-basket case-basket-inline">
-              <header><strong>已选产品</strong><span>{{ selectedProductCount }} 项</span></header>
+              <header><strong>{{ t('已选产品', 'Selected Products') }}</strong><span>{{ t('{count} 项', '{count} item(s)', { count: selectedProductCount }) }}</span></header>
               <article v-for="item in group?.items ?? []" :key="item.order_id">
-                <div><strong>{{ item.product_name }}</strong><small>产品订单 {{ item.order_no }}</small></div>
-                <span>待报价</span>
-                <button type="button" @click="copyItem(item)">复制</button>
-                <button type="button" class="danger" @click="removeItem(item)">移除</button>
+                <div><strong>{{ catalogProductName(item) }}</strong><small>{{ t('产品订单 {order}', 'Product Order {order}', { order: item.order_no }) }}</small></div>
+                <span>{{ t('待报价', 'Quote Pending') }}</span>
+                <button type="button" @click="copyItem(item)">{{ t('复制', 'Copy') }}</button>
+                <button type="button" class="danger" @click="removeItem(item)">{{ t('移除', 'Remove') }}</button>
               </article>
               <article v-for="(product, index) in pendingProducts" :key="`pending-${product.product_id}-${index}`">
-                <div><strong>{{ product.display_name }}</strong><small>尚未保存，点击下一步后创建产品订单</small></div>
-                <span>待报价</span>
-                <button type="button" :disabled="busy" @click="copyPendingProduct(product)">复制</button>
-                <button type="button" class="danger" :disabled="busy" @click="removePendingProduct(product.product_id)">取消选择</button>
+                <div><strong>{{ catalogProductName(product) }}</strong><small>{{ t('尚未保存，点击下一步后创建产品订单', 'Not saved yet. Continue to create the product order.') }}</small></div>
+                <span>{{ t('待报价', 'Quote Pending') }}</span>
+                <button type="button" :disabled="busy" @click="copyPendingProduct(product)">{{ t('复制', 'Copy') }}</button>
+                <button type="button" class="danger" :disabled="busy" @click="removePendingProduct(product.product_id)">{{ t('取消选择', 'Deselect') }}</button>
               </article>
             </aside>
           </div>
@@ -1916,9 +1991,9 @@ onMounted(async () => {
       </section>
 
       <section v-else-if="step === 2" class="case-panel case-config-panel">
-        <header><h1>牙位与制作要求</h1><p>请逐个产品选择牙位，并填写相应的临床与制作要求。</p></header>
+        <header><h1>{{ t('牙位与制作要求', 'Teeth & Production Requirements') }}</h1><p>{{ t('请逐个产品选择牙位，并填写相应的临床与制作要求。', 'Select teeth and enter the clinical and production requirements for each product.') }}</p></header>
         <div class="case-config-layout">
-          <aside class="case-item-tabs">
+          <aside class="case-item-tabs" :data-section-label="t('已选产品', 'Selected Products')">
             <button
               v-for="item in group?.items ?? []"
               :key="item.order_id"
@@ -1927,42 +2002,42 @@ onMounted(async () => {
               @click="selectedOrderId = item.order_id"
             >
               <span>{{ item.line_no }}</span>
-              <div><strong>{{ item.product_name }}</strong><small>{{ itemStepErrors(item, 2).length ? `${itemStepErrors(item, 2).length} 项待补` : '本阶段完整' }}</small></div>
+              <div><strong>{{ catalogProductName(item) }}</strong><small>{{ itemStepErrors(item, 2).length ? t('{count} 项待补', '{count} item(s) incomplete', { count: itemStepErrors(item, 2).length }) : t('本阶段完整', 'Section Complete') }}</small></div>
             </button>
           </aside>
           <div v-if="activeItem" class="case-config-form">
             <div class="case-config-summary">
-              <div><span>产品订单</span><strong>{{ activeItem.order_no }}</strong></div>
-              <div><span>当前产品</span><strong>{{ activeItem.product_name }}</strong></div>
-              <div><span>价格</span><strong>{{ priceLabel(activeItem) }}</strong></div>
+              <div><span>{{ t('产品订单', 'Product Order') }}</span><strong>{{ activeItem.order_no }}</strong></div>
+              <div><span>{{ t('当前产品', 'Current Product') }}</span><strong>{{ catalogProductName(activeItem) }}</strong></div>
+              <div><span>{{ t('价格', 'Price') }}</span><strong>{{ priceLabel(activeItem) }}</strong></div>
             </div>
             <section v-if="activeProduct?.tooth_rule_code" class="case-tooth-chart full" data-testid="case-fdi-tooth-chart">
               <header>
-                <div><strong>{{ toothSelectionLabel(activeItem) }}（FDI） *</strong><small>{{ toothGestureHelp(activeItem) }}</small></div>
-                <div><span>已选：{{ selectedTeeth(activeItem).join('、') || '暂无' }}</span><button type="button" :disabled="!selectedTeeth(activeItem).length" @click="clearTeeth(activeItem)">清空</button></div>
+                <div><strong>{{ toothSelectionLabel(activeItem) }} (FDI) *</strong><small>{{ toothGestureHelp(activeItem) }}</small></div>
+                <div><span>{{ t('已选：{teeth}', 'Selected: {teeth}', { teeth: selectedTeeth(activeItem).join(locale === 'EN' ? ', ' : '、') || t('暂无', 'None') }) }}</span><button type="button" :disabled="!selectedTeeth(activeItem).length" @click="clearTeeth(activeItem)">{{ t('清空', 'Clear') }}</button></div>
               </header>
               <div v-if="productCategory(activeItem) === 'IMPLANT_RESTORATION'" class="case-tooth-modes">
-                <span>额外标记：</span>
+                <span>{{ t('额外标记：', 'Additional Markers:') }}</span>
                 <button
                   v-for="option in toothModeOptions(activeItem).filter((candidate) => ['CROWN', 'ABUTMENT', 'FRAMEWORK'].includes(candidate.value))"
                   :key="option.value"
                   type="button"
                   :class="{ active: currentToothMode(activeItem) === option.value }"
                   @click="activeItem.form_values.current_tooth_mode = option.value"
-                >{{ option.value === 'CROWN' ? '普通单冠' : option.label }}</button>
+                >{{ option.value === 'CROWN' ? t('普通单冠', 'Standard Single Crown') : option.label }}</button>
               </div>
-              <div class="case-tooth-legend" aria-label="牙位图图例">
+              <div class="case-tooth-legend" :aria-label="t('牙位图图例', 'Tooth chart legend')">
                 <span v-for="item in toothLegend(activeItem)" :key="item.label"><i :class="`is-${item.tone}`"></i>{{ item.label }}</span>
               </div>
               <svg
                 class="case-dental-svg"
                 viewBox="0 0 700 330"
                 role="img"
-                aria-label="FDI 牙位选择图"
+                :aria-label="t('FDI 牙位选择图', 'FDI tooth selection chart')"
                 @pointerup="finishToothDrag(activeItem)"
               >
-                <text x="350" y="13" text-anchor="middle" class="case-dental-jaw-title">上颌 · MAXILLA</text>
-                <text x="350" y="221" text-anchor="middle" class="case-dental-jaw-title">下颌 · MANDIBLE</text>
+                <text x="350" y="13" text-anchor="middle" class="case-dental-jaw-title">{{ t('上颌 · MAXILLA', 'UPPER ARCH · MAXILLA') }}</text>
+                <text x="350" y="221" text-anchor="middle" class="case-dental-jaw-title">{{ t('下颌 · MANDIBLE', 'LOWER ARCH · MANDIBLE') }}</text>
                 <line x1="350" y1="18" x2="350" y2="175" class="case-dental-midline"></line>
                 <line x1="350" y1="228" x2="350" y2="318" class="case-dental-midline"></line>
                 <line x1="30" y1="158" x2="670" y2="158" class="case-dental-occlusion"></line>
@@ -1987,7 +2062,7 @@ onMounted(async () => {
                     :y="tooth.hitArea.y"
                     :width="tooth.hitArea.width"
                     :height="tooth.hitArea.height"
-                    :aria-label="`牙位 ${tooth.number}${toothSelected(activeItem, tooth.number) ? `，${toothModeLabel(activeItem, tooth.number)}` : ''}`"
+                    :aria-label="t('牙位 {tooth}{mode}', 'Tooth {tooth}{mode}', { tooth: tooth.number, mode: toothSelected(activeItem, tooth.number) ? `${locale === 'EN' ? ', ' : '，'}${toothModeLabel(activeItem, tooth.number)}` : '' })"
                     @pointerdown.prevent="beginToothDrag(activeItem, tooth.number, 'UPPER')"
                     @pointerenter="extendToothDrag(activeItem, tooth.number, 'UPPER')"
                     @pointerup="finishToothDrag(activeItem)"
@@ -2011,7 +2086,7 @@ onMounted(async () => {
                     :y="tooth.hitArea.y"
                     :width="tooth.hitArea.width"
                     :height="tooth.hitArea.height"
-                    :aria-label="`牙位 ${tooth.number}${toothSelected(activeItem, tooth.number) ? `，${toothModeLabel(activeItem, tooth.number)}` : ''}`"
+                    :aria-label="t('牙位 {tooth}{mode}', 'Tooth {tooth}{mode}', { tooth: tooth.number, mode: toothSelected(activeItem, tooth.number) ? `${locale === 'EN' ? ', ' : '，'}${toothModeLabel(activeItem, tooth.number)}` : '' })"
                     @pointerdown.prevent="beginToothDrag(activeItem, tooth.number, 'LOWER')"
                     @pointerenter="extendToothDrag(activeItem, tooth.number, 'LOWER')"
                     @pointerup="finishToothDrag(activeItem)"
@@ -2024,57 +2099,57 @@ onMounted(async () => {
             </section>
 
             <section class="case-config-block">
-              <header><h3>制作要求</h3><small>内容会根据当前产品自动调整</small></header>
+              <header><h3>{{ t('制作要求', 'Production Requirements') }}</h3><small>{{ t('内容会根据当前产品自动调整', 'Fields adjust automatically for the current product') }}</small></header>
               <div v-if="productCategory(activeItem) === 'FIXED_RESTORATION'" class="case-field-grid">
-                <label class="case-field"><span>咬合 *</span><select v-model="activeItem.form_values.occlusion_level"><option value="">请选择</option><option value="LIGHT">轻</option><option value="NORMAL">正常</option><option value="HEAVY">重</option><option value="CLEARANCE">空开</option></select></label>
-                <label v-if="activeItem.form_values.occlusion_level === 'CLEARANCE'" class="case-field"><span>空开距离（mm）*</span><input v-model.number="activeItem.form_values.occlusion_clearance_mm" type="number" min="0" step="0.1"></label>
-                <label class="case-field"><span>邻接 *</span><select v-model="activeItem.form_values.contact_level"><option value="">请选择</option><option value="OPEN">空开</option><option value="NORMAL">正常</option><option value="TIGHT">紧</option><option value="POINT">点接触</option><option value="SURFACE">面接触</option></select></label>
-                <label class="case-field"><span>染色 *</span><select v-model="activeItem.form_values.stain_level"><option value="">请选择</option><option value="NONE">无</option><option value="LIGHT">轻</option><option value="MEDIUM">中</option><option value="HEAVY">重</option></select></label>
-                <label class="case-field"><span>边缘 *</span><select v-model="activeItem.form_values.margin_type"><option value="">请选择</option><option value="METAL">金属边缘</option><option value="PORCELAIN">包瓷边缘</option><option value="THREE_QUARTER_LINGUAL">3/4 金属舌侧边</option></select></label>
+                <label class="case-field"><span>{{ t('咬合 *', 'Occlusion *') }}</span><select v-model="activeItem.form_values.occlusion_level"><option value="">{{ t('请选择', 'Select') }}</option><option value="LIGHT">{{ t('轻', 'Light') }}</option><option value="NORMAL">{{ t('正常', 'Normal') }}</option><option value="HEAVY">{{ t('重', 'Heavy') }}</option><option value="CLEARANCE">{{ t('空开', 'Clearance') }}</option></select></label>
+                <label v-if="activeItem.form_values.occlusion_level === 'CLEARANCE'" class="case-field"><span>{{ t('空开距离（mm）*', 'Clearance (mm) *') }}</span><input v-model.number="activeItem.form_values.occlusion_clearance_mm" type="number" min="0" step="0.1"></label>
+                <label class="case-field"><span>{{ t('邻接 *', 'Contact *') }}</span><select v-model="activeItem.form_values.contact_level"><option value="">{{ t('请选择', 'Select') }}</option><option value="OPEN">{{ t('空开', 'Open') }}</option><option value="NORMAL">{{ t('正常', 'Normal') }}</option><option value="TIGHT">{{ t('紧', 'Tight') }}</option><option value="POINT">{{ t('点接触', 'Point Contact') }}</option><option value="SURFACE">{{ t('面接触', 'Surface Contact') }}</option></select></label>
+                <label class="case-field"><span>{{ t('染色 *', 'Staining *') }}</span><select v-model="activeItem.form_values.stain_level"><option value="">{{ t('请选择', 'Select') }}</option><option value="NONE">{{ t('无', 'None') }}</option><option value="LIGHT">{{ t('轻', 'Light') }}</option><option value="MEDIUM">{{ t('中', 'Medium') }}</option><option value="HEAVY">{{ t('重', 'Heavy') }}</option></select></label>
+                <label class="case-field"><span>{{ t('边缘 *', 'Margin *') }}</span><select v-model="activeItem.form_values.margin_type"><option value="">{{ t('请选择', 'Select') }}</option><option value="METAL">{{ t('金属边缘', 'Metal Margin') }}</option><option value="PORCELAIN">{{ t('包瓷边缘', 'Porcelain Margin') }}</option><option value="THREE_QUARTER_LINGUAL">{{ t('3/4 金属舌侧边', '3/4 Metal Lingual Margin') }}</option></select></label>
               </div>
               <div v-else-if="productCategory(activeItem) === 'REMOVABLE_PROSTHETICS'" class="case-field-grid">
-                <label class="case-field"><span>咬合 *</span><select v-model="activeItem.form_values.occlusion_level"><option value="">请选择</option><option value="LIGHT">轻</option><option value="NORMAL">正常</option><option value="HEAVY">重</option><option value="CLEARANCE">空开</option></select></label>
-                <label v-if="activeItem.form_values.occlusion_level === 'CLEARANCE'" class="case-field"><span>空开距离（mm）*</span><input v-model.number="activeItem.form_values.occlusion_clearance_mm" type="number" min="0" step="0.1"></label>
-                <label class="case-field"><span>染色 *</span><select v-model="activeItem.form_values.stain_level"><option value="">请选择</option><option value="NONE">无</option><option value="LIGHT">轻</option><option value="MEDIUM">中</option><option value="HEAVY">重</option></select></label>
-                <label class="case-field"><span>垂直高度（mm）</span><input v-model.number="activeItem.form_values.vertical_height_mm" type="number" min="0" step="0.1"></label>
+                <label class="case-field"><span>{{ t('咬合 *', 'Occlusion *') }}</span><select v-model="activeItem.form_values.occlusion_level"><option value="">{{ t('请选择', 'Select') }}</option><option value="LIGHT">{{ t('轻', 'Light') }}</option><option value="NORMAL">{{ t('正常', 'Normal') }}</option><option value="HEAVY">{{ t('重', 'Heavy') }}</option><option value="CLEARANCE">{{ t('空开', 'Clearance') }}</option></select></label>
+                <label v-if="activeItem.form_values.occlusion_level === 'CLEARANCE'" class="case-field"><span>{{ t('空开距离（mm）*', 'Clearance (mm) *') }}</span><input v-model.number="activeItem.form_values.occlusion_clearance_mm" type="number" min="0" step="0.1"></label>
+                <label class="case-field"><span>{{ t('染色 *', 'Staining *') }}</span><select v-model="activeItem.form_values.stain_level"><option value="">{{ t('请选择', 'Select') }}</option><option value="NONE">{{ t('无', 'None') }}</option><option value="LIGHT">{{ t('轻', 'Light') }}</option><option value="MEDIUM">{{ t('中', 'Medium') }}</option><option value="HEAVY">{{ t('重', 'Heavy') }}</option></select></label>
+                <label class="case-field"><span>{{ t('垂直高度（mm）', 'Vertical Height (mm)') }}</span><input v-model.number="activeItem.form_values.vertical_height_mm" type="number" min="0" step="0.1"></label>
               </div>
               <div v-else-if="productCategory(activeItem) === 'IMPLANT_RESTORATION'" class="case-field-grid">
-                <label class="case-field"><span>固位方式 *</span><select v-model="activeItem.form_values.retention_type"><option value="">请选择</option><option value="SCREW">螺丝固位</option><option value="CEMENT">粘接固位</option></select></label>
-                <label class="case-field"><span>种植系统 *</span><select v-model="activeItem.form_values.implant_system"><option value="">请选择</option><option>Nobel Biocare</option><option>Straumann</option><option>Osstem</option><option>BioHorizons</option><option>Zimmer Biomet</option><option>Megagen</option><option>其他</option></select></label>
-                <label class="case-field"><span>种植直径 × 长度 *</span><input v-model="activeItem.form_values.implant_diameter_length" placeholder="例如 Ø4.1 × 10mm"></label>
-                <label class="case-field"><span>穿龈高度（mm）</span><input v-model.number="activeItem.form_values.transmucosal_height_mm" type="number" min="0" step="0.1"></label>
-                <label class="case-field"><span>连接方式 *</span><select v-model="activeItem.form_values.connection_type"><option value="">请选择</option><option value="EXTERNAL">外连接</option><option value="INTERNAL">内连接</option></select></label>
-                <label class="case-field"><span>咬合</span><select v-model="activeItem.form_values.occlusion_level"><option value="">请选择</option><option value="LIGHT">轻</option><option value="NORMAL">正常</option><option value="HEAVY">重</option><option value="CLEARANCE">空开</option></select></label>
-                <label class="case-field"><span>染色</span><select v-model="activeItem.form_values.stain_level"><option value="">请选择</option><option value="NONE">无</option><option value="LIGHT">轻</option><option value="MEDIUM">中</option><option value="HEAVY">重</option></select></label>
-                <label class="case-field case-switch"><input v-model="activeItem.form_values.gingival_porcelain" type="checkbox"><span>是否加牙龈瓷</span></label>
+                <label class="case-field"><span>{{ t('固位方式 *', 'Retention Type *') }}</span><select v-model="activeItem.form_values.retention_type"><option value="">{{ t('请选择', 'Select') }}</option><option value="SCREW">{{ t('螺丝固位', 'Screw-retained') }}</option><option value="CEMENT">{{ t('粘接固位', 'Cement-retained') }}</option></select></label>
+                <label class="case-field"><span>{{ t('种植系统 *', 'Implant System *') }}</span><select v-model="activeItem.form_values.implant_system"><option value="">{{ t('请选择', 'Select') }}</option><option>Nobel Biocare</option><option>Straumann</option><option>Osstem</option><option>BioHorizons</option><option>Zimmer Biomet</option><option>Megagen</option><option>{{ t('其他', 'Other') }}</option></select></label>
+                <label class="case-field"><span>{{ t('种植直径 × 长度 *', 'Implant Diameter × Length *') }}</span><input v-model="activeItem.form_values.implant_diameter_length" :placeholder="t('例如 Ø4.1 × 10mm', 'For example: Ø4.1 × 10 mm')"></label>
+                <label class="case-field"><span>{{ t('穿龈高度（mm）', 'Transmucosal Height (mm)') }}</span><input v-model.number="activeItem.form_values.transmucosal_height_mm" type="number" min="0" step="0.1"></label>
+                <label class="case-field"><span>{{ t('连接方式 *', 'Connection Type *') }}</span><select v-model="activeItem.form_values.connection_type"><option value="">{{ t('请选择', 'Select') }}</option><option value="EXTERNAL">{{ t('外连接', 'External Connection') }}</option><option value="INTERNAL">{{ t('内连接', 'Internal Connection') }}</option></select></label>
+                <label class="case-field"><span>{{ t('咬合', 'Occlusion') }}</span><select v-model="activeItem.form_values.occlusion_level"><option value="">{{ t('请选择', 'Select') }}</option><option value="LIGHT">{{ t('轻', 'Light') }}</option><option value="NORMAL">{{ t('正常', 'Normal') }}</option><option value="HEAVY">{{ t('重', 'Heavy') }}</option><option value="CLEARANCE">{{ t('空开', 'Clearance') }}</option></select></label>
+                <label class="case-field"><span>{{ t('染色', 'Staining') }}</span><select v-model="activeItem.form_values.stain_level"><option value="">{{ t('请选择', 'Select') }}</option><option value="NONE">{{ t('无', 'None') }}</option><option value="LIGHT">{{ t('轻', 'Light') }}</option><option value="MEDIUM">{{ t('中', 'Medium') }}</option><option value="HEAVY">{{ t('重', 'Heavy') }}</option></select></label>
+                <label class="case-field case-switch"><input v-model="activeItem.form_values.gingival_porcelain" type="checkbox"><span>{{ t('是否加牙龈瓷', 'Add Gingival Porcelain') }}</span></label>
               </div>
               <div v-else-if="productCategory(activeItem) === 'CONVENTIONAL_ORTHODONTICS'" class="case-field-grid">
-                <label class="case-field"><span>牙龄 *</span><select v-model="activeItem.form_values.dentition_stage"><option value="">请选择</option><option value="PERMANENT">恒牙</option><option value="PRIMARY">乳牙</option><option value="MIXED">替牙</option></select></label>
-                <label class="case-field"><span>错颌畸形类别 *</span><select v-model="activeItem.form_values.angle_class"><option value="">请选择</option><option value="CLASS_I">安氏一类</option><option value="CLASS_II">安氏二类</option><option value="CLASS_III">安氏三类</option></select></label>
-                <label class="case-field"><span>骨骼类型 *</span><select v-model="activeItem.form_values.skeletal_type"><option value="">请选择</option><option value="DENTAL">牙型</option><option value="SKELETAL">骨性</option></select></label>
-                <div class="case-field full"><span>诉求问题 *</span><div class="case-check-grid"><label v-for="value in ['拥挤', '稀疏', '前突', '地包天']" :key="value"><input type="checkbox" :checked="sourceArray(activeItem, 'orthodontic_concern').includes(value)" @change="toggleSourceArray(activeItem, 'orthodontic_concern', value, ($event.target as HTMLInputElement).checked)">{{ value }}</label></div></div>
+                <label class="case-field"><span>{{ t('牙龄 *', 'Dentition Stage *') }}</span><select v-model="activeItem.form_values.dentition_stage"><option value="">{{ t('请选择', 'Select') }}</option><option value="PERMANENT">{{ t('恒牙', 'Permanent Dentition') }}</option><option value="PRIMARY">{{ t('乳牙', 'Primary Dentition') }}</option><option value="MIXED">{{ t('替牙', 'Mixed Dentition') }}</option></select></label>
+                <label class="case-field"><span>{{ t('错颌畸形类别 *', 'Malocclusion Class *') }}</span><select v-model="activeItem.form_values.angle_class"><option value="">{{ t('请选择', 'Select') }}</option><option value="CLASS_I">{{ t('安氏一类', 'Angle Class I') }}</option><option value="CLASS_II">{{ t('安氏二类', 'Angle Class II') }}</option><option value="CLASS_III">{{ t('安氏三类', 'Angle Class III') }}</option></select></label>
+                <label class="case-field"><span>{{ t('骨骼类型 *', 'Skeletal Type *') }}</span><select v-model="activeItem.form_values.skeletal_type"><option value="">{{ t('请选择', 'Select') }}</option><option value="DENTAL">{{ t('牙型', 'Dental') }}</option><option value="SKELETAL">{{ t('骨性', 'Skeletal') }}</option></select></label>
+                <div class="case-field full"><span>{{ t('诉求问题 *', 'Orthodontic Concerns *') }}</span><div class="case-check-grid"><label v-for="value in ['拥挤', '稀疏', '前突', '地包天']" :key="value"><input type="checkbox" :checked="sourceArray(activeItem, 'orthodontic_concern').includes(value)" @change="toggleSourceArray(activeItem, 'orthodontic_concern', value, ($event.target as HTMLInputElement).checked)">{{ localizedSourceText(value) }}</label></div></div>
               </div>
               <div v-else-if="productCategory(activeItem) === 'CLEAR_ALIGNER'" class="case-field-grid">
-                <label class="case-field"><span>矫治牙颌 *</span><select v-model="activeItem.form_values.treatment_arch" data-testid="case-clear-aligner-arch"><option value="">请选择</option><option v-for="option in CLEAR_ALIGNER_ARCH_OPTIONS" :key="option.value" :value="option.value">{{ option.label }}</option></select></label>
-                <label class="case-field"><span>矫治方式 *</span><select v-model="activeItem.form_values.treatment_mode" data-testid="case-clear-aligner-mode"><option value="">请选择</option><option v-for="option in CLEAR_ALIGNER_TREATMENT_OPTIONS" :key="option.value" :value="option.value">{{ option.label }}</option></select></label>
-                <div class="case-alert info full">七步处方将在“试戴与过程确认”阶段填写；联合矫治时还需选择同一病例中的关联产品。</div>
+                <label class="case-field"><span>{{ t('矫治牙颌 *', 'Treatment Arch *') }}</span><select v-model="activeItem.form_values.treatment_arch" data-testid="case-clear-aligner-arch"><option value="">{{ t('请选择', 'Select') }}</option><option v-for="option in CLEAR_ALIGNER_ARCH_OPTIONS" :key="option.value" :value="option.value">{{ archOptionLabel(option.value, option.label) }}</option></select></label>
+                <label class="case-field"><span>{{ t('矫治方式 *', 'Treatment Mode *') }}</span><select v-model="activeItem.form_values.treatment_mode" data-testid="case-clear-aligner-mode"><option value="">{{ t('请选择', 'Select') }}</option><option v-for="option in CLEAR_ALIGNER_TREATMENT_OPTIONS" :key="option.value" :value="option.value">{{ treatmentOptionLabel(option.value, option.label) }}</option></select></label>
+                <div class="case-alert info full">{{ t('七步处方将在“试戴与过程确认”阶段填写；联合矫治时还需选择同一病例中的关联产品。', 'Complete the seven-step prescription in Try-in & Confirmations. Combined treatment also requires a related product from the same case.') }}</div>
               </div>
               <div v-else-if="productCategory(activeItem) === 'DESIGN_SERVICE'" class="case-field-grid">
-                <label class="case-field"><span>数据格式 *</span><select v-model="activeItem.form_values.delivery_format"><option value="">请选择</option><option>STL</option><option>OBJ</option><option>EXO</option><option>3SHAPE</option></select></label>
-                <label class="case-field"><span>设计标准 *</span><select v-model="activeItem.form_values.design_standard"><option value="">请选择</option><option value="GENERAL">通用</option><option value="PERSONALIZED">个性化</option></select></label>
-                <label class="case-field"><span>设计时间 *</span><select v-model="activeItem.form_values.design_requirement_turnaround"><option value="">请选择</option><option value="12H">12 小时</option><option value="24H">24 小时</option><option value="3D">3 天</option></select></label>
+                <label class="case-field"><span>{{ t('数据格式 *', 'Data Format *') }}</span><select v-model="activeItem.form_values.delivery_format"><option value="">{{ t('请选择', 'Select') }}</option><option>STL</option><option>OBJ</option><option>EXO</option><option>3SHAPE</option></select></label>
+                <label class="case-field"><span>{{ t('设计标准 *', 'Design Standard *') }}</span><select v-model="activeItem.form_values.design_standard"><option value="">{{ t('请选择', 'Select') }}</option><option value="GENERAL">{{ t('通用', 'General') }}</option><option value="PERSONALIZED">{{ t('个性化', 'Personalized') }}</option></select></label>
+                <label class="case-field"><span>{{ t('设计时间 *', 'Design Turnaround *') }}</span><select v-model="activeItem.form_values.design_requirement_turnaround"><option value="">{{ t('请选择', 'Select') }}</option><option value="12H">{{ t('12 小时', '12 Hours') }}</option><option value="24H">{{ t('24 小时', '24 Hours') }}</option><option value="3D">{{ t('3 天', '3 Days') }}</option></select></label>
               </div>
             </section>
-            <label class="case-field full"><span>病例说明</span><textarea :value="String(activeItem.form_values.case_note ?? '')" rows="4" placeholder="补充咬合、外形或其他临床要求" @input="updateTextField(activeItem, 'case_note', ($event.target as HTMLTextAreaElement).value)"></textarea></label>
-            <button type="button" class="case-primary" :disabled="busy" @click="saveItem(activeItem)">保存当前牙位与制作要求</button>
+            <label class="case-field full"><span>{{ t('病例说明', 'Case Notes') }}</span><textarea :value="String(activeItem.form_values.case_note ?? '')" rows="4" :placeholder="t('补充咬合、外形或其他临床要求', 'Add occlusion, contour, or other clinical requirements')" @input="updateTextField(activeItem, 'case_note', ($event.target as HTMLTextAreaElement).value)"></textarea></label>
+            <button type="button" class="case-primary" :disabled="busy" @click="saveItem(activeItem)">{{ t('保存当前牙位与制作要求', 'Save Teeth & Requirements') }}</button>
           </div>
         </div>
       </section>
 
       <section v-else-if="step === 3" class="case-panel case-config-panel">
-        <header><h1>材料与工艺</h1><p>请逐个产品填写对应的材料、色号和制作要求。</p></header>
+        <header><h1>{{ t('材料与工艺', 'Materials & Process') }}</h1><p>{{ t('请逐个产品填写对应的材料、色号和制作要求。', 'Enter materials, shades, and production requirements for each product.') }}</p></header>
         <div class="case-config-layout">
-          <aside class="case-item-tabs">
+          <aside class="case-item-tabs" :data-section-label="t('已选产品', 'Selected Products')">
             <button
               v-for="item in group?.items ?? []"
               :key="item.order_id"
@@ -2083,28 +2158,28 @@ onMounted(async () => {
               @click="selectedOrderId = item.order_id"
             >
               <span>{{ item.line_no }}</span>
-              <div><strong>{{ item.product_name }}</strong><small>{{ itemStepErrors(item, 3).length ? `${itemStepErrors(item, 3).length} 项待补` : '本阶段完整' }}</small></div>
+              <div><strong>{{ catalogProductName(item) }}</strong><small>{{ itemStepErrors(item, 3).length ? t('{count} 项待补', '{count} item(s) incomplete', { count: itemStepErrors(item, 3).length }) : t('本阶段完整', 'Section Complete') }}</small></div>
             </button>
           </aside>
           <div v-if="activeItem" class="case-config-form case-material-form" data-testid="case-material-form">
             <div class="case-current-product">
               <i>{{ categoryIcon(productCategory(activeItem)) }}</i>
               <div>
-                <strong>{{ activeItem.product_name }}</strong>
-                <small>{{ CATEGORY_NAMES[productCategory(activeItem)] }}<template v-if="activeVariant"> · {{ activeVariant.display_name }}</template></small>
+                <strong>{{ catalogProductName(activeItem) }}</strong>
+                <small>{{ categoryName(productCategory(activeItem)) }}<template v-if="activeVariant"> · {{ catalogVariantName(activeVariant) }}</template></small>
               </div>
               <span>{{ priceLabel(activeItem) }}</span>
             </div>
 
             <section v-if="productCategory(activeItem) === 'IMPLANT_RESTORATION'" class="case-material-section">
-              <header><h3>种植参数</h3></header>
+              <header><h3>{{ t('种植参数', 'Implant Parameters') }}</h3></header>
               <div class="case-material-grid">
-                <label class="case-field"><span>种植系统 *</span><select v-model="activeItem.form_values.implant_system"><option value="">请选择</option><option>Nobel Biocare</option><option>Straumann</option><option>Osstem</option><option>BioHorizons</option><option>Zimmer Biomet</option><option>Megagen</option><option>其他</option></select></label>
-                <label class="case-field"><span>种植直径 × 长度 *</span><input v-model="activeItem.form_values.implant_diameter_length" placeholder="例如 Ø4.1 × 10mm"></label>
-                <label class="case-field"><span>连接方式 *</span><select v-model="activeItem.form_values.connection_type"><option value="">请选择</option><option value="INTERNAL">内连接</option><option value="EXTERNAL">外连接</option></select></label>
-                <label class="case-field"><span>基台类型</span><select v-model="activeItem.form_values.abutment_type"><option value="">请选择</option><option value="STANDARD">标准基台</option><option value="ANGLED">角度基台</option><option value="CUSTOM">个性化基台</option></select></label>
-                <label class="case-field"><span>固位方式 *</span><select v-model="activeItem.form_values.retention_type"><option value="">请选择</option><option value="SCREW">螺丝固位</option><option value="CEMENT">粘接固位</option></select></label>
-                <label class="case-field"><span>螺丝开口位置</span><select v-model="activeItem.form_values.screw_access_position"><option value="">请选择</option><option value="BUCCAL">颊侧</option><option value="LINGUAL">舌侧</option><option value="OCCLUSAL">咬合面</option></select></label>
+                <label class="case-field"><span>{{ t('种植系统 *', 'Implant System *') }}</span><select v-model="activeItem.form_values.implant_system"><option value="">{{ t('请选择', 'Select') }}</option><option>Nobel Biocare</option><option>Straumann</option><option>Osstem</option><option>BioHorizons</option><option>Zimmer Biomet</option><option>Megagen</option><option>{{ t('其他', 'Other') }}</option></select></label>
+                <label class="case-field"><span>{{ t('种植直径 × 长度 *', 'Implant Diameter × Length *') }}</span><input v-model="activeItem.form_values.implant_diameter_length" :placeholder="t('例如 Ø4.1 × 10mm', 'For example: Ø4.1 × 10 mm')"></label>
+                <label class="case-field"><span>{{ t('连接方式 *', 'Connection Type *') }}</span><select v-model="activeItem.form_values.connection_type"><option value="">{{ t('请选择', 'Select') }}</option><option value="INTERNAL">{{ t('内连接', 'Internal Connection') }}</option><option value="EXTERNAL">{{ t('外连接', 'External Connection') }}</option></select></label>
+                <label class="case-field"><span>{{ t('基台类型', 'Abutment Type') }}</span><select v-model="activeItem.form_values.abutment_type"><option value="">{{ t('请选择', 'Select') }}</option><option value="STANDARD">{{ t('标准基台', 'Standard Abutment') }}</option><option value="ANGLED">{{ t('角度基台', 'Angled Abutment') }}</option><option value="CUSTOM">{{ t('个性化基台', 'Custom Abutment') }}</option></select></label>
+                <label class="case-field"><span>{{ t('固位方式 *', 'Retention Type *') }}</span><select v-model="activeItem.form_values.retention_type"><option value="">{{ t('请选择', 'Select') }}</option><option value="SCREW">{{ t('螺丝固位', 'Screw-retained') }}</option><option value="CEMENT">{{ t('粘接固位', 'Cement-retained') }}</option></select></label>
+                <label class="case-field"><span>{{ t('螺丝开口位置', 'Screw Access Position') }}</span><select v-model="activeItem.form_values.screw_access_position"><option value="">{{ t('请选择', 'Select') }}</option><option value="BUCCAL">{{ t('颊侧', 'Buccal') }}</option><option value="LINGUAL">{{ t('舌侧', 'Lingual') }}</option><option value="OCCLUSAL">{{ t('咬合面', 'Occlusal') }}</option></select></label>
               </div>
             </section>
 
@@ -2112,113 +2187,113 @@ onMounted(async () => {
               v-if="['FIXED_RESTORATION', 'IMPLANT_RESTORATION', 'REMOVABLE_PROSTHETICS'].includes(productCategory(activeItem)) || primaryMaterialOptions(activeItem).length || activeVariants.length"
               class="case-material-section"
             >
-              <header><h3>{{ productCategory(activeItem) === 'IMPLANT_RESTORATION' ? '修复材料' : productCategory(activeItem) === 'REMOVABLE_PROSTHETICS' ? '活动义齿配置' : '材料与工艺' }}</h3></header>
+              <header><h3>{{ productCategory(activeItem) === 'IMPLANT_RESTORATION' ? t('修复材料', 'Restoration Material') : productCategory(activeItem) === 'REMOVABLE_PROSTHETICS' ? t('活动义齿配置', 'Removable Denture Configuration') : t('材料与工艺', 'Materials & Process') }}</h3></header>
               <div class="case-material-grid">
                 <label v-if="primaryMaterialOptions(activeItem).length" class="case-field">
-                  <span>主材料 / 制作项目 *</span>
+                  <span>{{ t('主材料 / 制作项目 *', 'Primary Material / Manufacturing Item *') }}</span>
                   <select :value="primaryMaterialValue(activeItem)" data-testid="case-primary-material" @change="choosePrimaryMaterial(activeItem, ($event.target as HTMLSelectElement).value)">
-                    <option value="">请选择</option>
-                    <option v-for="option in primaryMaterialOptions(activeItem)" :key="option" :value="option">{{ option }}</option>
+                    <option value="">{{ t('请选择', 'Select') }}</option>
+                    <option v-for="(option, optionIndex) in primaryMaterialOptions(activeItem)" :key="option" :value="option">{{ safeEnglishDynamicText(option, `Material Option ${optionIndex + 1}`) }}</option>
                   </select>
                 </label>
                 <label v-if="activeVariants.length" class="case-field">
-                  <span>产品规格 *</span>
+                  <span>{{ t('产品规格 *', 'Product Variant *') }}</span>
                   <select v-model.number="activeItem.variant_id" @change="changeVariant(activeItem)">
-                    <option :value="null">请选择</option>
-                    <option v-for="variant in activeVariants" :key="variant.variant_id" :value="variant.variant_id">{{ variant.display_name }}</option>
+                    <option :value="null">{{ t('请选择', 'Select') }}</option>
+                    <option v-for="variant in activeVariants" :key="variant.variant_id" :value="variant.variant_id">{{ catalogVariantName(variant) }}</option>
                   </select>
                 </label>
 
                 <template v-if="productCategory(activeItem) === 'FIXED_RESTORATION'">
-                  <label class="case-field"><span>边缘类型</span><select v-model="activeItem.form_values.finish_margin_type"><option value="">请选择</option><option value="SUPRAGINGIVAL">龈上边缘</option><option value="SUBGINGIVAL">龈下边缘</option><option value="SHOULDER_STANDARD">肩台标准</option></select></label>
-                  <label class="case-field"><span>牙色系统</span><select v-model="activeItem.form_values.shade_system"><option value="">请选择</option><option value="VITA_16">VITA 16 Classic</option><option value="3D_MASTER">3D Master</option><option value="THREE_ZONE">颈部 / 体部 / 切端分色</option></select></label>
+                  <label class="case-field"><span>{{ t('边缘类型', 'Margin Type') }}</span><select v-model="activeItem.form_values.finish_margin_type"><option value="">{{ t('请选择', 'Select') }}</option><option value="SUPRAGINGIVAL">{{ t('龈上边缘', 'Supragingival Margin') }}</option><option value="SUBGINGIVAL">{{ t('龈下边缘', 'Subgingival Margin') }}</option><option value="SHOULDER_STANDARD">{{ t('肩台标准', 'Standard Shoulder') }}</option></select></label>
+                  <label class="case-field"><span>{{ t('牙色系统', 'Shade System') }}</span><select v-model="activeItem.form_values.shade_system"><option value="">{{ t('请选择', 'Select') }}</option><option value="VITA_16">VITA 16 Classic</option><option value="3D_MASTER">3D Master</option><option value="THREE_ZONE">{{ t('颈部 / 体部 / 切端分色', 'Cervical / Body / Incisal Shades') }}</option></select></label>
                 </template>
                 <template v-else-if="productCategory(activeItem) === 'IMPLANT_RESTORATION'">
-                  <label class="case-field"><span>牙色系统</span><select v-model="activeItem.form_values.shade_system"><option value="">请选择</option><option value="VITA_16">VITA 16 Classic</option><option value="3D_MASTER">3D Master</option><option value="THREE_ZONE">颈部 / 体部 / 切端分色</option></select></label>
+                  <label class="case-field"><span>{{ t('牙色系统', 'Shade System') }}</span><select v-model="activeItem.form_values.shade_system"><option value="">{{ t('请选择', 'Select') }}</option><option value="VITA_16">VITA 16 Classic</option><option value="3D_MASTER">3D Master</option><option value="THREE_ZONE">{{ t('颈部 / 体部 / 切端分色', 'Cervical / Body / Incisal Shades') }}</option></select></label>
                 </template>
                 <template v-else-if="productCategory(activeItem) === 'REMOVABLE_PROSTHETICS'">
-                  <label class="case-field"><span>卡环设计</span><select v-model="activeItem.form_values.clasp_design"><option value="">无 / 请选择</option><option>Standard I-bar</option><option>Circumferential</option><option>Ball Clasp</option><option>Custom</option><option>Casting Wire Clasp</option><option>Clear Clasp</option><option>Valplast Clasp-clear</option><option>Cast Chrome Clasp</option><option>Wrought Wire Clasp</option><option>Valplast Clasp-pink</option></select></label>
-                  <label class="case-field"><span>义齿牙品牌</span><select v-model="activeItem.form_values.denture_teeth_brand"><option value="">请选择</option><option>Huge</option><option>Yamahachi</option><option>Vita</option></select></label>
-                  <label class="case-field"><span>牙色系统</span><select v-model="activeItem.form_values.shade_system"><option value="">请选择</option><option value="VITA_16">VITA 16 Classic</option><option value="3D_MASTER">3D Master</option></select></label>
+                  <label class="case-field"><span>{{ t('卡环设计', 'Clasp Design') }}</span><select v-model="activeItem.form_values.clasp_design"><option value="">{{ t('无 / 请选择', 'None / Select') }}</option><option>Standard I-bar</option><option>Circumferential</option><option>Ball Clasp</option><option>Custom</option><option>Casting Wire Clasp</option><option>Clear Clasp</option><option>Valplast Clasp-clear</option><option>Cast Chrome Clasp</option><option>Wrought Wire Clasp</option><option>Valplast Clasp-pink</option></select></label>
+                  <label class="case-field"><span>{{ t('义齿牙品牌', 'Denture Tooth Brand') }}</span><select v-model="activeItem.form_values.denture_teeth_brand"><option value="">{{ t('请选择', 'Select') }}</option><option>Huge</option><option>Yamahachi</option><option>Vita</option></select></label>
+                  <label class="case-field"><span>{{ t('牙色系统', 'Shade System') }}</span><select v-model="activeItem.form_values.shade_system"><option value="">{{ t('请选择', 'Select') }}</option><option value="VITA_16">VITA 16 Classic</option><option value="3D_MASTER">3D Master</option></select></label>
                 </template>
 
-                <label v-if="activeItem.form_values.shade_system && activeItem.form_values.shade_system !== 'THREE_ZONE' && ['FIXED_RESTORATION', 'IMPLANT_RESTORATION', 'REMOVABLE_PROSTHETICS'].includes(productCategory(activeItem))" class="case-field"><span>牙色</span><select v-model="activeItem.form_values.shade_value"><option value="">请选择</option><option v-for="shade in activeItem.form_values.shade_system === '3D_MASTER' ? VITA_3D_SHADES : VITA_16_SHADES" :key="shade">{{ shade }}</option></select></label>
+                <label v-if="activeItem.form_values.shade_system && activeItem.form_values.shade_system !== 'THREE_ZONE' && ['FIXED_RESTORATION', 'IMPLANT_RESTORATION', 'REMOVABLE_PROSTHETICS'].includes(productCategory(activeItem))" class="case-field"><span>{{ t('牙色', 'Shade') }}</span><select v-model="activeItem.form_values.shade_value"><option value="">{{ t('请选择', 'Select') }}</option><option v-for="shade in activeItem.form_values.shade_system === '3D_MASTER' ? VITA_3D_SHADES : VITA_16_SHADES" :key="shade">{{ shade }}</option></select></label>
                 <template v-if="activeItem.form_values.shade_system === 'THREE_ZONE'">
-                  <label class="case-field"><span>颈部色</span><select v-model="activeItem.form_values.cervical_shade"><option value="">请选择</option><option v-for="shade in [...VITA_16_SHADES, ...VITA_3D_SHADES]" :key="`c-${shade}`">{{ shade }}</option></select></label>
-                  <label class="case-field"><span>体部色</span><select v-model="activeItem.form_values.body_shade"><option value="">请选择</option><option v-for="shade in [...VITA_16_SHADES, ...VITA_3D_SHADES]" :key="`b-${shade}`">{{ shade }}</option></select></label>
-                  <label class="case-field"><span>切端色</span><select v-model="activeItem.form_values.incisal_shade"><option value="">请选择</option><option v-for="shade in [...VITA_16_SHADES, ...VITA_3D_SHADES]" :key="`i-${shade}`">{{ shade }}</option></select></label>
+                  <label class="case-field"><span>{{ t('颈部色', 'Cervical Shade') }}</span><select v-model="activeItem.form_values.cervical_shade"><option value="">{{ t('请选择', 'Select') }}</option><option v-for="shade in [...VITA_16_SHADES, ...VITA_3D_SHADES]" :key="`c-${shade}`">{{ shade }}</option></select></label>
+                  <label class="case-field"><span>{{ t('体部色', 'Body Shade') }}</span><select v-model="activeItem.form_values.body_shade"><option value="">{{ t('请选择', 'Select') }}</option><option v-for="shade in [...VITA_16_SHADES, ...VITA_3D_SHADES]" :key="`b-${shade}`">{{ shade }}</option></select></label>
+                  <label class="case-field"><span>{{ t('切端色', 'Incisal Shade') }}</span><select v-model="activeItem.form_values.incisal_shade"><option value="">{{ t('请选择', 'Select') }}</option><option v-for="shade in [...VITA_16_SHADES, ...VITA_3D_SHADES]" :key="`i-${shade}`">{{ shade }}</option></select></label>
                 </template>
-                <label v-if="productCategory(activeItem) === 'REMOVABLE_PROSTHETICS'" class="case-field"><span>义齿基托颜色</span><select v-model="activeItem.form_values.denture_base_shade"><option value="">请选择</option><option v-for="shade in DENTURE_BASE_SHADES" :key="shade">{{ shade }}</option></select></label>
-                <label v-if="['FIXED_RESTORATION', 'IMPLANT_RESTORATION', 'REMOVABLE_PROSTHETICS'].includes(productCategory(activeItem))" class="case-field"><span>抛光程度</span><select v-model="activeItem.form_values.polish_grade"><option value="">请选择</option><option value="STANDARD">普通抛光</option><option value="MIRROR">镜面抛光</option></select></label>
-                <label v-if="['FIXED_RESTORATION', 'IMPLANT_RESTORATION', 'REMOVABLE_PROSTHETICS'].includes(productCategory(activeItem))" class="case-field full"><span>材料与色号备注</span><textarea :value="String(activeItem.form_values.material_shade_notes ?? '')" rows="3" placeholder="补充颜色、个性化染色或材料要求" @input="updateTextField(activeItem, 'material_shade_notes', ($event.target as HTMLTextAreaElement).value)"></textarea></label>
+                <label v-if="productCategory(activeItem) === 'REMOVABLE_PROSTHETICS'" class="case-field"><span>{{ t('义齿基托颜色', 'Denture Base Shade') }}</span><select v-model="activeItem.form_values.denture_base_shade"><option value="">{{ t('请选择', 'Select') }}</option><option v-for="shade in DENTURE_BASE_SHADES" :key="shade">{{ localizedSourceText(shade, shade) }}</option></select></label>
+                <label v-if="['FIXED_RESTORATION', 'IMPLANT_RESTORATION', 'REMOVABLE_PROSTHETICS'].includes(productCategory(activeItem))" class="case-field"><span>{{ t('抛光程度', 'Polish Level') }}</span><select v-model="activeItem.form_values.polish_grade"><option value="">{{ t('请选择', 'Select') }}</option><option value="STANDARD">{{ t('普通抛光', 'Standard Polish') }}</option><option value="MIRROR">{{ t('镜面抛光', 'Mirror Polish') }}</option></select></label>
+                <label v-if="['FIXED_RESTORATION', 'IMPLANT_RESTORATION', 'REMOVABLE_PROSTHETICS'].includes(productCategory(activeItem))" class="case-field full"><span>{{ t('材料与色号备注', 'Material & Shade Notes') }}</span><textarea :value="String(activeItem.form_values.material_shade_notes ?? '')" rows="3" :placeholder="t('补充颜色、个性化染色或材料要求', 'Add shade, custom staining, or material requirements')" @input="updateTextField(activeItem, 'material_shade_notes', ($event.target as HTMLTextAreaElement).value)"></textarea></label>
               </div>
             </section>
 
             <section v-if="productCategory(activeItem) === 'FIXED_RESTORATION'" class="case-material-section">
-              <header><h3>精密附件（可选）</h3></header>
+              <header><h3>{{ t('精密附件（可选）', 'Precision Attachments (Optional)') }}</h3></header>
               <div class="case-check-grid">
-                <label v-for="attachment in FIXED_PRECISION_ATTACHMENTS" :key="attachment">
+                <label v-for="(attachment, attachmentIndex) in FIXED_PRECISION_ATTACHMENTS" :key="attachment">
                   <input type="checkbox" :checked="sourceArray(activeItem, 'precision_attachments').includes(attachment)" @change="toggleSourceArray(activeItem, 'precision_attachments', attachment, ($event.target as HTMLInputElement).checked)">
-                  {{ attachment }}
+                  {{ safeEnglishDynamicText(attachment, `Precision Attachment ${attachmentIndex + 1}`) }}
                 </label>
               </div>
             </section>
 
             <section v-if="productCategory(activeItem) === 'CONVENTIONAL_ORTHODONTICS'" class="case-material-section">
-              <header><h3>正畸附件</h3></header>
+              <header><h3>{{ t('正畸附件', 'Orthodontic Accessories') }}</h3></header>
               <div class="case-check-grid">
-                <label v-for="accessory in ORTHODONTIC_ACCESSORIES" :key="accessory">
+                <label v-for="(accessory, accessoryIndex) in ORTHODONTIC_ACCESSORIES" :key="accessory">
                   <input type="checkbox" :checked="sourceArray(activeItem, 'orthodontic_accessories').includes(accessory)" @change="toggleSourceArray(activeItem, 'orthodontic_accessories', accessory, ($event.target as HTMLInputElement).checked)">
-                  {{ accessory }}
+                  {{ safeEnglishDynamicText(accessory, `Orthodontic Accessory ${accessoryIndex + 1}`) }}
                 </label>
               </div>
-              <label class="case-field"><span>附件数量及位置说明</span><textarea :value="String(activeItem.form_values.orthodontic_accessory_notes ?? '')" rows="3" placeholder="例如：16、26 各加一个带环" @input="updateTextField(activeItem, 'orthodontic_accessory_notes', ($event.target as HTMLTextAreaElement).value)"></textarea></label>
+              <label class="case-field"><span>{{ t('附件数量及位置说明', 'Accessory Quantity & Position Notes') }}</span><textarea :value="String(activeItem.form_values.orthodontic_accessory_notes ?? '')" rows="3" :placeholder="t('例如：16、26 各加一个带环', 'For example: add one band to teeth 16 and 26')" @input="updateTextField(activeItem, 'orthodontic_accessory_notes', ($event.target as HTMLTextAreaElement).value)"></textarea></label>
             </section>
 
             <section v-if="productCategory(activeItem) === 'DESIGN_SERVICE'" class="case-material-section">
-              <header><h3>设计交付</h3></header>
+              <header><h3>{{ t('设计交付', 'Design Delivery') }}</h3></header>
               <div class="case-material-grid">
-                <label class="case-field"><span>交付文件格式 *</span><select v-model="activeItem.form_values.design_delivery_format"><option value="">请选择</option><option>STL</option><option>OBJ</option><option>EXO</option><option>3SHAPE</option></select></label>
-                <label class="case-field"><span>交付时间 *</span><select v-model="activeItem.form_values.design_delivery_turnaround"><option value="">请选择</option><option value="6H">6 小时</option><option value="12H">12 小时</option><option value="24H">24 小时</option><option value="48H">48 小时</option></select></label>
+                <label class="case-field"><span>{{ t('交付文件格式 *', 'Delivery File Format *') }}</span><select v-model="activeItem.form_values.design_delivery_format"><option value="">{{ t('请选择', 'Select') }}</option><option>STL</option><option>OBJ</option><option>EXO</option><option>3SHAPE</option></select></label>
+                <label class="case-field"><span>{{ t('交付时间 *', 'Delivery Time *') }}</span><select v-model="activeItem.form_values.design_delivery_turnaround"><option value="">{{ t('请选择', 'Select') }}</option><option value="6H">{{ t('6 小时', '6 Hours') }}</option><option value="12H">{{ t('12 小时', '12 Hours') }}</option><option value="24H">{{ t('24 小时', '24 Hours') }}</option><option value="48H">{{ t('48 小时', '48 Hours') }}</option></select></label>
               </div>
             </section>
 
             <section v-if="activeMultipleMaterials.length" class="case-material-section">
-              <header><h3>附加材料</h3></header>
+              <header><h3>{{ t('附加材料', 'Additional Materials') }}</h3></header>
               <label v-for="binding in activeMultipleMaterials" :key="binding.material_id" class="case-option">
                 <input type="checkbox" :checked="selected(activeItem.material_selections, binding.material_id)" @change="toggleMaterial(binding, ($event.target as HTMLInputElement).checked)">
-                <span><strong>{{ binding.display_name }}</strong><small>{{ [binding.brand_name, binding.specification].filter(Boolean).join(' · ') }}</small></span>
-                <em>{{ binding.required_flag ? '必选' : '可选' }}</em>
+                <span><strong>{{ safeEnglishDynamicText(binding.display_name, humanizeCode(binding.material_code)) }}</strong><small>{{ safeEnglishDynamicText([binding.brand_name, binding.specification].filter(Boolean).join(' · '), t('目录规格', 'Catalog specification')) }}</small></span>
+                <em>{{ binding.required_flag ? t('必选', 'Required') : t('可选', 'Optional') }}</em>
                 <input v-if="selected(activeItem.material_selections, binding.material_id)" type="number" min="1" :max="binding.max_quantity ?? undefined" :value="selectionQuantity(activeItem.material_selections, binding.material_id)" @input="setSelectionQuantity('material', binding.material_id, Number(($event.target as HTMLInputElement).value))">
               </label>
             </section>
 
             <section v-if="activeAccessories.length" class="case-material-section">
-              <header><h3>附加选项</h3></header>
+              <header><h3>{{ t('附加选项', 'Additional Options') }}</h3></header>
               <label v-for="binding in activeAccessories" :key="binding.accessory_id" class="case-option">
                 <input type="checkbox" :checked="selected(activeItem.accessory_selections, binding.accessory_id)" @change="toggleAccessory(binding, ($event.target as HTMLInputElement).checked)">
-                <span><strong>{{ binding.display_name }}</strong></span>
-                <em>{{ binding.required_flag ? '必选' : '可选' }}</em>
+                <span><strong>{{ safeEnglishDynamicText(binding.display_name, humanizeCode(binding.accessory_code)) }}</strong></span>
+                <em>{{ binding.required_flag ? t('必选', 'Required') : t('可选', 'Optional') }}</em>
                 <input v-if="selected(activeItem.accessory_selections, binding.accessory_id)" type="number" min="1" :max="binding.max_quantity ?? undefined" :value="selectionQuantity(activeItem.accessory_selections, binding.accessory_id)" @input="setSelectionQuantity('accessory', binding.accessory_id, Number(($event.target as HTMLInputElement).value))">
               </label>
             </section>
 
             <section v-if="activeFields.length" class="case-material-section">
-              <header><h3>补充要求</h3></header>
+              <header><h3>{{ t('补充要求', 'Additional Requirements') }}</h3></header>
               <div class="case-material-grid">
                 <template v-for="field in activeFields" :key="field.key">
                   <label v-if="fieldVisible(field, activeItem)" class="case-field" :class="{ full: ['textarea', 'object'].includes(fieldType(field)) }">
-                    <span>{{ field.label }}<b v-if="field.required"> *</b></span>
+                    <span>{{ localizedSourceText(field.label, field.key) }}<b v-if="field.required"> *</b></span>
                     <select v-if="fieldType(field) === 'multi_select' && field.options?.length" multiple :value="Array.isArray(activeItem.form_values[field.key]) ? activeItem.form_values[field.key] : []" @change="updateMultiSelectField(activeItem, field.key, $event)">
-                      <option v-for="option in field.options" :key="optionValue(option)" :value="optionValue(option)">{{ optionLabel(option) }}</option>
+                      <option v-for="option in field.options" :key="optionValue(option)" :value="optionValue(option)">{{ localizedSourceText(optionLabel(option), optionValue(option)) }}</option>
                     </select>
-                    <select v-else-if="field.options?.length" v-model="activeItem.form_values[field.key]"><option value="">请选择</option><option v-for="option in field.options" :key="optionValue(option)" :value="optionValue(option)">{{ optionLabel(option) }}</option></select>
+                    <select v-else-if="field.options?.length" v-model="activeItem.form_values[field.key]"><option value="">{{ t('请选择', 'Select') }}</option><option v-for="option in field.options" :key="optionValue(option)" :value="optionValue(option)">{{ localizedSourceText(optionLabel(option), optionValue(option)) }}</option></select>
                     <textarea v-else-if="fieldType(field) === 'textarea'" :value="String(activeItem.form_values[field.key] ?? '')" rows="3" @input="updateTextField(activeItem, field.key, ($event.target as HTMLTextAreaElement).value)"></textarea>
                     <input v-else-if="fieldType(field) === 'number' || fieldType(field) === 'quantity'" v-model.number="activeItem.form_values[field.key]" type="number" :step="fieldType(field) === 'quantity' ? 1 : 'any'" :min="field.minimum ?? field.min" :max="field.maximum ?? field.max">
-                    <label v-else-if="fieldType(field) === 'boolean'" class="case-switch"><input type="checkbox" :checked="Boolean(activeItem.form_values[field.key])" @change="updateBooleanField(activeItem, field.key, ($event.target as HTMLInputElement).checked)"><span>是 / 否</span></label>
-                    <input v-else-if="fieldType(field) === 'array' || fieldType(field) === 'multi_select'" :value="Array.isArray(activeItem.form_values[field.key]) ? (activeItem.form_values[field.key] as unknown[]).join('，') : ''" placeholder="多项用逗号分隔" @input="updateArrayField(activeItem, field.key, ($event.target as HTMLInputElement).value)">
+                    <label v-else-if="fieldType(field) === 'boolean'" class="case-switch"><input type="checkbox" :checked="Boolean(activeItem.form_values[field.key])" @change="updateBooleanField(activeItem, field.key, ($event.target as HTMLInputElement).checked)"><span>{{ t('是 / 否', 'Yes / No') }}</span></label>
+                    <input v-else-if="fieldType(field) === 'array' || fieldType(field) === 'multi_select'" :value="Array.isArray(activeItem.form_values[field.key]) ? (activeItem.form_values[field.key] as unknown[]).join(locale === 'EN' ? ', ' : '，') : ''" :placeholder="t('多项用逗号分隔', 'Separate multiple items with commas')" @input="updateArrayField(activeItem, field.key, ($event.target as HTMLInputElement).value)">
                     <template v-else-if="fieldType(field) === 'object'">
-                      <textarea :value="objectFieldText(activeItem, field.key)" rows="5" placeholder="请按示例填写补充内容" @input="updateObjectFieldDraft(activeItem, field.key, ($event.target as HTMLTextAreaElement).value)" @blur="commitObjectField(activeItem, field.key)"></textarea>
+                      <textarea :value="objectFieldText(activeItem, field.key)" rows="5" :placeholder="t('请按示例填写补充内容', 'Enter additional content using the example format')" @input="updateObjectFieldDraft(activeItem, field.key, ($event.target as HTMLTextAreaElement).value)" @blur="commitObjectField(activeItem, field.key)"></textarea>
                       <small v-if="objectFieldErrors[objectFieldKey(activeItem, field.key)]" class="case-field-error">{{ objectFieldErrors[objectFieldKey(activeItem, field.key)] }}</small>
                     </template>
                     <input v-else v-model="activeItem.form_values[field.key]" type="text">
@@ -2227,41 +2302,41 @@ onMounted(async () => {
               </div>
             </section>
             <div v-if="itemStepErrors(activeItem, 3).length" class="case-alert warning">{{ itemStepErrors(activeItem, 3).join('；') }}</div>
-            <button type="button" class="case-primary" :disabled="busy" data-testid="case-save-item" @click="saveItem(activeItem)">保存当前产品</button>
+            <button type="button" class="case-primary" :disabled="busy" data-testid="case-save-item" @click="saveItem(activeItem)">{{ t('保存当前产品', 'Save Current Product') }}</button>
           </div>
         </div>
       </section>
 
       <section v-else-if="step === 4" class="case-panel">
-        <header><h1>资料上传</h1><p>请上传病例共享资料和各产品所需资料；单个文件最大 500MB。</p></header>
+        <header><h1>{{ t('资料上传', 'Upload Records') }}</h1><p>{{ t('请上传病例共享资料和各产品所需资料；单个文件最大 500MB。', 'Upload case-shared records and product-specific files. Maximum file size: 500 MB.') }}</p></header>
         <section class="case-upload-card shared">
-          <header><div><strong>病例共享资料</strong><small>同一病例多个产品共用的影像可只上传一次</small></div><span>{{ sharedFiles.length }} 个</span></header>
-          <label><input type="file" multiple :disabled="fileUploading || !group?.items.length" @change="uploadSharedFiles"><b>＋ 上传共享资料</b><small>共享资料仍需在下方相应资料槽位中完成分类</small></label>
+          <header><div><strong>{{ t('病例共享资料', 'Case-shared Records') }}</strong><small>{{ t('同一病例多个产品共用的影像可只上传一次', 'Images shared by multiple products in the same case only need to be uploaded once') }}</small></div><span>{{ t('{count} 个', '{count} file(s)', { count: sharedFiles.length }) }}</span></header>
+          <label><input type="file" multiple :disabled="fileUploading || !group?.items.length" @change="uploadSharedFiles"><b>＋ {{ t('上传共享资料', 'Upload Shared Records') }}</b><small>{{ t('共享资料仍需在下方相应资料槽位中完成分类', 'Shared records must still be assigned to the appropriate slots below') }}</small></label>
           <article v-for="file in sharedFiles" :key="file.file_id">
             <strong>{{ file.name }}</strong>
             <small>{{ file.size_label }}</small>
-            <button type="button" class="case-file-remove" :disabled="busy || fileUploading" @click="removeSharedFile(file)">移除</button>
+            <button type="button" class="case-file-remove" :disabled="busy || fileUploading" @click="removeSharedFile(file)">{{ t('移除', 'Remove') }}</button>
           </article>
         </section>
         <div class="case-config-layout upload-layout">
-          <aside class="case-item-tabs">
+          <aside class="case-item-tabs" :data-section-label="t('已选产品', 'Selected Products')">
             <button v-for="item in group?.items ?? []" :key="item.order_id" type="button" :class="{ active: activeItem?.order_id === item.order_id }" @click="selectedOrderId = item.order_id">
-              <span>{{ item.line_no }}</span><div><strong>{{ item.product_name }}</strong><small>{{ uploadRules(item).filter((rule) => rule.required && !uploadedSlotIds(item, rule.code).length).length }} 项必传待补</small></div>
+              <span>{{ item.line_no }}</span><div><strong>{{ catalogProductName(item) }}</strong><small>{{ t('{count} 项必传待补', '{count} required upload(s) missing', { count: uploadRules(item).filter((rule) => rule.required && !uploadedSlotIds(item, rule.code).length).length }) }}</small></div>
             </button>
           </aside>
           <section v-if="activeItem" class="case-upload-card">
-            <header><div><strong>{{ activeItem.product_name }}</strong><small>{{ CATEGORY_NAMES[productCategory(activeItem)] }} · {{ activeItem.order_no }}</small></div><span>{{ itemFiles[activeItem.order_id]?.length ?? 0 }} 个</span></header>
+            <header><div><strong>{{ catalogProductName(activeItem) }}</strong><small>{{ categoryName(productCategory(activeItem)) }} · {{ activeItem.order_no }}</small></div><span>{{ t('{count} 个', '{count} file(s)', { count: itemFiles[activeItem.order_id]?.length ?? 0 }) }}</span></header>
             <div class="case-upload-slots">
               <label v-for="rule in uploadRules(activeItem)" :key="rule.code" :class="{ complete: uploadedSlotIds(activeItem, rule.code).length }">
-                <div><strong>{{ rule.label }}</strong><small>{{ rule.required ? '必传' : '选传' }} · {{ rule.accept }}</small></div>
-                <span>{{ uploadedSlotIds(activeItem, rule.code).length ? `已上传 ${uploadedSlotIds(activeItem, rule.code).length} 个` : '尚未上传' }}</span>
-                <b>＋ 选择文件<input type="file" multiple :accept="rule.accept" :disabled="fileUploading" @change="uploadProductFiles($event, activeItem, rule.code)"></b>
+                <div><strong>{{ localizedSourceText(rule.label, rule.code) }}</strong><small>{{ rule.required ? t('必传', 'Required') : t('选传', 'Optional') }} · {{ rule.accept }}</small></div>
+                <span>{{ uploadedSlotIds(activeItem, rule.code).length ? t('已上传 {count} 个', '{count} uploaded', { count: uploadedSlotIds(activeItem, rule.code).length }) : t('尚未上传', 'Not Uploaded') }}</span>
+                <b>＋ {{ t('选择文件', 'Choose Files') }}<input type="file" multiple :accept="rule.accept" :disabled="fileUploading" @change="uploadProductFiles($event, activeItem, rule.code)"></b>
               </label>
             </div>
             <div v-if="itemFiles[activeItem.order_id]?.length" class="case-uploaded-files">
               <article v-for="file in itemFiles[activeItem.order_id]" :key="file.file_id">
                 <div><strong>{{ file.name }}</strong><small>{{ file.size_label }}</small></div>
-                <button type="button" class="case-file-remove" :disabled="busy || fileUploading" @click="removeProductFile(activeItem, file)">移除</button>
+                <button type="button" class="case-file-remove" :disabled="busy || fileUploading" @click="removeProductFile(activeItem, file)">{{ t('移除', 'Remove') }}</button>
               </article>
             </div>
           </section>
@@ -2269,11 +2344,11 @@ onMounted(async () => {
       </section>
 
       <section v-else-if="step === 5" class="case-panel case-config-panel">
-        <header><h1>试戴与过程确认</h1><p>请逐个产品选择是否试戴，以及制作过程中需要确认的内容。</p></header>
+        <header><h1>{{ t('试戴与过程确认', 'Try-in & Process Confirmations') }}</h1><p>{{ t('请逐个产品选择是否试戴，以及制作过程中需要确认的内容。', 'Choose whether each product requires a try-in and which production steps require confirmation.') }}</p></header>
         <div class="case-config-layout">
-          <aside class="case-item-tabs">
+          <aside class="case-item-tabs" :data-section-label="t('已选产品', 'Selected Products')">
             <button v-for="item in group?.items ?? []" :key="item.order_id" type="button" :class="{ active: activeItem?.order_id === item.order_id }" @click="selectedOrderId = item.order_id">
-              <span>{{ item.line_no }}</span><div><strong>{{ item.product_name }}</strong><small>{{ item.order_no }}</small></div>
+              <span>{{ item.line_no }}</span><div><strong>{{ catalogProductName(item) }}</strong><small>{{ item.order_no }}</small></div>
             </button>
           </aside>
           <section v-if="activeItem" class="case-config-form">
@@ -2292,71 +2367,71 @@ onMounted(async () => {
             />
             <label class="case-process-option">
               <input v-model="activeItem.form_values.try_in_required" type="checkbox">
-              <div><strong>成品完成前需要试戴</strong><p>试戴后医生可在原订单继续选择完成成品；试戴费用待报价，不预填金额。</p></div>
+              <div><strong>{{ t('成品完成前需要试戴', 'Try-in Required Before Final Completion') }}</strong><p>{{ t('试戴后医生可在原订单继续选择完成成品；试戴费用待报价，不预填金额。', 'After the try-in, the doctor can continue selecting the final product in the same order. Try-in pricing is pending and no amount is prefilled.') }}</p></div>
             </label>
             <section class="case-config-block">
-              <header><h3>制作过程确认</h3><small>增加确认环节可能影响交期，客服受理时会一并确认</small></header>
+              <header><h3>{{ t('制作过程确认', 'Production Confirmations') }}</h3><small>{{ t('增加确认环节可能影响交期，客服受理时会一并确认', 'Additional confirmation steps may affect lead time and will be reviewed by Order Support') }}</small></header>
               <div class="case-process-list">
-                <label v-for="option in [{ value: 'CAD_DESIGN', label: 'CAD 设计确认（制作前）' }, { value: 'POST_MILLING_PHOTOS', label: '切削/打印后照片确认' }, { value: 'POST_GLAZING_PHOTOS', label: '上釉后照片确认（质检前）' }]" :key="option.value">
+                <label v-for="option in [{ value: 'CAD_DESIGN', label: t('CAD 设计确认（制作前）', 'CAD Design Review (Before Production)') }, { value: 'POST_MILLING_PHOTOS', label: t('切削/打印后照片确认', 'Photo Review After Milling / Printing') }, { value: 'POST_GLAZING_PHOTOS', label: t('上釉后照片确认（质检前）', 'Photo Review After Glazing (Before QC)') }]" :key="option.value">
                   <input type="checkbox" :checked="sourceArray(activeItem, 'process_reviews').includes(option.value)" @change="toggleSourceArray(activeItem, 'process_reviews', option.value, ($event.target as HTMLInputElement).checked)">
                   <span>{{ option.label }}</span>
                 </label>
               </div>
             </section>
-            <label class="case-field"><span>特殊要求</span><textarea :value="String(activeItem.form_values.special_requirements ?? '')" rows="5" placeholder="补充当前产品的特殊制作要求" @input="updateTextField(activeItem, 'special_requirements', ($event.target as HTMLTextAreaElement).value)"></textarea></label>
+            <label class="case-field"><span>{{ t('特殊要求', 'Special Requirements') }}</span><textarea :value="String(activeItem.form_values.special_requirements ?? '')" rows="5" :placeholder="t('补充当前产品的特殊制作要求', 'Add special production requirements for this product')" @input="updateTextField(activeItem, 'special_requirements', ($event.target as HTMLTextAreaElement).value)"></textarea></label>
             <section class="case-config-block">
-              <header><h3>模型寄送信息</h3><small>适用所有产品；只有需要寄送实体模型时填写</small></header>
+              <header><h3>{{ t('模型寄送信息', 'Physical Model Shipping') }}</h3><small>{{ t('适用所有产品；只有需要寄送实体模型时填写', 'Applies to all products; complete only when a physical model must be shipped') }}</small></header>
               <label class="case-process-option">
                 <input v-model="activeItem.form_values.physical_model_shipping_required" type="checkbox">
-                <div><strong>需要寄送实体模型</strong><p>勾选后填写快递/业务员配送信息，客服可据此跟踪模型到厂。</p></div>
+                <div><strong>{{ t('需要寄送实体模型', 'Physical Model Shipping Required') }}</strong><p>{{ t('勾选后填写快递/业务员配送信息，客服可据此跟踪模型到厂。', 'Enter courier or representative delivery details so Order Support can track the model to the lab.') }}</p></div>
               </label>
               <div v-if="activeItem.form_values.physical_model_shipping_required" class="case-field-grid">
-                <label class="case-field"><span>运输方式</span><select v-model="activeItem.form_values.physical_model_shipping_method"><option value="">请选择</option><option value="COURIER">快递</option><option value="SALES_DELIVERY">业务员配送</option><option value="SELF_DELIVERY">自行送达</option></select></label>
-                <label class="case-field"><span>运单号 / 配送说明</span><input v-model="activeItem.form_values.physical_model_tracking_no" placeholder="填写运单号或配送联系人"></label>
+                <label class="case-field"><span>{{ t('运输方式', 'Shipping Method') }}</span><select v-model="activeItem.form_values.physical_model_shipping_method"><option value="">{{ t('请选择', 'Select') }}</option><option value="COURIER">{{ t('快递', 'Courier') }}</option><option value="SALES_DELIVERY">{{ t('业务员配送', 'Representative Delivery') }}</option><option value="SELF_DELIVERY">{{ t('自行送达', 'Self Delivery') }}</option></select></label>
+                <label class="case-field"><span>{{ t('运单号 / 配送说明', 'Tracking Number / Delivery Notes') }}</span><input v-model="activeItem.form_values.physical_model_tracking_no" :placeholder="t('填写运单号或配送联系人', 'Enter a tracking number or delivery contact')"></label>
               </div>
             </section>
-            <button type="button" class="case-primary" :disabled="busy" @click="saveItem(activeItem)">保存当前确认要求</button>
+            <button type="button" class="case-primary" :disabled="busy" @click="saveItem(activeItem)">{{ t('保存当前确认要求', 'Save Confirmation Requirements') }}</button>
           </section>
         </div>
       </section>
 
       <section v-else class="case-panel">
-        <header><h1>报价、要求与周期确认</h1><p>请核对全部产品和资料；正式报价与可行交期将在客服受理后确认。</p></header>
+        <header><h1>{{ t('报价、要求与周期确认', 'Quote, Requirements & Lead Time') }}</h1><p>{{ t('请核对全部产品和资料；正式报价与可行交期将在客服受理后确认。', 'Review all products and records. Order Support will confirm the final quote and feasible lead time.') }}</p></header>
         <div class="case-review-head">
-          <div><span>病例订单</span><strong>{{ group?.group_no }}</strong></div>
-          <div><span>患者</span><strong>{{ selectedPatient?.patient_name }}</strong></div>
-          <div><span>产品数</span><strong>{{ group?.items.length ?? 0 }}</strong></div>
-          <div><span>共享资料</span><strong>{{ sharedFiles.length }} 个</strong></div>
+          <div><span>{{ t('病例订单', 'Case Order') }}</span><strong>{{ group?.group_no }}</strong></div>
+          <div><span>{{ t('患者', 'Patient') }}</span><strong>{{ selectedPatient?.patient_name }}</strong></div>
+          <div><span>{{ t('产品数', 'Products') }}</span><strong>{{ group?.items.length ?? 0 }}</strong></div>
+          <div><span>{{ t('共享资料', 'Shared Records') }}</span><strong>{{ t('{count} 个', '{count} file(s)', { count: sharedFiles.length }) }}</strong></div>
         </div>
         <div class="case-review-list">
           <article v-for="item in group?.items ?? []" :key="item.order_id" :class="{ incomplete: itemErrors(item).length }">
             <span>{{ item.line_no }}</span>
-            <div><strong>{{ item.product_name }}<em v-if="item.variant_name"> · {{ item.variant_name }}</em></strong><small>{{ item.order_no }} · {{ CATEGORY_NAMES[productCategory(item)] }}</small></div>
+            <div><strong>{{ catalogProductName(item) }}<em v-if="item.variant_name"> · {{ safeEnglishDynamicText(item.variant_name, humanizeCode(item.variant_code || 'variant')) }}</em></strong><small>{{ item.order_no }} · {{ categoryName(productCategory(item)) }}</small></div>
             <b>{{ priceLabel(item) }}</b>
-            <i>{{ itemFiles[item.order_id]?.length ?? 0 }} 个专属文件</i>
-            <em>{{ itemErrors(item).length ? itemErrors(item).join('；') : '配置完整' }}</em>
+            <i>{{ t('{count} 个专属文件', '{count} product-specific file(s)', { count: itemFiles[item.order_id]?.length ?? 0 }) }}</i>
+            <em>{{ itemErrors(item).length ? itemErrors(item).join(locale === 'EN' ? '; ' : '；') : t('配置完整', 'Configuration Complete') }}</em>
           </article>
         </div>
         <section class="case-final-confirmations">
-          <label><input v-model="finalConfirmations.quote" type="checkbox"><div><strong>报价状态确认</strong><p>当前所有产品均为“待报价”，提交后由客服核价并告知正式报价。</p></div></label>
-          <label><input v-model="finalConfirmations.requirements" type="checkbox"><div><strong>制作要求确认</strong><p>我已核对牙位、材料、工艺、资料、试戴及过程确认要求。</p></div></label>
-          <label><input v-model="finalConfirmations.cycle" type="checkbox"><div><strong>制作周期确认</strong><p>要求到货日为 {{ caseSettings.required_delivery_date || '未填写' }}；正式工期由客服根据产品和资料完整度确认。</p></div></label>
+          <label><input v-model="finalConfirmations.quote" type="checkbox"><div><strong>{{ t('报价状态确认', 'Quote Status Confirmation') }}</strong><p>{{ t('当前所有产品均为“待报价”，提交后由客服核价并告知正式报价。', 'All products are currently Quote Pending. Order Support will provide the final quote after submission.') }}</p></div></label>
+          <label><input v-model="finalConfirmations.requirements" type="checkbox"><div><strong>{{ t('制作要求确认', 'Production Requirements Confirmation') }}</strong><p>{{ t('我已核对牙位、材料、工艺、资料、试戴及过程确认要求。', 'I have reviewed tooth positions, materials, processes, records, try-in, and confirmation requirements.') }}</p></div></label>
+          <label><input v-model="finalConfirmations.cycle" type="checkbox"><div><strong>{{ t('制作周期确认', 'Lead Time Confirmation') }}</strong><p>{{ t('要求到货日为 {date}；正式工期由客服根据产品和资料完整度确认。', 'Requested delivery date: {date}. Order Support will confirm the final lead time based on the products and record completeness.', { date: caseSettings.required_delivery_date || t('未填写', 'Not Entered') }) }}</p></div></label>
         </section>
-        <div v-if="incompleteItems.length" class="case-alert warning">还有 {{ incompleteItems.length }} 个子产品不完整，请返回对应阶段补齐：{{ incompleteItems.map((item) => item.product_name).join('、') }}。</div>
-        <div v-else-if="!finalConfirmationComplete" class="case-alert warning">请完成上面三项确认后提交。</div>
-        <div v-else class="case-alert success">信息填写完整，可以提交订单。</div>
+        <div v-if="incompleteItems.length" class="case-alert warning">{{ t('还有 {count} 个子产品不完整，请返回对应阶段补齐：{products}。', '{count} product(s) are incomplete. Return to the relevant sections: {products}.', { count: incompleteItems.length, products: incompleteItems.map((item) => catalogProductName(item)).join(locale === 'EN' ? ', ' : '、') }) }}</div>
+        <div v-else-if="!finalConfirmationComplete" class="case-alert warning">{{ t('请完成上面三项确认后提交。', 'Complete the three confirmations above before submitting.') }}</div>
+        <div v-else class="case-alert success">{{ t('信息填写完整，可以提交订单。', 'All required information is complete. The order is ready to submit.') }}</div>
       </section>
     </main>
 
     <footer class="case-wizard__footer">
       <div class="case-footer-context">
-        <button v-if="group" type="button" :disabled="busy || fileUploading" @click="saveAllItems()">保存草稿</button>
-        <span v-if="group">{{ group.items.length }} 个产品 · 均为待报价</span>
+        <button v-if="group" type="button" :disabled="busy || fileUploading" @click="saveAllItems()">{{ t('保存草稿', 'Save Draft') }}</button>
+        <span v-if="group">{{ t('{count} 个产品 · 均为待报价', '{count} product(s) · All Quote Pending', { count: group.items.length }) }}</span>
       </div>
       <div>
-        <button v-if="step > 1" type="button" :disabled="busy || fileUploading" @click="step--">上一步</button>
-        <button v-if="step < 6" type="button" class="case-primary" :disabled="busy || fileUploading" @click="nextStep">下一步 →</button>
-        <button v-else type="button" class="case-primary" data-testid="case-submit" :disabled="busy || fileUploading || incompleteItems.length > 0 || !finalConfirmationComplete" @click="submitGroup">{{ busy ? '提交中…' : '提交订单' }}</button>
+        <button v-if="step > 1" type="button" :disabled="busy || fileUploading" @click="step--">{{ t('上一步', 'Previous') }}</button>
+        <button v-if="step < 6" type="button" class="case-primary" :disabled="busy || fileUploading" @click="nextStep">{{ t('下一步', 'Next') }} →</button>
+        <button v-else type="button" class="case-primary" data-testid="case-submit" :disabled="busy || fileUploading || incompleteItems.length > 0 || !finalConfirmationComplete" @click="submitGroup">{{ busy ? t('提交中…', 'Submitting…') : t('提交订单', 'Submit Order') }}</button>
       </div>
     </footer>
   </div>
@@ -3903,7 +3978,7 @@ onMounted(async () => {
   font-weight: 700;
   letter-spacing: .8px;
   text-transform: uppercase;
-  content: "已选产品";
+  content: attr(data-section-label);
 }
 
 .case-config-panel .case-item-tabs button {
