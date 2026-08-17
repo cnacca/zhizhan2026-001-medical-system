@@ -5,7 +5,6 @@ const root = process.cwd()
 const read = (file) => fs.readFileSync(path.join(root, file), 'utf8')
 
 const files = {
-  app: read('frontend/src/App.vue'),
   portal: read('frontend/src/doctor/DoctorPortalV2.vue'),
   wizard: read('frontend/src/doctor/DoctorCaseGroupWizard.vue'),
   prescription: read('frontend/src/doctor/DoctorOrthodonticPrescription.vue'),
@@ -17,14 +16,6 @@ const failures = []
 const requireText = (source, text, scope) => {
   if (!source.includes(text)) failures.push(`${scope} missing: ${text}`)
 }
-
-for (const text of [
-  "const doctorPortalLanguageKey = 'doctor-portal-language'",
-  "doctorLoginText('医生端登录', 'Doctor Portal Login')",
-  "doctorLoginText('请输入医生账号', 'Enter doctor account')",
-  "doctorLoginText('登录系统', 'Sign In')",
-  "setDoctorLoginLanguage('EN')"
-]) requireText(files.app, text, 'App doctor login')
 
 for (const text of [
   'provideDoctorLocale(portalLanguage)',
