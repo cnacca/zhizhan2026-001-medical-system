@@ -9,6 +9,7 @@ import AdminConfigurationCenter from './components/AdminConfigurationCenter.vue'
 import CsPortalPages from './components/CsPortalPages.vue'
 import ProductionDesignWorkspace from './components/ProductionDesignWorkspace.vue'
 import { staffOrderIdentity } from './utils/orderIdentity'
+import { orderMayHaveProcessInstance } from './utils/orderWorkflow'
 import { productionProgressNodes, productionProgressSummary } from './utils/productionProgress'
 import { authenticatedFetchKey } from './utils/authenticatedFetch'
 import { captureRefreshTokenForLogout } from './utils/logoutRefreshCoordination.js'
@@ -6853,15 +6854,23 @@ function adminOrderDueDate(order: InternalOrderItem) {
 }
 
 async function loadAdminOrderProcessSummaries(orders: InternalOrderItem[]) {
-  const missingOrders = orders.filter((order) => !(order.order_id in adminOrderProcessMap.value))
+  const missingOrders = orders.filter((order) =>
+    orderMayHaveProcessInstance(order) && adminOrderProcessMap.value[order.order_id] == null)
+  const next = { ...adminOrderProcessMap.value }
+  orders
+    .filter((order) => !orderMayHaveProcessInstance(order))
+    .forEach((order) => {
+      next[order.order_id] = null
+    })
+  adminOrderProcessMap.value = next
   if (!missingOrders.length) return
   const results = await Promise.allSettled(missingOrders.map((order) =>
     apiFetch<ProcessInstanceDetail>(`/orders/${order.order_id}/process-instance`)))
-  const next = { ...adminOrderProcessMap.value }
+  const resolved = { ...adminOrderProcessMap.value }
   results.forEach((result, index) => {
-    next[missingOrders[index].order_id] = result.status === 'fulfilled' ? result.value.data : null
+    resolved[missingOrders[index].order_id] = result.status === 'fulfilled' ? result.value.data : null
   })
-  adminOrderProcessMap.value = next
+  adminOrderProcessMap.value = resolved
 }
 
 function adminOrderProcessProgress(instance: ProcessInstanceDetail | null) {
@@ -6881,20 +6890,23 @@ async function openAdminOrderDrawer(order: InternalOrderItem) {
   csDesignDrafts.value = []
   csDesignDraftPreviewUrls.value = {}
   try {
+    const processRequest = orderMayHaveProcessInstance(order)
+      ? apiFetch<ProcessInstanceDetail>(`/orders/${order.order_id}/process-instance`)
+      : Promise.resolve(null)
     const [filesResult, draftsResult, messagesResult, billResult, logisticsResult, processResult] = await Promise.allSettled([
       apiFetch<OrderFileItem[]>(`/orders/${order.order_id}/files`),
       apiFetch<DesignDraftItem[]>(`/orders/${order.order_id}/design-drafts`),
       apiFetch<MessageItem[]>(`/orders/${order.order_id}/messages`),
       apiFetch<BillInfo>(`/orders/${order.order_id}/bill`),
       apiFetch<LogisticsInfo>(`/orders/${order.order_id}/logistics`),
-      apiFetch<ProcessInstanceDetail>(`/orders/${order.order_id}/process-instance`)
+      processRequest
     ] as const)
     if (filesResult.status === 'fulfilled') csOrderFiles.value = filesResult.value.data
     if (draftsResult.status === 'fulfilled') csDesignDrafts.value = draftsResult.value.data
     if (messagesResult.status === 'fulfilled') adminOrderMessages.value = messagesResult.value.data
     if (billResult.status === 'fulfilled') adminOrderBill.value = billResult.value.data
     if (logisticsResult.status === 'fulfilled') adminOrderLogistics.value = logisticsResult.value.data
-    if (processResult.status === 'fulfilled') {
+    if (processResult.status === 'fulfilled' && processResult.value) {
       adminOrderProcessInstance.value = processResult.value.data
       adminOrderProcessMap.value = { ...adminOrderProcessMap.value, [order.order_id]: processResult.value.data }
     }
@@ -17103,7 +17115,10 @@ onBeforeUnmount(() => {
             <section class="prototype-panel-card admin-global-todo-card">
               <div class="prototype-panel-head">
                 <h3>{{ adminGlobalTodoPanel.title }}</h3>
-                <span class="prototype-badge tone-rose">{{ adminGlobalTodoPanel.badge }}</span>
+                <div class="admin-panel-head-actions">
+                  <span class="prototype-badge tone-rose">{{ adminGlobalTodoPanel.badge }}</span>
+                  <button type="button" data-testid="admin-view-all-todos" @click="navigateToRoute('/orders/internal')">查看全部</button>
+                </div>
               </div>
               <div class="admin-global-todo-list">
                 <button
