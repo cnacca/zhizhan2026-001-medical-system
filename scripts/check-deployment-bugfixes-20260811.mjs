@@ -47,12 +47,16 @@ requireText('deploy/env/phase-one.prod.example', [
 
 const wizard = requireText('frontend/src/doctor/DoctorCaseGroupWizard.vue', [
   'saveAllItemsUnlocked',
-  'currentStepErrors',
+  'validationIssuesForStep',
+  'showValidationSummary',
   'busy.value = true',
   'if (busy.value || fileUploading.value) return'
 ])
-if (!wizard.includes('itemStepErrors(item, step.value)')) {
+if (!wizard.includes('const issues = validationIssuesForStep(step.value)')) {
   failures.push('DoctorCaseGroupWizard -> next-step validation does not use the current step rules')
+}
+if (!wizard.includes('itemStepErrors(item, targetStep)')) {
+  failures.push('DoctorCaseGroupWizard -> current-step validation no longer delegates to item rules')
 }
 
 const app = requireText('frontend/src/App.vue', [
