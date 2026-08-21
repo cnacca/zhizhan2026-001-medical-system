@@ -50,7 +50,7 @@ for (const text of [
   "const dateInputType = computed(() => locale.value === 'EN' ? 'text' : 'date')",
   "'YYYY-MM-DD'",
   "t('资料上传', 'Upload Records')",
-  "t('报价、要求与周期确认', 'Quote, Requirements & Lead Time')",
+  "t('订单信息最终确认', 'Final Order Review')",
   ":data-section-label=\"t('已选产品', 'Selected Products')\"",
   'content: attr(data-section-label)',
   'localizedSourceText',

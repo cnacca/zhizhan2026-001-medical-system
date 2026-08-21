@@ -1294,8 +1294,8 @@ public class AiGatewayService {
                 : normalizedFormData;
         List<String> orderLines = new ArrayList<>();
         addBusinessField(orderLines, formValues, "牙位", "tooth_position", "tooth", "teeth");
-        addBusinessField(orderLines, formValues, "颜色", "shade", "color");
-        addBusinessField(orderLines, formValues, "材料", "material");
+        addBusinessField(orderLines, formValues, "颜色", "shade", "color", "shade_value");
+        addBusinessField(orderLines, formValues, "材料", "material", "material_option", "material_name", "material_spec");
 
         StringBuilder draft = new StringBuilder("订单制作信息");
         if (orderLines.isEmpty()) {

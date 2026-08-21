@@ -158,6 +158,64 @@ type FormField = {
   max_items?: number
 }
 
+type ValidationIssue = {
+  step: number
+  orderId?: number
+  text: string
+}
+
+type ValidationSummary = {
+  step: number
+  title: string
+  issues: ValidationIssue[]
+}
+
+type SharedUploadSlotCode =
+  | 'upper_scan'
+  | 'lower_scan'
+  | 'bite_scan'
+  | 'shade_photo'
+  | 'intraoral_photo'
+  | 'old_denture_reference'
+
+type SharedUploadSlot = SourceUploadRule & { code: SharedUploadSlotCode }
+
+const REQUIRED_SHARED_UPLOAD_SLOTS: SharedUploadSlot[] = [
+  { code: 'upper_scan', label: '上颌扫描', required: true, accept: '.stl,.ply,.obj' },
+  { code: 'lower_scan', label: '下颌扫描', required: true, accept: '.stl,.ply,.obj' },
+  { code: 'bite_scan', label: '咬合扫描', required: true, accept: '.stl,.ply,.obj' }
+]
+
+const OPTIONAL_SHARED_UPLOAD_SLOTS: SharedUploadSlot[] = [
+  { code: 'shade_photo', label: '比色照片', required: false, accept: '.jpg,.jpeg,.png,.pdf' },
+  { code: 'intraoral_photo', label: '口内咬合照', required: false, accept: '.jpg,.jpeg,.png,.pdf' },
+  { code: 'old_denture_reference', label: '旧义齿参考', required: false, accept: '.jpg,.jpeg,.png,.pdf' }
+]
+
+const SHARED_UPLOAD_SLOTS = [...REQUIRED_SHARED_UPLOAD_SLOTS, ...OPTIONAL_SHARED_UPLOAD_SLOTS]
+const SHARED_UPLOAD_REQUIREMENT_VERSION = 'FIXED_LAYERED_V2'
+const SHADE_DECISION_VERSION = 'SHADE_DECISION_V1'
+const SHADE_REQUIRED_CATEGORIES = new Set([
+  'FIXED_RESTORATION',
+  'IMPLANT_RESTORATION',
+  'REMOVABLE_PROSTHETICS'
+])
+const SHADE_FORM_FIELDS = new Set([
+  'shade',
+  'color',
+  'shade_system',
+  'shade_value',
+  'cervical_shade',
+  'body_shade',
+  'incisal_shade'
+])
+const SHARED_UPLOAD_SLOT_CODES = new Set<SharedUploadSlotCode>(SHARED_UPLOAD_SLOTS.map((slot) => slot.code))
+const REPLACED_PRODUCT_UPLOAD_SLOT_CODES = new Set([
+  'upper_arch', 'lower_arch', 'bite_scan', 'full_arch_scan', 'jaw_record',
+  'upper_model', 'lower_model', 'bite_model', 'arch_scan',
+  'shade_photo', 'intraoral_photo', 'old_restoration', 'old_denture'
+])
+
 const props = defineProps<{
   token: string
   patients: PatientSummary[]
@@ -385,11 +443,20 @@ const selectedCategoryCode = ref('')
 const pendingProductIds = ref<number[]>([])
 const selectedOrderId = ref<number | null>(null)
 const notice = ref('')
+const validationSummary = ref<ValidationSummary | null>(null)
 const itemFiles = reactive<Record<number, DoctorFile[]>>({})
 const orthodonticPrescriptionReady = reactive<Record<number, boolean>>({})
 const objectFieldDrafts = reactive<Record<string, string>>({})
 const objectFieldErrors = reactive<Record<string, string>>({})
 const sharedFiles = ref<DoctorFile[]>([])
+const sharedUploadAssignments = reactive<Record<SharedUploadSlotCode, number[]>>({
+  upper_scan: [],
+  lower_scan: [],
+  bite_scan: [],
+  shade_photo: [],
+  intraoral_photo: [],
+  old_denture_reference: []
+})
 const fileUploading = ref(false)
 const toothDrag = ref<{
   orderId: number
@@ -400,9 +467,17 @@ const toothDrag = ref<{
 } | null>(null)
 const suppressToothClick = ref(false)
 const finalConfirmations = reactive({
-  quote: false,
   requirements: false,
   cycle: false
+})
+const reviewInquiry = reactive({
+  open: false,
+  orderId: 0,
+  fieldCode: '',
+  fieldLabel: '',
+  productName: '',
+  draft: '',
+  sending: false
 })
 const caseSettings = reactive({
   priority: 'NORMAL',
@@ -512,8 +587,12 @@ function catalogFieldsForItem(item: CaseGroupItem): FormField[] {
 const stepThreeCoreFields = new Set([
   'material_option',
   'finish_margin_type',
+  'shade',
+  'color',
   'shade_system',
   'shade_value',
+  'shade_not_required',
+  'shade_requirement_version',
   'cervical_shade',
   'body_shade',
   'incisal_shade',
@@ -542,7 +621,17 @@ const activeFields = computed<FormField[]>(() =>
 )
 const incompleteItems = computed(() => (group.value?.items ?? []).filter((item) => itemErrors(item).length > 0))
 const finalConfirmationComplete = computed(() =>
-  finalConfirmations.quote && finalConfirmations.requirements && finalConfirmations.cycle
+  finalConfirmations.requirements && finalConfirmations.cycle
+)
+const missingRequiredSharedSlots = computed(() =>
+  REQUIRED_SHARED_UPLOAD_SLOTS.filter((slot) => !sharedUploadAssignments[slot.code].length)
+)
+const missingRequiredProductSlots = computed(() =>
+  (group.value?.items ?? []).flatMap((item) =>
+    REQUIRED_SHARED_UPLOAD_SLOTS
+      .filter((slot) => !effectiveUploadSlotIds(item, slot.code).length)
+      .map((slot) => ({ item, slot }))
+  )
 )
 
 async function api<T>(path: string, options: RequestInit = {}): Promise<T> {
@@ -564,6 +653,7 @@ async function api<T>(path: string, options: RequestInit = {}): Promise<T> {
         error?: string
       }
       detail = body.message || body.msg || body.detail || body.error || ''
+      if (detail.trim().toLowerCase() === response.statusText.trim().toLowerCase()) detail = ''
     } catch {
       detail = await response.text().catch(() => '')
     }
@@ -615,8 +705,59 @@ function hydrateCaseSettings(item: CaseGroupItem | undefined) {
   caseSettings.global_notes = String(item.form_values.global_notes ?? '')
 }
 
+function mergeCaseGroupResponse(next: CaseGroup, authoritativeOrderIds: number[] = []) {
+  const current = group.value
+  if (!current || current.group_id !== next.group_id) return next
+  const authoritative = new Set(authoritativeOrderIds)
+  const localItems = new Map(current.items.map((item) => [item.order_id, item]))
+  return {
+    ...next,
+    items: next.items.map((serverItem) => {
+      const localItem = localItems.get(serverItem.order_id)
+      if (!localItem || authoritative.has(serverItem.order_id)) return serverItem
+      return {
+        ...serverItem,
+        product_id: localItem.product_id,
+        variant_id: localItem.variant_id,
+        relationship_type: localItem.relationship_type,
+        form_values: localItem.form_values,
+        material_selections: localItem.material_selections,
+        accessory_selections: localItem.accessory_selections
+      }
+    })
+  }
+}
+
 function productCategory(item: CaseGroupItem) {
   return catalog.value?.products.find((product) => product.product_id === item.product_id)?.category_code ?? ''
+}
+
+function requiresShadeDecision(item: CaseGroupItem) {
+  return SHADE_REQUIRED_CATEGORIES.has(productCategory(item))
+}
+
+function shadeNotRequired(item: CaseGroupItem) {
+  return item.form_values.shade_not_required === true
+}
+
+function shadeValue(item: CaseGroupItem) {
+  if (shadeNotRequired(item)) return '无需指定颜色'
+  const system = String(item.form_values.shade_system ?? '').trim()
+  if (system === 'THREE_ZONE') {
+    const zones = [
+      ['颈部', item.form_values.cervical_shade],
+      ['体部', item.form_values.body_shade],
+      ['切端', item.form_values.incisal_shade]
+    ].filter(([, value]) => String(value ?? '').trim())
+    return zones.map(([label, value]) => `${label} ${String(value).trim()}`).join(' / ')
+  }
+  return String(item.form_values.shade_value ?? item.form_values.shade ?? '').trim()
+}
+
+function synchronizeShadeDecision(item: CaseGroupItem) {
+  if (!requiresShadeDecision(item)) return
+  item.form_values.shade_requirement_version = SHADE_DECISION_VERSION
+  item.form_values.shade = shadeValue(item)
 }
 
 function productMaterialOptions(item: CaseGroupItem) {
@@ -686,7 +827,81 @@ function choosePrimaryMaterial(item: CaseGroupItem, value: string) {
 }
 
 function uploadRules(item: CaseGroupItem): SourceUploadRule[] {
-  return UPLOAD_RULES[productCategory(item)] ?? []
+  return (UPLOAD_RULES[productCategory(item)] ?? [])
+    .filter((rule) => !REPLACED_PRODUCT_UPLOAD_SLOT_CODES.has(rule.code))
+    .map((rule) => ({ ...rule, required: false }))
+}
+
+function sharedUploadSlotIds(slotCode: SharedUploadSlotCode) {
+  return distinctFileIds(sharedUploadAssignments[slotCode] ?? [])
+}
+
+function sharedFilesForSlot(slotCode: SharedUploadSlotCode) {
+  const ids = new Set(sharedUploadSlotIds(slotCode))
+  return sharedFiles.value.filter((file) => ids.has(Number(file.file_id)))
+}
+
+function sharedUploadSnapshot() {
+  return Object.fromEntries(
+    SHARED_UPLOAD_SLOTS.map((slot) => [slot.code, sharedUploadSlotIds(slot.code)])
+  )
+}
+
+function isSharedUploadSlotCode(slotCode: string): slotCode is SharedUploadSlotCode {
+  return SHARED_UPLOAD_SLOT_CODES.has(slotCode as SharedUploadSlotCode)
+}
+
+function productUploadSlotIds(item: CaseGroupItem, slotCode: SharedUploadSlotCode) {
+  const value = item.form_values.product_upload_slot_files
+  if (!value || typeof value !== 'object' || Array.isArray(value)) return []
+  const ids = (value as Record<string, unknown>)[slotCode]
+  return Array.isArray(ids) ? distinctFileIds(ids.map(Number)) : []
+}
+
+function productUploadSnapshot(item: CaseGroupItem) {
+  return Object.fromEntries(
+    SHARED_UPLOAD_SLOTS.map((slot) => [slot.code, productUploadSlotIds(item, slot.code)])
+  )
+}
+
+function effectiveUploadSlotIds(item: CaseGroupItem, slotCode: SharedUploadSlotCode) {
+  const productIds = productUploadSlotIds(item, slotCode)
+  return productIds.length ? productIds : sharedUploadSlotIds(slotCode)
+}
+
+function productFilesForSlot(item: CaseGroupItem, slotCode: SharedUploadSlotCode) {
+  const ids = new Set(productUploadSlotIds(item, slotCode))
+  return (itemFiles[item.order_id] ?? []).filter((file) => ids.has(Number(file.file_id)))
+}
+
+function inheritedSharedFilesForSlot(item: CaseGroupItem, slotCode: SharedUploadSlotCode) {
+  return productUploadSlotIds(item, slotCode).length ? [] : sharedFilesForSlot(slotCode)
+}
+
+function configuredProductFilesForSlot(item: CaseGroupItem, slotCode: string) {
+  const ids = new Set(uploadedSlotIds(item, slotCode))
+  return (itemFiles[item.order_id] ?? []).filter((file) => ids.has(Number(file.file_id)))
+}
+
+function unassignedProductFiles(item: CaseGroupItem) {
+  const assigned = new Set([
+    ...SHARED_UPLOAD_SLOTS.flatMap((slot) => productUploadSlotIds(item, slot.code)),
+    ...uploadRules(item).flatMap((rule) => uploadedSlotIds(item, rule.code))
+  ])
+  return (itemFiles[item.order_id] ?? []).filter((file) => !assigned.has(Number(file.file_id)))
+}
+
+function hydrateSharedUploadAssignments(item: CaseGroupItem | undefined) {
+  const stored = item?.form_values.shared_upload_slot_files
+  const source = stored && typeof stored === 'object' && !Array.isArray(stored)
+    ? stored as Record<string, unknown>
+    : {}
+  SHARED_UPLOAD_SLOTS.forEach((slot) => {
+    const ids = source[slot.code]
+    sharedUploadAssignments[slot.code] = Array.isArray(ids)
+      ? distinctFileIds(ids.map(Number))
+      : []
+  })
 }
 
 function clearAlignerTypes(item: CaseGroupItem) {
@@ -777,6 +992,7 @@ async function restoreAttachedFiles(restored: CaseGroup) {
 
   sharedFiles.value = distinctFileIds(restored.shared_file_ids ?? [])
     .map((fileId) => toDoctorFile(fileId, metadataById.get(fileId)))
+  hydrateSharedUploadAssignments(restored.items[0])
   for (const orderId of Object.keys(itemFiles)) delete itemFiles[Number(orderId)]
   for (const item of restored.items) {
     itemFiles[item.order_id] = distinctFileIds(item.file_ids ?? [])
@@ -901,7 +1117,7 @@ async function persistPendingProductsUnlocked() {
           expected_draft_version: current.draft_version
         })
       })
-      group.value = next
+      group.value = mergeCaseGroupResponse(next)
       selectedOrderId.value = next.items.at(-1)?.order_id ?? null
       removePendingProduct(productId)
     }
@@ -920,7 +1136,7 @@ async function copyItem(item: CaseGroupItem) {
   if (!group.value || busy.value) return
   busy.value = true
   try {
-    group.value = await api<CaseGroup>(
+    const next = await api<CaseGroup>(
       `/order-case-groups/${group.value.group_id}/items/${item.order_id}/copy`,
       {
         method: 'POST',
@@ -930,6 +1146,7 @@ async function copyItem(item: CaseGroupItem) {
         })
       }
     )
+    group.value = mergeCaseGroupResponse(next)
     selectedOrderId.value = group.value.items.at(-1)?.order_id ?? null
     ElMessage.success(t('产品已复制，原产品资料未重复添加', 'Product copied without duplicating the original product records'))
   } catch (cause) {
@@ -948,13 +1165,14 @@ async function removeItem(item: CaseGroupItem) {
       cancelButtonText: t('取消', 'Cancel'),
       type: 'warning'
     })
-    group.value = await api<CaseGroup>(
+    const next = await api<CaseGroup>(
       `/order-case-groups/${group.value.group_id}/items/${item.order_id}`,
       {
         method: 'DELETE',
         body: JSON.stringify({ expected_draft_version: group.value.draft_version })
       }
     )
+    group.value = mergeCaseGroupResponse(next)
     delete itemFiles[item.order_id]
     selectedOrderId.value = group.value.items[0]?.order_id ?? null
     ElMessage.success(t('产品已移除', 'Product removed'))
@@ -1136,7 +1354,7 @@ function itemStepErrors(item: CaseGroupItem, targetStep: number) {
       ['dentition_stage', t('请选择牙龄', 'Select a dentition stage')],
       ['angle_class', t('请选择错颌畸形类别', 'Select a malocclusion class')],
       ['skeletal_type', t('请选择骨骼类型', 'Select a skeletal type')],
-      ['orthodontic_concern', t('请选择诉求问题', 'Select the orthodontic concerns')]
+      ['orthodontic_concern', t('请选择主要矫治诉求', 'Select the primary orthodontic concerns')]
     ],
     CLEAR_ALIGNER: [
       ['treatment_arch', t('请选择矫治牙颌', 'Select a treatment arch')],
@@ -1164,6 +1382,18 @@ function itemStepErrors(item: CaseGroupItem, targetStep: number) {
       if (!String(item.form_values.design_delivery_format ?? '').trim()) errors.push(t('请选择设计交付文件格式', 'Select a design delivery file format'))
       if (!String(item.form_values.design_delivery_turnaround ?? '').trim()) errors.push(t('请选择设计交期', 'Select a design delivery time'))
     }
+    if (requiresShadeDecision(item) && !shadeNotRequired(item)) {
+      const shadeSystem = String(item.form_values.shade_system ?? '').trim()
+      if (!shadeSystem) {
+        errors.push(t('请选择牙色系统，或勾选“本产品无需指定颜色”', 'Select a shade system or choose “No shade required for this product”'))
+      } else if (shadeSystem === 'THREE_ZONE') {
+        if (!String(item.form_values.cervical_shade ?? '').trim()) errors.push(t('请选择颈部色', 'Select a cervical shade'))
+        if (!String(item.form_values.body_shade ?? '').trim()) errors.push(t('请选择体部色', 'Select a body shade'))
+        if (!String(item.form_values.incisal_shade ?? '').trim()) errors.push(t('请选择切端色', 'Select an incisal shade'))
+      } else if (!String(item.form_values.shade_value ?? '').trim()) {
+        errors.push(t('请选择牙色，或勾选“本产品无需指定颜色”', 'Select a shade or choose “No shade required for this product”'))
+      }
+    }
 
     const materialBindings = (catalog.value?.materials ?? []).filter((binding) =>
       binding.product_id === item.product_id
@@ -1183,18 +1413,13 @@ function itemStepErrors(item: CaseGroupItem, targetStep: number) {
     })
     const fields = catalogFieldsForItem(item)
     fields.filter((field) => field.required && fieldVisible(field, item)).forEach((field) => {
+      if (shadeNotRequired(item) && SHADE_FORM_FIELDS.has(field.key)) return
       const value = item.form_values[field.key]
       if (value == null || value === '' || (Array.isArray(value) && !value.length)) errors.push(t('{field}必填', '{field} is required', { field: localizedSourceText(field.label, field.key) }))
     })
     Object.entries(objectFieldErrors)
       .filter(([key]) => key.startsWith(`${item.order_id}:`))
       .forEach(([, message]) => errors.push(message))
-  }
-
-  if (targetStep === 4) {
-    for (const rule of uploadRules(item).filter((rule) => rule.required)) {
-      if (!uploadedSlotIds(item, rule.code).length) errors.push(t('请上传{label}', 'Upload {label}', { label: localizedSourceText(rule.label, rule.code) }))
-    }
   }
 
   if (targetStep === 5
@@ -1213,6 +1438,82 @@ function itemStepErrors(item: CaseGroupItem, targetStep: number) {
 
 function itemErrors(item: CaseGroupItem) {
   return Array.from(new Set([1, 2, 3, 4, 5].flatMap((targetStep) => itemStepErrors(item, targetStep))))
+}
+
+function missingRequiredSlotsForItem(item: CaseGroupItem) {
+  return REQUIRED_SHARED_UPLOAD_SLOTS.filter((slot) => !effectiveUploadSlotIds(item, slot.code).length)
+}
+
+function uniqueValidationIssues(issues: ValidationIssue[]) {
+  const seen = new Set<string>()
+  return issues.filter((issue) => {
+    const key = `${issue.step}:${issue.orderId ?? ''}:${issue.text}`
+    if (seen.has(key)) return false
+    seen.add(key)
+    return true
+  })
+}
+
+function validationIssuesForStep(targetStep: number): ValidationIssue[] {
+  if (targetStep === 1) {
+    return uniqueValidationIssues([
+      ...(!patientId.value ? [{ step: 1, text: t('请选择患者', 'Select a patient') }] : []),
+      ...(!selectedProductCount.value ? [{ step: 1, text: t('请至少选择一个产品', 'Select at least one product') }] : []),
+      ...caseStepOneErrors().map((text) => ({ step: 1, text }))
+    ])
+  }
+  if (targetStep === 4) {
+    return uniqueValidationIssues(missingRequiredProductSlots.value.map(({ item, slot }) => ({
+      step: 4,
+      orderId: item.order_id,
+      text: t(
+        '{product}：缺少{record}（可上传共享资料或产品专属资料）',
+        '{product}: Missing {record} (upload a shared or product-specific record)',
+        { product: catalogProductName(item), record: localizedSourceText(slot.label, slot.code) }
+      )
+    })))
+  }
+  return uniqueValidationIssues((group.value?.items ?? []).flatMap((item) =>
+    itemStepErrors(item, targetStep).map((error) => ({
+      step: targetStep,
+      orderId: item.order_id,
+      text: `${catalogProductName(item)}：${error}`
+    }))
+  ))
+}
+
+function finalValidationIssues(): ValidationIssue[] {
+  const issues: ValidationIssue[] = []
+  issues.push(...validationIssuesForStep(1))
+  for (const targetStep of [2, 3, 4, 5]) issues.push(...validationIssuesForStep(targetStep))
+  if (!finalConfirmations.requirements) {
+    issues.push({ step: 6, text: t('请勾选“制作要求确认”', 'Select “Production Requirements Confirmation”') })
+  }
+  if (!finalConfirmations.cycle) {
+    issues.push({ step: 6, text: t('请勾选“制作周期确认”', 'Select “Lead Time Confirmation”') })
+  }
+  return uniqueValidationIssues(issues)
+}
+
+function showValidationSummary(title: string, issues: ValidationIssue[]) {
+  validationSummary.value = { step: step.value, title, issues }
+  const firstProductIssue = issues.find((issue) => issue.orderId)
+  if (firstProductIssue?.orderId) selectedOrderId.value = firstProductIssue.orderId
+  ElMessage.warning(title)
+  nextTick(() => document.querySelector<HTMLElement>('[data-testid="case-validation-summary"]')
+    ?.scrollIntoView({ behavior: 'smooth', block: 'start' }))
+}
+
+function goToValidationIssue(issue: ValidationIssue) {
+  step.value = issue.step
+  if (issue.orderId) selectedOrderId.value = issue.orderId
+  validationSummary.value = null
+  nextTick(() => document.querySelector<HTMLElement>('.case-wizard > main')?.scrollTo({ top: 0, behavior: 'smooth' }))
+}
+
+function changeStep(targetStep: number) {
+  step.value = targetStep
+  validationSummary.value = null
 }
 
 function selectedTeeth(item: CaseGroupItem) {
@@ -1521,9 +1822,14 @@ async function saveItemUnlocked(item: CaseGroupItem, silent = false, fileIdsOver
   try {
     const mainMaterial = primaryMaterialValue(item)
     if (mainMaterial) choosePrimaryMaterial(item, mainMaterial)
+    if (primaryMaterialOptions(item).length) item.form_values.material = mainMaterial
+    synchronizeShadeDecision(item)
     item.form_values = {
       ...item.form_values,
-      ...caseSettingsSnapshot()
+      ...caseSettingsSnapshot(),
+      shared_upload_requirement_version: SHARED_UPLOAD_REQUIREMENT_VERSION,
+      shared_upload_slot_files: sharedUploadSnapshot(),
+      product_upload_slot_files: productUploadSnapshot(item)
     }
     const next = await api<CaseGroup>(
       `/order-case-groups/${group.value.group_id}/items/${item.order_id}`,
@@ -1541,7 +1847,7 @@ async function saveItemUnlocked(item: CaseGroupItem, silent = false, fileIdsOver
         })
       }
     )
-    group.value = next
+    group.value = mergeCaseGroupResponse(next, [item.order_id])
     if (!silent) ElMessage.success(t('{product} 已保存', '{product} saved', { product: catalogProductName(item) }))
     return true
   } catch (cause) {
@@ -1597,15 +1903,20 @@ async function uploadProductFiles(event: Event, item: CaseGroupItem, slotCode = 
   try {
     const uploaded = await props.gateway.uploadOrderFiles(String(item.order_id), files)
     itemFiles[item.order_id] = [...(itemFiles[item.order_id] ?? []), ...uploaded]
-    const slotFiles = item.form_values.upload_slot_files
+    const fixedProductSlot = isSharedUploadSlotCode(slotCode)
+    const assignmentKey = fixedProductSlot ? 'product_upload_slot_files' : 'upload_slot_files'
+    const slotFiles = item.form_values[assignmentKey]
     const nextSlots = slotFiles && typeof slotFiles === 'object' && !Array.isArray(slotFiles)
       ? { ...(slotFiles as Record<string, unknown>) }
       : {}
+    const previousIds = fixedProductSlot
+      ? productUploadSlotIds(item, slotCode)
+      : uploadedSlotIds(item, slotCode)
     nextSlots[slotCode] = distinctFileIds([
-      ...uploadedSlotIds(item, slotCode),
+      ...previousIds,
       ...uploaded.map((file) => Number(file.file_id))
     ])
-    item.form_values.upload_slot_files = nextSlots
+    item.form_values[assignmentKey] = nextSlots
     await saveItemUnlocked(item, true)
     ElMessage.success(t('{count} 个专属文件已上传', '{count} product-specific file(s) uploaded', { count: uploaded.length }))
   } catch (cause) {
@@ -1615,17 +1926,18 @@ async function uploadProductFiles(event: Event, item: CaseGroupItem, slotCode = 
   }
 }
 
-async function uploadSharedFiles(event: Event) {
-  const input = event.target as HTMLInputElement
-  const files = Array.from(input.files ?? [])
-  input.value = ''
+async function uploadSharedFiles(files: File[], slotCode: SharedUploadSlotCode) {
   const firstItem = group.value?.items[0]
   if (!files.length || !firstItem || !group.value || fileUploading.value || busy.value) return
   fileUploading.value = true
   try {
     const uploaded = await props.gateway.uploadOrderFiles(String(firstItem.order_id), files)
     sharedFiles.value = [...sharedFiles.value, ...uploaded]
-    group.value = await api<CaseGroup>(`/order-case-groups/${group.value.group_id}/shared-files`, {
+    sharedUploadAssignments[slotCode] = distinctFileIds([
+      ...sharedUploadSlotIds(slotCode),
+      ...uploaded.map((file) => Number(file.file_id))
+    ])
+    const next = await api<CaseGroup>(`/order-case-groups/${group.value.group_id}/shared-files`, {
       method: 'PUT',
       body: JSON.stringify({
         file_ids: distinctFileIds([
@@ -1635,12 +1947,26 @@ async function uploadSharedFiles(event: Event) {
         expected_draft_version: group.value.draft_version
       })
     })
+    group.value = mergeCaseGroupResponse(next)
+    if (!(await saveAllItemsUnlocked())) return
     ElMessage.success(t('{count} 个病例共享文件已上传', '{count} case-shared file(s) uploaded', { count: uploaded.length }))
   } catch (cause) {
     ElMessage.error(caseErrorText(cause, '共享文件上传失败', 'Failed to upload shared files'))
   } finally {
     fileUploading.value = false
   }
+}
+
+async function selectSharedUploadFiles(event: Event, slotCode: SharedUploadSlotCode) {
+  const input = event.target as HTMLInputElement
+  const files = Array.from(input.files ?? [])
+  input.value = ''
+  await uploadSharedFiles(files, slotCode)
+}
+
+async function handleSharedFileDrop(event: DragEvent, slotCode: SharedUploadSlotCode) {
+  const files = Array.from(event.dataTransfer?.files ?? [])
+  await uploadSharedFiles(files, slotCode)
 }
 
 async function removeProductFile(item: CaseGroupItem, file: DoctorFile) {
@@ -1654,17 +1980,20 @@ async function removeProductFile(item: CaseGroupItem, file: DoctorFile) {
       cancelButtonText: t('取消', 'Cancel'),
       type: 'warning'
     })
-    const previousSlots = item.form_values.upload_slot_files
-    const nextSlots = previousSlots && typeof previousSlots === 'object' && !Array.isArray(previousSlots)
-      ? Object.fromEntries(Object.entries(previousSlots as Record<string, unknown>).map(([slot, ids]) => [
+    const previousConfiguredSlots = item.form_values.upload_slot_files
+    const previousProductSlots = item.form_values.product_upload_slot_files
+    const withoutFile = (value: unknown) => value && typeof value === 'object' && !Array.isArray(value)
+      ? Object.fromEntries(Object.entries(value as Record<string, unknown>).map(([slot, ids]) => [
           slot,
           Array.isArray(ids) ? distinctFileIds(ids.map(Number)).filter((id) => id !== fileId) : ids
         ]))
-      : previousSlots
-    item.form_values.upload_slot_files = nextSlots
+      : value
+    item.form_values.upload_slot_files = withoutFile(previousConfiguredSlots)
+    item.form_values.product_upload_slot_files = withoutFile(previousProductSlots)
     const saved = await saveItemUnlocked(item, true, itemSelectedFileIds(item).filter((id) => id !== fileId))
     if (!saved) {
-      item.form_values.upload_slot_files = previousSlots
+      item.form_values.upload_slot_files = previousConfiguredSlots
+      item.form_values.product_upload_slot_files = previousProductSlots
       return
     }
     itemFiles[item.order_id] = (itemFiles[item.order_id] ?? []).filter((candidate) => Number(candidate.file_id) !== fileId)
@@ -1693,14 +2022,19 @@ async function removeSharedFile(file: DoctorFile) {
       ...(group.value.shared_file_ids ?? []),
       ...sharedFiles.value.map((candidate) => candidate.file_id)
     ]).filter((id) => id !== fileId)
-    group.value = await api<CaseGroup>(`/order-case-groups/${group.value.group_id}/shared-files`, {
+    const next = await api<CaseGroup>(`/order-case-groups/${group.value.group_id}/shared-files`, {
       method: 'PUT',
       body: JSON.stringify({
         file_ids: remainingIds,
         expected_draft_version: group.value.draft_version
       })
     })
+    group.value = mergeCaseGroupResponse(next)
+    SHARED_UPLOAD_SLOTS.forEach((slot) => {
+      sharedUploadAssignments[slot.code] = sharedUploadSlotIds(slot.code).filter((id) => id !== fileId)
+    })
     sharedFiles.value = sharedFiles.value.filter((candidate) => Number(candidate.file_id) !== fileId)
+    if (!(await saveAllItemsUnlocked())) return
     ElMessage.success(t('共享附件已移除', 'Shared attachment removed'))
   } catch (cause) {
     if (cause !== 'cancel' && cause !== 'close') {
@@ -1713,50 +2047,152 @@ async function removeSharedFile(file: DoctorFile) {
 
 async function nextStep() {
   if (busy.value || fileUploading.value) return
-  if (step.value === 1) {
-    if (!patientId.value) {
-      ElMessage.warning(t('请选择患者后再进入下一步', 'Select a patient before continuing'))
-      return
-    }
-    if (!selectedProductCount.value) {
-      ElMessage.warning(t('请至少选择一个产品', 'Select at least one product'))
-      return
-    }
-    const errors = caseStepOneErrors()
-    if (errors.length) {
-      ElMessage.warning(errors.join('；'))
-      return
-    }
+  if (step.value === 3) {
+    group.value?.items.forEach((item) => commitItemObjectFields(item))
+  }
+  const issues = validationIssuesForStep(step.value)
+  if (issues.length) {
+    showValidationSummary(
+      t('还不能进入下一步，请补齐以下内容', 'Complete the following items before continuing'),
+      issues
+    )
+    return
   }
   busy.value = true
   try {
     if (step.value === 1 && !(await persistPendingProductsUnlocked())) return
-    const currentStepErrors = group.value?.items.flatMap((item) => itemStepErrors(item, step.value)) ?? []
-    if (currentStepErrors.length) {
-      ElMessage.warning(Array.from(new Set(currentStepErrors)).join('；'))
-      return
-    }
     if (step.value <= 5 && !(await saveAllItemsUnlocked())) return
+    validationSummary.value = null
     step.value = Math.min(6, step.value + 1)
   } finally {
     busy.value = false
   }
 }
 
-function priceLabel(_item: CaseGroupItem) {
-  return t('待报价', 'Quote Pending')
+function priceLabel(item: CaseGroupItem) {
+  if (item.pricing_status !== 'PRICED' || item.quoted_price_cents == null) {
+    return t('价格待配置', 'Price To Be Configured')
+  }
+  const currency = item.quoted_price_currency || 'CNY'
+  return new Intl.NumberFormat(locale.value === 'EN' ? 'en-US' : 'zh-CN', {
+    style: 'currency',
+    currency
+  }).format(item.quoted_price_cents / 100)
+}
+
+function productQuantityLabel(item: CaseGroupItem) {
+  const configured = Number(item.form_values.product_quantity ?? item.form_values.quantity)
+  const quantity = Number.isFinite(configured) && configured > 0 ? configured : 1
+  return t('{count} 件', '{count} item(s)', { count: quantity })
+}
+
+function selectedBindingLabels(item: CaseGroupItem) {
+  const materialLabels = materialBindingsForItem(item)
+    .filter((binding) => selected(item.material_selections, binding.material_id))
+    .map(materialBindingLabel)
+  const accessoryLabels = (catalog.value?.accessories ?? [])
+    .filter((binding) => binding.product_id === item.product_id
+      && (binding.variant_id == null || binding.variant_id === item.variant_id)
+      && selected(item.accessory_selections, binding.accessory_id))
+    .map((binding) => binding.display_name)
+  return [...materialLabels, ...accessoryLabels]
+}
+
+function productionRequirementsLabel(item: CaseGroupItem) {
+  const parts = [
+    selectedTeeth(item).length
+      ? t('牙位：{teeth}', 'Teeth: {teeth}', { teeth: selectedTeeth(item).join(locale.value === 'EN' ? ', ' : '、') })
+      : '',
+    ...selectedBindingLabels(item),
+    ...sourceArray(item, 'process_reviews').map((value) => localizedSourceText(value, value))
+  ].filter(Boolean)
+  return parts.length
+    ? parts.join(locale.value === 'EN' ? '; ' : '；')
+    : t('按已选产品配置制作', 'Produce according to the selected product configuration')
+}
+
+function defaultRequirementsLabel(item: CaseGroupItem) {
+  const materials = materialBindingsForItem(item)
+    .filter((binding) => Boolean(binding.default_flag))
+    .map(materialBindingLabel)
+  const accessories = (catalog.value?.accessories ?? [])
+    .filter((binding) => binding.product_id === item.product_id
+      && (binding.variant_id == null || binding.variant_id === item.variant_id)
+      && Boolean(binding.default_flag))
+    .map((binding) => binding.display_name)
+  const values = [...materials, ...accessories]
+  return values.length
+    ? values.join(locale.value === 'EN' ? ', ' : '、')
+    : t('暂无单独默认要求', 'No separate default requirements')
+}
+
+function additionalRequirementsLabel(item: CaseGroupItem) {
+  const values = [
+    String(item.form_values.special_requirements ?? '').trim(),
+    caseSettings.global_notes.trim()
+  ].filter(Boolean)
+  return values.length
+    ? values.join(locale.value === 'EN' ? '; ' : '；')
+    : t('无附加要求', 'No additional requirements')
+}
+
+function attachmentCountLabel(item: CaseGroupItem) {
+  return t('共享 {shared} 个，专属 {product} 个', '{shared} shared, {product} product-specific', {
+    shared: sharedFiles.value.length,
+    product: itemFiles[item.order_id]?.length ?? 0
+  })
+}
+
+function productionCycleLabel() {
+  return caseSettings.required_delivery_date
+    ? t('要求到货：{date}', 'Requested delivery: {date}', { date: caseSettings.required_delivery_date })
+    : t('要求到货日期未填写', 'Requested delivery date not entered')
+}
+
+function openReviewSupportInquiry(item: CaseGroupItem, fieldCode: string, fieldLabel: string) {
+  reviewInquiry.open = true
+  reviewInquiry.orderId = item.order_id
+  reviewInquiry.fieldCode = fieldCode
+  reviewInquiry.fieldLabel = fieldLabel
+  reviewInquiry.productName = catalogProductName(item)
+  reviewInquiry.draft = t(
+    '我对“{product}”的“{field}”有疑问：',
+    'I have a question about “{field}” for “{product}”: ',
+    { product: reviewInquiry.productName, field: fieldLabel }
+  )
+  nextTick(() => document.querySelector<HTMLTextAreaElement>('[data-testid="case-review-inquiry-input"]')?.focus())
+}
+
+async function sendReviewSupportInquiry() {
+  const content = reviewInquiry.draft.trim()
+  if (!content || !reviewInquiry.orderId || reviewInquiry.sending) return
+  reviewInquiry.sending = true
+  try {
+    await props.gateway.sendMessage(`TH-${reviewInquiry.orderId}`, content)
+    reviewInquiry.open = false
+    ElMessage.success(t('问题已发送给客服；是否提交仍由您判断', 'Question sent to Order Support. You can still decide whether to submit.'))
+  } catch (cause) {
+    ElMessage.error(caseErrorText(cause, '问题发送失败', 'Failed to send the question'))
+  } finally {
+    reviewInquiry.sending = false
+  }
 }
 
 async function submitGroup() {
   if (!group.value || busy.value) return
-  if (!finalConfirmationComplete.value) {
-    ElMessage.warning(t('请确认报价、制作要求和制作周期口径', 'Confirm the quote, production requirements, and lead time'))
+  group.value.items.forEach((item) => commitItemObjectFields(item))
+  const issues = finalValidationIssues()
+  if (issues.length) {
+    showValidationSummary(
+      t('订单暂时不能提交，请补齐以下内容', 'Complete the following items before submitting the order'),
+      issues
+    )
     return
   }
   busy.value = true
   try {
     group.value.items.forEach((item) => {
-      item.form_values.doctor_confirmed_quote_status = true
+      item.form_values.doctor_confirmed_quote_status = item.pricing_status === 'PRICED' && item.quoted_price_cents != null
       item.form_values.doctor_confirmed_requirements = true
       item.form_values.doctor_confirmed_cycle_status = true
     })
@@ -1773,10 +2209,19 @@ async function submitGroup() {
       })
     })
     group.value = submitted
+    validationSummary.value = null
     emit('submitted', submitted)
     ElMessage.success(t('病例订单 {group} 已提交，共 {count} 个产品', 'Case order {group} submitted with {count} product(s)', { group: submitted.group_no, count: submitted.items.length }))
   } catch (cause) {
-    ElMessage.error(caseErrorText(cause, '订单提交失败', 'Failed to submit order'))
+    const message = caseErrorText(cause, '订单提交失败，请保留草稿并重试', 'Failed to submit the order. Keep the draft and try again.')
+    validationSummary.value = {
+      step: 6,
+      title: t('订单提交失败，请检查以下问题', 'Order submission failed. Check the following issue'),
+      issues: [{ step: 6, text: message }]
+    }
+    ElMessage.error(message)
+    nextTick(() => document.querySelector<HTMLElement>('[data-testid="case-validation-summary"]')
+      ?.scrollIntoView({ behavior: 'smooth', block: 'start' }))
   } finally {
     busy.value = false
   }
@@ -1809,7 +2254,7 @@ onMounted(async () => {
           type="button"
           :class="{ active: step === index + 1, done: step > index + 1 }"
           :disabled="index + 1 > step"
-          @click="step = index + 1"
+          @click="changeStep(index + 1)"
         >
           <span>{{ step > index + 1 ? '✓' : index + 1 }}</span>
           <strong>{{ label }}</strong>
@@ -1818,6 +2263,24 @@ onMounted(async () => {
     </nav>
 
     <main v-loading="loading">
+      <section
+        v-if="validationSummary && validationSummary.step === step"
+        class="case-validation-summary"
+        data-testid="case-validation-summary"
+        role="alert"
+        aria-live="assertive"
+      >
+        <header>
+          <div><strong>{{ validationSummary.title }}</strong><small>{{ t('补齐后再次点击下一步，清单会自动更新。', 'Complete the items and continue again to refresh this list.') }}</small></div>
+          <span>{{ t('共 {count} 项待补', '{count} item(s) incomplete', { count: validationSummary.issues.length }) }}</span>
+        </header>
+        <button v-for="(issue, index) in validationSummary.issues" :key="`${issue.step}-${issue.orderId ?? 0}-${index}`" type="button" @click="goToValidationIssue(issue)">
+          <span>{{ t('第 {step} 步', 'Step {step}', { step: issue.step }) }}</span>
+          <strong>{{ issue.text }}</strong>
+          <i>{{ t('去填写 →', 'Go to Field →') }}</i>
+        </button>
+      </section>
+
       <section v-if="step === 1" class="case-panel case-source-step">
         <div class="case-source-layout">
           <aside class="case-source-sidebar">
@@ -2129,7 +2592,23 @@ onMounted(async () => {
                 <label class="case-field"><span>{{ t('牙龄 *', 'Dentition Stage *') }}</span><select v-model="activeItem.form_values.dentition_stage"><option value="">{{ t('请选择', 'Select') }}</option><option value="PERMANENT">{{ t('恒牙', 'Permanent Dentition') }}</option><option value="PRIMARY">{{ t('乳牙', 'Primary Dentition') }}</option><option value="MIXED">{{ t('替牙', 'Mixed Dentition') }}</option></select></label>
                 <label class="case-field"><span>{{ t('错颌畸形类别 *', 'Malocclusion Class *') }}</span><select v-model="activeItem.form_values.angle_class"><option value="">{{ t('请选择', 'Select') }}</option><option value="CLASS_I">{{ t('安氏一类', 'Angle Class I') }}</option><option value="CLASS_II">{{ t('安氏二类', 'Angle Class II') }}</option><option value="CLASS_III">{{ t('安氏三类', 'Angle Class III') }}</option></select></label>
                 <label class="case-field"><span>{{ t('骨骼类型 *', 'Skeletal Type *') }}</span><select v-model="activeItem.form_values.skeletal_type"><option value="">{{ t('请选择', 'Select') }}</option><option value="DENTAL">{{ t('牙型', 'Dental') }}</option><option value="SKELETAL">{{ t('骨性', 'Skeletal') }}</option></select></label>
-                <div class="case-field full"><span>{{ t('诉求问题 *', 'Orthodontic Concerns *') }}</span><div class="case-check-grid"><label v-for="value in ['拥挤', '稀疏', '前突', '地包天']" :key="value"><input type="checkbox" :checked="sourceArray(activeItem, 'orthodontic_concern').includes(value)" @change="toggleSourceArray(activeItem, 'orthodontic_concern', value, ($event.target as HTMLInputElement).checked)">{{ localizedSourceText(value) }}</label></div></div>
+                <div class="case-field case-concern-field full">
+                  <span>{{ t('主要矫治诉求 *', 'Primary Orthodontic Concerns *') }} <small>{{ t('可多选', 'Multiple selections allowed') }}</small></span>
+                  <div class="case-check-grid" data-testid="case-orthodontic-concerns">
+                    <label
+                      v-for="value in ['拥挤', '稀疏', '前突', '地包天']"
+                      :key="value"
+                      :class="{ active: sourceArray(activeItem, 'orthodontic_concern').includes(value) }"
+                    >
+                      <input
+                        type="checkbox"
+                        :checked="sourceArray(activeItem, 'orthodontic_concern').includes(value)"
+                        @change="toggleSourceArray(activeItem, 'orthodontic_concern', value, ($event.target as HTMLInputElement).checked)"
+                      >
+                      <span>{{ localizedSourceText(value) }}</span>
+                    </label>
+                  </div>
+                </div>
               </div>
               <div v-else-if="productCategory(activeItem) === 'CLEAR_ALIGNER'" class="case-field-grid">
                 <label class="case-field"><span>{{ t('矫治牙颌 *', 'Treatment Arch *') }}</span><select v-model="activeItem.form_values.treatment_arch" data-testid="case-clear-aligner-arch"><option value="">{{ t('请选择', 'Select') }}</option><option v-for="option in CLEAR_ALIGNER_ARCH_OPTIONS" :key="option.value" :value="option.value">{{ archOptionLabel(option.value, option.label) }}</option></select></label>
@@ -2191,6 +2670,16 @@ onMounted(async () => {
             >
               <header><h3>{{ productCategory(activeItem) === 'IMPLANT_RESTORATION' ? t('修复材料', 'Restoration Material') : productCategory(activeItem) === 'REMOVABLE_PROSTHETICS' ? t('活动义齿配置', 'Removable Denture Configuration') : t('材料与工艺', 'Materials & Process') }}</h3></header>
               <div class="case-material-grid">
+                <div v-if="requiresShadeDecision(activeItem)" class="case-shade-decision full" data-testid="case-shade-decision">
+                  <div>
+                    <strong>{{ t('颜色 / 色号 *', 'Color / Shade *') }}</strong>
+                    <small>{{ t('请选择色号，或明确勾选本产品无需指定颜色。', 'Select a shade, or explicitly mark that this product does not require one.') }}</small>
+                  </div>
+                  <label class="case-switch">
+                    <input v-model="activeItem.form_values.shade_not_required" type="checkbox" data-testid="case-shade-not-required">
+                    <span>{{ t('本产品无需指定颜色', 'No shade required for this product') }}</span>
+                  </label>
+                </div>
                 <label v-if="primaryMaterialOptions(activeItem).length" class="case-field">
                   <span>{{ t('主材料 / 制作项目 *', 'Primary Material / Manufacturing Item *') }}</span>
                   <select :value="primaryMaterialValue(activeItem)" data-testid="case-primary-material" @change="choosePrimaryMaterial(activeItem, ($event.target as HTMLSelectElement).value)">
@@ -2208,22 +2697,22 @@ onMounted(async () => {
 
                 <template v-if="productCategory(activeItem) === 'FIXED_RESTORATION'">
                   <label class="case-field"><span>{{ t('边缘类型', 'Margin Type') }}</span><select v-model="activeItem.form_values.finish_margin_type"><option value="">{{ t('请选择', 'Select') }}</option><option value="SUPRAGINGIVAL">{{ t('龈上边缘', 'Supragingival Margin') }}</option><option value="SUBGINGIVAL">{{ t('龈下边缘', 'Subgingival Margin') }}</option><option value="SHOULDER_STANDARD">{{ t('肩台标准', 'Standard Shoulder') }}</option></select></label>
-                  <label class="case-field"><span>{{ t('牙色系统', 'Shade System') }}</span><select v-model="activeItem.form_values.shade_system"><option value="">{{ t('请选择', 'Select') }}</option><option value="VITA_16">VITA 16 Classic</option><option value="3D_MASTER">3D Master</option><option value="THREE_ZONE">{{ t('颈部 / 体部 / 切端分色', 'Cervical / Body / Incisal Shades') }}</option></select></label>
+                  <label v-if="!shadeNotRequired(activeItem)" class="case-field"><span>{{ t('牙色系统 *', 'Shade System *') }}</span><select v-model="activeItem.form_values.shade_system"><option value="">{{ t('请选择', 'Select') }}</option><option value="VITA_16">VITA 16 Classic</option><option value="3D_MASTER">3D Master</option><option value="THREE_ZONE">{{ t('颈部 / 体部 / 切端分色', 'Cervical / Body / Incisal Shades') }}</option></select></label>
                 </template>
                 <template v-else-if="productCategory(activeItem) === 'IMPLANT_RESTORATION'">
-                  <label class="case-field"><span>{{ t('牙色系统', 'Shade System') }}</span><select v-model="activeItem.form_values.shade_system"><option value="">{{ t('请选择', 'Select') }}</option><option value="VITA_16">VITA 16 Classic</option><option value="3D_MASTER">3D Master</option><option value="THREE_ZONE">{{ t('颈部 / 体部 / 切端分色', 'Cervical / Body / Incisal Shades') }}</option></select></label>
+                  <label v-if="!shadeNotRequired(activeItem)" class="case-field"><span>{{ t('牙色系统 *', 'Shade System *') }}</span><select v-model="activeItem.form_values.shade_system"><option value="">{{ t('请选择', 'Select') }}</option><option value="VITA_16">VITA 16 Classic</option><option value="3D_MASTER">3D Master</option><option value="THREE_ZONE">{{ t('颈部 / 体部 / 切端分色', 'Cervical / Body / Incisal Shades') }}</option></select></label>
                 </template>
                 <template v-else-if="productCategory(activeItem) === 'REMOVABLE_PROSTHETICS'">
                   <label class="case-field"><span>{{ t('卡环设计', 'Clasp Design') }}</span><select v-model="activeItem.form_values.clasp_design"><option value="">{{ t('无 / 请选择', 'None / Select') }}</option><option>Standard I-bar</option><option>Circumferential</option><option>Ball Clasp</option><option>Custom</option><option>Casting Wire Clasp</option><option>Clear Clasp</option><option>Valplast Clasp-clear</option><option>Cast Chrome Clasp</option><option>Wrought Wire Clasp</option><option>Valplast Clasp-pink</option></select></label>
                   <label class="case-field"><span>{{ t('义齿牙品牌', 'Denture Tooth Brand') }}</span><select v-model="activeItem.form_values.denture_teeth_brand"><option value="">{{ t('请选择', 'Select') }}</option><option>Huge</option><option>Yamahachi</option><option>Vita</option></select></label>
-                  <label class="case-field"><span>{{ t('牙色系统', 'Shade System') }}</span><select v-model="activeItem.form_values.shade_system"><option value="">{{ t('请选择', 'Select') }}</option><option value="VITA_16">VITA 16 Classic</option><option value="3D_MASTER">3D Master</option></select></label>
+                  <label v-if="!shadeNotRequired(activeItem)" class="case-field"><span>{{ t('牙色系统 *', 'Shade System *') }}</span><select v-model="activeItem.form_values.shade_system"><option value="">{{ t('请选择', 'Select') }}</option><option value="VITA_16">VITA 16 Classic</option><option value="3D_MASTER">3D Master</option></select></label>
                 </template>
 
-                <label v-if="activeItem.form_values.shade_system && activeItem.form_values.shade_system !== 'THREE_ZONE' && ['FIXED_RESTORATION', 'IMPLANT_RESTORATION', 'REMOVABLE_PROSTHETICS'].includes(productCategory(activeItem))" class="case-field"><span>{{ t('牙色', 'Shade') }}</span><select v-model="activeItem.form_values.shade_value"><option value="">{{ t('请选择', 'Select') }}</option><option v-for="shade in activeItem.form_values.shade_system === '3D_MASTER' ? VITA_3D_SHADES : VITA_16_SHADES" :key="shade">{{ shade }}</option></select></label>
-                <template v-if="activeItem.form_values.shade_system === 'THREE_ZONE'">
-                  <label class="case-field"><span>{{ t('颈部色', 'Cervical Shade') }}</span><select v-model="activeItem.form_values.cervical_shade"><option value="">{{ t('请选择', 'Select') }}</option><option v-for="shade in [...VITA_16_SHADES, ...VITA_3D_SHADES]" :key="`c-${shade}`">{{ shade }}</option></select></label>
-                  <label class="case-field"><span>{{ t('体部色', 'Body Shade') }}</span><select v-model="activeItem.form_values.body_shade"><option value="">{{ t('请选择', 'Select') }}</option><option v-for="shade in [...VITA_16_SHADES, ...VITA_3D_SHADES]" :key="`b-${shade}`">{{ shade }}</option></select></label>
-                  <label class="case-field"><span>{{ t('切端色', 'Incisal Shade') }}</span><select v-model="activeItem.form_values.incisal_shade"><option value="">{{ t('请选择', 'Select') }}</option><option v-for="shade in [...VITA_16_SHADES, ...VITA_3D_SHADES]" :key="`i-${shade}`">{{ shade }}</option></select></label>
+                <label v-if="!shadeNotRequired(activeItem) && activeItem.form_values.shade_system && activeItem.form_values.shade_system !== 'THREE_ZONE' && requiresShadeDecision(activeItem)" class="case-field"><span>{{ t('牙色 *', 'Shade *') }}</span><select v-model="activeItem.form_values.shade_value"><option value="">{{ t('请选择', 'Select') }}</option><option v-for="shade in activeItem.form_values.shade_system === '3D_MASTER' ? VITA_3D_SHADES : VITA_16_SHADES" :key="shade">{{ shade }}</option></select></label>
+                <template v-if="!shadeNotRequired(activeItem) && activeItem.form_values.shade_system === 'THREE_ZONE'">
+                  <label class="case-field"><span>{{ t('颈部色 *', 'Cervical Shade *') }}</span><select v-model="activeItem.form_values.cervical_shade"><option value="">{{ t('请选择', 'Select') }}</option><option v-for="shade in [...VITA_16_SHADES, ...VITA_3D_SHADES]" :key="`c-${shade}`">{{ shade }}</option></select></label>
+                  <label class="case-field"><span>{{ t('体部色 *', 'Body Shade *') }}</span><select v-model="activeItem.form_values.body_shade"><option value="">{{ t('请选择', 'Select') }}</option><option v-for="shade in [...VITA_16_SHADES, ...VITA_3D_SHADES]" :key="`b-${shade}`">{{ shade }}</option></select></label>
+                  <label class="case-field"><span>{{ t('切端色 *', 'Incisal Shade *') }}</span><select v-model="activeItem.form_values.incisal_shade"><option value="">{{ t('请选择', 'Select') }}</option><option v-for="shade in [...VITA_16_SHADES, ...VITA_3D_SHADES]" :key="`i-${shade}`">{{ shade }}</option></select></label>
                 </template>
                 <label v-if="productCategory(activeItem) === 'REMOVABLE_PROSTHETICS'" class="case-field"><span>{{ t('义齿基托颜色', 'Denture Base Shade') }}</span><select v-model="activeItem.form_values.denture_base_shade"><option value="">{{ t('请选择', 'Select') }}</option><option v-for="shade in DENTURE_BASE_SHADES" :key="shade">{{ localizedSourceText(shade, shade) }}</option></select></label>
                 <label v-if="['FIXED_RESTORATION', 'IMPLANT_RESTORATION', 'REMOVABLE_PROSTHETICS'].includes(productCategory(activeItem))" class="case-field"><span>{{ t('抛光程度', 'Polish Level') }}</span><select v-model="activeItem.form_values.polish_grade"><option value="">{{ t('请选择', 'Select') }}</option><option value="STANDARD">{{ t('普通抛光', 'Standard Polish') }}</option><option value="MIRROR">{{ t('镜面抛光', 'Mirror Polish') }}</option></select></label>
@@ -2310,33 +2799,81 @@ onMounted(async () => {
       </section>
 
       <section v-else-if="step === 4" class="case-panel">
-        <header><h1>{{ t('资料上传', 'Upload Records') }}</h1><p>{{ t('请上传病例共享资料和各产品所需资料；单个文件最大 500MB。', 'Upload case-shared records and product-specific files. Maximum file size: 500 MB.') }}</p></header>
+        <header><h1>{{ t('资料上传', 'Upload Records') }}</h1><p>{{ t('每个产品都需要上颌、下颌和咬合扫描，可直接继承病例共享资料，也可上传该产品的专属版本；其余三类资料选传。单个文件最大 500MB。', 'Every product needs upper, lower, and bite scans. Use the case-shared records or upload product-specific versions. The other three record types are optional. Maximum file size is 500 MB.') }}</p></header>
         <section class="case-upload-card shared">
-          <header><div><strong>{{ t('病例共享资料', 'Case-shared Records') }}</strong><small>{{ t('同一病例多个产品共用的影像可只上传一次', 'Images shared by multiple products in the same case only need to be uploaded once') }}</small></div><span>{{ t('{count} 个', '{count} file(s)', { count: sharedFiles.length }) }}</span></header>
-          <label><input type="file" multiple :disabled="fileUploading || !group?.items.length" @change="uploadSharedFiles"><b>＋ {{ t('上传共享资料', 'Upload Shared Records') }}</b><small>{{ t('共享资料仍需在下方相应资料槽位中完成分类', 'Shared records must still be assigned to the appropriate slots below') }}</small></label>
-          <article v-for="file in sharedFiles" :key="file.file_id">
-            <strong>{{ file.name }}</strong>
-            <small>{{ file.size_label }}</small>
-            <button type="button" class="case-file-remove" :disabled="busy || fileUploading" @click="removeSharedFile(file)">{{ t('移除', 'Remove') }}</button>
-          </article>
+          <header><div><strong>{{ t('病例共享资料 · 默认用于全部产品', 'Case-shared Records · Used by All Products by Default') }}</strong><small>{{ t('当前病例共 {count} 个产品；专属区未上传同类文件时，产品自动使用这里的文件', '{count} product(s) in this case. A product automatically uses these files unless a product-specific version is uploaded.', { count: group?.items.length ?? 0 }) }}</small></div><span>{{ t('{count} 个', '{count} file(s)', { count: sharedFiles.length }) }}</span></header>
+          <div class="case-shared-upload-slots">
+            <div
+              v-for="slot in SHARED_UPLOAD_SLOTS"
+              :key="slot.code"
+              class="case-shared-upload-slot"
+              :class="{ complete: sharedUploadSlotIds(slot.code).length, required: slot.required }"
+              @dragover.prevent
+              @drop.prevent="handleSharedFileDrop($event, slot.code)"
+            >
+              <div>
+                <strong>{{ localizedSourceText(slot.label, slot.code) }} <b>{{ slot.required ? t('必传（共享或专属）', 'Required (Shared or Product-specific)') : t('选传', 'Optional') }}</b></strong>
+                <small>{{ slot.accept }} · {{ t('点击或拖拽文件到此处', 'Click or drag files here') }}</small>
+              </div>
+              <span>{{ sharedUploadSlotIds(slot.code).length ? t('已上传 {count} 个', '{count} uploaded', { count: sharedUploadSlotIds(slot.code).length }) : t('尚未上传', 'Not Uploaded') }}</span>
+              <label><i>＋ {{ t('选择文件', 'Choose Files') }}</i><input type="file" multiple :accept="slot.accept" :disabled="fileUploading || !group?.items.length" @change="selectSharedUploadFiles($event, slot.code)"></label>
+              <article v-for="file in sharedFilesForSlot(slot.code)" :key="file.file_id">
+                <div><strong>{{ file.name }}</strong><small>{{ file.size_label }}</small></div>
+                <button type="button" class="case-file-remove" :disabled="busy || fileUploading" @click="removeSharedFile(file)">{{ t('移除', 'Remove') }}</button>
+              </article>
+            </div>
+          </div>
+          <div v-if="missingRequiredSharedSlots.length" class="case-alert neutral">{{ t('共享区尚未提供：{items}。这些类型可以在下方各产品专属区分别补齐。', 'Not yet provided in the shared area: {items}. These record types can be completed separately in each product-specific area.', { items: missingRequiredSharedSlots.map((slot) => localizedSourceText(slot.label, slot.code)).join(locale === 'EN' ? ', ' : '、') }) }}</div>
         </section>
         <div class="case-config-layout upload-layout">
           <aside class="case-item-tabs" :data-section-label="t('已选产品', 'Selected Products')">
             <button v-for="item in group?.items ?? []" :key="item.order_id" type="button" :class="{ active: activeItem?.order_id === item.order_id }" @click="selectedOrderId = item.order_id">
-              <span>{{ item.line_no }}</span><div><strong>{{ catalogProductName(item) }}</strong><small>{{ t('{count} 项必传待补', '{count} required upload(s) missing', { count: uploadRules(item).filter((rule) => rule.required && !uploadedSlotIds(item, rule.code).length).length }) }}</small></div>
+              <span>{{ item.line_no }}</span><div><strong>{{ catalogProductName(item) }}</strong><small>{{ missingRequiredSlotsForItem(item).length ? t('缺 {count} 项必传资料', '{count} required record(s) missing', { count: missingRequiredSlotsForItem(item).length }) : t('必传资料完整，其余选传', 'Required records complete; others optional') }}</small></div>
             </button>
           </aside>
           <section v-if="activeItem" class="case-upload-card">
-            <header><div><strong>{{ catalogProductName(activeItem) }}</strong><small>{{ categoryName(productCategory(activeItem)) }} · {{ activeItem.order_no }}</small></div><span>{{ t('{count} 个', '{count} file(s)', { count: itemFiles[activeItem.order_id]?.length ?? 0 }) }}</span></header>
-            <div class="case-upload-slots">
-              <label v-for="rule in uploadRules(activeItem)" :key="rule.code" :class="{ complete: uploadedSlotIds(activeItem, rule.code).length }">
-                <div><strong>{{ localizedSourceText(rule.label, rule.code) }}</strong><small>{{ rule.required ? t('必传', 'Required') : t('选传', 'Optional') }} · {{ rule.accept }}</small></div>
-                <span>{{ uploadedSlotIds(activeItem, rule.code).length ? t('已上传 {count} 个', '{count} uploaded', { count: uploadedSlotIds(activeItem, rule.code).length }) : t('尚未上传', 'Not Uploaded') }}</span>
-                <b>＋ {{ t('选择文件', 'Choose Files') }}<input type="file" multiple :accept="rule.accept" :disabled="fileUploading" @change="uploadProductFiles($event, activeItem, rule.code)"></b>
-              </label>
+            <header><div><strong>{{ catalogProductName(activeItem) }} · {{ t('产品专属资料', 'Product-specific Records') }}</strong><small>{{ t('与共享区类型相同；上传专属版本后，仅当前产品优先使用专属文件', 'Uses the same record types as the shared area. A product-specific version takes priority only for this product.') }} · {{ activeItem.order_no }}</small></div><span>{{ t('{count} 个专属文件', '{count} product-specific file(s)', { count: itemFiles[activeItem.order_id]?.length ?? 0 }) }}</span></header>
+            <div class="case-shared-upload-slots case-product-upload-slots">
+              <div
+                v-for="slot in SHARED_UPLOAD_SLOTS"
+                :key="slot.code"
+                class="case-shared-upload-slot"
+                :class="{ complete: effectiveUploadSlotIds(activeItem, slot.code).length, inherited: !productUploadSlotIds(activeItem, slot.code).length && sharedUploadSlotIds(slot.code).length, required: slot.required }"
+              >
+                <div>
+                  <strong>{{ localizedSourceText(slot.label, slot.code) }} <b>{{ slot.required ? t('必传（共享或专属）', 'Required (Shared or Product-specific)') : t('选传', 'Optional') }}</b></strong>
+                  <small>{{ slot.accept }} · {{ t('专属文件仅用于当前产品', 'Product-specific files apply only to this product') }}</small>
+                </div>
+                <span v-if="productUploadSlotIds(activeItem, slot.code).length">{{ t('使用专属资料', 'Using Product-specific') }}</span>
+                <span v-else-if="sharedUploadSlotIds(slot.code).length">{{ t('继承共享资料', 'Using Shared Record') }}</span>
+                <span v-else>{{ t('尚未上传', 'Not Uploaded') }}</span>
+                <label><i>＋ {{ t('上传专属文件', 'Upload Product-specific') }}</i><input type="file" multiple :accept="slot.accept" :disabled="fileUploading" @change="uploadProductFiles($event, activeItem, slot.code)"></label>
+                <article v-for="file in productFilesForSlot(activeItem, slot.code)" :key="file.file_id">
+                  <div><strong>{{ file.name }}</strong><small>{{ file.size_label }} · {{ t('产品专属', 'Product-specific') }}</small></div>
+                  <button type="button" class="case-file-remove" :disabled="busy || fileUploading" @click="removeProductFile(activeItem, file)">{{ t('移除', 'Remove') }}</button>
+                </article>
+                <article v-for="file in inheritedSharedFilesForSlot(activeItem, slot.code)" :key="`shared-${file.file_id}`" class="inherited-file">
+                  <div><strong>{{ file.name }}</strong><small>{{ file.size_label }} · {{ t('来自病例共享', 'From Case-shared Records') }}</small></div>
+                </article>
+              </div>
             </div>
-            <div v-if="itemFiles[activeItem.order_id]?.length" class="case-uploaded-files">
-              <article v-for="file in itemFiles[activeItem.order_id]" :key="file.file_id">
+            <section v-if="uploadRules(activeItem).length" class="case-additional-product-records">
+              <header><strong>{{ t('该产品的其他资料类型', 'Additional Record Types for This Product') }}</strong><small>{{ t('由当前产品配置提供，均为选传', 'Provided by the current product configuration; all are optional') }}</small></header>
+              <div class="case-upload-slots">
+                <div v-for="rule in uploadRules(activeItem)" :key="rule.code" class="case-extra-upload-slot" :class="{ complete: uploadedSlotIds(activeItem, rule.code).length }">
+                  <div><strong>{{ localizedSourceText(rule.label, rule.code) }}</strong><small>{{ t('选传', 'Optional') }} · {{ rule.accept }}</small></div>
+                  <span>{{ uploadedSlotIds(activeItem, rule.code).length ? t('已上传 {count} 个', '{count} uploaded', { count: uploadedSlotIds(activeItem, rule.code).length }) : t('尚未上传', 'Not Uploaded') }}</span>
+                  <label>＋ {{ t('选择文件', 'Choose Files') }}<input type="file" multiple :accept="rule.accept" :disabled="fileUploading" @change="uploadProductFiles($event, activeItem, rule.code)"></label>
+                  <article v-for="file in configuredProductFilesForSlot(activeItem, rule.code)" :key="file.file_id">
+                    <div><strong>{{ file.name }}</strong><small>{{ file.size_label }}</small></div>
+                    <button type="button" class="case-file-remove" :disabled="busy || fileUploading" @click="removeProductFile(activeItem, file)">{{ t('移除', 'Remove') }}</button>
+                  </article>
+                </div>
+              </div>
+            </section>
+            <div v-if="unassignedProductFiles(activeItem).length" class="case-uploaded-files">
+              <strong>{{ t('未分类的历史专属附件', 'Unclassified Existing Product Attachments') }}</strong>
+              <article v-for="file in unassignedProductFiles(activeItem)" :key="file.file_id">
                 <div><strong>{{ file.name }}</strong><small>{{ file.size_label }}</small></div>
                 <button type="button" class="case-file-remove" :disabled="busy || fileUploading" @click="removeProductFile(activeItem, file)">{{ t('移除', 'Remove') }}</button>
               </article>
@@ -2350,7 +2887,7 @@ onMounted(async () => {
         <div class="case-config-layout">
           <aside class="case-item-tabs" :data-section-label="t('已选产品', 'Selected Products')">
             <button v-for="item in group?.items ?? []" :key="item.order_id" type="button" :class="{ active: activeItem?.order_id === item.order_id }" @click="selectedOrderId = item.order_id">
-              <span>{{ item.line_no }}</span><div><strong>{{ catalogProductName(item) }}</strong><small>{{ item.order_no }}</small></div>
+              <span>{{ item.line_no }}</span><div><strong>{{ catalogProductName(item) }}</strong><small>{{ itemStepErrors(item, 5).length ? t('{count} 项待补', '{count} item(s) incomplete', { count: itemStepErrors(item, 5).length }) : t('本阶段完整', 'Section Complete') }}</small></div>
             </button>
           </aside>
           <section v-if="activeItem" class="case-config-form">
@@ -2398,7 +2935,7 @@ onMounted(async () => {
       </section>
 
       <section v-else class="case-panel">
-        <header><h1>{{ t('报价、要求与周期确认', 'Quote, Requirements & Lead Time') }}</h1><p>{{ t('请核对全部产品和资料；正式报价与可行交期将在客服受理后确认。', 'Review all products and records. Order Support will confirm the final quote and feasible lead time.') }}</p></header>
+        <header><h1>{{ t('订单信息最终确认', 'Final Order Review') }}</h1><p>{{ t('请核对产品、数量、要求、附件、周期和价格字段。价格暂以占位字段展示；如有疑问可询问客服，询问不会阻止提交。', 'Review the products, quantities, requirements, attachments, lead time, and price fields. Pricing is currently shown as a placeholder. Asking Order Support does not block submission.') }}</p></header>
         <div class="case-review-head">
           <div><span>{{ t('病例订单', 'Case Order') }}</span><strong>{{ group?.group_no }}</strong></div>
           <div><span>{{ t('患者', 'Patient') }}</span><strong>{{ selectedPatient?.patient_name }}</strong></div>
@@ -2407,20 +2944,36 @@ onMounted(async () => {
         </div>
         <div class="case-review-list">
           <article v-for="item in group?.items ?? []" :key="item.order_id" :class="{ incomplete: itemErrors(item).length }">
-            <span>{{ item.line_no }}</span>
-            <div><strong>{{ catalogProductName(item) }}<em v-if="item.variant_name"> · {{ safeEnglishDynamicText(item.variant_name, humanizeCode(item.variant_code || 'variant')) }}</em></strong><small>{{ item.order_no }} · {{ categoryName(productCategory(item)) }}</small></div>
-            <b>{{ priceLabel(item) }}</b>
-            <i>{{ t('{count} 个专属文件', '{count} product-specific file(s)', { count: itemFiles[item.order_id]?.length ?? 0 }) }}</i>
-            <em>{{ itemErrors(item).length ? itemErrors(item).join(locale === 'EN' ? '; ' : '；') : t('配置完整', 'Configuration Complete') }}</em>
+            <header>
+              <span>{{ item.line_no }}</span>
+              <div><strong>{{ catalogProductName(item) }}<em v-if="item.variant_name"> · {{ safeEnglishDynamicText(item.variant_name, humanizeCode(item.variant_code || 'variant')) }}</em></strong><small>{{ item.order_no }} · {{ categoryName(productCategory(item)) }}</small></div>
+              <em>{{ itemErrors(item).length ? t('配置待补', 'Configuration Incomplete') : t('配置完整', 'Configuration Complete') }}</em>
+            </header>
+            <div class="case-review-field-grid">
+              <section><span>{{ t('产品', 'Product') }}</span><strong>{{ catalogProductName(item) }}</strong><button type="button" class="case-review-ask-support" @click="openReviewSupportInquiry(item, 'product', t('产品', 'Product'))">{{ t('询问客服', 'Ask Support') }}</button></section>
+              <section><span>{{ t('数量', 'Quantity') }}</span><strong>{{ productQuantityLabel(item) }}</strong><button type="button" class="case-review-ask-support" @click="openReviewSupportInquiry(item, 'quantity', t('数量', 'Quantity'))">{{ t('询问客服', 'Ask Support') }}</button></section>
+              <section><span>{{ t('制作要求', 'Production Requirements') }}</span><strong>{{ productionRequirementsLabel(item) }}</strong><button type="button" class="case-review-ask-support" @click="openReviewSupportInquiry(item, 'requirements', t('制作要求', 'Production Requirements'))">{{ t('询问客服', 'Ask Support') }}</button></section>
+              <section><span>{{ t('附件数量', 'Attachment Count') }}</span><strong>{{ attachmentCountLabel(item) }}</strong><button type="button" class="case-review-ask-support" @click="openReviewSupportInquiry(item, 'attachments', t('附件数量', 'Attachment Count'))">{{ t('询问客服', 'Ask Support') }}</button></section>
+              <section><span>{{ t('制作周期', 'Production Cycle') }}</span><strong>{{ productionCycleLabel() }}</strong><button type="button" class="case-review-ask-support" @click="openReviewSupportInquiry(item, 'cycle', t('制作周期', 'Production Cycle'))">{{ t('询问客服', 'Ask Support') }}</button></section>
+              <section><span>{{ t('价格', 'Price') }}</span><strong class="is-price-placeholder">{{ priceLabel(item) }}</strong><button type="button" class="case-review-ask-support" @click="openReviewSupportInquiry(item, 'price', t('价格', 'Price'))">{{ t('询问客服', 'Ask Support') }}</button></section>
+              <section><span>{{ t('附加要求', 'Additional Requirements') }}</span><strong>{{ additionalRequirementsLabel(item) }}</strong><button type="button" class="case-review-ask-support" @click="openReviewSupportInquiry(item, 'additional_requirements', t('附加要求', 'Additional Requirements'))">{{ t('询问客服', 'Ask Support') }}</button></section>
+              <section><span>{{ t('默认要求', 'Default Requirements') }}</span><strong>{{ defaultRequirementsLabel(item) }}</strong><button type="button" class="case-review-ask-support" @click="openReviewSupportInquiry(item, 'default_requirements', t('默认要求', 'Default Requirements'))">{{ t('询问客服', 'Ask Support') }}</button></section>
+            </div>
+            <div v-if="itemErrors(item).length" class="case-review-errors">{{ itemErrors(item).join(locale === 'EN' ? '; ' : '；') }}</div>
+            <form v-if="reviewInquiry.open && reviewInquiry.orderId === item.order_id" class="case-review-inquiry" @submit.prevent="sendReviewSupportInquiry">
+              <header><div><strong>{{ t('询问客服', 'Ask Order Support') }}</strong><small>{{ reviewInquiry.productName }} · {{ reviewInquiry.fieldLabel }}</small></div><button type="button" @click="reviewInquiry.open = false">×</button></header>
+              <textarea v-model="reviewInquiry.draft" data-testid="case-review-inquiry-input" rows="3" :placeholder="t('补充你需要确认的问题', 'Describe what you need to confirm')"></textarea>
+              <footer><span>{{ t('发送问题不会改变提交按钮状态，由医生自行判断是否提交。', 'Sending a question does not change submit availability; the doctor decides whether to submit.') }}</span><button type="submit" :disabled="reviewInquiry.sending || !reviewInquiry.draft.trim()">{{ reviewInquiry.sending ? t('发送中…', 'Sending…') : t('发送给客服', 'Send to Support') }}</button></footer>
+            </form>
           </article>
         </div>
         <section class="case-final-confirmations">
-          <label><input v-model="finalConfirmations.quote" type="checkbox"><div><strong>{{ t('报价状态确认', 'Quote Status Confirmation') }}</strong><p>{{ t('当前所有产品均为“待报价”，提交后由客服核价并告知正式报价。', 'All products are currently Quote Pending. Order Support will provide the final quote after submission.') }}</p></div></label>
           <label><input v-model="finalConfirmations.requirements" type="checkbox"><div><strong>{{ t('制作要求确认', 'Production Requirements Confirmation') }}</strong><p>{{ t('我已核对牙位、材料、工艺、资料、试戴及过程确认要求。', 'I have reviewed tooth positions, materials, processes, records, try-in, and confirmation requirements.') }}</p></div></label>
-          <label><input v-model="finalConfirmations.cycle" type="checkbox"><div><strong>{{ t('制作周期确认', 'Lead Time Confirmation') }}</strong><p>{{ t('要求到货日为 {date}；正式工期由客服根据产品和资料完整度确认。', 'Requested delivery date: {date}. Order Support will confirm the final lead time based on the products and record completeness.', { date: caseSettings.required_delivery_date || t('未填写', 'Not Entered') }) }}</p></div></label>
+          <label><input v-model="finalConfirmations.cycle" type="checkbox"><div><strong>{{ t('制作周期确认', 'Lead Time Confirmation') }}</strong><p>{{ t('我已核对要求到货日：{date}。', 'I have reviewed the requested delivery date: {date}.', { date: caseSettings.required_delivery_date || t('未填写', 'Not Entered') }) }}</p></div></label>
         </section>
         <div v-if="incompleteItems.length" class="case-alert warning">{{ t('还有 {count} 个子产品不完整，请返回对应阶段补齐：{products}。', '{count} product(s) are incomplete. Return to the relevant sections: {products}.', { count: incompleteItems.length, products: incompleteItems.map((item) => catalogProductName(item)).join(locale === 'EN' ? ', ' : '、') }) }}</div>
-        <div v-else-if="!finalConfirmationComplete" class="case-alert warning">{{ t('请完成上面三项确认后提交。', 'Complete the three confirmations above before submitting.') }}</div>
+        <div v-else-if="missingRequiredProductSlots.length" class="case-alert warning">{{ t('仍有产品缺少上颌、下颌或咬合扫描，请返回资料上传阶段，通过共享资料或产品专属资料补齐。', 'A product is still missing an upper, lower, or bite scan. Return to Upload Records and complete it with shared or product-specific records.') }}</div>
+        <div v-else-if="!finalConfirmationComplete" class="case-alert warning">{{ t('请完成制作要求和制作周期确认后提交。', 'Confirm the production requirements and lead time before submitting.') }}</div>
         <div v-else class="case-alert success">{{ t('信息填写完整，可以提交订单。', 'All required information is complete. The order is ready to submit.') }}</div>
       </section>
     </main>
@@ -2428,12 +2981,12 @@ onMounted(async () => {
     <footer class="case-wizard__footer">
       <div class="case-footer-context">
         <button v-if="group" type="button" :disabled="busy || fileUploading" @click="saveAllItems()">{{ t('保存草稿', 'Save Draft') }}</button>
-        <span v-if="group">{{ t('{count} 个产品 · 均为待报价', '{count} product(s) · All Quote Pending', { count: group.items.length }) }}</span>
+        <span v-if="group">{{ t('{count} 个产品 · 价格字段已预留', '{count} product(s) · Price fields reserved', { count: group.items.length }) }}</span>
       </div>
       <div>
-        <button v-if="step > 1" type="button" :disabled="busy || fileUploading" @click="step--">{{ t('上一步', 'Previous') }}</button>
+        <button v-if="step > 1" type="button" :disabled="busy || fileUploading" @click="changeStep(step - 1)">{{ t('上一步', 'Previous') }}</button>
         <button v-if="step < 6" type="button" class="case-primary" :disabled="busy || fileUploading" @click="nextStep">{{ t('下一步', 'Next') }} →</button>
-        <button v-else type="button" class="case-primary" data-testid="case-submit" :disabled="busy || fileUploading || incompleteItems.length > 0 || !finalConfirmationComplete" @click="submitGroup">{{ busy ? t('提交中…', 'Submitting…') : t('提交订单', 'Submit Order') }}</button>
+        <button v-else type="button" class="case-primary" data-testid="case-submit" :disabled="busy || fileUploading" @click="submitGroup">{{ busy ? t('提交中…', 'Submitting…') : t('提交订单', 'Submit Order') }}</button>
       </div>
     </footer>
   </div>
@@ -4092,6 +4645,34 @@ onMounted(async () => {
   grid-column: 1 / -1;
 }
 
+.case-shade-decision {
+  display: flex;
+  grid-column: 1 / -1;
+  align-items: center;
+  justify-content: space-between;
+  gap: 18px;
+  padding: 12px 14px;
+  border: 1px solid #bfd5f6;
+  border-radius: 10px;
+  background: #f4f8ff;
+}
+
+.case-shade-decision strong,
+.case-shade-decision small {
+  display: block;
+}
+
+.case-shade-decision small {
+  margin-top: 4px;
+  color: #718096;
+}
+
+.case-shade-decision .case-switch {
+  flex: none;
+  margin: 0;
+  color: #315b91;
+}
+
 .case-material-section .case-check-grid {
   margin-top: 0;
 }
@@ -4208,6 +4789,578 @@ onMounted(async () => {
 
   .case-current-product > span {
     grid-column: 2;
+  }
+}
+
+.case-shared-upload-slots {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 10px;
+  margin-top: 14px;
+}
+
+.case-shared-upload-slot {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto auto;
+  gap: 10px 14px;
+  align-items: center;
+  min-height: 86px;
+  padding: 13px 14px;
+  border: 1.5px dashed var(--case-blue-200);
+  border-radius: 10px;
+  background: var(--case-blue-50);
+}
+
+.case-shared-upload-slot.required:not(.complete) {
+  border-color: #f2bd65;
+  background: #fffaf0;
+}
+
+.case-shared-upload-slot.complete {
+  border-color: #78c7a0;
+  background: #f0fbf5;
+}
+
+.case-shared-upload-slot.inherited {
+  border-color: var(--case-blue-300);
+  background: var(--case-blue-50);
+}
+
+.case-shared-upload-slot strong,
+.case-shared-upload-slot small {
+  display: block;
+}
+
+.case-shared-upload-slot strong b {
+  margin-left: 5px;
+  color: #b45309;
+  font-size: 11px;
+}
+
+.case-shared-upload-slot small {
+  margin-top: 4px;
+  color: var(--case-muted);
+}
+
+.case-shared-upload-slot > span {
+  color: #9a620b;
+  font-size: 12px;
+}
+
+.case-shared-upload-slot.complete > span {
+  color: #147647;
+}
+
+.case-shared-upload-slot.inherited > span {
+  color: var(--case-blue-700);
+}
+
+.case-shared-upload-slot > label {
+  position: relative;
+  display: block;
+  padding: 8px 10px;
+  border-radius: 8px;
+  color: var(--case-blue-700);
+  font-size: 12px;
+  font-weight: 700;
+  background: var(--case-blue-100);
+  cursor: pointer;
+}
+
+.case-shared-upload-slot > label i {
+  font-style: normal;
+}
+
+.case-shared-upload-slot > label input {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  opacity: 0;
+  cursor: pointer;
+}
+
+.case-shared-upload-slot > article {
+  grid-column: 1 / -1;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding-top: 9px;
+  border-top: 1px solid var(--case-border);
+}
+
+.case-shared-upload-slot > article div {
+  min-width: 0;
+}
+
+.case-shared-upload-slot > article strong {
+  overflow-wrap: anywhere;
+}
+
+.case-shared-upload-slot > article.inherited-file {
+  color: var(--case-blue-700);
+}
+
+.case-alert.neutral {
+  border: 1px solid var(--case-blue-200);
+  background: var(--case-blue-50);
+  color: var(--case-blue-700);
+}
+
+.case-product-upload-slots {
+  grid-template-columns: 1fr;
+  margin-top: 16px;
+}
+
+.case-additional-product-records {
+  margin-top: 18px;
+  padding-top: 16px;
+  border-top: 1px solid var(--case-border);
+}
+
+.case-additional-product-records > header strong,
+.case-additional-product-records > header small {
+  display: block;
+}
+
+.case-additional-product-records > header small {
+  margin-top: 3px;
+  color: var(--case-muted);
+}
+
+.case-extra-upload-slot {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto auto;
+  gap: 12px;
+  align-items: center;
+  padding: 12px;
+  border: 1.5px solid var(--case-border);
+  border-radius: 8px;
+}
+
+.case-extra-upload-slot.complete {
+  border-color: #9bd4b8;
+  background: #f0fbf5;
+}
+
+.case-extra-upload-slot > span {
+  color: #a15c09;
+}
+
+.case-extra-upload-slot.complete > span {
+  color: #147647;
+}
+
+.case-extra-upload-slot > label {
+  position: relative;
+  border-radius: 8px;
+  padding: 8px 10px;
+  color: var(--case-blue-700);
+  font-weight: 700;
+  background: var(--case-blue-100);
+  cursor: pointer;
+}
+
+.case-extra-upload-slot > label input {
+  position: absolute;
+  inset: 0;
+  opacity: 0;
+  cursor: pointer;
+}
+
+.case-extra-upload-slot > article {
+  grid-column: 1 / -1;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding-top: 9px;
+  border-top: 1px solid var(--case-border);
+}
+
+.case-extra-upload-slot > article div {
+  min-width: 0;
+}
+
+.case-extra-upload-slot > article strong {
+  overflow-wrap: anywhere;
+}
+
+.case-upload-empty {
+  margin: 0;
+  padding: 16px;
+  border: 1px dashed var(--case-border-strong);
+  border-radius: 8px;
+  color: var(--case-muted);
+  text-align: center;
+}
+
+.case-review-list {
+  display: grid;
+  gap: 12px;
+  overflow: visible;
+  border: 0;
+  box-shadow: none;
+  background: transparent;
+}
+
+.case-review-list > article {
+  display: block;
+  padding: 0;
+  overflow: hidden;
+  border: 1.5px solid var(--case-border);
+  border-radius: 10px;
+  background: var(--case-white);
+  box-shadow: 0 1px 3px rgba(15, 37, 84, .06);
+}
+
+.case-review-list > article > header {
+  display: grid;
+  grid-template-columns: 32px minmax(0, 1fr) auto;
+  gap: 12px;
+  align-items: center;
+  padding: 13px 16px;
+  border-bottom: 1px solid var(--case-border);
+  background: var(--case-off);
+}
+
+.case-review-list > article > header > span {
+  width: 28px;
+  height: 28px;
+  display: grid;
+  place-items: center;
+  border-radius: 8px;
+  color: var(--case-blue-700);
+  background: var(--case-blue-100);
+}
+
+.case-review-list > article > header strong,
+.case-review-list > article > header small {
+  display: block;
+}
+
+.case-review-list > article > header small {
+  margin-top: 3px;
+  color: var(--case-muted);
+}
+
+.case-review-list > article > header > em {
+  color: #147647;
+  font-size: 12px;
+  font-style: normal;
+}
+
+.case-review-list > article.incomplete > header > em {
+  color: #b45309;
+}
+
+.case-review-field-grid {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+}
+
+.case-review-field-grid > section {
+  position: relative;
+  min-height: 112px;
+  padding: 13px 14px 38px;
+  border-right: 1px solid var(--case-border);
+  border-bottom: 1px solid var(--case-border);
+}
+
+.case-review-field-grid > section:nth-child(4n) {
+  border-right: 0;
+}
+
+.case-review-field-grid > section:nth-last-child(-n + 4) {
+  border-bottom: 0;
+}
+
+.case-review-field-grid span,
+.case-review-field-grid strong {
+  display: block;
+}
+
+.case-review-field-grid span {
+  color: var(--case-muted);
+  font-size: 11px;
+}
+
+.case-review-field-grid strong {
+  margin-top: 7px;
+  overflow-wrap: anywhere;
+  font-size: 12px;
+  line-height: 1.5;
+}
+
+.case-review-field-grid .is-price-placeholder {
+  color: #9a620b;
+}
+
+.case-review-ask-support {
+  position: absolute;
+  left: 14px;
+  bottom: 10px;
+  border: 0;
+  padding: 0;
+  color: var(--case-blue-700);
+  font-size: 11px;
+  background: transparent;
+}
+
+.case-review-errors {
+  padding: 10px 14px;
+  border-top: 1px solid #f4cf84;
+  color: #8a5a08;
+  font-size: 12px;
+  background: #fff8e8;
+}
+
+.case-review-inquiry {
+  padding: 14px 16px;
+  border-top: 1.5px solid var(--case-blue-200);
+  background: var(--case-blue-50);
+}
+
+.case-review-inquiry > header,
+.case-review-inquiry > footer {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.case-review-inquiry header strong,
+.case-review-inquiry header small {
+  display: block;
+}
+
+.case-review-inquiry header small,
+.case-review-inquiry footer span {
+  color: var(--case-muted);
+  font-size: 11px;
+}
+
+.case-review-inquiry header button {
+  border: 0;
+  color: var(--case-muted);
+  background: transparent;
+}
+
+.case-review-inquiry textarea {
+  width: 100%;
+  box-sizing: border-box;
+  margin: 10px 0;
+  padding: 10px;
+  border: 1.5px solid var(--case-border-strong);
+  border-radius: 8px;
+  resize: vertical;
+  background: #fff;
+}
+
+.case-review-inquiry footer button {
+  flex: 0 0 auto;
+  border: 0;
+  border-radius: 8px;
+  padding: 8px 12px;
+  color: #fff;
+  background: var(--case-blue-600);
+}
+
+.case-validation-summary {
+  max-width: 1320px;
+  margin: 0 auto 18px;
+  padding: 15px;
+  border: 1px solid #f0b765;
+  border-radius: 12px;
+  background: #fff8e8;
+  box-shadow: 0 8px 24px #8a5a0814;
+  color: #7a4b08;
+}
+
+.case-validation-summary > header {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 18px;
+  margin-bottom: 10px;
+}
+
+.case-validation-summary > header strong,
+.case-validation-summary > header small {
+  display: block;
+}
+
+.case-validation-summary > header small {
+  margin-top: 4px;
+  color: #96681c;
+}
+
+.case-validation-summary > header > span {
+  white-space: nowrap;
+  font-weight: 700;
+}
+
+.case-validation-summary > button {
+  width: 100%;
+  display: grid;
+  grid-template-columns: 78px minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 12px;
+  margin-top: 7px;
+  padding: 10px 12px;
+  border: 1px solid #f2d39d;
+  border-radius: 9px;
+  background: #fff;
+  text-align: left;
+  color: #57380a;
+}
+
+.case-validation-summary > button > span {
+  font-size: 12px;
+  color: #a16207;
+}
+
+.case-validation-summary > button > i {
+  font-style: normal;
+  color: #1768e5;
+  font-weight: 700;
+}
+
+.case-validation-summary > button:hover {
+  border-color: #e7ad4f;
+  background: #fffdf8;
+}
+
+.case-concern-field > span {
+  display: flex;
+  align-items: baseline;
+  gap: 8px;
+}
+
+.case-concern-field > span small {
+  color: #94a3b8;
+  font-size: 11px;
+  font-weight: 500;
+  letter-spacing: 0;
+  text-transform: none;
+}
+
+.case-concern-field .case-check-grid {
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+}
+
+.case-concern-field .case-check-grid label {
+  min-width: 0;
+  cursor: pointer;
+}
+
+.case-concern-field .case-check-grid input[type="checkbox"] {
+  flex: 0 0 18px;
+  width: 18px;
+  min-height: 18px;
+  height: 18px;
+  margin: 0;
+  padding: 0;
+  accent-color: var(--case-blue-600);
+}
+
+.case-concern-field .case-check-grid label > span {
+  min-width: 0;
+  white-space: nowrap;
+}
+
+.case-concern-field .case-check-grid label.active {
+  border-color: var(--case-blue-500, #3b82f6);
+  color: var(--case-blue-700);
+  background: var(--case-blue-50);
+  box-shadow: 0 0 0 3px rgba(59, 130, 246, .08);
+}
+
+@media (max-width: 1000px) {
+  .case-concern-field .case-check-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .case-review-field-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .case-review-field-grid > section:nth-child(4n) {
+    border-right: 1px solid var(--case-border);
+  }
+
+  .case-review-field-grid > section:nth-child(2n) {
+    border-right: 0;
+  }
+
+  .case-review-field-grid > section:nth-last-child(-n + 4) {
+    border-bottom: 1px solid var(--case-border);
+  }
+
+  .case-review-field-grid > section:nth-last-child(-n + 2) {
+    border-bottom: 0;
+  }
+}
+
+@media (max-width: 640px) {
+  .case-concern-field .case-check-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .case-validation-summary > header {
+    display: block;
+  }
+
+  .case-validation-summary > header > span {
+    display: block;
+    margin-top: 7px;
+  }
+
+  .case-validation-summary > button {
+    grid-template-columns: 58px 1fr;
+  }
+
+  .case-validation-summary > button > i {
+    grid-column: 2;
+  }
+
+  .case-shared-upload-slots,
+  .case-review-field-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .case-shared-upload-slot {
+    grid-template-columns: 1fr;
+  }
+
+  .case-extra-upload-slot {
+    grid-template-columns: 1fr;
+  }
+
+  .case-shared-upload-slot > article {
+    grid-column: 1;
+  }
+
+  .case-extra-upload-slot > article {
+    grid-column: 1;
+  }
+
+  .case-review-field-grid > section,
+  .case-review-field-grid > section:nth-child(2n),
+  .case-review-field-grid > section:nth-child(4n),
+  .case-review-field-grid > section:nth-last-child(-n + 2),
+  .case-review-field-grid > section:nth-last-child(-n + 4) {
+    border-right: 0;
+    border-bottom: 1px solid var(--case-border);
+  }
+
+  .case-review-field-grid > section:last-child {
+    border-bottom: 0;
+  }
+
+  .case-review-inquiry > footer {
+    align-items: stretch;
+    flex-direction: column;
   }
 }
 </style>

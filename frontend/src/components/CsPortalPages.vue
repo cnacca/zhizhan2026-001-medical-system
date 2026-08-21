@@ -672,13 +672,35 @@ function orderMayHaveProcess(order: OrderItem) {
 
 function orderFormValue(order: OrderItem | null, keys: string[]) {
   if (!order) return ''
+  const frozenValues = order.form_data?.form_values && typeof order.form_data.form_values === 'object'
+    ? order.form_data.form_values as Record<string, unknown>
+    : {}
   for (const key of keys) {
-    const value = order.form_data?.[key]
-    if (typeof value === 'string' && value.trim()) return value.trim()
-    if (typeof value === 'number') return String(value)
-    if (Array.isArray(value) && value.length) return value.join('、')
+    for (const value of [order.form_data?.[key], frozenValues[key]]) {
+      if (typeof value === 'string' && value.trim()) return value.trim()
+      if (typeof value === 'number') return String(value)
+      if (Array.isArray(value) && value.length) return value.join('、')
+    }
   }
   return ''
+}
+
+function orderShadeLabel(order: OrderItem | null) {
+  if (!order) return ''
+  const frozenValues = order.form_data?.form_values && typeof order.form_data.form_values === 'object'
+    ? order.form_data.form_values as Record<string, unknown>
+    : {}
+  if (order.form_data?.shade_not_required === true || frozenValues.shade_not_required === true) {
+    return '无需指定颜色'
+  }
+  const shade = orderFormValue(order, ['shade', 'color', 'shade_value', 'shade_code'])
+  if (shade) return shade
+  if (order.product_type === 'ORTHODONTICS') return '不适用（正畸产品）'
+  return ''
+}
+
+function orderMaterialLabel(order: OrderItem | null) {
+  return orderFormValue(order, ['material', 'material_option', 'material_name', 'material_spec'])
 }
 
 function csOrderIdentity(order: OrderItem) {
@@ -695,7 +717,10 @@ const reviewFieldLabels: Record<string, string> = {
   tooth: '牙位',
   teeth: '牙位',
   material: '材料',
+  material_option: '主材料 / 制作项目',
   shade: '色号',
+  shade_value: '牙色',
+  shade_system: '牙色系统',
   color: '颜色',
   doctor_note: '医生备注',
   instruction: '客户指示',
@@ -719,6 +744,7 @@ const reviewFieldLabels: Record<string, string> = {
 
 function isInternalReviewField(key: string) {
   return /^(?:_|demo_|acceptance_|test_|debug_|internal_)/i.test(key)
+    || ['shade_not_required', 'shade_requirement_version'].includes(key)
 }
 
 function reviewFieldValue(value: unknown): string {
@@ -809,8 +835,8 @@ function buildAutomaticProductionNote(order: OrderItem, preference: ClinicPrefer
   const orderLines = [
     { label: '产品', value: productLabel(order.product_type) },
     { label: '牙位', value: orderFormValue(order, ['tooth_position', 'tooth', 'teeth']) },
-    { label: '颜色', value: orderFormValue(order, ['shade', 'color']) },
-    { label: '材料', value: orderFormValue(order, ['material']) }
+    { label: '颜色', value: orderShadeLabel(order) },
+    { label: '材料', value: orderMaterialLabel(order) }
   ].filter((item) => item.value)
   const requirements = customerRequirementItems(preference.preferences)
   const instruction = orderFormValue(order, ['instruction', 'customer_instruction', 'description', 'special_requirements', 'notes', 'doctor_note'])
@@ -2389,7 +2415,7 @@ const translationReviewChecklist = computed(() => {
     ? translationRequiredMissingCount.value === 0
     : Boolean(
       orderFormValue(order, ['tooth_position', 'tooth', 'teeth'])
-      && (orderFormValue(order, ['material']) || orderFormValue(order, ['shade', 'color']))
+      && (orderMaterialLabel(order) || orderShadeLabel(order))
     )
   return [
     {
@@ -2621,7 +2647,7 @@ watch(billingTab, (tab) => {
           <thead><tr><th>订单识别</th><th>产品信息</th><th>客户单号 / 系统号</th><th>登记状态</th><th>信息状态</th><th>订单阶段</th><th>操作</th></tr></thead>
           <tbody><tr v-for="order in filteredOrders" :key="order.order_id" :class="{ 'is-new': registrationStatus(order) === 'NEW' }" @click="openOrder(order)">
             <td><strong>{{ csOrderIdentity(order).primary }}</strong><small>{{ csOrderIdentity(order).secondary }}</small></td>
-            <td><strong>{{ productLabel(order.product_type) }}</strong><small>{{ orderFormValue(order, ['material','material_name','material_spec']) || '材料待确认' }} · {{ orderFormValue(order, ['shade','color','shade_code']) || '色号待确认' }}</small></td>
+            <td><strong>{{ productLabel(order.product_type) }}</strong><small>{{ orderMaterialLabel(order) || '材料待确认' }} · {{ orderShadeLabel(order) || '色号待确认' }}</small></td>
             <td><strong>{{ csOrderIdentity(order).reference }}</strong><small>{{ csOrderIdentity(order).systemOrderNo }}</small></td>
             <td><span class="cs-r-badge" :class="registrationStatus(order) === 'NEW' ? 'is-amber' : 'is-green'">{{ registrationStatus(order) === 'NEW' ? '新订单' : '已登记' }}</span></td>
             <td>{{ informationStatus(order) }}</td><td><span class="cs-r-badge is-violet">{{ statusLabel(order.internal_status) }}</span><span v-if="order.delivery_alert" class="cs-r-badge is-red" data-testid="cs-delivery-alert-badge" :title="order.delivery_alert_message ?? ''">⏱ 时间异常</span></td>
@@ -2648,7 +2674,7 @@ watch(billingTab, (tab) => {
                 <div><span>产品</span><strong>{{ productLabel(selectedOrder.product_type) }}</strong></div>
                 <div><span>订单阶段</span><strong>{{ statusLabel(selectedOrder.internal_status) }}</strong></div>
                 <div><span>牙位</span><strong>{{ orderFormValue(selectedOrder,['tooth_position','tooth','teeth']) || '待确认' }}</strong></div>
-                <div><span>色号</span><strong>{{ orderFormValue(selectedOrder,['shade','color']) || '待确认' }}</strong></div>
+                <div><span>色号</span><strong>{{ orderShadeLabel(selectedOrder) || '待确认' }}</strong></div>
                 <div><span>负责医生</span><strong>{{ selectedOrder.doctor_user_id ? `人员 #${selectedOrder.doctor_user_id}` : '未分配' }}</strong></div>
                 <div><span>客服负责人</span><strong>{{ selectedOrder.cs_user_id ? `人员 #${selectedOrder.cs_user_id}` : '未分配' }}</strong></div>
                 <div><span>应收金额</span><strong>{{ orderBill ? money(orderBill.amount_cents, orderBill.currency || 'CNY') : '金额待录入' }}</strong></div>
@@ -2742,7 +2768,7 @@ watch(billingTab, (tab) => {
 
             <section id="cs-order-section-details" class="cs-r-order-section cs-r-order-flow-section cs-r-order-panel-details" data-testid="cs-order-section-details">
               <div class="cs-r-order-section-title"><div><span>临床信息</span><h3>订单资料</h3></div></div>
-              <div class="cs-r-order-panel-core"><div><span>产品</span><strong>{{ productLabel(selectedOrder.product_type) }}</strong></div><div><span>牙位</span><strong>{{ orderFormValue(selectedOrder,['tooth_position','tooth','teeth']) || '待确认' }}</strong></div><div><span>色号</span><strong>{{ orderFormValue(selectedOrder,['shade','color']) || '待确认' }}</strong></div></div>
+              <div class="cs-r-order-panel-core"><div><span>产品</span><strong>{{ productLabel(selectedOrder.product_type) }}</strong></div><div><span>牙位</span><strong>{{ orderFormValue(selectedOrder,['tooth_position','tooth','teeth']) || '待确认' }}</strong></div><div><span>色号</span><strong>{{ orderShadeLabel(selectedOrder) || '待确认' }}</strong></div></div>
               <div v-if="displayedOrderSpecEntries.length" class="cs-r-spec-grid"><div v-for="item in displayedOrderSpecEntries" :key="item.key"><span>{{ item.label }}</span><strong>{{ item.value }}</strong></div></div>
               <div v-else class="cs-r-state">当前订单暂无额外临床或制作参数</div>
               <div v-if="selectedOrderClinicalNotes.length" class="cs-r-order-notes"><article v-for="item in selectedOrderClinicalNotes" :key="item.label"><strong>{{ item.label }}</strong><p>{{ item.value }}</p></article></div>
@@ -2808,7 +2834,7 @@ watch(billingTab, (tab) => {
         <section v-if="selectedTranslationOrder" class="cs-r-work-content">
           <header class="cs-r-work-head"><div><h2>{{ csOrderIdentity(selectedTranslationOrder).primary }}</h2><p>{{ csOrderIdentity(selectedTranslationOrder).secondary }} · {{ selectedTranslationOrder.order_no }}</p></div><span class="cs-r-badge is-amber">{{ informationStatus(selectedTranslationOrder) }}</span></header>
           <div class="cs-r-tab-strip"><button type="button" :class="{active:translationTab==='INFO'}" @click="translationTab='INFO'">信息审核</button><button type="button" :class="{active:translationTab==='TRANSLATION'}" @click="translationTab='TRANSLATION'">翻译整理</button><button type="button" :class="{active:translationTab==='FILES'}" @click="translationTab='FILES'">附件 {{ translationFiles.length }}</button><button type="button" :class="{active:translationTab==='HISTORY'}" @click="translationTab='HISTORY'">处理记录</button></div>
-          <section class="cs-r-info-band"><div><span>颜色</span><strong>{{ orderFormValue(selectedTranslationOrder,['shade','color']) || '待确认' }}</strong></div><div><span>牙位</span><strong>{{ orderFormValue(selectedTranslationOrder,['tooth_position','tooth','teeth']) || '待确认' }}</strong></div><div><span>材料</span><strong>{{ orderFormValue(selectedTranslationOrder,['material']) || '待确认' }}</strong></div><div><span>产品</span><strong>{{ productLabel(selectedTranslationOrder.product_type) }}</strong></div></section>
+          <section class="cs-r-info-band"><div><span>颜色</span><strong>{{ orderShadeLabel(selectedTranslationOrder) || '待确认' }}</strong></div><div><span>牙位</span><strong>{{ orderFormValue(selectedTranslationOrder,['tooth_position','tooth','teeth']) || '待确认' }}</strong></div><div><span>材料</span><strong>{{ orderMaterialLabel(selectedTranslationOrder) || '待确认' }}</strong></div><div><span>产品</span><strong>{{ productLabel(selectedTranslationOrder.product_type) }}</strong></div></section>
           <template v-if="translationTab==='INFO'">
             <section class="cs-r-review-card" data-testid="cs-information-review-card">
               <header>
@@ -2859,7 +2885,7 @@ watch(billingTab, (tab) => {
         <header class="cs-r-table-toolbar"><div><h3>设计订单</h3><span>{{ filteredDesignOrders.length }} / {{ orders.length }} 个订单</span></div><label class="cs-r-search"><span>⌕</span><input v-model="designKeyword" type="search" placeholder="搜索客户、患者、病例号、牙位、材料、颜色或系统单号" aria-label="搜索设计订单"></label></header>
         <table v-if="filteredDesignOrders.length">
           <thead><tr><th>订单识别</th><th>客户单号 / 系统号</th><th>产品</th><th>颜色 / 牙位</th><th>订单阶段</th><th>操作</th></tr></thead>
-          <tbody><tr v-for="order in filteredDesignOrders" :key="order.order_id" @click="selectDesignOrder(order.order_id)"><td><strong>{{ csOrderIdentity(order).primary }}</strong><small>{{ csOrderIdentity(order).secondary }}</small></td><td><strong>{{ csOrderIdentity(order).reference }}</strong><small>{{ order.order_no }}</small></td><td>{{ productLabel(order.product_type) }}</td><td><strong>{{ orderFormValue(order,['shade','color']) || '待确认' }}</strong><small>{{ orderFormValue(order,['tooth_position','tooth','teeth']) || '牙位待确认' }}</small></td><td><span class="cs-r-badge is-violet">{{ statusLabel(order.internal_status) }}</span></td><td><button class="cs-r-link" type="button" @click.stop="selectDesignOrder(order.order_id)">查看版本</button></td></tr></tbody>
+          <tbody><tr v-for="order in filteredDesignOrders" :key="order.order_id" @click="selectDesignOrder(order.order_id)"><td><strong>{{ csOrderIdentity(order).primary }}</strong><small>{{ csOrderIdentity(order).secondary }}</small></td><td><strong>{{ csOrderIdentity(order).reference }}</strong><small>{{ order.order_no }}</small></td><td>{{ productLabel(order.product_type) }}</td><td><strong>{{ orderShadeLabel(order) || '待确认' }}</strong><small>{{ orderFormValue(order,['tooth_position','tooth','teeth']) || '牙位待确认' }}</small></td><td><span class="cs-r-badge is-violet">{{ statusLabel(order.internal_status) }}</span></td><td><button class="cs-r-link" type="button" @click.stop="selectDesignOrder(order.order_id)">查看版本</button></td></tr></tbody>
         </table>
         <div v-else class="cs-r-state"><strong>没有符合条件的设计订单</strong><span>调整搜索条件，或等待生产端上传设计文件。</span></div>
       </section>
@@ -2868,7 +2894,7 @@ watch(billingTab, (tab) => {
           <div v-if="designDetailState.loading" class="cs-r-state cs-r-detail-loading"><span class="cs-r-loading-orbit">🎨</span><strong>正在读取设计版本</strong></div>
           <template v-else>
             <section v-if="designDetailState.error" class="cs-r-detail-alert is-danger"><span>!</span><div><strong>设计版本加载失败</strong><p>{{ designDetailState.error }}</p></div><button type="button" @click="selectDesignOrder(selectedDesignOrder.order_id)">重试</button></section>
-            <section class="cs-r-info-band"><div><span>产品</span><strong>{{ productLabel(selectedDesignOrder.product_type) }}</strong></div><div><span>颜色</span><strong>{{ orderFormValue(selectedDesignOrder,['shade','color']) || '待确认' }}</strong></div><div><span>牙位</span><strong>{{ orderFormValue(selectedDesignOrder,['tooth_position','tooth','teeth']) || '待确认' }}</strong></div><div><span>诊所</span><strong>{{ selectedDesignOrder.clinic_name }}</strong></div></section>
+            <section class="cs-r-info-band"><div><span>产品</span><strong>{{ productLabel(selectedDesignOrder.product_type) }}</strong></div><div><span>颜色</span><strong>{{ orderShadeLabel(selectedDesignOrder) || '待确认' }}</strong></div><div><span>牙位</span><strong>{{ orderFormValue(selectedDesignOrder,['tooth_position','tooth','teeth']) || '待确认' }}</strong></div><div><span>诊所</span><strong>{{ selectedDesignOrder.clinic_name }}</strong></div></section>
             <section><div class="cs-r-section-title"><div><span class="cs-r-section-emoji">🗂️</span><div><h3>医生可见版本与确认记录</h3><p>客服仅跟进进度和沟通，不执行技术设计审核</p></div></div><span>{{ designDrafts.length }} 个</span></div>
               <div v-if="designDrafts.length" class="cs-r-version-list"><article v-for="draft in designDrafts" :key="draft.draft_id"><header><div class="cs-r-version-mark"><span>📐</span><div><strong>设计稿 V{{ draft.version }}</strong><small>{{ draft.file_count || fileIds(draft).length }} 个医生可见文件</small></div></div><span class="cs-r-badge" :class="draft.status.includes('REJECT') ? 'is-red' : draft.status.includes('CONFIRM') ? 'is-green' : 'is-amber'">{{ statusLabel(draft.status) }}</span></header><div v-if="draft.doctor_reject_reason" class="cs-r-version-reason"><strong>客户修改意见</strong><p>{{ draft.doctor_reject_reason }}</p></div><div v-else class="cs-r-version-body"><div><span>文件状态</span><p>{{ fileIds(draft).length ? '已对医生开放' : '版本尚未关联文件' }}</p></div><div><span>客户确认</span><p>{{ draft.status.includes('CONFIRM') ? '客户已明确确认' : '等待客户确认' }}</p></div></div><footer><button type="button" :disabled="fileIds(draft).length === 0" @click="previewDesignDraft(draft)">👁 预览文件</button><button v-if="['PENDING_DOCTOR','PENDING_DOCTOR_REVIEW','PENDING_DOCTOR_CONFIRM'].includes(draft.status)" class="is-primary" type="button" @click="openInquiryForOrder(selectedDesignOrder.order_id)">进入客户确认问单</button><span v-else class="cs-r-action-state">只读进度</span></footer></article></div>
               <div v-else-if="!designDetailState.error" class="cs-r-state"><strong>当前订单还没有设计稿版本</strong><span>设计文件由生产端上传后在这里出现。</span></div>
@@ -2982,7 +3008,7 @@ watch(billingTab, (tab) => {
             <p v-if="billCreateError" class="cs-r-order-inline-error">{{ billCreateError }}</p>
             <button class="cs-r-primary" type="button" :disabled="billCreateLoading || !billDocument || !billAmountYuan || billAmountYuan<=0" @click="createBillForSelectedOrder">{{ billCreateLoading ? '上传并建立中…' : '上传并建立账单' }}</button>
           </section>
-          <section><div class="cs-r-section-title"><div><span class="cs-r-section-emoji">🦷</span><div><h3>关联订单</h3><p>金额明细接口未拆分时只显示真实订单资料</p></div></div></div><div v-if="selectedBillingOrder" class="cs-r-detail-field-grid"><article><span>订单编号</span><strong>{{ selectedBillingOrder.order_no }}</strong></article><article><span>诊所</span><strong>{{ selectedBillingOrder.clinic_name }}</strong></article><article><span>产品</span><strong>{{ productLabel(selectedBillingOrder.product_type) }}</strong></article><article><span>订单阶段</span><strong>{{ statusLabel(selectedBillingOrder.internal_status) }}</strong></article><article><span>颜色</span><strong>{{ orderFormValue(selectedBillingOrder,['shade','color']) || '未记录' }}</strong></article><article><span>牙位</span><strong>{{ orderFormValue(selectedBillingOrder,['tooth_position','tooth','teeth']) || '未记录' }}</strong></article></div></section>
+          <section><div class="cs-r-section-title"><div><span class="cs-r-section-emoji">🦷</span><div><h3>关联订单</h3><p>金额明细接口未拆分时只显示真实订单资料</p></div></div></div><div v-if="selectedBillingOrder" class="cs-r-detail-field-grid"><article><span>订单编号</span><strong>{{ selectedBillingOrder.order_no }}</strong></article><article><span>诊所</span><strong>{{ selectedBillingOrder.clinic_name }}</strong></article><article><span>产品</span><strong>{{ productLabel(selectedBillingOrder.product_type) }}</strong></article><article><span>订单阶段</span><strong>{{ statusLabel(selectedBillingOrder.internal_status) }}</strong></article><article><span>颜色</span><strong>{{ orderShadeLabel(selectedBillingOrder) || '未记录' }}</strong></article><article><span>牙位</span><strong>{{ orderFormValue(selectedBillingOrder,['tooth_position','tooth','teeth']) || '未记录' }}</strong></article></div></section>
           <section><div class="cs-r-section-title"><div><span class="cs-r-section-emoji">💵</span><div><h3>人工收款记录</h3><p>每笔记录独立保存并保持可追溯</p></div></div><span>{{ selectedPayments.length }} 笔</span></div><div v-if="selectedPayments.length" class="cs-r-payment-list"><article v-for="payment in selectedPayments" :key="payment.payment_id"><span>¥</span><div><strong>{{ money(payment.amount_cents,payment.currency) }}</strong><small>{{ paymentMethodLabel(payment.payment_method) }} · {{ compactDateTime(payment.received_at) }}</small><p>{{ payment.payment_note || '本笔收款无备注' }}</p></div><b>#{{ payment.payment_id }}</b></article></div><div v-else class="cs-r-state"><strong>暂无收款记录</strong><span>这表示当前账本中没有真实人工收款。</span></div><div v-if="canRecordPayment" class="cs-r-payment-form"><header><span>＋</span><div><strong>登记一笔真实收款</strong><small>剩余应收 {{ money(outstandingAmountCents,selectedBill?.currency) }}</small></div></header><div class="cs-r-form-grid"><label><span>收款金额（元）</span><input v-model.number="paymentAmountYuan" type="number" min="0.01" :max="outstandingAmountCents/100" step="0.01" placeholder="0.00"></label><label><span>收款方式</span><select v-model="paymentMethod"><option value="BANK_TRANSFER">银行转账</option><option value="CASH">现金</option><option value="OTHER">其他方式</option></select></label><label class="is-wide"><span>收款备注</span><input v-model="paymentNote" placeholder="填写凭据编号或业务说明"></label></div><button class="cs-r-primary" type="button" :disabled="pageLoading || !paymentAmountYuan || paymentAmountYuan<=0 || paymentAmountYuan*100>outstandingAmountCents" @click="createPaymentRecord">{{ pageLoading ? '保存中…' : '确认登记收款' }}</button></div><div v-else-if="!selectedBill?.bill_id" class="cs-r-capability-empty is-compact"><span>🧾</span><strong>尚未建立真实账单</strong><p>请先由有权限的岗位建立账单，再登记人工收款。</p></div><div v-else class="cs-r-detail-alert" :class="billingContradiction?'is-danger':'is-success'"><span>{{ billingContradiction ? '!' : '✓' }}</span><div><strong>{{ billingContradiction ? '暂不能登记新收款' : '当前没有待登记金额' }}</strong><p>{{ billingContradiction || '账单已收清或剩余应收为零。' }}</p></div></div></section>
           <section><div class="cs-r-section-title"><div><span class="cs-r-section-emoji">🧾</span><div><h3>操作记录</h3><p>仅列出当前接口返回的真实事实</p></div></div></div><div class="cs-r-record-list"><article><div><strong>订单建立</strong><span>{{ compactDateTime(selectedBillingOrder?.created_at) }}</span></div><span class="cs-r-badge is-violet">订单记录</span></article><article v-for="payment in selectedPayments" :key="payment.payment_id"><div><strong>登记收款 {{ money(payment.amount_cents,payment.currency) }}</strong><span>{{ compactDateTime(payment.created_at) }} · {{ paymentMethodLabel(payment.payment_method) }}</span></div><span class="cs-r-badge is-green">已保存</span></article></div><div class="cs-r-capability-empty is-compact"><span>🧾</span><strong>账单状态审计明细尚未接入</strong><p>这里仅列出当前接口返回的真实订单时间与收款记录。</p></div></section>
         </template>

@@ -1,8 +1,8 @@
 {
   "version": 1,
   "managed_by": "RepoFrame",
-  "active_goal": "GOAL-035",
-  "active_goal_file": "goals/GOAL-035-deployment-defect-closure-20260811.md",
+  "active_goal": "GOAL-036",
+  "active_goal_file": "goals/GOAL-036-doctor-order-final-confirmation-20260818.md",
   "phase_two_milestone_gaps": "docs/acceptance/phase-two-milestone-gap-matrix-20260728.md",
   "linter": "repo-init/scripts/lint_acceptance.py",
   "task8_readiness_gaps": [
@@ -20,7 +20,7 @@
       "status": "PARTIAL",
       "source": "docs/deployment/readiness-checklist.md#前端业务页面",
       "current_evidence": "四入口登录、医生下单、客服初审、客服协同、客服资料缺失提示、AI 翻译草稿确认、设计稿预览 URL 聚合、客服端设计稿审核预览、账单物流预览/录入、人工付款状态第一段、生产审核、质检工时、绩效、绩效周期筛选第一段、绩效标准工时覆盖率与默认公式第一段、人员档案 / 工作量看板第一增量、质量记录 / 外返登记第一增量、生产看板、返工、终检报告、终检专用角色 / 附件第一增量、终检 PDF/签名第一段、12 步入口 smoke、固定演示数据前 3 步、首个派工节点工序操作数据动作、设计稿确认数据动作、账单/物流第一段数据动作、剩余工序完成、物流发货、医生确认收货数据动作、返工异常路径数据动作和 9D.99 A/B 类一期范围对齐第一段和 9D.100 A/B 类一期范围对齐第二段已落地。 PRD V2 本地功能差异收口 C 已补客服端 /ai/cs 的 AI-2 attachment_contexts 附件预览上下文展示。 PRD V2 本地功能差异收口 D 已补 /dashboards/phase-one-ab 本地月度趋势 / 客户排名聚合第一段，并让客服 / 生产工作台消费该聚合。 GOAL-017 / TASK-018 已补四端前端产品化体验收口：客服设计稿入口复用订单详情设计稿审核链路，客服账单入口复用账单 / 付款 / 配送人工跟进链路，生产设备 / 物料 / 安环 / 成本 / 奖惩入口从演示占位升级为本地第一增量汇总与表单，管理端账号 / 角色 / 权限入口补当前账号菜单与权限码库存展示，并新增统一加载态 / 空态 / 错误态 / 权限拒绝态提示。 GOAL-018 / TASK-019 已补本地 12 步主链路验收增强：`smoke:task9d62` 增加医生端脱敏、客服端可见性、生产端任务范围和管理端派工 / 转派角色边界断言，并新增 `check:local-main-chain-acceptance-hardening`。2026-07-27 医生端新建订单 P1 已完成隔离演示环境真实点击：PNG、PDF、STL 上传后返回上一步仍保留，草稿可见，订单 `ORD20260727-0384C949A3` 成功提交且 3 个附件均为 COMPLETED，缺少必填资料时提交按钮禁用；草稿 `ORD20260727-25A7C1F479`（ID 183）提交后保持同订单号 / 同 ID，未生成重复订单。2026-08-17 医生端中英文界面已通过 PR #27/#28 发布为 `78c0955b35f519f77bf28b107e8ae5a1b138cfd6`，自动部署 #32033871635 通过全量测试、release gates、镜像校验、生产部署和公网探针。正式站实际 JS/CSS 资源已核对英文关键文案、语言记忆键和可切换标签；当前浏览器读取通道超时，未把登录后真实点击记为已完成。",
-      "latest_release_evidence": "2026-08-18 医生端英文界面已收口并发布为 f406d105166c0b3bc6c266fead7b80c895b4d470，自动部署 #32049802365 通过后端 351 项测试、release gates、镜像校验、生产部署和公网探针。共享登录页按用户确认保持中文；正式站只读浏览器已遍历 7 个医生端主页和下单子流程，最终版复验确认英文标签页、A/EN 消息标记、YYYY-MM-DD 日期框和 Orthodontic Appliance 映射。原始业务数据保留原文，未写正式业务数据。",
+      "latest_release_evidence": "2026-08-18 医生端英文界面已收口并发布为 f64b951155926df48b5c20afa58ae5e4a2a77212，自动部署 #32056401585 通过后端 351 项测试、release gates、镜像校验、生产部署和公网探针。共享登录页按用户确认保持中文；正式站按反馈截图只读复验确认公开进度 8 个节点、草稿说明、公开进度空提示、订单时间线、通知标题和系统摘要、物流事件均为英文。上传文件名、患者、诊所、承运商和消息正文等原始业务数据保留原文，未写正式业务数据。",
       "remaining_reason": "按 PRD V2 原验收表38项，前端与交互侧仍缺实时自动保存、设计稿多轮驳回、质量统计时间段拆分、人员账号创建入口，以及部分状态分支专项验收；2026-07-06 A/B/C 表外范围另行跟踪。真实支付 / 物流平台、电子签章、复杂报告、绩效申诉 / 工资和完整 HR/BI 不计一期 P0。",
       "minimum_closure_loop": "按 docs/acceptance/prd-v2-38-item-acceptance-audit-20260715.md 关闭 PARTIAL / MISSING 的页面和接口闭环，形成原验收表38项记录；2026-07-06 A/B/C 表外范围、跨项门禁和 readiness 继续单独关闭，二期平台集成如新增另走变更任务。",
       "verification": "npm run check:doctor-portal-i18n; npm run check:doctor-portal-v2; npm run check:doctor-order-product-first; npm run build:frontend; ./scripts/with-jdk21.sh mvn -f backend/pom.xml -pl platform-server -Dtest=OrderStatusProjectionTests,FileAccessTests test; npm run check:local-main-chain-acceptance-hardening; npm run check:task9d62; npm run smoke:task9d62; npm run check:task9d68; npm run check:task8-readiness-gaps; npm run acceptance; git diff --check"
@@ -3404,6 +3404,51 @@
       ]
     },
     {
+      "id": "GOAL-036",
+      "file": "goals/GOAL-036-doctor-order-final-confirmation-20260818.md",
+      "status": "completed",
+      "checks": [
+        {
+          "id": "doctor-order-final-confirmation-files",
+          "type": "files_exist",
+          "paths": [
+            "goals/GOAL-036-doctor-order-final-confirmation-20260818.md",
+            "tasks/TASK-037-doctor-order-final-confirmation-20260818.md",
+            "scripts/check-doctor-order-final-confirmation.mjs"
+          ]
+        },
+        {
+          "id": "doctor-order-final-confirmation-contract",
+          "type": "required_text",
+          "paths": [
+            "frontend/src/doctor/DoctorCaseGroupWizard.vue",
+            "scripts/check-doctor-order-final-confirmation.mjs",
+            "package.json"
+          ],
+          "patterns": [
+            "价格待配置",
+            "case-shared-upload-slot",
+            "case-review-ask-support",
+            "check:doctor-order-final-confirmation"
+          ]
+        },
+        {
+          "id": "doctor-order-final-confirmation-no-fake-ready",
+          "type": "forbidden_text",
+          "paths": [
+            "goals/GOAL-036-doctor-order-final-confirmation-20260818.md",
+            "tasks/TASK-037-doctor-order-final-confirmation-20260818.md"
+          ],
+          "patterns": [
+            "Task 8 状态：READY",
+            "正式价格已确认",
+            "真实环境验收已完成",
+            "客户签字已完成"
+          ]
+        }
+      ]
+    },
+    {
       "id": "GOAL-035",
       "file": "goals/GOAL-035-deployment-defect-closure-20260811.md",
       "status": "completed",
@@ -3460,7 +3505,7 @@
       ]
     }
   ],
-  "active_task_file": "tasks/TASK-036-deployment-defect-closure-20260811.md",
+  "active_task_file": "tasks/TASK-037-doctor-order-final-confirmation-20260818.md",
   "legacy_check_ids": [
     "task-deployment-env-readiness-required-text",
     "npm run check:task9d951",

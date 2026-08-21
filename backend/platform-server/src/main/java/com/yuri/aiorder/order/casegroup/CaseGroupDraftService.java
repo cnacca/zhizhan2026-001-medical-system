@@ -54,6 +54,20 @@ public class CaseGroupDraftService {
 
     private static final long MAX_FILE_SIZE_BYTES = 500L * 1024 * 1024;
     private static final Set<String> DOCTOR_FILE_VISIBILITY = Set.of("DOCTOR", "DOCTOR_CS", "ALL");
+    private static final String FIXED_SHARED_UPLOAD_VERSION = "FIXED_SHARED_V1";
+    private static final String FIXED_LAYERED_UPLOAD_VERSION = "FIXED_LAYERED_V2";
+    private static final String SHADE_DECISION_VERSION = "SHADE_DECISION_V1";
+    private static final Set<String> SHADE_REQUIRED_CATEGORIES = Set.of(
+            "FIXED_RESTORATION", "IMPLANT_RESTORATION", "REMOVABLE_PROSTHETICS");
+    private static final Map<String, Set<String>> FIXED_SHARED_UPLOAD_EXTENSIONS = Map.of(
+            "upper_scan", Set.of(".stl", ".ply", ".obj"),
+            "lower_scan", Set.of(".stl", ".ply", ".obj"),
+            "bite_scan", Set.of(".stl", ".ply", ".obj"),
+            "shade_photo", Set.of(".jpg", ".jpeg", ".png", ".pdf"),
+            "intraoral_photo", Set.of(".jpg", ".jpeg", ".png", ".pdf"),
+            "old_denture_reference", Set.of(".jpg", ".jpeg", ".png", ".pdf"));
+    private static final Set<String> REQUIRED_FIXED_SHARED_UPLOAD_SLOTS =
+            Set.of("upper_scan", "lower_scan", "bite_scan");
 
     private final JdbcClient jdbcClient;
     private final ObjectMapper objectMapper;
@@ -416,7 +430,8 @@ public class CaseGroupDraftService {
                     parsed.accessorySelections(),
                     true);
             validateFormSchema(product, parsed.formValues(), true);
-            validateUploadRules(product, group, order.orderId());
+            validateUploadRules(product, group, order.orderId(), parsed.formValues());
+            validateShadeDecision(product, parsed.formValues());
             // 提交时才强制回寄运单号：印模 / 返工 / 退货订单缺运单号会在这里抛 400，
             // 整个提交回滚——不能出现「一部分子订单进了初审、另一部分没进」的半提交状态。
             OrderRuleSelections selections = OrderRuleSelections.parse(parsed.formValues(), true);
@@ -694,7 +709,22 @@ public class CaseGroupDraftService {
         return field.get(fallback);
     }
 
-    private void validateUploadRules(ActiveProduct product, LockedGroup group, long orderId) {
+    private void validateUploadRules(
+            ActiveProduct product, LockedGroup group, long orderId, JsonNode formValues) {
+        if (FIXED_LAYERED_UPLOAD_VERSION.equals(
+                formValues.path("shared_upload_requirement_version").asText())) {
+            validateFixedLayeredUploadSlots(
+                    group,
+                    orderId,
+                    formValues.path("shared_upload_slot_files"),
+                    formValues.path("product_upload_slot_files"));
+            return;
+        }
+        if (FIXED_SHARED_UPLOAD_VERSION.equals(
+                formValues.path("shared_upload_requirement_version").asText())) {
+            validateFixedSharedUploadSlots(group, formValues.path("shared_upload_slot_files"));
+            return;
+        }
         List<JsonNode> rules = jdbcClient.sql("""
                         SELECT rule_schema_json
                         FROM catalog_rule_v2
@@ -748,6 +778,175 @@ public class CaseGroupDraftService {
         }
     }
 
+    private void validateShadeDecision(ActiveProduct product, JsonNode formValues) {
+        if (!SHADE_DECISION_VERSION.equals(formValues.path("shade_requirement_version").asText())
+                || !SHADE_REQUIRED_CATEGORIES.contains(product.categoryCode())) {
+            return;
+        }
+        if (formValues.path("shade_not_required").asBoolean(false)) {
+            return;
+        }
+        String shadeSystem = formValues.path("shade_system").asText("").trim();
+        if (shadeSystem.isBlank()) {
+            throw badRequest("shade system is required unless shade_not_required is selected");
+        }
+        if ("THREE_ZONE".equals(shadeSystem)) {
+            if (formValues.path("cervical_shade").asText("").isBlank()
+                    || formValues.path("body_shade").asText("").isBlank()
+                    || formValues.path("incisal_shade").asText("").isBlank()) {
+                throw badRequest("cervical, body and incisal shades are required for three-zone shade");
+            }
+            return;
+        }
+        if (formValues.path("shade_value").asText("").isBlank()) {
+            throw badRequest("shade value is required unless shade_not_required is selected");
+        }
+    }
+
+    private void validateFixedSharedUploadSlots(LockedGroup group, JsonNode slots) {
+        if (!slots.isObject()) {
+            throw badRequest("shared upload slot mapping is required");
+        }
+        Map<Long, FileRow> sharedFiles = jdbcClient.sql("""
+                        SELECT file_id, original_filename, content_type, file_size
+                        FROM file_resource
+                        WHERE status = 'ACTIVE'
+                          AND upload_status = 'COMPLETED'
+                          AND case_group_id = :groupId
+                          AND attachment_scope = 'SHARED'
+                        """)
+                .param("groupId", group.groupId())
+                .query((rs, rowNum) -> new FileRow(
+                        rs.getLong("file_id"),
+                        rs.getString("original_filename"),
+                        rs.getString("content_type"),
+                        rs.getObject("file_size", Long.class)))
+                .list()
+                .stream()
+                .collect(Collectors.toMap(FileRow::fileId, Function.identity()));
+
+        for (Map.Entry<String, Set<String>> entry : FIXED_SHARED_UPLOAD_EXTENSIONS.entrySet()) {
+            String slotCode = entry.getKey();
+            JsonNode selectedIds = slots.path(slotCode);
+            if (REQUIRED_FIXED_SHARED_UPLOAD_SLOTS.contains(slotCode)
+                    && (!selectedIds.isArray() || selectedIds.isEmpty())) {
+                throw badRequest("required shared upload slot is missing: " + slotCode);
+            }
+            if (!selectedIds.isArray()) {
+                continue;
+            }
+            for (JsonNode selectedId : selectedIds) {
+                long fileId = selectedId.asLong(-1L);
+                FileRow file = sharedFiles.get(fileId);
+                if (file == null) {
+                    throw badRequest("shared upload slot references an unavailable file: " + slotCode);
+                }
+                String filename = file.originalFilename().toLowerCase(Locale.ROOT);
+                if (entry.getValue().stream().noneMatch(filename::endsWith)) {
+                    throw badRequest("shared upload file type is not allowed for slot: " + slotCode);
+                }
+            }
+        }
+    }
+
+    private void validateFixedLayeredUploadSlots(
+            LockedGroup group, long orderId, JsonNode sharedSlots, JsonNode productSlots) {
+        if (!sharedSlots.isObject() || !productSlots.isObject()) {
+            throw badRequest("layered upload slot mappings are required");
+        }
+        Map<Long, FileRow> sharedFiles = loadUploadSlotFiles(group.groupId(), null, "SHARED");
+        Map<Long, FileRow> productFiles = loadUploadSlotFiles(group.groupId(), orderId, "ORDER");
+
+        for (Map.Entry<String, Set<String>> entry : FIXED_SHARED_UPLOAD_EXTENSIONS.entrySet()) {
+            String slotCode = entry.getKey();
+            List<Long> selectedSharedIds = selectedUploadSlotIds(sharedSlots, slotCode);
+            List<Long> selectedProductIds = selectedUploadSlotIds(productSlots, slotCode);
+            validateUploadSlotFiles(selectedSharedIds, sharedFiles, entry.getValue(), slotCode, "shared");
+            validateUploadSlotFiles(selectedProductIds, productFiles, entry.getValue(), slotCode, "product-specific");
+            if (REQUIRED_FIXED_SHARED_UPLOAD_SLOTS.contains(slotCode)
+                    && selectedSharedIds.isEmpty()
+                    && selectedProductIds.isEmpty()) {
+                throw badRequest("required upload slot is missing for product: " + slotCode);
+            }
+        }
+    }
+
+    private Map<Long, FileRow> loadUploadSlotFiles(long groupId, Long orderId, String attachmentScope) {
+        List<FileRow> files = orderId == null
+                ? jdbcClient.sql("""
+                                SELECT file_id, original_filename, content_type, file_size
+                                FROM file_resource
+                                WHERE status = 'ACTIVE'
+                                  AND upload_status = 'COMPLETED'
+                                  AND case_group_id = :groupId
+                                  AND attachment_scope = :attachmentScope
+                                """)
+                        .param("groupId", groupId)
+                        .param("attachmentScope", attachmentScope)
+                        .query((rs, rowNum) -> new FileRow(
+                                rs.getLong("file_id"),
+                                rs.getString("original_filename"),
+                                rs.getString("content_type"),
+                                rs.getObject("file_size", Long.class)))
+                        .list()
+                : jdbcClient.sql("""
+                                SELECT file_id, original_filename, content_type, file_size
+                                FROM file_resource
+                                WHERE status = 'ACTIVE'
+                                  AND upload_status = 'COMPLETED'
+                                  AND case_group_id = :groupId
+                                  AND attachment_scope = :attachmentScope
+                                  AND order_id = :orderId
+                                """)
+                        .param("groupId", groupId)
+                        .param("attachmentScope", attachmentScope)
+                        .param("orderId", orderId)
+                        .query((rs, rowNum) -> new FileRow(
+                                rs.getLong("file_id"),
+                                rs.getString("original_filename"),
+                                rs.getString("content_type"),
+                                rs.getObject("file_size", Long.class)))
+                        .list();
+        return files.stream().collect(Collectors.toMap(FileRow::fileId, Function.identity()));
+    }
+
+    private List<Long> selectedUploadSlotIds(JsonNode slots, String slotCode) {
+        JsonNode selectedIds = slots.path(slotCode);
+        if (selectedIds.isMissingNode()) {
+            return List.of();
+        }
+        if (!selectedIds.isArray()) {
+            throw badRequest("upload slot mapping must be an array: " + slotCode);
+        }
+        List<Long> result = new ArrayList<>();
+        for (JsonNode selectedId : selectedIds) {
+            long fileId = selectedId.asLong(-1L);
+            if (fileId <= 0 || result.contains(fileId)) {
+                throw badRequest("upload slot contains an invalid file reference: " + slotCode);
+            }
+            result.add(fileId);
+        }
+        return result;
+    }
+
+    private void validateUploadSlotFiles(
+            List<Long> selectedIds,
+            Map<Long, FileRow> availableFiles,
+            Set<String> allowedExtensions,
+            String slotCode,
+            String scopeLabel) {
+        for (Long fileId : selectedIds) {
+            FileRow file = availableFiles.get(fileId);
+            if (file == null) {
+                throw badRequest(scopeLabel + " upload slot references an unavailable file: " + slotCode);
+            }
+            String filename = file.originalFilename().toLowerCase(Locale.ROOT);
+            if (allowedExtensions.stream().noneMatch(filename::endsWith)) {
+                throw badRequest(scopeLabel + " upload file type is not allowed for slot: " + slotCode);
+            }
+        }
+    }
+
     private void freezeSnapshot(
             DraftOrder order,
             ActiveProduct product,
@@ -770,7 +969,7 @@ public class CaseGroupDraftService {
                 selection.materialSelections(), selection.materialBindings()));
         productSnapshot.set("accessories", selectedSnapshot(
                 selection.accessorySelections(), selection.accessoryBindings()));
-        JsonNode orthodonticSnapshot = orthodonticSnapshot(order.orderId(), product.workflowProductType());
+        JsonNode orthodonticSnapshot = orthodonticSnapshot(order.orderId(), product.categoryCode());
         if (orthodonticSnapshot != null) {
             productSnapshot.set("orthodontic_prescription", orthodonticSnapshot);
         }
@@ -857,8 +1056,10 @@ public class CaseGroupDraftService {
                 .update();
     }
 
-    private JsonNode orthodonticSnapshot(long orderId, String productType) {
-        if (!Set.of("ORTHODONTICS", "ORTHODONTIC", "CLEAR_ALIGNER").contains(productType)) {
+    private JsonNode orthodonticSnapshot(long orderId, String categoryCode) {
+        // 常规正畸产品和隐形矫治共用 ORTHODONTICS 工艺链，但只有隐形矫治需要七步处方。
+        // 这里必须按目录分类判断，不能按 workflow_product_type 判断。
+        if (!"CLEAR_ALIGNER".equals(categoryCode)) {
             return null;
         }
         try {

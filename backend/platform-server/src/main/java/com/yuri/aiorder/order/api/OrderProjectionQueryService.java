@@ -517,6 +517,11 @@ public class OrderProjectionQueryService {
         JsonNode normalizedValues = readJson(row.normalizedFormValues());
         copyCompatibilityValue(result, "tooth_position", normalizedValues, "tooth_position", "tooth_positions");
         copyCompatibilityValue(result, "doctor_note", normalizedValues, "doctor_note", "case_note");
+        copyCompatibilityValue(result, "material", normalizedValues,
+                "material", "material_option", "material_name", "material_spec");
+        copyCompatibilityValue(result, "shade", normalizedValues, "shade", "color", "shade_value");
+        copyCompatibilityValue(result, "shade_system", normalizedValues, "shade_system");
+        copyCompatibilityValue(result, "shade_not_required", normalizedValues, "shade_not_required");
 
         JsonNode productSnapshot = readJson(row.catalogProductSnapshot());
         if (!result.hasNonNull("material") && productSnapshot.path("materials").isArray()) {
