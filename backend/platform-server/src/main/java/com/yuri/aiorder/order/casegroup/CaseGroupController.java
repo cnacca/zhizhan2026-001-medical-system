@@ -11,6 +11,9 @@ import com.yuri.aiorder.order.casegroup.CaseGroupItemModels.DeleteGroupItemReque
 import com.yuri.aiorder.order.casegroup.CaseGroupItemModels.SubmitCaseGroupRequest;
 import com.yuri.aiorder.order.casegroup.CaseGroupItemModels.UpdateGroupItemRequest;
 import jakarta.validation.Valid;
+import java.util.Map;
+import org.springframework.http.ResponseEntity;
+import org.springframework.web.bind.annotation.ExceptionHandler;
 import org.springframework.web.bind.annotation.CrossOrigin;
 import org.springframework.web.bind.annotation.DeleteMapping;
 import org.springframework.web.bind.annotation.GetMapping;
@@ -106,5 +109,14 @@ public class CaseGroupController {
             @Valid @RequestBody SubmitCaseGroupRequest request,
             BootstrapIdentity identity) {
         return new DataResponse<>(draftService.submit(groupId, request, identity));
+    }
+
+    @ExceptionHandler(org.springframework.web.server.ResponseStatusException.class)
+    public ResponseEntity<Map<String, String>> handleCaseGroupStatusException(
+            org.springframework.web.server.ResponseStatusException exception) {
+        String message = exception.getReason() == null || exception.getReason().isBlank()
+                ? "case group request failed"
+                : exception.getReason();
+        return ResponseEntity.status(exception.getStatusCode()).body(Map.of("message", message));
     }
 }

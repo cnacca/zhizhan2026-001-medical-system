@@ -914,7 +914,9 @@ function doctorTimelineDateTime(value?: string | null): string {
 function parseDoctorDateTime(value: string): Date {
   const normalized = value.trim().replace(' ', 'T')
   const hasExplicitTimezone = /(?:Z|[+-]\d{2}:?\d{2})$/i.test(normalized)
-  return new Date(hasExplicitTimezone ? normalized : `${normalized}Z`)
+  // 后端 LocalDateTime 和 MySQL DATETIME 都使用 Asia/Shanghai，但响应中不带时区。
+  // 不能追加 Z（UTC），否则上海浏览器会把 17:15 错误显示成次日 01:15。
+  return new Date(hasExplicitTimezone ? normalized : `${normalized}+08:00`)
 }
 
 function doctorLocalDateKey(value?: string | null): string {

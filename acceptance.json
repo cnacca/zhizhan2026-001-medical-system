@@ -1,8 +1,8 @@
 {
   "version": 1,
   "managed_by": "RepoFrame",
-  "active_goal": "GOAL-035",
-  "active_goal_file": "goals/GOAL-035-deployment-defect-closure-20260811.md",
+  "active_goal": "GOAL-036",
+  "active_goal_file": "goals/GOAL-036-doctor-order-final-confirmation-20260818.md",
   "phase_two_milestone_gaps": "docs/acceptance/phase-two-milestone-gap-matrix-20260728.md",
   "linter": "repo-init/scripts/lint_acceptance.py",
   "task8_readiness_gaps": [
@@ -3404,6 +3404,51 @@
       ]
     },
     {
+      "id": "GOAL-036",
+      "file": "goals/GOAL-036-doctor-order-final-confirmation-20260818.md",
+      "status": "completed",
+      "checks": [
+        {
+          "id": "doctor-order-final-confirmation-files",
+          "type": "files_exist",
+          "paths": [
+            "goals/GOAL-036-doctor-order-final-confirmation-20260818.md",
+            "tasks/TASK-037-doctor-order-final-confirmation-20260818.md",
+            "scripts/check-doctor-order-final-confirmation.mjs"
+          ]
+        },
+        {
+          "id": "doctor-order-final-confirmation-contract",
+          "type": "required_text",
+          "paths": [
+            "frontend/src/doctor/DoctorCaseGroupWizard.vue",
+            "scripts/check-doctor-order-final-confirmation.mjs",
+            "package.json"
+          ],
+          "patterns": [
+            "价格待配置",
+            "case-shared-upload-slot",
+            "case-review-ask-support",
+            "check:doctor-order-final-confirmation"
+          ]
+        },
+        {
+          "id": "doctor-order-final-confirmation-no-fake-ready",
+          "type": "forbidden_text",
+          "paths": [
+            "goals/GOAL-036-doctor-order-final-confirmation-20260818.md",
+            "tasks/TASK-037-doctor-order-final-confirmation-20260818.md"
+          ],
+          "patterns": [
+            "Task 8 状态：READY",
+            "正式价格已确认",
+            "真实环境验收已完成",
+            "客户签字已完成"
+          ]
+        }
+      ]
+    },
+    {
       "id": "GOAL-035",
       "file": "goals/GOAL-035-deployment-defect-closure-20260811.md",
       "status": "completed",
@@ -3460,7 +3505,7 @@
       ]
     }
   ],
-  "active_task_file": "tasks/TASK-036-deployment-defect-closure-20260811.md",
+  "active_task_file": "tasks/TASK-037-doctor-order-final-confirmation-20260818.md",
   "legacy_check_ids": [
     "task-deployment-env-readiness-required-text",
     "npm run check:task9d951",

@@ -167,6 +167,401 @@ class OrderCaseGroupTests {
 
     @Test
     @Transactional
+    void fixedSharedUploadContractRequiresOnlyUpperLowerAndBiteScans() throws Exception {
+        CatalogFixture catalog = createActiveCatalog();
+        long groupId = createGroup("fixed-shared-upload-" + UUID.randomUUID());
+
+        mockMvc.perform(post("/order-case-groups/{groupId}/items", groupId)
+                        .header("X-Bootstrap-Role", "DOCTOR")
+                        .header("X-Bootstrap-User-Id", DOCTOR_USER_ID)
+                        .header("X-Bootstrap-Clinic-Id", clinicId)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("""
+                                {
+                                  "product_id":%d,
+                                  "item_client_key":"fixed-shared-%s",
+                                  "form_values":{
+                                    "shared_upload_requirement_version":"FIXED_SHARED_V1",
+                                    "shared_upload_slot_files":{
+                                      "upper_scan":[],
+                                      "lower_scan":[],
+                                      "bite_scan":[],
+                                      "shade_photo":[],
+                                      "intraoral_photo":[],
+                                      "old_denture_reference":[]
+                                    }
+                                  },
+                                  "material_selections":[],
+                                  "accessory_selections":[],
+                                  "file_ids":[],
+                                  "expected_draft_version":1
+                                }
+                                """.formatted(catalog.secondProductId(), UUID.randomUUID())))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.draft_version").value(2));
+
+        mockMvc.perform(post("/order-case-groups/{groupId}/submit", groupId)
+                        .header("X-Bootstrap-Role", "DOCTOR")
+                        .header("X-Bootstrap-User-Id", DOCTOR_USER_ID)
+                        .header("X-Bootstrap-Clinic-Id", clinicId)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("""
+                                {"idempotency_key":"missing-%s","expected_draft_version":2}
+                                """.formatted(UUID.randomUUID())))
+                .andExpect(status().isBadRequest());
+
+        long orderId = jdbcClient.sql("SELECT order_id FROM orders WHERE group_id = :groupId")
+                .param("groupId", groupId)
+                .query(Long.class)
+                .single();
+        long upperFileId = insertSharedFile(groupId, orderId, "upper.stl");
+        long lowerFileId = insertSharedFile(groupId, orderId, "lower.ply");
+        long biteFileId = insertSharedFile(groupId, orderId, "bite.obj");
+
+        mockMvc.perform(put("/order-case-groups/{groupId}/items/{orderId}", groupId, orderId)
+                        .header("X-Bootstrap-Role", "DOCTOR")
+                        .header("X-Bootstrap-User-Id", DOCTOR_USER_ID)
+                        .header("X-Bootstrap-Clinic-Id", clinicId)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("""
+                                {
+                                  "product_id":%d,
+                                  "form_values":{
+                                    "shared_upload_requirement_version":"FIXED_SHARED_V1",
+                                    "shared_upload_slot_files":{
+                                      "upper_scan":[%d],
+                                      "lower_scan":[%d],
+                                      "bite_scan":[%d],
+                                      "shade_photo":[],
+                                      "intraoral_photo":[],
+                                      "old_denture_reference":[]
+                                    }
+                                  },
+                                  "material_selections":[],
+                                  "accessory_selections":[],
+                                  "file_ids":[],
+                                  "expected_draft_version":2
+                                }
+                                """.formatted(
+                                        catalog.secondProductId(),
+                                        upperFileId,
+                                        lowerFileId,
+                                        biteFileId)))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.draft_version").value(3));
+
+        mockMvc.perform(post("/order-case-groups/{groupId}/submit", groupId)
+                        .header("X-Bootstrap-Role", "DOCTOR")
+                        .header("X-Bootstrap-User-Id", DOCTOR_USER_ID)
+                        .header("X-Bootstrap-Clinic-Id", clinicId)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("""
+                                {"idempotency_key":"complete-%s","expected_draft_version":3}
+                                """.formatted(UUID.randomUUID())))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.lifecycle_status").value("SUBMITTED"));
+    }
+
+    @Test
+    @Transactional
+    void conventionalOrthodonticProductDoesNotRequireClearAlignerPrescription() throws Exception {
+        CatalogFixture catalog = createActiveCatalog();
+        long categoryId = jdbcClient.sql("""
+                        SELECT category_id FROM catalog_product_v2 WHERE product_id = :productId
+                        """)
+                .param("productId", catalog.secondProductId())
+                .query(Long.class)
+                .single();
+        jdbcClient.sql("""
+                        UPDATE catalog_category_v2
+                        SET category_code = 'CONVENTIONAL_ORTHODONTICS'
+                        WHERE category_id = :categoryId
+                        """)
+                .param("categoryId", categoryId)
+                .update();
+        jdbcClient.sql("""
+                        UPDATE catalog_product_v2
+                        SET workflow_product_type = 'ORTHODONTICS'
+                        WHERE product_id = :productId
+                        """)
+                .param("productId", catalog.secondProductId())
+                .update();
+
+        long groupId = createGroup("conventional-orthodontic-" + UUID.randomUUID());
+        mockMvc.perform(post("/order-case-groups/{groupId}/items", groupId)
+                        .header("X-Bootstrap-Role", "DOCTOR")
+                        .header("X-Bootstrap-User-Id", DOCTOR_USER_ID)
+                        .header("X-Bootstrap-Clinic-Id", clinicId)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("""
+                                {
+                                  "product_id":%d,
+                                  "item_client_key":"conventional-%s",
+                                  "form_values":{},
+                                  "material_selections":[],
+                                  "accessory_selections":[],
+                                  "file_ids":[],
+                                  "expected_draft_version":1
+                                }
+                                """.formatted(catalog.secondProductId(), UUID.randomUUID())))
+                .andExpect(status().isOk());
+
+        mockMvc.perform(post("/order-case-groups/{groupId}/submit", groupId)
+                        .header("X-Bootstrap-Role", "DOCTOR")
+                        .header("X-Bootstrap-User-Id", DOCTOR_USER_ID)
+                        .header("X-Bootstrap-Clinic-Id", clinicId)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("""
+                                {"idempotency_key":"submit-%s","expected_draft_version":2}
+                                """.formatted(UUID.randomUUID())))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.lifecycle_status").value("SUBMITTED"));
+    }
+
+    @Test
+    @Transactional
+    void clearAlignerProductStillRequiresSubmittedPrescription() throws Exception {
+        CatalogFixture catalog = createActiveCatalog();
+        long categoryId = jdbcClient.sql("""
+                        SELECT category_id FROM catalog_product_v2 WHERE product_id = :productId
+                        """)
+                .param("productId", catalog.secondProductId())
+                .query(Long.class)
+                .single();
+        jdbcClient.sql("""
+                        UPDATE catalog_category_v2
+                        SET category_code = 'CLEAR_ALIGNER'
+                        WHERE category_id = :categoryId
+                        """)
+                .param("categoryId", categoryId)
+                .update();
+        jdbcClient.sql("""
+                        UPDATE catalog_product_v2
+                        SET workflow_product_type = 'ORTHODONTICS'
+                        WHERE product_id = :productId
+                        """)
+                .param("productId", catalog.secondProductId())
+                .update();
+
+        long groupId = createGroup("clear-aligner-prescription-" + UUID.randomUUID());
+        mockMvc.perform(post("/order-case-groups/{groupId}/items", groupId)
+                        .header("X-Bootstrap-Role", "DOCTOR")
+                        .header("X-Bootstrap-User-Id", DOCTOR_USER_ID)
+                        .header("X-Bootstrap-Clinic-Id", clinicId)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("""
+                                {
+                                  "product_id":%d,
+                                  "item_client_key":"clear-aligner-%s",
+                                  "form_values":{},
+                                  "material_selections":[],
+                                  "accessory_selections":[],
+                                  "file_ids":[],
+                                  "expected_draft_version":1
+                                }
+                                """.formatted(catalog.secondProductId(), UUID.randomUUID())))
+                .andExpect(status().isOk());
+
+        mockMvc.perform(post("/order-case-groups/{groupId}/submit", groupId)
+                        .header("X-Bootstrap-Role", "DOCTOR")
+                        .header("X-Bootstrap-User-Id", DOCTOR_USER_ID)
+                        .header("X-Bootstrap-Clinic-Id", clinicId)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("""
+                                {"idempotency_key":"submit-%s","expected_draft_version":2}
+                                """.formatted(UUID.randomUUID())))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.message").value(
+                        "orthodontic seven-step prescription must be submitted before the case group"));
+    }
+
+    @Test
+    @Transactional
+    void restorativeProductRequiresExplicitShadeOrNoShadeDecision() throws Exception {
+        CatalogFixture catalog = createActiveCatalog();
+        long categoryId = jdbcClient.sql("""
+                        SELECT category_id FROM catalog_product_v2 WHERE product_id = :productId
+                        """)
+                .param("productId", catalog.secondProductId())
+                .query(Long.class)
+                .single();
+        jdbcClient.sql("""
+                        UPDATE catalog_category_v2
+                        SET category_code = 'FIXED_RESTORATION'
+                        WHERE category_id = :categoryId
+                        """)
+                .param("categoryId", categoryId)
+                .update();
+
+        long groupId = createGroup("shade-decision-" + UUID.randomUUID());
+        mockMvc.perform(post("/order-case-groups/{groupId}/items", groupId)
+                        .header("X-Bootstrap-Role", "DOCTOR")
+                        .header("X-Bootstrap-User-Id", DOCTOR_USER_ID)
+                        .header("X-Bootstrap-Clinic-Id", clinicId)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("""
+                                {
+                                  "product_id":%d,
+                                  "item_client_key":"shade-%s",
+                                  "form_values":{"shade_requirement_version":"SHADE_DECISION_V1"},
+                                  "material_selections":[],
+                                  "accessory_selections":[],
+                                  "file_ids":[],
+                                  "expected_draft_version":1
+                                }
+                                """.formatted(catalog.secondProductId(), UUID.randomUUID())))
+                .andExpect(status().isOk());
+
+        mockMvc.perform(post("/order-case-groups/{groupId}/submit", groupId)
+                        .header("X-Bootstrap-Role", "DOCTOR")
+                        .header("X-Bootstrap-User-Id", DOCTOR_USER_ID)
+                        .header("X-Bootstrap-Clinic-Id", clinicId)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("""
+                                {"idempotency_key":"missing-shade-%s","expected_draft_version":2}
+                                """.formatted(UUID.randomUUID())))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.message").value(
+                        "shade system is required unless shade_not_required is selected"));
+
+        long orderId = jdbcClient.sql("SELECT order_id FROM orders WHERE group_id = :groupId")
+                .param("groupId", groupId)
+                .query(Long.class)
+                .single();
+        mockMvc.perform(put("/order-case-groups/{groupId}/items/{orderId}", groupId, orderId)
+                        .header("X-Bootstrap-Role", "DOCTOR")
+                        .header("X-Bootstrap-User-Id", DOCTOR_USER_ID)
+                        .header("X-Bootstrap-Clinic-Id", clinicId)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("""
+                                {
+                                  "product_id":%d,
+                                  "form_values":{
+                                    "shade_requirement_version":"SHADE_DECISION_V1",
+                                    "shade_not_required":true,
+                                    "shade":"无需指定颜色",
+                                    "material_option":"爱尔创氧化锆"
+                                  },
+                                  "material_selections":[],
+                                  "accessory_selections":[],
+                                  "file_ids":[],
+                                  "expected_draft_version":2
+                                }
+                                """.formatted(catalog.secondProductId())))
+                .andExpect(status().isOk());
+
+        mockMvc.perform(post("/order-case-groups/{groupId}/submit", groupId)
+                        .header("X-Bootstrap-Role", "DOCTOR")
+                        .header("X-Bootstrap-User-Id", DOCTOR_USER_ID)
+                        .header("X-Bootstrap-Clinic-Id", clinicId)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("""
+                                {"idempotency_key":"no-shade-%s","expected_draft_version":3}
+                                """.formatted(UUID.randomUUID())))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.lifecycle_status").value("SUBMITTED"));
+
+        mockMvc.perform(get("/orders/{orderId}", orderId)
+                        .header("X-Bootstrap-Role", "CS")
+                        .header("X-Bootstrap-User-Id", 1L))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.form_data.shade").value("无需指定颜色"))
+                .andExpect(jsonPath("$.data.form_data.material").value("爱尔创氧化锆"))
+                .andExpect(jsonPath("$.data.form_data.shade_not_required").value(true));
+    }
+
+    @Test
+    @Transactional
+    void layeredUploadContractAllowsProductSpecificFilesToCompleteSharedRecords() throws Exception {
+        CatalogFixture catalog = createActiveCatalog();
+        long groupId = createGroup("layered-upload-" + UUID.randomUUID());
+
+        mockMvc.perform(post("/order-case-groups/{groupId}/items", groupId)
+                        .header("X-Bootstrap-Role", "DOCTOR")
+                        .header("X-Bootstrap-User-Id", DOCTOR_USER_ID)
+                        .header("X-Bootstrap-Clinic-Id", clinicId)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("""
+                                {
+                                  "product_id":%d,
+                                  "item_client_key":"layered-%s",
+                                  "form_values":{
+                                    "shared_upload_requirement_version":"FIXED_LAYERED_V2",
+                                    "shared_upload_slot_files":{},
+                                    "product_upload_slot_files":{}
+                                  },
+                                  "material_selections":[],
+                                  "accessory_selections":[],
+                                  "file_ids":[],
+                                  "expected_draft_version":1
+                                }
+                                """.formatted(catalog.secondProductId(), UUID.randomUUID())))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.draft_version").value(2));
+
+        long orderId = jdbcClient.sql("SELECT order_id FROM orders WHERE group_id = :groupId")
+                .param("groupId", groupId)
+                .query(Long.class)
+                .single();
+        long sharedUpperFileId = insertSharedFile(groupId, orderId, "shared-upper.stl");
+        long sharedLowerFileId = insertSharedFile(groupId, orderId, "shared-lower.ply");
+        long productBiteFileId = insertOrderFile(groupId, orderId, "product-bite.obj");
+
+        mockMvc.perform(put("/order-case-groups/{groupId}/items/{orderId}", groupId, orderId)
+                        .header("X-Bootstrap-Role", "DOCTOR")
+                        .header("X-Bootstrap-User-Id", DOCTOR_USER_ID)
+                        .header("X-Bootstrap-Clinic-Id", clinicId)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("""
+                                {
+                                  "product_id":%d,
+                                  "form_values":{
+                                    "shared_upload_requirement_version":"FIXED_LAYERED_V2",
+                                    "shared_upload_slot_files":{
+                                      "upper_scan":[%d],
+                                      "lower_scan":[%d],
+                                      "bite_scan":[],
+                                      "shade_photo":[],
+                                      "intraoral_photo":[],
+                                      "old_denture_reference":[]
+                                    },
+                                    "product_upload_slot_files":{
+                                      "upper_scan":[],
+                                      "lower_scan":[],
+                                      "bite_scan":[%d],
+                                      "shade_photo":[],
+                                      "intraoral_photo":[],
+                                      "old_denture_reference":[]
+                                    }
+                                  },
+                                  "material_selections":[],
+                                  "accessory_selections":[],
+                                  "file_ids":[%d],
+                                  "expected_draft_version":2
+                                }
+                                """.formatted(
+                                        catalog.secondProductId(),
+                                        sharedUpperFileId,
+                                        sharedLowerFileId,
+                                        productBiteFileId,
+                                        productBiteFileId)))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.draft_version").value(3));
+
+        mockMvc.perform(post("/order-case-groups/{groupId}/submit", groupId)
+                        .header("X-Bootstrap-Role", "DOCTOR")
+                        .header("X-Bootstrap-User-Id", DOCTOR_USER_ID)
+                        .header("X-Bootstrap-Clinic-Id", clinicId)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("""
+                                {"idempotency_key":"layered-complete-%s","expected_draft_version":3}
+                                """.formatted(UUID.randomUUID())))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.lifecycle_status").value("SUBMITTED"));
+    }
+
+    @Test
+    @Transactional
     void multiProductDraftSupportsIdempotentAddCopyDeleteTypedValidationAndAtomicSubmit()
             throws Exception {
         CatalogFixture catalog = createActiveCatalog();
@@ -477,6 +872,58 @@ class OrderCaseGroupTests {
                 .getResponse()
                 .getContentAsString();
         return readGroupId(response);
+    }
+
+    private long insertSharedFile(long groupId, long orderId, String originalFilename) {
+        String objectKey = "case-group-fixed-shared/" + UUID.randomUUID() + "/" + originalFilename;
+        jdbcClient.sql("""
+                        INSERT INTO file_resource
+                            (order_id, case_group_id, attachment_scope, owner_user_id,
+                             source_type, visibility, bucket_name, object_key,
+                             original_filename, content_type, file_size,
+                             upload_status, status)
+                        VALUES
+                            (:orderId, :groupId, 'SHARED', :ownerUserId,
+                             'CASE_GROUP_ATTACHMENT', 'DOCTOR_CS', 'test-bucket', :objectKey,
+                             :originalFilename, 'application/octet-stream', 128,
+                             'COMPLETED', 'ACTIVE')
+                        """)
+                .param("orderId", orderId)
+                .param("groupId", groupId)
+                .param("ownerUserId", DOCTOR_USER_ID)
+                .param("objectKey", objectKey)
+                .param("originalFilename", originalFilename)
+                .update();
+        return jdbcClient.sql("SELECT file_id FROM file_resource WHERE object_key = :objectKey")
+                .param("objectKey", objectKey)
+                .query(Long.class)
+                .single();
+    }
+
+    private long insertOrderFile(long groupId, long orderId, String originalFilename) {
+        String objectKey = "case-group-fixed-product/" + UUID.randomUUID() + "/" + originalFilename;
+        jdbcClient.sql("""
+                        INSERT INTO file_resource
+                            (order_id, case_group_id, attachment_scope, owner_user_id,
+                             source_type, visibility, bucket_name, object_key,
+                             original_filename, content_type, file_size,
+                             upload_status, status)
+                        VALUES
+                            (:orderId, :groupId, 'ORDER', :ownerUserId,
+                             'ORDER_ATTACHMENT', 'DOCTOR_CS', 'test-bucket', :objectKey,
+                             :originalFilename, 'application/octet-stream', 128,
+                             'COMPLETED', 'ACTIVE')
+                        """)
+                .param("orderId", orderId)
+                .param("groupId", groupId)
+                .param("ownerUserId", DOCTOR_USER_ID)
+                .param("objectKey", objectKey)
+                .param("originalFilename", originalFilename)
+                .update();
+        return jdbcClient.sql("SELECT file_id FROM file_resource WHERE object_key = :objectKey")
+                .param("objectKey", objectKey)
+                .query(Long.class)
+                .single();
     }
 
     private long readGroupId(String response) {
