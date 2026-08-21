@@ -143,6 +143,7 @@ git diff --check
 
 ## Completion Record
 
+- 2026-08-21 正式发布版本为 `bf49ca3fdde9d62834504a29a2f79e5ec3de38dc`，自动部署 #32472847396 完成完整后端测试、release gates、镜像校验、备份／部署、健康检查和公网入口验证；线上只读核验通过，未创建或修改正式订单。
 - 2026-08-21 追加完成下单缺项清单：第一步可同时列出患者、产品、到货日期；产品步骤显示“产品名：具体字段”；资料步骤按产品列出缺失扫描；最终提交点击后列出未勾选确认。每条均可“去填写”，最终按钮不再因缺项静默禁用，提交校验未放宽。
 - 2026-08-21 追加完成 `FIXED_LAYERED_V2`：六类共享／产品专属槽位同构，三项必传按产品由共享或专属满足，专属同类文件仅覆盖当前产品；前端生产构建和全新隔离数据库 `OrderCaseGroupTests` 9/9 通过。
 - 实现文件：`DoctorCaseGroupWizard.vue`、`CaseGroupDraftService.java`、`OrderCaseGroupTests.java`、`smoke-clear-aligner-doctor-ordering.spec.mjs`。
