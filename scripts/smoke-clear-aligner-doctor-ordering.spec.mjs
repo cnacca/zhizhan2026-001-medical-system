@@ -53,6 +53,19 @@ test('医生可添加无托槽隐形矫治器并进入七步处方', async ({ pa
   await expect(wizard.getByRole('heading', { name: '材料与工艺', exact: true })).toBeVisible()
   await wizard.locator('.case-wizard__footer .case-primary').click()
   await expect(wizard.getByRole('heading', { name: '资料上传', exact: true })).toBeVisible()
+  await expect(wizard.locator('.case-wizard__footer .case-primary')).toBeEnabled()
+  for (const [label, filename] of [
+    ['上颌扫描', 'upper.stl'],
+    ['下颌扫描', 'lower.stl'],
+    ['咬合扫描', 'bite.stl']
+  ]) {
+    await wizard.locator('.case-shared-upload-slot').filter({ hasText: label }).locator('input[type="file"]').setInputFiles({
+      name: filename,
+      mimeType: 'model/stl',
+      buffer: Buffer.from(`solid ${label}\nendsolid ${label}\n`)
+    })
+    await expect(wizard.locator('.case-shared-upload-slot').filter({ hasText: label })).toContainText('已上传 1 个', { timeout: 15_000 })
+  }
   await wizard.locator('.case-wizard__footer .case-primary').click()
   await expect(wizard.getByRole('heading', { name: '试戴与过程确认', exact: true })).toBeVisible()
 
