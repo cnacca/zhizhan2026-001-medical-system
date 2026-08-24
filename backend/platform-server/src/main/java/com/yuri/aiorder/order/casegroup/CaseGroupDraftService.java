@@ -56,13 +56,21 @@ public class CaseGroupDraftService {
     private static final Set<String> DOCTOR_FILE_VISIBILITY = Set.of("DOCTOR", "DOCTOR_CS", "ALL");
     private static final String FIXED_SHARED_UPLOAD_VERSION = "FIXED_SHARED_V1";
     private static final String FIXED_LAYERED_UPLOAD_VERSION = "FIXED_LAYERED_V2";
+    private static final String CLASSIFIED_SCAN_BUNDLE_VERSION = "CLASSIFIED_SCAN_BUNDLE_V3";
     private static final String SHADE_DECISION_VERSION = "SHADE_DECISION_V1";
+    private static final String SHADE_OPTIONAL_VERSION = "SHADE_OPTIONAL_V2";
+    private static final String OPTIONAL_PRIMARY_MATERIAL_VERSION = "OPTIONAL_PRIMARY_MATERIAL_V2";
+    private static final Set<String> OPTIONAL_SHADE_FORM_FIELDS = Set.of(
+            "shade", "color", "shade_system", "shade_value",
+            "cervical_shade", "body_shade", "incisal_shade");
     private static final Set<String> SHADE_REQUIRED_CATEGORIES = Set.of(
             "FIXED_RESTORATION", "IMPLANT_RESTORATION", "REMOVABLE_PROSTHETICS");
     private static final Map<String, Set<String>> FIXED_SHARED_UPLOAD_EXTENSIONS = Map.of(
+            "combined_scan", Set.of(".zip", ".stl", ".ply", ".obj"),
             "upper_scan", Set.of(".stl", ".ply", ".obj"),
             "lower_scan", Set.of(".stl", ".ply", ".obj"),
             "bite_scan", Set.of(".stl", ".ply", ".obj"),
+            "scan_other", Set.of(".stl", ".ply", ".obj"),
             "shade_photo", Set.of(".jpg", ".jpeg", ".png", ".pdf"),
             "intraoral_photo", Set.of(".jpg", ".jpeg", ".png", ".pdf"),
             "old_denture_reference", Set.of(".jpg", ".jpeg", ".png", ".pdf"));
@@ -428,6 +436,8 @@ public class CaseGroupDraftService {
                     product,
                     parsed.materialSelections(),
                     parsed.accessorySelections(),
+                    !OPTIONAL_PRIMARY_MATERIAL_VERSION.equals(
+                            parsed.formValues().path("material_requirement_version").asText()),
                     true);
             validateFormSchema(product, parsed.formValues(), true);
             validateUploadRules(product, group, order.orderId(), parsed.formValues());
@@ -486,12 +496,26 @@ public class CaseGroupDraftService {
             List<QuantitySelection> requestedMaterials,
             List<QuantitySelection> requestedAccessories,
             boolean requireComplete) {
+        return validateSelections(
+                product,
+                requestedMaterials,
+                requestedAccessories,
+                requireComplete,
+                requireComplete);
+    }
+
+    private SelectionValidation validateSelections(
+            ActiveProduct product,
+            List<QuantitySelection> requestedMaterials,
+            List<QuantitySelection> requestedAccessories,
+            boolean requireMaterialsComplete,
+            boolean requireAccessoriesComplete) {
         List<QuantitySelection> materials = normalizedSelections(requestedMaterials, "material");
         List<QuantitySelection> accessories = normalizedSelections(requestedAccessories, "accessory");
         List<BindingRow> materialBindings = loadBindings(product, "MATERIAL");
         List<BindingRow> accessoryBindings = loadBindings(product, "ACCESSORY");
-        validateBindingSelections(materialBindings, materials, "material", requireComplete);
-        validateBindingSelections(accessoryBindings, accessories, "accessory", requireComplete);
+        validateBindingSelections(materialBindings, materials, "material", requireMaterialsComplete);
+        validateBindingSelections(accessoryBindings, accessories, "accessory", requireAccessoriesComplete);
 
         boolean pendingQuote = "PENDING_QUOTE".equals(product.pricingStatus())
                 || product.basePriceCents() == null;
@@ -598,11 +622,18 @@ public class CaseGroupDraftService {
                     continue;
                 }
                 JsonNode value = values.get(key);
-                if (requireRequiredFields && field.path("required").asBoolean(false) && missing(value)) {
+                boolean shadeOptional = SHADE_OPTIONAL_VERSION.equals(
+                        values.path("shade_requirement_version").asText())
+                        && OPTIONAL_SHADE_FORM_FIELDS.contains(key);
+                boolean primaryMaterialOptional = OPTIONAL_PRIMARY_MATERIAL_VERSION.equals(
+                        values.path("material_requirement_version").asText())
+                        && Set.of("material", "material_option").contains(key);
+                if (requireRequiredFields && field.path("required").asBoolean(false)
+                        && !shadeOptional && !primaryMaterialOptional && missing(value)) {
                     throw badRequest("missing required form field: " + key);
                 }
                 if (!missing(value)) {
-                    validateFormField(key, field, value);
+                    validateFormField(key, field, value, shadeOptional);
                 }
             }
         }
@@ -617,7 +648,7 @@ public class CaseGroupDraftService {
         return field.isBlank() || expected == null || expected.equals(values.get(field));
     }
 
-    private void validateFormField(String key, JsonNode field, JsonNode value) {
+    private void validateFormField(String key, JsonNode field, JsonNode value, boolean allowCustomOption) {
         String type = field.path("type").asText("string").toLowerCase(Locale.ROOT);
         boolean valid = switch (type.toLowerCase(Locale.ROOT)) {
             case "string", "text", "textarea", "single_select", "color", "tooth" -> value.isTextual();
@@ -633,7 +664,9 @@ public class CaseGroupDraftService {
         if ("quantity".equals(type) && (!value.isIntegralNumber() || value.longValue() < 0)) {
             throw badRequest("quantity form field must be a non-negative integer: " + key);
         }
-        validateAllowedOptions(key, type, field.path("options"), value);
+        if (!allowCustomOption) {
+            validateAllowedOptions(key, type, field.path("options"), value);
+        }
         validateNumericBounds(key, field, value);
         validateCollectionBounds(key, field, value);
     }
@@ -711,6 +744,15 @@ public class CaseGroupDraftService {
 
     private void validateUploadRules(
             ActiveProduct product, LockedGroup group, long orderId, JsonNode formValues) {
+        if (CLASSIFIED_SCAN_BUNDLE_VERSION.equals(
+                formValues.path("shared_upload_requirement_version").asText())) {
+            validateClassifiedScanBundle(
+                    group,
+                    orderId,
+                    formValues.path("shared_upload_slot_files"),
+                    formValues.path("product_upload_slot_files"));
+            return;
+        }
         if (FIXED_LAYERED_UPLOAD_VERSION.equals(
                 formValues.path("shared_upload_requirement_version").asText())) {
             validateFixedLayeredUploadSlots(
@@ -779,6 +821,9 @@ public class CaseGroupDraftService {
     }
 
     private void validateShadeDecision(ActiveProduct product, JsonNode formValues) {
+        if (SHADE_OPTIONAL_VERSION.equals(formValues.path("shade_requirement_version").asText())) {
+            return;
+        }
         if (!SHADE_DECISION_VERSION.equals(formValues.path("shade_requirement_version").asText())
                 || !SHADE_REQUIRED_CATEGORIES.contains(product.categoryCode())) {
             return;
@@ -869,6 +914,44 @@ public class CaseGroupDraftService {
                 throw badRequest("required upload slot is missing for product: " + slotCode);
             }
         }
+    }
+
+    private void validateClassifiedScanBundle(
+            LockedGroup group, long orderId, JsonNode sharedSlots, JsonNode productSlots) {
+        if (!sharedSlots.isObject() || !productSlots.isObject()) {
+            throw badRequest("classified scan bundle mappings are required");
+        }
+        Map<Long, FileRow> sharedFiles = loadUploadSlotFiles(group.groupId(), null, "SHARED");
+        Map<Long, FileRow> productFiles = loadUploadSlotFiles(group.groupId(), orderId, "ORDER");
+
+        for (Map.Entry<String, Set<String>> entry : FIXED_SHARED_UPLOAD_EXTENSIONS.entrySet()) {
+            String slotCode = entry.getKey();
+            validateUploadSlotFiles(
+                    selectedUploadSlotIds(sharedSlots, slotCode),
+                    sharedFiles,
+                    entry.getValue(),
+                    slotCode,
+                    "shared");
+            validateUploadSlotFiles(
+                    selectedUploadSlotIds(productSlots, slotCode),
+                    productFiles,
+                    entry.getValue(),
+                    slotCode,
+                    "product-specific");
+        }
+
+        boolean completePackage = hasUploadSlotFiles(sharedSlots, productSlots, "combined_scan");
+        boolean separateScans = REQUIRED_FIXED_SHARED_UPLOAD_SLOTS.stream()
+                .allMatch(slotCode -> hasUploadSlotFiles(sharedSlots, productSlots, slotCode));
+        if (!completePackage && !separateScans) {
+            throw badRequest(
+                    "classified scan bundle is incomplete: upload combined_scan or upper_scan, lower_scan and bite_scan");
+        }
+    }
+
+    private boolean hasUploadSlotFiles(JsonNode sharedSlots, JsonNode productSlots, String slotCode) {
+        return !selectedUploadSlotIds(sharedSlots, slotCode).isEmpty()
+                || !selectedUploadSlotIds(productSlots, slotCode).isEmpty();
     }
 
     private Map<Long, FileRow> loadUploadSlotFiles(long groupId, Long orderId, String attachmentScope) {

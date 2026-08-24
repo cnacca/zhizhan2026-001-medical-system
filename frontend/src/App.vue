@@ -2429,7 +2429,7 @@ const displayNavigationConfig: Record<PortalTone, NavigationGroup[]> = {
     {
       title: '系统治理',
       items: [
-        { id: 'admin-products', title: '产品总览', description: '只读查看可用产品及其基本业务信息。', icon: 'product', routePath: '/system/form-configs' },
+        { id: 'admin-products', title: '产品总览', description: '核对医生端当前可下单的已发布产品目录。', icon: 'product', routePath: '/system/form-configs' },
         { id: 'admin-catalog-center', title: '下单内容设置', description: '维护产品、材料及适用绑定，持续补充下单选项。', icon: 'product', routePath: '/admin/catalog' },
         { id: 'admin-standard-time', title: '工序工时设置', description: '按现有生产流程填写工序标准分钟并保留草稿。', icon: 'process', routePath: '/admin/workflow/standard-time' },
         { id: 'admin-audit', title: '通知中心', description: '查看当前账号的业务通知和未读提醒。', icon: 'notification', routePath: '/notifications' },
@@ -4324,7 +4324,7 @@ const routeChrome = computed<RouteChrome>(() => {
       '/production/material-exceptions': { title: '物料异常', description: '查看物料异常总体情况与现有处理记录。', icon: 'material' },
       '/production/safety-environment': { title: '安环管理', description: '查看安全巡检、整改事项和环境记录。', icon: 'safety' },
       '/production/cost-management': { title: '成本管控', description: '查看工序、材料、人工、返工和外协费用概览。', icon: 'cost' },
-      '/system/form-configs': { title: '产品总览', description: '只读查看可用产品及其基本业务信息。', icon: 'product' },
+      '/system/form-configs': { title: '产品总览', description: '核对医生端当前可下单的已发布产品目录；修改请进入下单内容设置。', icon: 'product' },
       '/admin/catalog': { title: '下单内容设置', description: '持续维护产品、材料和适用绑定；停用配置不会影响历史订单。', icon: 'product' },
       '/admin/workflow/standard-time': { title: '工序工时设置', description: '按现有生产流程填写工序标准分钟；未确认值可先保留为空或草稿。', icon: 'process' },
       '/notifications': { title: '通知中心', description: '查看当前账号的真实业务通知和未读提醒。', icon: 'notification' },
