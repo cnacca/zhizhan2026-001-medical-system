@@ -790,6 +790,8 @@ type OrderFileItem = {
   created_at: string
 }
 
+type InlineFilePreviewKind = 'LOADING' | 'IMAGE' | 'PDF' | 'UNSUPPORTED' | 'ERROR'
+
 type ProcessEdgeItem = {
   edge_instance_id: number
   from_node_instance_id: number
@@ -1803,6 +1805,9 @@ const productionReviewStatus = ref('PENDING_PRODUCTION_REVIEW')
 const productionReviewLoading = ref(false)
 const productionReviewError = ref('')
 const productionReviewActionLoading = ref(false)
+const productionReviewFiles = ref<OrderFileItem[]>([])
+const productionReviewFilesLoading = ref(false)
+const productionReviewFilesError = ref('')
 const workflowChains = ref<WorkflowChainSummary[]>([])
 const workflowChainDrawerVisible = ref(false)
 const selectedWorkflowChainId = ref<number | null>(null)
@@ -1842,6 +1847,10 @@ const selectedProcessNodeId = ref<number | null>(null)
 const processInstanceKeyword = ref('')
 const processInstanceLoading = ref(false)
 const processInstanceError = ref('')
+const processAssignmentFiles = ref<OrderFileItem[]>([])
+const processAssignmentFilesLoading = ref(false)
+const processAssignmentFilesError = ref('')
+const workflowFileActionKey = ref('')
 const processAssignmentUserId = ref('9601')
 const processAssignmentLoading = ref(false)
 const processAssignmentResult = ref('')
@@ -2099,6 +2108,13 @@ const selectedProductionBoardStlFileId = ref<number | null>(null)
 const productionBoardStlViewerVisible = ref(false)
 const productionBoardStlViewerUrl = ref('')
 const productionBoardStlViewerFilename = ref('')
+const inlineFilePreviewVisible = ref(false)
+const inlineFilePreviewKind = ref<InlineFilePreviewKind>('LOADING')
+const inlineFilePreviewUrl = ref('')
+const inlineFilePreviewFilename = ref('')
+const inlineFilePreviewError = ref('')
+const inlineFilePreviewFile = ref<OrderFileItem | null>(null)
+const inlineFilePreviewTarget = ref<'doctor' | 'cs'>('cs')
 const productionBoardQuestionDraft = ref('')
 const productionBoardQuestionLoading = ref(false)
 const deliveryOrders = ref<DeliveryOrderItem[]>([])
@@ -6320,6 +6336,9 @@ function clearSensitiveBusinessState() {
   productionReviewBranchChoice.value = ''
   productionReviewRejectReason.value = ''
   productionReviewResult.value = null
+  productionReviewFiles.value = []
+  productionReviewFilesLoading.value = false
+  productionReviewFilesError.value = ''
 
   processInstanceOrders.value = []
   processInstanceKeyword.value = ''
@@ -6327,6 +6346,10 @@ function clearSensitiveBusinessState() {
   selectedProcessInstance.value = null
   selectedProcessNodeId.value = null
   processAssignmentResult.value = ''
+  processAssignmentFiles.value = []
+  processAssignmentFilesLoading.value = false
+  processAssignmentFilesError.value = ''
+  workflowFileActionKey.value = ''
   workerTasks.value = []
   checkTasks.value = []
   selectedCheckTask.value = null
@@ -6405,8 +6428,10 @@ function clearSensitiveBusinessState() {
   productionBoardShippingResult.value = ''
   productionBoardFiles.value = []
   selectedProductionBoardStlFileId.value = null
+  productionBoardStlViewerVisible.value = false
   productionBoardStlViewerUrl.value = ''
   productionBoardStlViewerFilename.value = ''
+  resetInlineFilePreview()
   productionBoardQuestionDraft.value = ''
   deliveryOrders.value = []
   selectedDeliveryOrder.value = null
@@ -6931,6 +6956,9 @@ function openSelectedAdminOrderProductionReview() {
   }
   selectProductionReviewOrder(selectedInternalOrder.value)
   productionReviewDrawerVisible.value = true
+  productionReviewFiles.value = []
+  productionReviewFilesError.value = ''
+  void loadProductionReviewFiles(selectedInternalOrder.value.order_id)
   adminOrderDrawerVisible.value = false
   activeNavId.value = 'admin-production-review'
   navigateToRoute('/workflow/review')
@@ -8836,28 +8864,114 @@ async function loadInternalOrderFiles(orderId: number) {
   }
 }
 
-async function openOrderFile(file: OrderFileItem, mode: 'preview' | 'download', target: 'doctor' | 'cs') {
-  const popup = openPendingFileWindow()
+const signedFileUrlTimeoutMs = 15_000
+
+async function requestSignedFileUrl(fileId: number, mode: 'preview' | 'download') {
+  const controller = new AbortController()
+  const timeoutId = window.setTimeout(() => controller.abort(), signedFileUrlTimeoutMs)
   try {
-    const payload = await apiFetch<FilePreviewUrlResponse>(`/files/${file.file_id}/${mode === 'download' ? 'download-url' : 'preview-url'}`)
-    const url = mode === 'download' ? (payload.data.download_url ?? payload.data.preview_url) : payload.data.preview_url
-    if (!popup) throw new Error('浏览器阻止了新窗口，请允许弹窗后重试')
-    popup.location.replace(url)
+    return await apiFetch<FilePreviewUrlResponse>(
+      `/files/${fileId}/${mode === 'download' ? 'download-url' : 'preview-url'}`,
+      { signal: controller.signal }
+    )
   } catch (error) {
-    popup?.close()
+    if (controller.signal.aborted) {
+      throw new Error('获取文件链接超时，请检查网络后重试')
+    }
+    throw error
+  } finally {
+    window.clearTimeout(timeoutId)
+  }
+}
+
+async function openOrderFile(file: OrderFileItem, mode: 'preview' | 'download', target: 'doctor' | 'cs') {
+  if (mode === 'preview') {
+    await previewOrderFileInline(file, target)
+    return
+  }
+  try {
+    const payload = await requestSignedFileUrl(file.file_id, 'download')
+    triggerSignedFileDownload(payload.data.download_url ?? payload.data.preview_url, file.original_filename)
+  } catch (error) {
     const message = error instanceof Error ? error.message : '文件链接获取失败'
     if (target === 'doctor') doctorOrderError.value = message
     else internalOrderError.value = message
   }
 }
 
-function openPendingFileWindow() {
-  const popup = window.open('about:blank', '_blank')
-  if (!popup) return null
-  popup.opener = null
-  popup.document.title = '正在准备文件…'
-  popup.document.body.textContent = '正在获取安全文件链接，请稍候…'
-  return popup
+function orderFileExtension(file: OrderFileItem) {
+  return file.original_filename.split('.').pop()?.toLowerCase() ?? ''
+}
+
+function inlinePreviewKind(file: OrderFileItem): Exclude<InlineFilePreviewKind, 'LOADING' | 'ERROR'> {
+  const extension = orderFileExtension(file)
+  const contentType = file.content_type?.toLowerCase() ?? ''
+  if (contentType.startsWith('image/') || ['jpg', 'jpeg', 'png', 'gif', 'webp', 'bmp'].includes(extension)) return 'IMAGE'
+  if (contentType === 'application/pdf' || extension === 'pdf') return 'PDF'
+  return 'UNSUPPORTED'
+}
+
+function resetInlineFilePreview() {
+  inlineFilePreviewVisible.value = false
+  inlineFilePreviewKind.value = 'LOADING'
+  inlineFilePreviewUrl.value = ''
+  inlineFilePreviewFilename.value = ''
+  inlineFilePreviewError.value = ''
+  inlineFilePreviewFile.value = null
+}
+
+async function previewOrderFileInline(file: OrderFileItem, target: 'doctor' | 'cs') {
+  inlineFilePreviewTarget.value = target
+  inlineFilePreviewFilename.value = file.original_filename
+  inlineFilePreviewFile.value = file
+  inlineFilePreviewError.value = ''
+
+  if (orderFileExtension(file) === 'stl') {
+    try {
+      const payload = await requestSignedFileUrl(file.file_id, 'preview')
+      productionBoardStlViewerUrl.value = payload.data.preview_url
+      productionBoardStlViewerFilename.value = file.original_filename
+      productionBoardStlViewerVisible.value = true
+    } catch (error) {
+      const message = error instanceof Error ? error.message : 'STL 文件预览失败'
+      if (target === 'doctor') doctorOrderError.value = message
+      else internalOrderError.value = message
+    }
+    return
+  }
+
+  const previewKind = inlinePreviewKind(file)
+  inlineFilePreviewVisible.value = true
+  if (previewKind === 'UNSUPPORTED') {
+    inlineFilePreviewKind.value = 'UNSUPPORTED'
+    return
+  }
+
+  inlineFilePreviewKind.value = 'LOADING'
+  try {
+    const payload = await requestSignedFileUrl(file.file_id, 'preview')
+    inlineFilePreviewUrl.value = payload.data.preview_url
+    inlineFilePreviewKind.value = previewKind
+  } catch (error) {
+    inlineFilePreviewError.value = error instanceof Error ? error.message : '文件预览失败'
+    inlineFilePreviewKind.value = 'ERROR'
+  }
+}
+
+function triggerSignedFileDownload(url: string, filename: string) {
+  const anchor = document.createElement('a')
+  anchor.href = url
+  anchor.download = filename
+  anchor.style.display = 'none'
+  document.body.append(anchor)
+  anchor.click()
+  anchor.remove()
+}
+
+async function downloadInlinePreviewFile() {
+  const file = inlineFilePreviewFile.value
+  if (!file) return
+  await openOrderFile(file, 'download', inlineFilePreviewTarget.value)
 }
 
 async function reviewInternalOrder(action: 'APPROVE' | 'REJECT') {
@@ -9520,6 +9634,67 @@ function selectProductionReviewOrder(order: InternalOrderItem) {
 function openProductionReviewDrawer(order: InternalOrderItem) {
   selectProductionReviewOrder(order)
   productionReviewDrawerVisible.value = true
+  productionReviewFiles.value = []
+  productionReviewFilesError.value = ''
+  void loadProductionReviewFiles(order.order_id)
+}
+
+async function loadProductionReviewFiles(orderId: number) {
+  productionReviewFilesLoading.value = true
+  productionReviewFilesError.value = ''
+  try {
+    const payload = await apiFetch<OrderFileItem[]>(`/orders/${orderId}/files`)
+    if (selectedProductionReviewOrder.value?.order_id === orderId) {
+      productionReviewFiles.value = payload.data
+    }
+  } catch (error) {
+    if (selectedProductionReviewOrder.value?.order_id === orderId) {
+      productionReviewFiles.value = []
+      productionReviewFilesError.value = error instanceof Error ? error.message : '生产审核资料加载失败'
+    }
+  } finally {
+    if (selectedProductionReviewOrder.value?.order_id === orderId) {
+      productionReviewFilesLoading.value = false
+    }
+  }
+}
+
+function setWorkflowFileError(target: 'review' | 'assignment', message: string) {
+  if (target === 'review') productionReviewFilesError.value = message
+  else processAssignmentFilesError.value = message
+}
+
+async function previewWorkflowStlFile(file: OrderFileItem, target: 'review' | 'assignment') {
+  const actionKey = `${target}:preview:${file.file_id}`
+  if (workflowFileActionKey.value) return
+  workflowFileActionKey.value = actionKey
+  setWorkflowFileError(target, '')
+  try {
+    const payload = await requestSignedFileUrl(file.file_id, 'preview')
+    productionBoardStlViewerUrl.value = payload.data.preview_url
+    productionBoardStlViewerFilename.value = file.original_filename
+    productionBoardStlViewerVisible.value = true
+  } catch (error) {
+    setWorkflowFileError(target, error instanceof Error ? error.message : 'STL 文件预览失败')
+  } finally {
+    if (workflowFileActionKey.value === actionKey) workflowFileActionKey.value = ''
+  }
+}
+
+async function downloadWorkflowFile(file: OrderFileItem, target: 'review' | 'assignment') {
+  const actionKey = `${target}:download:${file.file_id}`
+  if (workflowFileActionKey.value) return
+  workflowFileActionKey.value = actionKey
+  setWorkflowFileError(target, '')
+  try {
+    const payload = await requestSignedFileUrl(file.file_id, 'download')
+    triggerSignedFileDownload(payload.data.download_url ?? payload.data.preview_url, file.original_filename)
+  } catch (error) {
+    const message = error instanceof Error ? error.message : '文件下载失败'
+    setWorkflowFileError(target, message)
+  } finally {
+    if (workflowFileActionKey.value === actionKey) workflowFileActionKey.value = ''
+  }
 }
 
 function syncProductionReviewConfiguration(order: InternalOrderItem) {
@@ -9682,8 +9857,33 @@ async function selectProcessInstanceOrder(order: InternalOrderItem) {
 }
 
 async function openProcessAssignmentDrawer(order: InternalOrderItem) {
-  await selectProcessInstanceOrder(order)
   processAssignmentDrawerVisible.value = true
+  processAssignmentFiles.value = []
+  processAssignmentFilesError.value = ''
+  await Promise.all([
+    selectProcessInstanceOrder(order),
+    loadProcessAssignmentFiles(order.order_id)
+  ])
+}
+
+async function loadProcessAssignmentFiles(orderId: number) {
+  processAssignmentFilesLoading.value = true
+  processAssignmentFilesError.value = ''
+  try {
+    const payload = await apiFetch<OrderFileItem[]>(`/orders/${orderId}/files`)
+    if (selectedProcessInstanceOrder.value?.order_id === orderId) {
+      processAssignmentFiles.value = payload.data
+    }
+  } catch (error) {
+    if (selectedProcessInstanceOrder.value?.order_id === orderId) {
+      processAssignmentFiles.value = []
+      processAssignmentFilesError.value = error instanceof Error ? error.message : '派工资料加载失败'
+    }
+  } finally {
+    if (selectedProcessInstanceOrder.value?.order_id === orderId) {
+      processAssignmentFilesLoading.value = false
+    }
+  }
 }
 
 async function loadProcessInstanceDetail(orderId: number) {
@@ -11215,20 +11415,22 @@ async function uploadProductionBoardFile(event: Event) {
 }
 
 async function downloadProductionBoardFile(file: OrderFileItem) {
-  const popup = openPendingFileWindow()
   try {
-    const payload = await apiFetch<FilePreviewUrlResponse>(`/files/${file.file_id}/download-url`)
-    if (!popup) throw new Error('浏览器阻止了新窗口，请允许弹窗后重试')
-    popup.location.replace(payload.data.download_url ?? payload.data.preview_url)
+    const payload = await requestSignedFileUrl(file.file_id, 'download')
+    triggerSignedFileDownload(payload.data.download_url ?? payload.data.preview_url, file.original_filename)
   } catch (error) {
-    popup?.close()
-    productionBoardFilesError.value = error instanceof Error ? error.message : '文件下载链接获取失败'
+    const message = error instanceof Error ? error.message : '文件下载链接获取失败'
+    productionBoardFilesError.value = message
   }
+}
+
+function isStlOrderFile(file: OrderFileItem) {
+  return file.upload_status === 'COMPLETED' && file.original_filename.toLowerCase().endsWith('.stl')
 }
 
 function productionBoardStlFiles(files = productionBoardFiles.value) {
   return files
-    .filter((file) => file.upload_status === 'COMPLETED' && file.original_filename.toLowerCase().endsWith('.stl'))
+    .filter(isStlOrderFile)
     .sort((left, right) => {
       const leftPriority = left.source_type === 'ORDER_ATTACHMENT' ? 0 : 1
       const rightPriority = right.source_type === 'ORDER_ATTACHMENT' ? 0 : 1
@@ -11257,7 +11459,7 @@ async function previewProductionBoardCadData() {
     return
   }
   try {
-    const payload = await apiFetch<FilePreviewUrlResponse>(`/files/${file.file_id}/preview-url`)
+    const payload = await requestSignedFileUrl(file.file_id, 'preview')
     productionBoardStlViewerUrl.value = payload.data.preview_url
     productionBoardStlViewerFilename.value = file.original_filename
     productionBoardStlViewerVisible.value = true
@@ -12970,6 +13172,41 @@ onBeforeUnmount(() => {
                 <p class="admin-flow-note">生产备注：{{ selectedProductionReviewOrder.production_note ?? '暂无' }}</p>
               </section>
 
+              <section class="admin-flow-section" data-testid="production-review-order-files">
+                <header>
+                  <div><strong>数字资料与附件</strong><small>STL 可直接在浏览器中旋转、缩放核对，下载不是审核前置条件</small></div>
+                  <span>{{ productionReviewFiles.length }} 个文件</span>
+                </header>
+                <div v-if="productionReviewFilesLoading" class="admin-flow-file-state">正在读取订单资料…</div>
+                <div v-else-if="productionReviewFilesError" class="admin-flow-file-state is-error" role="alert">{{ productionReviewFilesError }}</div>
+                <div v-else-if="productionReviewFiles.length === 0" class="admin-flow-file-state">当前订单没有可核对的数字资料；如本单应为口扫订单，请退回补充。</div>
+                <div v-else class="admin-flow-file-list">
+                  <article v-for="file in productionReviewFiles" :key="file.file_id">
+                    <div><strong>{{ file.original_filename }}</strong><small>{{ formatOrderFileSize(file.file_size) }} · {{ file.content_type || '类型未记录' }}</small></div>
+                    <div class="inline-actions">
+                      <el-button
+                        v-if="isStlOrderFile(file)"
+                        size="small"
+                        plain
+                        :loading="workflowFileActionKey === `review:preview:${file.file_id}`"
+                        :disabled="Boolean(workflowFileActionKey)"
+                        @click="previewWorkflowStlFile(file, 'review')"
+                      >
+                        浏览器 3D 查看
+                      </el-button>
+                      <el-button
+                        size="small"
+                        :loading="workflowFileActionKey === `review:download:${file.file_id}`"
+                        :disabled="Boolean(workflowFileActionKey)"
+                        @click="downloadWorkflowFile(file, 'review')"
+                      >
+                        下载
+                      </el-button>
+                    </div>
+                  </article>
+                </div>
+              </section>
+
               <section class="admin-flow-section">
                 <header><div><strong>生产配置</strong><small>工序链按产品自动匹配，审核员只确认真实资料路线</small></div></header>
                 <div class="review-form">
@@ -13154,6 +13391,41 @@ onBeforeUnmount(() => {
                       调整员工
                     </el-button>
                   </div>
+                </div>
+              </section>
+
+              <section class="admin-flow-section" data-testid="process-assignment-order-files">
+                <header>
+                  <div><strong>派工参考资料</strong><small>管理员可先在线核对 STL，再结合工序与人员负载派工</small></div>
+                  <span>{{ processAssignmentFiles.length }} 个文件</span>
+                </header>
+                <div v-if="processAssignmentFilesLoading" class="admin-flow-file-state">正在读取订单资料…</div>
+                <div v-else-if="processAssignmentFilesError" class="admin-flow-file-state is-error" role="alert">{{ processAssignmentFilesError }}</div>
+                <div v-else-if="processAssignmentFiles.length === 0" class="admin-flow-file-state">当前订单没有可用的数字资料；派工本身不因文件下载状态被锁定。</div>
+                <div v-else class="admin-flow-file-list">
+                  <article v-for="file in processAssignmentFiles" :key="file.file_id">
+                    <div><strong>{{ file.original_filename }}</strong><small>{{ formatOrderFileSize(file.file_size) }} · {{ file.content_type || '类型未记录' }}</small></div>
+                    <div class="inline-actions">
+                      <el-button
+                        v-if="isStlOrderFile(file)"
+                        size="small"
+                        plain
+                        :loading="workflowFileActionKey === `assignment:preview:${file.file_id}`"
+                        :disabled="Boolean(workflowFileActionKey)"
+                        @click="previewWorkflowStlFile(file, 'assignment')"
+                      >
+                        浏览器 3D 查看
+                      </el-button>
+                      <el-button
+                        size="small"
+                        :loading="workflowFileActionKey === `assignment:download:${file.file_id}`"
+                        :disabled="Boolean(workflowFileActionKey)"
+                        @click="downloadWorkflowFile(file, 'assignment')"
+                      >
+                        下载
+                      </el-button>
+                    </div>
+                  </article>
                 </div>
               </section>
 
@@ -19285,6 +19557,39 @@ onBeforeUnmount(() => {
         </template>
       </el-drawer>
     </section>
+    <el-dialog
+      v-if="!isDoctorV2Active"
+      v-model="inlineFilePreviewVisible"
+      width="min(960px, 92vw)"
+      append-to-body
+      destroy-on-close
+      class="app-inline-file-preview"
+      data-testid="app-inline-file-preview"
+    >
+      <template #header>
+        <div class="app-inline-file-preview__header">
+          <strong>文件预览</strong>
+          <span>{{ inlineFilePreviewFilename }}</span>
+        </div>
+      </template>
+      <div class="app-inline-file-preview__stage">
+        <div v-if="inlineFilePreviewKind === 'LOADING'" class="app-inline-file-preview__state">正在获取安全预览链接…</div>
+        <img v-else-if="inlineFilePreviewKind === 'IMAGE'" :src="inlineFilePreviewUrl" :alt="inlineFilePreviewFilename">
+        <iframe v-else-if="inlineFilePreviewKind === 'PDF'" :src="inlineFilePreviewUrl" :title="`${inlineFilePreviewFilename}预览`" />
+        <div v-else-if="inlineFilePreviewKind === 'UNSUPPORTED'" class="app-inline-file-preview__state">
+          <strong>该格式暂不支持站内预览</strong>
+          <span>不会自动下载；如需查看，请使用下方“下载原文件”。</span>
+        </div>
+        <div v-else class="app-inline-file-preview__state is-error">
+          <strong>文件暂时无法预览</strong>
+          <span>{{ inlineFilePreviewError }}</span>
+        </div>
+      </div>
+      <template #footer>
+        <el-button @click="inlineFilePreviewVisible = false">关闭</el-button>
+        <el-button type="primary" :disabled="!inlineFilePreviewFile" @click="downloadInlinePreviewFile">下载原文件</el-button>
+      </template>
+    </el-dialog>
     <StlViewerDialog
       v-if="!isDoctorV2Active"
       v-model:visible="productionBoardStlViewerVisible"

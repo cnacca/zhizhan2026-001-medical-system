@@ -153,6 +153,8 @@
 @media(max-width:980px){.el-drawer.aor-drawer{width:100vw!important;max-width:100vw}}
 @media(prefers-reduced-motion:reduce){.portal-admin.admin-reference-mode .aor-workspace *,.aor-drawer *{transition-duration:.01ms!important}}
 
+.app-inline-file-preview .app-inline-file-preview__header{display:flex;min-width:0;flex-direction:column;gap:3px}.app-inline-file-preview .app-inline-file-preview__header strong{color:#0f172a;font-size:16px}.app-inline-file-preview .app-inline-file-preview__header span{overflow:hidden;color:#64748b;font-size:12px;text-overflow:ellipsis;white-space:nowrap}.app-inline-file-preview .app-inline-file-preview__stage{display:grid;min-height:min(68vh,680px);place-items:center;overflow:hidden;border:1px solid #e2e8f0;border-radius:12px;background:#f8fafc}.app-inline-file-preview .app-inline-file-preview__stage>img{display:block;max-width:100%;max-height:min(68vh,680px);object-fit:contain}.app-inline-file-preview .app-inline-file-preview__stage>iframe{width:100%;height:min(68vh,680px);border:0;background:#fff}.app-inline-file-preview .app-inline-file-preview__state{display:grid;max-width:440px;place-items:center;gap:8px;padding:32px;color:#64748b;line-height:1.6;text-align:center}.app-inline-file-preview .app-inline-file-preview__state strong{color:#0f172a;font-size:15px}.app-inline-file-preview .app-inline-file-preview__state.is-error,.app-inline-file-preview .app-inline-file-preview__state.is-error strong{color:#be123c}
+
 /* 订单顶部：对齐人员管理的顶栏、标题节奏和页面级操作区。 */
 .portal-admin.admin-order-top-mode .admin-global-search input {
   padding-right: 44px;
@@ -569,6 +571,66 @@
   color: #64748b;
   font-size: 10px;
   line-height: 1.6;
+}
+
+.admin-flow-drawer .admin-flow-file-state {
+  margin: 0;
+  padding: 14px;
+  color: #64748b;
+  font-size: 10px;
+  line-height: 1.6;
+}
+
+.admin-flow-drawer .admin-flow-file-state.is-error {
+  color: #be123c;
+  background: #fff1f2;
+}
+
+.admin-flow-drawer .admin-flow-file-list {
+  display: grid;
+  padding: 0 14px;
+}
+
+.admin-flow-drawer .admin-flow-file-list article {
+  display: flex;
+  min-width: 0;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 11px 0;
+  border-bottom: 1px solid #edf2f7;
+}
+
+.admin-flow-drawer .admin-flow-file-list article:last-child {
+  border-bottom: 0;
+}
+
+.admin-flow-drawer .admin-flow-file-list article > div:first-child {
+  min-width: 0;
+}
+
+.admin-flow-drawer .admin-flow-file-list strong,
+.admin-flow-drawer .admin-flow-file-list small {
+  display: block;
+}
+
+.admin-flow-drawer .admin-flow-file-list strong {
+  overflow: hidden;
+  color: #0f172a;
+  font-size: 10px;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.admin-flow-drawer .admin-flow-file-list small {
+  margin-top: 4px;
+  color: #94a3b8;
+  font-size: 9px;
+}
+
+.admin-flow-drawer .admin-flow-file-list .inline-actions {
+  flex: 0 0 auto;
+  flex-wrap: nowrap;
 }
 
 .admin-flow-drawer .review-form,

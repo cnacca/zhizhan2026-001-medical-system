@@ -159,7 +159,7 @@ git diff --check
 ## Completion Record
 
 - 2026-08-24 追加完成 D-201：客服产品页只读同源已发布目录；医生材料／色号选填，色号组合框支持筛选和自定义；`CLASSIFIED_SCAN_BUNDLE_V3` 支持 ZIP／STL／PLY／OBJ 批量上传、自动／手工分类和逐产品共享／专属合并；提交错误和本地缺项均带修改目标。
-- 本轮 `npm run build:frontend`、Maven package、正式发布门禁与 `check:doctor-order-final-confirmation` 通过；重建全新专用测试库后，完整后端 357 项与新增 `classifiedScanBundleAcceptsZipWithOptionalShadeAndPrimaryMaterial` 均通过。隔离浏览器已验证色号候选、移除确认框、管理端 95 项发布目录和产品详情，控制台无错误；尚未提交、推送或部署。
+- 本轮 `npm run build:frontend`、Maven package、正式发布门禁与 `check:doctor-order-final-confirmation` 通过；重建全新专用测试库后，完整后端 357 项与新增 `classifiedScanBundleAcceptsZipWithOptionalShadeAndPrimaryMaterial` 均通过。修复经 PR #46／#47 发布为正式版本 `01919fb61c6582d2e8d3e124ceddcce3b613749f`，自动部署 #32698278453 成功；正式站只读复验确认后端健康为 `ok`，管理端显示 95 项发布目录和正确维护入口，未写正式业务数据。
 - 2026-08-21 正式发布版本为 `bf49ca3fdde9d62834504a29a2f79e5ec3de38dc`，自动部署 #32472847396 完成完整后端测试、release gates、镜像校验、备份／部署、健康检查和公网入口验证；线上只读核验通过，未创建或修改正式订单。
 - 2026-08-21 追加完成下单缺项清单：第一步可同时列出患者、产品、到货日期；产品步骤显示“产品名：具体字段”；资料步骤按产品列出缺失扫描；最终提交点击后列出未勾选确认。每条均可“去填写”，最终按钮不再因缺项静默禁用，提交校验未放宽。
 - 2026-08-21 追加完成 `FIXED_LAYERED_V2`：六类共享／产品专属槽位同构，三项必传按产品由共享或专属满足，专属同类文件仅覆盖当前产品；前端生产构建和全新隔离数据库 `OrderCaseGroupTests` 9/9 通过。
