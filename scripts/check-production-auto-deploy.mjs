@@ -6,6 +6,7 @@ const deployScriptPath = 'scripts/deploy-production-release.sh'
 const configPath = 'deploy/production-deploy.example.conf'
 const frontendDockerfilePath = 'frontend/Dockerfile'
 const releaseImageCheckPath = 'scripts/check-production-release-images.sh'
+const releaseModePath = 'scripts/production-release-mode.mjs'
 const jdkWrapperPath = 'scripts/with-jdk21.sh'
 const failures = []
 
@@ -22,6 +23,7 @@ const deployScript = read(deployScriptPath)
 const config = read(configPath)
 const frontendDockerfile = read(frontendDockerfilePath)
 const releaseImageCheck = read(releaseImageCheckPath)
+const releaseMode = read(releaseModePath)
 const jdkWrapper = read(jdkWrapperPath)
 
 for (const fragment of [
@@ -51,6 +53,11 @@ for (const fragment of [
   'npm run check:logout-refresh-race',
   'npm run check:feedback-20260713',
   'npm run check:feedback-20260822-blockers',
+  'npm run check:production-fast-deploy',
+  'Detect safe production release mode',
+  'scripts/production-release-mode.mjs',
+  "steps.release.outputs.mode == 'full'",
+  'RELEASE_MODE: ${{ steps.release.outputs.mode }}',
   'Verify final release images',
   'scripts/check-production-release-images.sh',
   'Verify public login origins and canonical redirects',
@@ -87,7 +94,11 @@ for (const fragment of [
   'sha256sum --check',
   'mysqldump',
   'rollback-before-',
-  '--no-build --no-deps --force-recreate --wait backend frontend',
+  'release_mode="${5:-full}"',
+  'services=(frontend)',
+  'services=(backend frontend)',
+  '--no-build --no-deps --force-recreate --wait "${services[@]}"',
+  'frontend-only release skips the database backup',
   'No database/schema rollback was attempted',
   'HEALTHCHECK_URL must use a loopback HTTP address'
 ]) {
@@ -133,6 +144,17 @@ for (const fragment of [
 ]) {
   if (!config.includes(fragment)) {
     failures.push(`${configPath} missing required text: ${fragment}`)
+  }
+}
+
+for (const fragment of [
+  "file.startsWith('frontend/')",
+  "mode: 'frontend'",
+  "mode: 'full'",
+  'unsafeFiles.length > 0'
+]) {
+  if (!releaseMode.includes(fragment)) {
+    failures.push(`${releaseModePath} missing fail-closed release classification: ${fragment}`)
   }
 }
 

@@ -24,8 +24,10 @@ revision="${1:-}"
 source_archive="${2:-}"
 image_archive="${3:-}"
 checksum_file="${4:-}"
+release_mode="${5:-full}"
 
 [[ "$revision" =~ ^[0-9a-f]{40}$ ]] || fail 'revision must be a full 40-character lowercase Git SHA'
+[[ "$release_mode" == "full" || "$release_mode" == "frontend" ]] || fail 'release mode must be full or frontend'
 [[ -f "$source_archive" && ! -L "$source_archive" ]] || fail 'source archive is missing or is a symbolic link'
 [[ -f "$image_archive" && ! -L "$image_archive" ]] || fail 'image archive is missing or is a symbolic link'
 [[ -f "$checksum_file" && ! -L "$checksum_file" ]] || fail 'checksum file is missing or is a symbolic link'
@@ -124,30 +126,40 @@ compose=(
 
 "${compose[@]}" config >/dev/null || fail 'production compose configuration is invalid'
 
-mysql_container="ai-order-phase-one-mysql"
-[[ "$(docker inspect -f '{{.State.Running}}' "$mysql_container" 2>/dev/null || true)" == "true" ]] || fail 'production MySQL container is not running'
-
 install -d -m 700 "$backup_dir"
 docker inspect \
   ai-order-platform-backend:phase-one \
   ai-order-platform-frontend:phase-one \
   >"$backup_dir/previous-images.json" 2>/dev/null || true
 
-docker exec "$mysql_container" sh -ceu '
-  MYSQL_PWD="$MYSQL_ROOT_PASSWORD" exec mysqldump \
-    --user=root \
-    --single-transaction \
-    --routines \
-    --triggers \
-    --events \
-    "$MYSQL_DATABASE"
-' | gzip -1 >"$backup_dir/mysql.sql.gz"
+backup_artifact="$backup_dir/frontend-only-no-database-backup"
+if [[ "$release_mode" == "full" ]]; then
+  mysql_container="ai-order-phase-one-mysql"
+  [[ "$(docker inspect -f '{{.State.Running}}' "$mysql_container" 2>/dev/null || true)" == "true" ]] || fail 'production MySQL container is not running'
 
-gzip -t "$backup_dir/mysql.sql.gz" || fail 'pre-deploy MySQL backup is not a valid gzip stream'
-[[ "$(wc -c <"$backup_dir/mysql.sql.gz")" -gt 1024 ]] || fail 'pre-deploy MySQL backup is unexpectedly small'
+  docker exec "$mysql_container" sh -ceu '
+    MYSQL_PWD="$MYSQL_ROOT_PASSWORD" exec mysqldump \
+      --user=root \
+      --single-transaction \
+      --routines \
+      --triggers \
+      --events \
+      "$MYSQL_DATABASE"
+  ' | gzip -1 >"$backup_dir/mysql.sql.gz"
+
+  gzip -t "$backup_dir/mysql.sql.gz" || fail 'pre-deploy MySQL backup is not a valid gzip stream'
+  [[ "$(wc -c <"$backup_dir/mysql.sql.gz")" -gt 1024 ]] || fail 'pre-deploy MySQL backup is unexpectedly small'
+  backup_artifact="$backup_dir/mysql.sql.gz"
+else
+  printf '%s\n' 'frontend-only release skips the database backup because no backend or migration is deployed' >"$backup_artifact"
+fi
 printf '%s\n' "$revision" >"$backup_dir/target-revision"
+printf '%s\n' "$release_mode" >"$backup_dir/release-mode"
 
-old_backend_id="$(docker image inspect ai-order-platform-backend:phase-one --format '{{.Id}}' 2>/dev/null || true)"
+old_backend_id=""
+if [[ "$release_mode" == "full" ]]; then
+  old_backend_id="$(docker image inspect ai-order-platform-backend:phase-one --format '{{.Id}}' 2>/dev/null || true)"
+fi
 old_frontend_id="$(docker image inspect ai-order-platform-frontend:phase-one --format '{{.Id}}' 2>/dev/null || true)"
 
 rollback_backend_tag="ai-order-platform-backend:rollback-before-${short_revision}-${timestamp}"
@@ -159,8 +171,10 @@ on_exit() {
   local exit_code=$?
   if [[ "$deploy_started" == "true" && "$deploy_completed" != "true" ]]; then
     printf '\nDeployment did not complete. No database/schema rollback was attempted.\n' >&2
-    printf 'Pre-deploy backup: %s\n' "$backup_dir/mysql.sql.gz" >&2
-    printf 'Previous backend image: %s\n' "$rollback_backend_tag" >&2
+    printf 'Pre-deploy backup record: %s\n' "$backup_artifact" >&2
+    if [[ "$release_mode" == "full" ]]; then
+      printf 'Previous backend image: %s\n' "$rollback_backend_tag" >&2
+    fi
     printf 'Previous frontend image: %s\n' "$rollback_frontend_tag" >&2
   fi
   return "$exit_code"
@@ -176,12 +190,17 @@ fi
 
 deploy_started=true
 gzip -dc "$image_archive" | docker load
-docker image inspect "ai-order-platform-backend:${revision}" >/dev/null
 docker image inspect "ai-order-platform-frontend:${revision}" >/dev/null
-docker image tag "ai-order-platform-backend:${revision}" ai-order-platform-backend:phase-one
 docker image tag "ai-order-platform-frontend:${revision}" ai-order-platform-frontend:phase-one
 
-"${compose[@]}" up -d --no-build --no-deps --force-recreate --wait backend frontend
+services=(frontend)
+if [[ "$release_mode" == "full" ]]; then
+  docker image inspect "ai-order-platform-backend:${revision}" >/dev/null
+  docker image tag "ai-order-platform-backend:${revision}" ai-order-platform-backend:phase-one
+  services=(backend frontend)
+fi
+
+"${compose[@]}" up -d --no-build --no-deps --force-recreate --wait "${services[@]}"
 
 healthy=false
 for _attempt in $(seq 1 36); do
@@ -201,9 +220,24 @@ deployed_revision_tmp="$RELEASE_ROOT/.current-production-revision.$short_revisio
 printf '%s\n' "$revision" >"$deployed_revision_tmp"
 mv "$deployed_revision_tmp" "$deployed_revision_file"
 
+frontend_revision_file="$RELEASE_ROOT/current-production-frontend-revision"
+frontend_revision_tmp="$RELEASE_ROOT/.current-production-frontend-revision.$short_revision.tmp"
+printf '%s\n' "$revision" >"$frontend_revision_tmp"
+mv "$frontend_revision_tmp" "$frontend_revision_file"
+
+if [[ "$release_mode" == "full" ]]; then
+  backend_revision_file="$RELEASE_ROOT/current-production-backend-revision"
+  backend_revision_tmp="$RELEASE_ROOT/.current-production-backend-revision.$short_revision.tmp"
+  printf '%s\n' "$revision" >"$backend_revision_tmp"
+  mv "$backend_revision_tmp" "$backend_revision_file"
+fi
+
 deploy_completed=true
 trap - EXIT
 printf 'production deploy succeeded: %s\n' "$revision"
-printf 'pre-deploy backup: %s\n' "$backup_dir/mysql.sql.gz"
-printf 'rollback backend image: %s\n' "$rollback_backend_tag"
+printf 'release mode: %s\n' "$release_mode"
+printf 'pre-deploy backup record: %s\n' "$backup_artifact"
+if [[ "$release_mode" == "full" ]]; then
+  printf 'rollback backend image: %s\n' "$rollback_backend_tag"
+fi
 printf 'rollback frontend image: %s\n' "$rollback_frontend_tag"
