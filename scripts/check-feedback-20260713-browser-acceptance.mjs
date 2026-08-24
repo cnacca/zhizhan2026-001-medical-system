@@ -14,13 +14,16 @@ const required = [
   [files.app, 'BUG-005 STL-only selection', "file.original_filename.toLowerCase().endsWith('.stl')"],
   [files.app, 'BUG-005 original upload priority', "left.source_type === 'ORDER_ATTACHMENT' ? 0 : 1"],
   [files.app, 'BUG-005 explicit selector', 'data-testid="production-stl-selector"'],
+  [files.app, 'BUG-005 production preview entry', 'data-testid="production-stl-preview-button"'],
+  [files.app, 'BUG-005 production in-app preview handler', 'async function previewProductionBoardCadData()'],
+  [files.app, 'BUG-005 signed preview URL assignment', 'productionBoardStlViewerUrl.value = payload.data.preview_url'],
   [files.app, 'BUG-005 3D dialog', 'productionBoardStlViewerVisible.value = true'],
+  [files.app, 'BUG-005 shared in-app STL viewer', '<StlViewerDialog'],
   [files.viewer, 'BUG-005 STLLoader', 'new STLLoader().parse(buffer)'],
   [files.viewer, 'BUG-005 OrbitControls', 'new OrbitControls(camera, renderer.domElement)'],
   [files.viewer, 'BUG-005 high-DPI canvas CSS sizing', 'renderer.setSize(width, height)'],
   [files.viewer, 'BUG-005 canvas display sizing', '.stl-viewer-canvas :deep(canvas)'],
-  [files.app, 'BUG-005 popup-safe signed file opening', "window.open('about:blank', '_blank')"],
-  [files.app, 'BUG-005 signed file navigation', 'popup.location.replace'],
+  [files.app, 'BUG-005 explicit download handler', 'function triggerSignedFileDownload'],
   [files.app, 'BUG-006 edit guard', 'v-if="canDoctorEditOrder(doctorOrderWorkspace.order)"'],
   [files.doctorVo, 'BUG-006 desensitized editable flag', 'boolean editable'],
   [files.projection, 'BUG-006 editable status calculation', 'isDoctorEditable(row.internalStatus())'],
@@ -43,6 +46,8 @@ const failures = required
 const forbidden = [
   [files.app, 'mixed CAD/design selection helper remains', 'function productionBoardCadFiles()'],
   [files.app, '3D preview still opens signed file directly', 'window.open(payload.data.preview_url, \'_blank\', \'noopener\')'],
+  [files.app, '3D preview still opens a blank popup', "window.open('about:blank', '_blank')"],
+  [files.app, '3D preview still navigates a popup to the signed URL', 'popup.location.replace'],
   [files.viewer, 'high-DPI canvas still uses buffer size as CSS size', 'renderer.setSize(width, height, false)']
 ]
 

@@ -16,6 +16,8 @@ import io.minio.StatObjectArgs;
 import io.minio.StatObjectResponse;
 import io.minio.http.Method;
 import io.minio.messages.Part;
+import java.net.URLEncoder;
+import java.nio.charset.StandardCharsets;
 import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.util.ArrayList;
@@ -117,6 +119,7 @@ public class FileResourceService {
         boolean selfScoped = "SELF".equals(dataScope);
         boolean csScoped = identity.role() == UserRole.CS;
         boolean designReviewer = identity.hasPermission("design-draft:internal-review");
+        boolean productionReviewer = identity.hasPermission("workflow:review-production");
         return jdbcClient.sql("""
                         SELECT file_id, source_type, visibility, original_filename, content_type,
                                file_size, upload_status, created_at
@@ -197,6 +200,7 @@ public class FileResourceService {
                                         AND review_draft.submitted_at IS NOT NULL
                                   )
                               )
+                              OR :productionReviewer = 1
                           )
                           AND (
                               :csScoped = 0
@@ -225,6 +229,7 @@ public class FileResourceService {
                 .param("selfScoped", selfScoped ? 1 : 0)
                 .param("csScoped", csScoped ? 1 : 0)
                 .param("designReviewer", designReviewer ? 1 : 0)
+                .param("productionReviewer", productionReviewer ? 1 : 0)
                 .param("userId", identity.userId())
                 .query((rs, rowNum) -> new OrderFileResponse(
                         rs.getLong("file_id"),
@@ -541,7 +546,7 @@ public class FileResourceService {
         FileRow file = loadFile(fileId, identity, "PREVIEW");
         requireCompleted(file, "PREVIEW", identity);
         requireFileActorScope(file, identity, "PREVIEW");
-        String url = presignedUrl(Method.GET, file.objectKey(), properties.previewUrlTtlSeconds());
+        String url = presignedReadUrl(file, properties.previewUrlTtlSeconds(), false);
         audit(file.fileId(), file.orderId(), identity.userId(), "PREVIEW", "ALLOWED", null);
         return new FileSignedUrlResponse(file.fileId(), url, null, properties.previewUrlTtlSeconds());
     }
@@ -550,7 +555,7 @@ public class FileResourceService {
         FileRow file = loadFile(fileId, identity, "DOWNLOAD");
         requireCompleted(file, "DOWNLOAD", identity);
         requireFileActorScope(file, identity, "DOWNLOAD");
-        String url = presignedUrl(Method.GET, file.objectKey(), properties.downloadUrlTtlSeconds());
+        String url = presignedReadUrl(file, properties.downloadUrlTtlSeconds(), true);
         audit(file.fileId(), file.orderId(), identity.userId(), "DOWNLOAD", "ALLOWED", null);
         return new FileSignedUrlResponse(file.fileId(), null, url, properties.downloadUrlTtlSeconds());
     }
@@ -592,6 +597,45 @@ public class FileResourceService {
         } catch (Exception ex) {
             throw new ResponseStatusException(HttpStatus.SERVICE_UNAVAILABLE, "cannot create signed url", ex);
         }
+    }
+
+    private String presignedReadUrl(FileRow file, int ttlSeconds, boolean download) {
+        String disposition = contentDisposition(download ? "attachment" : "inline", file.originalFilename());
+        String contentType = previewContentType(file);
+        try {
+            return presignMinioClient.getPresignedObjectUrl(GetPresignedObjectUrlArgs.builder()
+                    .method(Method.GET)
+                    .bucket(properties.bucket())
+                    .object(file.objectKey())
+                    .extraQueryParams(Map.of(
+                            "response-content-disposition", disposition,
+                            "response-content-type", contentType))
+                    .expiry(ttlSeconds, TimeUnit.SECONDS)
+                    .build());
+        } catch (Exception ex) {
+            throw new ResponseStatusException(HttpStatus.SERVICE_UNAVAILABLE, "cannot create signed url", ex);
+        }
+    }
+
+    private String previewContentType(FileRow file) {
+        if (file.originalFilename().toLowerCase(Locale.ROOT).endsWith(".stl")) {
+            return "model/stl";
+        }
+        String contentType = normalizeContentType(file.contentType());
+        return contentType.isBlank() ? "application/octet-stream" : contentType;
+    }
+
+    private String contentDisposition(String mode, String originalFilename) {
+        String safeFilename = originalFilename
+                .replaceAll("[\\r\\n\\\\\"]", "_")
+                .replaceAll("[^\\x20-\\x7E]", "_");
+        if (safeFilename.isBlank()) {
+            safeFilename = "file";
+        }
+        String encodedFilename = URLEncoder.encode(originalFilename, StandardCharsets.UTF_8)
+                .replace("+", "%20");
+        return "%s; filename=\"%s\"; filename*=UTF-8''%s"
+                .formatted(mode, safeFilename, encodedFilename);
     }
 
     private String presignedMultipartPartUrl(String objectKey, String uploadId, int partNumber) {
@@ -911,6 +955,10 @@ public class FileResourceService {
                                                     AND review_draft.submitted_at IS NOT NULL
                                               )
                                           )
+                                          OR (
+                                              :productionReviewer = 1
+                                              AND internal_status = 'PENDING_PRODUCTION_REVIEW'
+                                          )
                                       ))
                               )
                             """)
@@ -919,6 +967,9 @@ public class FileResourceService {
                     .param(
                             "designReviewer",
                             allowDesignReviewScope && identity.hasPermission("design-draft:internal-review") ? 1 : 0)
+                    .param(
+                            "productionReviewer",
+                            allowDesignReviewScope && identity.hasPermission("workflow:review-production") ? 1 : 0)
                     .param("userId", identity.userId())
                     .param("clinicId", identity.clinicId())
                     .query((rs, rowNum) -> new OrderScope(
@@ -949,6 +1000,7 @@ public class FileResourceService {
                                 f.visibility,
                                 f.bucket_name,
                                 f.object_key,
+                                f.original_filename,
                                 f.content_type,
                                 f.file_size,
                                 f.upload_status,
@@ -1044,6 +1096,22 @@ public class FileResourceService {
                                                     AND review_draft.submitted_at IS NOT NULL
                                               )
                                           )
+                                          OR (
+                                              :productionReviewer = 1
+                                              AND (f.order_id IS NOT NULL OR f.case_group_id IS NOT NULL)
+                                              AND EXISTS (
+                                                  SELECT 1
+                                                  FROM orders production_review_order
+                                                  WHERE (
+                                                        production_review_order.order_id = f.order_id
+                                                        OR (
+                                                            f.attachment_scope = 'SHARED'
+                                                            AND production_review_order.group_id = f.case_group_id
+                                                        )
+                                                    )
+                                                    AND production_review_order.internal_status = 'PENDING_PRODUCTION_REVIEW'
+                                              )
+                                          )
                                       ))
                               )
                               AND (
@@ -1077,6 +1145,12 @@ public class FileResourceService {
                                             && identity.hasPermission("design-draft:internal-review")
                                     ? 1
                                     : 0)
+                    .param(
+                            "productionReviewer",
+                            ("PREVIEW".equals(action) || "DOWNLOAD".equals(action))
+                                            && identity.hasPermission("workflow:review-production")
+                                    ? 1
+                                    : 0)
                     .param("csActor", identity.role() == UserRole.CS ? 1 : 0)
                     .param(
                             "csDesignRead",
@@ -1095,6 +1169,7 @@ public class FileResourceService {
                             rs.getString("visibility"),
                             rs.getString("bucket_name"),
                             rs.getString("object_key"),
+                            rs.getString("original_filename"),
                             rs.getString("content_type"),
                             rs.getObject("file_size", Long.class),
                             rs.getString("upload_status"),
@@ -1195,6 +1270,7 @@ public class FileResourceService {
             String visibility,
             String bucketName,
             String objectKey,
+            String originalFilename,
             String contentType,
             Long fileSize,
             String uploadStatus,

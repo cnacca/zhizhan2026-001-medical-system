@@ -101,7 +101,7 @@ public class FileController {
     }
 
     @GetMapping("/orders/{orderId}/files")
-    @RequirePermission(value = {"file:manage-internal", "file:access-doctor"}, roles = {
+    @RequirePermission(value = {"file:manage-internal", "file:access-doctor", "workflow:review-production"}, roles = {
             UserRole.ADMIN, UserRole.CS, UserRole.WORKER, UserRole.DOCTOR})
     public DataResponse<List<OrderFileResponse>> listOrderFiles(
             @PathVariable long orderId,
@@ -110,7 +110,7 @@ public class FileController {
     }
 
     @GetMapping("/files/{fileId}/preview-url")
-    @RequirePermission(value = {"file:manage-internal", "file:access-doctor"}, roles = {
+    @RequirePermission(value = {"file:manage-internal", "file:access-doctor", "workflow:review-production"}, roles = {
             UserRole.ADMIN, UserRole.CS, UserRole.WORKER, UserRole.DOCTOR})
     public DataResponse<FileSignedUrlResponse> getPreviewUrl(
             @PathVariable long fileId,
@@ -119,7 +119,7 @@ public class FileController {
     }
 
     @GetMapping("/files/{fileId}/download-url")
-    @RequirePermission(value = {"file:manage-internal", "file:access-doctor"}, roles = {
+    @RequirePermission(value = {"file:manage-internal", "file:access-doctor", "workflow:review-production"}, roles = {
             UserRole.ADMIN, UserRole.CS, UserRole.WORKER, UserRole.DOCTOR})
     public DataResponse<FileSignedUrlResponse> getDownloadUrl(
             @PathVariable long fileId,
