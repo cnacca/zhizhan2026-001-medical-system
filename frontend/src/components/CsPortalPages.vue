@@ -244,16 +244,21 @@ type ProductItem = {
   product_type: string
   product_name: string
   material_spec: string | null
-  base_price_cents: number
+  base_price_cents: number | null
   currency: string
   status: string
   price_note: string | null
-  created_at: string
-  updated_at: string
+  created_at?: string
+  updated_at?: string
+  product_code: string
+  category_code: string
+  category_name: string
+  pricing_status: string
+  materials: string[]
 }
 
 type FormRequirement = {
-  field_id: number
+  field_id: number | string
   product_type: string
   field_key: string
   field_label: string
@@ -262,6 +267,41 @@ type FormRequirement = {
   options: string[]
   sort_order: number
   status: string
+}
+
+type ActiveCatalogProduct = {
+  product_id: number
+  product_code: string
+  display_name: string
+  workflow_product_type: string | null
+  pricing_status: string
+  base_price_cents: number | null
+  currency: string
+  category_code: string
+  category_name: string
+}
+
+type ActiveCatalogMaterial = {
+  product_id: number
+  display_name: string
+  brand_name: string | null
+  specification: string | null
+}
+
+type ActiveCatalogRule = {
+  rule_id: number
+  product_id: number | null
+  rule_type: string
+  rule_schema_json: unknown
+  sort_order: number
+}
+
+type ActiveCatalogResponse = {
+  publication_status: string
+  config_version_id?: number
+  products?: ActiveCatalogProduct[]
+  materials?: ActiveCatalogMaterial[]
+  rules?: ActiveCatalogRule[]
 }
 
 type ReviewDisplayField = {
@@ -427,13 +467,9 @@ const customerDetailState = ref<DetailLoadState>({ loading: false, error: '' })
 const productKeyword = ref('')
 const selectedProductId = ref<number | null>(null)
 const productRequirements = ref<FormRequirement[]>([])
-const productEditName = ref('')
-const productEditMaterial = ref('')
-const productEditPrice = ref(0)
-const productEditStatus = ref('ACTIVE')
-const productEditNote = ref('')
 const productDrawerVisible = ref(false)
 const productDetailState = ref<DetailLoadState>({ loading: false, error: '' })
+const activeCatalogVersionId = ref<number | null>(null)
 
 const billingTab = ref<'ORDER' | 'MONTHLY'>('ORDER')
 const billingFilter = ref<'ALL' | 'PENDING'>('ALL')
@@ -1367,8 +1403,68 @@ async function loadClinics() {
 }
 
 async function loadProducts() {
-  const payload = await apiFetch<Paged<ProductItem>>('/products?page=1&size=100')
-  products.value = payload.data.items
+  const payload = await apiFetch<ActiveCatalogResponse>('/catalog/configuration/active')
+  activeCatalogVersionId.value = payload.data.config_version_id ?? null
+  const materialsByProduct = new Map<number, string[]>()
+  for (const material of payload.data.materials ?? []) {
+    const label = [material.brand_name, material.display_name, material.specification].filter(Boolean).join(' · ')
+    const values = materialsByProduct.get(material.product_id) ?? []
+    if (label && !values.includes(label)) values.push(label)
+    materialsByProduct.set(material.product_id, values)
+  }
+  products.value = (payload.data.products ?? []).map((product) => ({
+    product_id: product.product_id,
+    product_type: product.workflow_product_type || product.product_code,
+    product_name: product.display_name,
+    material_spec: (materialsByProduct.get(product.product_id) ?? []).join('；') || null,
+    base_price_cents: product.base_price_cents,
+    currency: product.currency || 'CNY',
+    status: 'ACTIVE',
+    price_note: null,
+    product_code: product.product_code,
+    category_code: product.category_code,
+    category_name: product.category_name,
+    pricing_status: product.pricing_status,
+    materials: materialsByProduct.get(product.product_id) ?? []
+  }))
+  productRequirements.value = (payload.data.rules ?? []).flatMap((rule) => {
+    if (rule.rule_type !== 'FORM_SCHEMA') return []
+    const schema = parseCatalogRuleSchema(rule.rule_schema_json)
+    const fields = Array.isArray(schema.fields) ? schema.fields : []
+    return fields.map((field, index) => ({
+      field_id: `${rule.rule_id}-${String(field.key ?? index)}`,
+      product_type: String(rule.product_id ?? ''),
+      field_key: String(field.key ?? ''),
+      field_label: String(field.label ?? field.key ?? '未命名字段'),
+      field_type: String(field.type ?? 'TEXT'),
+      is_required: Boolean(field.required) && ![
+        'shade',
+        'color',
+        'shade_system',
+        'shade_value',
+        'cervical_shade',
+        'body_shade',
+        'incisal_shade',
+        'material_option'
+      ].includes(String(field.key ?? '').toLocaleLowerCase()),
+      options: Array.isArray(field.options) ? field.options.map(String) : [],
+      sort_order: Number(field.sort_order ?? rule.sort_order ?? index),
+      status: 'ACTIVE'
+    }))
+  })
+}
+
+function parseCatalogRuleSchema(value: unknown): Record<string, any> {
+  if (value && typeof value === 'object') return value as Record<string, any>
+  if (typeof value === 'string') {
+    try {
+      const parsed = JSON.parse(value)
+      return parsed && typeof parsed === 'object' ? parsed : {}
+    } catch {
+      return {}
+    }
+  }
+  return {}
 }
 
 async function loadDelivery() {
@@ -1869,50 +1965,10 @@ async function saveClinicPreference() {
 async function selectProduct(productId: number) {
   selectedProductId.value = productId
   productDrawerVisible.value = true
-  productDetailState.value = { loading: true, error: '' }
+  productDetailState.value = { loading: false, error: '' }
   const product = products.value.find((item) => item.product_id === productId)
-  if (product) {
-    productEditName.value = product.product_name
-    productEditMaterial.value = product.material_spec || ''
-    productEditPrice.value = product.base_price_cents / 100
-    productEditStatus.value = product.status
-    productEditNote.value = product.price_note || ''
-    try {
-      productRequirements.value = (await apiFetch<FormRequirement[]>(`/form-configs?product_type=${encodeURIComponent(product.product_type)}`)).data
-    } catch (error) {
-      productRequirements.value = []
-      productDetailState.value.error = detailError(error, '医生下单要求加载失败')
-    } finally {
-      productDetailState.value.loading = false
-    }
-  } else {
+  if (!product) {
     productDetailState.value = { loading: false, error: '未找到该产品资料' }
-  }
-}
-
-async function saveProduct() {
-  const product = products.value.find((item) => item.product_id === selectedProductId.value)
-  if (!product) return
-  pageLoading.value = true
-  pageError.value = ''
-  try {
-    const payload = await apiFetch<ProductItem>(`/products/${product.product_id}`, {
-      method: 'PUT',
-      body: JSON.stringify({
-        product_name: productEditName.value.trim(),
-        material_spec: productEditMaterial.value.trim() || null,
-        base_price_cents: Math.round(Number(productEditPrice.value || 0) * 100),
-        currency: product.currency,
-        status: productEditStatus.value,
-        price_note: productEditNote.value.trim() || null
-      })
-    })
-    products.value = products.value.map((item) => item.product_id === payload.data.product_id ? payload.data : item)
-    pageResult.value = '已有产品资料已保存。'
-  } catch (error) {
-    pageError.value = error instanceof Error ? error.message : '产品资料保存失败'
-  } finally {
-    pageLoading.value = false
   }
 }
 
@@ -2461,9 +2517,12 @@ const inactiveClinics = computed(() => clinics.value.filter((clinic) => clinic.s
 
 const filteredProducts = computed(() => {
   const keyword = productKeyword.value.trim().toLowerCase()
-  return products.value.filter((product) => !keyword || [product.product_name, product.product_type, product.material_spec]
+  return products.value.filter((product) => !keyword || [product.product_name, product.product_code, product.product_type, product.category_name, product.material_spec]
     .some((value) => String(value || '').toLowerCase().includes(keyword)))
 })
+
+const selectedProductRequirements = computed(() => productRequirements.value.filter((requirement) =>
+  !requirement.product_type || requirement.product_type === String(selectedProductId.value ?? '')))
 
 const filteredDesignOrders = computed(() => {
   const keyword = designKeyword.value.trim().toLowerCase()
@@ -2969,17 +3028,19 @@ watch(billingTab, (tab) => {
     </template>
 
     <template v-else-if="activeRoute === '/cs/products'">
-      <header class="cs-r-heading"><div><h1>产品管理</h1><p>维护已有产品资料、基础价格和医生下单要求；本期不新增产品。</p></div><span class="cs-r-count">{{ products.length }} 个已有产品</span></header>
-      <section class="cs-r-table-card"><header class="cs-r-table-toolbar"><div><h3>已有产品</h3><span>{{ filteredProducts.length }} / {{ products.length }} 个产品</span></div><label class="cs-r-search"><span>⌕</span><input v-model="productKeyword" type="search" placeholder="搜索已有产品" aria-label="搜索产品"></label></header><table v-if="filteredProducts.length"><thead><tr><th>产品名称</th><th>产品类型</th><th>材料规格</th><th>基础价格</th><th>启用状态</th><th>操作</th></tr></thead><tbody><tr v-for="product in filteredProducts" :key="product.product_id" @click="selectProduct(product.product_id)"><td><strong>{{ product.product_name }}</strong><small>#{{ product.product_id }}</small></td><td>{{ productLabel(product.product_type) }}</td><td>{{ product.material_spec || '材料规格待完善' }}</td><td>{{ money(product.base_price_cents,product.currency) }}</td><td><span class="cs-r-badge" :class="product.status === 'ACTIVE' ? 'is-green' : 'is-red'">{{ statusLabel(product.status) }}</span></td><td><button class="cs-r-link" type="button" @click.stop="selectProduct(product.product_id)">查看资料</button></td></tr></tbody></table><div v-else class="cs-r-state">没有符合条件的已有产品</div></section>
+      <header class="cs-r-heading"><div><h1>产品目录</h1><p>查看医生端当前正在使用的已发布产品目录；客服端不直接改产品配置。</p></div><span class="cs-r-count">{{ products.length }} 个在售产品</span></header>
+      <section class="cs-r-detail-alert is-warning"><span>ℹ️</span><div><strong>产品新增与修改由管理员统一发布</strong><p>品类不全时，请管理员进入“管理端 → 下单内容设置”，在草稿版本中新增产品、材料和下单字段，确认后发布。客服端会自动读取同一份生效目录。</p></div><span v-if="activeCatalogVersionId" class="cs-r-badge is-violet">目录版本 #{{ activeCatalogVersionId }}</span></section>
+      <section class="cs-r-table-card"><header class="cs-r-table-toolbar"><div><h3>当前已发布产品</h3><span>{{ filteredProducts.length }} / {{ products.length }} 个产品</span></div><label class="cs-r-search"><span>⌕</span><input v-model="productKeyword" type="search" placeholder="搜索产品、编码、品类或材料" aria-label="搜索产品"></label></header><table v-if="filteredProducts.length"><thead><tr><th>产品名称</th><th>产品编码</th><th>产品品类</th><th>可选材料</th><th>基础价格</th><th>操作</th></tr></thead><tbody><tr v-for="product in filteredProducts" :key="product.product_id" @click="selectProduct(product.product_id)"><td><strong>{{ product.product_name }}</strong><small>#{{ product.product_id }}</small></td><td>{{ product.product_code }}</td><td>{{ product.category_name }}</td><td>{{ product.materials.length ? `${product.materials.length} 项` : '暂未配置' }}</td><td>{{ product.pricing_status === 'PRICED' ? money(product.base_price_cents,product.currency) : '价格待配置' }}</td><td><button class="cs-r-link" type="button" @click.stop="selectProduct(product.product_id)">查看配置</button></td></tr></tbody></table><div v-else class="cs-r-state">当前生效目录中没有符合条件的产品</div></section>
       <el-drawer v-model="productDrawerVisible" size="540px" :with-header="false" class="cs-r-drawer" modal-class="cs-r-drawer-overlay">
         <div v-if="selectedProduct" class="cs-r-drawer-shell"><header class="cs-r-detail-head"><div><small>PRODUCT PROFILE</small><h2>{{ selectedProduct.product_name }}</h2></div><div><span class="cs-r-badge" :class="selectedProduct.status==='ACTIVE'?'is-green':'is-red'">{{ statusLabel(selectedProduct.status) }}</span><button type="button" aria-label="关闭产品详情" @click="productDrawerVisible=false">×</button></div></header>
-          <div class="cs-r-product-banner"><span>{{ productEmoji(selectedProduct.product_type) }}</span><div><small>{{ productLabel(selectedProduct.product_type) }}</small><strong>{{ selectedProduct.product_name }}</strong><p>产品编号 #{{ selectedProduct.product_id }} · {{ selectedProduct.material_spec || '材料规格待完善' }}</p></div></div>
+          <div class="cs-r-product-banner"><span>{{ productEmoji(selectedProduct.product_type) }}</span><div><small>{{ selectedProduct.category_name }}</small><strong>{{ selectedProduct.product_name }}</strong><p>{{ selectedProduct.product_code }} · 目录产品 #{{ selectedProduct.product_id }}</p></div></div>
           <div v-if="productDetailState.loading" class="cs-r-state cs-r-detail-loading"><span class="cs-r-loading-orbit">{{ productEmoji(selectedProduct.product_type) }}</span><strong>正在读取产品配置</strong></div>
           <template v-else>
             <section v-if="productDetailState.error" class="cs-r-detail-alert is-warning"><span>⚠️</span><div><strong>部分产品资料未加载</strong><p>{{ productDetailState.error }}</p></div><button type="button" @click="selectProduct(selectedProduct.product_id)">重试</button></section>
-            <section><div class="cs-r-section-title"><div><span class="cs-r-section-emoji">🧾</span><div><h3>产品资料</h3><p>维护真实产品名称、材料、价格和启用状态</p></div></div></div><div class="cs-r-form-grid cs-r-section-form"><label><span>产品名称</span><input v-model="productEditName"></label><label><span>材料规格</span><input v-model="productEditMaterial"></label><label><span>基础价格（元）</span><input v-model.number="productEditPrice" type="number" min="0" step="0.01"></label><label><span>启用状态</span><select v-model="productEditStatus"><option value="ACTIVE">启用</option><option value="INACTIVE">停用</option></select></label><label class="is-wide"><span>价格说明</span><textarea v-model="productEditNote" rows="3" placeholder="填写真实价格口径或适用说明"></textarea></label></div><footer class="cs-r-inline-actions"><span>产品类型在本期保持只读，避免破坏已有订单。</span><button class="cs-r-primary" type="button" :disabled="pageLoading || !productEditName.trim()" @click="saveProduct">{{ pageLoading ? '保存中…' : '保存已有产品' }}</button></footer></section>
-            <section><div class="cs-r-section-title"><div><span class="cs-r-section-emoji">📋</span><div><h3>医生下单要求</h3><p>真实表单配置按显示顺序排列</p></div></div><span>{{ productRequirements.length }} 项</span></div><div v-if="productRequirements.length" class="cs-r-requirement-list"><article v-for="requirement in [...productRequirements].sort((a,b)=>a.sort_order-b.sort_order)" :key="requirement.field_id"><span class="cs-r-requirement-order">{{ String(requirement.sort_order).padStart(2,'0') }}</span><div><strong>{{ requirement.field_label }} <em v-if="requirement.is_required">必填</em></strong><span>{{ fieldTypeLabel(requirement.field_type) }} · {{ requirement.options?.length ? `${requirement.options.length} 个选项` : '无预设选项' }}</span></div><span class="cs-r-badge" :class="requirement.status === 'ACTIVE' ? 'is-green' : 'is-red'">{{ statusLabel(requirement.status) }}</span></article></div><div v-else-if="!productDetailState.error" class="cs-r-state"><strong>尚未配置医生下单要求</strong><span>这里不会填充演示字段。</span></div></section>
-            <section><div class="cs-r-section-title"><div><span class="cs-r-section-emoji">🕘</span><div><h3>变更记录</h3><p>当前仅展示接口提供的真实时间</p></div></div></div><div class="cs-r-record-list"><article><div><strong>产品档案建立</strong><span>{{ compactDateTime(selectedProduct.created_at) }}</span></div><span class="cs-r-badge is-violet">真实时间</span></article><article><div><strong>最近一次更新</strong><span>{{ compactDateTime(selectedProduct.updated_at) }}</span></div><span class="cs-r-badge" :class="selectedProduct.status==='ACTIVE'?'is-green':'is-red'">{{ statusLabel(selectedProduct.status) }}</span></article></div><div class="cs-r-capability-empty is-compact"><span>🕘</span><strong>逐字段审计记录尚未接入</strong><p>当前仅展示产品真实建立和更新时间，不编造操作人或变更内容。</p></div></section>
+            <section><div class="cs-r-section-title"><div><span class="cs-r-section-emoji">🧾</span><div><h3>已发布配置</h3><p>这里与医生下单页使用同一份生效目录，只读展示</p></div></div></div><div class="cs-r-summary-grid"><div><span>产品名称</span><strong>{{ selectedProduct.product_name }}</strong></div><div><span>产品编码</span><strong>{{ selectedProduct.product_code }}</strong></div><div><span>产品品类</span><strong>{{ selectedProduct.category_name }}</strong></div><div><span>流程类型</span><strong>{{ productLabel(selectedProduct.product_type) }}</strong></div><div><span>基础价格</span><strong>{{ selectedProduct.pricing_status === 'PRICED' ? money(selectedProduct.base_price_cents, selectedProduct.currency) : '价格待配置' }}</strong></div><div><span>目录状态</span><strong>已发布并启用</strong></div></div></section>
+            <section><div class="cs-r-section-title"><div><span class="cs-r-section-emoji">🧱</span><div><h3>可选材料</h3><p>来自当前目录版本的产品材料绑定</p></div></div><span>{{ selectedProduct.materials.length }} 项</span></div><div v-if="selectedProduct.materials.length" class="cs-r-record-list"><article v-for="material in selectedProduct.materials" :key="material"><div><strong>{{ material }}</strong></div><span class="cs-r-badge is-green">可选</span></article></div><div v-else class="cs-r-state"><strong>暂未配置可选材料</strong><span>请由管理员在下单内容设置的草稿版本中补充。</span></div></section>
+            <section><div class="cs-r-section-title"><div><span class="cs-r-section-emoji">📋</span><div><h3>医生下单字段</h3><p>真实表单配置按显示顺序排列</p></div></div><span>{{ selectedProductRequirements.length }} 项</span></div><div v-if="selectedProductRequirements.length" class="cs-r-requirement-list"><article v-for="requirement in [...selectedProductRequirements].sort((a,b)=>a.sort_order-b.sort_order)" :key="requirement.field_id"><span class="cs-r-requirement-order">{{ String(requirement.sort_order).padStart(2,'0') }}</span><div><strong>{{ requirement.field_label }} <em v-if="requirement.is_required">必填</em></strong><span>{{ fieldTypeLabel(requirement.field_type) }} · {{ requirement.options?.length ? `${requirement.options.length} 个选项` : '无预设选项' }}</span></div><span class="cs-r-badge is-green">已发布</span></article></div><div v-else-if="!productDetailState.error" class="cs-r-state"><strong>尚未配置医生下单字段</strong><span>请由管理员在草稿版本中补充并发布。</span></div></section>
+            <section class="cs-r-readonly-note"><strong>需要新增或修改产品？</strong><p>请管理员进入“管理端 → 下单内容设置”创建草稿、完成产品和材料配置并发布；客服端不会绕过版本发布流程直接修改生效目录。</p></section>
           </template>
         </div>
       </el-drawer>

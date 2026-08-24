@@ -562,6 +562,91 @@ class OrderCaseGroupTests {
 
     @Test
     @Transactional
+    void classifiedScanBundleAcceptsZipWithOptionalShadeAndPrimaryMaterial() throws Exception {
+        CatalogFixture catalog = createActiveCatalog();
+        long categoryId = jdbcClient.sql("""
+                        SELECT category_id FROM catalog_product_v2 WHERE product_id = :productId
+                        """)
+                .param("productId", catalog.secondProductId())
+                .query(Long.class)
+                .single();
+        jdbcClient.sql("""
+                        UPDATE catalog_category_v2
+                        SET category_code = 'FIXED_RESTORATION'
+                        WHERE category_id = :categoryId
+                        """)
+                .param("categoryId", categoryId)
+                .update();
+
+        long groupId = createGroup("classified-scan-bundle-" + UUID.randomUUID());
+        mockMvc.perform(post("/order-case-groups/{groupId}/items", groupId)
+                        .header("X-Bootstrap-Role", "DOCTOR")
+                        .header("X-Bootstrap-User-Id", DOCTOR_USER_ID)
+                        .header("X-Bootstrap-Clinic-Id", clinicId)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("""
+                                {
+                                  "product_id":%d,
+                                  "item_client_key":"classified-%s",
+                                  "form_values":{
+                                    "shared_upload_requirement_version":"CLASSIFIED_SCAN_BUNDLE_V3",
+                                    "shade_requirement_version":"SHADE_OPTIONAL_V2",
+                                    "material_requirement_version":"OPTIONAL_PRIMARY_MATERIAL_V2",
+                                    "shared_upload_slot_files":{},
+                                    "product_upload_slot_files":{}
+                                  },
+                                  "material_selections":[],
+                                  "accessory_selections":[],
+                                  "file_ids":[],
+                                  "expected_draft_version":1
+                                }
+                                """.formatted(catalog.secondProductId(), UUID.randomUUID())))
+                .andExpect(status().isOk());
+
+        long orderId = jdbcClient.sql("SELECT order_id FROM orders WHERE group_id = :groupId")
+                .param("groupId", groupId)
+                .query(Long.class)
+                .single();
+        long packageFileId = insertSharedFile(groupId, orderId, "complete-scan-package.zip");
+
+        mockMvc.perform(put("/order-case-groups/{groupId}/items/{orderId}", groupId, orderId)
+                        .header("X-Bootstrap-Role", "DOCTOR")
+                        .header("X-Bootstrap-User-Id", DOCTOR_USER_ID)
+                        .header("X-Bootstrap-Clinic-Id", clinicId)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("""
+                                {
+                                  "product_id":%d,
+                                  "form_values":{
+                                    "shared_upload_requirement_version":"CLASSIFIED_SCAN_BUNDLE_V3",
+                                    "shade_requirement_version":"SHADE_OPTIONAL_V2",
+                                    "shade_value":"CUSTOM-A",
+                                    "material_requirement_version":"OPTIONAL_PRIMARY_MATERIAL_V2",
+                                    "shared_upload_slot_files":{"combined_scan":[%d]},
+                                    "product_upload_slot_files":{}
+                                  },
+                                  "material_selections":[],
+                                  "accessory_selections":[],
+                                  "file_ids":[],
+                                  "expected_draft_version":2
+                                }
+                                """.formatted(catalog.secondProductId(), packageFileId)))
+                .andExpect(status().isOk());
+
+        mockMvc.perform(post("/order-case-groups/{groupId}/submit", groupId)
+                        .header("X-Bootstrap-Role", "DOCTOR")
+                        .header("X-Bootstrap-User-Id", DOCTOR_USER_ID)
+                        .header("X-Bootstrap-Clinic-Id", clinicId)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("""
+                                {"idempotency_key":"classified-complete-%s","expected_draft_version":3}
+                                """.formatted(UUID.randomUUID())))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.lifecycle_status").value("SUBMITTED"));
+    }
+
+    @Test
+    @Transactional
     void multiProductDraftSupportsIdempotentAddCopyDeleteTypedValidationAndAtomicSubmit()
             throws Exception {
         CatalogFixture catalog = createActiveCatalog();

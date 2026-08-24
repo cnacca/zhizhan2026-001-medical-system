@@ -3422,6 +3422,9 @@
           "type": "required_text",
           "paths": [
             "frontend/src/doctor/DoctorCaseGroupWizard.vue",
+            "frontend/src/components/CsPortalPages.vue",
+            "backend/platform-server/src/main/java/com/yuri/aiorder/order/casegroup/CaseGroupDraftService.java",
+            "backend/platform-server/src/test/java/com/yuri/aiorder/order/OrderCaseGroupTests.java",
             "scripts/check-doctor-order-final-confirmation.mjs",
             "package.json"
           ],
@@ -3429,6 +3432,11 @@
             "价格待配置",
             "case-shared-upload-slot",
             "case-review-ask-support",
+            "CLASSIFIED_SCAN_BUNDLE_V3",
+            "OPTIONAL_PRIMARY_MATERIAL_V2",
+            "allow-create",
+            "data-validation-target=\"scan-records\"",
+            "classifiedScanBundleAcceptsZipWithOptionalShadeAndPrimaryMaterial",
             "check:doctor-order-final-confirmation"
           ]
         },
