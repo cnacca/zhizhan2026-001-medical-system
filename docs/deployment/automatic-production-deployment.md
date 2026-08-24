@@ -4,6 +4,8 @@
 
 本方案在代码合并到 `main` 后，由 GitHub Actions 构建前后端镜像并通过 SSH 部署到正式服务器。它不会把真实密钥写入仓库，也不会在服务器上临时编译源码。
 
+2026-08-24 已增加 fail-closed 发布分流：合并提交只有在改动至少包含一个 `frontend/` 文件，且其余改动仅为受控发布文档时，才进入 `frontend` 快速通道；任何后端、数据库、根依赖、脚本、工作流、部署配置或未知路径都会自动回退 `full`。手工发布固定使用 `full`，不能人工把高风险变更强制降级为前端发布。
+
 2026-08-14 已完成 GitHub secrets、独立部署密钥、服务器部署配置和首次手工生产发布。已验证正式站运行提交为 `c3e678108addfcca63bd0b046e1cc39af4b65817`，本机与公网健康检查均为 200，发布前 MySQL 备份和前后端旧镜像回滚标签均存在。仓库变量 `PRODUCTION_AUTO_DEPLOY_ENABLED=true` 已启用。
 
 本次只验证了回滚所需的备份与镜像标签，没有实际把正式站切回旧版本；完整业务验收与真实回滚演练仍未完成，因此 Task 8 继续保持 `NOT_READY`。
@@ -11,6 +13,7 @@
 ## 触发边界
 
 - 自动触发：`main` 收到 push，仓库变量 `PRODUCTION_AUTO_DEPLOY_ENABLED=true`，并且该提交能够由 GitHub API 证明是合并到 `main` 的 PR merge commit。直接 push 到 `main` 会被工作流拒绝。
+- 发布模式：自动发布比较 merge commit 与其第一父提交。`frontend/` 加受控文档改动走 `frontend`；没有前端运行时代码、混入任何非白名单路径或无法识别 diff 时走 `full`。
 - 手工触发：GitHub Actions 页面从 `main` 执行 `Deploy production`；功能分支即使手工选择也不会进入部署 job。
 - 并发：同一时间只允许一个正式部署；新的提交不会取消正在进行的发布。
 - 环境：工作流固定使用 GitHub `production` environment。建议只允许受保护的 `main` 部署，并配置 required reviewer 完成首次验证。
@@ -18,16 +21,24 @@
 
 ## 发布过程
 
-1. 校验 acceptance、部署环境、8088 修复、Compose 和前端生产构建。
-2. 用 Java 21 打包后端，用 Node 22 / pnpm 11.7.0 构建前端。
-3. 构建以完整 Git SHA 标记的两个 Docker 镜像。
-4. 对源码归档和镜像归档生成 SHA-256 校验文件。
+1. 校验 acceptance、前端专项门禁、发布分流器和前端生产构建。
+2. `full` 额外启动隔离测试基础设施，运行完整后端测试、OpenAPI、部署／Compose 门禁并打包后端；`frontend` 跳过这些未受本次改动影响的步骤。
+3. 两种模式都构建并校验前端不可变镜像；`full` 同时构建并校验后端镜像及 Flyway migration。
+4. 对源码归档和本模式实际需要的镜像归档生成 SHA-256 校验文件。
 5. 通过已知主机指纹校验的 SSH 连接上传发布包。
 6. 服务器获取互斥锁、复核校验和、渲染正式 Compose 配置。
-7. 在变更容器前执行 MySQL 单事务逻辑备份并校验 gzip。
-8. 保留当前前后端镜像为 `rollback-before-<sha>-<timestamp>`。
-9. 加载新镜像，以 `--no-deps` 只强制重建 backend / frontend，不重建 MySQL、Redis、MinIO，也不删除 volume。
-10. 等待 Compose 和 loopback HTTP 健康检查通过，再记录当前 revision。
+7. `full` 在变更容器前执行 MySQL 单事务逻辑备份并校验 gzip；`frontend` 不变更后端或 schema，因此只记录明确的“无需数据库备份”标记。
+8. `full` 保留当前前后端镜像为回滚标签并重建两个服务；`frontend` 只保留和替换前端镜像，不重启后端。
+9. 两种模式都使用 `--no-deps`，不重建 MySQL、Redis、MinIO，也不删除 volume。
+10. 两种模式都等待后端和首页健康检查通过，并分别记录前端／后端实际 revision。
+
+## 快速通道的安全边界
+
+- 允许：`frontend/**`，以及同时出现的 `README.md`、`STATUS.md`、`DECISIONS.md`、`PROJECT.md`、`acceptance.json`、`docs/**`、`goals/**`、`tasks/**`。
+- 必须至少存在一个 `frontend/**` 改动；纯文档提交不会伪装成前端发布。
+- 任意其他路径都触发 `full`，包括 `backend/**`、数据库迁移、`scripts/**`、`.github/**`、`deploy/**`、`package.json`、`pnpm-lock.yaml` 和未知文件。
+- 快速通道仍保留 PR merge 校验、前端专项门禁、不可变镜像检查、SHA-256、SSH known_hosts、部署互斥锁、前端回滚标签、首页／后端健康检查和公网 Origin／重定向探针。
+- 快速通道不是直接覆盖服务器静态文件，也不是开发环境 HMR；正式站仍只接收可追踪的镜像发布。
 
 前端镜像构建固定使用 pnpm 11.7.0，并以 frontend workspace 作为安装过滤目标。由于当前仍共享根锁文件，冷构建会解析部分根 workspace 依赖元数据，首次构建速度仍受 npm 网络影响；这属于效率问题，不应通过放宽 lockfile 校验规避。
 
@@ -85,6 +96,7 @@ PRODUCTION_AUTO_DEPLOY_ENABLED=true
 
 ```bash
 npm run check:production-auto-deploy
+npm run check:production-fast-deploy
 npm run check:deployment-env
 npm run compose:phase-one:config
 ```
