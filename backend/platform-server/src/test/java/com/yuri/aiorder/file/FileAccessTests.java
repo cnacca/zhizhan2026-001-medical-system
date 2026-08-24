@@ -116,22 +116,49 @@ class FileAccessTests {
         assertThat(fileStatus(fileId)).isEqualTo("COMPLETED");
         assertThat(storedFileSize(fileId)).isEqualTo((long) bytes.length);
 
-        mockMvc.perform(get("/files/{fileId}/preview-url", fileId)
+        MvcResult previewResult = mockMvc.perform(get("/files/{fileId}/preview-url", fileId)
                         .header("X-Bootstrap-Role", "DOCTOR")
                         .header("X-Bootstrap-User-Id", DOCTOR_USER_ID)
                         .header("X-Bootstrap-Clinic-Id", clinicId))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.data.preview_url").value(startsWith("http")))
                 .andExpect(jsonPath("$.data.object_key").doesNotExist())
-                .andExpect(content().string(not(org.hamcrest.Matchers.containsString("object_key"))));
+                .andExpect(content().string(not(org.hamcrest.Matchers.containsString("object_key"))))
+                .andReturn();
 
-        mockMvc.perform(get("/files/{fileId}/download-url", fileId)
+        MvcResult downloadResult = mockMvc.perform(get("/files/{fileId}/download-url", fileId)
                         .header("X-Bootstrap-Role", "DOCTOR")
                         .header("X-Bootstrap-User-Id", DOCTOR_USER_ID)
                         .header("X-Bootstrap-Clinic-Id", clinicId))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.data.download_url").value(startsWith("http")))
-                .andExpect(jsonPath("$.data.object_key").doesNotExist());
+                .andExpect(jsonPath("$.data.object_key").doesNotExist())
+                .andReturn();
+
+        String previewUrl = objectMapper.readTree(previewResult.getResponse().getContentAsString())
+                .path("data")
+                .path("preview_url")
+                .asText();
+        String downloadUrl = objectMapper.readTree(downloadResult.getResponse().getContentAsString())
+                .path("data")
+                .path("download_url")
+                .asText();
+        HttpClient httpClient = HttpClient.newHttpClient();
+        HttpResponse<Void> previewResponse = httpClient.send(
+                HttpRequest.newBuilder(URI.create(previewUrl)).GET().build(),
+                HttpResponse.BodyHandlers.discarding());
+        HttpResponse<Void> downloadResponse = httpClient.send(
+                HttpRequest.newBuilder(URI.create(downloadUrl)).GET().build(),
+                HttpResponse.BodyHandlers.discarding());
+
+        assertThat(previewResponse.statusCode()).isEqualTo(200);
+        assertThat(previewResponse.headers().firstValue("Content-Type")).contains("application/pdf");
+        assertThat(previewResponse.headers().firstValue("Content-Disposition")).hasValueSatisfying(
+                value -> assertThat(value).startsWith("inline;").contains("case.pdf"));
+        assertThat(downloadResponse.statusCode()).isEqualTo(200);
+        assertThat(downloadResponse.headers().firstValue("Content-Type")).contains("application/pdf");
+        assertThat(downloadResponse.headers().firstValue("Content-Disposition")).hasValueSatisfying(
+                value -> assertThat(value).startsWith("attachment;").contains("case.pdf"));
 
         assertThat(auditCount(fileId, "UPLOAD_TOKEN", "ALLOWED")).isEqualTo(1L);
         assertThat(auditCount(fileId, "COMPLETE", "ALLOWED")).isEqualTo(1L);
@@ -581,6 +608,50 @@ class FileAccessTests {
                         .header("X-Bootstrap-User-Id", workerUserId))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.data[0].file_id").value(fileId));
+    }
+
+    @Test
+    void productionReviewerSelfScopeCanReadPendingReviewFilesButCannotMutateThem() throws Exception {
+        long reviewerUserId = 9914L;
+        jdbcClient.sql("UPDATE orders SET internal_status = 'PENDING_PRODUCTION_REVIEW' WHERE order_id = :orderId")
+                .param("orderId", orderId)
+                .update();
+        long fileId = insertCompletedFile(orderId, "DOCTOR");
+        String reviewToken = tokenService.issue(new BootstrapIdentity(
+                UserRole.WORKER,
+                reviewerUserId,
+                null,
+                null,
+                Set.of("workflow:review-production"),
+                "SELF"));
+
+        mockMvc.perform(get("/orders/{orderId}/files", orderId)
+                        .header("Authorization", "Bearer " + reviewToken))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data[0].file_id").value(fileId));
+        mockMvc.perform(get("/files/{fileId}/preview-url", fileId)
+                        .header("Authorization", "Bearer " + reviewToken))
+                .andExpect(status().isOk());
+        mockMvc.perform(get("/files/{fileId}/download-url", fileId)
+                        .header("Authorization", "Bearer " + reviewToken))
+                .andExpect(status().isOk());
+        mockMvc.perform(post("/files/{fileId}/complete", fileId)
+                        .header("Authorization", "Bearer " + reviewToken))
+                .andExpect(status().isForbidden());
+
+        jdbcClient.sql("UPDATE orders SET internal_status = 'PROCESS_INSTANCE_CREATED' WHERE order_id = :orderId")
+                .param("orderId", orderId)
+                .update();
+
+        mockMvc.perform(get("/orders/{orderId}/files", orderId)
+                        .header("Authorization", "Bearer " + reviewToken))
+                .andExpect(status().isForbidden());
+        mockMvc.perform(get("/files/{fileId}/preview-url", fileId)
+                        .header("Authorization", "Bearer " + reviewToken))
+                .andExpect(status().isForbidden());
+        mockMvc.perform(get("/files/{fileId}/download-url", fileId)
+                        .header("Authorization", "Bearer " + reviewToken))
+                .andExpect(status().isForbidden());
     }
 
     @Test

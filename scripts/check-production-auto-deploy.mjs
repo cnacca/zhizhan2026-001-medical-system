@@ -49,6 +49,8 @@ for (const fragment of [
   'npm run check:openapi',
   'npm run check:frontend-bug-audit-20260815',
   'npm run check:logout-refresh-race',
+  'npm run check:feedback-20260713',
+  'npm run check:feedback-20260822-blockers',
   'Verify final release images',
   'scripts/check-production-release-images.sh',
   'Verify public login origins and canonical redirects',
@@ -110,7 +112,9 @@ if (imageBuildIndex < 0
 for (const releaseGate of [
   'npm run check:openapi',
   'npm run check:frontend-bug-audit-20260815',
-  'npm run check:logout-refresh-race'
+  'npm run check:logout-refresh-race',
+  'npm run check:feedback-20260713',
+  'npm run check:feedback-20260822-blockers'
 ]) {
   const gateIndex = workflow.indexOf(releaseGate)
   if (gateIndex < 0 || imageBuildIndex < 0 || gateIndex > imageBuildIndex) {
