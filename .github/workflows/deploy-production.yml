@@ -49,7 +49,25 @@ jobs:
         with:
           node-version: '22'
 
+      - name: Detect safe production release mode
+        id: release
+        shell: bash
+        run: |
+          set -euo pipefail
+          if [[ "${GITHUB_EVENT_NAME}" == 'workflow_dispatch' ]]; then
+            printf 'mode=full\n' >>"${GITHUB_OUTPUT}"
+            printf 'reason=manual production releases always use the full path\n' >>"${GITHUB_OUTPUT}"
+            exit 0
+          fi
+
+          base_revision="$(git rev-parse "${GITHUB_SHA}^1")"
+          node scripts/production-release-mode.mjs \
+            --base "${base_revision}" \
+            --head "${GITHUB_SHA}" \
+            --github-output "${GITHUB_OUTPUT}"
+
       - name: Set up Java 21
+        if: steps.release.outputs.mode == 'full'
         uses: actions/setup-java@cf277c60eb25467037889841efdb72551f06f6c3 # v4
         with:
           distribution: temurin
@@ -65,6 +83,7 @@ jobs:
           pnpm install --frozen-lockfile
 
       - name: Prepare isolated backend test infrastructure
+        if: steps.release.outputs.mode == 'full'
         shell: bash
         run: |
           set -euo pipefail
@@ -72,6 +91,7 @@ jobs:
           scripts/ensure-test-database.sh
 
       - name: Run backend test suite
+        if: steps.release.outputs.mode == 'full'
         shell: bash
         run: |
           set -euo pipefail
@@ -79,10 +99,11 @@ jobs:
 
       - name: Run release gates
         shell: bash
+        env:
+          RELEASE_MODE: ${{ steps.release.outputs.mode }}
         run: |
           set -euo pipefail
           npm run acceptance
-          npm run check:openapi
           npm run check:frontend-bug-audit-20260815
           npm run check:logout-refresh-race
           npm run check:regression-bugs-20260816
@@ -90,21 +111,29 @@ jobs:
           npm run check:feedback-20260713
           npm run check:feedback-20260822-blockers
           npm run check:production-auto-deploy
-          npm run check:deployment-env
-          npm run check:deployment-bugfixes-20260811
-          npm run check:task9d69
-          npm run compose:phase-one:config
+          npm run check:production-fast-deploy
           npm run build:frontend
-          mvn -f backend/pom.xml -pl platform-server -am -DskipTests package
+          if [[ "${RELEASE_MODE}" == 'full' ]]; then
+            npm run check:openapi
+            npm run check:deployment-env
+            npm run check:deployment-bugfixes-20260811
+            npm run check:task9d69
+            npm run compose:phase-one:config
+            mvn -f backend/pom.xml -pl platform-server -am -DskipTests package
+          fi
 
       - name: Build immutable release images
         shell: bash
+        env:
+          RELEASE_MODE: ${{ steps.release.outputs.mode }}
         run: |
           set -euo pipefail
-          docker build \
-            --file backend/platform-server/Dockerfile \
-            --tag "ai-order-platform-backend:${GITHUB_SHA}" \
-            .
+          if [[ "${RELEASE_MODE}" == 'full' ]]; then
+            docker build \
+              --file backend/platform-server/Dockerfile \
+              --tag "ai-order-platform-backend:${GITHUB_SHA}" \
+              .
+          fi
           docker build \
             --file frontend/Dockerfile \
             --build-arg "VITE_TEMP_DEMO_LOGIN_PREFILL_ENABLED=${{ vars.TEMP_DEMO_LOGIN_PREFILL_ENABLED || 'false' }}" \
@@ -117,16 +146,23 @@ jobs:
           BACKEND_IMAGE: ai-order-platform-backend:${{ github.sha }}
           FRONTEND_IMAGE: ai-order-platform-frontend:${{ github.sha }}
           EXPECT_TEMP_DEMO_LOGIN_PREFILL: ${{ vars.TEMP_DEMO_LOGIN_PREFILL_ENABLED || 'false' }}
+          RELEASE_MODE: ${{ steps.release.outputs.mode }}
         run: |
           set -euo pipefail
+          backend_image=''
+          if [[ "${RELEASE_MODE}" == 'full' ]]; then
+            backend_image="${BACKEND_IMAGE}"
+          fi
           bash scripts/check-production-release-images.sh \
             "${FRONTEND_IMAGE}" \
             "${EXPECT_TEMP_DEMO_LOGIN_PREFILL}" \
-            "${BACKEND_IMAGE}"
+            "${backend_image}"
 
       - name: Package the release
         id: package
         shell: bash
+        env:
+          RELEASE_MODE: ${{ steps.release.outputs.mode }}
         run: |
           set -euo pipefail
           package_dir="${RUNNER_TEMP}/ai-order-${GITHUB_SHA}"
@@ -137,10 +173,15 @@ jobs:
             --output="${package_dir}/source-${GITHUB_SHA}.tar.gz" \
             "${GITHUB_SHA}"
 
-          docker save \
-            "ai-order-platform-backend:${GITHUB_SHA}" \
-            "ai-order-platform-frontend:${GITHUB_SHA}" \
-            | gzip -1 >"${package_dir}/images-${GITHUB_SHA}.tar.gz"
+          if [[ "${RELEASE_MODE}" == 'full' ]]; then
+            docker save \
+              "ai-order-platform-backend:${GITHUB_SHA}" \
+              "ai-order-platform-frontend:${GITHUB_SHA}" \
+              | gzip -1 >"${package_dir}/images-${GITHUB_SHA}.tar.gz"
+          else
+            docker save "ai-order-platform-frontend:${GITHUB_SHA}" \
+              | gzip -1 >"${package_dir}/images-${GITHUB_SHA}.tar.gz"
+          fi
 
           (
             cd "${package_dir}"
@@ -215,7 +256,8 @@ jobs:
               '${GITHUB_SHA}' \
               '${remote_stage}/source-${GITHUB_SHA}.tar.gz' \
               '${remote_stage}/images-${GITHUB_SHA}.tar.gz' \
-              '${remote_stage}/checksums-${GITHUB_SHA}.sha256'"
+              '${remote_stage}/checksums-${GITHUB_SHA}.sha256' \
+              '${{ steps.release.outputs.mode }}'"
 
       - name: Verify public login origins and canonical redirects
         shell: bash

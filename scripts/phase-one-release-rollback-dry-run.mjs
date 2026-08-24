@@ -51,9 +51,10 @@ requireText('deploy/env/phase-one.prod.example', [
 ])
 
 requireText('frontend/nginx.conf', [
-  'location /api/',
-  'location /notifications',
-  'location /ws/',
+  'location ^~ /ws/ {',
+  'location ~ ^/(accounts|admin|ai|api|catalog|',
+  '|notifications|',
+  'proxy_pass http://backend:8080;',
   'proxy_set_header Upgrade $http_upgrade',
   'try_files $uri $uri/ /index.html'
 ])
