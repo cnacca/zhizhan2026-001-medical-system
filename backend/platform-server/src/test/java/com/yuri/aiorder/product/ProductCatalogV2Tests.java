@@ -99,10 +99,38 @@ class ProductCatalogV2Tests {
                         """)
                 .query(Long.class)
                 .single();
+        long screwExpanderDirectionVariants = jdbcClient.sql("""
+                        SELECT COUNT(*)
+                        FROM catalog_product_variant_v2 variant
+                        JOIN catalog_product_v2 product ON product.product_id = variant.product_id
+                        JOIN catalog_config_version version
+                          ON version.config_version_id = variant.config_version_id
+                        WHERE version.version_name = '隐形正畸正式产品目录 2026-08-01'
+                          AND product.product_code = 'ORTHO_SCREW_EXPANDER'
+                          AND variant.variant_code IN (
+                              'ORTHO_SCREW_EXPANDER_SINGLE_DIRECTION',
+                              'ORTHO_SCREW_EXPANDER_DOUBLE_DIRECTION'
+                          )
+                          AND variant.status = 'ACTIVE'
+                        """)
+                .query(Long.class)
+                .single();
+        long pushSpringAliases = jdbcClient.sql("""
+                        SELECT COUNT(*)
+                        FROM catalog_alias_v2 alias
+                        JOIN catalog_product_v2 product ON product.product_id = alias.canonical_id
+                        WHERE alias.canonical_type = 'PRODUCT'
+                          AND alias.alias_text = '推簧'
+                          AND product.product_code = 'ORTHO_SPRING_APPLIANCE'
+                        """)
+                .query(Long.class)
+                .single();
 
         org.assertj.core.api.Assertions.assertThat(confirmedProducts).isEqualTo(1L);
         org.assertj.core.api.Assertions.assertThat(enabledRules).isEqualTo(1L);
         org.assertj.core.api.Assertions.assertThat(activePlaceholders).isZero();
+        org.assertj.core.api.Assertions.assertThat(screwExpanderDirectionVariants).isEqualTo(2L);
+        org.assertj.core.api.Assertions.assertThat(pushSpringAliases).isZero();
     }
 
     @Test
@@ -119,7 +147,6 @@ class ProductCatalogV2Tests {
                 .andExpect(status().isOk());
         bindMaterial(secondProductId, materialId, "MULTIPLE", 0, 3)
                 .andExpect(status().isOk());
-
         mockMvc.perform(get("/admin/catalog/versions/{versionId}/preview", versionId)
                         .header("X-Bootstrap-Role", "ADMIN"))
                 .andExpect(status().isOk())

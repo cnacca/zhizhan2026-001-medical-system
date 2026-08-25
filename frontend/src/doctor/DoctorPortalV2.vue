@@ -530,6 +530,7 @@ const viewerFile = ref<DoctorFile | null>(null)
 const filePreviewOpen = ref(false)
 const filePreview = ref<DoctorFile | null>(null)
 const filePreviewLoading = ref(false)
+const fileDownloadLoading = ref(false)
 const reviewSubmitting = ref(false)
 
 const navGroups = computed(() => [
@@ -1846,7 +1847,12 @@ function startReviewDecision(orderId: string, review: OrderReview, decision: 'AP
     rejectDialogOpen.value = true
     return
   }
-  void ElMessageBox.confirm(t('同意后，对方将按当前版本继续后续制作。请确认已完成检查。', 'After approval, production will continue using the current version. Confirm that you have completed your review.'), t('确认同意当前版本', 'Approve Current Version'), {
+  const designService = selectedOrder.value?.order_id === orderId
+    && selectedOrder.value.product_type === 'DESIGN_SERVICE'
+  const confirmationCopy = designService
+    ? t('同意后，当前版本将作为最终设计稿；账单付款后可下载原文件。请确认已完成检查。', 'After approval, this version becomes the final design. The original files can be downloaded after payment. Confirm that you have completed your review.')
+    : t('同意后，对方将按当前版本继续后续制作。请确认已完成检查。', 'After approval, production will continue using the current version. Confirm that you have completed your review.')
+  void ElMessageBox.confirm(confirmationCopy, t('确认同意当前版本', 'Approve Current Version'), {
     confirmButtonText: t('确认同意', 'Approve'), cancelButtonText: t('再检查一下', 'Review Again'), type: 'warning'
   }).then(() => submitReviewDecision('APPROVE')).catch(() => undefined)
 }
@@ -1941,7 +1947,13 @@ async function submitReviewDecision(decision: 'APPROVE' | 'REJECT') {
         ? t('确认已提交，但最新公开状态仍无法读取；页面已保留提交结果，请稍后刷新核对', 'Confirmation submitted, but the latest public status is still unavailable. The submitted result is retained; refresh later to verify.')
         : t('确认已提交，但订单最新公开状态读取失败，请稍后刷新', 'Confirmation submitted, but the latest public order status could not be loaded. Refresh later.'))
     }
-    ElMessage.success(decision === 'APPROVE' ? t('已同意当前版本，对方可以继续制作', 'Current version approved; production can continue') : t('已驳回并发送修改意见', 'Version rejected and change request sent'))
+    const designService = selectedOrder.value?.order_id === target.orderId
+      && selectedOrder.value.product_type === 'DESIGN_SERVICE'
+    ElMessage.success(decision === 'APPROVE'
+      ? designService
+        ? t('设计已确认，账单付款后即可下载原文件', 'Design approved. The original files will be available after payment.')
+        : t('已同意当前版本，对方可以继续制作', 'Current version approved; production can continue')
+      : t('已驳回并发送修改意见', 'Version rejected and change request sent'))
   } catch (cause) {
     try {
       const reconciled = await gateway.loadOrderDetail(target.orderId)
@@ -1981,6 +1993,26 @@ async function previewFile(item: DoctorFile) {
     ElMessage.error(errorText(cause, '文件预览失败', 'Failed to preview file'))
   } finally {
     filePreviewLoading.value = false
+  }
+}
+
+async function downloadDesignFile(item: DoctorFile) {
+  if (fileDownloadLoading.value) return
+  fileDownloadLoading.value = true
+  try {
+    const downloadUrl = await gateway.getFileDownloadUrl(item.file_id)
+    const anchor = document.createElement('a')
+    anchor.href = downloadUrl
+    anchor.download = item.name
+    anchor.rel = 'noopener'
+    document.body.appendChild(anchor)
+    anchor.click()
+    anchor.remove()
+    ElMessage.success(t('设计文件下载已开始', 'Design file download started'))
+  } catch (cause) {
+    ElMessage.error(errorText(cause, '设计文件下载失败，请确认设计已通过且账单已付款', 'Failed to download the design file. Confirm that the design is approved and the bill is paid.'))
+  } finally {
+    fileDownloadLoading.value = false
   }
 }
 
@@ -2720,6 +2752,13 @@ onBeforeUnmount(() => {
                   <div>
                     <button v-for="item in currentReviewFiles(review)" :key="`preview-${item.file_id}`" type="button" @click="previewFile(item)"><img v-if="item.kind === 'IMAGE' && item.preview_url" :src="item.preview_url" :alt="item.name"><i v-else>{{ fileGlyph(item) }}</i><span>{{ item.name }}</span></button>
                   </div>
+                </div>
+                <div v-if="review.status === 'APPROVED' && selectedOrder.product_type === 'DESIGN_SERVICE'" class="dv2-design-download">
+                  <div><strong>{{ t('设计文件交付', 'Design File Delivery') }}</strong><small>{{ selectedOrder.bill_summary.payment_status === 'PAID' ? t('设计已确认，账单已付款，可下载原文件。', 'The design is approved and the bill is paid. Original files are available for download.') : t('设计已确认；账单付款后可下载原文件。', 'The design is approved. Original files can be downloaded after the bill is paid.') }}</small></div>
+                  <div v-if="selectedOrder.bill_summary.payment_status === 'PAID'">
+                    <button v-for="item in currentReviewFiles(review)" :key="`download-${item.file_id}`" type="button" class="dv2-primary-button" :disabled="fileDownloadLoading" @click="downloadDesignFile(item)">{{ fileDownloadLoading ? t('准备下载…', 'Preparing…') : t('下载 {name}', 'Download {name}', { name: item.name }) }}</button>
+                  </div>
+                  <button v-else type="button" class="dv2-secondary-button" @click="switchPage('billing'); orderDrawerOpen = false">{{ t('查看账单', 'View Bill') }}</button>
                 </div>
                 <div class="dv2-version-list">
                   <article v-for="version in [...review.versions].reverse()" :key="version.version">

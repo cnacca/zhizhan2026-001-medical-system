@@ -429,6 +429,10 @@ export class MockDoctorGateway implements DoctorGateway {
     return `data:text/plain;charset=utf-8,${encodeURIComponent(`模拟预览：${file.name}`)}`
   }
 
+  async getFileDownloadUrl(fileId: string): Promise<string> {
+    return this.getFilePreviewUrl(fileId)
+  }
+
   async loadPatientDetail(patientId: string): Promise<PatientDetail> {
     const patient = patients.find((item) => item.patient_id === patientId)
     if (!patient) throw new Error('患者不存在')

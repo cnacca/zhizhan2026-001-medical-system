@@ -1694,7 +1694,7 @@ const doctorUploadServerResumeCandidates = ref<MultipartPendingUpload[]>([])
 const doctorUploadServerResumeOrderId = ref<number | null>(null)
 const doctorUploadLoading = ref(false)
 const doctorUploadMaxFileSizeBytes = 524288000
-const doctorUploadMaxFilesPerOrder = 30
+const doctorUploadMaxFilesPerOrder = 50
 const doctorUploadAllowedContentTypes = new Set([
   'application/pdf',
   'model/stl',

@@ -544,12 +544,22 @@ public class DesignTaskService {
                 .update();
         if ("DOCTOR_CONFIRMED".equals(targetStatus)) {
             completeDesignGateAndActivateRoute(task.taskId());
-            ensureOrderStateFrom(
-                    orderId,
-                    Set.of(InternalOrderStatus.IN_DESIGN.name()),
-                    InternalOrderStatus.PROCESS_INSTANCE_CREATED,
-                    "DESIGN_DOCTOR_CONFIRMED",
-                    identity.userId());
+            if ("DESIGN_SERVICE".equals(task.productType())) {
+                completeDesignServiceInstance(task.taskId());
+                ensureOrderStateFrom(
+                        orderId,
+                        Set.of(InternalOrderStatus.IN_DESIGN.name()),
+                        InternalOrderStatus.COMPLETED,
+                        "DESIGN_SERVICE_DOCTOR_CONFIRMED",
+                        identity.userId());
+            } else {
+                ensureOrderStateFrom(
+                        orderId,
+                        Set.of(InternalOrderStatus.IN_DESIGN.name()),
+                        InternalOrderStatus.PROCESS_INSTANCE_CREATED,
+                        "DESIGN_DOCTOR_CONFIRMED",
+                        identity.userId());
+            }
         }
         recordEvent(
                 task,
@@ -617,6 +627,41 @@ public class DesignTaskService {
                         SET target.node_status = 'READY'
                         """)
                 .param("taskId", taskId)
+                .update();
+    }
+
+    private void completeDesignServiceInstance(long taskId) {
+        long instanceId = jdbcClient.sql("""
+                        SELECT gate_node.instance_id
+                        FROM design_task task
+                        JOIN order_process_node gate_node
+                          ON gate_node.node_instance_id = task.node_instance_id
+                        WHERE task.design_task_id = :taskId
+                        """)
+                .param("taskId", taskId)
+                .query(Long.class)
+                .single();
+        long unfinishedNodeCount = jdbcClient.sql("""
+                        SELECT COUNT(*)
+                        FROM order_process_node
+                        WHERE instance_id = :instanceId
+                          AND node_status NOT IN ('COMPLETED', 'SKIPPED')
+                        """)
+                .param("instanceId", instanceId)
+                .query(Long.class)
+                .single();
+        if (unfinishedNodeCount != 0) {
+            throw new ResponseStatusException(
+                    HttpStatus.CONFLICT,
+                    "design service workflow contains unfinished non-delivery nodes");
+        }
+        jdbcClient.sql("""
+                        UPDATE order_process_instance
+                        SET instance_status = 'COMPLETED',
+                            updated_at = CURRENT_TIMESTAMP(3)
+                        WHERE instance_id = :instanceId
+                        """)
+                .param("instanceId", instanceId)
                 .update();
     }
 

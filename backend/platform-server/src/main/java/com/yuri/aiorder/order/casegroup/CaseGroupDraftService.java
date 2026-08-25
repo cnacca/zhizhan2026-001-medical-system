@@ -431,6 +431,7 @@ public class CaseGroupDraftService {
         LocalDate submittedOn = BusinessTime.today();
         for (DraftOrder order : orders) {
             ActiveProduct product = loadActiveProduct(order.productId(), order.variantId());
+            requireConfiguredVariant(product);
             ParsedFormData parsed = parseFormData(order.formData());
             SelectionValidation selection = validateSelections(
                     product,
@@ -592,6 +593,26 @@ public class CaseGroupDraftService {
 
     private ActiveProduct loadActiveProduct(long productId, Long variantId) {
         return catalogReader.loadActiveProduct(productId, variantId);
+    }
+
+    private void requireConfiguredVariant(ActiveProduct product) {
+        if (product.variantId() != null) {
+            return;
+        }
+        long activeVariantCount = jdbcClient.sql("""
+                        SELECT COUNT(*)
+                        FROM catalog_product_variant_v2
+                        WHERE config_version_id = :versionId
+                          AND product_id = :productId
+                          AND status = 'ACTIVE'
+                        """)
+                .param("versionId", product.versionId())
+                .param("productId", product.productId())
+                .query(Long.class)
+                .single();
+        if (activeVariantCount > 0) {
+            throw badRequest("product variant is required: " + product.productCode());
+        }
     }
 
     private void validateFormSchema(ActiveProduct product, JsonNode values, boolean requireRequiredFields) {

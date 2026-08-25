@@ -1,16 +1,16 @@
 {
   "version": 1,
   "managed_by": "RepoFrame",
-  "active_goal": "GOAL-036",
-  "active_goal_file": "goals/GOAL-036-doctor-order-final-confirmation-20260818.md",
+  "active_goal": "GOAL-037",
+  "active_goal_file": "goals/GOAL-037-phase-one-report-followup-closure-20260825.md",
   "phase_two_milestone_gaps": "docs/acceptance/phase-two-milestone-gap-matrix-20260728.md",
   "linter": "repo-init/scripts/lint_acceptance.py",
   "task8_readiness_gaps": [
     {
       "id": "auth-datascope-prod",
       "status": "PARTIAL",
-      "source": "docs/deployment/readiness-checklist.md#正式鉴权与数据范围",
-      "current_evidence": "数据库账号、权限码、data_scope、Bearer token、refresh/logout、权限注解、部分 SQL DataScope、prod 关闭 bootstrap header 门禁、9D.75 权限码优先模式、GOAL-012 / TASK-013 权限 / DataScope 生产化收口第一段，以及 GOAL-016 / TASK-017 权限 / DataScope 生产化补强 B 已落地；主代码 roles-only `@RequirePermission` 已清零，clinic / doctor account / notification 已补权限码和 V36 种子，`/api/auth/refresh` 已实现 refresh token 轮换并拒绝旧 token 复用。",
+      "source": "docs/DELIVERY-GAP.md#auth-datascope-prod",
+      "current_evidence": "数据库账号、权限码、data_scope、Bearer token、refresh/logout、权限注解、部分 SQL DataScope、prod 关闭 bootstrap header 与角色兜底门禁、权限码优先模式、refresh token 轮换、严格权限和角色越权回归已落地；2026-08-24 正式发布 #32742027332 的后端 358 项测试、部署健康检查和公网登录 Origin 探针通过。",
       "remaining_reason": "9D.75 已关闭生产角色兜底第一段，GOAL-012 已关闭 roles-only 权限注解库存，GOAL-016 已补 refresh token 轮换；仍缺完整 RuoYi 管理 UI、生产级 Spring Security/JWT、通用 DataScope SQL、access token 黑名单和多设备会话策略。",
       "minimum_closure_loop": "后续补生产级 Spring Security/JWT、通用 SQL DataScope、access token 黑名单或多设备会话策略；继续保持 Task 8 NOT_READY。",
       "verification": "npm run check:auth-datascope-prod-closure-b; npm run check:auth-refresh; npm run check:auth-datascope-prod-closure; npm run check:task9d75; ./scripts/with-jdk21.sh mvn -f backend/pom.xml -pl platform-server -Dtest=BearerIdentityTests,StrictPermissionModeTests,AuthStartupValidatorTests,PermissionInterceptorTests test; 角色越权矩阵"
@@ -18,74 +18,74 @@
     {
       "id": "frontend-business-pages",
       "status": "PARTIAL",
-      "source": "docs/deployment/readiness-checklist.md#前端业务页面",
+      "source": "docs/DELIVERY-GAP.md#frontend-business-pages",
       "current_evidence": "四入口登录、医生下单、客服初审、客服协同、客服资料缺失提示、AI 翻译草稿确认、设计稿预览 URL 聚合、客服端设计稿审核预览、账单物流预览/录入、人工付款状态第一段、生产审核、质检工时、绩效、绩效周期筛选第一段、绩效标准工时覆盖率与默认公式第一段、人员档案 / 工作量看板第一增量、质量记录 / 外返登记第一增量、生产看板、返工、终检报告、终检专用角色 / 附件第一增量、终检 PDF/签名第一段、12 步入口 smoke、固定演示数据前 3 步、首个派工节点工序操作数据动作、设计稿确认数据动作、账单/物流第一段数据动作、剩余工序完成、物流发货、医生确认收货数据动作、返工异常路径数据动作和 9D.99 A/B 类一期范围对齐第一段和 9D.100 A/B 类一期范围对齐第二段已落地。 PRD V2 本地功能差异收口 C 已补客服端 /ai/cs 的 AI-2 attachment_contexts 附件预览上下文展示。 PRD V2 本地功能差异收口 D 已补 /dashboards/phase-one-ab 本地月度趋势 / 客户排名聚合第一段，并让客服 / 生产工作台消费该聚合。 GOAL-017 / TASK-018 已补四端前端产品化体验收口：客服设计稿入口复用订单详情设计稿审核链路，客服账单入口复用账单 / 付款 / 配送人工跟进链路，生产设备 / 物料 / 安环 / 成本 / 奖惩入口从演示占位升级为本地第一增量汇总与表单，管理端账号 / 角色 / 权限入口补当前账号菜单与权限码库存展示，并新增统一加载态 / 空态 / 错误态 / 权限拒绝态提示。 GOAL-018 / TASK-019 已补本地 12 步主链路验收增强：`smoke:task9d62` 增加医生端脱敏、客服端可见性、生产端任务范围和管理端派工 / 转派角色边界断言，并新增 `check:local-main-chain-acceptance-hardening`。2026-07-27 医生端新建订单 P1 已完成隔离演示环境真实点击：PNG、PDF、STL 上传后返回上一步仍保留，草稿可见，订单 `ORD20260727-0384C949A3` 成功提交且 3 个附件均为 COMPLETED，缺少必填资料时提交按钮禁用；草稿 `ORD20260727-25A7C1F479`（ID 183）提交后保持同订单号 / 同 ID，未生成重复订单。2026-08-17 医生端中英文界面已通过 PR #27/#28 发布为 `78c0955b35f519f77bf28b107e8ae5a1b138cfd6`，自动部署 #32033871635 通过全量测试、release gates、镜像校验、生产部署和公网探针。正式站实际 JS/CSS 资源已核对英文关键文案、语言记忆键和可切换标签；当前浏览器读取通道超时，未把登录后真实点击记为已完成。",
-      "latest_release_evidence": "2026-08-18 医生端英文界面已收口并发布为 f64b951155926df48b5c20afa58ae5e4a2a77212，自动部署 #32056401585 通过后端 351 项测试、release gates、镜像校验、生产部署和公网探针。共享登录页按用户确认保持中文；正式站按反馈截图只读复验确认公开进度 8 个节点、草稿说明、公开进度空提示、订单时间线、通知标题和系统摘要、物流事件均为英文。上传文件名、患者、诊所、承运商和消息正文等原始业务数据保留原文，未写正式业务数据。",
-      "remaining_reason": "按 PRD V2 原验收表38项，前端与交互侧仍缺实时自动保存、设计稿多轮驳回、质量统计时间段拆分、人员账号创建入口，以及部分状态分支专项验收；2026-07-06 A/B/C 表外范围另行跟踪。真实支付 / 物流平台、电子签章、复杂报告、绩效申诉 / 工资和完整 HR/BI 不计一期 P0。",
-      "minimum_closure_loop": "按 docs/acceptance/prd-v2-38-item-acceptance-audit-20260715.md 关闭 PARTIAL / MISSING 的页面和接口闭环，形成原验收表38项记录；2026-07-06 A/B/C 表外范围、跨项门禁和 readiness 继续单独关闭，二期平台集成如新增另走变更任务。",
+      "latest_release_evidence": "2026-08-24 D-201／D-202 已发布正式站：医生端英文继续有效，产品目录、医生材料／色号与批量扫描资料、客服退回补资料、客服／管理端／管理端生产复核站内 STL 3D、图片／PDF 预览和预览／下载签名分流已上线。自动部署 #32731578654 通过后端 358 项、release gates、镜像校验、MySQL 备份、部署和公网探针；正式站首页与后端健康正常。普通生产账号因当前无分配工单，在线 STL 点击证据保持 PARTIAL。",
+      "remaining_reason": "2026-08-25 逐行复核确认原 PRD V2 的 38 项是 29 PASS、1 PARTIAL、0 MISSING、8 EXTERNAL_ACCEPTANCE；前端不再列旧的实时保存、设计驳回、质量日期、账号创建或生产门禁为 MISSING。测试报告后续新增的医生下单 6 → 4 步及螺旋扩弓器单向／双向规格已按 GOAL-037／TASK-039 完成本地实现；错误推簧别名实现已清除，‘推簧’按 D-214 保持 USER_DEFERRED。完整 CRM／客户关怀提醒和 STL 直接打开 CAD／设计软件由用户转入二期。另需普通生产账号有分配工单时的 STL 在线点击、客户最终参数相关页面复测和真实环境总体验收；2026-07-06 A/B/C 表外范围另行跟踪。",
+      "minimum_closure_loop": "使用已有合适工单补普通生产账号 STL 在线点击证据，并把客户最终参数和真实环境相关页面纳入总体验收；不得写正式业务数据强造。‘推簧’保持 USER_DEFERRED，不进入当前关闭条件。原 38 项、表外范围、测试报告后续、跨项门禁和 readiness 分账关闭，Task 8 继续保持 NOT_READY。",
       "verification": "npm run check:doctor-portal-i18n; npm run check:doctor-portal-v2; npm run check:doctor-order-product-first; npm run build:frontend; ./scripts/with-jdk21.sh mvn -f backend/pom.xml -pl platform-server -Dtest=OrderStatusProjectionTests,FileAccessTests test; npm run check:local-main-chain-acceptance-hardening; npm run check:task9d62; npm run smoke:task9d62; npm run check:task9d68; npm run check:task8-readiness-gaps; npm run acceptance; git diff --check"
     },
     {
       "id": "websocket-notification-prod",
       "status": "PARTIAL",
-      "source": "docs/deployment/readiness-checklist.md#WebSocket / 通知",
-      "current_evidence": "单实例 WebSocket、通知 REST、前端通知中心、Redis 广播代码路径、AI 外部告警 outbox 可观察链路、9D.71 接收端验签 / 防重放本地验收桩和 9D.76 Nginx 通知 REST / WebSocket 生产网关 readiness 第一段已落地。GOAL-014 / TASK-015 已新增 docs/deployment/websocket-notification-production-readiness.md 和 check:websocket-notification-readiness-closure，把真实环境通知验收项整理为待填写 / 待确认模板；Task 8 NOT_READY。",
-      "remaining_reason": "仍缺真实双后端实例 Redis 联调、心跳 / 重连压测、Nginx HTTPS 生产网关验收、浏览器通知权限、完整业务页面联动、生产 webhook 联调、监控告警和真实环境通知验收证据。",
-      "minimum_closure_loop": "后续在具备真实环境后，按 docs/deployment/websocket-notification-production-readiness.md 补双实例 Redis WebSocket 联调记录、Nginx HTTPS smoke、生产 webhook 联调记录和监控告警证据，并纳入一期总体验收记录；继续保持 Task 8 NOT_READY。",
+      "source": "docs/DELIVERY-GAP.md#websocket-notification-prod",
+      "current_evidence": "单实例 WebSocket、通知 REST、前端通知中心、Redis 广播代码路径、AI 外部告警 outbox 可观察链路、接收端验签／防重放本地验收桩和 Nginx 通知 REST／WebSocket 网关已落地；正式域名 HTTPS、首页／后端健康和公网规范入口探针已通过。",
+      "remaining_reason": "仍缺真实双后端实例 Redis 联调、心跳／重连压测、浏览器通知权限、生产 webhook 联调、监控告警和真实环境通知验收证据；不再把正式域名 HTTPS 本身列为未完成。",
+      "minimum_closure_loop": "按 docs/deployment/websocket-notification-production-readiness.md 补双实例 Redis WebSocket 联调、生产 webhook 和监控告警证据，并纳入一期总体验收记录；继续保持 Task 8 NOT_READY。",
       "verification": "npm run check:websocket-notification-readiness-closure; npm run check:task9d76; NotificationWebSocketTests; NotificationRestTests; NotificationBroadcastTests; Nginx HTTPS smoke; 真实双后端实例 Redis 联调记录; 生产 webhook 联调记录"
     },
     {
       "id": "file-upload-prod",
       "status": "PARTIAL",
-      "source": "docs/deployment/readiness-checklist.md#文件上传",
-      "current_evidence": "105MB Multipart、本地恢复、服务端候选恢复和中断恢复浏览器 smoke 已通过；9D.67 已补 FILE_MAX_FILE_SIZE_BYTES、FILE_ALLOWED_CONTENT_TYPES、FILE_MAX_FILES_PER_ORDER 服务端校验和医生端选择提示；9D.77 弱网 / 跨设备验收第一段已新增本地 Playwright smoke，使用两个浏览器 context 模拟设备 A 弱网中断、设备 B 无 localStorage 通过服务端 pending 候选恢复同一 file_id；9D.78 测试 / 正式对象存储 bucket 隔离验收记录第一段已新增 check:task9d78 和 bucket 隔离记录；9D.79 已新增真实环境文件上传人工验收记录模板第一段、task-9d79-real-env-file-upload-manual-acceptance-required-text 和 check:task9d79。",
-      "remaining_reason": "仍缺真实测试 bucket、真实正式 bucket、对象存储账号隔离、真实弱网物理网络、真实跨设备实机、真实对象存储联调和文件大小 / 类型 / 数量最终参数确认。PRD 已给 500MB、每单 50 个默认值，可先开发测试。",
-      "minimum_closure_loop": "真实测试环境具备后按 9D.79 模板填写文件上传人工验收记录；PM/客户只需确认最终文件参数，验收证据并入一期总体验收记录。",
+      "source": "docs/DELIVERY-GAP.md#file-upload-prod",
+      "current_evidence": "105MB Multipart、本地恢复、服务端候选恢复和中断恢复浏览器 smoke 已通过；文件大小／类型／数量服务端校验、双浏览器 context 恢复和 bucket 隔离检查已落地。2026-08-24 D-202 的正式 MinIO 签名预览、STL 站内查看、图片／PDF 预览以及 inline／attachment 分流已发布并通过健康检查。客户已确认文件要求均包含在动态表单资料中：单文件 500MB、单订单最多 50 个、类型白名单和各产品资料规则形成当前基线。2026-08-25 已把后端／测试默认、前端限制、开发／生产 env 模板、Compose 默认统一为 50；完整发布脚本强制注入 50 并在后端容器启动后复核，每订单文件数已校准为 50。",
+      "remaining_reason": "本地 30／50 配置不一致已修复，仍需本批完整发布后的正式后端容器值为 50 的证据。另缺真实物理弱网、真实跨设备实机、恢复后对象大小／哈希核对、签名 15／16 分钟过期实测、测试／正式对象存储账号隔离证据和 MinIO 对象备份／恢复；不再把文件要求写成待客户确认。",
+      "minimum_closure_loop": "完整发布后记录正式后端容器 FILE_MAX_FILES_PER_ORDER=50；再按 9D.79 模板在真实测试环境完成弱网／跨设备、对象哈希、签名过期和账号隔离验收，同时完成 MinIO 对象备份／恢复，证据并入一期总体验收记录。",
       "verification": "npm run check:task9d67; npm run check:task9d77; npm run check:task9d78; npm run check:task9d79; npm run smoke:task9d10-large-upload; npm run smoke:task9d10-server-resume; npm run smoke:task9d10-interrupted-resume; npm run smoke:task9d77-file-upload-resilience"
     },
     {
       "id": "ai-production-governance",
       "status": "PARTIAL",
-      "source": "docs/deployment/readiness-checklist.md#AI 接入",
+      "source": "docs/DELIVERY-GAP.md#ai-production-governance",
       "current_evidence": "DeepSeek 默认关闭、限流、成本审计、重试、失败审计、预算、熔断、输出防护、外部告警发送/调度/死信/幂等/签名/监控/列表/失败可见性已落地；9D.71 已补默认关闭的 AI 外部告警接收端验签 / 防重放本地验收桩；9D.80 已新增 AI 真实 key / 生产 webhook 联调记录模板和 check:task9d80；9D.94 已补 LangChain4j + DeepSeek 底座对齐第一增量；9D.97 和 PRD V2 本地功能差异收口 C 已补 AI-2 引用数据说明与 attachment_contexts 附件预览上下文第一段。D-186 已取代 9D.98 的默认模板 / 独立确认页方案：客户特殊生产要求按邻接、咬合等业务大类维护，客服初审自动带入，审核通过时将纯业务文本写入 orders.production_note 形成订单快照；AI 审计继续独立记录，不混入生产执行文本。GOAL-019 / TASK-020 的本地只读 AI 治理总览继续保留。真实 key、生产 webhook 和真实环境 AI 验收仍待完成。",
-      "remaining_reason": "仍缺真实 key 环境联调、生产 webhook 联调、外部 secret 注入验收和真实环境 AI 验收。guarded streaming、RAG / tool calling、生产级成本看板未被 PRD V2 列为一期 P0。",
-      "minimum_closure_loop": "真实 AI 环境具备后按 9D.80 模板完成 AI-1 至 AI-5 验收；AI-5 按 D-186 使用客户档案分类要求和订单快照口径验收。额外 AI 能力如新增另走变更。",
+      "remaining_reason": "仍缺真实 key 环境联调、生产 webhook、外部 secret 注入和 AI-1 至 AI-5 真实质量／安全／降级验收；正式 AI Key、预算上限和告警接收人已由用户标记为 USER_DEFERRED。当前代码只从环境变量读取 DEEPSEEK_API_KEY，客户追加要求的管理端安全配置入口尚未实现；guarded streaming、RAG／tool calling 和生产级成本看板不自动扩大为原 38 项 P0。",
+      "minimum_closure_loop": "先在不使用真实凭据的前提下实现管理端 AI Key 加密存储、权限审计、运行时热加载和不可明文回读；真实 AI-1 至 AI-5 与生产告警验收仅在用户主动恢复输入后按 9D.80 执行。AI-5 按 D-186 使用客户档案分类要求和订单快照口径；额外 AI 能力另走变更。",
       "verification": "npm run check:ai-production-governance-local-hardening; npm run check:task9d71; npm run check:task9d80; npm run check:task9d94; npm run check:task9d97; npm run check:customer-special-requirements; npm run check:openapi; AiGatewayTests; AiGatewayDeepSeekTests; ClinicPreferenceTests; npm run check:prd-v2-gap-closure-c; task-9d94-langchain-deepseek-foundation; customer-special-requirement-snapshot"
     },
     {
       "id": "deployment-infrastructure",
       "status": "PARTIAL",
-      "source": "docs/deployment/readiness-checklist.md#部署基础设施",
-      "current_evidence": "已有本地 compose、prod auth token-secret 门禁、部署环境静态检查第一增量；9D.69 已补后端/前端 Dockerfile、full-stack compose 示例、生产 env 占位示例和 Docker/env 隔离文档；9D.70 已补操作手册第一段；9D.81 已新增部署真实环境 smoke / HTTPS / 备份监控验收记录模板和 check:task9d81。 GOAL-011 / TASK-012 已把 9D.81 真实部署 / HTTPS / 备份监控模板纳入阶段级闸门；真实部署验收仍为待填写 / 待确认。GOAL-020 / TASK-021 已补 docs/deployment/phase-one-local-ops-dry-run.md、check:deployment-ops-local-hardening 和 dry-run:phase-one-release-rollback，用于本地 release / rollback、备份 / 恢复、日志 / 监控和 compose / env / Nginx / healthcheck 静态检查；真实部署验收仍未关闭。 GOAL-032 / TASK-033 已新增 scripts/clean-env-reproducibility-drill.sh、npm run drill:clean-env、npm run check:clean-env-reproducibility 和 docs/deployment/clean-env-reproducibility-drill.md：把仓库克隆到全新目录只按 README 执行，2026-08-02 演练 10 项全部通过。该演练过程中修复了 demo:seed 顺序、账单 PDF 校验、付款门禁、造数循环依赖、幂等判据、类型比较、日期边界与 compose:up 启动竞态共 8 项缺陷。本地演练不覆盖 Linux 宿主、with-jdk21.sh 的 Homebrew 硬编码路径、Docker 权限、HTTPS、多实例并存、备份恢复与监控告警，不构成真实服务器部署验收，本项继续保持 PARTIAL。",
-      "remaining_reason": "仍缺真实服务器部署、HTTPS、镜像仓库、测试/正式环境真实联调、数据库备份恢复演练、日志留存、监控告警、发布回滚和真实部署验收证据。",
-      "minimum_closure_loop": "真实部署环境具备后按 9D.81 模板填写部署 smoke / HTTPS / 备份监控记录，并纳入一期总体验收；本地优先关闭 PRD V2 的 MISSING / PARTIAL 项。",
+      "source": "docs/DELIVERY-GAP.md#deployment-infrastructure",
+      "current_evidence": "正式服务器、HTTPS、Docker Compose、生产环境变量门禁、不可变前后端镜像、SHA-256、SSH known_hosts、部署锁、回滚镜像标签、完整发布前 MySQL 备份、容器健康检查和公网探针已落地。2026-08-24 正式版本 7013b1434759df6ca77a65893dbdcf0129e9af7b 的自动发布 #32742027332 成功，后端 358 项、release gates、双镜像校验、MySQL 备份、双容器替换和公网探针通过；首页与后端健康接口返回 200。",
+      "remaining_reason": "正式部署与 HTTPS 不再是缺口。仍缺数据库真实恢复演练、MinIO 对象备份／恢复、备份保留与异地策略、测试／正式环境隔离证据、容器资源限制、JVM 参数、日志轮转、监控告警、真实发布回滚演练和最终部署验收记录。",
+      "minimum_closure_loop": "按更新后的 9D.81 记录已完成的正式部署／HTTPS／MySQL 备份事实；在非生产恢复环境完成数据库与 MinIO 恢复、发布回滚和告警演练，补资源／日志配置与保留策略后纳入一期总体验收。Task 8 继续保持 NOT_READY。",
       "verification": "npm run check:deployment-ops-local-hardening; npm run dry-run:phase-one-release-rollback; npm run check:task9d69; npm run compose:phase-one:config; npm run check:deployment-env; npm run check:task9d81; 后续真实环境 smoke"
     },
     {
       "id": "operations-manuals",
       "status": "PARTIAL",
-      "source": "docs/deployment/readiness-checklist.md#操作手册",
+      "source": "docs/DELIVERY-GAP.md#operations-manuals",
       "current_evidence": "9D.70 已新增 docs/operations/phase-one-role-operation-manual.md、docs/operations/phase-one-troubleshooting-guide.md 和 docs/operations/phase-one-delivery-materials-index.md，覆盖四端最小操作路径、首版故障处理清单和交付材料索引。GOAL-015 / TASK-016 已新增 docs/operations/phase-one-rollback-runbook.md、docs/operations/phase-one-training-materials.md 和 check:operations-rollback-training-closure，把操作手册、发布回滚手册模板、培训材料模板和交付材料索引收拢为本地阶段入口；Task 8 NOT_READY。GOAL-020 / TASK-021 已把 phase-one-local-ops-dry-run.md、dry-run:phase-one-release-rollback、备份 / 恢复 dry-run 模板第一段、日志留存 / 监控告警配置模板第一段与回滚 / 培训材料做 readiness 联动。",
-      "remaining_reason": "仍缺正式客户培训签收、真实发布回滚演练、真实生产部署手册执行记录、备份恢复演练、日志留存、监控告警和真实环境验收。这些属于交付证据，不是功能逐项签字闸门。",
+      "remaining_reason": "仍缺按当前正式版本执行的生产部署／值守记录、正式客户培训签收、真实发布回滚、数据库与 MinIO 恢复、日志留存、监控告警和运维移交证据。这些属于交付证据，不是功能逐项签字闸门。",
       "minimum_closure_loop": "真实培训或真实部署环境具备后，按 docs/operations/phase-one-training-materials.md 补客户培训签到 / 签收记录，按 docs/operations/phase-one-rollback-runbook.md 补真实发布回滚演练、备份恢复和监控告警证据；继续保持 Task 8 NOT_READY。",
       "verification": "npm run check:deployment-ops-local-hardening; npm run dry-run:phase-one-release-rollback; npm run check:operations-rollback-training-closure; npm run check:task9d70; 客户培训签收; 真实发布回滚演练记录; 备份恢复演练记录; 监控告警验收记录"
     },
     {
       "id": "prd-v2-local-feature-gaps",
       "status": "PARTIAL",
-      "source": "docs/acceptance/prd-v2-gap-matrix.md",
+      "source": "docs/DELIVERY-GAP.md#prd-v2-local-feature-gaps",
       "current_evidence": "9D.82 已新增 docs/acceptance/prd-v2-gap-matrix.md，2026-07-06 基准已新增 docs/acceptance/phase-one-scope-baseline-20260706.md，9D.83 已补患者管理基础版第一增量，9D.84 已补人工支付流水 / 收支记录第一增量，9D.85 已补客户 / 诊所档案与偏好第一增量，9D.86 已补人员档案 / 工作量看板第一增量，9D.87 已补质量记录 CRUD / 外返登记第一增量，PRD V2 本地功能差异收口 B 已补 quality_record 独立事实表和状态工作流第一段，9D.88 已补客服订单 / 沟通完整可见性 smoke，9D.89 已补医生账户设置基础闭环，9D.90 已补产品参数 / 价格体系一期最小后台，9D.91 已补客服配送管理页 / 物流异常跟进第一增量，9D.92 已补 AI-2 客服查询助手完整入口第一增量，9D.93.1 已保留医生文件模块不独立开发和 AI 使用 LangChain + DeepSeek 的判断，9D.94 已补 LangChain + DeepSeek AI 底座对齐第一增量，9D.95.1-9D.95.5 作为 C 类基础能力中的基础台账 / 基础登记 / 状态更新证据保留，9D.96 已补医生提交前 AI-4 资料缺失自动触发体验第一增量，9D.97 已补 AI-2 客服查询引用数据说明 / 知识上下文补强第一增量，9D.99 已补 A/B 类一期范围对齐第一段，9D.100 已补 A/B 类一期范围对齐第二段。 PRD V2 本地功能差异收口 C 已补 AI-2 attachment_contexts 附件预览上下文、客服端展示、OpenAPI AiAttachmentContext 和 check:prd-v2-gap-closure-c。 9D.97 静态验收入口 task-9d97-cs-ai-reference-context / check:task9d97 保留为 AI-2 reference_data_notes 证据。 PRD V2 本地功能差异收口 D 已补 /dashboards/phase-one-ab、PhaseOneDashboardTests、客服 / 生产工作台消费、OpenAPI PhaseOneAbDashboardResponse 和 check:prd-v2-gap-closure-d。 GOAL-017 / TASK-018 已把已有本地第一增量的四端前端入口产品化，但不改变 PRD V2 差异整体 PARTIAL 判断。",
-      "remaining_reason": "按 38 项逐项审计，本地仍有 4 项 MISSING 和 8 项 PARTIAL：最高风险包括医生端内部工序暴露/生产端访问、工序链自动匹配、人员账号创建、设计稿确认与出检通过生产门禁、跨诊所无令牌访问，以及若干设计稿/质量/绩效分支。真实支付 / 物流平台、电子签章不计一期 P0。",
-      "minimum_closure_loop": "按 docs/acceptance/prd-v2-38-item-acceptance-audit-20260715.md 的 P0-1 至 P0-4 顺序关闭本地安全和主链缺口；并行准备 8 项真实环境/最终验收证据。Task 8 继续保持 NOT_READY。",
+      "remaining_reason": "旧的 4 项 MISSING 和 8 项 PARTIAL 已被 GOAL-022／023／024 与后续收口覆盖；2026-08-25 按 38 行实际状态复核为 29 PASS、1 PARTIAL、0 MISSING、8 EXTERNAL_ACCEPTANCE。当前仍需关闭标准工时、真实环境验收、2026-07-06 A/B/C 表外基础能力的正式业务值和最终总体验收；真实支付／物流平台和电子签章不计原 38 项 P0。",
+      "minimum_closure_loop": "不再重复开发已关闭的内部字段、自动选链、账号创建、设计确认或 OUT/PASS 门禁。标准工时及相关外部输入为 USER_DEFERRED，在用户主动恢复前不询问或催办；继续完成不依赖这些输入的真实环境验收和表外 readiness，最后形成总体验收记录；Task 8 继续保持 NOT_READY。",
       "verification": "npm run check:prd-v2-gap-closure-d; ./scripts/with-jdk21.sh mvn -f backend/pom.xml -pl platform-server -Dtest=PhaseOneDashboardTests test; npm run check:openapi; npm run build:frontend; npm run acceptance"
     },
     {
       "id": "customer-pm-confirmations",
       "status": "PARTIAL",
-      "source": "docs/acceptance/phase-one-customer-pm-confirmations.md",
-      "current_evidence": "GOAL-021 / TASK-022 已按 PRD V2 和 2026-07-06 已确认范围基准校正旧 CP 清单：仅 CP-002 动态表单最终字段和 CP-005 文件限制属于待客户 / PM 产品确认；CP-003 是客户模板输入，CP-004 是标准工时业务数据且提供方待项目方指定，CP-001 / CP-007 已确认人工维护方式，CP-006 不属于一期 P0，CP-008 / CP-009 分别属于最终交付和真实环境证据。PRD 明确要求逐功能签字为 0 项。",
-      "remaining_reason": "仍缺 2 项产品参数确认、1 份 AI-5 客户模板、1 包工序标准工时数据，以及最终培训、真实环境和总体验收证据；这些依赖不应阻塞其余 32 个无外部口径依赖的验收项继续开发。",
-      "minimum_closure_loop": "先按 docs/acceptance/prd-v2-38-item-acceptance-audit-20260715.md 关闭本地 PARTIAL / MISSING 项；并行收集 CP-002、CP-005、AI-5 模板和标准工时。原验收表38项、2026-07-06 A/B/C 表外范围、跨项门禁、上线 readiness 与真实交付证据全部关闭后形成一份总体验收记录；Task 8 继续保持 NOT_READY。",
+      "source": "docs/DELIVERY-GAP.md#customer-pm-confirmations",
+      "current_evidence": "GOAL-021 / TASK-022 已按 PRD V2 和 2026-07-06 已确认范围基准校正旧 CP 清单。2026-08-25 进一步按用户确认和仓库来源证据关闭 CP-002／CP-005：动态表单源文件 SHA-256 为 147810af568da193d7acd10f7963283ff8e0e74f5f272415aefda7bb6b1daef5，已形成字段矩阵和 V2 实现基线；文件要求按单文件 500MB、单订单最多 50 个、类型白名单和各产品资料规则执行。CP-003 AI-5 模板、CP-004 标准工时，以及正式 AI Key／预算上限／告警接收人已由用户标记为 USER_DEFERRED，在用户主动恢复前不再询问或催办；CP-001／CP-007 已确认人工维护方式，CP-006 不属于一期 P0，CP-008／CP-009 分别属于最终交付和真实环境证据。PRD 明确要求逐功能签字为 0 项。",
+      "remaining_reason": "原 CP-001～CP-009 当前待客户／PM 产品参数确认 0 项。AI-5 客户模板、工序标准工时、正式 AI Key／预算上限／告警接收人为 USER_DEFERRED；相关正式模板、绩效实值和真实 AI／告警验收仍未完成。另缺最终培训、真实环境和总体验收证据；每订单文件数本地配置已校准为 50，正式容器值待本批发布后复核。",
+      "minimum_closure_loop": "不主动收集或催办 USER_DEFERRED 三项；完整发布后补正式容器文件数为 50 的证据，并继续关闭不依赖这些输入的原验收表、2026-07-06 A/B/C 表外范围、跨项门禁、上线 readiness 与真实交付证据。仅在用户主动恢复后补相关正式模板、业务数据和真实 AI 验收；Task 8 继续保持 NOT_READY。",
       "verification": "npm run check:prd-v2-acceptance-recalibration; npm run check:task9d72; npm run check:real-acceptance-confirmation; npm run check:task8-readiness-gaps"
     }
   ],
@@ -204,7 +204,7 @@
     {
       "id": "GOAL-003",
       "file": "goals/GOAL-003-repoframe-doc-hydration-20260707.md",
-      "status": "completed",
+      "status": "in_progress",
       "checks": [
         {
           "id": "repoframe-required-files-exist",
@@ -2813,7 +2813,7 @@
             "docs/acceptance/prd-v2-38-item-acceptance-audit-20260715.md"
           ],
           "patterns": [
-            "待客户 / PM 确认 2 项",
+            "待客户 / PM 确认 0 项",
             "PRD 明确要求逐功能签字 0 项",
             "38项全部是一阶段 P0 验收测试",
             "Task 8 仍保持 NOT_READY"
@@ -3457,6 +3457,142 @@
       ]
     },
     {
+      "id": "GOAL-037",
+      "file": "goals/GOAL-037-phase-one-report-followup-closure-20260825.md",
+      "status": "completed",
+      "checks": [
+        {
+          "id": "phase-one-report-followup-planning-files",
+          "type": "files_exist",
+          "paths": [
+            "goals/GOAL-037-phase-one-report-followup-closure-20260825.md",
+            "tasks/TASK-039-doctor-order-simplification-and-catalog-mapping-20260825.md",
+            "docs/development/doctor-order-wizard-simplification-plan-20260825.md",
+            "docs/requirements/dynamic-order-form-final-source-snapshot-20260825.md",
+            "docs/requirements/orthodontic-product-selection-gap-analysis-20260825.md"
+          ]
+        },
+        {
+          "id": "phase-one-report-followup-planning-contract",
+          "type": "required_text",
+          "paths": [
+            "goals/GOAL-037-phase-one-report-followup-closure-20260825.md",
+            "tasks/TASK-039-doctor-order-simplification-and-catalog-mapping-20260825.md",
+            "docs/development/doctor-order-wizard-simplification-plan-20260825.md",
+            "DECISIONS.md",
+            "STATUS.md"
+          ],
+          "patterns": [
+            "基础信息与产品",
+            "制作配置",
+            "资料上传",
+            "复核与提交",
+            "6 → 4",
+            "推簧",
+            "完整 CRM",
+            "CAD／设计软件",
+            "Task 8",
+            "NOT_READY"
+          ]
+        },
+        {
+          "id": "doctor-order-four-step-design-service-implementation-files",
+          "type": "files_exist",
+          "paths": [
+            "scripts/check-doctor-order-four-step-design-service.mjs",
+            "backend/platform-server/src/main/resources/db/migration/V89__design_service_order_and_delivery_flow.sql",
+            "backend/platform-server/src/main/resources/db/migration/V90__backfill_design_service_form_rules_all_versions.sql",
+            "backend/platform-server/src/main/resources/db/migration/V94__restore_design_service_source_requirements.sql",
+            "backend/platform-server/src/main/resources/db/migration/V95__add_screw_expander_direction_variants.sql",
+            "backend/platform-server/src/test/java/com/yuri/aiorder/order/OrderCaseGroupTests.java",
+            "backend/platform-server/src/test/java/com/yuri/aiorder/design/DesignTaskCollaborationTests.java",
+            "backend/platform-server/src/test/java/com/yuri/aiorder/file/FileAccessTests.java"
+          ]
+        },
+        {
+          "id": "doctor-order-four-step-design-service-implementation-contract",
+          "type": "required_text",
+          "paths": [
+            "docs/development/doctor-order-wizard-simplification-plan-20260825.md",
+            "DECISIONS.md",
+            "STATUS.md"
+          ],
+          "patterns": [
+            "数字设计交付",
+            "CLASSIFIED_SCAN_BUNDLE_V3",
+            "牙位",
+            "设计要求备注",
+            "付款后",
+            "43 项"
+          ]
+        },
+        {
+          "id": "design-service-source-making-requirements",
+          "type": "required_text",
+          "paths": [
+            "DECISIONS.md",
+            "docs/requirements/dynamic-order-form-field-matrix-20260731.md",
+            "docs/requirements/product-catalog-v2-source-baseline-20260731.json",
+            "backend/platform-server/src/main/resources/db/migration/V94__restore_design_service_source_requirements.sql",
+            "frontend/src/doctor/customerOrderSourceSpec.ts",
+            "frontend/src/doctor/DoctorCaseGroupWizard.vue",
+            "backend/platform-server/src/test/java/com/yuri/aiorder/order/OrderCaseGroupTests.java"
+          ],
+          "patterns": [
+            "D-212",
+            "delivery_format",
+            "design_standard",
+            "design_turnaround",
+            "STL",
+            "OBJ",
+            "EXO",
+            "3SHAPE",
+            "12小时",
+            "24小时",
+            "3天"
+          ]
+        },
+        {
+          "id": "orthodontic-product-selection-source-guard",
+          "type": "required_text",
+          "paths": [
+            "DECISIONS.md",
+            "docs/requirements/dynamic-order-form-final-source-snapshot-20260825.md",
+            "docs/requirements/orthodontic-product-selection-gap-analysis-20260825.md",
+            "goals/GOAL-037-phase-one-report-followup-closure-20260825.md",
+            "tasks/TASK-039-doctor-order-simplification-and-catalog-mapping-20260825.md"
+          ],
+          "patterns": [
+            "D-213",
+            "D-214",
+            "D-215",
+            "螺旋扩弓器（单向）/（双向）",
+            "弹簧矫正器",
+            "加弹簧",
+            "推簧",
+            "REOPENED",
+            "NOT_APPROVED_FOR_COMMIT",
+            "USER_DEFERRED",
+            "LOCALLY_VERIFIED"
+          ]
+        },
+        {
+          "id": "phase-one-report-followup-no-fake-completion",
+          "type": "forbidden_text",
+          "paths": [
+            "goals/GOAL-037-phase-one-report-followup-closure-20260825.md",
+            "tasks/TASK-039-doctor-order-simplification-and-catalog-mapping-20260825.md",
+            "docs/development/doctor-order-wizard-simplification-plan-20260825.md"
+          ],
+          "patterns": [
+            "Task 8 状态：READY",
+            "真实环境验收已完成",
+            "客户签字已完成"
+          ]
+        }
+      ]
+    },
+    {
       "id": "GOAL-035",
       "file": "goals/GOAL-035-deployment-defect-closure-20260811.md",
       "status": "completed",
@@ -3513,7 +3649,7 @@
       ]
     }
   ],
-  "active_task_file": "tasks/TASK-037-doctor-order-final-confirmation-20260818.md",
+  "active_task_file": "tasks/TASK-039-doctor-order-simplification-and-catalog-mapping-20260825.md",
   "legacy_check_ids": [
     "task-deployment-env-readiness-required-text",
     "npm run check:task9d951",

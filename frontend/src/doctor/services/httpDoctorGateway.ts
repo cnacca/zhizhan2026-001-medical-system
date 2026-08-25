@@ -866,10 +866,11 @@ export class LegacyHttpDoctorGateway implements DoctorGateway {
   async loadOrderDetail(orderId: string): Promise<OrderDetail> {
     const legacy = await this.request<LegacyOrder>(`/orders/${encodeURIComponent(orderId)}`)
     assertSafeOrderPayload(legacy)
-    const [messagesResult, filesResult, draftsResult] = await Promise.allSettled([
+    const [messagesResult, filesResult, draftsResult, billResult] = await Promise.allSettled([
       this.request<LegacyMessage[]>(`/orders/${encodeURIComponent(orderId)}/messages`),
       this.request<LegacyOrderFile[]>(`/orders/${encodeURIComponent(orderId)}/files`),
-      this.request<LegacyDesignDraft[]>(`/orders/${encodeURIComponent(orderId)}/design-drafts`)
+      this.request<LegacyDesignDraft[]>(`/orders/${encodeURIComponent(orderId)}/design-drafts`),
+      this.request<LegacyBill>(`/orders/${encodeURIComponent(orderId)}/bill`)
     ])
     if (draftsResult.status === 'rejected') {
       const detail = draftsResult.reason instanceof Error ? draftsResult.reason.message : '未知错误'
@@ -904,6 +905,10 @@ export class LegacyHttpDoctorGateway implements DoctorGateway {
     }
     const reviews = designReview ? [designReview] : []
     const reviewOptions = designReview ? ['CAD_DESIGN' as const] : []
+    const bill = billResult.status === 'fulfilled' ? billResult.value : null
+    const outstanding = bill?.amount_cents != null && bill.payment_status !== 'PAID'
+      ? { amount_minor: bill.amount_cents, currency: bill.currency || 'CNY' }
+      : null
     return {
       ...summary,
       public_message: legacy.public_message || '暂无公开进度说明。',
@@ -921,7 +926,11 @@ export class LegacyHttpDoctorGateway implements DoctorGateway {
       reviews,
       files,
       messages,
-      bill_summary: { bill_status: legacy.bill_status || 'UNKNOWN', payment_status: 'UNKNOWN', outstanding: null }
+      bill_summary: {
+        bill_status: bill?.bill_status || legacy.bill_status || 'UNKNOWN',
+        payment_status: bill?.payment_status || 'UNKNOWN',
+        outstanding
+      }
     }
   }
 
@@ -931,6 +940,14 @@ export class LegacyHttpDoctorGateway implements DoctorGateway {
     )
     if (!result.preview_url) throw new Error('文件预览地址未返回')
     return result.preview_url
+  }
+
+  async getFileDownloadUrl(fileId: string): Promise<string> {
+    const result = await this.request<{ download_url: string }>(
+      `/files/${encodeURIComponent(fileId)}/download-url`
+    )
+    if (!result.download_url) throw new Error('文件下载地址未返回')
+    return result.download_url
   }
 
   async loadPatientDetail(patientId: string): Promise<PatientDetail> {

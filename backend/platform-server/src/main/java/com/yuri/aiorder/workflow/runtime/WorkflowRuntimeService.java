@@ -778,6 +778,26 @@ public class WorkflowRuntimeService {
                 .param("gateNodeId", gateNodeId)
                 .update();
         if (inserted == 0) {
+            long designDeliveryOnly = jdbcClient.sql("""
+                            SELECT COUNT(*)
+                            FROM order_process_instance instance
+                            JOIN orders order_record
+                              ON order_record.order_id = instance.order_id
+                            WHERE instance.instance_id = :instanceId
+                              AND order_record.product_type = 'DESIGN_SERVICE'
+                              AND NOT EXISTS (
+                                  SELECT 1
+                                  FROM order_process_node route_node
+                                  WHERE route_node.instance_id = instance.instance_id
+                                    AND route_node.node_category <> 'DESIGN_GATE'
+                              )
+                            """)
+                    .param("instanceId", instanceId)
+                    .query(Long.class)
+                    .single();
+            if (designDeliveryOnly == 1) {
+                return;
+            }
             throw new ResponseStatusException(
                     HttpStatus.CONFLICT, "workflow route has no executable node after design confirmation");
         }

@@ -6,7 +6,9 @@ const checks = [
   ['package.json', ['check:task9d81']],
   ['docs/deployment/task-9d81-production-deployment-acceptance.md', [
     '9D.81',
-    '部署真实环境 smoke / HTTPS / 备份监控验收记录模板第一段',
+    'PRODUCTION_DEPLOYMENT_VERIFIED / PARTIAL',
+    '7013b1434759df6ca77a65893dbdcf0129e9af7b',
+    '#32742027332',
     '待填写',
     '待确认',
     'HTTPS',
@@ -24,8 +26,8 @@ const checks = [
     '真实密钥必须外部注入',
     '不填写真实密钥',
     '不填写真实服务器地址',
-    '不代表真实服务器已部署完成',
-    '不代表 HTTPS 已验收完成',
+    '真实服务器部署与 HTTPS 已有当前正式运行证据',
+    '不代表数据库／MinIO 恢复',
     'Task 8 仍保持 NOT_READY'
   ]],
   ['acceptance.json', [
@@ -59,10 +61,6 @@ const templatePath = 'docs/deployment/task-9d81-production-deployment-acceptance
 if (fs.existsSync(templatePath)) {
   const template = fs.readFileSync(templatePath, 'utf8')
   const forbiddenConfirmedPhrases = [
-    '状态：真实服务器已部署完成',
-    '结论：真实服务器已部署完成',
-    '状态：HTTPS 已验收完成',
-    '结论：HTTPS 已验收完成',
     '状态：备份恢复已验收完成',
     '结论：备份恢复已验收完成',
     '状态：监控告警已验收完成',

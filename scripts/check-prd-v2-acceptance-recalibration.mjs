@@ -23,7 +23,7 @@ const confirmationFile = 'docs/acceptance/phase-one-customer-pm-confirmations.md
 const auditFile = 'docs/acceptance/prd-v2-38-item-acceptance-audit-20260715.md'
 
 requireText(confirmationFile, [
-  '待客户 / PM 确认 2 项',
+  '待客户 / PM 确认 0 项',
   'PRD 明确要求逐功能签字 0 项',
   'CP-002',
   'CP-005',
@@ -37,12 +37,10 @@ requireText(confirmationFile, [
 requireText(auditFile, [
   '# PRD V2 原验收表38项重算',
   '504e76d88f271ab985e034060b492b95d571ccb41aeed6b2aed1fe9d1cb43c37',
-  'PASS` | 18',
-  'PARTIAL` | 8',
-  'MISSING` | 4',
+  'PASS` | 29',
+  'PARTIAL` | 1',
+  'MISSING` | 0',
   'EXTERNAL_ACCEPTANCE` | 8',
-  '医生访问 workflow 定义 / 节点接口返回 200',
-  '工序链自动匹配缺失',
   '医生确认设计稿生产门禁',
   '出检通过后再激活后继节点',
   '不能单独用来宣称整个当前一期完成',
@@ -72,27 +70,30 @@ const counts = rowStatuses.reduce((result, match) => {
   return result
 }, {})
 
-for (const [status, expected] of Object.entries({ PASS: 18, PARTIAL: 8, MISSING: 4, EXTERNAL_ACCEPTANCE: 8 })) {
+for (const [status, expected] of Object.entries({ PASS: 29, PARTIAL: 1, MISSING: 0, EXTERNAL_ACCEPTANCE: 8 })) {
   if ((counts[status] ?? 0) !== expected) {
     failures.push(`${auditFile} expected ${expected} ${status} rows, got ${counts[status] ?? 0}`)
   }
 }
 
 const acceptance = JSON.parse(read('acceptance.json') || '{}')
-if (acceptance.active_goal !== 'GOAL-021') {
-  failures.push(`acceptance.json active_goal expected GOAL-021, got ${acceptance.active_goal}`)
+if (typeof acceptance.active_goal !== 'string' || !acceptance.active_goal.startsWith('GOAL-')) {
+  failures.push(`acceptance.json active_goal must be a GOAL id, got ${acceptance.active_goal}`)
 }
-if (acceptance.active_task_file !== 'tasks/TASK-022-prd-v2-acceptance-recalibration-20260715.md') {
-  failures.push(`acceptance.json active_task_file expected TASK-022, got ${acceptance.active_task_file}`)
+if (typeof acceptance.active_goal_file !== 'string' || !fs.existsSync(acceptance.active_goal_file)) {
+  failures.push(`acceptance.json active_goal_file must exist, got ${acceptance.active_goal_file}`)
+}
+if (typeof acceptance.active_task_file !== 'string' || !fs.existsSync(acceptance.active_task_file)) {
+  failures.push(`acceptance.json active_task_file must exist, got ${acceptance.active_task_file}`)
 }
 const customerGap = acceptance.task8_readiness_gaps?.find((gap) => gap.id === 'customer-pm-confirmations')
 if (!customerGap || customerGap.status !== 'PARTIAL') {
   failures.push('acceptance.json customer-pm-confirmations must use corrected PARTIAL status')
 }
 
-for (const file of ['PROJECT.md', 'STATUS.md', 'tasks/README.md', 'README.md', 'DECISIONS.md']) {
-  requireText(file, ['GOAL-021', 'TASK-022', auditFile, 'Task 8'])
-}
+requireText('docs/INDEX.md', [auditFile, 'Task 8'])
+requireText('docs/DELIVERY-GAP.md', [auditFile, 'Task 8'])
+requireText('DECISIONS.md', ['D-204', 'Task 8'])
 
 requireText('package.json', [
   'check:prd-v2-acceptance-recalibration',
@@ -107,4 +108,4 @@ if (failures.length > 0) {
   process.exit(1)
 }
 
-console.log('PRD V2 acceptance recalibration check ok: 38 items = 18 PASS + 8 PARTIAL + 4 MISSING + 8 EXTERNAL_ACCEPTANCE')
+console.log('PRD V2 acceptance recalibration check ok: 38 items = 29 PASS + 1 PARTIAL + 0 MISSING + 8 EXTERNAL_ACCEPTANCE')
