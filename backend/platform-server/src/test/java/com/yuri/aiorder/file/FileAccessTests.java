@@ -592,6 +592,92 @@ class FileAccessTests {
     }
 
     @Test
+    void doctorDesignServiceDownloadRequiresConfirmationAndPaidBill() throws Exception {
+        jdbcClient.sql("UPDATE orders SET product_type = 'DESIGN_SERVICE' WHERE order_id = :orderId")
+                .param("orderId", orderId)
+                .update();
+        long designFileId = insertCompletedFile(orderId, "DOCTOR_CS", "DESIGN_DRAFT");
+        jdbcClient.sql("""
+                        INSERT INTO design_task (order_id, task_status, assigned_user_id, claimed_at)
+                        VALUES (:orderId, 'PENDING_DOCTOR', 9602, CURRENT_TIMESTAMP(3))
+                        """)
+                .param("orderId", orderId)
+                .update();
+        long designTaskId = jdbcClient.sql("""
+                        SELECT design_task_id FROM design_task WHERE order_id = :orderId
+                        """)
+                .param("orderId", orderId)
+                .query(Long.class)
+                .single();
+        jdbcClient.sql("""
+                        INSERT INTO design_draft
+                            (design_task_id, order_id, file_id, version_no, draft_status,
+                             uploaded_by_user_id, submitted_at, doctor_visible_at)
+                        VALUES
+                            (:designTaskId, :orderId, :fileId, 1, 'PENDING_DOCTOR',
+                             9602, CURRENT_TIMESTAMP(3), CURRENT_TIMESTAMP(3))
+                        """)
+                .param("designTaskId", designTaskId)
+                .param("orderId", orderId)
+                .param("fileId", designFileId)
+                .update();
+        long designDraftId = jdbcClient.sql("""
+                        SELECT design_draft_id FROM design_draft
+                        WHERE design_task_id = :designTaskId AND version_no = 1
+                        """)
+                .param("designTaskId", designTaskId)
+                .query(Long.class)
+                .single();
+        jdbcClient.sql("""
+                        INSERT INTO design_draft_file (design_draft_id, file_id, sort_order)
+                        VALUES (:designDraftId, :fileId, 0)
+                        """)
+                .param("designDraftId", designDraftId)
+                .param("fileId", designFileId)
+                .update();
+
+        mockMvc.perform(get("/files/{fileId}/preview-url", designFileId)
+                        .header("X-Bootstrap-Role", "DOCTOR")
+                        .header("X-Bootstrap-User-Id", DOCTOR_USER_ID)
+                        .header("X-Bootstrap-Clinic-Id", clinicId))
+                .andExpect(status().isOk());
+        mockMvc.perform(get("/files/{fileId}/download-url", designFileId)
+                        .header("X-Bootstrap-Role", "DOCTOR")
+                        .header("X-Bootstrap-User-Id", DOCTOR_USER_ID)
+                        .header("X-Bootstrap-Clinic-Id", clinicId))
+                .andExpect(status().isConflict());
+
+        jdbcClient.sql("""
+                        UPDATE design_draft
+                        SET draft_status = 'DOCTOR_CONFIRMED',
+                            doctor_confirmed_at = CURRENT_TIMESTAMP(3)
+                        WHERE design_draft_id = :designDraftId
+                        """)
+                .param("designDraftId", designDraftId)
+                .update();
+        jdbcClient.sql("""
+                        INSERT INTO order_bill (order_id, bill_status, payment_status)
+                        VALUES (:orderId, 'PENDING', 'UNPAID')
+                        """)
+                .param("orderId", orderId)
+                .update();
+        mockMvc.perform(get("/files/{fileId}/download-url", designFileId)
+                        .header("X-Bootstrap-Role", "DOCTOR")
+                        .header("X-Bootstrap-User-Id", DOCTOR_USER_ID)
+                        .header("X-Bootstrap-Clinic-Id", clinicId))
+                .andExpect(status().isConflict());
+
+        jdbcClient.sql("UPDATE order_bill SET payment_status = 'PAID' WHERE order_id = :orderId")
+                .param("orderId", orderId)
+                .update();
+        mockMvc.perform(get("/files/{fileId}/download-url", designFileId)
+                        .header("X-Bootstrap-Role", "DOCTOR")
+                        .header("X-Bootstrap-User-Id", DOCTOR_USER_ID)
+                        .header("X-Bootstrap-Clinic-Id", clinicId))
+                .andExpect(status().isOk());
+    }
+
+    @Test
     void claimedDesignWorkerSelfScopeCanAccessOrderFiles() throws Exception {
         long workerUserId = 9911L;
         long fileId = insertCompletedFile(orderId, "INTERNAL");

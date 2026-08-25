@@ -2584,6 +2584,24 @@
 .dv2-design-preview button span { overflow: hidden; width: 100%; font-size: 8px; text-overflow: ellipsis; white-space: nowrap; }
 .dv2-design-preview button img { width: 100%; height: 44px; object-fit: cover; border-radius: 4px; }
 
+.dv2-design-download {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  margin: 10px 11px 0;
+  padding: 11px 12px;
+  border: 1px solid #bfdbfe;
+  border-radius: 8px;
+  background: #eff6ff;
+}
+
+.dv2-design-download strong,
+.dv2-design-download small { display: block; }
+.dv2-design-download strong { color: #1d4ed8; font-size: 10px; }
+.dv2-design-download small { margin-top: 3px; color: #64748b; font-size: 8px; }
+.dv2-design-download > div:last-child { display: flex; flex-wrap: wrap; justify-content: flex-end; gap: 6px; }
+
 .dv2-order-reply {
   display: flex;
   gap: 7px;

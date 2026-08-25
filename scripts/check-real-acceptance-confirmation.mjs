@@ -104,7 +104,8 @@ requireText('docs/acceptance/task-9d80-ai-production-integration-acceptance.md',
 ])
 
 requireText('docs/deployment/task-9d81-production-deployment-acceptance.md', [
-  '状态：TEMPLATE_READY / PARTIAL',
+  '状态：PRODUCTION_DEPLOYMENT_VERIFIED / PARTIAL',
+  '7013b1434759df6ca77a65893dbdcf0129e9af7b',
   '待填写',
   '待确认',
   'HTTPS',
@@ -118,7 +119,8 @@ requireText('docs/deployment/task-9d81-production-deployment-acceptance.md', [
   '真实密钥必须外部注入',
   '不填写真实密钥',
   '不填写真实服务器地址',
-  '不代表真实服务器已部署完成',
+  '真实服务器部署与 HTTPS 已有当前正式运行证据',
+  '不代表数据库／MinIO 恢复',
   'Task 8 仍保持 NOT_READY'
 ])
 

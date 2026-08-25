@@ -1,129 +1,113 @@
 # 项目导航（新会话从这里开始）
 
-状态：ACTIVE / 2026-08-11
-
-## 为什么有这份文件
-
-仓库里有 **162 份 docs、30 个 goal、32 个 task、3400 行 DECISIONS、600 行 STATUS**，
-其中不少是**追加式日志**——新内容往上堆，旧内容不删。这种写法对追溯有价值，
-但新会话进来会淹死在历史里，而且很容易把 2026-07 的历史结论当成当前状态。
-
-这份文件是**唯一入口**。按「你要做什么」找文件，不要从头读 STATUS.md。
-
----
+状态：ACTIVE / 2026-08-25
 
 ## 一句话现状
 
-一期四端功能主体已完成（后端 336 项测试全绿），**当前是交付冲刺阶段**，
-三条线并行：①部署上线 ②医生端英文化 ③AI key 前端配置。客户正在采购服务器。
+一期四端功能主体已经部署到正式站，当前正式版本为
+`7013b1434759df6ca77a65893dbdcf0129e9af7b`，自动发布 #32742027332 已通过后端 358 项测试、
+release gates、前后端镜像校验、部署前 MySQL 备份、容器替换、健康检查和公网探针。
+HTTPS、医生端中英文、管理端／客服端／生产审核端站内文件预览与 STL 3D 查看均已有上线证据。
 
-2026-08-11 的 8088 联调缺陷已完成本地代码与自动化修复，但线上尚未重新部署；部署入口改为
-`deployment/8088-redeployment-checklist-20260811.md`，完成公网 MinIO、网络、账号轮换和真实复测前不得写成线上恢复。
+这不等于一期总体验收完成。原 PRD V2 的 38 项当前基线为：
 
-**交付标准（2026-08-04 已确认）＝ 一期 38 项验收签字通过。**
-当前 38 项为 30 PASS / 1 PARTIAL / 7 EXTERNAL_ACCEPTANCE。
+| 状态 | 数量 |
+| --- | ---: |
+| `PASS` | 29 |
+| `PARTIAL` | 1 |
+| `MISSING` | 0 |
+| `EXTERNAL_ACCEPTANCE` | 8 |
 
-**Task 8 = `NOT_READY`**，且部署完成 ≠ 一期整体验收通过。
+Task 8 继续保持 `NOT_READY`。剩余工作主要是真实环境／运维验收和已确认的表外工程缺口；
+AI-5 正式模板、标准工时、正式 AI Key／预算／告警接收人已由用户暂缓，在用户主动恢复前不再询问或催办。
+这也不是继续重复开发已经上线的 HTTPS、医生端英文或 STL 查看器。
 
-### 当前三个 P0（详见 `DELIVERY-GAP.md` §三）
+当前新增执行入口为 GOAL-037／TASK-039：先把医生下单从 6 个可见步骤精简为 4 步，再核对“推簧”目录映射；
+完整 CRM／客户关怀提醒和 STL 直接打开 CAD／设计软件已由用户转入二期。该范围与原 PRD 38 项分账，
+不改变 29／1／0／8 统计。
 
-| P0 | 事项 | 工作量 | 能否立即开工 |
-| --- | --- | --- | --- |
-| 1 | 本地全链路演练 + compose 资源限制/JVM 参数 | 1–2 天 | ✅ 不依赖任何人 |
-| 2 | **医生端英文化（i18n）** | **2–3 周** | ✅ 可开工（术语表可后补） |
-| 3 | **AI key 前端配置（C10）** | 3–5 天 | ✅ 不依赖任何人 |
+## 当前事实优先级
 
-⚠️ **P0-2 与 P0-3 都不在原 38 项验收表内**，属新增范围，
-商务上如何计入验收尚未拍板 —— 见 `DELIVERY-GAP.md` 顶部的「必须现在摆出来的矛盾」。
+发生冲突时按以下顺序判断：
 
----
+1. 当前正式发布运行、线上只读复验和当前代码／测试；
+2. `docs/DELIVERY-GAP.md` 与 `acceptance.json.task8_readiness_gaps`；
+3. `docs/acceptance/prd-v2-38-item-acceptance-audit-20260715.md` 的原 38 项逐项基线；
+4. `STATUS.md`、`README.md`、旧 task／goal 和追加式 readiness 日志仅用于追溯。
+
+不得用 2026-07 或 2026-08-11 的旧快照覆盖后续正式发布事实，也不得因为已经上线就把未做过的
+恢复演练、回滚演练、真实 AI 验收、客户培训或总体验收写成完成。
+
+## 当前优先级
+
+| 优先级 | 事项 | 当前性质 |
+| --- | --- | --- |
+| P0 | 按 TASK-039 完成医生下单 6 → 4 步实现与回归 | 当前一期代码缺口，先做 |
+| P1 | 在第 1 项关闭后核对并补齐“推簧”目录映射 | 当前一期目录准确性，后做 |
+| P0 | 完成数据库恢复、MinIO 对象备份／恢复、发布回滚和监控告警演练 | 运维验收 |
+| P1 | 用有分配任务的普通生产账号补 STL 3D 点击证据；完成大文件、弱网、跨设备和签名过期实测 | 真实账号／真实网络证据 |
+| P1 | 正式发布后核对后端容器每订单文件限制为 50；完成弱网、跨设备和签名过期实测 | 生产配置／真实网络证据 |
+| P1 | 实现客户追加要求的管理端 AI key 安全配置；key 不可明文回读 | 代码缺口，原 38 项表外 |
+| P1 | 补容器资源限制、JVM 参数、日志轮转和双实例 WebSocket／Redis 验收 | 工程与运行保障 |
+| P2 | 优化 GitHub checkout 全历史拉取并升级已弃用的 Actions | 发布效率，不阻塞当前功能 |
+| P2 | 正式客户培训、运维移交和总体验收记录 | 最终交付证据 |
+| 暂缓 | AI-5 正式模板、标准工时、正式 AI Key／预算上限／告警接收人；仅用户主动恢复后继续 | `USER_DEFERRED`，不主动询问 |
 
 ## 按任务找文件
 
 | 你要做什么 | 先读 | 再读 |
 | --- | --- | --- |
-| **推进部署 / 修复 8088** | `deployment/8088-redeployment-checklist-20260811.md` | `deployment/SESSION-HANDOVER-deployment.md`、`deployment/go-live-plan-20260804.md` |
-| **做医生端英文化** | `DELIVERY-GAP.md` 的 C3 小节（含技术方案与范围界定） | `frontend/src/doctor/` 两个主文件 |
-| **做 AI key 前端配置** | `DELIVERY-GAP.md` 的 C10 行（含建表与安全要点） | `tasks/TASK-034-*.md` C 批次的密码处理做法可参照 |
-| **给客户答疑 / 要资料** | `deployment/customer-confirmation-checklist-20260804.md` | `deployment/server-recommendation-20260804.md` |
-| **改订单状态相关代码** | `development/status-vocabulary.md` ⚠️ **必读** | — |
-| **改权限相关代码** | `development/status-vocabulary.md` 的「角色与权限」章节 | `tasks/TASK-034-*.md` |
-| **看还差什么才能交付** | `DELIVERY-GAP.md`（本目录） | `deployment/readiness-checklist.md` |
-| **看某个决定为什么这么做** | 根目录 `DECISIONS.md`，**从最新的 D-185 往回读** | — |
-| **接手某个批次的历史** | `tasks/TASK-0xx-*.md` 对应小节 | 同名 `goals/GOAL-0xx-*.md` |
+| 实施医生下单 6 → 4 步 | `tasks/TASK-039-doctor-order-simplification-and-catalog-mapping-20260825.md` | `docs/development/doctor-order-wizard-simplification-plan-20260825.md` |
+| 看还差什么才能交付 | `docs/DELIVERY-GAP.md` | `acceptance.json` 的 `task8_readiness_gaps` |
+| 看原 PRD 38 项 | `docs/acceptance/prd-v2-38-item-acceptance-audit-20260715.md` | `docs/acceptance/phase-one-customer-pm-confirmations.md` |
+| 推进正式发布 | `docs/deployment/automatic-production-deployment.md` | `.github/workflows/deploy-production.yml` |
+| 补真实部署验收 | `docs/deployment/task-9d81-production-deployment-acceptance.md` | `docs/operations/phase-one-rollback-runbook.md` |
+| 补真实文件验收 | `docs/deployment/task-9d79-real-env-file-upload-acceptance.md` | `docs/deployment/8088-redeployment-checklist-20260811.md` 仅作历史缺陷参考 |
+| 补真实 AI 验收 | `docs/deployment/task-9d80-ai-production-integration-acceptance.md` | `docs/acceptance/phase-one-customer-pm-confirmations.md` |
+| 改订单状态或权限 | `docs/development/status-vocabulary.md` | 当前目标测试和 OpenAPI |
+| 查历史决定 | `DECISIONS.md` 从最新条目往回读 | 对应 goal／task |
 
----
+## 文件性质
 
-## 文件性质分类（重要）
+### 当前有效
 
-### 🟢 当前有效，会持续更新
+- `docs/INDEX.md`：当前导航入口。
+- `docs/DELIVERY-GAP.md`：交付缺口的当前权威清单。
+- `acceptance.json`：机器可读缺口和 RepoFrame 检查。
+- `docs/acceptance/prd-v2-38-item-acceptance-audit-20260715.md`：原 38 项逐项口径。
+- `docs/deployment/automatic-production-deployment.md`：现行生产发布方式。
 
-| 文件 | 作用 |
-| --- | --- |
-| `docs/INDEX.md` | 本文件，唯一入口 |
-| `docs/DELIVERY-GAP.md` | **交付缺口的唯一权威清单** |
-| `docs/deployment/SESSION-HANDOVER-deployment.md` | 部署推进的当前状态与下一步 |
-| `docs/deployment/customer-confirmation-checklist-20260804.md` | 待客户回答的问题，客户答了就回填 |
-| `docs/development/status-vocabulary.md` | 状态值口径，改状态前必读 |
-| `DECISIONS.md` | durable 决定，只增不改，**从最新往回读** |
-| `tasks/TASK-034-*.md` | 最近完成的六批，含每批的遗留 |
+### 追加式历史
 
-### 🟡 追加式日志，查历史用，**不要当当前状态读**
+- `STATUS.md`、`README.md`、`tasks/README.md`：顶部最新，后续大段为历史。
+- `docs/deployment/readiness-checklist.md`、`docs/deployment/task-8-final-readiness-report.md`：保留历史锚点；
+  若与本文件或 `DELIVERY-GAP.md` 冲突，以当前权威清单为准。
 
-| 文件 | 说明 |
-| --- | --- |
-| `STATUS.md` | 600 行，最新一条在「当前状态」章节顶部。**下面的 9D.xx 段落全是一期历史明细** |
-| `docs/deployment/readiness-checklist.md` | 追加式，开头一堆 2026-07 的历史锚点。当前缺口用 `npm run check:task8-readiness-gaps` 看，别读正文 |
-| `docs/deployment/task-8-final-readiness-report.md` | 同上，2026-07-06 快照 |
-| `README.md` | 1843 行，含大量历史交接摘要 |
+### 历史存档
 
-### ⚪ 历史存档，除非明确需要否则不用读
+- 旧 goal／task、`.repo-init/` 和 2026-07 阶段拆解用于追溯，不自动恢复为当前执行计划。
 
-`docs/design/`（44 份）、`docs/research/`（18 份）、`docs/learning/`、
-`docs/superpowers/`、`goals/GOAL-001` 到 `GOAL-031`、`tasks/TASK-001` 到 `TASK-032`。
-
----
-
-## 机器可读的状态入口（比读文档可靠）
+## 机器检查
 
 ```bash
-npm run check:task8-readiness-gaps    # 当前 9 项交付缺口，权威来源
-npm run test:backend                  # 336 项，必须使用干净隔离测试库（见交接文档的坑）
-npm run check:deployment-bugfixes-20260811 # 8088 / 文件 / 下单回归门禁
-npm run check:deployment-env          # 部署前门禁：时区固定 + 代理前缀一致性
-npm run check:openapi                 # 194 paths / 223 operations
+npm run check:acceptance-baseline
+npm run check:task8-readiness-gaps
+npm run check:prd-v2-acceptance-recalibration
+npm run check:repoframe-docs
+npm run acceptance
 ```
 
-TASK-034 六批各自的静态校验：
+涉及发布时追加：
 
 ```bash
-npm run check:task-034-authorization-baseline   # A 授权底座
-npm run check:task-034-fine-grained-roles       # B 细分角色
-npm run check:task-034-rbac-console             # C 管理端 RBAC
-npm run check:task-034-account-handover         # D 账号交接
-npm run check:task-034-export-governance        # E 导出管控
-npm run check:task-034-order-rules              # F 下单规则
+npm run check:production-fast-deploy
+npm run check:production-auto-deploy
+npm run check:deployment-env
+npm run check:deployment-ops-local-hardening
 ```
 
----
+## 三条安全边界
 
-## 三条容易踩的坑
-
-1. **测试库会被污染**：单跑过某些测试后再跑全量，`OrderCaseGroupTests` 会失败。
-   先 `DROP DATABASE ai_order_platform_test` 再 `bash scripts/ensure-test-database.sh`。
-2. **新增后端路径前缀**：必须**同时**改 `frontend/vite.config.ts` 与 `frontend/nginx.conf`，
-   否则生产环境页面能打开但拿不到数据（D-184）。
-3. **业务日期**：一律用 `common/BusinessTime.today()`，禁止无参 `LocalDate.now()`（D-183）。
-
----
-
-## 仓库规模（判断改动影响面用）
-
-| | |
-| --- | --- |
-| 后端 Java | 360 文件 / 55,797 行 |
-| 后端测试 | 52 文件 / 333 项 |
-| 数据库迁移 | 83 个（V1 → V83） |
-| 前端 | 36,730 行（`App.vue` 单文件约 18,600 行承载客服/生产/管理三端） |
-| 校验脚本 | 168 个 `check-*.mjs` |
-| 文档 | 162 份 / 20,794 行 |
+1. 不因正式站可访问就把 Task 8 改为 READY；必须关闭真实环境、客户输入和最终交付证据。
+2. 不为了补验收证据写正式业务数据强造订单、工单或文件；使用已有合适数据或经确认的测试环境。
+3. 不把真实密钥、服务器地址、数据库／MinIO 凭据、证书私钥或客户隐私写入仓库。

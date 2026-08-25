@@ -18,11 +18,9 @@ export type SourceUploadRule = {
 
 export const CUSTOMER_ORDER_STEPS = [
   '基础信息与产品',
-  '牙位与制作要求',
-  '材料与工艺',
+  '制作配置',
   '资料上传',
-  '试戴与过程确认',
-  '报价与周期确认'
+  '复核与提交'
 ] as const
 
 export const CATEGORY_NAMES: Record<string, string> = {

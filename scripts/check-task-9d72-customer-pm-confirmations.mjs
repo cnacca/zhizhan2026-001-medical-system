@@ -3,8 +3,8 @@ import fs from 'node:fs'
 const checks = [
   ['docs/acceptance/phase-one-customer-pm-confirmations.md', [
     '一期客户 / PM 确认与外部输入分类清单',
-    '2026-07-15 校正版',
-    '待客户 / PM 确认 2 项',
+    '2026-08-25 校正版',
+    '待客户 / PM 确认 0 项',
     'PRD 明确要求逐功能签字 0 项',
     '确认项编号',
     '当前分类',
@@ -20,10 +20,12 @@ const checks = [
     'CONFIRMED_BASELINE',
     'CUSTOMER_INPUT_REQUIRED',
     'BUSINESS_DATA_REQUIRED',
+    'USER_DEFERRED',
     'OUT_OF_PHASE_ONE',
     'DELIVERY_EVIDENCE_PENDING',
     'EXTERNAL_ENV_EVIDENCE_PENDING',
     'Task 8 仍保持 NOT_READY',
+    '用户主动恢复前不询问或催办',
   ]],
   ['docs/deployment/readiness-checklist.md', [
     '9D.72 客户 / PM 确认项清单第一段',

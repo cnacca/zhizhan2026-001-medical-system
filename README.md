@@ -4,6 +4,10 @@
 
 ## 当前仓库状态
 
+2026-08-25 按 D-207 建立 GOAL-037／TASK-039：完整 CRM／客户关怀提醒和 STL 直接打开 CAD／设计软件转入二期；一期先把医生下单从 6 个可见步骤合并为“基础信息与产品、制作配置、资料上传、复核与提交”4 步，再核对“推簧”与现有“弹簧矫正器／加弹簧”的准确映射。步骤精简不删除字段、动态表单、正畸处方、文件规则或提交门禁；目录核对前不新增或重命名产品。本轮仅完成执行文档，业务代码、功能回归、提交、推送和部署尚未执行，Task 8 保持 `NOT_READY`。
+
+2026-08-25 TASK-038 已完成一期验收基线校准：正式部署、HTTPS、医生端英文、自动发布、完整发布前 MySQL 备份和 D-202 站内文件预览／STL 3D 均按当前证据记为已覆盖，不再沿用 2026-08-11 旧快照。原 PRD V2 的 38 行逐项统计为 29 PASS、1 PARTIAL、0 MISSING、8 EXTERNAL_ACCEPTANCE，修正旧摘要 30／1／0／7 的算术错误。九类 Task 8 readiness 仍全部 `PARTIAL`；恢复／回滚／监控、MinIO 备份、真实 AI／文件／WebSocket、客户输入、培训和总体验收未完成。新增 `npm run check:acceptance-baseline`；本批不改业务代码、不写正式数据、不触发热更新，Task 8 保持 `NOT_READY`。
+
 2026-08-24 D-203 正式发布提速已启用：继续只通过 PR 合并 `main` 触发同一条 `Deploy production`，由脚本 fail closed 判断发布范围。纯 `frontend/**` 加受控发布文档只构建、上传和替换前端镜像；任何后端、迁移、根依赖、脚本、工作流、部署配置、未知路径或手工发布都走原完整流程。快速通道继续保留前端回归、不可变镜像、SHA-256、SSH known_hosts、部署锁、回滚标签、双健康检查和公网探针。PR #52／#53 发布正式版本 `7013b1434759df6ca77a65893dbdcf0129e9af7b`；首次启用因包含工作流／脚本按预期走 `full`，自动部署 #32742027332 用时 10m21s，后端 358 项、release gates、双镜像、备份、部署及公网探针全部通过，部署后首页和后端健康接口均返回 200。首个真实纯前端发布耗时尚待实测；未修改正式业务数据，Task 8 保持 `NOT_READY`。
 
 2026-08-24 D-202 已发布正式站：客服可按系统完整性依据和人工判断明确退回补资料，信息审核页 STL 可直接打开全局 3D 查看器；生产审核员仅在待生产审核状态只读访问订单附件；管理端预览不再通过空白页导航或自动下载，STL、图片／PDF 在站内查看，其他格式明确提示后显式下载；MinIO 预览／下载签名分别使用 `inline`／`attachment`。PR #49／#50 发布正式版本 `e19bce4d70e672920d6d3c5430f9743946e96d4a`，自动部署 #32731578654 成功；完整后端 358 项、release gates、镜像构建／校验、发布包、上传、备份、部署、健康检查和公网探针全部通过。部署后首页返回 200、后端健康为 `ok`，线上产物包含“浏览器 3D 查看”新链路；隔离浏览器 smoke 为 3/3，已断言 STL canvas、预览／下载请求分离及单页面行为。真实普通生产账号因无分配工单仍为 `PARTIAL`，未写正式数据强造；设计软件直连仍不在本批范围，Task 8 保持 `NOT_READY`。
@@ -52,7 +56,7 @@
 
 当前工作区为 `/Users/yuri/Documents/AI智能下单平台-handoff-20260706`，属于已有项目的 RepoFrame `repo-hydrate` 后续执行，不是重新初始化。当前 active goal 是 `goals/GOAL-019-ai-production-governance-local-hardening-20260707.md`，active task 是 `tasks/TASK-020-ai-production-governance-local-hardening-20260707.md`，正在执行 AI 生产治理本地补强：新增 `npm run check:ai-production-governance-local-hardening`，并补 `GET /ai/governance/local-hardening`、管理端 `/admin/ai-governance` 只读页面、AI-3 安全矩阵回归、OpenAPI 和验收 / readiness 文档回写。Task 8 继续保持 `NOT_READY`；本阶段不声明真实 key / webhook / 客户正式模板 / 客户签字 / 真实环境验收完成。
 
-当前工作区为 `/Users/yuri/Documents/AI智能下单平台`，属于已有项目的后续执行，不是重新初始化。当前 active goal 是 `goals/GOAL-023-prd-v2-local-remainder-closure-20260715.md`，active task 是 `tasks/TASK-024-prd-v2-local-remainder-closure-20260715.md`：本地 PRD V2 原38项已收敛为 **30 PASS / 1 PARTIAL / 0 MISSING / 7 EXTERNAL_ACCEPTANCE**，并已在隔离 demo 跑通种植订单 + 真实 STL 的12步主链。Task 8 继续保持 `NOT_READY`；本阶段不声明真实支付 / 物流 / 签章 / key / webhook / 客户签字 / 真实环境验收完成。
+当前工作区为 `/Users/yuri/Documents/AI智能下单平台`，属于已有项目的后续执行，不是重新初始化。2026-08-25 按原 PRD V2 的 38 行实际状态复核为 **29 PASS / 1 PARTIAL / 0 MISSING / 8 EXTERNAL_ACCEPTANCE**，修正旧摘要 30／1／0／7；隔离 demo 的种植订单 + 真实 STL 12 步主链事实不变。Task 8 继续保持 `NOT_READY`；不声明真实支付／物流／签章／key／webhook／客户签字或真实环境验收完成。
 
 当前工作区为 `/Users/yuri/Documents/AI智能下单平台-handoff-20260706`，属于已有项目的 RepoFrame `repo-hydrate` 后续执行，不是重新初始化。GOAL-017 / TASK-018 已完成四端前端产品化体验收口：新增 `npm run check:frontend-productization-closure`，把客服设计稿 / 账单入口、生产 C 类本地第一增量入口、管理端账号 / 角色 / 权限入口和统一加载态 / 空态 / 错误态 / 权限拒绝态收拢为本阶段入口。`frontend-business-pages` 继续保持 `PARTIAL`，Task 8 继续保持 `NOT_READY`；本阶段不恢复医生文件独立模块，不扩大 C 类为完整闭环，不声明真实支付 / 物流 / 签章 / key / webhook / 客户签字 / 真实环境验收完成。
 
@@ -349,10 +353,10 @@ MINIO_BUCKET=ai-order-private
 FILE_UPLOAD_URL_TTL_SECONDS=900
 FILE_PREVIEW_URL_TTL_SECONDS=900
 FILE_DOWNLOAD_URL_TTL_SECONDS=7200
-FILE_MAX_FILE_SIZE_BYTES=209715200
+FILE_MAX_FILE_SIZE_BYTES=524288000
 FILE_ALLOWED_CONTENT_TYPES=application/pdf,model/stl,application/sla,application/octet-stream,text/plain,image/png,image/jpeg,application/zip,application/x-zip-compressed
 FILE_ALLOWED_FILENAME_EXTENSIONS=stl,sla,ply,obj,pdf,jpg,jpeg,png,webp,dcm,dicom,zip,doc,docx,txt
-FILE_MAX_FILES_PER_ORDER=30
+FILE_MAX_FILES_PER_ORDER=50
 AI_PROVIDER=deterministic
 AI_MAX_REQUESTS_PER_USER_HOUR=120
 AI_MODEL_MAX_RETRIES=1

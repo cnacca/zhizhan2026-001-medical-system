@@ -647,6 +647,133 @@ class OrderCaseGroupTests {
 
     @Test
     @Transactional
+    void designServiceSubmissionUsesCommonScanBundleRequiresToothAndAllowsBlankNote() throws Exception {
+        long designProductId = jdbcClient.sql("""
+                        SELECT product.product_id
+                        FROM catalog_product_v2 product
+                        JOIN catalog_config_version version
+                          ON version.config_version_id = product.config_version_id
+                        WHERE product.product_code = 'DESIGN_FULL_CROWN'
+                        ORDER BY version.version_no DESC
+                        LIMIT 1
+                        """)
+                .query(Long.class)
+                .single();
+        long designVersionId = jdbcClient.sql("""
+                        SELECT config_version_id
+                        FROM catalog_product_v2
+                        WHERE product_id = :productId
+                        """)
+                .param("productId", designProductId)
+                .query(Long.class)
+                .single();
+        jdbcClient.sql("UPDATE catalog_config_version SET publication_status = 'INACTIVE'").update();
+        jdbcClient.sql("""
+                        UPDATE catalog_config_version
+                        SET publication_status = 'ACTIVE',
+                            effective_at = CURRENT_TIMESTAMP(3),
+                            published_at = CURRENT_TIMESTAMP(3)
+                        WHERE config_version_id = :versionId
+                        """)
+                .param("versionId", designVersionId)
+                .update();
+
+        long groupId = createGroup("design-service-" + UUID.randomUUID());
+        mockMvc.perform(post("/order-case-groups/{groupId}/items", groupId)
+                        .header("X-Bootstrap-Role", "DOCTOR")
+                        .header("X-Bootstrap-User-Id", DOCTOR_USER_ID)
+                        .header("X-Bootstrap-Clinic-Id", clinicId)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("""
+                                {
+                                  "product_id":%d,
+                                  "item_client_key":"design-%s",
+                                  "form_values":{
+                                    "case_note":"可选设计备注",
+                                    "shared_upload_requirement_version":"CLASSIFIED_SCAN_BUNDLE_V3",
+                                    "shared_upload_slot_files":{},
+                                    "product_upload_slot_files":{}
+                                  },
+                                  "material_selections":[],
+                                  "accessory_selections":[],
+                                  "file_ids":[],
+                                  "expected_draft_version":1
+                                }
+                                """.formatted(designProductId, UUID.randomUUID())))
+                .andExpect(status().isOk());
+
+        long orderId = jdbcClient.sql("SELECT order_id FROM orders WHERE group_id = :groupId")
+                .param("groupId", groupId)
+                .query(Long.class)
+                .single();
+        long packageFileId = insertSharedFile(groupId, orderId, "design-source-package.zip");
+        mockMvc.perform(put("/order-case-groups/{groupId}/items/{orderId}", groupId, orderId)
+                        .header("X-Bootstrap-Role", "DOCTOR")
+                        .header("X-Bootstrap-User-Id", DOCTOR_USER_ID)
+                        .header("X-Bootstrap-Clinic-Id", clinicId)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("""
+                                {
+                                  "product_id":%d,
+                                  "form_values":{
+                                    "shared_upload_requirement_version":"CLASSIFIED_SCAN_BUNDLE_V3",
+                                    "shared_upload_slot_files":{"combined_scan":[%d]},
+                                    "product_upload_slot_files":{}
+                                  },
+                                  "material_selections":[],
+                                  "accessory_selections":[],
+                                  "file_ids":[],
+                                  "expected_draft_version":2
+                                }
+                                """.formatted(designProductId, packageFileId)))
+                .andExpect(status().isOk());
+
+        mockMvc.perform(post("/order-case-groups/{groupId}/submit", groupId)
+                        .header("X-Bootstrap-Role", "DOCTOR")
+                        .header("X-Bootstrap-User-Id", DOCTOR_USER_ID)
+                        .header("X-Bootstrap-Clinic-Id", clinicId)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("""
+                                {"idempotency_key":"design-missing-%s","expected_draft_version":3}
+                                """.formatted(UUID.randomUUID())))
+                .andExpect(status().isBadRequest());
+
+        mockMvc.perform(put("/order-case-groups/{groupId}/items/{orderId}", groupId, orderId)
+                        .header("X-Bootstrap-Role", "DOCTOR")
+                        .header("X-Bootstrap-User-Id", DOCTOR_USER_ID)
+                        .header("X-Bootstrap-Clinic-Id", clinicId)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("""
+                                {
+                                  "product_id":%d,
+                                  "form_values":{
+                                    "tooth_positions":["11"],
+                                    "shared_upload_requirement_version":"CLASSIFIED_SCAN_BUNDLE_V3",
+                                    "shared_upload_slot_files":{"combined_scan":[%d]},
+                                    "product_upload_slot_files":{}
+                                  },
+                                  "material_selections":[],
+                                  "accessory_selections":[],
+                                  "file_ids":[],
+                                  "expected_draft_version":3
+                                }
+                                """.formatted(designProductId, packageFileId)))
+                .andExpect(status().isOk());
+
+        mockMvc.perform(post("/order-case-groups/{groupId}/submit", groupId)
+                        .header("X-Bootstrap-Role", "DOCTOR")
+                        .header("X-Bootstrap-User-Id", DOCTOR_USER_ID)
+                        .header("X-Bootstrap-Clinic-Id", clinicId)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("""
+                                {"idempotency_key":"design-complete-%s","expected_draft_version":4}
+                                """.formatted(UUID.randomUUID())))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.lifecycle_status").value("SUBMITTED"));
+    }
+
+    @Test
+    @Transactional
     void multiProductDraftSupportsIdempotentAddCopyDeleteTypedValidationAndAtomicSubmit()
             throws Exception {
         CatalogFixture catalog = createActiveCatalog();
