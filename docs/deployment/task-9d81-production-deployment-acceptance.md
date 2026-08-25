@@ -1,10 +1,30 @@
-# 9D.81 部署真实环境 smoke / HTTPS / 备份监控验收记录模板第一段
+# 9D.81 部署真实环境 smoke / HTTPS / 备份监控验收记录
 
-状态：TEMPLATE_READY / PARTIAL。
+状态：PRODUCTION_DEPLOYMENT_VERIFIED / PARTIAL（2026-08-25 校准）。
 
-本模板用于真实测试环境或正式环境具备后记录部署上线验收。当前只提供记录模板，不代表真实服务器已部署完成，不代表 HTTPS 已验收完成，不代表备份恢复、日志留存、监控告警或发布回滚已验收完成。
+本记录最初是待填写模板。正式服务器部署、HTTPS、自动发布、部署前 MySQL 备份生成和公网健康探针
+现已有真实运行证据；备份恢复、MinIO 对象备份／恢复、日志留存、监控告警和发布回滚仍未验收完成。
 
 GOAL-020 / TASK-021 已补本地 dry-run 补强：`docs/deployment/phase-one-local-ops-dry-run.md`、`npm run check:deployment-ops-local-hardening` 和 `npm run dry-run:phase-one-release-rollback`。该补强只检查本地 release / rollback、备份 / 恢复模板、日志 / 监控模板和 compose / env / Nginx / healthcheck 静态边界；真实环境字段仍为 `待填写` 或 `待确认`，不代表真实环境验收完成。
+
+## 2026-08-24 正式运行证据
+
+| 项目 | 已核实记录 |
+| --- | --- |
+| 验收环境 | 正式环境 |
+| 代码版本 | `7013b1434759df6ca77a65893dbdcf0129e9af7b` |
+| 自动发布 | GitHub Actions `Deploy production` #32742027332，`success`，10m21s |
+| 发布模式 | `full`；D-203 首次发布包含工作流／脚本，未误走前端快速通道 |
+| 前端 | `https://chinesedigitaldental.com/` 返回 200 |
+| 后端 | `/api/bootstrap/health` 返回 200 / `status=ok` |
+| HTTPS／规范入口 | 公网登录 Origin 与规范重定向探针通过 |
+| 自动化 | 后端 358 项、release gates、不可变镜像和 SHA-256 校验通过 |
+| MySQL 备份 | 完整发布前生成 `mysql.sql.gz` 并通过 gzip 与最小尺寸校验 |
+| 回滚镜像 | 发布前后端／前端镜像标签已生成；未执行真实回滚演练 |
+| 正式业务数据 | 本次未修改业务数据；部署脚本只执行发布流程和备份 |
+
+本节不记录服务器地址、密钥、备份路径或客户隐私。MySQL 备份文件“成功生成”不等于恢复演练通过，
+也不覆盖 MinIO 对象备份。
 
 ## 基本信息
 
@@ -83,16 +103,17 @@ npm run build:frontend
 
 | 项目 | 结论 |
 | --- | --- |
-| 真实服务器部署 | 待填写 |
-| HTTPS | 待填写 |
-| Nginx API / WebSocket / 通知代理 | 待填写 |
-| Docker Compose | 待填写 |
-| 镜像仓库 | 待填写 |
-| 数据库备份 | 待填写 |
-| 备份恢复演练 | 待填写 |
-| 日志留存 | 待填写 |
-| 监控告警 | 待填写 |
-| 发布回滚 | 待填写 |
+| 真实服务器部署 | PASS：自动发布与容器健康通过 |
+| HTTPS | PASS：正式域名和公网探针通过 |
+| Nginx API / WebSocket / 通知代理 | PARTIAL：API／登录探针通过，双实例 WebSocket 仍待验 |
+| Docker Compose | PASS：正式发布配置渲染与部署通过 |
+| 镜像分发 | PASS：校验后的发布包上传；当前未使用远程镜像仓库 |
+| 数据库备份 | PASS（生成）：完整发布前 MySQL gzip 备份通过校验 |
+| 备份恢复演练 | PARTIAL：未完成真实恢复 |
+| MinIO 对象备份／恢复 | PARTIAL：无完成证据 |
+| 日志留存 | PARTIAL：无正式保留策略验收记录 |
+| 监控告警 | PARTIAL：无正式触发／接收记录 |
+| 发布回滚 | PARTIAL：有回滚镜像标签，未执行真实回滚演练 |
 | 客户 / PM 结论 | 待确认 |
 
 ## 边界
@@ -100,7 +121,6 @@ npm run build:frontend
 - 不填写真实密钥。
 - 不填写真实服务器地址。
 - 不填写真实数据库密码、Redis 密码、MinIO 凭据、DeepSeek API Key、证书私钥、token 或客户隐私数据。
-- 不代表真实服务器已部署完成。
-- 不代表 HTTPS 已验收完成。
-- 不代表备份恢复、日志留存、监控告警或发布回滚已验收完成。
+- 真实服务器部署与 HTTPS 已有当前正式运行证据。
+- 不代表数据库／MinIO 恢复、日志留存、监控告警或发布回滚已验收完成。
 - Task 8 仍保持 NOT_READY，直到真实环境部署、客户 / PM 书面确认和生产运行验收关闭。

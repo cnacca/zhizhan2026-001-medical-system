@@ -555,9 +555,65 @@ public class FileResourceService {
         FileRow file = loadFile(fileId, identity, "DOWNLOAD");
         requireCompleted(file, "DOWNLOAD", identity);
         requireFileActorScope(file, identity, "DOWNLOAD");
+        requireDoctorDesignServiceDownloadEligibility(file, identity);
         String url = presignedReadUrl(file, properties.downloadUrlTtlSeconds(), true);
         audit(file.fileId(), file.orderId(), identity.userId(), "DOWNLOAD", "ALLOWED", null);
         return new FileSignedUrlResponse(file.fileId(), null, url, properties.downloadUrlTtlSeconds());
+    }
+
+    private void requireDoctorDesignServiceDownloadEligibility(FileRow file, BootstrapIdentity identity) {
+        if (!identity.isDoctor()
+                || !"DESIGN_DRAFT".equals(file.sourceType())
+                || file.orderId() == null) {
+            return;
+        }
+        String productType = jdbcClient.sql("""
+                        SELECT product_type
+                        FROM orders
+                        WHERE order_id = :orderId
+                        """)
+                .param("orderId", file.orderId())
+                .query(String.class)
+                .optional()
+                .orElse("");
+        if (!"DESIGN_SERVICE".equals(productType)) {
+            return;
+        }
+        long confirmedDraftCount = jdbcClient.sql("""
+                        SELECT COUNT(*)
+                        FROM design_draft_file draft_file
+                        JOIN design_draft draft
+                          ON draft.design_draft_id = draft_file.design_draft_id
+                        WHERE draft_file.file_id = :fileId
+                          AND draft.order_id = :orderId
+                          AND draft.draft_status = 'DOCTOR_CONFIRMED'
+                          AND draft.doctor_visible_at IS NOT NULL
+                        """)
+                .param("fileId", file.fileId())
+                .param("orderId", file.orderId())
+                .query(Long.class)
+                .single();
+        if (confirmedDraftCount == 0) {
+            audit(file.fileId(), file.orderId(), identity.userId(), "DOWNLOAD", "DENIED",
+                    "design service draft is not doctor-confirmed");
+            throw new ResponseStatusException(
+                    HttpStatus.CONFLICT, "design draft must be confirmed before download");
+        }
+        long paidBillCount = jdbcClient.sql("""
+                        SELECT COUNT(*)
+                        FROM order_bill
+                        WHERE order_id = :orderId
+                          AND payment_status = 'PAID'
+                        """)
+                .param("orderId", file.orderId())
+                .query(Long.class)
+                .single();
+        if (paidBillCount == 0) {
+            audit(file.fileId(), file.orderId(), identity.userId(), "DOWNLOAD", "DENIED",
+                    "design service bill is not paid");
+            throw new ResponseStatusException(
+                    HttpStatus.CONFLICT, "design service bill must be paid before download");
+        }
     }
 
     private void ensureBucket() {

@@ -114,6 +114,7 @@ jobs:
           npm run check:production-fast-deploy
           npm run build:frontend
           if [[ "${RELEASE_MODE}" == 'full' ]]; then
+            npm run check:task9d67
             npm run check:openapi
             npm run check:deployment-env
             npm run check:deployment-bugfixes-20260811

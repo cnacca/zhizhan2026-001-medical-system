@@ -32,7 +32,7 @@ release_mode="${5:-full}"
 [[ -f "$image_archive" && ! -L "$image_archive" ]] || fail 'image archive is missing or is a symbolic link'
 [[ -f "$checksum_file" && ! -L "$checksum_file" ]] || fail 'checksum file is missing or is a symbolic link'
 
-for command_name in bash curl docker flock git gzip sha256sum tar; do
+for command_name in awk bash curl docker flock git gzip sha256sum tar; do
   require_command "$command_name"
 done
 
@@ -115,6 +115,11 @@ fi
 
 compose_file="$release_dir/deploy/docker-compose.phase-one.yml"
 [[ -f "$compose_file" && ! -L "$compose_file" ]] || fail 'release compose file is missing or is a symbolic link'
+
+# Phase-one file requirements are confirmed at 50 files per order. Exporting the
+# non-secret value here makes it override a stale server env-file value during
+# Compose interpolation; the post-deploy inspect below verifies the container.
+export FILE_MAX_FILES_PER_ORDER=50
 
 compose=(
   docker compose
@@ -201,6 +206,12 @@ if [[ "$release_mode" == "full" ]]; then
 fi
 
 "${compose[@]}" up -d --no-build --no-deps --force-recreate --wait "${services[@]}"
+
+if [[ "$release_mode" == "full" ]]; then
+  deployed_file_limit="$(docker inspect ai-order-backend --format '{{range .Config.Env}}{{println .}}{{end}}' \
+    | awk -F= '$1 == "FILE_MAX_FILES_PER_ORDER" { value = $2 } END { print value }')"
+  [[ "$deployed_file_limit" == "50" ]] || fail 'backend FILE_MAX_FILES_PER_ORDER is not 50 after deployment'
+fi
 
 healthy=false
 for _attempt in $(seq 1 36); do

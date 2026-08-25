@@ -125,14 +125,19 @@ if (wizard.includes('finalConfirmations.quote')) {
   failures.push('DoctorCaseGroupWizard.vue price placeholder must not be a quote confirmation gate')
 }
 
-if (acceptance.active_goal !== 'GOAL-036') {
-  failures.push(`acceptance.json active_goal must be GOAL-036, received ${acceptance.active_goal}`)
-}
-if (acceptance.active_task_file !== 'tasks/TASK-037-doctor-order-final-confirmation-20260818.md') {
-  failures.push('acceptance.json active_task_file must point to TASK-037')
-}
-if (!acceptance.goals.some((entry) => entry.id === 'GOAL-036')) {
+const completedGoal = acceptance.goals.find((entry) => entry.id === 'GOAL-036')
+if (!completedGoal) {
   failures.push('acceptance.json goals missing GOAL-036')
+} else {
+  if (completedGoal.status !== 'completed') {
+    failures.push(`acceptance.json GOAL-036 must remain completed, received ${completedGoal.status}`)
+  }
+  if (completedGoal.file !== 'goals/GOAL-036-doctor-order-final-confirmation-20260818.md') {
+    failures.push(`acceptance.json GOAL-036 file drifted: ${completedGoal.file}`)
+  }
+}
+if (!String(acceptance.active_goal || '').startsWith('GOAL-')) {
+  failures.push(`acceptance.json active_goal must point to a goal, received ${acceptance.active_goal}`)
 }
 
 if (failures.length) {

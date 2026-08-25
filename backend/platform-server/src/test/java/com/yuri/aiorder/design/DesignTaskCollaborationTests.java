@@ -560,6 +560,65 @@ class DesignTaskCollaborationTests {
     }
 
     @Test
+    void designServiceDoctorConfirmationCompletesDigitalWorkflowWithoutProductionNodes() throws Exception {
+        jdbcClient.sql("UPDATE orders SET product_type = 'DESIGN_SERVICE' WHERE order_id = :orderId")
+                .param("orderId", orderId)
+                .update();
+        chainId = jdbcClient.sql("""
+                        SELECT chain_id
+                        FROM workflow_chain
+                        WHERE chain_code = 'DESIGN_SERVICE_ONLY'
+                          AND version = 1
+                          AND status = 1
+                        """)
+                .query(Long.class)
+                .single();
+
+        reviewProduction();
+        claim(taskId(), WORKER_USER_ID).andExpect(status().isOk());
+        long fileId = createDraftFile(WORKER_USER_ID, "design-service-final.stl");
+        long draftId = createAndSubmitDraft(
+                WORKER_USER_ID, "design-service-final", "数字设计交付", fileId);
+        internalReview(draftId, "REVIEWER", WORKER_USER_ID, "{\"action\":\"APPROVE\"}")
+                .andExpect(status().isOk());
+        doctorReview(
+                        draftId,
+                        "DOCTOR",
+                        DOCTOR_USER_ID,
+                        clinicId,
+                        "{\"action\":\"CONFIRM\"}")
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.status").value("DOCTOR_CONFIRMED"));
+
+        assertThat(jdbcClient.sql("SELECT internal_status FROM orders WHERE order_id = :orderId")
+                        .param("orderId", orderId)
+                        .query(String.class)
+                        .single())
+                .isEqualTo("COMPLETED");
+        assertThat(jdbcClient.sql("""
+                                SELECT instance_status
+                                FROM order_process_instance
+                                WHERE order_id = :orderId
+                                """)
+                        .param("orderId", orderId)
+                        .query(String.class)
+                        .single())
+                .isEqualTo("COMPLETED");
+        assertThat(jdbcClient.sql("""
+                                SELECT COUNT(*)
+                                FROM order_process_node node
+                                JOIN order_process_instance instance
+                                  ON instance.instance_id = node.instance_id
+                                WHERE instance.order_id = :orderId
+                                  AND node.node_category <> 'DESIGN_GATE'
+                                """)
+                        .param("orderId", orderId)
+                        .query(Long.class)
+                        .single())
+                .isZero();
+    }
+
+    @Test
     void adminTransferRequiresReasonWritesAuditAndProductionStartWaitsForDoctor() throws Exception {
         reviewProduction();
         long taskId = taskId();

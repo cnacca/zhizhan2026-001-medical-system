@@ -4,6 +4,8 @@
 
 本模板用于真实测试环境或正式环境具备后记录 AI 真实 key 与生产 webhook 联调验收。当前只提供记录模板，不代表真实 key 已联调完成，不代表生产 webhook 已联调完成。
 
+2026-08-25 用户已将正式 AI Key、预算上限和告警接收人标记为 `USER_DEFERRED`；在用户主动恢复前不启动本模板填写，也不再询问或催办这些输入。
+
 GOAL-019 / TASK-020 本地治理补强已新增 `GET /ai/governance/local-hardening`、管理端 `/admin/ai-governance` 本地只读治理总览、AI-3 安全矩阵和 `npm run check:ai-production-governance-local-hardening`。这些只作为本地证据，不填写真实密钥、不填写真实 webhook URL、不替代客户 / PM 签字；真实 key / 生产 webhook 仍为待填写 / 待确认。
 
 ## 基本信息

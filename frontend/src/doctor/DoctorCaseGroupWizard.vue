@@ -11,6 +11,9 @@ import {
   CLEAR_ALIGNER_PRODUCT_CODE,
   CLEAR_ALIGNER_TREATMENT_OPTIONS,
   CUSTOMER_ORDER_STEPS,
+  DESIGN_DELIVERY_FORMAT_OPTIONS,
+  DESIGN_STANDARD_OPTIONS,
+  DESIGN_TURNAROUND_OPTIONS,
   DENTURE_BASE_SHADES,
   FIXED_PRECISION_ATTACHMENTS,
   ORTHODONTIC_ACCESSORIES,
@@ -219,6 +222,12 @@ const SHADE_FORM_FIELDS = new Set([
   'body_shade',
   'incisal_shade'
 ])
+const DESIGN_SERVICE_REQUIRED_FIELDS = new Set([
+  'tooth_positions',
+  'delivery_format',
+  'design_standard',
+  'design_turnaround'
+])
 const SHARED_UPLOAD_SLOT_CODES = new Set<SharedUploadSlotCode>(SHARED_UPLOAD_SLOTS.map((slot) => slot.code))
 const REPLACED_PRODUCT_UPLOAD_SLOT_CODES = new Set([
   'upper_arch', 'lower_arch', 'bite_scan', 'full_arch_scan', 'jaw_record',
@@ -309,11 +318,9 @@ function treatmentOptionLabel(value: string, source: string): string {
 
 const steps = computed(() => CUSTOMER_ORDER_STEPS.map((label, index) => t(label, [
   'Case & Products',
-  'Teeth & Requirements',
-  'Materials & Process',
+  'Product Configuration',
   'Upload Records',
-  'Try-in & Confirmations',
-  'Quote & Lead Time'
+  'Review & Submit'
 ][index] ?? label)))
 const upperTeeth = ['18', '17', '16', '15', '14', '13', '12', '11', '21', '22', '23', '24', '25', '26', '27', '28']
 const lowerTeeth = ['48', '47', '46', '45', '44', '43', '42', '41', '31', '32', '33', '34', '35', '36', '37', '38']
@@ -513,6 +520,7 @@ const newPatient = reactive({
 })
 
 const selectedPatient = computed(() => patientOptions.value.find((item) => item.patient_id === patientId.value) ?? null)
+const designServiceSelected = computed(() => selectedCategoryCode.value === 'DESIGN_SERVICE')
 const patientRows = computed(() => {
   const keyword = patientKeyword.value.trim().toLowerCase()
   return patientOptions.value.filter((item) => !keyword || `${item.patient_name} ${item.patient_code}`.toLowerCase().includes(keyword))
@@ -596,7 +604,24 @@ function catalogFieldsForItem(item: CaseGroupItem): FormField[] {
       return Array.isArray(schema.fields) ? schema.fields as FormField[] : []
     })
 }
-const stepThreeCoreFields = new Set([
+const wizardOwnedFormFields = new Set([
+  'tooth_positions',
+  'tooth_modes',
+  'current_tooth_mode',
+  'occlusion_level',
+  'occlusion_clearance_mm',
+  'contact_level',
+  'stain_level',
+  'margin_type',
+  'vertical_height_mm',
+  'transmucosal_height_mm',
+  'gingival_porcelain',
+  'dentition_stage',
+  'angle_class',
+  'skeletal_type',
+  'orthodontic_concern',
+  'treatment_arch',
+  'treatment_mode',
   'material_option',
   'finish_margin_type',
   'shade',
@@ -619,21 +644,35 @@ const stepThreeCoreFields = new Set([
   'clasp_design',
   'denture_teeth_brand',
   'denture_base_shade',
+  'precision_attachments',
   'orthodontic_accessories',
   'orthodontic_accessory_notes',
+  'try_in_required',
+  'process_reviews',
+  'special_requirements',
+  'physical_model_shipping_required',
+  'physical_model_shipping_method',
+  'physical_model_tracking_no',
+  'delivery_format',
+  'design_standard',
+  'design_turnaround',
   'design_delivery_format',
-  'design_delivery_turnaround'
+  'design_requirement_turnaround',
+  'design_delivery_turnaround',
+  'case_note'
 ])
-const activeFields = computed<FormField[]>(() =>
-  activeItem.value
-    ? catalogFieldsForItem(activeItem.value).filter((field) =>
-        field.key !== 'tooth_positions' && !stepThreeCoreFields.has(field.key)
-      )
-    : []
-)
+const activeFields = computed<FormField[]>(() => {
+  if (!activeItem.value) return []
+  const seen = new Set<string>()
+  return catalogFieldsForItem(activeItem.value).filter((field) => {
+    if (wizardOwnedFormFields.has(field.key) || seen.has(field.key)) return false
+    seen.add(field.key)
+    return true
+  })
+})
 const incompleteItems = computed(() => (group.value?.items ?? []).filter((item) => itemErrors(item).length > 0))
 const finalConfirmationComplete = computed(() =>
-  finalConfirmations.requirements && finalConfirmations.cycle
+  finalConfirmations.requirements && (designServiceSelected.value || finalConfirmations.cycle)
 )
 const sharedScanBundleComplete = computed(() => scanBundleCompleteForSlots((slotCode) => validSharedScanSlotIds(slotCode)))
 const missingRequiredProductSlots = computed(() =>
@@ -688,6 +727,17 @@ function closePatientResults() {
 }
 
 function caseSettingsSnapshot() {
+  if (designServiceSelected.value) {
+    return {
+      case_priority: 'NORMAL',
+      required_delivery_date: '',
+      next_patient_appointment_date: '',
+      shipping_method: '',
+      order_type: 'DESIGN_ONLY',
+      inbound_tracking_no: '',
+      global_notes: ''
+    }
+  }
   return {
     case_priority: caseSettings.priority,
     required_delivery_date: caseSettings.required_delivery_date,
@@ -708,6 +758,23 @@ function hydrateCaseSettings(item: CaseGroupItem | undefined) {
   caseSettings.order_type = String(item.form_values.order_type ?? 'ONLINE')
   caseSettings.inbound_tracking_no = String(item.form_values.inbound_tracking_no ?? '')
   caseSettings.global_notes = String(item.form_values.global_notes ?? '')
+}
+
+function normalizeDesignServiceRequirements(item: CaseGroupItem) {
+  if (productCategory(item) !== 'DESIGN_SERVICE') return
+  const values = item.form_values
+  if (!String(values.delivery_format ?? '').trim()) {
+    const legacyFormat = String(values.design_delivery_format ?? '').trim()
+    if (DESIGN_DELIVERY_FORMAT_OPTIONS.includes(legacyFormat as (typeof DESIGN_DELIVERY_FORMAT_OPTIONS)[number])) {
+      values.delivery_format = legacyFormat
+    }
+  }
+  if (!String(values.design_turnaround ?? '').trim()) {
+    const legacyTurnaround = String(values.design_requirement_turnaround ?? values.design_delivery_turnaround ?? '').trim()
+    if (DESIGN_TURNAROUND_OPTIONS.some((option) => option.value === legacyTurnaround)) {
+      values.design_turnaround = legacyTurnaround
+    }
+  }
 }
 
 function mergeCaseGroupResponse(next: CaseGroup, authoritativeOrderIds: number[] = []) {
@@ -1179,6 +1246,7 @@ async function restoreDraft() {
       restored.lifecycle_status === 'DRAFT'
       && (!props.initialPatientId || String(restored.patient_id) === props.initialPatientId)
     ) {
+      restored.items.forEach(normalizeDesignServiceRequirements)
       group.value = restored
       patientId.value = String(restored.patient_id)
       selectedOrderId.value = restored.items[0]?.order_id ?? null
@@ -1426,6 +1494,7 @@ function commitItemObjectFields(item: CaseGroupItem) {
 
 function caseStepOneErrors() {
   const errors: string[] = []
+  if (designServiceSelected.value) return errors
   if (!caseSettings.required_delivery_date) errors.push(t('请选择要求到货日期', 'Select a requested delivery date'))
   if (['IMPRESSION', 'REWORK', 'RETURN'].includes(caseSettings.order_type)
     && !caseSettings.inbound_tracking_no.trim()) {
@@ -1473,9 +1542,9 @@ function itemStepErrors(item: CaseGroupItem, targetStep: number) {
       ['treatment_mode', t('请选择矫治方式', 'Select a treatment mode')]
     ],
     DESIGN_SERVICE: [
-      ['delivery_format', t('请选择交付数据格式', 'Select a delivery data format')],
+      ['delivery_format', t('请选择数据格式', 'Select a data format')],
       ['design_standard', t('请选择设计标准', 'Select a design standard')],
-      ['design_requirement_turnaround', t('请选择设计时间', 'Select a design turnaround')]
+      ['design_turnaround', t('请选择设计时间', 'Select a design turnaround')]
     ]
   }
   if (targetStep === 2) {
@@ -1486,14 +1555,15 @@ function itemStepErrors(item: CaseGroupItem, targetStep: number) {
   }
   if (targetStep === 3) {
     const variants = (catalog.value?.variants ?? []).filter((candidate) => candidate.product_id === item.product_id)
-    if (variants.length && !item.variant_id) errors.push(t('请选择产品变体', 'Select a product variant'))
-    if (product?.category_code === 'DESIGN_SERVICE') {
-      if (!String(item.form_values.design_delivery_format ?? '').trim()) errors.push(t('请选择设计交付文件格式', 'Select a design delivery file format'))
-      if (!String(item.form_values.design_delivery_turnaround ?? '').trim()) errors.push(t('请选择设计交期', 'Select a design delivery time'))
+    if (variants.length && !item.variant_id) {
+      errors.push(product?.product_code === 'ORTHO_SCREW_EXPANDER'
+        ? t('请选择扩弓方向', 'Select an expansion direction')
+        : t('请选择产品变体', 'Select a product variant'))
     }
     const fields = catalogFieldsForItem(item)
     fields.filter((field) => field.required && fieldVisible(field, item)).forEach((field) => {
       if (SHADE_FORM_FIELDS.has(field.key) || field.key === 'material_option') return
+      if (product?.category_code === 'DESIGN_SERVICE' && DESIGN_SERVICE_REQUIRED_FIELDS.has(field.key)) return
       const value = item.form_values[field.key]
       if (value == null || value === '' || (Array.isArray(value) && !value.length)) errors.push(t('{field}必填', '{field} is required', { field: localizedSourceText(field.label, field.key) }))
     })
@@ -1542,9 +1612,11 @@ function validationTargetForText(targetStep: number, text: string, item?: CaseGr
     [['要求到货', 'requested delivery'], 'required-delivery-date'],
     [['寄模运单', 'inbound model tracking'], 'inbound-tracking'],
     [['牙位', 'tooth position'], 'tooth-positions'],
-    [['产品变体', 'product variant'], 'product-variant'],
-    [['设计交付文件格式', 'design delivery file format'], 'field-design_delivery_format'],
-    [['设计交期', 'design delivery time'], 'field-design_delivery_turnaround'],
+    [['产品变体', 'product variant', '扩弓方向', 'expansion direction'], 'product-variant'],
+    [['数据格式', 'data format'], 'field-delivery_format'],
+    [['设计标准', 'design standard'], 'field-design_standard'],
+    [['设计时间', 'design turnaround'], 'field-design_turnaround'],
+    [['设计要求备注', 'design requirements note'], 'field-case_note'],
     [['实体模型运单', 'physical model tracking'], 'field-physical_model_tracking_no'],
     [['七步处方', 'seven-step clear aligner'], 'orthodontic-prescription'],
     [['制作要求确认', 'production requirements confirmation'], 'confirmation-requirements'],
@@ -1583,9 +1655,9 @@ function validationIssuesForStep(targetStep: number): ValidationIssue[] {
       ...caseStepOneErrors().map((text) => ({ step: 1, text }))
     ].map((issue) => ({ ...issue, target: validationTargetForText(1, issue.text) })))
   }
-  if (targetStep === 4) {
+  if (targetStep === 3) {
     return uniqueValidationIssues(missingRequiredProductSlots.value.map(({ item }) => ({
-      step: 4,
+      step: 3,
       orderId: item.order_id,
       target: 'scan-records',
       text: t(
@@ -1595,8 +1667,9 @@ function validationIssuesForStep(targetStep: number): ValidationIssue[] {
       )
     })))
   }
+  const sourceSteps = targetStep === 2 ? [2, 3] : targetStep === 4 ? [5] : [targetStep]
   return uniqueValidationIssues((group.value?.items ?? []).flatMap((item) =>
-    itemStepErrors(item, targetStep).map((error) => ({
+    sourceSteps.flatMap((sourceStep) => itemStepErrors(item, sourceStep)).map((error) => ({
       step: targetStep,
       orderId: item.order_id,
       text: `${catalogProductName(item)}：${error}`,
@@ -1608,12 +1681,18 @@ function validationIssuesForStep(targetStep: number): ValidationIssue[] {
 function finalValidationIssues(): ValidationIssue[] {
   const issues: ValidationIssue[] = []
   issues.push(...validationIssuesForStep(1))
-  for (const targetStep of [2, 3, 4, 5]) issues.push(...validationIssuesForStep(targetStep))
+  for (const targetStep of [2, 3, 4]) issues.push(...validationIssuesForStep(targetStep))
   if (!finalConfirmations.requirements) {
-    issues.push({ step: 6, text: t('请勾选“制作要求确认”', 'Select “Production Requirements Confirmation”'), target: 'confirmation-requirements' })
+    issues.push({
+      step: 4,
+      text: designServiceSelected.value
+        ? t('请勾选“设计资料确认”', 'Select “Design Records Confirmation”')
+        : t('请勾选“制作要求确认”', 'Select “Production Requirements Confirmation”'),
+      target: 'confirmation-requirements'
+    })
   }
-  if (!finalConfirmations.cycle) {
-    issues.push({ step: 6, text: t('请勾选“制作周期确认”', 'Select “Lead Time Confirmation”'), target: 'confirmation-cycle' })
+  if (!designServiceSelected.value && !finalConfirmations.cycle) {
+    issues.push({ step: 4, text: t('请勾选“制作周期确认”', 'Select “Lead Time Confirmation”'), target: 'confirmation-cycle' })
   }
   return uniqueValidationIssues(issues)
 }
@@ -1622,7 +1701,7 @@ function submitFailureIssue(message: string): ValidationIssue {
   const normalized = message.toLocaleLowerCase()
   if (/(upload file type|upload slot|scan bundle|combined_scan|upper_scan|lower_scan|bite_scan)/.test(normalized)) {
     return {
-      step: 4,
+      step: 3,
       target: 'scan-records',
       text: t(
         '口扫资料格式或分类不符合要求。请在口扫资料区检查文件：仅支持 ZIP、STL、PLY、OBJ，并确认分类正确；PDF 不能作为口扫文件。',
@@ -1632,15 +1711,22 @@ function submitFailureIssue(message: string): ValidationIssue {
   }
   const missingField = normalized.match(/missing required form field:\s*([a-z0-9_-]+)/)?.[1]
   if (missingField) {
-    return { step: 3, target: `field-${missingField}`, text: message }
+    return { step: 2, target: `field-${missingField}`, text: message }
+  }
+  if (normalized.includes('product variant is required')) {
+    return {
+      step: 2,
+      target: 'product-variant',
+      text: t('请选择扩弓方向后再提交', 'Select an expansion direction before submitting')
+    }
   }
   if (normalized.includes('tracking')) {
     return { step: 1, target: 'inbound-tracking', text: message }
   }
   if (normalized.includes('shade')) {
-    return { step: 3, target: 'shade-section', text: message }
+    return { step: 2, target: 'shade-section', text: message }
   }
-  return { step: 6, text: message }
+  return { step: 4, text: message }
 }
 
 function showValidationSummary(title: string, issues: ValidationIssue[]) {
@@ -1738,14 +1824,16 @@ function setToothMode(item: CaseGroupItem, tooth: string, mode: string) {
   if (modes[tooth] === mode) delete modes[tooth]
   else modes[tooth] = mode
   item.form_values.tooth_modes = modes
-  item.form_values.tooth_positions = [...upperTeeth, ...lowerTeeth].filter((candidate) => modes[candidate]).join(',')
+  const positions = [...upperTeeth, ...lowerTeeth].filter((candidate) => modes[candidate])
+  item.form_values.tooth_positions = productCategory(item) === 'DESIGN_SERVICE' ? positions : positions.join(',')
 }
 
 function applyToothMode(item: CaseGroupItem, targets: string[], mode: string) {
   const modes = { ...toothModes(item) }
   targets.forEach((tooth) => { modes[tooth] = mode })
   item.form_values.tooth_modes = modes
-  item.form_values.tooth_positions = [...upperTeeth, ...lowerTeeth].filter((candidate) => modes[candidate]).join(',')
+  const positions = [...upperTeeth, ...lowerTeeth].filter((candidate) => modes[candidate])
+  item.form_values.tooth_positions = productCategory(item) === 'DESIGN_SERVICE' ? positions : positions.join(',')
 }
 
 function singleClickToothMode(item: CaseGroupItem) {
@@ -1858,7 +1946,7 @@ function toothLegend(item: CaseGroupItem) {
 }
 
 function clearTeeth(item: CaseGroupItem) {
-  item.form_values.tooth_positions = ''
+  item.form_values.tooth_positions = productCategory(item) === 'DESIGN_SERVICE' ? [] : ''
   item.form_values.tooth_modes = {}
 }
 
@@ -1976,6 +2064,7 @@ function categoryIcon(categoryCode: string) {
 
 async function saveItemUnlocked(item: CaseGroupItem, silent = false, fileIdsOverride?: number[]) {
   if (!group.value) return false
+  normalizeDesignServiceRequirements(item)
   if (!commitItemObjectFields(item)) {
     if (!silent) ElMessage.warning(t('请先修正补充信息', 'Correct the additional information first'))
     return false
@@ -2322,7 +2411,7 @@ async function removeSharedFile(file: DoctorFile) {
 
 async function nextStep() {
   if (busy.value || fileUploading.value) return
-  if (step.value === 3) {
+  if (step.value === 2) {
     group.value?.items.forEach((item) => commitItemObjectFields(item))
   }
   const issues = validationIssuesForStep(step.value)
@@ -2336,9 +2425,9 @@ async function nextStep() {
   busy.value = true
   try {
     if (step.value === 1 && !(await persistPendingProductsUnlocked())) return
-    if (step.value <= 5 && !(await saveAllItemsUnlocked())) return
+    if (step.value <= 3 && !(await saveAllItemsUnlocked())) return
     validationSummary.value = null
-    step.value = Math.min(6, step.value + 1)
+    step.value = Math.min(4, step.value + 1)
   } finally {
     busy.value = false
   }
@@ -2373,11 +2462,42 @@ function selectedBindingLabels(item: CaseGroupItem) {
   return [...materialLabels, ...accessoryLabels]
 }
 
+function designStandardLabel(value: unknown) {
+  if (value === 'GENERAL') return t('通用', 'General')
+  if (value === 'PERSONALIZED') return t('个性化', 'Personalized')
+  return String(value ?? '')
+}
+
+function designTurnaroundLabel(value: unknown) {
+  if (value === '12H') return t('12 小时', '12 Hours')
+  if (value === '24H') return t('24 小时', '24 Hours')
+  if (value === '3D') return t('3 天', '3 Days')
+  return String(value ?? '')
+}
+
 function productionRequirementsLabel(item: CaseGroupItem) {
+  const designService = productCategory(item) === 'DESIGN_SERVICE'
+  const designNote = designService
+    ? String(item.form_values.case_note ?? '').trim()
+    : ''
   const parts = [
     selectedTeeth(item).length
       ? t('牙位：{teeth}', 'Teeth: {teeth}', { teeth: selectedTeeth(item).join(locale.value === 'EN' ? ', ' : '、') })
       : '',
+    designService && item.form_values.delivery_format
+      ? t('数据格式：{format}', 'Data format: {format}', { format: String(item.form_values.delivery_format) })
+      : '',
+    designService && item.form_values.design_standard
+      ? t('设计标准：{standard}', 'Design standard: {standard}', {
+          standard: designStandardLabel(item.form_values.design_standard)
+        })
+      : '',
+    designService && item.form_values.design_turnaround
+      ? t('设计时间：{turnaround}', 'Design turnaround: {turnaround}', {
+          turnaround: designTurnaroundLabel(item.form_values.design_turnaround)
+        })
+      : '',
+    designNote ? t('设计要求：{note}', 'Design note: {note}', { note: designNote }) : '',
     ...selectedBindingLabels(item),
     ...sourceArray(item, 'process_reviews').map((value) => localizedSourceText(value, value))
   ].filter(Boolean)
@@ -2419,6 +2539,9 @@ function attachmentCountLabel(item: CaseGroupItem) {
 }
 
 function productionCycleLabel() {
+  if (designServiceSelected.value) {
+    return t('医生确认设计并完成账单付款后下载', 'Download after doctor approval and bill payment')
+  }
   return caseSettings.required_delivery_date
     ? t('要求到货：{date}', 'Requested delivery: {date}', { date: caseSettings.required_delivery_date })
     : t('要求到货日期未填写', 'Requested delivery date not entered')
@@ -2491,7 +2614,7 @@ async function submitGroup() {
     const message = caseErrorText(cause, '订单提交失败，请保留草稿并重试', 'Failed to submit the order. Keep the draft and try again.')
     const issue = submitFailureIssue(message)
     validationSummary.value = {
-      step: 6,
+      step: 4,
       title: t('订单提交失败，请检查以下问题', 'Order submission failed. Check the following issue'),
       issues: [issue]
     }
@@ -2702,7 +2825,7 @@ onMounted(async () => {
                 </div>
               </section>
 
-              <section class="case-config-form" data-validation-target="order-requirements">
+              <section v-if="!designServiceSelected" class="case-config-form" data-validation-target="order-requirements">
                 <header class="case-section-title"><div><small>{{ t('订单要求', 'Order Requirements') }}</small><h3>{{ t('出货、到货与运输信息', 'Dispatch, Delivery & Shipping') }}</h3></div></header>
                 <div class="case-field-grid">
                   <label class="case-field"><span>{{ t('订单周期 *', 'Order Priority *') }}</span><select v-model="caseSettings.priority"><option value="NORMAL">{{ t('正常出货周期', 'Standard Lead Time') }}</option><option value="RUSH_3_DAYS">{{ t('3 天加急', '3-day Rush') }}</option><option value="SAME_DAY">{{ t('当天出货', 'Same-day Dispatch') }}</option></select></label>
@@ -2714,6 +2837,10 @@ onMounted(async () => {
                   <label class="case-field full"><span>{{ t('整单备注', 'Case Notes') }}</span><textarea v-model="caseSettings.global_notes" rows="3" :placeholder="t('病例整体要求，可使用中文或英文', 'Overall case requirements')"></textarea></label>
                 </div>
                 <div class="case-alert warning">{{ t('请填写期望到货日期；客服将在受理订单时确认可行的制作与配送周期。', 'Enter the requested delivery date. Order Support will confirm a feasible production and delivery schedule during review.') }}</div>
+              </section>
+              <section v-else class="case-config-form case-design-service-summary" data-validation-target="order-requirements">
+                <header class="case-section-title"><div><small>{{ t('订单要求', 'Order Requirements') }}</small><h3>{{ t('数字设计交付', 'Digital Design Delivery') }}</h3></div></header>
+                <div class="case-alert info">{{ t('设计服务不需要填写出货日期、运输方式或实体生产要求；下一步需确认牙位、数据格式、设计标准和设计时间，设计要求备注可选填。资料上传仍使用通用口扫规则；设计通过并完成账单付款后可下载原文件。', 'Design services do not require a dispatch date, shipping method, or physical-production requirements. Next, confirm tooth positions, data format, design standard, and design turnaround; the design requirements note is optional. Standard scan records are still required, and the original files can be downloaded after design approval and bill payment.') }}</div>
               </section>
             </div>
 
@@ -2736,7 +2863,8 @@ onMounted(async () => {
         </div>
       </section>
 
-      <section v-else-if="step === 2" class="case-panel case-config-panel" data-validation-target="step-2-section">
+      <section v-else-if="step === 2" class="case-combined-step" data-validation-target="step-2-section">
+      <section class="case-panel case-config-panel">
         <header><h1>{{ t('牙位与制作要求', 'Teeth & Production Requirements') }}</h1><p>{{ t('请逐个产品选择牙位，并填写相应的临床与制作要求。', 'Select teeth and enter the clinical and production requirements for each product.') }}</p></header>
         <div class="case-config-layout">
           <aside class="case-item-tabs" :data-section-label="t('已选产品', 'Selected Products')">
@@ -2851,7 +2979,7 @@ onMounted(async () => {
                 <label v-if="activeItem.form_values.occlusion_level === 'CLEARANCE'" class="case-field"><span>{{ t('空开距离（mm）*', 'Clearance (mm) *') }}</span><input v-model.number="activeItem.form_values.occlusion_clearance_mm" type="number" min="0" step="0.1"></label>
                 <label class="case-field"><span>{{ t('邻接 *', 'Contact *') }}</span><select v-model="activeItem.form_values.contact_level"><option value="">{{ t('请选择', 'Select') }}</option><option value="OPEN">{{ t('空开', 'Open') }}</option><option value="NORMAL">{{ t('正常', 'Normal') }}</option><option value="TIGHT">{{ t('紧', 'Tight') }}</option><option value="POINT">{{ t('点接触', 'Point Contact') }}</option><option value="SURFACE">{{ t('面接触', 'Surface Contact') }}</option></select></label>
                 <label class="case-field"><span>{{ t('染色 *', 'Staining *') }}</span><select v-model="activeItem.form_values.stain_level"><option value="">{{ t('请选择', 'Select') }}</option><option value="NONE">{{ t('无', 'None') }}</option><option value="LIGHT">{{ t('轻', 'Light') }}</option><option value="MEDIUM">{{ t('中', 'Medium') }}</option><option value="HEAVY">{{ t('重', 'Heavy') }}</option></select></label>
-                <label class="case-field"><span>{{ t('边缘 *', 'Margin *') }}</span><select v-model="activeItem.form_values.margin_type"><option value="">{{ t('请选择', 'Select') }}</option><option value="METAL">{{ t('金属边缘', 'Metal Margin') }}</option><option value="PORCELAIN">{{ t('包瓷边缘', 'Porcelain Margin') }}</option><option value="THREE_QUARTER_LINGUAL">{{ t('3/4 金属舌侧边', '3/4 Metal Lingual Margin') }}</option></select></label>
+                <label class="case-field"><span>{{ t('修复体边缘形式 *', 'Restoration Margin Design *') }}</span><select v-model="activeItem.form_values.margin_type"><option value="">{{ t('请选择', 'Select') }}</option><option value="METAL">{{ t('金属边缘', 'Metal Margin') }}</option><option value="PORCELAIN">{{ t('包瓷边缘', 'Porcelain Margin') }}</option><option value="THREE_QUARTER_LINGUAL">{{ t('3/4 金属舌侧边', '3/4 Metal Lingual Margin') }}</option></select></label>
               </div>
               <div v-else-if="productCategory(activeItem) === 'REMOVABLE_PROSTHETICS'" class="case-field-grid">
                 <label class="case-field"><span>{{ t('咬合 *', 'Occlusion *') }}</span><select v-model="activeItem.form_values.occlusion_level"><option value="">{{ t('请选择', 'Select') }}</option><option value="LIGHT">{{ t('轻', 'Light') }}</option><option value="NORMAL">{{ t('正常', 'Normal') }}</option><option value="HEAVY">{{ t('重', 'Heavy') }}</option><option value="CLEARANCE">{{ t('空开', 'Clearance') }}</option></select></label>
@@ -2860,11 +2988,6 @@ onMounted(async () => {
                 <label class="case-field"><span>{{ t('垂直高度（mm）', 'Vertical Height (mm)') }}</span><input v-model.number="activeItem.form_values.vertical_height_mm" type="number" min="0" step="0.1"></label>
               </div>
               <div v-else-if="productCategory(activeItem) === 'IMPLANT_RESTORATION'" class="case-field-grid">
-                <label class="case-field"><span>{{ t('固位方式 *', 'Retention Type *') }}</span><select v-model="activeItem.form_values.retention_type"><option value="">{{ t('请选择', 'Select') }}</option><option value="SCREW">{{ t('螺丝固位', 'Screw-retained') }}</option><option value="CEMENT">{{ t('粘接固位', 'Cement-retained') }}</option></select></label>
-                <label class="case-field"><span>{{ t('种植系统 *', 'Implant System *') }}</span><select v-model="activeItem.form_values.implant_system"><option value="">{{ t('请选择', 'Select') }}</option><option>Nobel Biocare</option><option>Straumann</option><option>Osstem</option><option>BioHorizons</option><option>Zimmer Biomet</option><option>Megagen</option><option>{{ t('其他', 'Other') }}</option></select></label>
-                <label class="case-field"><span>{{ t('种植直径 × 长度 *', 'Implant Diameter × Length *') }}</span><input v-model="activeItem.form_values.implant_diameter_length" :placeholder="t('例如 Ø4.1 × 10mm', 'For example: Ø4.1 × 10 mm')"></label>
-                <label class="case-field"><span>{{ t('穿龈高度（mm）', 'Transmucosal Height (mm)') }}</span><input v-model.number="activeItem.form_values.transmucosal_height_mm" type="number" min="0" step="0.1"></label>
-                <label class="case-field"><span>{{ t('连接方式 *', 'Connection Type *') }}</span><select v-model="activeItem.form_values.connection_type"><option value="">{{ t('请选择', 'Select') }}</option><option value="EXTERNAL">{{ t('外连接', 'External Connection') }}</option><option value="INTERNAL">{{ t('内连接', 'Internal Connection') }}</option></select></label>
                 <label class="case-field"><span>{{ t('咬合', 'Occlusion') }}</span><select v-model="activeItem.form_values.occlusion_level"><option value="">{{ t('请选择', 'Select') }}</option><option value="LIGHT">{{ t('轻', 'Light') }}</option><option value="NORMAL">{{ t('正常', 'Normal') }}</option><option value="HEAVY">{{ t('重', 'Heavy') }}</option><option value="CLEARANCE">{{ t('空开', 'Clearance') }}</option></select></label>
                 <label class="case-field"><span>{{ t('染色', 'Staining') }}</span><select v-model="activeItem.form_values.stain_level"><option value="">{{ t('请选择', 'Select') }}</option><option value="NONE">{{ t('无', 'None') }}</option><option value="LIGHT">{{ t('轻', 'Light') }}</option><option value="MEDIUM">{{ t('中', 'Medium') }}</option><option value="HEAVY">{{ t('重', 'Heavy') }}</option></select></label>
                 <label class="case-field case-switch"><input v-model="activeItem.form_values.gingival_porcelain" type="checkbox"><span>{{ t('是否加牙龈瓷', 'Add Gingival Porcelain') }}</span></label>
@@ -2897,18 +3020,19 @@ onMounted(async () => {
                 <div class="case-alert info full">{{ t('七步处方将在“试戴与过程确认”阶段填写；联合矫治时还需选择同一病例中的关联产品。', 'Complete the seven-step prescription in Try-in & Confirmations. Combined treatment also requires a related product from the same case.') }}</div>
               </div>
               <div v-else-if="productCategory(activeItem) === 'DESIGN_SERVICE'" class="case-field-grid">
-                <label class="case-field"><span>{{ t('数据格式 *', 'Data Format *') }}</span><select v-model="activeItem.form_values.delivery_format"><option value="">{{ t('请选择', 'Select') }}</option><option>STL</option><option>OBJ</option><option>EXO</option><option>3SHAPE</option></select></label>
-                <label class="case-field"><span>{{ t('设计标准 *', 'Design Standard *') }}</span><select v-model="activeItem.form_values.design_standard"><option value="">{{ t('请选择', 'Select') }}</option><option value="GENERAL">{{ t('通用', 'General') }}</option><option value="PERSONALIZED">{{ t('个性化', 'Personalized') }}</option></select></label>
-                <label class="case-field"><span>{{ t('设计时间 *', 'Design Turnaround *') }}</span><select v-model="activeItem.form_values.design_requirement_turnaround"><option value="">{{ t('请选择', 'Select') }}</option><option value="12H">{{ t('12 小时', '12 Hours') }}</option><option value="24H">{{ t('24 小时', '24 Hours') }}</option><option value="3D">{{ t('3 天', '3 Days') }}</option></select></label>
+                <label class="case-field" data-validation-target="field-delivery_format"><span>{{ t('数据格式 *', 'Data Format *') }}</span><select v-model="activeItem.form_values.delivery_format"><option value="">{{ t('请选择', 'Select') }}</option><option v-for="option in DESIGN_DELIVERY_FORMAT_OPTIONS" :key="option" :value="option">{{ option }}</option></select></label>
+                <label class="case-field" data-validation-target="field-design_standard"><span>{{ t('设计标准 *', 'Design Standard *') }}</span><select v-model="activeItem.form_values.design_standard"><option value="">{{ t('请选择', 'Select') }}</option><option v-for="option in DESIGN_STANDARD_OPTIONS" :key="option.value" :value="option.value">{{ t(option.label, option.value === 'GENERAL' ? 'General' : 'Personalized') }}</option></select></label>
+                <label class="case-field" data-validation-target="field-design_turnaround"><span>{{ t('设计时间 *', 'Design Turnaround *') }}</span><select v-model="activeItem.form_values.design_turnaround"><option value="">{{ t('请选择', 'Select') }}</option><option v-for="option in DESIGN_TURNAROUND_OPTIONS" :key="option.value" :value="option.value">{{ option.value === '12H' ? t('12 小时', '12 Hours') : option.value === '24H' ? t('24 小时', '24 Hours') : t('3 天', '3 Days') }}</option></select></label>
+                <div class="case-alert info full">{{ t('以上三项来自《动态下单表最终版》的设计服务制作要求，均需选择；设计服务无需选择材料、加工工艺或试戴流程，设计要求备注可按需填写。', 'These three required selections come from the final dynamic order form. Design services do not require material, manufacturing-process, or try-in selections; add a design requirements note only when needed.') }}</div>
               </div>
             </section>
-            <label class="case-field full"><span>{{ t('病例说明', 'Case Notes') }}</span><textarea :value="String(activeItem.form_values.case_note ?? '')" rows="4" :placeholder="t('补充咬合、外形或其他临床要求', 'Add occlusion, contour, or other clinical requirements')" @input="updateTextField(activeItem, 'case_note', ($event.target as HTMLTextAreaElement).value)"></textarea></label>
+            <label class="case-field full" data-validation-target="field-case_note"><span>{{ productCategory(activeItem) === 'DESIGN_SERVICE' ? t('设计要求备注（选填）', 'Design Requirements Note (Optional)') : t('病例说明', 'Case Notes') }}</span><textarea :value="String(activeItem.form_values.case_note ?? '')" rows="4" :placeholder="productCategory(activeItem) === 'DESIGN_SERVICE' ? t('如有个性化外形、咬合、边缘等要求，可在此补充', 'Add any custom contour, occlusion, margin, or other requirements') : t('补充咬合、外形或其他临床要求', 'Add occlusion, contour, or other clinical requirements')" @input="updateTextField(activeItem, 'case_note', ($event.target as HTMLTextAreaElement).value)"></textarea></label>
             <button type="button" class="case-primary" :disabled="busy" @click="saveItem(activeItem)">{{ t('保存当前牙位与制作要求', 'Save Teeth & Requirements') }}</button>
           </div>
         </div>
       </section>
 
-      <section v-else-if="step === 3" class="case-panel case-config-panel" data-validation-target="step-3-section">
+      <section v-if="!designServiceSelected" class="case-panel case-config-panel">
         <header><h1>{{ t('材料与工艺', 'Materials & Process') }}</h1><p>{{ t('请逐个产品填写对应的材料、色号和制作要求。', 'Enter materials, shades, and production requirements for each product.') }}</p></header>
         <div class="case-config-layout">
           <aside class="case-item-tabs" :data-section-label="t('已选产品', 'Selected Products')">
@@ -2938,6 +3062,7 @@ onMounted(async () => {
               <div class="case-material-grid">
                 <label class="case-field"><span>{{ t('种植系统 *', 'Implant System *') }}</span><select v-model="activeItem.form_values.implant_system"><option value="">{{ t('请选择', 'Select') }}</option><option>Nobel Biocare</option><option>Straumann</option><option>Osstem</option><option>BioHorizons</option><option>Zimmer Biomet</option><option>Megagen</option><option>{{ t('其他', 'Other') }}</option></select></label>
                 <label class="case-field"><span>{{ t('种植直径 × 长度 *', 'Implant Diameter × Length *') }}</span><input v-model="activeItem.form_values.implant_diameter_length" :placeholder="t('例如 Ø4.1 × 10mm', 'For example: Ø4.1 × 10 mm')"></label>
+                <label class="case-field"><span>{{ t('穿龈高度（mm）', 'Transmucosal Height (mm)') }}</span><input v-model.number="activeItem.form_values.transmucosal_height_mm" type="number" min="0" step="0.1"></label>
                 <label class="case-field"><span>{{ t('连接方式 *', 'Connection Type *') }}</span><select v-model="activeItem.form_values.connection_type"><option value="">{{ t('请选择', 'Select') }}</option><option value="INTERNAL">{{ t('内连接', 'Internal Connection') }}</option><option value="EXTERNAL">{{ t('外连接', 'External Connection') }}</option></select></label>
                 <label class="case-field"><span>{{ t('基台类型', 'Abutment Type') }}</span><select v-model="activeItem.form_values.abutment_type"><option value="">{{ t('请选择', 'Select') }}</option><option value="STANDARD">{{ t('标准基台', 'Standard Abutment') }}</option><option value="ANGLED">{{ t('角度基台', 'Angled Abutment') }}</option><option value="CUSTOM">{{ t('个性化基台', 'Custom Abutment') }}</option></select></label>
                 <label class="case-field"><span>{{ t('固位方式 *', 'Retention Type *') }}</span><select v-model="activeItem.form_values.retention_type"><option value="">{{ t('请选择', 'Select') }}</option><option value="SCREW">{{ t('螺丝固位', 'Screw-retained') }}</option><option value="CEMENT">{{ t('粘接固位', 'Cement-retained') }}</option></select></label>
@@ -2966,7 +3091,7 @@ onMounted(async () => {
                   </select>
                 </label>
                 <label v-if="activeVariants.length" class="case-field" data-validation-target="product-variant">
-                  <span>{{ t('产品规格 *', 'Product Variant *') }}</span>
+                  <span>{{ activeProduct?.product_code === 'ORTHO_SCREW_EXPANDER' ? t('扩弓方向 *', 'Expansion Direction *') : t('产品规格 *', 'Product Variant *') }}</span>
                   <select v-model.number="activeItem.variant_id" @change="changeVariant(activeItem)">
                     <option :value="null">{{ t('请选择', 'Select') }}</option>
                     <option v-for="variant in activeVariants" :key="variant.variant_id" :value="variant.variant_id">{{ catalogVariantName(variant) }}</option>
@@ -2974,7 +3099,7 @@ onMounted(async () => {
                 </label>
 
                 <template v-if="productCategory(activeItem) === 'FIXED_RESTORATION'">
-                  <label class="case-field"><span>{{ t('边缘类型', 'Margin Type') }}</span><select v-model="activeItem.form_values.finish_margin_type"><option value="">{{ t('请选择', 'Select') }}</option><option value="SUPRAGINGIVAL">{{ t('龈上边缘', 'Supragingival Margin') }}</option><option value="SUBGINGIVAL">{{ t('龈下边缘', 'Subgingival Margin') }}</option><option value="SHOULDER_STANDARD">{{ t('肩台标准', 'Standard Shoulder') }}</option></select></label>
+                  <label class="case-field"><span>{{ t('边缘位置 / 肩台', 'Margin Position / Shoulder') }}</span><select v-model="activeItem.form_values.finish_margin_type"><option value="">{{ t('请选择', 'Select') }}</option><option value="SUPRAGINGIVAL">{{ t('龈上边缘', 'Supragingival Margin') }}</option><option value="SUBGINGIVAL">{{ t('龈下边缘', 'Subgingival Margin') }}</option><option value="SHOULDER_STANDARD">{{ t('肩台标准', 'Standard Shoulder') }}</option></select></label>
                   <label class="case-field"><span>{{ t('牙色系统（选填）', 'Shade System (Optional)') }}</span><select v-model="activeItem.form_values.shade_system"><option value="">{{ t('不指定系统', 'No system') }}</option><option value="VITA_16">VITA 16 Classic</option><option value="3D_MASTER">3D Master</option><option value="THREE_ZONE">{{ t('颈部 / 体部 / 切端分色', 'Cervical / Body / Incisal Shades') }}</option></select></label>
                 </template>
                 <template v-else-if="productCategory(activeItem) === 'IMPLANT_RESTORATION'">
@@ -3017,14 +3142,6 @@ onMounted(async () => {
                 </label>
               </div>
               <label class="case-field"><span>{{ t('附件数量及位置说明', 'Accessory Quantity & Position Notes') }}</span><textarea :value="String(activeItem.form_values.orthodontic_accessory_notes ?? '')" rows="3" :placeholder="t('例如：16、26 各加一个带环', 'For example: add one band to teeth 16 and 26')" @input="updateTextField(activeItem, 'orthodontic_accessory_notes', ($event.target as HTMLTextAreaElement).value)"></textarea></label>
-            </section>
-
-            <section v-if="productCategory(activeItem) === 'DESIGN_SERVICE'" class="case-material-section">
-              <header><h3>{{ t('设计交付', 'Design Delivery') }}</h3></header>
-              <div class="case-material-grid">
-                <label class="case-field" data-validation-target="field-design_delivery_format"><span>{{ t('交付文件格式 *', 'Delivery File Format *') }}</span><select v-model="activeItem.form_values.design_delivery_format"><option value="">{{ t('请选择', 'Select') }}</option><option>STL</option><option>OBJ</option><option>EXO</option><option>3SHAPE</option></select></label>
-                <label class="case-field" data-validation-target="field-design_delivery_turnaround"><span>{{ t('交付时间 *', 'Delivery Time *') }}</span><select v-model="activeItem.form_values.design_delivery_turnaround"><option value="">{{ t('请选择', 'Select') }}</option><option value="6H">{{ t('6 小时', '6 Hours') }}</option><option value="12H">{{ t('12 小时', '12 Hours') }}</option><option value="24H">{{ t('24 小时', '24 Hours') }}</option><option value="48H">{{ t('48 小时', '48 Hours') }}</option></select></label>
-              </div>
             </section>
 
             <section v-if="activeMultipleMaterials.length" class="case-material-section">
@@ -3076,7 +3193,9 @@ onMounted(async () => {
         </div>
       </section>
 
-      <section v-else-if="step === 4" class="case-panel" data-validation-target="step-4-section">
+      </section>
+
+      <section v-else-if="step === 3" class="case-panel" data-validation-target="step-3-section">
         <header><h1>{{ t('资料上传', 'Upload Records') }}</h1><p>{{ t('口扫文件可在同一个区域一次选择多份。系统按文件名自动识别上颌、下颌和咬合，无法识别时请手工选择分类；也可直接上传一份包含完整上下颌信息的 ZIP 资料包。单个文件最大 500MB。', 'Select multiple scan files in one upload area. Files are classified by name and ambiguous files must be classified manually. A ZIP containing the complete scan package is also accepted. Maximum file size is 500 MB.') }}</p></header>
         <section class="case-upload-card shared">
           <header><div><strong>{{ t('病例共享资料 · 默认用于全部产品', 'Case-shared Records · Used by All Products by Default') }}</strong><small>{{ t('当前病例共 {count} 个产品；专属区未上传同类文件时，产品自动使用这里的文件', '{count} product(s) in this case. A product automatically uses these files unless a product-specific version is uploaded.', { count: group?.items.length ?? 0 }) }}</small></div><span>{{ t('{count} 个', '{count} file(s)', { count: sharedFiles.length }) }}</span></header>
@@ -3157,7 +3276,8 @@ onMounted(async () => {
         </div>
       </section>
 
-      <section v-else-if="step === 5" class="case-panel case-config-panel" data-validation-target="step-5-section">
+      <section v-else-if="step === 4" class="case-combined-step" data-validation-target="step-4-section">
+      <section class="case-panel case-config-panel">
         <header><h1>{{ t('试戴与过程确认', 'Try-in & Process Confirmations') }}</h1><p>{{ t('请逐个产品选择是否试戴，以及制作过程中需要确认的内容。', 'Choose whether each product requires a try-in and which production steps require confirmation.') }}</p></header>
         <div class="case-config-layout">
           <aside class="case-item-tabs" :data-section-label="t('已选产品', 'Selected Products')">
@@ -3165,7 +3285,7 @@ onMounted(async () => {
               <span>{{ item.line_no }}</span><div><strong>{{ catalogProductName(item) }}</strong><small>{{ itemStepErrors(item, 5).length ? t('{count} 项待补', '{count} item(s) incomplete', { count: itemStepErrors(item, 5).length }) : t('本阶段完整', 'Section Complete') }}</small></div>
             </button>
           </aside>
-          <section v-if="activeItem" class="case-config-form" data-validation-target="step-5-section">
+          <section v-if="activeItem && productCategory(activeItem) !== 'DESIGN_SERVICE'" class="case-config-form">
             <div data-validation-target="orthodontic-prescription">
             <DoctorOrthodonticPrescription
               v-if="productCategory(activeItem) === 'CLEAR_ALIGNER'"
@@ -3208,11 +3328,15 @@ onMounted(async () => {
             </section>
             <button type="button" class="case-primary" :disabled="busy" @click="saveItem(activeItem)">{{ t('保存当前确认要求', 'Save Confirmation Requirements') }}</button>
           </section>
+          <section v-else-if="activeItem" class="case-config-form case-design-service-summary">
+            <div class="case-alert info">{{ t('设计服务不需要试戴、实体模型寄送或生产过程确认；请直接进行订单复核。', 'Design services do not require try-in, physical-model shipping, or production-process confirmations. Continue with the order review.') }}</div>
+          </section>
         </div>
       </section>
 
-      <section v-else class="case-panel" data-validation-target="step-6-section">
-        <header><h1>{{ t('订单信息最终确认', 'Final Order Review') }}</h1><p>{{ t('请核对产品、数量、要求、附件、周期和价格字段。价格暂以占位字段展示；如有疑问可询问客服，询问不会阻止提交。', 'Review the products, quantities, requirements, attachments, lead time, and price fields. Pricing is currently shown as a placeholder. Asking Order Support does not block submission.') }}</p></header>
+      <section class="case-panel case-review-panel">
+        <div class="case-review-panel__content">
+        <header><h1>{{ t('订单信息最终确认', 'Final Order Review') }}</h1><p>{{ designServiceSelected ? t('请核对产品、牙位、数据格式、设计标准、设计时间、口扫资料及已填写的设计要求备注。设计完成后由医生确认，账单付款后下载原文件。', 'Review the product, tooth positions, data format, design standard, design turnaround, scan records, and any design requirements note provided. The doctor approves the completed design, and the original files become downloadable after bill payment.') : t('请核对产品、数量、要求、附件、周期和价格字段。价格暂以占位字段展示；如有疑问可询问客服，询问不会阻止提交。', 'Review the products, quantities, requirements, attachments, lead time, and price fields. Pricing is currently shown as a placeholder. Asking Order Support does not block submission.') }}</p></header>
         <div class="case-review-head">
           <div><span>{{ t('病例订单', 'Case Order') }}</span><strong>{{ group?.group_no }}</strong></div>
           <div><span>{{ t('患者', 'Patient') }}</span><strong>{{ selectedPatient?.patient_name }}</strong></div>
@@ -3229,9 +3353,9 @@ onMounted(async () => {
             <div class="case-review-field-grid">
               <section><span>{{ t('产品', 'Product') }}</span><strong>{{ catalogProductName(item) }}</strong><button type="button" class="case-review-ask-support" @click="openReviewSupportInquiry(item, 'product', t('产品', 'Product'))">{{ t('询问客服', 'Ask Support') }}</button></section>
               <section><span>{{ t('数量', 'Quantity') }}</span><strong>{{ productQuantityLabel(item) }}</strong><button type="button" class="case-review-ask-support" @click="openReviewSupportInquiry(item, 'quantity', t('数量', 'Quantity'))">{{ t('询问客服', 'Ask Support') }}</button></section>
-              <section><span>{{ t('制作要求', 'Production Requirements') }}</span><strong>{{ productionRequirementsLabel(item) }}</strong><button type="button" class="case-review-ask-support" @click="openReviewSupportInquiry(item, 'requirements', t('制作要求', 'Production Requirements'))">{{ t('询问客服', 'Ask Support') }}</button></section>
+              <section><span>{{ designServiceSelected ? t('设计要求', 'Design Requirements') : t('制作要求', 'Production Requirements') }}</span><strong>{{ productionRequirementsLabel(item) }}</strong><button type="button" class="case-review-ask-support" @click="openReviewSupportInquiry(item, 'requirements', designServiceSelected ? t('设计要求', 'Design Requirements') : t('制作要求', 'Production Requirements'))">{{ t('询问客服', 'Ask Support') }}</button></section>
               <section><span>{{ t('附件数量', 'Attachment Count') }}</span><strong>{{ attachmentCountLabel(item) }}</strong><button type="button" class="case-review-ask-support" @click="openReviewSupportInquiry(item, 'attachments', t('附件数量', 'Attachment Count'))">{{ t('询问客服', 'Ask Support') }}</button></section>
-              <section><span>{{ t('制作周期', 'Production Cycle') }}</span><strong>{{ productionCycleLabel() }}</strong><button type="button" class="case-review-ask-support" @click="openReviewSupportInquiry(item, 'cycle', t('制作周期', 'Production Cycle'))">{{ t('询问客服', 'Ask Support') }}</button></section>
+              <section><span>{{ designServiceSelected ? t('交付方式', 'Delivery Method') : t('制作周期', 'Production Cycle') }}</span><strong>{{ productionCycleLabel() }}</strong><button type="button" class="case-review-ask-support" @click="openReviewSupportInquiry(item, 'cycle', designServiceSelected ? t('交付方式', 'Delivery Method') : t('制作周期', 'Production Cycle'))">{{ t('询问客服', 'Ask Support') }}</button></section>
               <section><span>{{ t('价格', 'Price') }}</span><strong class="is-price-placeholder">{{ priceLabel(item) }}</strong><button type="button" class="case-review-ask-support" @click="openReviewSupportInquiry(item, 'price', t('价格', 'Price'))">{{ t('询问客服', 'Ask Support') }}</button></section>
               <section><span>{{ t('附加要求', 'Additional Requirements') }}</span><strong>{{ additionalRequirementsLabel(item) }}</strong><button type="button" class="case-review-ask-support" @click="openReviewSupportInquiry(item, 'additional_requirements', t('附加要求', 'Additional Requirements'))">{{ t('询问客服', 'Ask Support') }}</button></section>
               <section><span>{{ t('默认要求', 'Default Requirements') }}</span><strong>{{ defaultRequirementsLabel(item) }}</strong><button type="button" class="case-review-ask-support" @click="openReviewSupportInquiry(item, 'default_requirements', t('默认要求', 'Default Requirements'))">{{ t('询问客服', 'Ask Support') }}</button></section>
@@ -3245,13 +3369,15 @@ onMounted(async () => {
           </article>
         </div>
         <section class="case-final-confirmations">
-          <label data-validation-target="confirmation-requirements"><input v-model="finalConfirmations.requirements" type="checkbox"><div><strong>{{ t('制作要求确认', 'Production Requirements Confirmation') }}</strong><p>{{ t('我已核对牙位、材料、工艺、资料、试戴及过程确认要求。', 'I have reviewed tooth positions, materials, processes, records, try-in, and confirmation requirements.') }}</p></div></label>
-          <label data-validation-target="confirmation-cycle"><input v-model="finalConfirmations.cycle" type="checkbox"><div><strong>{{ t('制作周期确认', 'Lead Time Confirmation') }}</strong><p>{{ t('我已核对要求到货日：{date}。', 'I have reviewed the requested delivery date: {date}.', { date: caseSettings.required_delivery_date || t('未填写', 'Not Entered') }) }}</p></div></label>
+          <label data-validation-target="confirmation-requirements"><input v-model="finalConfirmations.requirements" type="checkbox"><div><strong>{{ designServiceSelected ? t('设计资料确认', 'Design Records Confirmation') : t('制作要求确认', 'Production Requirements Confirmation') }}</strong><p>{{ designServiceSelected ? t('我已核对牙位、数据格式、设计标准、设计时间、通用口扫资料及已填写的设计要求备注。', 'I have reviewed the tooth positions, data format, design standard, design turnaround, standard scan records, and any design requirements note provided.') : t('我已核对牙位、材料、工艺、资料、试戴及过程确认要求。', 'I have reviewed tooth positions, materials, processes, records, try-in, and confirmation requirements.') }}</p></div></label>
+          <label v-if="!designServiceSelected" data-validation-target="confirmation-cycle"><input v-model="finalConfirmations.cycle" type="checkbox"><div><strong>{{ t('制作周期确认', 'Lead Time Confirmation') }}</strong><p>{{ t('我已核对要求到货日：{date}。', 'I have reviewed the requested delivery date: {date}.', { date: caseSettings.required_delivery_date || t('未填写', 'Not Entered') }) }}</p></div></label>
         </section>
         <div v-if="incompleteItems.length" class="case-alert warning">{{ t('还有 {count} 个子产品不完整，请返回对应阶段补齐：{products}。', '{count} product(s) are incomplete. Return to the relevant sections: {products}.', { count: incompleteItems.length, products: incompleteItems.map((item) => catalogProductName(item)).join(locale === 'EN' ? ', ' : '、') }) }}</div>
         <div v-else-if="missingRequiredProductSlots.length" class="case-alert warning">{{ t('仍有产品的口扫资料未完整，请返回资料上传阶段：上传一份完整资料包，或通过共享/专属资料补齐上颌、下颌、咬合分类。', 'A product still has incomplete scan records. Return to Upload Records and upload a complete package or complete the upper, lower and bite categories with shared/product-specific files.') }}</div>
-        <div v-else-if="!finalConfirmationComplete" class="case-alert warning">{{ t('请完成制作要求和制作周期确认后提交。', 'Confirm the production requirements and lead time before submitting.') }}</div>
+        <div v-else-if="!finalConfirmationComplete" class="case-alert warning">{{ designServiceSelected ? t('请完成设计资料确认后提交。', 'Confirm the design records before submitting.') : t('请完成制作要求和制作周期确认后提交。', 'Confirm the production requirements and lead time before submitting.') }}</div>
         <div v-else class="case-alert success">{{ t('信息填写完整，可以提交订单。', 'All required information is complete. The order is ready to submit.') }}</div>
+        </div>
+      </section>
       </section>
     </main>
 
@@ -3262,7 +3388,7 @@ onMounted(async () => {
       </div>
       <div>
         <button v-if="step > 1" type="button" :disabled="busy || fileUploading" @click="changeStep(step - 1)">{{ t('上一步', 'Previous') }}</button>
-        <button v-if="step < 6" type="button" class="case-primary" :disabled="busy || fileUploading" @click="nextStep">{{ t('下一步', 'Next') }} →</button>
+        <button v-if="step < 4" type="button" class="case-primary" :disabled="busy || fileUploading" @click="nextStep">{{ t('下一步', 'Next') }} →</button>
         <button v-else type="button" class="case-primary" data-testid="case-submit" :disabled="busy || fileUploading" @click="submitGroup">{{ busy ? t('提交中…', 'Submitting…') : t('提交订单', 'Submit Order') }}</button>
       </div>
     </footer>
@@ -4962,11 +5088,26 @@ onMounted(async () => {
   margin-top: 18px;
 }
 
-.case-panel:not(.case-source-step):not(.case-config-panel) {
+.case-panel:not(.case-source-step):not(.case-config-panel):not(.case-review-panel) {
   width: calc(100% - 64px);
   max-width: 800px;
   margin-right: auto;
   margin-left: auto;
+}
+
+.case-review-panel {
+  display: grid;
+  width: 100%;
+  max-width: none;
+  grid-template-columns: 260px minmax(0, 1fr);
+  padding: 0 !important;
+}
+
+.case-review-panel__content {
+  grid-column: 2;
+  width: calc(100% - 64px);
+  max-width: 800px;
+  margin: 24px auto;
 }
 
 .case-footer-context {
@@ -5015,6 +5156,14 @@ onMounted(async () => {
 
   .case-config-panel {
     display: block;
+  }
+
+  .case-review-panel {
+    display: block;
+  }
+
+  .case-review-panel__content {
+    width: calc(100% - 40px);
   }
 
   .case-config-panel > header,
@@ -5757,5 +5906,18 @@ onMounted(async () => {
     align-items: stretch;
     flex-direction: column;
   }
+}
+
+.case-wizard__steps {
+  grid-template-columns: repeat(4, 1fr);
+}
+
+.case-combined-step {
+  display: grid;
+  gap: 24px;
+}
+
+.case-design-service-summary {
+  align-self: start;
 }
 </style>

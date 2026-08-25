@@ -339,6 +339,7 @@ export interface DoctorGateway {
   switchRole(role: ClinicRole): Promise<DoctorPortalDataset>
   loadOrderDetail(orderId: string): Promise<OrderDetail>
   getFilePreviewUrl(fileId: string): Promise<string>
+  getFileDownloadUrl(fileId: string): Promise<string>
   loadPatientDetail(patientId: string): Promise<PatientDetail>
   createPatient(input: PatientCreateInput): Promise<PatientSummary>
   updatePatient(input: PatientUpdateInput): Promise<PatientSummary>
