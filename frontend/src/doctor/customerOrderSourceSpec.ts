@@ -45,6 +45,21 @@ export const CLEAR_ALIGNER_TREATMENT_OPTIONS = [
   { value: 'COMBINED', label: '联合矫治' }
 ] as const
 
+// 《动态下单表最终版.docx》“制作要求（设计服务）”的原文选项。
+// 这些是医生下单必选项，不使用后续界面示例中的 6/48 小时替代。
+export const DESIGN_DELIVERY_FORMAT_OPTIONS = ['STL', 'OBJ', 'EXO', '3SHAPE'] as const
+
+export const DESIGN_STANDARD_OPTIONS = [
+  { value: 'GENERAL', label: '通用' },
+  { value: 'PERSONALIZED', label: '个性化' }
+] as const
+
+export const DESIGN_TURNAROUND_OPTIONS = [
+  { value: '12H', label: '12小时' },
+  { value: '24H', label: '24小时' },
+  { value: '3D', label: '3天' }
+] as const
+
 export const ORTHODONTIC_PRODUCT_GROUPS = [
   {
     label: '颌垫类产品',

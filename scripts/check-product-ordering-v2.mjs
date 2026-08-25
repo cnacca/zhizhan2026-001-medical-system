@@ -127,6 +127,32 @@ assert(
     aliases.get("PRODUCT:Complete Denture") === "REMOVABLE_COMPLETE_DENTURE",
   "Full Denture / Complete Denture 必须归并到同一全口义齿产品",
 );
+assert(
+  !aliases.has("PRODUCT:推簧") && !aliases.has("ACCESSORY:推簧"),
+  "原动态下单表没有推簧术语；业务身份确认前不得把它预设为产品或附件别名",
+);
+assert(
+  baseline.unresolved.some((item) => item.includes("推簧") && item.includes("暂缓")) &&
+    !baseline.unresolved.some((item) => item.includes("螺旋扩弓器") && item.includes("方向")),
+  "来源基线必须保留推簧暂缓边界，并在实现后关闭螺旋扩弓方向缺口",
+);
+for (const unapprovedAliasFile of [
+  "backend/platform-server/src/main/resources/db/migration/V92__add_push_spring_product_alias.sql",
+  "backend/platform-server/src/main/resources/db/migration/V93__backfill_push_spring_alias_all_catalog_versions.sql",
+]) {
+  assert(
+    !fs.existsSync(path.join(root, unapprovedAliasFile)),
+    `D-214 已暂缓推簧；提交前必须移除未批准的别名迁移 ${unapprovedAliasFile}`,
+  );
+}
+const productCatalogTests = read(
+  "backend/platform-server/src/test/java/com/yuri/aiorder/product/ProductCatalogV2Tests.java",
+);
+assert(
+  !productCatalogTests.includes("pushSpringAliases).isEqualTo(1L)") &&
+    productCatalogTests.includes("pushSpringAliases).isZero()"),
+  "D-214 已暂缓推簧；产品目录测试必须证明错误别名不存在",
+);
 for (const alias of baseline.aliases) {
   const targetExists =
     (alias.canonical_type === "PRODUCT" && productCodes.has(alias.canonical_code)) ||
@@ -211,6 +237,18 @@ const requiredImplementationTexts = [
     patterns: ["无托槽隐形矫治器", "CLEAR_ALIGNER_BRACELESS", "FULL", "UPPER", "LOWER", "REGULAR", "COMBINED", "SOURCE_CORRECTION"],
   },
   {
+    file: "docs/requirements/dynamic-order-form-final-source-snapshot-20260825.md",
+    patterns: ["AUTHORITATIVE_SOURCE_TRANSCRIPTION", "弹簧矫正器", "螺旋扩弓器（单向）/（双向）", "加弹簧", "原表没有出现“推簧”"],
+  },
+  {
+    file: "docs/requirements/orthodontic-product-selection-gap-analysis-20260825.md",
+    patterns: ["SCREW_EXPANDER_IMPLEMENTED_LOCAL", "PUSH_SPRING_USER_DEFERRED", "医生必须选择方向", "螺旋扩弓器单向／双向已补齐并写入订单快照"],
+  },
+  {
+    file: "backend/platform-server/src/main/resources/db/migration/V95__add_screw_expander_direction_variants.sql",
+    patterns: ["ORTHO_SCREW_EXPANDER_SINGLE_DIRECTION", "ORTHO_SCREW_EXPANDER_DOUBLE_DIRECTION", "SINGLE_DIRECTION", "DOUBLE_DIRECTION", "DELETE alias"],
+  },
+  {
     file: "backend/platform-server/src/main/resources/db/migration/V63__workflow_standard_time_versioning.sql",
     patterns: ["standard_duration_minutes", "effective_at", "workflow:standard-time:manage"],
   },
@@ -255,6 +293,10 @@ const requiredImplementationTexts = [
     patterns: ["validateActiveRuleSchemas", "ruleSchemaValidator.validate", "SELECT category_id, config_version_id, category_code", "SELECT product_id, config_version_id, category_id", "status, lock_version"],
   },
   {
+    file: "frontend/src/doctor/DoctorCaseGroupWizard.vue",
+    patterns: ["ORTHO_SCREW_EXPANDER", "请选择扩弓方向", "Expansion Direction *", "product variant is required", "请选择扩弓方向后再提交"],
+  },
+  {
     file: "backend/platform-server/src/main/java/com/yuri/aiorder/catalog/CatalogExtendedManagementService.java",
     patterns: [
       "DELETE_DRAFT",
@@ -270,6 +312,8 @@ const requiredImplementationTexts = [
       "PENDING_QUOTE",
       "order_catalog_snapshot",
       "normalized_form_values",
+      "requireConfiguredVariant",
+      "product variant is required",
       "workflow_mapping_snapshot",
       "validateAllowedOptions",
       "validateNumericBounds",
@@ -357,7 +401,7 @@ const requiredImplementationTexts = [
   },
   {
     file: "backend/platform-server/src/test/java/com/yuri/aiorder/product/ProductCatalogV2Tests.java",
-    patterns: ["formSchemaRejectsUnsupportedTypesDuplicateKeysInvalidUpdatesAndInvalidPublishData", "previewExposesProductLockAndDraftProductCanBeUpdatedThenDeleted", "draftCategoryCanBeUpdatedAndDeletedOnlyWhenItHasNoProducts"],
+    patterns: ["formSchemaRejectsUnsupportedTypesDuplicateKeysInvalidUpdatesAndInvalidPublishData", "previewExposesProductLockAndDraftProductCanBeUpdatedThenDeleted", "draftCategoryCanBeUpdatedAndDeletedOnlyWhenItHasNoProducts", "screwExpanderDirectionVariants", "ORTHO_SCREW_EXPANDER_DOUBLE_DIRECTION", "pushSpringAliases).isZero"],
   },
   {
     file: "backend/platform-server/src/test/java/com/yuri/aiorder/auth/PermissionInterceptorTests.java",
@@ -397,5 +441,5 @@ for (const forbiddenText of [
 }
 
 console.log(
-  `[product-ordering-v2] PASS: ${baseline.categories.length} 分类、${baseline.products.length} 产品、${baseline.materials.length} 材料、${baseline.accessories.length} 配件、${baseline.supplemental_orthodontic_terms.length} 正畸补充术语；资料基线、D-174～D-182、V60～V76、分类安全删除、真实目录默认视图、一键开始编辑、业务化文案、隐形正畸下单、隔离写入门禁与工序工时边界已对齐。`,
+  `[product-ordering-v2] PASS: ${baseline.categories.length} 分类、${baseline.products.length} 产品、${baseline.materials.length} 材料、${baseline.accessories.length} 配件、${baseline.supplemental_orthodontic_terms.length} 正畸补充术语；资料基线、D-174～D-182、D-213～D-215 来源与范围门禁、V60～V76、V95 螺旋扩弓方向、分类安全删除、真实目录默认视图、一键开始编辑、业务化文案、隐形正畸下单、隔离写入门禁与工序工时边界已对齐。`,
 );

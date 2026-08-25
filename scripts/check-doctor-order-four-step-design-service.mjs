@@ -12,6 +12,7 @@ const fileTests = read('backend/platform-server/src/test/java/com/yuri/aiorder/f
 const migration = read('backend/platform-server/src/main/resources/db/migration/V89__design_service_order_and_delivery_flow.sql')
 const catalogBackfill = read('backend/platform-server/src/main/resources/db/migration/V90__backfill_design_service_form_rules_all_versions.sql')
 const optionalNoteMigration = read('backend/platform-server/src/main/resources/db/migration/V91__make_design_service_note_optional.sql')
+const sourceRequirementMigration = read('backend/platform-server/src/main/resources/db/migration/V94__restore_design_service_source_requirements.sql')
 
 const failures = []
 const requireText = (source, fragment, scope) => {
@@ -38,7 +39,13 @@ for (const fragment of [
   'v-if="!designServiceSelected"',
   '数字设计交付',
   '设计资料确认',
-  '账单付款即可下载原文件'
+  '账单付款后下载原文件',
+  'data-validation-target="field-delivery_format"',
+  'data-validation-target="field-design_standard"',
+  'data-validation-target="field-design_turnaround"',
+  'DESIGN_DELIVERY_FORMAT_OPTIONS',
+  'DESIGN_STANDARD_OPTIONS',
+  'DESIGN_TURNAROUND_OPTIONS'
 ]) requireText(wizard, fragment, 'DoctorCaseGroupWizard.vue')
 for (const fragment of [
   "errors.push(t('请填写设计要求备注'",
@@ -52,12 +59,9 @@ for (const fragment of [
 for (const fragment of ['账单付款后可下载', 'downloadDesignFile', "review.status === 'APPROVED'"]) {
   requireText(doctorPortal, fragment, 'DoctorPortalV2.vue')
 }
-for (const obsoleteField of [
-  'design_requirement_turnaround',
-  'design_delivery_turnaround',
-  'design_delivery_format',
-  'design_standard'
-]) forbidText(wizard, obsoleteField, 'DoctorCaseGroupWizard.vue')
+for (const obsoleteOption of ['<option value="6H">', '<option value="48H">']) {
+  forbidText(wizard, obsoleteOption, 'DoctorCaseGroupWizard.vue design turnaround')
+}
 
 requireText(contracts, 'getFileDownloadUrl(fileId: string): Promise<string>', 'contracts.ts')
 for (const fragment of ['/download-url', '/bill', 'payment_status']) {
@@ -79,7 +83,27 @@ for (const fragment of ['DESIGN_SERVICE', 'tooth_positions', 'case_note']) {
 for (const fragment of ['DESIGN_SERVICE', 'case_note', "CAST('false' AS JSON)"]) {
   requireText(optionalNoteMigration, fragment, 'V91 optional design-note migration')
 }
-requireText(caseGroupTests, 'designServiceSubmissionUsesCommonScanBundleRequiresToothAndAllowsBlankNote', 'OrderCaseGroupTests.java')
+for (const fragment of [
+  'delivery_format',
+  'design_standard',
+  'design_turnaround',
+  '"STL", "OBJ", "EXO", "3SHAPE"',
+  '{"value": "GENERAL", "label": "通用"}',
+  '{"value": "PERSONALIZED", "label": "个性化"}',
+  '{"value": "12H", "label": "12小时"}',
+  '{"value": "24H", "label": "24小时"}',
+  '{"value": "3D", "label": "3天"}'
+]) requireText(sourceRequirementMigration, fragment, 'V94 design-service source requirements')
+for (const fragment of [
+  "export const DESIGN_DELIVERY_FORMAT_OPTIONS = ['STL', 'OBJ', 'EXO', '3SHAPE']",
+  "{ value: 'GENERAL', label: '通用' }",
+  "{ value: 'PERSONALIZED', label: '个性化' }",
+  "{ value: '12H', label: '12小时' }",
+  "{ value: '24H', label: '24小时' }",
+  "{ value: '3D', label: '3天' }"
+]) requireText(sourceSpec, fragment, 'customerOrderSourceSpec.ts design-service requirements')
+requireText(caseGroupTests, 'designServiceSubmissionRequiresSourceMakingRequirementsAndAllowsBlankNote', 'OrderCaseGroupTests.java')
+requireText(caseGroupTests, '"delivery_format":"PDF"', 'OrderCaseGroupTests.java option validation')
 forbidText(caseGroupTests, '"case_note":"按医生要求完成全冠设计"', 'OrderCaseGroupTests.java optional note submission')
 requireText(fileTests, 'doctorDesignServiceDownloadRequiresConfirmationAndPaidBill', 'FileAccessTests.java')
 

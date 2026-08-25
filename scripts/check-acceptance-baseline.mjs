@@ -127,19 +127,27 @@ requireText('tasks/TASK-038-phase-one-acceptance-baseline-calibration-20260825.m
   'Task 8',
 ])
 requireText('goals/GOAL-037-phase-one-report-followup-closure-20260825.md', [
-  'Status: `in_progress`',
+  'Status: `completed`',
   '基础信息与产品',
   '制作配置',
   '资料上传',
   '复核与提交',
   '完整 CRM',
   'CAD／设计软件',
+  '螺旋扩弓器（单向）/（双向）',
+  'D-212',
+  'D-213',
+  'D-215',
   'Task 8 继续保持 `NOT_READY`',
 ])
 requireText('tasks/TASK-039-doctor-order-simplification-and-catalog-mapping-20260825.md', [
-  'Status: `in_progress`',
+  'Status: `completed`',
   '6 → 4',
   '推簧',
+  'D-211',
+  'D-212',
+  'D-213',
+  'D-215',
   '第 2、3 项按 D-207 留在二期',
 ])
 requireText('docs/development/doctor-order-wizard-simplification-plan-20260825.md', [
@@ -148,9 +156,23 @@ requireText('docs/development/doctor-order-wizard-simplification-plan-20260825.m
   '当前 5 + 6',
   '字段和动态表单项全部保留',
   '数字设计交付',
+  '12 小时／24 小时／3 天',
   '43 项',
 ])
-requireText('DECISIONS.md', ['## D-208', '## D-207', '## D-205', '## D-204', '29 PASS、1 PARTIAL、0 MISSING、8 EXTERNAL_ACCEPTANCE'])
+requireText('DECISIONS.md', ['## D-213', '## D-212', '## D-208', '## D-207', '## D-205', '## D-204', '29 PASS、1 PARTIAL、0 MISSING、8 EXTERNAL_ACCEPTANCE'])
+requireText('docs/requirements/dynamic-order-form-final-source-snapshot-20260825.md', [
+  'AUTHORITATIVE_SOURCE_TRANSCRIPTION',
+  '弹簧矫正器',
+  '螺旋扩弓器（单向）/（双向）',
+  '加弹簧',
+  '原表没有出现“推簧”',
+])
+requireText('docs/requirements/orthodontic-product-selection-gap-analysis-20260825.md', [
+  'PUSH_SPRING_USER_DEFERRED',
+  'SCREW_EXPANDER_IMPLEMENTED_LOCAL',
+  '医生必须选择方向',
+  '螺旋扩弓器单向／双向已补齐并写入订单快照',
+])
 
 if (failures.length > 0) {
   console.error('acceptance baseline check failed:')

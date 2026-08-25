@@ -21,8 +21,8 @@
       "source": "docs/DELIVERY-GAP.md#frontend-business-pages",
       "current_evidence": "四入口登录、医生下单、客服初审、客服协同、客服资料缺失提示、AI 翻译草稿确认、设计稿预览 URL 聚合、客服端设计稿审核预览、账单物流预览/录入、人工付款状态第一段、生产审核、质检工时、绩效、绩效周期筛选第一段、绩效标准工时覆盖率与默认公式第一段、人员档案 / 工作量看板第一增量、质量记录 / 外返登记第一增量、生产看板、返工、终检报告、终检专用角色 / 附件第一增量、终检 PDF/签名第一段、12 步入口 smoke、固定演示数据前 3 步、首个派工节点工序操作数据动作、设计稿确认数据动作、账单/物流第一段数据动作、剩余工序完成、物流发货、医生确认收货数据动作、返工异常路径数据动作和 9D.99 A/B 类一期范围对齐第一段和 9D.100 A/B 类一期范围对齐第二段已落地。 PRD V2 本地功能差异收口 C 已补客服端 /ai/cs 的 AI-2 attachment_contexts 附件预览上下文展示。 PRD V2 本地功能差异收口 D 已补 /dashboards/phase-one-ab 本地月度趋势 / 客户排名聚合第一段，并让客服 / 生产工作台消费该聚合。 GOAL-017 / TASK-018 已补四端前端产品化体验收口：客服设计稿入口复用订单详情设计稿审核链路，客服账单入口复用账单 / 付款 / 配送人工跟进链路，生产设备 / 物料 / 安环 / 成本 / 奖惩入口从演示占位升级为本地第一增量汇总与表单，管理端账号 / 角色 / 权限入口补当前账号菜单与权限码库存展示，并新增统一加载态 / 空态 / 错误态 / 权限拒绝态提示。 GOAL-018 / TASK-019 已补本地 12 步主链路验收增强：`smoke:task9d62` 增加医生端脱敏、客服端可见性、生产端任务范围和管理端派工 / 转派角色边界断言，并新增 `check:local-main-chain-acceptance-hardening`。2026-07-27 医生端新建订单 P1 已完成隔离演示环境真实点击：PNG、PDF、STL 上传后返回上一步仍保留，草稿可见，订单 `ORD20260727-0384C949A3` 成功提交且 3 个附件均为 COMPLETED，缺少必填资料时提交按钮禁用；草稿 `ORD20260727-25A7C1F479`（ID 183）提交后保持同订单号 / 同 ID，未生成重复订单。2026-08-17 医生端中英文界面已通过 PR #27/#28 发布为 `78c0955b35f519f77bf28b107e8ae5a1b138cfd6`，自动部署 #32033871635 通过全量测试、release gates、镜像校验、生产部署和公网探针。正式站实际 JS/CSS 资源已核对英文关键文案、语言记忆键和可切换标签；当前浏览器读取通道超时，未把登录后真实点击记为已完成。",
       "latest_release_evidence": "2026-08-24 D-201／D-202 已发布正式站：医生端英文继续有效，产品目录、医生材料／色号与批量扫描资料、客服退回补资料、客服／管理端／管理端生产复核站内 STL 3D、图片／PDF 预览和预览／下载签名分流已上线。自动部署 #32731578654 通过后端 358 项、release gates、镜像校验、MySQL 备份、部署和公网探针；正式站首页与后端健康正常。普通生产账号因当前无分配工单，在线 STL 点击证据保持 PARTIAL。",
-      "remaining_reason": "2026-08-25 逐行复核确认原 PRD V2 的 38 项是 29 PASS、1 PARTIAL、0 MISSING、8 EXTERNAL_ACCEPTANCE；前端不再列旧的实时保存、设计驳回、质量日期、账号创建或生产门禁为 MISSING。测试报告后续新增的医生下单 6 → 4 步和‘推簧’目录映射按 GOAL-037／TASK-039 单独推进；完整 CRM／客户关怀提醒和 STL 直接打开 CAD／设计软件由用户转入二期。另需普通生产账号有分配工单时的 STL 在线点击、客户最终参数相关页面复测和真实环境总体验收；2026-07-06 A/B/C 表外范围另行跟踪。",
-      "minimum_closure_loop": "先按 TASK-039 完成医生下单 6 → 4 步及回归，再核对‘推簧’映射；使用已有合适工单补普通生产账号 STL 在线点击证据，并把客户最终参数和真实环境相关页面纳入总体验收；不得写正式业务数据强造。原 38 项、表外范围、测试报告后续、跨项门禁和 readiness 分账关闭，Task 8 继续保持 NOT_READY。",
+      "remaining_reason": "2026-08-25 逐行复核确认原 PRD V2 的 38 项是 29 PASS、1 PARTIAL、0 MISSING、8 EXTERNAL_ACCEPTANCE；前端不再列旧的实时保存、设计驳回、质量日期、账号创建或生产门禁为 MISSING。测试报告后续新增的医生下单 6 → 4 步及螺旋扩弓器单向／双向规格已按 GOAL-037／TASK-039 完成本地实现；错误推簧别名实现已清除，‘推簧’按 D-214 保持 USER_DEFERRED。完整 CRM／客户关怀提醒和 STL 直接打开 CAD／设计软件由用户转入二期。另需普通生产账号有分配工单时的 STL 在线点击、客户最终参数相关页面复测和真实环境总体验收；2026-07-06 A/B/C 表外范围另行跟踪。",
+      "minimum_closure_loop": "使用已有合适工单补普通生产账号 STL 在线点击证据，并把客户最终参数和真实环境相关页面纳入总体验收；不得写正式业务数据强造。‘推簧’保持 USER_DEFERRED，不进入当前关闭条件。原 38 项、表外范围、测试报告后续、跨项门禁和 readiness 分账关闭，Task 8 继续保持 NOT_READY。",
       "verification": "npm run check:doctor-portal-i18n; npm run check:doctor-portal-v2; npm run check:doctor-order-product-first; npm run build:frontend; ./scripts/with-jdk21.sh mvn -f backend/pom.xml -pl platform-server -Dtest=OrderStatusProjectionTests,FileAccessTests test; npm run check:local-main-chain-acceptance-hardening; npm run check:task9d62; npm run smoke:task9d62; npm run check:task9d68; npm run check:task8-readiness-gaps; npm run acceptance; git diff --check"
     },
     {
@@ -204,7 +204,7 @@
     {
       "id": "GOAL-003",
       "file": "goals/GOAL-003-repoframe-doc-hydration-20260707.md",
-      "status": "completed",
+      "status": "in_progress",
       "checks": [
         {
           "id": "repoframe-required-files-exist",
@@ -3459,7 +3459,7 @@
     {
       "id": "GOAL-037",
       "file": "goals/GOAL-037-phase-one-report-followup-closure-20260825.md",
-      "status": "in_progress",
+      "status": "completed",
       "checks": [
         {
           "id": "phase-one-report-followup-planning-files",
@@ -3467,7 +3467,9 @@
           "paths": [
             "goals/GOAL-037-phase-one-report-followup-closure-20260825.md",
             "tasks/TASK-039-doctor-order-simplification-and-catalog-mapping-20260825.md",
-            "docs/development/doctor-order-wizard-simplification-plan-20260825.md"
+            "docs/development/doctor-order-wizard-simplification-plan-20260825.md",
+            "docs/requirements/dynamic-order-form-final-source-snapshot-20260825.md",
+            "docs/requirements/orthodontic-product-selection-gap-analysis-20260825.md"
           ]
         },
         {
@@ -3500,6 +3502,8 @@
             "scripts/check-doctor-order-four-step-design-service.mjs",
             "backend/platform-server/src/main/resources/db/migration/V89__design_service_order_and_delivery_flow.sql",
             "backend/platform-server/src/main/resources/db/migration/V90__backfill_design_service_form_rules_all_versions.sql",
+            "backend/platform-server/src/main/resources/db/migration/V94__restore_design_service_source_requirements.sql",
+            "backend/platform-server/src/main/resources/db/migration/V95__add_screw_expander_direction_variants.sql",
             "backend/platform-server/src/test/java/com/yuri/aiorder/order/OrderCaseGroupTests.java",
             "backend/platform-server/src/test/java/com/yuri/aiorder/design/DesignTaskCollaborationTests.java",
             "backend/platform-server/src/test/java/com/yuri/aiorder/file/FileAccessTests.java"
@@ -3523,6 +3527,56 @@
           ]
         },
         {
+          "id": "design-service-source-making-requirements",
+          "type": "required_text",
+          "paths": [
+            "DECISIONS.md",
+            "docs/requirements/dynamic-order-form-field-matrix-20260731.md",
+            "docs/requirements/product-catalog-v2-source-baseline-20260731.json",
+            "backend/platform-server/src/main/resources/db/migration/V94__restore_design_service_source_requirements.sql",
+            "frontend/src/doctor/customerOrderSourceSpec.ts",
+            "frontend/src/doctor/DoctorCaseGroupWizard.vue",
+            "backend/platform-server/src/test/java/com/yuri/aiorder/order/OrderCaseGroupTests.java"
+          ],
+          "patterns": [
+            "D-212",
+            "delivery_format",
+            "design_standard",
+            "design_turnaround",
+            "STL",
+            "OBJ",
+            "EXO",
+            "3SHAPE",
+            "12小时",
+            "24小时",
+            "3天"
+          ]
+        },
+        {
+          "id": "orthodontic-product-selection-source-guard",
+          "type": "required_text",
+          "paths": [
+            "DECISIONS.md",
+            "docs/requirements/dynamic-order-form-final-source-snapshot-20260825.md",
+            "docs/requirements/orthodontic-product-selection-gap-analysis-20260825.md",
+            "goals/GOAL-037-phase-one-report-followup-closure-20260825.md",
+            "tasks/TASK-039-doctor-order-simplification-and-catalog-mapping-20260825.md"
+          ],
+          "patterns": [
+            "D-213",
+            "D-214",
+            "D-215",
+            "螺旋扩弓器（单向）/（双向）",
+            "弹簧矫正器",
+            "加弹簧",
+            "推簧",
+            "REOPENED",
+            "NOT_APPROVED_FOR_COMMIT",
+            "USER_DEFERRED",
+            "LOCALLY_VERIFIED"
+          ]
+        },
+        {
           "id": "phase-one-report-followup-no-fake-completion",
           "type": "forbidden_text",
           "paths": [
@@ -3532,7 +3586,6 @@
           ],
           "patterns": [
             "Task 8 状态：READY",
-            "推簧映射已确认",
             "真实环境验收已完成",
             "客户签字已完成"
           ]
