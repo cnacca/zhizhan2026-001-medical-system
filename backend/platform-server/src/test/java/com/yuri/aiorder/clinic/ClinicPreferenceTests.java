@@ -119,12 +119,13 @@ class ClinicPreferenceTests {
         String orderNo = "SNAP" + UUID.randomUUID().toString().replace("-", "").substring(0, 12);
         jdbcClient.sql("""
                         INSERT INTO orders
-                            (order_no, clinic_id, product_type, form_data, internal_status, external_status)
+                            (order_no, production_order_no, clinic_id, product_type, form_data, internal_status, external_status)
                         VALUES
-                            (:orderNo, :clinicId, 'REGULAR_CROWN', JSON_OBJECT('tooth_position', '11'),
+                            (:orderNo, :productionOrderNo, :clinicId, 'REGULAR_CROWN', JSON_OBJECT('tooth_position', '11'),
                              'PENDING_CS_REVIEW', 'PENDING_REVIEW')
                         """)
                 .param("orderNo", orderNo)
+                .param("productionOrderNo", "PROD-" + orderNo)
                 .param("clinicId", clinicId)
                 .update();
         long orderId = jdbcClient.sql("SELECT order_id FROM orders WHERE order_no = :orderNo")

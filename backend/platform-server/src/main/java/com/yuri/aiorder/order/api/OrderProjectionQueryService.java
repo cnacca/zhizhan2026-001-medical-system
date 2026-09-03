@@ -184,6 +184,17 @@ public class OrderProjectionQueryService {
                         ))
                     OR (:canReviewProduction = TRUE
                         AND o.internal_status = 'PENDING_PRODUCTION_REVIEW')
+                    OR (:canAssignWorkflow = TRUE
+                        AND EXISTS (
+                            SELECT 1
+                            FROM order_process_instance assign_i
+                            JOIN order_process_node assign_n ON assign_n.instance_id = assign_i.instance_id
+                            LEFT JOIN system_user assigned_worker ON assigned_worker.user_id = assign_n.assigned_user_id
+                            JOIN system_user assign_actor ON assign_actor.user_id = :userId
+                            WHERE assign_i.order_id = o.order_id
+                              AND assign_n.node_status IN ('PENDING', 'READY', 'IN_PROGRESS')
+                              AND (assign_n.assigned_user_id IS NULL OR assigned_worker.dept_id = assign_actor.dept_id)
+                        ))
                 )
                 """;
     }
@@ -219,7 +230,8 @@ public class OrderProjectionQueryService {
                 .param("userId", identity.userId())
                 .param("clinicId", identity.clinicId())
                 .param("confirmationGraceDays", deliveryPlanService.doctorConfirmationGraceDays())
-                .param("canReviewProduction", accessControlService.canReviewProduction(identity));
+                .param("canReviewProduction", accessControlService.canReviewProduction(identity))
+                .param("canAssignWorkflow", identity.hasPermission("workflow:assign"));
         if (externalStatus != null && !externalStatus.isBlank()) {
             spec = spec.param("externalStatus", externalStatus);
         }
@@ -256,7 +268,8 @@ public class OrderProjectionQueryService {
             spec = spec.param("dataScope", dataScope)
                     .param("userId", identity.userId())
                     .param("clinicId", identity.clinicId())
-                    .param("canReviewProduction", accessControlService.canReviewProduction(identity));
+                    .param("canReviewProduction", accessControlService.canReviewProduction(identity))
+                    .param("canAssignWorkflow", identity.hasPermission("workflow:assign"));
         }
         return spec.query(this::mapOrder).single();
     }
@@ -266,6 +279,8 @@ public class OrderProjectionQueryService {
                 SELECT
                     o.order_id,
                     o.order_no,
+                    o.production_order_no,
+                    o.box_no,
                     o.group_id,
                     o.clinic_id,
                     c.clinic_name,
@@ -323,6 +338,8 @@ public class OrderProjectionQueryService {
         return new OrderReadRow(
                 rs.getLong("order_id"),
                 rs.getString("order_no"),
+                rs.getString("production_order_no"),
+                rs.getString("box_no"),
                 rs.getObject("group_id", Long.class),
                 rs.getLong("clinic_id"),
                 rs.getString("clinic_name"),
@@ -359,6 +376,7 @@ public class OrderProjectionQueryService {
         return new DoctorOrderVO(
                 row.orderId(),
                 row.orderNo(),
+                row.boxNo(),
                 row.groupId(),
                 row.patientId(),
                 row.productType(),
@@ -446,6 +464,8 @@ public class OrderProjectionQueryService {
         return new OrderInternalDTO(
                 row.orderId(),
                 row.orderNo(),
+                row.productionOrderNo(),
+                row.boxNo(),
                 row.clinicId(),
                 row.clinicName(),
                 row.doctorUserId(),
@@ -461,7 +481,6 @@ public class OrderProjectionQueryService {
                 row.formSchemaSnapshot() == null ? null : readJson(row.formSchemaSnapshot()),
                 internalFormData(row),
                 row.computedDeliveryDate(),
-                row.doctorRequestedDeliveryDate(),
                 row.varianceDays(),
                 deliveryAlert(row),
                 deliveryAlertMessage(row),
@@ -470,19 +489,10 @@ public class OrderProjectionQueryService {
                 row.updatedAt());
     }
 
-    /**
-     * 时间异常提示。医生把到货时间调早于系统可行交期是最需要客服介入的一类，因此优先级最高；
-     * 其次是过程确认超期未回复导致的等待。没有交期计划（F 批次之前的订单）时不提示。
-     */
+    /** 仅保留系统预计到货日期后，交期提示只用于过程确认超期等待。 */
     private String deliveryAlert(OrderReadRow row) {
-        if ("EARLIER_THAN_FEASIBLE".equals(row.varianceFlag())) {
-            return "EARLIER_THAN_FEASIBLE";
-        }
         if (row.confirmationOverdue()) {
             return "WAITING_DOCTOR_CONFIRMATION";
-        }
-        if ("LATER_THAN_PLAN".equals(row.varianceFlag())) {
-            return "LATER_THAN_PLAN";
         }
         return null;
     }
@@ -493,12 +503,7 @@ public class OrderProjectionQueryService {
             return null;
         }
         return switch (alert) {
-            case "EARLIER_THAN_FEASIBLE" -> "医生要求到货 " + row.doctorRequestedDeliveryDate()
-                    + "，早于系统可行交期 " + row.computedDeliveryDate() + "（相差 "
-                    + Math.abs(row.varianceDays() == null ? 0 : row.varianceDays()) + " 天），请与医生确认。";
             case "WAITING_DOCTOR_CONFIRMATION" -> "有过程确认环节超过宽限期未获医生确认，订单处于等待状态。";
-            case "LATER_THAN_PLAN" -> "医生要求到货 " + row.doctorRequestedDeliveryDate()
-                    + "，晚于系统可行交期 " + row.computedDeliveryDate() + "。";
             default -> null;
         };
     }
@@ -611,6 +616,8 @@ public class OrderProjectionQueryService {
     private record OrderReadRow(
             long orderId,
             String orderNo,
+            String productionOrderNo,
+            String boxNo,
             Long groupId,
             long clinicId,
             String clinicName,

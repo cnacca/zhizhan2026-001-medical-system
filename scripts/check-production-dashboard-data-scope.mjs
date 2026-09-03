@@ -13,7 +13,7 @@ const requiredFragments = [
   ],
   [
     '账单物流只允许客服端/管理端加载',
-    "shouldLoadCsSharedDashboardData\n        ? fetchResource('账单物流', () => apiFetch<DeliveryOrderItem[]>('/logistics/orders?limit=50'))"
+    "shouldLoadCsSharedDashboardData\n        ? fetchResource('账单物流提醒', () => apiFetch<DeliveryOrderItem[]>('/logistics/orders?limit=50'))"
   ],
   [
     '生产端待问异常不依赖客服待审消息列表',

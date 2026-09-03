@@ -13,6 +13,8 @@ import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
+import org.springframework.http.HttpHeaders;
+import org.springframework.http.ResponseEntity;
 
 @RestController
 @CrossOrigin(origins = "${app.cors.allowed-origin:http://localhost:5173}")
@@ -116,6 +118,48 @@ public class FileController {
             @PathVariable long fileId,
             BootstrapIdentity identity) {
         return new DataResponse<>(fileResourceService.createPreviewUrl(fileId, identity));
+    }
+
+    @GetMapping("/files/{fileId}/text-preview")
+    @RequirePermission(value = {"file:manage-internal", "file:access-doctor", "workflow:review-production"}, roles = {
+            UserRole.ADMIN, UserRole.CS, UserRole.WORKER, UserRole.DOCTOR})
+    public DataResponse<FileTextPreviewResponse> getTextPreview(
+            @PathVariable long fileId,
+            BootstrapIdentity identity) {
+        return new DataResponse<>(fileResourceService.createTextPreview(fileId, identity));
+    }
+
+    @GetMapping("/files/{fileId}/archive-entries")
+    @RequirePermission(value = {"file:manage-internal", "file:access-doctor", "workflow:review-production"}, roles = {
+            UserRole.ADMIN, UserRole.CS, UserRole.WORKER, UserRole.DOCTOR})
+    public DataResponse<FileArchivePreviewResponse> getArchiveEntries(
+            @PathVariable long fileId,
+            BootstrapIdentity identity) {
+        return new DataResponse<>(fileResourceService.createArchivePreview(fileId, identity));
+    }
+
+    @GetMapping("/files/{fileId}/archive-entry")
+    @RequirePermission(value = {"file:manage-internal", "file:access-doctor", "workflow:review-production"}, roles = {
+            UserRole.ADMIN, UserRole.CS, UserRole.WORKER, UserRole.DOCTOR})
+    public ResponseEntity<byte[]> getArchiveEntry(
+            @PathVariable long fileId,
+            @RequestParam("path") String path,
+            BootstrapIdentity identity) {
+        FileArchiveEntryContent content = fileResourceService.createArchiveEntryPreview(fileId, path, identity);
+        return ResponseEntity.ok()
+                .header(HttpHeaders.CONTENT_TYPE, content.contentType())
+                .header(HttpHeaders.CONTENT_DISPOSITION, "inline")
+                .body(content.bytes());
+    }
+
+    @GetMapping("/files/{fileId}/archive-entry-text")
+    @RequirePermission(value = {"file:manage-internal", "file:access-doctor", "workflow:review-production"}, roles = {
+            UserRole.ADMIN, UserRole.CS, UserRole.WORKER, UserRole.DOCTOR})
+    public DataResponse<FileTextPreviewResponse> getArchiveEntryText(
+            @PathVariable long fileId,
+            @RequestParam("path") String path,
+            BootstrapIdentity identity) {
+        return new DataResponse<>(fileResourceService.createArchiveEntryTextPreview(fileId, path, identity));
     }
 
     @GetMapping("/files/{fileId}/download-url")

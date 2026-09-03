@@ -1,0 +1,81 @@
+/* Portal-specific compact refinements; drawer styles also work when teleported. */
+.production-assignment-page .factory-page-heading { margin-bottom: 16px; }
+.production-assignment-page .admin-flow-guidance { padding: 10px 16px; font-size: 12px; color: #718196; }
+.production-assignment-page .admin-flow-guidance p { margin: 0; }
+.production-assignment-drawer { --el-color-primary: #0f9f91; font-size: 13px; }
+.production-assignment-drawer .el-drawer__header { padding: 16px 20px; margin: 0; border-bottom: 1px solid #e3eaf1; }
+.production-assignment-drawer .el-drawer__body { padding: 16px 20px; background: #f7f9fc; }
+.production-assignment-drawer .aor-drawer-title strong { font-size: 16px; }
+.production-assignment-drawer .aor-drawer-title small { display: block; margin-top: 4px; color: #7b8ba0; font-size: 12px; }
+.production-assignment-drawer .admin-flow-drawer-body { display: grid; gap: 12px; }
+.production-assignment-drawer .admin-flow-summary { display: flex; gap: 16px; flex-wrap: wrap; padding: 10px 12px; background: white; border: 1px solid #e3eaf1; border-radius: 8px; }
+.production-assignment-drawer .admin-flow-summary > div { border: 0; padding: 0; min-width: 60px; background: none; }
+.production-assignment-drawer .admin-flow-summary span { display: block; font-size: 11px; color: #8391a5; }
+.production-assignment-drawer .admin-flow-summary strong { display: block; font-size: 12px; margin-top: 3px; }
+.production-assignment-drawer .admin-flow-section { background: white; border: 1px solid #e1e8f0; border-radius: 8px; overflow: hidden; }
+.production-assignment-drawer .admin-flow-section > header { display: flex; justify-content: space-between; padding: 12px; border-bottom: 1px solid #edf1f5; }
+.production-assignment-drawer .admin-flow-section small { display: block; font-size: 11px; color: #8a98ad; }
+.production-assignment-drawer .admin-flow-assignment-toolbar { display: flex; gap: 10px; flex-wrap: wrap; align-items: center; padding: 12px; border: 0; background: none; }
+.assignment-state-hint { flex-basis: 100%; font-size: 12px; color: #62748a; margin: 0; }
+.production-assignment-drawer .el-form-item { margin: 0; flex: 1 1 250px; }
+.production-assignment-drawer .el-select { width: 100%; }
+.production-assignment-drawer .admin-flow-node-row { display: grid; grid-template-columns: 28px minmax(0,1fr) 72px 90px; align-items: center; width: 100%; gap: 10px; padding: 10px 12px; border: 0; border-bottom: 1px solid #edf1f5; background: #fff; text-align: left; font: inherit; cursor: pointer; }
+.production-assignment-drawer .admin-flow-node-row.active { background: #edf9f7; box-shadow: inset 3px 0 #0f9f91; }
+.production-assignment-drawer .admin-flow-node-row:hover { background: #f3faf9; }
+.production-assignment-drawer .admin-flow-node-assignee { color: #6e7f93; font-size: 11px; text-align: right; }
+.production-assignment-drawer .admin-flow-file-list article { display: flex; justify-content: space-between; gap: 12px; align-items: center; padding: 10px 12px; border-bottom: 1px solid #edf1f5; }
+.production-assignment-drawer .admin-flow-file-list strong { overflow-wrap: anywhere; font-size: 12px; }
+.portal-production .factory-scan-page { font-size: 13px; }
+.portal-production .factory-scan-page h2 { font-size: 20px; }
+.portal-production .factory-scan-lookup { padding: 10px 12px; border-radius: 8px; gap: 8px; }
+.portal-production .factory-scan-lookup input { height: 34px; font-size: 13px; }
+.portal-production .factory-scan-layout { min-height: 340px; grid-template-columns: 250px minmax(0,1fr); border-radius: 8px; }
+/* A scroll-constrained grid must not shrink task rows below their wrapped content. */
+.portal-production .factory-scan-task-list { grid-auto-rows: max-content; }
+.portal-production .factory-scan-task-list .doctor-order-row { height: auto; }
+.portal-production .factory-scan-task-list .doctor-order-row > * { min-width: 0; overflow-wrap: anywhere; }
+.portal-production .factory-scan-task-list button { padding: 12px; font-size: 12px; }
+.portal-production .factory-scan-task-list strong { font-size: 13px; }
+.portal-production .factory-scan-detail { padding: 16px; }
+.portal-production .factory-scan-detail .doctor-order-summary { gap: 10px; padding: 0; }
+.portal-production .factory-scan-detail .doctor-order-summary > div { padding: 10px; border-radius: 6px; box-shadow: none; }
+.portal-production .factory-scan-detail .doctor-order-summary strong { font-size: 13px; }
+.portal-production .factory-scan-detail .check-form { padding: 12px; margin-top: 12px; box-shadow: none; }
+.portal-production .factory-scan-detail .el-form-item__label { font-size: 12px; }
+.dashboard-drilldown { cursor: pointer; transition: box-shadow .15s, background .15s; }
+.dashboard-drilldown:hover { box-shadow: inset 0 0 0 1px #87addb; }
+.dashboard-drilldown:focus-visible { outline: 2px solid #367cf6; outline-offset: 2px; }
+.dashboard-scope-banner { display: flex; align-items: center; justify-content: space-between; padding: 10px 14px; margin-bottom: 12px; border: 1px solid #cde0f9; border-radius: 8px; background: #f0f7ff; font-size: 13px; color: #386498; }
+.dashboard-scope-banner button { border: 0; background: transparent; color: #2563eb; cursor: pointer; }
+.content-grid.with-nav > .dashboard-scope-banner { grid-column: 2; margin: 12px 24px 0; }
+.dv2-trend-summary article[role=button] { cursor: pointer; }
+.dv2-trend-summary article[role=button]:hover { box-shadow: 0 3px 12px #2463eb22; }
+.dv2-trend-summary article[role=button]:focus-visible { outline: 2px solid #2563eb; }
+.case-wizard .case-upload-redesign { max-width: 1120px; font-size: 13px; }
+.case-wizard .case-upload-redesign h1 { font-size: 20px; }
+.case-wizard .case-upload-redesign .case-upload-card { padding: 16px; border-radius: 10px; box-shadow: none; }
+.case-wizard .case-upload-redesign .case-upload-card header strong { font-size: 15px; }
+.case-wizard .case-upload-redesign .case-upload-card header small { font-size: 12px; }
+.case-wizard .case-upload-redesign .upload-layout { display: grid; grid-template-columns: 1fr; gap: 0; }
+.case-wizard .case-upload-redesign .case-item-tabs { position: static; display: flex; overflow-x: auto; padding: 0; margin: 12px 0 0; border-radius: 8px 8px 0 0; }
+.case-wizard .case-upload-redesign .case-item-tabs::before { display: none; }
+.case-wizard .case-upload-redesign .case-item-tabs button { width: auto; min-width: 180px; padding: 10px 14px; border: 0; border-right: 1px solid #e3eaf1; }
+.case-wizard .case-upload-redesign .case-item-tabs button strong { font-size: 13px; }
+.case-wizard .case-upload-redesign .case-item-tabs button small { font-size: 11px; }
+.case-wizard .case-upload-redesign .case-shared-upload-slots { display: grid; grid-template-columns: repeat(2,minmax(0,1fr)); gap: 10px; }
+.case-wizard .case-upload-redesign .case-shared-upload-slot { padding: 12px; border: 1px solid #e3eaf1; border-radius: 8px; background: #fafcff; }
+.case-wizard .case-upload-redesign .case-shared-upload-slot strong { font-size: 13px; }
+.case-wizard .case-upload-redesign .case-shared-upload-slot > div { min-width: 0; }
+.case-wizard .case-upload-redesign .case-shared-upload-slot small { overflow-wrap: anywhere; white-space: normal; }
+.case-wizard .case-upload-redesign .case-scan-bundle-zone { padding: 12px; border-radius: 8px; border-width: 1px; background: #f5f9ff; }
+.case-wizard .case-upload-redesign .case-scan-bundle-zone strong { font-size: 14px; }
+.case-wizard .case-upload-redesign .case-classified-file { grid-template-columns: minmax(0,1fr) 160px auto auto; }
+.case-wizard .case-upload-redesign .case-classified-file select { font-size: 12px; padding: 6px; }
+.case-wizard .case-upload-redesign .case-file-preview { border: 0; padding: 4px 6px; background: transparent; color: #2563eb; font: inherit; text-align: left; }
+.case-wizard .case-upload-redesign .case-record-explanation { grid-column: 1/-1; margin: 0; font-size: 12px; line-height: 1.6; color: #75869d; }
+.case-wizard .case-upload-redesign .case-extra-upload-slot { padding: 12px; border-radius: 8px; }
+.case-wizard .case-upload-redesign .case-extra-upload-slot strong { font-size: 13px; }
+@media (max-width: 800px) {
+  .case-wizard .case-upload-redesign .case-shared-upload-slots { grid-template-columns: 1fr; }
+  .portal-production .factory-scan-layout { grid-template-columns: 1fr; }
+}

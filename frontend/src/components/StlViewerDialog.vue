@@ -2,6 +2,8 @@
 import * as THREE from 'three'
 import { OrbitControls } from 'three/addons/controls/OrbitControls.js'
 import { STLLoader } from 'three/addons/loaders/STLLoader.js'
+import { PLYLoader } from 'three/addons/loaders/PLYLoader.js'
+import { OBJLoader } from 'three/addons/loaders/OBJLoader.js'
 import { nextTick, onBeforeUnmount, ref } from 'vue'
 
 const props = defineProps<{
@@ -22,7 +24,7 @@ let renderer: THREE.WebGLRenderer | null = null
 let scene: THREE.Scene | null = null
 let camera: THREE.PerspectiveCamera | null = null
 let controls: OrbitControls | null = null
-let mesh: THREE.Mesh<THREE.BufferGeometry, THREE.Material> | null = null
+let modelRoot: THREE.Object3D | null = null
 let resizeObserver: ResizeObserver | null = null
 let abortController: AbortController | null = null
 
@@ -43,10 +45,14 @@ function disposeViewer() {
   resizeObserver = null
   controls?.dispose()
   controls = null
-  if (mesh) {
-    mesh.geometry.dispose()
-    mesh.material.dispose()
-    mesh = null
+  if (modelRoot) {
+    modelRoot.traverse((child) => {
+      if (!(child instanceof THREE.Mesh)) return
+      child.geometry.dispose()
+      const materials = Array.isArray(child.material) ? child.material : [child.material]
+      materials.forEach((material) => material.dispose())
+    })
+    modelRoot = null
   }
   renderer?.setAnimationLoop(null)
   renderer?.dispose()
@@ -63,7 +69,7 @@ async function mountViewer() {
   loading.value = true
   const container = viewerContainer.value
   if (!container || !props.sourceUrl) {
-    error.value = 'STL 预览地址不可用'
+    error.value = '3D 预览地址不可用'
     loading.value = false
     return
   }
@@ -97,23 +103,35 @@ async function mountViewer() {
 
     abortController = new AbortController()
     const response = await fetch(props.sourceUrl, { signal: abortController.signal })
-    if (!response.ok) throw new Error(`STL 文件读取失败（HTTP ${response.status}）`)
+    if (!response.ok) throw new Error(`3D 文件读取失败（HTTP ${response.status}）`)
     const buffer = await response.arrayBuffer()
-    const geometry = new STLLoader().parse(buffer)
-    geometry.computeVertexNormals()
-    geometry.center()
-    geometry.computeBoundingBox()
-    geometry.computeBoundingSphere()
-
-    const radius = Math.max(geometry.boundingSphere?.radius ?? 1, 0.001)
     const material = new THREE.MeshStandardMaterial({
       color: '#62b8ad',
       metalness: 0.05,
       roughness: 0.62,
       side: THREE.DoubleSide,
     })
-    mesh = new THREE.Mesh(geometry, material)
-    scene.add(mesh)
+    const extension = props.filename.split('.').pop()?.toLowerCase() ?? 'stl'
+    if (extension === 'obj') {
+      const text = new TextDecoder().decode(buffer)
+      modelRoot = new OBJLoader().parse(text)
+      modelRoot.traverse((child) => {
+        if (child instanceof THREE.Mesh) child.material = material.clone()
+      })
+      material.dispose()
+    } else {
+      const geometry = extension === 'ply'
+        ? new PLYLoader().parse(buffer)
+        : new STLLoader().parse(buffer)
+      geometry.computeVertexNormals()
+      modelRoot = new THREE.Mesh(geometry, material)
+    }
+    const bounds = new THREE.Box3().setFromObject(modelRoot)
+    const center = bounds.getCenter(new THREE.Vector3())
+    const size = bounds.getSize(new THREE.Vector3())
+    modelRoot.position.sub(center)
+    const radius = Math.max(size.length() / 2, 0.001)
+    scene.add(modelRoot)
 
     camera.near = Math.max(radius / 100, 0.01)
     camera.far = Math.max(radius * 100, 1000)
@@ -130,7 +148,7 @@ async function mountViewer() {
     })
   } catch (cause) {
     if (cause instanceof DOMException && cause.name === 'AbortError') return
-    error.value = cause instanceof Error ? cause.message : 'STL 模型解析失败'
+    error.value = cause instanceof Error ? cause.message : '3D 模型解析失败'
   } finally {
     loading.value = false
   }
@@ -145,6 +163,8 @@ onBeforeUnmount(disposeViewer)
 
 <template>
   <el-dialog
+    append-to-body
+    :z-index="11030"
     :model-value="visible"
     width="min(960px, 92vw)"
     class="stl-viewer-dialog"
@@ -156,7 +176,7 @@ onBeforeUnmount(disposeViewer)
     <template #header>
       <div class="stl-viewer-heading">
         <div>
-          <strong>STL 3D 预览</strong>
+          <strong>3D 模型预览</strong>
           <span>{{ filename }}</span>
         </div>
         <small>拖动旋转 · 滚轮缩放 · 右键平移</small>

@@ -35,7 +35,10 @@ public final class OrderRuleModels {
             @JsonProperty("production_days") int productionDays,
             @JsonProperty("transit_days") int transitDays,
             @JsonProperty("computed_delivery_date") LocalDate computedDeliveryDate,
-            @JsonProperty("doctor_requested_delivery_date") LocalDate doctorRequestedDeliveryDate,
+            @JsonProperty("calculated_delivery_date") LocalDate calculatedDeliveryDate,
+            @JsonProperty("manual_override") boolean manualOverride,
+            @JsonProperty("manual_override_reason") String manualOverrideReason,
+            @JsonProperty("manual_override_at") LocalDateTime manualOverrideAt,
             @JsonProperty("variance_days") Integer varianceDays,
             @JsonProperty("variance_flag") String varianceFlag,
             @JsonProperty("delivery_alert") String deliveryAlert,
@@ -113,8 +116,10 @@ public final class OrderRuleModels {
     }
 
     public record AdjustDeliveryDateRequest(
-            @JsonProperty("requested_delivery_date") @NotNull LocalDate requestedDeliveryDate,
-            @JsonProperty("reason") @Size(max = 255) String reason) {
+            @JsonProperty("estimated_delivery_date")
+            @com.fasterxml.jackson.annotation.JsonAlias("requested_delivery_date")
+            @NotNull LocalDate estimatedDeliveryDate,
+            @JsonProperty("reason") @Size(max = 500) String reason) {
     }
 
     public record OrderingRuleResponse(

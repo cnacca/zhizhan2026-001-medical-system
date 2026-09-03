@@ -275,7 +275,7 @@ public class WorkflowRuntimeService {
                 throw new ResponseStatusException(
                         HttpStatus.CONFLICT, "assigned node must use the reassign endpoint");
             }
-            requireActiveWorker(item.userId());
+            requireEligibleAssignmentTarget(node, item.userId(), identity);
             int updated = jdbcClient.sql("""
                             UPDATE order_process_node n
                             JOIN order_process_instance i ON i.instance_id = n.instance_id
@@ -303,7 +303,7 @@ public class WorkflowRuntimeService {
         ensureInstanceForOrder(orderId);
         NodeRow node = lockNode(nodeInstanceId);
         requireAssignableNode(orderId, node);
-        requireActiveWorker(request.newUserId());
+        requireEligibleAssignmentTarget(node, request.newUserId(), identity);
         String reason = normalizeText(request.reason());
         if (reason == null) {
             throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "reason is required when reassigning a node");
@@ -1369,24 +1369,96 @@ public class WorkflowRuntimeService {
         }
     }
 
-    private void requireActiveWorker(long userId) {
-        long activeWorkerCount = jdbcClient.sql("""
-                        SELECT COUNT(DISTINCT user_account.user_id)
-                        FROM system_user user_account
-                        JOIN system_user_role user_role ON user_role.user_id = user_account.user_id
-                        JOIN system_role role ON role.role_id = user_role.role_id
-                        WHERE user_account.user_id = :userId
-                          AND user_account.status = 'ACTIVE'
-                          AND user_account.user_type = 'WORKER'
-                          AND role.status = 'ACTIVE'
-                          AND role.role_code = 'WORKER'
+    public List<AssignmentCandidateResponse> assignmentCandidates(
+            long nodeInstanceId, BootstrapIdentity identity) {
+        accessControlService.requireProcessManagement(identity);
+        NodeRow node = lockNode(nodeInstanceId);
+        return queryAssignmentCandidates(node, identity);
+    }
+
+    private void requireEligibleAssignmentTarget(
+            NodeRow node, long userId, BootstrapIdentity identity) {
+        boolean eligible = queryAssignmentCandidates(node, identity).stream()
+                .anyMatch(candidate -> candidate.userId() == userId);
+        if (!eligible) {
+            throw new ResponseStatusException(
+                    HttpStatus.BAD_REQUEST,
+                    "target user is not an active production member eligible for this process");
+        }
+    }
+
+    private List<AssignmentCandidateResponse> queryAssignmentCandidates(
+            NodeRow node, BootstrapIdentity identity) {
+        boolean teamLead = isProductionTeamLead(identity.userId());
+        Long actorDeptId = teamLead ? userDepartment(identity.userId()) : null;
+        return jdbcClient.sql("""
+                        WITH RECURSIVE production_depts AS (
+                            SELECT dept_id FROM system_dept
+                            WHERE dept_code = 'production' AND status = 'ACTIVE'
+                            UNION ALL
+                            SELECT child.dept_id
+                            FROM system_dept child
+                            JOIN production_depts parent ON child.parent_id = parent.dept_id
+                            WHERE child.status = 'ACTIVE'
+                        )
+                        SELECT u.user_id, u.display_name, u.dept_id, d.dept_name,
+                               (SELECT COUNT(*) FROM order_process_node assigned
+                                WHERE assigned.assigned_user_id = u.user_id
+                                  AND assigned.node_status IN ('READY', 'IN_PROGRESS')) AS active_node_count
+                        FROM system_user u
+                        JOIN system_dept d ON d.dept_id = u.dept_id
+                        WHERE u.status = 'ACTIVE'
+                          AND u.user_type = 'WORKER'
+                          AND u.dept_id IN (SELECT dept_id FROM production_depts)
+                          AND (:teamLead = 0 OR u.dept_id = :actorDeptId)
+                          AND (
+                              :defaultRole IS NULL
+                              OR :defaultRole = ''
+                              OR :defaultRole = 'WORKER'
+                              OR EXISTS (
+                                  SELECT 1
+                                  FROM system_user_role ur
+                                  JOIN system_role r ON r.role_id = ur.role_id
+                                  WHERE ur.user_id = u.user_id
+                                    AND r.status = 'ACTIVE'
+                                    AND r.role_code = :defaultRole
+                              )
+                          )
+                        ORDER BY active_node_count, u.display_name, u.user_id
+                        """)
+                .param("teamLead", teamLead ? 1 : 0)
+                .param("actorDeptId", actorDeptId, java.sql.Types.BIGINT)
+                .param("defaultRole", node.defaultRole())
+                .query((rs, rowNum) -> new AssignmentCandidateResponse(
+                        rs.getLong("user_id"),
+                        rs.getString("display_name"),
+                        rs.getObject("dept_id", Long.class),
+                        rs.getString("dept_name"),
+                        rs.getLong("active_node_count")))
+                .list();
+    }
+
+    private boolean isProductionTeamLead(Long userId) {
+        if (userId == null) return false;
+        return jdbcClient.sql("""
+                        SELECT COUNT(*)
+                        FROM system_user_role ur
+                        JOIN system_role r ON r.role_id = ur.role_id
+                        WHERE ur.user_id = :userId
+                          AND r.status = 'ACTIVE'
+                          AND r.role_code = 'PROD_TEAM_LEAD'
                         """)
                 .param("userId", userId)
                 .query(Long.class)
-                .single();
-        if (activeWorkerCount == 0) {
-            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "target user must be an active WORKER");
-        }
+                .single() > 0;
+    }
+
+    private Long userDepartment(Long userId) {
+        return jdbcClient.sql("SELECT dept_id FROM system_user WHERE user_id = :userId")
+                .param("userId", userId)
+                .query(Long.class)
+                .optional()
+                .orElse(null);
     }
 
     private void recordAssignmentEvent(
@@ -1613,6 +1685,21 @@ public class WorkflowRuntimeService {
                                                 AND scoped_design.assigned_user_id = :userId
                                                 AND scoped_design.task_status <> 'CANCELLED'
                                           )
+                                          OR (
+                                              :canAssignWorkflow = TRUE
+                                              AND EXISTS (
+                                                  SELECT 1
+                                                  FROM order_process_node assign_node
+                                                  LEFT JOIN system_user assigned_worker
+                                                    ON assigned_worker.user_id = assign_node.assigned_user_id
+                                                  JOIN system_user assign_actor
+                                                    ON assign_actor.user_id = :userId
+                                                  WHERE assign_node.instance_id = i.instance_id
+                                                    AND assign_node.node_status IN ('PENDING', 'READY', 'IN_PROGRESS')
+                                                    AND (assign_node.assigned_user_id IS NULL
+                                                         OR assigned_worker.dept_id = assign_actor.dept_id)
+                                              )
+                                          )
                                       ))
                               )
                             """)
@@ -1620,6 +1707,7 @@ public class WorkflowRuntimeService {
                     .param("dataScope", dataScope)
                     .param("userId", identity.userId())
                     .param("clinicId", identity.clinicId())
+                    .param("canAssignWorkflow", identity.hasPermission("workflow:assign"))
                     .query((rs, rowNum) -> new InstanceRow(
                             rs.getLong("instance_id"),
                             rs.getLong("order_id"),
@@ -1663,6 +1751,7 @@ public class WorkflowRuntimeService {
                                 n.is_optional,
                                 n.need_in_check,
                                 n.need_out_check,
+                                n.default_role,
                                 n.assigned_user_id,
                                 n.node_status
                             FROM order_process_node n
@@ -1680,6 +1769,7 @@ public class WorkflowRuntimeService {
                             rs.getInt("is_optional"),
                             rs.getInt("need_in_check"),
                             rs.getInt("need_out_check"),
+                            rs.getString("default_role"),
                             rs.getObject("assigned_user_id", Long.class),
                             rs.getString("node_status")))
                     .single();
@@ -1823,6 +1913,7 @@ public class WorkflowRuntimeService {
             int isOptional,
             int needInCheck,
             int needOutCheck,
+            String defaultRole,
             Long assignedUserId,
             String nodeStatus) {
     }

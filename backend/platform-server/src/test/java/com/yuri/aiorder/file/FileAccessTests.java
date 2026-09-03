@@ -22,10 +22,13 @@ import java.net.URI;
 import java.net.http.HttpClient;
 import java.net.http.HttpRequest;
 import java.net.http.HttpResponse;
+import java.io.ByteArrayOutputStream;
 import java.nio.charset.StandardCharsets;
 import java.util.List;
 import java.util.Set;
 import java.util.UUID;
+import java.util.zip.ZipEntry;
+import java.util.zip.ZipOutputStream;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -37,8 +40,8 @@ import org.springframework.test.web.servlet.MockMvc;
 import org.springframework.test.web.servlet.MvcResult;
 
 @SpringBootTest(properties = {
-        "app.file.allowed-content-types=application/pdf,model/stl,text/plain,application/octet-stream",
-        "app.file.allowed-filename-extensions=pdf,stl,txt",
+        "app.file.allowed-content-types=application/pdf,model/stl,text/plain,application/octet-stream,application/zip",
+        "app.file.allowed-filename-extensions=pdf,stl,txt,zip",
         "app.file.max-file-size-bytes=12582912",
         "app.file.max-files-per-order=3"
 })
@@ -164,6 +167,50 @@ class FileAccessTests {
         assertThat(auditCount(fileId, "COMPLETE", "ALLOWED")).isEqualTo(1L);
         assertThat(auditCount(fileId, "PREVIEW", "ALLOWED")).isEqualTo(1L);
         assertThat(auditCount(fileId, "DOWNLOAD", "ALLOWED")).isEqualTo(1L);
+    }
+
+    @Test
+    void textAndZipFilesHaveAuthenticatedInlinePreviewEndpoints() throws Exception {
+        byte[] textBytes = "医生临床说明：牙位26".getBytes(StandardCharsets.UTF_8);
+        UploadToken textToken = requestUploadToken("clinical-note.txt", "text/plain", textBytes.length);
+        putObject(textToken.uploadUrl(), textBytes, "text/plain");
+        completeUpload(textToken.fileId());
+
+        mockMvc.perform(get("/files/{fileId}/text-preview", textToken.fileId())
+                        .header("X-Bootstrap-Role", "DOCTOR")
+                        .header("X-Bootstrap-User-Id", DOCTOR_USER_ID)
+                        .header("X-Bootstrap-Clinic-Id", clinicId))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.text").value("医生临床说明：牙位26"))
+                .andExpect(jsonPath("$.data.truncated").value(false));
+
+        byte[] zipBytes;
+        try (ByteArrayOutputStream output = new ByteArrayOutputStream();
+             ZipOutputStream zip = new ZipOutputStream(output)) {
+            zip.putNextEntry(new ZipEntry("notes/readme.txt"));
+            zip.write("safe archive preview".getBytes(StandardCharsets.UTF_8));
+            zip.closeEntry();
+            zip.finish();
+            zipBytes = output.toByteArray();
+        }
+        UploadToken zipToken = requestUploadToken("case-files.zip", "application/zip", zipBytes.length);
+        putObject(zipToken.uploadUrl(), zipBytes, "application/zip");
+        completeUpload(zipToken.fileId());
+
+        mockMvc.perform(get("/files/{fileId}/archive-entries", zipToken.fileId())
+                        .header("X-Bootstrap-Role", "DOCTOR")
+                        .header("X-Bootstrap-User-Id", DOCTOR_USER_ID)
+                        .header("X-Bootstrap-Clinic-Id", clinicId))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.entries[0].path").value("notes/readme.txt"))
+                .andExpect(jsonPath("$.data.entries[0].preview_supported").value(true));
+        mockMvc.perform(get("/files/{fileId}/archive-entry-text", zipToken.fileId())
+                        .param("path", "notes/readme.txt")
+                        .header("X-Bootstrap-Role", "DOCTOR")
+                        .header("X-Bootstrap-User-Id", DOCTOR_USER_ID)
+                        .header("X-Bootstrap-Clinic-Id", clinicId))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.text").value("safe archive preview"));
     }
 
     @Test
@@ -932,7 +979,11 @@ class FileAccessTests {
     }
 
     private UploadToken requestUploadToken(long fileSize) throws Exception {
-        String body = uploadTokenBody("case.pdf", "application/pdf", fileSize);
+        return requestUploadToken("case.pdf", "application/pdf", fileSize);
+    }
+
+    private UploadToken requestUploadToken(String filename, String contentType, long fileSize) throws Exception {
+        String body = uploadTokenBody(filename, contentType, fileSize);
         MvcResult result = mockMvc.perform(post("/files/upload-token")
                         .header("X-Bootstrap-Role", "DOCTOR")
                         .header("X-Bootstrap-User-Id", DOCTOR_USER_ID)
@@ -948,6 +999,14 @@ class FileAccessTests {
         JsonNode root = objectMapper.readTree(result.getResponse().getContentAsString());
         JsonNode data = root.path("data");
         return new UploadToken(data.path("file_id").asLong(), data.path("upload_url").asText());
+    }
+
+    private void completeUpload(long fileId) throws Exception {
+        mockMvc.perform(post("/files/{fileId}/complete", fileId)
+                        .header("X-Bootstrap-Role", "DOCTOR")
+                        .header("X-Bootstrap-User-Id", DOCTOR_USER_ID)
+                        .header("X-Bootstrap-Clinic-Id", clinicId))
+                .andExpect(status().isOk());
     }
 
     private MultipartUploadInfo initiateMultipartUpload(long fileSize) throws Exception {

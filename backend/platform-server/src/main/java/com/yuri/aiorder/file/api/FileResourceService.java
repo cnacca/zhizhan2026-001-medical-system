@@ -7,6 +7,7 @@ import com.yuri.aiorder.common.UserRole;
 import com.yuri.aiorder.common.auth.AccessControlService;
 import io.minio.BucketExistsArgs;
 import io.minio.GetPresignedObjectUrlArgs;
+import io.minio.GetObjectArgs;
 import io.minio.ListPartsResponse;
 import io.minio.MakeBucketArgs;
 import io.minio.MinioAsyncClient;
@@ -17,6 +18,10 @@ import io.minio.StatObjectResponse;
 import io.minio.http.Method;
 import io.minio.messages.Part;
 import java.net.URLEncoder;
+import java.io.ByteArrayInputStream;
+import java.io.ByteArrayOutputStream;
+import java.io.InputStream;
+import java.io.IOException;
 import java.nio.charset.StandardCharsets;
 import java.time.LocalDate;
 import java.time.LocalDateTime;
@@ -28,6 +33,8 @@ import java.util.Map;
 import java.util.Optional;
 import java.util.Set;
 import java.util.UUID;
+import java.util.zip.ZipEntry;
+import java.util.zip.ZipInputStream;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.TimeUnit;
 import org.springframework.dao.EmptyResultDataAccessException;
@@ -36,12 +43,21 @@ import org.springframework.http.HttpStatus;
 import org.springframework.jdbc.core.simple.JdbcClient;
 import org.springframework.stereotype.Service;
 import org.springframework.web.server.ResponseStatusException;
+import org.apache.poi.hwpf.extractor.WordExtractor;
+import org.apache.poi.xwpf.extractor.XWPFWordExtractor;
+import org.apache.poi.xwpf.usermodel.XWPFDocument;
 
 @Service
 public class FileResourceService {
 
     private static final Set<String> DOCTOR_VISIBLE_FILE_VISIBILITIES = Set.of("DOCTOR", "DOCTOR_CS", "ALL");
     private static final long MIN_MULTIPART_PART_SIZE = 5L * 1024L * 1024L;
+    private static final long MAX_TEXT_PREVIEW_BYTES = 20L * 1024L * 1024L;
+    private static final long MAX_ARCHIVE_ENTRY_PREVIEW_BYTES = 50L * 1024L * 1024L;
+    private static final int MAX_ARCHIVE_PREVIEW_ENTRIES = 1000;
+    private static final Set<String> ARCHIVE_PREVIEW_EXTENSIONS = Set.of(
+            "stl", "sla", "ply", "obj", "pdf", "jpg", "jpeg", "png", "webp",
+            "dcm", "dicom", "doc", "docx", "txt");
 
     private final JdbcClient jdbcClient;
     private final MinioClient minioClient;
@@ -120,6 +136,7 @@ public class FileResourceService {
         boolean csScoped = identity.role() == UserRole.CS;
         boolean designReviewer = identity.hasPermission("design-draft:internal-review");
         boolean productionReviewer = identity.hasPermission("workflow:review-production");
+        boolean workflowAssigner = identity.hasPermission("workflow:assign");
         return jdbcClient.sql("""
                         SELECT file_id, source_type, visibility, original_filename, content_type,
                                file_size, upload_status, created_at
@@ -180,6 +197,23 @@ public class FileResourceService {
                                             WHERE self_instance.order_id = self_order.order_id
                                               AND self_node.assigned_user_id = :userId
                                         )
+                                        OR (
+                                            :workflowAssigner = 1
+                                            AND EXISTS (
+                                                SELECT 1
+                                                FROM order_process_instance assign_instance
+                                                JOIN order_process_node assign_node
+                                                  ON assign_node.instance_id = assign_instance.instance_id
+                                                LEFT JOIN system_user assigned_worker
+                                                  ON assigned_worker.user_id = assign_node.assigned_user_id
+                                                JOIN system_user assign_actor
+                                                  ON assign_actor.user_id = :userId
+                                                WHERE assign_instance.order_id = self_order.order_id
+                                                  AND assign_node.node_status IN ('PENDING', 'READY', 'IN_PROGRESS')
+                                                  AND (assign_node.assigned_user_id IS NULL
+                                                       OR assigned_worker.dept_id = assign_actor.dept_id)
+                                            )
+                                        )
                                         OR EXISTS (
                                             SELECT 1
                                             FROM design_task self_design
@@ -230,6 +264,7 @@ public class FileResourceService {
                 .param("csScoped", csScoped ? 1 : 0)
                 .param("designReviewer", designReviewer ? 1 : 0)
                 .param("productionReviewer", productionReviewer ? 1 : 0)
+                .param("workflowAssigner", workflowAssigner ? 1 : 0)
                 .param("userId", identity.userId())
                 .query((rs, rowNum) -> new OrderFileResponse(
                         rs.getLong("file_id"),
@@ -549,6 +584,198 @@ public class FileResourceService {
         String url = presignedReadUrl(file, properties.previewUrlTtlSeconds(), false);
         audit(file.fileId(), file.orderId(), identity.userId(), "PREVIEW", "ALLOWED", null);
         return new FileSignedUrlResponse(file.fileId(), url, null, properties.previewUrlTtlSeconds());
+    }
+
+    public FileTextPreviewResponse createTextPreview(long fileId, BootstrapIdentity identity) {
+        FileRow file = loadFile(fileId, identity, "PREVIEW");
+        requireCompleted(file, "PREVIEW", identity);
+        requireFileActorScope(file, identity, "PREVIEW");
+        String extension = filenameExtension(file.originalFilename());
+        if (!Set.of("txt", "doc", "docx").contains(extension)) {
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "file type does not provide text preview");
+        }
+        byte[] bytes = readObject(file, MAX_TEXT_PREVIEW_BYTES);
+        String text = switch (extension) {
+            case "txt" -> new String(bytes, StandardCharsets.UTF_8);
+            case "docx" -> extractDocxText(bytes);
+            case "doc" -> extractDocText(bytes);
+            default -> throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "unsupported text preview type");
+        };
+        boolean truncated = text.length() > 200_000;
+        if (truncated) {
+            text = text.substring(0, 200_000);
+        }
+        audit(file.fileId(), file.orderId(), identity.userId(), "PREVIEW_TEXT", "ALLOWED", null);
+        return new FileTextPreviewResponse(file.fileId(), file.originalFilename(), text, truncated);
+    }
+
+    public FileArchivePreviewResponse createArchivePreview(long fileId, BootstrapIdentity identity) {
+        FileRow file = loadFile(fileId, identity, "PREVIEW");
+        requireCompleted(file, "PREVIEW", identity);
+        requireFileActorScope(file, identity, "PREVIEW");
+        if (!"zip".equals(filenameExtension(file.originalFilename()))) {
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "file is not a zip archive");
+        }
+        List<FileArchivePreviewResponse.Entry> entries = new ArrayList<>();
+        boolean truncated = false;
+        try (InputStream object = openObject(file); ZipInputStream zip = new ZipInputStream(object)) {
+            ZipEntry entry;
+            while ((entry = zip.getNextEntry()) != null) {
+                String safePath = safeArchivePath(entry.getName());
+                if (entries.size() >= MAX_ARCHIVE_PREVIEW_ENTRIES) {
+                    truncated = true;
+                    break;
+                }
+                String extension = filenameExtension(safePath);
+                entries.add(new FileArchivePreviewResponse.Entry(
+                        safePath,
+                        Math.max(entry.getSize(), 0L),
+                        entry.isDirectory(),
+                        !entry.isDirectory() && ARCHIVE_PREVIEW_EXTENSIONS.contains(extension)));
+                zip.closeEntry();
+            }
+        } catch (IOException ex) {
+            throw new ResponseStatusException(HttpStatus.UNPROCESSABLE_ENTITY, "cannot read zip archive", ex);
+        }
+        audit(file.fileId(), file.orderId(), identity.userId(), "PREVIEW_ARCHIVE", "ALLOWED", null);
+        return new FileArchivePreviewResponse(file.fileId(), file.originalFilename(), entries, truncated);
+    }
+
+    public FileArchiveEntryContent createArchiveEntryPreview(
+            long fileId, String requestedPath, BootstrapIdentity identity) {
+        FileRow file = loadFile(fileId, identity, "PREVIEW");
+        requireCompleted(file, "PREVIEW", identity);
+        requireFileActorScope(file, identity, "PREVIEW");
+        if (!"zip".equals(filenameExtension(file.originalFilename()))) {
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "file is not a zip archive");
+        }
+        String target = safeArchivePath(requestedPath);
+        if (!ARCHIVE_PREVIEW_EXTENSIONS.contains(filenameExtension(target))) {
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "archive entry type is not previewable");
+        }
+        try (InputStream object = openObject(file); ZipInputStream zip = new ZipInputStream(object)) {
+            ZipEntry entry;
+            while ((entry = zip.getNextEntry()) != null) {
+                String path = safeArchivePath(entry.getName());
+                if (!entry.isDirectory() && path.equals(target)) {
+                    byte[] bytes = readLimited(zip, MAX_ARCHIVE_ENTRY_PREVIEW_BYTES);
+                    audit(file.fileId(), file.orderId(), identity.userId(), "PREVIEW_ARCHIVE_ENTRY", "ALLOWED", path);
+                    return new FileArchiveEntryContent(path, previewContentType(path), bytes);
+                }
+                zip.closeEntry();
+            }
+        } catch (IOException ex) {
+            throw new ResponseStatusException(HttpStatus.UNPROCESSABLE_ENTITY, "cannot read zip archive entry", ex);
+        }
+        throw new ResponseStatusException(HttpStatus.NOT_FOUND, "archive entry not found");
+    }
+
+    public FileTextPreviewResponse createArchiveEntryTextPreview(
+            long fileId, String requestedPath, BootstrapIdentity identity) {
+        FileArchiveEntryContent entry = createArchiveEntryPreview(fileId, requestedPath, identity);
+        String extension = filenameExtension(entry.filename());
+        if (!Set.of("txt", "doc", "docx").contains(extension)) {
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "archive entry does not provide text preview");
+        }
+        String text = switch (extension) {
+            case "txt" -> new String(entry.bytes(), StandardCharsets.UTF_8);
+            case "docx" -> extractDocxText(entry.bytes());
+            case "doc" -> extractDocText(entry.bytes());
+            default -> throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "unsupported text preview type");
+        };
+        boolean truncated = text.length() > 200_000;
+        return new FileTextPreviewResponse(fileId, entry.filename(),
+                truncated ? text.substring(0, 200_000) : text, truncated);
+    }
+
+    private String extractDocxText(byte[] bytes) {
+        try (XWPFDocument document = new XWPFDocument(new ByteArrayInputStream(bytes));
+             XWPFWordExtractor extractor = new XWPFWordExtractor(document)) {
+            return extractor.getText();
+        } catch (IOException | RuntimeException ex) {
+            throw new ResponseStatusException(HttpStatus.UNPROCESSABLE_ENTITY, "cannot extract docx preview", ex);
+        }
+    }
+
+    private String extractDocText(byte[] bytes) {
+        try (WordExtractor extractor = new WordExtractor(new ByteArrayInputStream(bytes))) {
+            return extractor.getText();
+        } catch (IOException | RuntimeException ex) {
+            throw new ResponseStatusException(HttpStatus.UNPROCESSABLE_ENTITY, "cannot extract doc preview", ex);
+        }
+    }
+
+    private InputStream openObject(FileRow file) {
+        try {
+            return minioClient.getObject(GetObjectArgs.builder()
+                    .bucket(file.bucketName())
+                    .object(file.objectKey())
+                    .build());
+        } catch (Exception ex) {
+            throw new ResponseStatusException(HttpStatus.SERVICE_UNAVAILABLE, "cannot read stored file", ex);
+        }
+    }
+
+    private byte[] readObject(FileRow file, long maxBytes) {
+        try (InputStream input = openObject(file)) {
+            return readLimited(input, maxBytes);
+        } catch (IOException ex) {
+            throw new ResponseStatusException(HttpStatus.SERVICE_UNAVAILABLE, "cannot read stored file", ex);
+        }
+    }
+
+    private byte[] readLimited(InputStream input, long maxBytes) throws IOException {
+        ByteArrayOutputStream output = new ByteArrayOutputStream();
+        byte[] buffer = new byte[8192];
+        long total = 0;
+        int read;
+        while ((read = input.read(buffer)) >= 0) {
+            total += read;
+            if (total > maxBytes) {
+                throw new ResponseStatusException(HttpStatus.PAYLOAD_TOO_LARGE, "preview content exceeds safe limit");
+            }
+            output.write(buffer, 0, read);
+        }
+        return output.toByteArray();
+    }
+
+    private String safeArchivePath(String rawPath) {
+        if (rawPath == null || rawPath.isBlank() || rawPath.indexOf('\0') >= 0) {
+            throw new ResponseStatusException(HttpStatus.UNPROCESSABLE_ENTITY, "zip archive contains invalid path");
+        }
+        String normalized = rawPath.replace('\\', '/');
+        if (normalized.startsWith("/") || normalized.matches("^[A-Za-z]:/.*")) {
+            throw new ResponseStatusException(HttpStatus.UNPROCESSABLE_ENTITY, "zip archive contains absolute path");
+        }
+        for (String segment : normalized.split("/")) {
+            if ("..".equals(segment)) {
+                throw new ResponseStatusException(HttpStatus.UNPROCESSABLE_ENTITY, "zip archive contains parent traversal");
+            }
+        }
+        return normalized;
+    }
+
+    private String filenameExtension(String filename) {
+        if (filename == null) return "";
+        int separator = filename.lastIndexOf('.');
+        return separator < 0 ? "" : filename.substring(separator + 1).trim().toLowerCase(Locale.ROOT);
+    }
+
+    private String previewContentType(String filename) {
+        return switch (filenameExtension(filename)) {
+            case "jpg", "jpeg" -> "image/jpeg";
+            case "png" -> "image/png";
+            case "webp" -> "image/webp";
+            case "pdf" -> "application/pdf";
+            case "txt" -> "text/plain; charset=UTF-8";
+            case "stl", "sla" -> "model/stl";
+            case "ply" -> "model/ply";
+            case "obj" -> "model/obj";
+            case "dcm", "dicom" -> "application/dicom";
+            case "doc" -> "application/msword";
+            case "docx" -> "application/vnd.openxmlformats-officedocument.wordprocessingml.document";
+            default -> "application/octet-stream";
+        };
     }
 
     public FileSignedUrlResponse createDownloadUrl(long fileId, BootstrapIdentity identity) {
@@ -1003,6 +1230,23 @@ public class FileResourceService {
                                                 AND scoped_design.assigned_user_id = :userId
                                           )
                                           OR (
+                                              :workflowAssigner = 1
+                                              AND EXISTS (
+                                                  SELECT 1
+                                                  FROM order_process_instance assign_i
+                                                  JOIN order_process_node assign_n
+                                                    ON assign_n.instance_id = assign_i.instance_id
+                                                  LEFT JOIN system_user assigned_worker
+                                                    ON assigned_worker.user_id = assign_n.assigned_user_id
+                                                  JOIN system_user assign_actor
+                                                    ON assign_actor.user_id = :userId
+                                                  WHERE assign_i.order_id = orders.order_id
+                                                    AND assign_n.node_status IN ('PENDING', 'READY', 'IN_PROGRESS')
+                                                    AND (assign_n.assigned_user_id IS NULL
+                                                         OR assigned_worker.dept_id = assign_actor.dept_id)
+                                              )
+                                          )
+                                          OR (
                                               :designReviewer = 1
                                               AND EXISTS (
                                                   SELECT 1
@@ -1026,6 +1270,7 @@ public class FileResourceService {
                     .param(
                             "productionReviewer",
                             allowDesignReviewScope && identity.hasPermission("workflow:review-production") ? 1 : 0)
+                    .param("workflowAssigner", identity.hasPermission("workflow:assign") ? 1 : 0)
                     .param("userId", identity.userId())
                     .param("clinicId", identity.clinicId())
                     .query((rs, rowNum) -> new OrderScope(
@@ -1140,6 +1385,32 @@ public class FileResourceService {
                                               )
                                           )
                                           OR (
+                                              :workflowAssigner = 1
+                                              AND (f.order_id IS NOT NULL OR f.case_group_id IS NOT NULL)
+                                              AND EXISTS (
+                                                  SELECT 1
+                                                  FROM order_process_instance assign_i
+                                                  JOIN order_process_node assign_n
+                                                    ON assign_n.instance_id = assign_i.instance_id
+                                                  JOIN orders assign_order
+                                                    ON assign_order.order_id = assign_i.order_id
+                                                  LEFT JOIN system_user assigned_worker
+                                                    ON assigned_worker.user_id = assign_n.assigned_user_id
+                                                  JOIN system_user assign_actor
+                                                    ON assign_actor.user_id = :userId
+                                                  WHERE (
+                                                        assign_i.order_id = f.order_id
+                                                        OR (
+                                                            f.attachment_scope = 'SHARED'
+                                                            AND assign_order.group_id = f.case_group_id
+                                                        )
+                                                    )
+                                                    AND assign_n.node_status IN ('PENDING', 'READY', 'IN_PROGRESS')
+                                                    AND (assign_n.assigned_user_id IS NULL
+                                                         OR assigned_worker.dept_id = assign_actor.dept_id)
+                                              )
+                                          )
+                                          OR (
                                               :designReviewer = 1
                                               AND f.order_id IS NOT NULL
                                               AND EXISTS (
@@ -1205,6 +1476,12 @@ public class FileResourceService {
                             "productionReviewer",
                             ("PREVIEW".equals(action) || "DOWNLOAD".equals(action))
                                             && identity.hasPermission("workflow:review-production")
+                                    ? 1
+                                    : 0)
+                    .param(
+                            "workflowAssigner",
+                            ("PREVIEW".equals(action) || "DOWNLOAD".equals(action))
+                                            && identity.hasPermission("workflow:assign")
                                     ? 1
                                     : 0)
                     .param("csActor", identity.role() == UserRole.CS ? 1 : 0)

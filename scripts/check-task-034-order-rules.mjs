@@ -77,12 +77,12 @@ const required = [
   [tryInService, 'TryInService.java', 'finalizeSelection'],
   [tryInService, 'TryInService.java', 'UPDATE orders'],
 
-  // 客服端时间异常提示
+  // 单一系统预计日期 + 过程确认超期提示
   [internalDto, 'OrderInternalDTO.java', '@JsonProperty("delivery_alert")'],
-  [projection, 'OrderProjectionQueryService.java', 'EARLIER_THAN_FEASIBLE'],
   [projection, 'OrderProjectionQueryService.java', 'confirmation_overdue'],
   [csPages, 'CsPortalPages.vue', 'cs-delivery-alert'],
-  [doctorPortal, 'DoctorPortalV2.vue', 'saveRequestedDeliveryDate'],
+  [doctorPortal, 'DoctorPortalV2.vue', 'doctor-contact-support-delivery-date'],
+  [controller, 'OrderRuleController.java', 'order:delivery-date:update'],
   [doctorPortal, 'DoctorPortalV2.vue', 'respondProcessConfirmation'],
 
   // 占位值转正走配置，不改代码
@@ -91,7 +91,7 @@ const required = [
 
   // 契约
   [openapi, 'openapi.yaml', 'getOrderDeliveryPlan'],
-  [openapi, 'openapi.yaml', 'putOrderDeliveryRequestedDate'],
+  [openapi, 'openapi.yaml', 'putOrderEstimatedDeliveryDate'],
   [openapi, 'openapi.yaml', 'postOrderProcessConfirmationRequest'],
   [openapi, 'openapi.yaml', 'postOrderProcessConfirmationRespond'],
   [openapi, 'openapi.yaml', 'postOrderTryInComplete'],
@@ -103,7 +103,7 @@ const required = [
   [tests, 'OrderRuleEngineTests.java', 'eachProcessConfirmationAddsExactlyOneDayToTheDeliveryDate'],
   [tests, 'OrderRuleEngineTests.java', 'rushOrderShortensTheDeliveryDateAndStaysDistinguishableFromTheNormalCycle'],
   [tests, 'OrderRuleEngineTests.java', 'impressionReworkAndReturnOrdersCannotBeSubmittedWithoutInboundTrackingNo'],
-  [tests, 'OrderRuleEngineTests.java', 'doctorPullingTheDeliveryDateForwardRaisesTheCsVarianceAlert'],
+  [tests, 'OrderRuleEngineTests.java', 'csCanOverrideTheSingleSystemEstimatedDateWithReasonAndDoctorIsForbidden'],
   [tests, 'OrderRuleEngineTests.java', 'patientCreatedWhileOrderingImmediatelyAppearsInPatientManagementAndCarriesIntoTheOrder'],
   [tests, 'OrderRuleEngineTests.java', 'processConfirmationLeftUnansweredPostponesDeliveryAndSurfacesAWaitingAlert'],
   [tests, 'OrderRuleEngineTests.java', 'deliveryEstimateIsMarkedPlaceholderUntilCustomerConfirmsTheStandardCycle'],
@@ -136,6 +136,10 @@ for (const forbidden of ['TRY_IN', 'AWAITING_DOCTOR', 'WAITING_DOCTOR']) {
   if (internalStatus.includes(forbidden) || externalStatus.includes(forbidden)) {
     failures.push(`订单状态枚举里出现了 ${forbidden}：试戴/过程确认是独立的域，不进订单状态`)
   }
+}
+
+if (doctorPortal.includes('saveRequestedDeliveryDate')) {
+  failures.push('DoctorPortalV2.vue: 医生提交后仍保留自行修改到货时间的旧调用')
 }
 
 // 回寄运单号的必填范围按验收口径（印模/返工/退货），与前端校验保持一致。

@@ -14,6 +14,7 @@ import type {
   OrderDetail,
   OrderDraftInput,
   OrderReview,
+  OrderSupplement,
   OrderSummary,
   PatientDetail,
   PatientCreateInput,
@@ -45,6 +46,7 @@ type LegacyPublicProgressItem = {
 type LegacyOrder = {
   order_id: number
   order_no: string
+  box_no?: string | null
   group_id?: number | null
   patient_id: number | null
   product_type: string
@@ -58,6 +60,23 @@ type LegacyOrder = {
   created_at?: string | null
   updated_at?: string | null
   public_progress?: LegacyPublicProgressItem[]
+}
+
+type LegacyOrderSupplement = {
+  supplement_id: number
+  order_id: number
+  file_id: number
+  original_filename: string
+  content_type?: string | null
+  file_size?: number | null
+  material_type: string
+  attachment_scope: 'SHARED' | 'PRODUCT'
+  product_order_id?: number | null
+  note?: string | null
+  display_note: string
+  version_no: number
+  approval_status: OrderSupplement['approval_status']
+  created_at: string
 }
 
 type LegacyMessage = {
@@ -474,6 +493,7 @@ export class LegacyHttpDoctorGateway implements DoctorGateway {
     return {
       order_id: String(order.order_id),
       order_no: order.order_no,
+      box_no: order.box_no ?? null,
       group_id: order.group_id ?? null,
       doctor_name: this.profile.displayName,
       patient_id: order.patient_id == null ? '' : String(order.patient_id),
@@ -511,6 +531,7 @@ export class LegacyHttpDoctorGateway implements DoctorGateway {
           ? 'FAILED'
           : 'PROCESSING',
       preview_url: previewUrl,
+      content_type: file.content_type,
       uploaded_at: file.created_at
     }
   }
@@ -866,11 +887,12 @@ export class LegacyHttpDoctorGateway implements DoctorGateway {
   async loadOrderDetail(orderId: string): Promise<OrderDetail> {
     const legacy = await this.request<LegacyOrder>(`/orders/${encodeURIComponent(orderId)}`)
     assertSafeOrderPayload(legacy)
-    const [messagesResult, filesResult, draftsResult, billResult] = await Promise.allSettled([
+    const [messagesResult, filesResult, draftsResult, billResult, supplementsResult] = await Promise.allSettled([
       this.request<LegacyMessage[]>(`/orders/${encodeURIComponent(orderId)}/messages`),
       this.request<LegacyOrderFile[]>(`/orders/${encodeURIComponent(orderId)}/files`),
       this.request<LegacyDesignDraft[]>(`/orders/${encodeURIComponent(orderId)}/design-drafts`),
-      this.request<LegacyBill>(`/orders/${encodeURIComponent(orderId)}/bill`)
+      this.request<LegacyBill>(`/orders/${encodeURIComponent(orderId)}/bill`),
+      this.request<LegacyOrderSupplement[]>(`/orders/${encodeURIComponent(orderId)}/supplements`)
     ])
     if (draftsResult.status === 'rejected') {
       const detail = draftsResult.reason instanceof Error ? draftsResult.reason.message : '未知错误'
@@ -925,6 +947,24 @@ export class LegacyHttpDoctorGateway implements DoctorGateway {
       review_options: reviewOptions,
       reviews,
       files,
+      supplements: supplementsResult.status === 'fulfilled'
+        ? supplementsResult.value.map((item) => ({
+            supplement_id: String(item.supplement_id),
+            order_id: String(item.order_id),
+            file_id: String(item.file_id),
+            original_filename: item.original_filename,
+            content_type: item.content_type ?? null,
+            file_size: item.file_size ?? null,
+            material_type: item.material_type,
+            attachment_scope: item.attachment_scope,
+            product_order_id: item.product_order_id == null ? null : String(item.product_order_id),
+            note: item.note ?? null,
+            display_note: item.display_note,
+            version_no: item.version_no,
+            approval_status: item.approval_status,
+            created_at: item.created_at
+          }))
+        : [],
       messages,
       bill_summary: {
         bill_status: bill?.bill_status || legacy.bill_status || 'UNKNOWN',
@@ -1130,10 +1170,46 @@ export class LegacyHttpDoctorGateway implements DoctorGateway {
         kind: extension === 'stl' ? 'STL' : extension === 'pdf' ? 'PDF' : /^(jpg|jpeg|png)$/.test(extension ?? '') ? 'IMAGE' : 'OTHER',
         size_label: `${Math.max(0.1, file.size / 1024 / 1024).toFixed(1)} MB`,
         status: 'READY',
+        content_type: file.type || null,
         uploaded_at: new Date().toISOString()
       })
     }
     return uploaded
+  }
+
+  async createOrderSupplements(orderId: string, input: {
+    fileIds: string[]
+    materialType: string
+    attachmentScope: 'SHARED' | 'PRODUCT'
+    productOrderId?: string
+    note?: string
+  }): Promise<OrderSupplement[]> {
+    const result = await this.request<LegacyOrderSupplement[]>(`/orders/${encodeURIComponent(orderId)}/supplements`, {
+      method: 'POST',
+      body: JSON.stringify({
+        file_ids: input.fileIds.map(Number),
+        material_type: input.materialType,
+        attachment_scope: input.attachmentScope,
+        product_order_id: input.attachmentScope === 'PRODUCT' ? Number(input.productOrderId ?? orderId) : null,
+        note: input.note?.trim() || null
+      })
+    })
+    return result.map((item) => ({
+      supplement_id: String(item.supplement_id),
+      order_id: String(item.order_id),
+      file_id: String(item.file_id),
+      original_filename: item.original_filename,
+      content_type: item.content_type ?? null,
+      file_size: item.file_size ?? null,
+      material_type: item.material_type,
+      attachment_scope: item.attachment_scope,
+      product_order_id: item.product_order_id == null ? null : String(item.product_order_id),
+      note: item.note ?? null,
+      display_note: item.display_note,
+      version_no: item.version_no,
+      approval_status: item.approval_status,
+      created_at: item.created_at
+    }))
   }
 
   async submitOrder(input: OrderDraftInput): Promise<OrderSummary> {
