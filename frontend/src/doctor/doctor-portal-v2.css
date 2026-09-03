@@ -563,6 +563,9 @@
   border-radius: 14px;
   background: #fff;
 }
+.dv2-metric-grid article[role="button"] { cursor: pointer; transition: transform .14s ease, box-shadow .14s ease, border-color .14s ease; }
+.dv2-metric-grid article[role="button"]:hover { transform: translateY(-2px); border-color: #93c5fd; box-shadow: 0 8px 18px rgba(37, 99, 235, .12); }
+.dv2-metric-grid article[role="button"]:focus-visible { outline: 3px solid rgba(37, 99, 235, .25); outline-offset: 2px; }
 
 .dv2-metric-grid small,
 .dv2-metric-grid strong,
@@ -834,6 +837,9 @@
 .dv2-dashboard-trend > header h2 { font-size: 11px; }
 .dv2-dashboard-trend > header p { margin-top: 3px; color: var(--dv2-muted); font-size: 8px; }
 .dv2-dashboard-trend > header > span { padding: 4px 8px; border: 1px solid #dbe3ef; border-radius: 11px; color: #64748b; font-size: 8px; }
+.dv2-dashboard-trend circle[role="button"] { cursor: pointer; }
+.dv2-dashboard-trend circle[role="button"]:hover,
+.dv2-dashboard-trend circle[role="button"]:focus { stroke: #bfdbfe; stroke-width: 6; outline: none; }
 .dv2-dashboard-trend-body { display: grid; min-height: 174px; grid-template-columns: minmax(0, 1.55fr) minmax(300px, .75fr); gap: 12px; padding: 10px 14px 13px; }
 .dv2-trend-chart { min-width: 0; padding: 5px 7px 0; border: 1px solid #edf1f6; border-radius: 9px; background: linear-gradient(180deg, #fff, #f8fbff); }
 .dv2-trend-chart svg { display: block; width: 100%; height: 126px; overflow: visible; }
@@ -2757,6 +2763,27 @@
 }
 
 .dv2-file-list { display: grid; gap: 8px; }
+.dv2-supplement-panel { display: grid; gap: 10px; margin-bottom: 12px; padding: 12px; border: 1px solid #bfdbfe; border-radius: 10px; background: #f8fbff; }
+.dv2-supplement-heading { display: flex; align-items: flex-start; justify-content: space-between; gap: 12px; }
+.dv2-supplement-heading strong, .dv2-supplement-heading small { display: block; }
+.dv2-supplement-heading small { margin-top: 3px; color: #64748b; }
+.dv2-supplement-heading > span { color: #9a3412; font-size: 8px; }
+.dv2-supplement-fields { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 8px; }
+.dv2-supplement-fields label { display: grid; gap: 4px; color: #475569; font-size: 8px; }
+.dv2-supplement-fields .is-wide { grid-column: 1 / -1; }
+.dv2-supplement-fields select, .dv2-supplement-fields input { min-width: 0; height: 34px; padding: 0 9px; border: 1px solid #cbd5e1; border-radius: 8px; background: #fff; }
+.dv2-supplement-picker { display: flex; align-items: center; gap: 8px; padding: 10px; border: 1px dashed #60a5fa; border-radius: 9px; color: #1d4ed8; cursor: pointer; background: #eff6ff; }
+.dv2-supplement-picker input { display: none; }
+.dv2-supplement-picker span { font-weight: 700; }
+.dv2-supplement-picker small { color: #64748b; }
+.dv2-supplement-history { display: grid; gap: 7px; margin-bottom: 12px; }
+.dv2-supplement-history article { display: flex; align-items: center; justify-content: space-between; gap: 10px; padding: 9px 10px; border: 1px solid var(--dv2-border); border-radius: 9px; background: #fff; }
+.dv2-supplement-history button { min-width: 0; border: 0; text-align: left; background: transparent; }
+.dv2-supplement-history button strong, .dv2-supplement-history button small { display: block; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.dv2-supplement-history button small { margin-top: 3px; color: #64748b; }
+.dv2-supplement-history article > span { flex: 0 0 auto; padding: 3px 7px; border-radius: 999px; color: #92400e; font-size: 8px; background: #fef3c7; }
+.dv2-supplement-history article > span.is-effective, .dv2-supplement-history article > span.is-approved { color: #047857; background: #d1fae5; }
+.dv2-supplement-history article > span.is-rejected { color: #b91c1c; background: #fee2e2; }
 .dv2-file-list > button,
 .dv2-file-list > article { display: grid; width: 100%; min-height: 54px; grid-template-columns: 40px 1fr auto; align-items: center; gap: 9px; padding: 8px 10px; border: 1px solid var(--dv2-border); border-radius: 9px; text-align: left; background: #fff; }
 .dv2-file-list > button:hover { border-color: #93c5fd; background: #f8fbff; }

@@ -1,11 +1,11 @@
 export type StaffOrderIdentitySource = {
   order_no?: string | null
+  box_no?: string | null
   clinic_name?: string | null
   patient_name?: string | null
   product_type?: string | null
   form_data?: Record<string, unknown> | null
   promised_delivery_date?: string | null
-  doctor_requested_delivery_date?: string | null
 }
 
 export type StaffOrderIdentity = {
@@ -35,7 +35,6 @@ const customerReferenceKeys = [
   'doctor_case_no',
   'patient_code'
 ]
-const dueDateKeys = ['due_date', 'delivery_date', 'requested_delivery_date', 'expected_delivery_date']
 
 function readableValue(value: unknown): string {
   if (typeof value === 'string') return value.trim()
@@ -97,13 +96,9 @@ export function staffOrderIdentity(
   const customerReferenceLabel = customerReferenceEntry && ['customer_order_no', 'clinic_order_no', 'external_order_no'].includes(customerReferenceEntry.key)
     ? '客户单号'
     : '客户病例号'
-  const dueDate = String(
-    order.promised_delivery_date
-      ?? order.doctor_requested_delivery_date
-      ?? firstFormValue(order, dueDateKeys)
-      ?? ''
-  ).trim()
+  const dueDate = String(order.promised_delivery_date ?? '').trim()
   const suffix = systemOrderNo ? systemOrderNo.slice(-6) : '待生成'
+  const boxNo = String(order.box_no ?? '').trim()
 
   const secondaryParts = unique([
     productLabel,
@@ -115,9 +110,11 @@ export function staffOrderIdentity(
   return {
     primary: `${clinic} · ${patientDisplay} · ${tooth ? `牙位 ${tooth}` : '牙位待确认'}`,
     secondary: secondaryParts.join(' · '),
-    reference: customerReference
-      ? `${customerReferenceLabel} ${customerReference} · 系统尾号 ${suffix}`
-      : `系统尾号 ${suffix}`,
+    reference: unique([
+      boxNo ? `盒号 ${boxNo}` : '',
+      customerReference ? `${customerReferenceLabel} ${customerReference}` : '',
+      `系统尾号 ${suffix}`
+    ]).join(' · '),
     systemOrderNo,
     searchValues: unique([
       systemOrderNo,
@@ -128,6 +125,7 @@ export function staffOrderIdentity(
       material,
       shade,
       customerReference,
+      boxNo,
       dueDate,
       productLabel,
       order.product_type,

@@ -21,6 +21,7 @@ import type {
   OrderDetail,
   OrderDraftInput,
   OrderReview,
+  OrderSupplement,
   OrderSummary,
   PatientDetail,
   PatientSummary,
@@ -30,6 +31,7 @@ import type {
 } from './types/contracts'
 
 const StlViewerDialog = defineAsyncComponent(() => import('../components/StlViewerDialog.vue'))
+const UniversalFilePreviewDialog = defineAsyncComponent(() => import('../components/UniversalFilePreviewDialog.vue'))
 
 type CurrentUser = {
   username?: string
@@ -86,7 +88,6 @@ type DeliveryPlan = {
   production_days: number
   transit_days: number
   computed_delivery_date: string
-  doctor_requested_delivery_date: string | null
   variance_days: number | null
   variance_flag: string
   delivery_alert: string | null
@@ -118,6 +119,7 @@ const emit = defineEmits<{
 const pageMetaZh: Record<DoctorPage, { title: string; description: string }> = {
   dashboard: { title: '工作台', description: '查看待处理订单、公开进度与近期业务概览' },
   orders: { title: '订单管理', description: '管理订单资料、外部状态与当前待办' },
+  design: { title: '设计稿确认', description: '按订单流程集中预览、同意或驳回设计版本' },
   assistant: { title: '订单助手', description: '查询本诊所可查看的订单信息' },
   patients: { title: '患者管理', description: '维护患者档案并关联历史订单' },
   billing: { title: '账单与物流', description: '查看结算、发票退款与物流收货信息' },
@@ -128,6 +130,7 @@ const pageMetaZh: Record<DoctorPage, { title: string; description: string }> = {
 const pageMetaEn: Record<DoctorPage, { title: string; description: string }> = {
   dashboard: { title: 'Dashboard', description: 'Review actions, public progress and recent activity' },
   orders: { title: 'Orders', description: 'Manage case files, public status and required actions' },
+  design: { title: 'Design Reviews', description: 'Review, approve, or reject design versions in the order workflow' },
   assistant: { title: 'Order Assistant', description: 'Query public order information within your access scope' },
   patients: { title: 'Patients', description: 'Maintain patient profiles and linked order history' },
   billing: { title: 'Billing & Delivery', description: 'Review settlements, invoices, refunds and deliveries' },
@@ -448,6 +451,16 @@ const selectedOrder = ref<OrderDetail | null>(null)
 const orderDetailLoading = ref(false)
 const orderDrawerMessageDraft = ref('')
 const orderDrawerMessageSending = ref(false)
+const orderMoreExpanded = ref(false)
+const supplementFiles = ref<File[]>([])
+const supplementMaterialType = ref('OTHER')
+const supplementScope = ref<'SHARED' | 'PRODUCT'>('PRODUCT')
+const supplementNote = ref('')
+const supplementSubmitting = ref(false)
+const canAddSupplement = computed(() => {
+  const status = selectedOrder.value?.external_status
+  return Boolean(status && !['DRAFT', 'SHIPPED', 'COMPLETED'].includes(status))
+})
 
 // TASK-034 F 批次：交期计划、过程确认与试戴。
 // estimate_status = PLACEHOLDER 表示交期用了客户尚未确认的标准周期，界面必须标「待确认」——
@@ -455,7 +468,6 @@ const orderDrawerMessageSending = ref(false)
 const deliveryPlan = ref<DeliveryPlan | null>(null)
 const deliveryPlanLoading = ref(false)
 const deliveryPlanBusy = ref(false)
-const requestedDeliveryDateDraft = ref('')
 
 const patientKeyword = ref('')
 const patientStatus = ref<'ALL' | PatientSummary['treatment_status']>('ALL')
@@ -539,6 +551,7 @@ const navGroups = computed(() => [
     items: [
       { page: 'dashboard' as DoctorPage, label: t('首页概览', 'Dashboard'), icon: '⌂' },
       { page: 'orders' as DoctorPage, label: t('我的订单', 'My Orders'), icon: '▤' },
+      { page: 'design' as DoctorPage, label: t('设计稿确认', 'Design Reviews'), icon: '✎' },
       ...(activeRole.value === 'DOCTOR' ? [{ page: 'assistant' as DoctorPage, label: t('订单助手', 'Order Assistant'), icon: '✦' }] : []),
       { page: 'patients' as DoctorPage, label: t('患者档案', 'Patients'), icon: '♙' },
       { page: 'billing' as DoctorPage, label: t('账单中心', 'Billing'), icon: '▧' }
@@ -559,6 +572,11 @@ const unreadCount = computed(() => dataset.value?.notifications.filter((item) =>
 const canCreateOrder = computed(() => activeRole.value === 'DOCTOR')
 const canManageMembers = computed(() => activeRole.value === 'CLINIC_ADMIN')
 const canReview = computed(() => activeRole.value === 'DOCTOR')
+const designReviewRows = computed(() => (dataset.value?.orders ?? []).filter((order) =>
+  order.current_action === 'REVIEW_CAD_DESIGN'
+  || (dataset.value?.threads ?? []).some((thread) => thread.order_id === order.order_id
+    && thread.messages.some((message) => Boolean(message.review)))
+))
 
 const orderRows = computed(() => {
   const keyword = orderKeyword.value.trim().toLowerCase()
@@ -576,6 +594,7 @@ const orderRows = computed(() => {
       || (orderQuick.value === 'DRAFT' && order.external_status === 'DRAFT')
       || (orderQuick.value === 'DELIVERY' && ['SHIPPED', 'DELIVERED_PENDING_CONFIRMATION'].includes(order.external_status))
       || (orderQuick.value === 'PAYMENT' && order.current_action === 'PAYMENT_REQUIRED')
+      || (orderQuick.value === 'REVIEW' && order.current_action.includes('REVIEW'))
     return matchesKeyword && matchesStatus && matchesProduct && matchesDoctor && matchesTag && matchesDate && matchesQuick
   })
 })
@@ -1146,6 +1165,56 @@ function resetOrderFilters() {
   orderPage.value = 1
 }
 
+function openDashboardOrderFilter(options: {
+  status?: string
+  quick?: string
+  dateFrom?: string
+  dateTo?: string
+} = {}) {
+  resetOrderFilters()
+  orderStatus.value = options.status ?? 'ALL'
+  orderQuick.value = options.quick ?? 'ALL'
+  orderDateFrom.value = options.dateFrom ?? ''
+  orderDateTo.value = options.dateTo ?? ''
+  switchPage('orders')
+}
+
+function activateDashboardMetric(key: string) {
+  if (key === 'today') return openDashboardOrderFilter({ dateFrom: dashboardToday.value, dateTo: dashboardToday.value })
+  if (key === 'production') return openDashboardOrderFilter({ status: 'IN_PRODUCTION' })
+  if (key === 'delivery') return openDashboardOrderFilter({ quick: 'DELIVERY' })
+  if (key === 'due') return openDashboardOrderFilter({ quick: 'DUE' })
+  if (key === 'review') return switchPage('design')
+  if (key === 'reply') {
+    messageFilter.value = 'UNREAD'
+    return switchPage('messages')
+  }
+}
+
+function openDashboardTrendWeek(index: number) {
+  const today = new Date(`${dashboardToday.value}T12:00:00`)
+  const end = new Date(today)
+  end.setDate(today.getDate() - ((5 - index) * 7))
+  const start = new Date(end)
+  start.setDate(end.getDate() - 6)
+  openDashboardOrderFilter({
+    dateFrom: start.toLocaleDateString('sv-SE'),
+    dateTo: end.toLocaleDateString('sv-SE')
+  })
+}
+
+function dashboardSummaryBindings(key: string) {
+  const open = () => {
+    if (key === 'month') return openDashboardOrderFilter({ dateFrom: `${dashboardToday.value.slice(0, 7)}-01`, dateTo: dashboardToday.value })
+    if (key === 'review') return openDashboardOrderFilter({ quick: 'REVIEW' })
+    if (key === 'payment') return openDashboardOrderFilter({ quick: 'PAYMENT' })
+    return openDashboardOrderFilter({ status: 'COMPLETED' })
+  }
+  return { role: 'button', tabindex: 0, onClick: open, onKeydown: (event: KeyboardEvent) => {
+    if (event.key === 'Enter' || event.key === ' ') { event.preventDefault(); open() }
+  } }
+}
+
 function withWizardOrderContext(order: OrderSummary): OrderSummary {
   const patient = selectedWizardPatient.value
   const product = selectedProduct.value
@@ -1276,40 +1345,16 @@ async function deliveryApi<T>(path: string, options: RequestInit = {}): Promise<
 
 async function loadDeliveryPlan(orderId: string) {
   deliveryPlan.value = null
-  requestedDeliveryDateDraft.value = ''
   // 交期计划在提交时才建立；草稿订单没有计划，静默跳过而不是弹错。
   if (resolveDoctorGatewayMode() !== 'api') return
   deliveryPlanLoading.value = true
   try {
     const plan = await deliveryApi<DeliveryPlan>(`/orders/${orderId}/delivery-plan`)
     deliveryPlan.value = plan
-    requestedDeliveryDateDraft.value = plan.doctor_requested_delivery_date ?? plan.computed_delivery_date
   } catch {
     deliveryPlan.value = null
   } finally {
     deliveryPlanLoading.value = false
-  }
-}
-
-async function saveRequestedDeliveryDate() {
-  const orderId = selectedOrder.value?.order_id
-  if (!orderId || !requestedDeliveryDateDraft.value || deliveryPlanBusy.value) return
-  deliveryPlanBusy.value = true
-  try {
-    deliveryPlan.value = await deliveryApi<DeliveryPlan>(
-      `/orders/${orderId}/delivery-plan/requested-date`,
-      {
-        method: 'PUT',
-        body: JSON.stringify({ requested_delivery_date: requestedDeliveryDateDraft.value })
-      }
-    )
-    ElMessage.success(deliveryPlan.value.variance_flag === 'EARLIER_THAN_FEASIBLE'
-      ? t('已提交；该时间早于系统可行交期，订单服务会与您确认', 'Submitted. This date is earlier than the feasible delivery date; Order Support will contact you.')
-      : t('要求到货时间已更新', 'Requested delivery date updated'))
-  } catch (cause) {
-    ElMessage.error(errorText(cause, '更新到货时间失败', 'Failed to update the delivery date'))
-  } finally {
-    deliveryPlanBusy.value = false
   }
 }
 
@@ -1339,9 +1384,14 @@ function deliveryDateLabel(plan: DeliveryPlan) {
 
 async function openOrder(orderId: string) {
   orderDrawerOpen.value = true
+  orderMoreExpanded.value = false
   orderDetailLoading.value = true
   selectedOrder.value = null
   orderDrawerMessageDraft.value = ''
+  supplementFiles.value = []
+  supplementMaterialType.value = 'OTHER'
+  supplementScope.value = 'PRODUCT'
+  supplementNote.value = ''
   void loadDeliveryPlan(orderId)
   try {
     const detail = await gateway.loadOrderDetail(orderId)
@@ -1378,6 +1428,69 @@ async function openOrder(orderId: string) {
     ElMessage.error(errorText(cause, '订单详情加载失败', 'Failed to load order details'))
   } finally {
     orderDetailLoading.value = false
+  }
+}
+
+function selectSupplementFiles(event: Event) {
+  supplementFiles.value = Array.from((event.target as HTMLInputElement).files ?? [])
+}
+
+function supplementStatusLabel(status: OrderSupplement['approval_status']) {
+  const labels: Record<OrderSupplement['approval_status'], string> = {
+    EFFECTIVE: t('已生效', 'Effective'),
+    PENDING_CS_APPROVAL: t('待客服审核', 'Pending Support Review'),
+    APPROVED: t('客服已通过', 'Approved by Support'),
+    REJECTED: t('客服已退回', 'Rejected by Support')
+  }
+  return labels[status]
+}
+
+function supplementFile(item: OrderSupplement): DoctorFile {
+  const existing = selectedOrder.value?.files.find((file) => file.file_id === item.file_id)
+  if (existing) return existing
+  const extension = item.original_filename.split('.').pop()?.toLowerCase() ?? ''
+  return {
+    file_id: item.file_id,
+    name: item.original_filename,
+    kind: extension === 'stl' ? 'STL' : extension === 'pdf' ? 'PDF' : /^(jpg|jpeg|png|webp)$/.test(extension) ? 'IMAGE' : 'OTHER',
+    size_label: item.file_size == null ? t('大小未记录', 'Size unavailable') : `${Math.max(0.1, item.file_size / 1024 / 1024).toFixed(1)} MB`,
+    status: 'READY',
+    content_type: item.content_type,
+    uploaded_at: item.created_at
+  }
+}
+
+async function submitOrderSupplement() {
+  const order = selectedOrder.value
+  if (!order || !canAddSupplement.value || supplementSubmitting.value) return
+  if (!supplementFiles.value.length) {
+    ElMessage.warning(t('请先选择需要补充的文件', 'Select files to add first'))
+    return
+  }
+  supplementSubmitting.value = true
+  try {
+    const uploaded = await gateway.uploadOrderFiles(order.order_id, supplementFiles.value)
+    const supplements = await gateway.createOrderSupplements(order.order_id, {
+      fileIds: uploaded.map((item) => item.file_id),
+      materialType: supplementMaterialType.value,
+      attachmentScope: supplementScope.value,
+      productOrderId: order.order_id,
+      note: supplementNote.value
+    })
+    order.files.push(...uploaded)
+    order.supplements = supplements
+    supplementFiles.value = []
+    supplementNote.value = ''
+    ElMessage.success(t('补充资料已提交并写入版本记录', 'Supplemental records submitted and versioned'))
+  } catch (cause) {
+    ElMessage.error(errorText(cause, '补充资料提交失败', 'Failed to submit supplemental records'))
+    try {
+      selectedOrder.value = await gateway.loadOrderDetail(order.order_id)
+    } catch {
+      // Keep the original detail visible when refresh also fails.
+    }
+  } finally {
+    supplementSubmitting.value = false
   }
 }
 
@@ -1982,7 +2095,8 @@ async function previewFile(item: DoctorFile) {
   try {
     const previewUrl = await gateway.getFilePreviewUrl(item.file_id)
     const freshFile = { ...item, preview_url: previewUrl }
-    if (item.kind === 'STL') {
+    const extension = item.name.split('.').pop()?.toLowerCase() ?? ''
+    if (['stl', 'sla', 'ply', 'obj'].includes(extension)) {
       viewerFile.value = freshFile
       viewerOpen.value = true
     } else {
@@ -2214,12 +2328,13 @@ function openGlobalPatient(patientId: string) {
   void openPatient(patientId)
 }
 
-function openSelectedOrderConversation() {
+function openSelectedOrderConversation(prefill = '') {
   const orderId = selectedOrder.value?.order_id
   if (!orderId || !dataset.value) return
   activeThreadId.value = dataset.value.threads.find((thread) => thread.order_id === orderId)?.thread_id ?? ''
   orderDrawerOpen.value = false
   switchPage('messages')
+  if (prefill) messageDraft.value = prefill
 }
 
 function selectAllNotificationFilter(filter: 'ALL' | 'UNREAD' | 'READ') {
@@ -2362,7 +2477,7 @@ onBeforeUnmount(() => {
             </header>
 
             <div class="dv2-metric-grid is-six">
-              <article v-for="item in dashboardStats" :key="item.key" :class="`is-${item.tone}`">
+              <article v-for="item in dashboardStats" :key="item.key" :class="`is-${item.tone}`" role="button" tabindex="0" :aria-label="t('查看{label}', 'Open {label}', { label: item.label })" @click="activateDashboardMetric(item.key)" @keydown.enter.prevent="activateDashboardMetric(item.key)" @keydown.space.prevent="activateDashboardMetric(item.key)">
                 <span class="dv2-metric-icon">{{ item.icon }}</span><div><small>{{ item.label }}</small><strong>{{ item.value }}</strong><p>{{ item.note }}</p></div>
               </article>
             </div>
@@ -2371,7 +2486,7 @@ onBeforeUnmount(() => {
               <div class="dv2-dashboard-reference-section">
                 <div class="dv2-dashboard-section-label"><span>🔴</span>{{ t('需要处理', 'Action Required') }}</div>
                 <section class="dv2-card dv2-task-card dv2-reference-action-list">
-                  <header><div><h2>{{ t('需要处理', 'Action Required') }}</h2><p>{{ t('优先处理会阻塞订单继续推进的事项', 'Prioritize items that block order progress') }}</p></div><button type="button" @click="switchPage('orders')">{{ t('{count} 项 · 查看全部 →', '{count} item(s) · View all →', { count: pendingTaskOrders.length }) }}</button></header>
+                  <header><div><h2>{{ t('需要处理', 'Action Required') }}</h2><p>{{ t('优先处理会阻塞订单继续推进的事项', 'Prioritize items that block order progress') }}</p></div><button type="button" @click="openDashboardOrderFilter({ quick: 'TODO' })">{{ t('{count} 项 · 查看全部 →', '{count} item(s) · View all →', { count: pendingTaskOrders.length }) }}</button></header>
                   <button v-for="order in pendingTaskOrders.slice(0, 4)" :key="order.order_id" type="button" class="dv2-task-row" @click="openOrder(order.order_id)">
                     <span :class="`dv2-dot is-${statusTone(order.external_status)}`" />
                     <div><strong>{{ label(order.current_action) }}</strong><small>{{ order.order_no }} · {{ order.patient_name }} · {{ productNameLabel(order.product_name, order.product_type) }}</small></div>
@@ -2385,7 +2500,7 @@ onBeforeUnmount(() => {
                 <div class="dv2-dashboard-reference-section">
                   <div class="dv2-dashboard-section-label"><span>🚚</span>{{ t('即将送达', 'Arriving Soon') }}</div>
                   <section class="dv2-card dv2-task-card dv2-reference-compact-list">
-                    <header><div><h2>{{ t('配送与收货', 'Delivery & Receipt') }}</h2><p>{{ t('医生可见的在途订单', 'In-transit orders visible to doctors') }}</p></div><span>{{ t('{count} 单', '{count} order(s)', { count: dashboardDeliveryOrders.length }) }}</span></header>
+                    <header><div><h2>{{ t('配送与收货', 'Delivery & Receipt') }}</h2><p>{{ t('医生可见的在途订单', 'In-transit orders visible to doctors') }}</p></div><button type="button" @click="openDashboardOrderFilter({ quick: 'DELIVERY' })">{{ t('{count} 单 · 查看全部 →', '{count} order(s) · View all →', { count: dashboardDeliveryOrders.length }) }}</button></header>
                     <button v-for="order in dashboardDeliveryOrders" :key="order.order_id" type="button" class="dv2-task-row" @click="openOrder(order.order_id)">
                       <span :class="`dv2-dot is-${statusTone(order.external_status)}`" />
                       <div><strong>{{ order.patient_name }} · {{ productNameLabel(order.product_name, order.product_type) }}</strong><small>{{ order.order_no }} · {{ label(order.external_status) }}</small><div class="dv2-delivery-steps" :aria-label="t('配送进度', 'Delivery progress')"><i v-for="step in 4" :key="step" :class="{ done: deliveryProgress(order) >= step }" /><span>{{ t('出库', 'Dispatched') }}</span><span>{{ t('运输', 'In Transit') }}</span><span>{{ t('派送', 'Out for Delivery') }}</span><span>{{ t('签收', 'Received') }}</span></div></div>
@@ -2397,7 +2512,7 @@ onBeforeUnmount(() => {
                 <div class="dv2-dashboard-reference-section">
                   <div class="dv2-dashboard-section-label"><span>🕐</span>{{ t('到期提醒', 'Due Soon') }}</div>
                   <section class="dv2-card dv2-task-card dv2-reference-compact-list">
-                    <header><div><h2>{{ t('临近交付订单', 'Orders Nearing Delivery') }}</h2><p>{{ t('根据预计日期排序', 'Sorted by estimated date') }}</p></div><span>{{ t('{count} 单', '{count} order(s)', { count: dashboardDueOrders.length }) }}</span></header>
+                    <header><div><h2>{{ t('临近交付订单', 'Orders Nearing Delivery') }}</h2><p>{{ t('根据预计日期排序', 'Sorted by estimated date') }}</p></div><button type="button" @click="openDashboardOrderFilter({ quick: 'DUE' })">{{ t('{count} 单 · 查看全部 →', '{count} order(s) · View all →', { count: dashboardDueOrders.length }) }}</button></header>
                     <button v-for="order in dashboardDueOrders" :key="order.order_id" type="button" class="dv2-task-row dv2-due-row" @click="openOrder(order.order_id)">
                       <span class="dv2-dot is-warning" />
                       <div><strong>{{ order.patient_name }} · {{ productNameLabel(order.product_name, order.product_type) }}</strong><small>{{ order.order_no }} · {{ label(order.external_status) }}</small></div>
@@ -2412,17 +2527,17 @@ onBeforeUnmount(() => {
             <section class="dv2-card dv2-dashboard-trend dv2-reference-performance">
               <header><div><h2>{{ t('医生工作台趋势图', 'Doctor Portal Trend') }}</h2><p>{{ t('近 6 周医生可见订单创建趋势', 'Doctor-visible order creation over the last six weeks') }}</p></div><span>{{ t('近 6 周', 'Last 6 Weeks') }}</span></header>
               <div class="dv2-trend-summary dv2-reference-trend-summary">
-                <article class="is-blue"><small>{{ t('本月订单', 'Orders This Month') }}</small><strong>{{ dataset.orders.filter((item) => doctorLocalDateKey(item.created_at).startsWith(dashboardToday.slice(0, 7))).length }}</strong><i /></article>
-                <article class="is-violet"><small>{{ t('待确认', 'Pending Review') }}</small><strong>{{ dataset.orders.filter((item) => item.current_action.includes('REVIEW')).length }}</strong><i /></article>
-                <article class="is-amber"><small>{{ t('待付款', 'Payment Due') }}</small><strong>{{ dataset.orders.filter((item) => item.current_action === 'PAYMENT_REQUIRED').length }}</strong><i /></article>
-                <article class="is-green"><small>{{ t('已完成', 'Completed') }}</small><strong>{{ dataset.orders.filter((item) => item.external_status === 'COMPLETED').length }}</strong><i /></article>
+                <article class="is-blue" v-bind="dashboardSummaryBindings('month')"><small>{{ t('本月订单', 'Orders This Month') }}</small><strong>{{ dataset.orders.filter((item) => doctorLocalDateKey(item.created_at).startsWith(dashboardToday.slice(0, 7))).length }}</strong><i /></article>
+                <article class="is-violet" v-bind="dashboardSummaryBindings('review')"><small>{{ t('待确认', 'Pending Review') }}</small><strong>{{ dataset.orders.filter((item) => item.current_action.includes('REVIEW')).length }}</strong><i /></article>
+                <article class="is-amber" v-bind="dashboardSummaryBindings('payment')"><small>{{ t('待付款', 'Payment Due') }}</small><strong>{{ dataset.orders.filter((item) => item.current_action === 'PAYMENT_REQUIRED').length }}</strong><i /></article>
+                <article class="is-green" v-bind="dashboardSummaryBindings('completed')"><small>{{ t('已完成', 'Completed') }}</small><strong>{{ dataset.orders.filter((item) => item.external_status === 'COMPLETED').length }}</strong><i /></article>
               </div>
               <div class="dv2-dashboard-trend-body dv2-reference-trend-body">
                 <div class="dv2-trend-chart">
                   <svg viewBox="0 0 560 132" role="img" :aria-label="t('近六周订单趋势', 'Six-week order trend')">
                     <line v-for="y in [32, 68, 104]" :key="y" x1="20" :y1="y" x2="548" :y2="y" />
                     <polyline :points="dashboardTrendPoints" />
-                    <circle v-for="(value, index) in dashboardWeeklyCounts" :key="index" :cx="24 + index * 103" :cy="104 - Math.round(value / dashboardTrendMax * 72)" r="4" />
+                    <circle v-for="(value, index) in dashboardWeeklyCounts" :key="index" :cx="24 + index * 103" :cy="104 - Math.round(value / dashboardTrendMax * 72)" r="6" role="button" tabindex="0" :aria-label="t('查看第{index}周订单', 'Open orders for week {index}', { index: index + 1 })" @click="openDashboardTrendWeek(index)" @keydown.enter.prevent="openDashboardTrendWeek(index)" />
                   </svg>
                   <div><span v-for="index in 6" :key="index">{{ t('第{index}周', 'Week {index}', { index }) }}</span></div>
                 </div>
@@ -2533,6 +2648,16 @@ onBeforeUnmount(() => {
             </div>
           </section>
 
+          <section v-else-if="activePage === 'design'" class="dv2-orders" data-testid="doctor-page-design-reviews">
+            <div class="dv2-card dv2-list-card">
+              <div class="dv2-list-toolbar">
+                <div><strong>{{ t('设计稿确认', 'Design Reviews') }}</strong><small>{{ t('设计确认是订单流程动作；沟通区只保留消息和系统留痕。', 'Design confirmation is an order workflow action. Messages remain communication and audit records only.') }}</small></div>
+                <span class="dv2-status is-warning">{{ designReviewRows.filter((order) => order.current_action === 'REVIEW_CAD_DESIGN').length }} {{ t('项待确认', 'pending') }}</span>
+              </div>
+              <div class="dv2-table-wrap"><table class="dv2-table"><thead><tr><th>{{ t('订单号', 'Order No.') }}</th><th>{{ t('患者', 'Patient') }}</th><th>{{ t('产品', 'Product') }}</th><th>{{ t('状态', 'Status') }}</th><th /></tr></thead><tbody><tr v-for="order in designReviewRows" :key="order.order_id"><td><strong>{{ order.order_no }}</strong><small>{{ order.box_no ? `${t('盒号', 'Box')} ${order.box_no}` : t('盒号待分配', 'Box not assigned') }}</small></td><td>{{ order.patient_name }}</td><td>{{ productNameLabel(order.product_name, order.product_type) }}</td><td><span :class="`dv2-status is-${statusTone(order.current_action)}`">{{ label(order.current_action) }}</span></td><td><button type="button" class="dv2-row-action is-primary" @click="openOrder(order.order_id)">{{ order.current_action === 'REVIEW_CAD_DESIGN' ? t('进入确认', 'Review Now') : t('查看版本', 'View Versions') }}</button></td></tr></tbody></table><div v-if="!designReviewRows.length" class="dv2-empty">{{ t('当前没有设计稿确认记录', 'No design review records') }}</div></div>
+            </div>
+          </section>
+
           <section v-else-if="activePage === 'messages'" class="dv2-messages" data-testid="doctor-page-messages">
             <div class="dv2-message-layout">
               <aside class="dv2-thread-panel">
@@ -2543,7 +2668,7 @@ onBeforeUnmount(() => {
               <section v-if="activeThread" class="dv2-conversation">
                 <header><div><h2>{{ activeThread.patient_name }} · {{ productNameLabel(activeThread.product_name) }}</h2><p>{{ activeThread.order_no }} <span class="dv2-translation-chip">{{ t('A/文', 'A/EN') }} {{ t('可翻译', 'Translation available') }}</span></p></div><button type="button" class="dv2-secondary-button" @click="openGlobalOrder(activeThread.order_id)">{{ t('查看订单', 'View Order') }}</button></header>
                 <div class="dv2-message-stream">
-                  <article v-for="message in activeThread.messages" :key="message.message_id" :class="{ self: message.sender === 'SELF' }"><span>{{ message.sender === 'SELF' ? (account?.display_name || t('我', 'Me')).slice(0, 1) : 'S' }}</span><div><small>{{ message.sender === 'SELF' ? t('我', 'Me') : t('订单服务', 'Order Support') }} · {{ message.sent_at }}</small><p>{{ message.content }}</p><section v-if="message.review" class="dv2-review-card"><header><div><strong>{{ reviewLabel(message.review.review_type) }}</strong><small>{{ t('当前版本 V{version}', 'Current Version V{version}', { version: message.review.current_version }) }}</small></div><span :class="`dv2-status is-${statusTone(message.review.status)}`">{{ label(message.review.status) }}</span></header><div class="dv2-version-list"><article v-for="version in [...message.review.versions].reverse()" :key="version.version"><div><strong>V{{ version.version }}</strong><span>{{ label(version.status) }}</span><small>{{ version.submitted_at }}</small></div><button v-for="attachment in version.files" :key="attachment.file_id" type="button" @click="previewFile(attachment)"><i>{{ attachment.kind }}</i><span>{{ attachment.name }}<small>{{ attachment.size_label }}</small></span><em>{{ t('预览', 'Preview') }}</em></button><p v-if="version.doctor_comment">{{ t('医生意见：', 'Doctor Comment: ') }}{{ version.doctor_comment }}</p></article></div><footer v-if="message.review.status === 'PENDING_REVIEW'"><template v-if="canReview && message.review.allowed_actions.some((action) => ['APPROVE_REVIEW', 'REJECT_REVIEW'].includes(action))"><button v-if="message.review.allowed_actions.includes('REJECT_REVIEW')" type="button" class="dv2-danger-button" :disabled="reviewSubmitting" @click="startReviewDecision(activeThread.order_id, message.review, 'REJECT')">{{ t('驳回并留言', 'Reject & Comment') }}</button><button v-if="message.review.allowed_actions.includes('APPROVE_REVIEW')" type="button" class="dv2-primary-button" :disabled="reviewSubmitting" @click="startReviewDecision(activeThread.order_id, message.review, 'APPROVE')">{{ t('同意当前版本', 'Approve Version') }}</button></template><p v-else>{{ t('当前账号不能执行此操作。', 'Your current account cannot perform this action.') }}</p></footer></section></div></article>
+                  <article v-for="message in activeThread.messages" :key="message.message_id" :class="{ self: message.sender === 'SELF' }"><span>{{ message.sender === 'SELF' ? (account?.display_name || t('我', 'Me')).slice(0, 1) : 'S' }}</span><div><small>{{ message.sender === 'SELF' ? t('我', 'Me') : t('订单服务', 'Order Support') }} · {{ message.sent_at }}</small><p>{{ message.content }}</p><p v-if="message.review" class="dv2-section-note">{{ t('系统留痕：{type} V{version}，状态 {status}。请在“设计稿确认”流程页处理。', 'System record: {type} V{version}, status {status}. Use the Design Reviews workflow page to act.', { type: reviewLabel(message.review.review_type), version: message.review.current_version, status: label(message.review.status) }) }}</p></div></article>
                 </div>
                 <div class="dv2-quick-replies"><span>{{ t('快捷回复', 'Quick Replies') }}</span><button v-for="reply in [t('收到，我会尽快确认。', 'Received. I will review it shortly.'), t('请补充一张更清晰的照片。', 'Please provide a clearer photo.'), t('请按当前版本继续。', 'Please proceed with the current version.')]" :key="reply" type="button" @click="messageDraft = reply">{{ reply }}</button></div>
                 <form class="dv2-message-composer" @submit.prevent="sendMessage"><textarea v-model="messageDraft" rows="2" :placeholder="t('输入订单沟通内容…', 'Enter your order message…')" @keydown.ctrl.enter.prevent="sendMessage" /><footer><span>{{ t('Ctrl + Enter 发送', 'Ctrl + Enter to send') }}</span><button type="submit" :disabled="sendingMessage || !messageDraft.trim()">{{ t('发送', 'Send') }}</button></footer></form>
@@ -2588,6 +2713,7 @@ onBeforeUnmount(() => {
             <div><small>{{ t('牙位', 'Tooth Position') }}</small><span>{{ selectedOrderToothText }}</span></div>
             <div><small>{{ t('产品', 'Product') }}</small><span>{{ productNameLabel(selectedOrder.product_name, selectedOrder.product_type) }}</span></div>
             <div><small>{{ t('诊所', 'Clinic') }}</small><span>{{ selectedOrder.clinic_name }}</span></div>
+            <div><small>{{ t('盒号', 'Box No.') }}</small><span>{{ selectedOrder.box_no || t('暂未分配', 'Not Assigned') }}</span></div>
             <div><small>{{ t('负责医生', 'Doctor') }}</small><span>{{ selectedOrder.doctor_name }}</span></div>
             <div class="is-amount"><small>{{ t('订单金额', 'Order Amount') }}</small><span>{{ money(selectedOrder.quote) }}</span></div>
             <div><small>{{ t('订单创建时间', 'Created') }}</small><span>{{ compactDoctorDateTime(selectedOrder.created_at) }}</span></div>
@@ -2607,6 +2733,7 @@ onBeforeUnmount(() => {
               <div class="dv2-current-action">
                 <div><strong>{{ label(selectedOrder.current_action) }}</strong><p>{{ t('完成后订单将按公开流程继续推进。', 'The order will proceed through the public workflow after this action is completed.') }}</p></div>
                 <button v-if="selectedOrder.current_action === 'PAYMENT_REQUIRED'" type="button" class="dv2-primary-button" @click="orderDrawerOpen = false; switchPage('billing')">{{ t('去付款', 'Pay Now') }}</button>
+                <button v-if="selectedOrder.current_action === 'REVIEW_CAD_DESIGN'" type="button" class="dv2-primary-button" @click="orderDrawerOpen = false; switchPage('design')">{{ t('进入设计稿确认', 'Open Design Review') }}</button>
               </div>
             </section>
 
@@ -2635,11 +2762,8 @@ onBeforeUnmount(() => {
               </div>
 
               <div class="dv2-delivery-adjust">
-                <label>
-                  <span>{{ t('要求到货时间', 'Requested Delivery Date') }}</span>
-                  <input v-model="requestedDeliveryDateDraft" :type="dateInputType" :placeholder="dateInputPlaceholder" inputmode="numeric" pattern="\d{4}-\d{2}-\d{2}" maxlength="10" data-testid="doctor-requested-delivery-date">
-                </label>
-                <button type="button" class="dv2-secondary-button" :disabled="deliveryPlanBusy" data-testid="doctor-save-requested-delivery-date" @click="saveRequestedDeliveryDate">{{ t('保存到货时间', 'Save Delivery Date') }}</button>
+                <p>{{ t('医生端只显示系统预计到货日期；如需调整，请联系客服说明原因。', 'The doctor portal shows only the system estimated delivery date. Contact Order Support with a reason to request an adjustment.') }}</p>
+                <button type="button" class="dv2-secondary-button" data-testid="doctor-contact-support-delivery-date" @click="openSelectedOrderConversation(t('申请调整系统预计到货日期，原因：', 'Request to adjust the system estimated delivery date. Reason: '))">{{ t('联系客服申请调整', 'Contact Support to Request Adjustment') }}</button>
               </div>
 
               <div v-if="deliveryPlan.process_confirmations.length" class="dv2-delivery-confirmations">
@@ -2676,6 +2800,20 @@ onBeforeUnmount(() => {
               </div>
             </section>
 
+            <section v-if="selectedOrder.reviews.length" class="dv2-detail-section" data-testid="doctor-design-review-workflow">
+              <h3>✏️ {{ t('设计稿确认记录', 'Design Review Workflow') }}</h3>
+              <p class="dv2-section-note">{{ t('这里是订单流程确认区；同意或驳回会推进订单状态，并单独写入审计记录。', 'This is the order workflow confirmation area. Approval or rejection advances order state and is audited separately.') }}</p>
+              <div v-for="review in selectedOrder.reviews" :key="review.review_id" class="dv2-review-card is-drawer">
+                <header><div><strong>📐 {{ reviewLabel(review.review_type) }}</strong><small>{{ t('当前版本 V{version}', 'Current Version V{version}', { version: review.current_version }) }}</small></div><span :class="`dv2-status is-${statusTone(review.status)}`">{{ label(review.status) }}</span></header>
+                <div v-if="currentReviewFiles(review).length" class="dv2-design-preview"><strong>{{ review.review_type === 'CAD_DESIGN' ? t('📐 3D 设计预览', '📐 3D Design Preview') : t('📸 设计评测图片', '📸 Design Review Images') }}</strong><small>{{ productNameLabel(selectedOrder.product_name, selectedOrder.product_type) }} · {{ t('确认前请检查当前版本', 'Review the current version before confirming') }}</small><div><button v-for="item in currentReviewFiles(review)" :key="`preview-${item.file_id}`" type="button" @click="previewFile(item)"><img v-if="item.kind === 'IMAGE' && item.preview_url" :src="item.preview_url" :alt="item.name"><i v-else>{{ fileGlyph(item) }}</i><span>{{ item.name }}</span></button></div></div>
+                <div class="dv2-version-list"><article v-for="version in [...review.versions].reverse()" :key="version.version"><div><strong>V{{ version.version }}</strong><span>{{ label(version.status) }}</span><small>{{ preciseDoctorDateTime(version.submitted_at) }}</small></div><button v-for="item in version.files" :key="item.file_id" type="button" @click="previewFile(item)"><i><img v-if="item.kind === 'IMAGE' && item.preview_url" :src="item.preview_url" :alt="item.name"><template v-else>{{ fileGlyph(item) }}</template></i><span>{{ item.name }}<small>{{ item.kind }} · {{ item.size_label }}</small></span><em>{{ t('预览', 'Preview') }} ↗</em></button><p v-if="version.doctor_comment">{{ t('医生意见：', 'Doctor Comment: ') }}{{ version.doctor_comment }}</p></article></div>
+                <footer v-if="review.status === 'PENDING_REVIEW'"><template v-if="canReview && review.allowed_actions.some((action) => ['APPROVE_REVIEW', 'REJECT_REVIEW'].includes(action))"><button v-if="review.allowed_actions.includes('REJECT_REVIEW')" type="button" class="dv2-danger-button" :disabled="reviewSubmitting" @click="startReviewDecision(selectedOrder.order_id, review, 'REJECT')">{{ t('驳回并留言', 'Reject & Comment') }}</button><button v-if="review.allowed_actions.includes('APPROVE_REVIEW')" type="button" class="dv2-primary-button" :disabled="reviewSubmitting" @click="startReviewDecision(selectedOrder.order_id, review, 'APPROVE')">{{ t('同意当前版本', 'Approve Version') }}</button></template><p v-else>{{ t('当前账号不能执行此操作。', 'Your current account cannot perform this action.') }}</p></footer>
+                <footer v-else-if="review.status === 'APPROVED' && selectedOrder.product_type === 'DESIGN_SERVICE'">
+                  <button v-for="item in currentReviewFiles(review)" :key="`download-${item.file_id}`" type="button" class="dv2-primary-button" :disabled="fileDownloadLoading" @click="downloadDesignFile(item)">{{ fileDownloadLoading ? t('准备下载…', 'Preparing…') : t('下载已确认设计稿', 'Download Approved Design') }}</button>
+                </footer>
+              </div>
+            </section>
+
             <section class="dv2-detail-section">
               <h3>{{ t('公开进度', 'Public Progress') }}</h3>
               <div class="dv2-progress">
@@ -2690,11 +2828,13 @@ onBeforeUnmount(() => {
               </div>
               <div class="dv2-public-message">{{ publicOrderMessage(selectedOrder.public_message) }}</div>
               <div class="dv2-reference-actions">
-                <button type="button" class="dv2-secondary-button" @click="openSelectedOrderConversation">💬 {{ t('进入订单沟通', 'Open Conversation') }}</button>
+                <button type="button" class="dv2-secondary-button" @click="openSelectedOrderConversation()">💬 {{ t('进入订单沟通', 'Open Conversation') }}</button>
               </div>
               <div class="dv2-order-lock-note">{{ selectedOrder.current_action === 'NONE' ? t('🔒 订单正在按公开流程处理，如需调整请直接在下方联系订单服务。', '🔒 This order is proceeding through the public workflow. Contact Order Support below if changes are needed.') : t('ℹ️ 完成当前待办后订单将继续推进；如需协助，可直接在本抽屉发送消息。', 'ℹ️ The order will proceed after the current action is completed. You can message Order Support here for help.') }}</div>
             </section>
 
+            <button type="button" class="dv2-secondary-button" data-testid="doctor-toggle-order-more" @click="orderMoreExpanded = !orderMoreExpanded">{{ orderMoreExpanded ? t('收起订单资料与沟通', 'Collapse Order Records & Messages') : t('展开订单资料与沟通', 'Expand Order Records & Messages') }} {{ orderMoreExpanded ? '↑' : '↓' }}</button>
+            <div v-if="orderMoreExpanded" data-testid="doctor-order-more-content">
             <section class="dv2-detail-section">
               <h3>🦷 {{ t('订单资料与临床要求', 'Order Records & Clinical Requirements') }}</h3>
               <div v-if="selectedOrder.review_options.length" class="dv2-order-flags">
@@ -2718,6 +2858,27 @@ onBeforeUnmount(() => {
 
             <section class="dv2-detail-section">
               <h3>📁 {{ t('订单文件与图片', 'Order Files & Images') }}</h3>
+              <div class="dv2-supplement-panel" data-testid="doctor-order-supplement">
+                <div class="dv2-supplement-heading">
+                  <div><strong>{{ t('订单提交后补充资料', 'Add Records After Submission') }}</strong><small>{{ t('补充说明可不填；留空时记录为“医生补充资料”。', 'The note is optional. Blank notes are recorded as “Doctor supplemental records”.') }}</small></div>
+                  <span v-if="!canAddSupplement">{{ t('当前订单状态不可补充', 'Not available for this order status') }}</span>
+                </div>
+                <template v-if="canAddSupplement">
+                  <div class="dv2-supplement-fields">
+                    <label><span>{{ t('资料类型', 'Record Type') }}</span><select v-model="supplementMaterialType"><option value="SCAN">{{ t('口扫/模型数据', 'Scan / Model Data') }}</option><option value="PHOTO">{{ t('病例照片', 'Case Photos') }}</option><option value="PRESCRIPTION">{{ t('医嘱/文档', 'Prescription / Document') }}</option><option value="OTHER">{{ t('其他资料', 'Other Records') }}</option></select></label>
+                    <label><span>{{ t('适用范围', 'Scope') }}</span><select v-model="supplementScope"><option value="PRODUCT">{{ t('仅当前产品', 'Current Product Only') }}</option><option value="SHARED">{{ t('病例组共享', 'Shared Across Case') }}</option></select></label>
+                    <label class="is-wide"><span>{{ t('补充说明（选填）', 'Note (Optional)') }}</span><input v-model="supplementNote" maxlength="500" :placeholder="t('不填写时显示：医生补充资料', 'Default: Doctor supplemental records')"></label>
+                  </div>
+                  <label class="dv2-supplement-picker"><input type="file" multiple accept=".stl,.sla,.ply,.obj,.pdf,.jpg,.jpeg,.png,.webp,.dcm,.dicom,.zip,.doc,.docx,.txt" :disabled="supplementSubmitting" @change="selectSupplementFiles"><span>{{ supplementFiles.length ? t('已选择 {count} 个文件', '{count} file(s) selected', { count: supplementFiles.length }) : t('选择补充文件', 'Choose Supplemental Files') }}</span><small>{{ t('所有允许上传的格式均支持站内预览', 'Every allowed upload format supports in-app preview') }}</small></label>
+                  <button type="button" class="dv2-primary-button" :disabled="supplementSubmitting || !supplementFiles.length" @click="submitOrderSupplement">{{ supplementSubmitting ? t('上传并登记中…', 'Uploading & Registering…') : t('提交补充资料', 'Submit Supplemental Records') }}</button>
+                </template>
+              </div>
+              <div v-if="selectedOrder.supplements.length" class="dv2-supplement-history">
+                <article v-for="item in selectedOrder.supplements" :key="item.supplement_id">
+                  <button type="button" @click="previewFile(supplementFile(item))"><strong>V{{ item.version_no }} · {{ item.original_filename }}</strong><small>{{ item.display_note }} · {{ compactDoctorDateTime(item.created_at) }}</small></button>
+                  <span :class="`is-${item.approval_status.toLowerCase()}`">{{ supplementStatusLabel(item.approval_status) }}</span>
+                </article>
+              </div>
               <div class="dv2-file-list">
                 <button v-for="item in selectedOrder.files" :key="item.file_id" type="button" @click="previewFile(item)"><i><img v-if="item.kind === 'IMAGE' && item.preview_url" :src="item.preview_url" :alt="item.name"><template v-else>{{ fileGlyph(item) }}</template></i><div><strong>{{ item.name }}</strong><small>{{ item.kind }} · {{ item.size_label }} · {{ compactDoctorDateTime(item.uploaded_at) }}</small></div><span>{{ t('预览', 'Preview') }} ↗</span></button>
                 <div v-if="!selectedOrder.files.length" class="dv2-empty">{{ t('暂无医生可见文件', 'No doctor-visible files') }}</div>
@@ -2736,46 +2897,15 @@ onBeforeUnmount(() => {
             </section>
 
             <section class="dv2-detail-section">
-              <h3>💬 {{ t('信息与设计评测', 'Messages & Design Review') }}</h3>
-              <p class="dv2-section-note">{{ t('订单沟通、设计确认记录和医生反馈集中展示；可直接在这里回复订单服务。', 'Order messages, design reviews, and doctor feedback are shown together. You can reply to Order Support here.') }}</p>
+              <h3>💬 {{ t('订单沟通记录', 'Order Communication Record') }}</h3>
+              <p class="dv2-section-note">{{ t('这里只沟通问题并保留消息留痕；设计稿同意或驳回请在上方独立流程区操作。', 'Use this area for questions and message history only. Approve or reject designs in the separate workflow section above.') }}</p>
               <div class="dv2-order-dialogue" data-testid="doctor-order-dialogue">
                 <article v-for="message in selectedOrder.messages" :key="message.message_id" class="dv2-order-bubble" :class="{ 'is-self': message.sender === 'SELF' }">
                   <strong>{{ message.sender === 'SELF' ? selectedOrder.doctor_name : t('订单服务', 'Order Support') }}</strong>
                   <p>{{ message.content }}</p>
                   <time>{{ preciseDoctorDateTime(message.sent_at) }}</time>
                 </article>
-              <div v-for="review in selectedOrder.reviews" :key="review.review_id" class="dv2-review-card is-drawer">
-                <header><div><strong>📐 {{ reviewLabel(review.review_type) }}</strong><small>{{ t('当前版本 V{version}', 'Current Version V{version}', { version: review.current_version }) }}</small></div><span :class="`dv2-status is-${statusTone(review.status)}`">{{ label(review.status) }}</span></header>
-                <div v-if="currentReviewFiles(review).length" class="dv2-design-preview">
-                  <strong>{{ review.review_type === 'CAD_DESIGN' ? t('📐 3D 设计预览', '📐 3D Design Preview') : t('📸 设计评测图片', '📸 Design Review Images') }}</strong>
-                  <small>{{ productNameLabel(selectedOrder.product_name, selectedOrder.product_type) }} · {{ t('确认前请检查当前版本', 'Review the current version before confirming') }}</small>
-                  <div>
-                    <button v-for="item in currentReviewFiles(review)" :key="`preview-${item.file_id}`" type="button" @click="previewFile(item)"><img v-if="item.kind === 'IMAGE' && item.preview_url" :src="item.preview_url" :alt="item.name"><i v-else>{{ fileGlyph(item) }}</i><span>{{ item.name }}</span></button>
-                  </div>
-                </div>
-                <div v-if="review.status === 'APPROVED' && selectedOrder.product_type === 'DESIGN_SERVICE'" class="dv2-design-download">
-                  <div><strong>{{ t('设计文件交付', 'Design File Delivery') }}</strong><small>{{ selectedOrder.bill_summary.payment_status === 'PAID' ? t('设计已确认，账单已付款，可下载原文件。', 'The design is approved and the bill is paid. Original files are available for download.') : t('设计已确认；账单付款后可下载原文件。', 'The design is approved. Original files can be downloaded after the bill is paid.') }}</small></div>
-                  <div v-if="selectedOrder.bill_summary.payment_status === 'PAID'">
-                    <button v-for="item in currentReviewFiles(review)" :key="`download-${item.file_id}`" type="button" class="dv2-primary-button" :disabled="fileDownloadLoading" @click="downloadDesignFile(item)">{{ fileDownloadLoading ? t('准备下载…', 'Preparing…') : t('下载 {name}', 'Download {name}', { name: item.name }) }}</button>
-                  </div>
-                  <button v-else type="button" class="dv2-secondary-button" @click="switchPage('billing'); orderDrawerOpen = false">{{ t('查看账单', 'View Bill') }}</button>
-                </div>
-                <div class="dv2-version-list">
-                  <article v-for="version in [...review.versions].reverse()" :key="version.version">
-                    <div><strong>V{{ version.version }}</strong><span>{{ label(version.status) }}</span><small>{{ preciseDoctorDateTime(version.submitted_at) }}</small></div>
-                    <button v-for="item in version.files" :key="item.file_id" type="button" @click="previewFile(item)"><i><img v-if="item.kind === 'IMAGE' && item.preview_url" :src="item.preview_url" :alt="item.name"><template v-else>{{ fileGlyph(item) }}</template></i><span>{{ item.name }}<small>{{ item.kind }} · {{ item.size_label }}</small></span><em>{{ t('预览', 'Preview') }} ↗</em></button>
-                    <p v-if="version.doctor_comment">{{ t('医生意见：', 'Doctor Comment: ') }}{{ version.doctor_comment }}</p>
-                  </article>
-                </div>
-                <footer v-if="review.status === 'PENDING_REVIEW'">
-                  <template v-if="canReview && review.allowed_actions.some((action) => ['APPROVE_REVIEW', 'REJECT_REVIEW'].includes(action))">
-                    <button v-if="review.allowed_actions.includes('REJECT_REVIEW')" type="button" class="dv2-danger-button" :disabled="reviewSubmitting" @click="startReviewDecision(selectedOrder.order_id, review, 'REJECT')">{{ t('驳回并留言', 'Reject & Comment') }}</button>
-                    <button v-if="review.allowed_actions.includes('APPROVE_REVIEW')" type="button" class="dv2-primary-button" :disabled="reviewSubmitting" @click="startReviewDecision(selectedOrder.order_id, review, 'APPROVE')">{{ t('同意当前版本', 'Approve Version') }}</button>
-                  </template>
-                  <p v-else>{{ t('当前账号不能执行此操作。', 'Your current account cannot perform this action.') }}</p>
-                </footer>
-              </div>
-                <div v-if="!selectedOrder.messages.length && !selectedOrder.reviews.length" class="dv2-empty">{{ t('此订单暂无沟通信息和设计确认记录', 'No messages or design review records for this order') }}</div>
+                <div v-if="!selectedOrder.messages.length" class="dv2-empty">{{ t('此订单暂无沟通记录', 'No communication records for this order') }}</div>
               </div>
               <form class="dv2-order-reply" @submit.prevent="sendOrderDrawerMessage">
                 <input v-model="orderDrawerMessageDraft" type="text" maxlength="1000" :placeholder="t('给实验室/客服的消息……', 'Message to the lab or Order Support…')" :disabled="!canSendOrderDrawerMessage || orderDrawerMessageSending">
@@ -2783,6 +2913,7 @@ onBeforeUnmount(() => {
               </form>
               <p v-if="!canSendOrderDrawerMessage" class="dv2-order-reply-disabled">{{ t('当前订单仅供查看，暂不支持发送消息。', 'This order is read-only and does not currently support messaging.') }}</p>
             </section>
+            </div>
           </div>
 
         </template>
@@ -2851,6 +2982,7 @@ onBeforeUnmount(() => {
       :clinic-contact="account?.clinic_contact"
       @close="wizardOpen = false"
       @submitted="handleCaseGroupSubmitted"
+      @preview="previewFile"
     />
 
     <div v-if="false && wizardOpen" class="dv2-wizard" data-testid="doctor-order-wizard">
@@ -2909,7 +3041,7 @@ onBeforeUnmount(() => {
   <option v-for="roleOption in clinicRoleOptions" :key="roleOption.value" :value="roleOption.value">{{ roleOption.name }}</option>
 </select></label><label><span>{{ t('账单权限', 'Billing Access') }}</span><select v-model="newMember.billing"><option value="NONE">{{ t('无', 'None') }}</option><option value="VIEW">{{ t('查看', 'View') }}</option><option value="FINANCIAL_ACTION">{{ t('财务操作', 'Financial Actions') }}</option></select></label><label><span>{{ t('物流权限', 'Shipment Access') }}</span><select v-model="newMember.logistics"><option value="NONE">{{ t('无', 'None') }}</option><option value="VIEW">{{ t('查看', 'View') }}</option><option value="RECEIPT">{{ t('查看并确认收货', 'View and Confirm Receipt') }}</option></select></label></div><div class="dv2-inline-notice">{{ t('诊所管理员只能分配医生端成员角色。', 'Clinic Administrators can only assign doctor-portal member roles.') }}</div><template #footer><el-button @click="memberDialogOpen = false">{{ t('取消', 'Cancel') }}</el-button><el-button type="primary" @click="addMember">{{ t('发送邀请', 'Send Invitation') }}</el-button></template></el-dialog>
 
-    <el-dialog v-model="filePreviewOpen" :title="t('文件预览', 'File Preview')" width="860px" append-to-body destroy-on-close><div class="dv2-preview-stage"><img v-if="filePreview?.kind === 'IMAGE' && filePreview.preview_url" class="dv2-preview-image" :src="filePreview.preview_url" :alt="filePreviewName"><iframe v-else-if="filePreview?.kind === 'PDF' && filePreview.preview_url" class="dv2-preview-frame" :src="filePreview.preview_url" :title="filePreviewName" /><div v-else-if="filePreview?.preview_url" class="dv2-preview-placeholder"><span>{{ t('文件', 'File') }}</span><strong>{{ filePreviewName }}</strong><p>{{ t('该格式请在浏览器新窗口中查看。', 'Open this file type in a new browser window.') }}</p></div><div v-else class="dv2-preview-placeholder"><span>!</span><strong>{{ filePreviewName }}</strong><p>{{ t('预览地址已失效，请关闭后重新打开。', 'The preview link has expired. Close and reopen the file.') }}</p></div></div><template #footer><el-button v-if="filePreview?.preview_url" tag="a" :href="filePreview.preview_url" target="_blank" rel="noopener noreferrer">{{ t('新窗口打开', 'Open in New Window') }}</el-button><el-button @click="filePreviewOpen = false">{{ t('关闭', 'Close') }}</el-button></template></el-dialog>
+    <UniversalFilePreviewDialog v-if="filePreview" v-model:visible="filePreviewOpen" :file-id="filePreview.file_id" :source-url="filePreview.preview_url || ''" :filename="filePreview.name" :content-type="filePreview.content_type" :authenticated-fetch="props.authenticatedFetch" />
 
     <StlViewerDialog v-if="viewerFile" v-model:visible="viewerOpen" :source-url="viewerFile.preview_url || ''" :filename="viewerFile.name" />
   </div>

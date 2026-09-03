@@ -43,6 +43,9 @@ class MessageDesignBillNotificationTests {
     @Autowired
     private BearerTokenService bearerTokenService;
 
+    @Autowired
+    private CollaborationService collaborationService;
+
     private long clinicId;
     private long orderId;
     private long fileId;
@@ -728,6 +731,54 @@ class MessageDesignBillNotificationTests {
                         .header("X-Bootstrap-Clinic-Id", clinicId))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.data.external_status").value("SHIPPED"));
+    }
+
+    @Test
+    void shippedOrderIsAutoConfirmedAfterSevenDaysButOnlyWhileStillShipped() throws Exception {
+        markFinalOutCheckPassed();
+        markPaymentNotRequired();
+        mockMvc.perform(post("/orders/{orderId}/logistics", orderId)
+                        .header("X-Bootstrap-Role", "CS")
+                        .header("X-Bootstrap-User-Id", CS_USER_ID)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"carrier\":\"顺丰速运\",\"tracking_no\":\"SF-AUTO-7D\"}"))
+                .andExpect(status().isOk());
+
+        jdbcClient.sql("UPDATE order_logistics SET auto_confirm_due_at = DATE_SUB(NOW(), INTERVAL 1 MINUTE) WHERE order_id = :orderId")
+                .param("orderId", orderId)
+                .update();
+
+        assertThat(collaborationService.autoConfirmDueReceipts()).isGreaterThanOrEqualTo(1);
+        assertThat(jdbcClient.sql("SELECT external_status FROM orders WHERE order_id = :orderId")
+                .param("orderId", orderId).query(String.class).single()).isEqualTo("COMPLETED");
+        assertThat(jdbcClient.sql("SELECT receipt_confirmation_type FROM order_logistics WHERE order_id = :orderId")
+                .param("orderId", orderId).query(String.class).single()).isEqualTo("AUTO_AFTER_7_DAYS");
+    }
+
+    @Test
+    void logisticsExceptionPausesAutomaticReceiptConfirmation() throws Exception {
+        markFinalOutCheckPassed();
+        markPaymentNotRequired();
+        mockMvc.perform(post("/orders/{orderId}/logistics", orderId)
+                        .header("X-Bootstrap-Role", "CS")
+                        .header("X-Bootstrap-User-Id", CS_USER_ID)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"carrier\":\"顺丰速运\",\"tracking_no\":\"SF-PAUSED\"}"))
+                .andExpect(status().isOk());
+        jdbcClient.sql("""
+                        UPDATE order_logistics
+                        SET logistics_status = 'EXCEPTION', auto_confirm_due_at = DATE_SUB(NOW(), INTERVAL 1 MINUTE)
+                        WHERE order_id = :orderId
+                        """)
+                .param("orderId", orderId)
+                .update();
+
+        collaborationService.autoConfirmDueReceipts();
+
+        assertThat(jdbcClient.sql("SELECT external_status FROM orders WHERE order_id = :orderId")
+                .param("orderId", orderId).query(String.class).single()).isEqualTo("SHIPPED");
+        assertThat(jdbcClient.sql("SELECT receipt_confirmation_type FROM order_logistics WHERE order_id = :orderId")
+                .param("orderId", orderId).query(String.class).optional()).isEmpty();
     }
 
     @Test

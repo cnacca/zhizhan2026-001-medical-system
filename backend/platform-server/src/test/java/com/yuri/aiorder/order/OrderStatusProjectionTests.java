@@ -30,6 +30,7 @@ import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.http.MediaType;
 import org.springframework.jdbc.core.simple.JdbcClient;
 import org.springframework.test.web.servlet.MockMvc;
+import org.springframework.test.web.servlet.MvcResult;
 
 @SpringBootTest
 @AutoConfigureMockMvc
@@ -114,14 +115,15 @@ class OrderStatusProjectionTests {
 
         jdbcClient.sql("""
                         INSERT INTO orders
-                            (order_no, clinic_id, doctor_user_id, patient_id, cs_user_id, product_type,
+                            (order_no, production_order_no, clinic_id, doctor_user_id, patient_id, cs_user_id, product_type,
                              form_data, internal_status, external_status, production_note)
                         VALUES
-                            (:orderNo, :clinicId, :doctorUserId, :patientId, 8001, 'REGULAR_CROWN',
+                            (:orderNo, :productionOrderNo, :clinicId, :doctorUserId, :patientId, 8001, 'REGULAR_CROWN',
                              JSON_OBJECT('patient_name', '张三', 'tooth_position', '11'),
                              'PENDING_CS_REVIEW', 'PENDING_REVIEW', '内部生产备注')
                         """)
                 .param("orderNo", orderNo)
+                .param("productionOrderNo", "PROD-" + suffix.substring(0, 12))
                 .param("clinicId", clinicId)
                 .param("doctorUserId", DOCTOR_USER_ID)
                 .param("patientId", patientId)
@@ -982,21 +984,28 @@ class OrderStatusProjectionTests {
     @Test
     void internalOrderListCanSearchHumanFriendlyOrderIdentityFields() throws Exception {
         String customerCaseNo = "CASE-" + UUID.randomUUID().toString().replace("-", "").substring(0, 10);
+        String searchSuffix = customerCaseNo.substring(5);
+        String material = "氧化锆搜索样本-" + searchSuffix;
+        String shade = "A3.5搜索样本-" + searchSuffix;
+        String toothPosition = "36-37搜索样本-" + searchSuffix;
         jdbcClient.sql("""
                         UPDATE orders
                         SET form_data = JSON_SET(
                             form_data,
                             '$.customer_case_no', :customerCaseNo,
-                            '$.material', '氧化锆搜索样本',
-                            '$.shade', 'A3.5搜索样本',
-                            '$.tooth_position', '36-37搜索样本')
+                            '$.material', :material,
+                            '$.shade', :shade,
+                            '$.tooth_position', :toothPosition)
                         WHERE order_id = :orderId
                         """)
                 .param("customerCaseNo", customerCaseNo)
+                .param("material", material)
+                .param("shade", shade)
+                .param("toothPosition", toothPosition)
                 .param("orderId", orderId)
                 .update();
 
-        for (String keyword : new String[]{customerCaseNo, "氧化锆搜索样本", "A3.5搜索样本", "36-37搜索样本"}) {
+        for (String keyword : new String[]{customerCaseNo, material, shade, toothPosition}) {
             mockMvc.perform(get("/orders")
                             .param("keyword", keyword)
                             .header("X-Bootstrap-Role", "CS")
@@ -1119,6 +1128,84 @@ class OrderStatusProjectionTests {
                 .andExpect(content().string(not(containsString("internal_status"))))
                 .andExpect(content().string(not(containsString("内部生产备注"))))
                 .andExpect(content().string(not(containsString("assigned_user_id"))));
+    }
+
+    @Test
+    void doctorSupplementUsesOptionalNoteAndRequiresCsApprovalAfterInitialReview() throws Exception {
+        long initialFileId = insertFileResource(
+                orderId, DOCTOR_USER_ID, "ORDER_ATTACHMENT", "DOCTOR_VISIBLE", "COMPLETED", "initial-note.pdf");
+
+        mockMvc.perform(post("/orders/{orderId}/supplements", orderId)
+                        .header("X-Bootstrap-Role", "DOCTOR")
+                        .header("X-Bootstrap-User-Id", DOCTOR_USER_ID)
+                        .header("X-Bootstrap-Clinic-Id", clinicId)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("""
+                                {
+                                  "file_ids":[%d],
+                                  "material_type":"CLINICAL_NOTE",
+                                  "attachment_scope":"PRODUCT",
+                                  "product_order_id":%d
+                                }
+                                """.formatted(initialFileId, orderId)))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data[0].approval_status").value("EFFECTIVE"))
+                .andExpect(jsonPath("$.data[0].display_note").value("医生补充资料"))
+                .andExpect(jsonPath("$.data[0].version_no").value(1));
+
+        statusService.updateOrderState(
+                orderId, InternalOrderStatus.PENDING_PRODUCTION_REVIEW, "TEST_CS_REVIEWED", 8001L, null);
+        long reviewedFileId = insertFileResource(
+                orderId, DOCTOR_USER_ID, "ORDER_ATTACHMENT", "DOCTOR_VISIBLE", "COMPLETED", "reviewed-photo.png");
+
+        MvcResult createResult = mockMvc.perform(post("/orders/{orderId}/supplements", orderId)
+                        .header("X-Bootstrap-Role", "DOCTOR")
+                        .header("X-Bootstrap-User-Id", DOCTOR_USER_ID)
+                        .header("X-Bootstrap-Clinic-Id", clinicId)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("""
+                                {
+                                  "file_ids":[%d],
+                                  "material_type":"PHOTO",
+                                  "attachment_scope":"SHARED",
+                                  "note":"补充咬合照片"
+                                }
+                                """.formatted(reviewedFileId)))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data[0].approval_status").value("PENDING_CS_APPROVAL"))
+                .andExpect(jsonPath("$.data[0].version_no").value(2))
+                .andReturn();
+        long supplementId = new com.fasterxml.jackson.databind.ObjectMapper()
+                .readTree(createResult.getResponse().getContentAsString())
+                .path("data")
+                .path(0)
+                .path("supplement_id")
+                .asLong();
+
+        mockMvc.perform(post("/orders/{orderId}/supplements/{supplementId}/review", orderId, supplementId)
+                        .header("X-Bootstrap-Role", "CS")
+                        .header("X-Bootstrap-User-Id", 8001L)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"action\":\"APPROVE\"}"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.approval_status").value("APPROVED"));
+
+        statusService.updateOrderState(orderId, InternalOrderStatus.SHIPPED, "TEST_SHIPPED", 8001L, null);
+        long terminalFileId = insertFileResource(
+                orderId, DOCTOR_USER_ID, "ORDER_ATTACHMENT", "DOCTOR_VISIBLE", "COMPLETED", "too-late.jpg");
+        mockMvc.perform(post("/orders/{orderId}/supplements", orderId)
+                        .header("X-Bootstrap-Role", "DOCTOR")
+                        .header("X-Bootstrap-User-Id", DOCTOR_USER_ID)
+                        .header("X-Bootstrap-Clinic-Id", clinicId)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("""
+                                {
+                                  "file_ids":[%d],
+                                  "material_type":"PHOTO",
+                                  "attachment_scope":"SHARED"
+                                }
+                                """.formatted(terminalFileId)))
+                .andExpect(status().isConflict());
     }
 
     private long insertFileResource(

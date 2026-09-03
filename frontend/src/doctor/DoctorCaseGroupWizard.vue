@@ -5,6 +5,7 @@ import type { DoctorFile, DoctorGateway, DoctorProductRecommendation, PatientSum
 import DoctorOrthodonticPrescription from './DoctorOrthodonticPrescription.vue'
 import { authenticatedFetchKey } from '../utils/authenticatedFetch'
 import { useDoctorI18n } from './doctorI18n'
+import { optionalRecordApplies, productRecordVisible } from './uploadPresentation'
 import {
   CATEGORY_NAMES,
   CLEAR_ALIGNER_ARCH_OPTIONS,
@@ -183,6 +184,7 @@ type SharedUploadSlotCode =
   | 'shade_photo'
   | 'intraoral_photo'
   | 'old_denture_reference'
+  | 'unclassified_record'
 
 type SharedUploadSlot = SourceUploadRule & { code: SharedUploadSlotCode }
 type ScanUploadSlotCode = 'combined_scan' | 'upper_scan' | 'lower_scan' | 'bite_scan' | 'scan_other'
@@ -198,7 +200,8 @@ const SCAN_UPLOAD_SLOTS: SharedUploadSlot[] = [
 const OPTIONAL_SHARED_UPLOAD_SLOTS: SharedUploadSlot[] = [
   { code: 'shade_photo', label: '比色照片', required: false, accept: '.jpg,.jpeg,.png,.pdf' },
   { code: 'intraoral_photo', label: '口内咬合照', required: false, accept: '.jpg,.jpeg,.png,.pdf' },
-  { code: 'old_denture_reference', label: '旧义齿参考', required: false, accept: '.jpg,.jpeg,.png,.pdf' }
+  { code: 'old_denture_reference', label: '旧义齿参考', required: false, accept: '.jpg,.jpeg,.png,.pdf' },
+  { code: 'unclassified_record', label: '待分类资料', required: false, accept: '.stl,.sla,.ply,.obj,.pdf,.jpg,.jpeg,.png,.webp,.dcm,.dicom,.zip,.doc,.docx,.txt' }
 ]
 
 const SHARED_UPLOAD_SLOTS = [...SCAN_UPLOAD_SLOTS, ...OPTIONAL_SHARED_UPLOAD_SLOTS]
@@ -230,7 +233,7 @@ const DESIGN_SERVICE_REQUIRED_FIELDS = new Set([
 ])
 const SHARED_UPLOAD_SLOT_CODES = new Set<SharedUploadSlotCode>(SHARED_UPLOAD_SLOTS.map((slot) => slot.code))
 const REPLACED_PRODUCT_UPLOAD_SLOT_CODES = new Set([
-  'upper_arch', 'lower_arch', 'bite_scan', 'full_arch_scan', 'jaw_record',
+  'upper_arch', 'lower_arch', 'bite_scan', 'full_arch_scan',
   'upper_model', 'lower_model', 'bite_model', 'arch_scan',
   'shade_photo', 'intraoral_photo', 'old_restoration', 'old_denture'
 ])
@@ -248,6 +251,7 @@ const props = defineProps<{
 const emit = defineEmits<{
   close: []
   submitted: [group: CaseGroup]
+  preview: [file: DoctorFile]
 }>()
 
 const categoryNamesEn: Record<string, string> = {
@@ -474,9 +478,12 @@ const sharedUploadAssignments = reactive<Record<SharedUploadSlotCode, number[]>>
   scan_other: [],
   shade_photo: [],
   intraoral_photo: [],
-  old_denture_reference: []
+  old_denture_reference: [],
+  unclassified_record: []
 })
 const fileUploading = ref(false)
+const optionalSharedExpanded = ref(false)
+const productSpecificExpanded = ref(false)
 const toothDrag = ref<{
   orderId: number
   arch: 'UPPER' | 'LOWER'
@@ -740,7 +747,7 @@ function caseSettingsSnapshot() {
   }
   return {
     case_priority: caseSettings.priority,
-    required_delivery_date: caseSettings.required_delivery_date,
+    required_delivery_date: '',
     next_patient_appointment_date: caseSettings.appointment_date,
     shipping_method: caseSettings.shipping_method,
     order_type: caseSettings.order_type,
@@ -752,7 +759,7 @@ function caseSettingsSnapshot() {
 function hydrateCaseSettings(item: CaseGroupItem | undefined) {
   if (!item) return
   caseSettings.priority = String(item.form_values.case_priority ?? 'NORMAL')
-  caseSettings.required_delivery_date = String(item.form_values.required_delivery_date ?? '')
+  caseSettings.required_delivery_date = ''
   caseSettings.appointment_date = String(item.form_values.next_patient_appointment_date ?? '')
   caseSettings.shipping_method = String(item.form_values.shipping_method ?? 'COURIER')
   caseSettings.order_type = String(item.form_values.order_type ?? 'ONLINE')
@@ -915,8 +922,24 @@ function choosePrimaryMaterial(item: CaseGroupItem, value: string) {
 function uploadRules(item: CaseGroupItem): SourceUploadRule[] {
   return (UPLOAD_RULES[productCategory(item)] ?? [])
     .filter((rule) => !REPLACED_PRODUCT_UPLOAD_SLOT_CODES.has(rule.code))
+    .filter((rule) => productRecordVisible(item.product_code, rule.code))
     .map((rule) => ({ ...rule, required: false }))
 }
+
+function optionalSlotsForItem(item: CaseGroupItem) {
+  const category = productCategory(item)
+  return OPTIONAL_SHARED_UPLOAD_SLOTS.filter((slot) => optionalRecordApplies(category, slot.code))
+}
+
+function sharedSlotAudience(code: string) {
+  return (group.value?.items ?? []).filter((item) => optionalRecordApplies(productCategory(item), code)).map(catalogProductName).join('、')
+}
+
+const optionalSharedSlots = computed(() => {
+  const codes = new Set((group.value?.items ?? []).flatMap((item) => optionalSlotsForItem(item).map((slot) => slot.code)))
+  // Keep legacy records reachable even if their old category is no longer offered.
+  return OPTIONAL_SHARED_UPLOAD_SLOTS.filter((slot) => codes.has(slot.code) || sharedUploadSlotIds(slot.code).length > 0)
+})
 
 function sharedUploadSlotIds(slotCode: SharedUploadSlotCode) {
   return distinctFileIds(sharedUploadAssignments[slotCode] ?? [])
@@ -1063,7 +1086,7 @@ function configuredProductFilesForSlot(item: CaseGroupItem, slotCode: string) {
 
 function unassignedProductFiles(item: CaseGroupItem) {
   const assigned = new Set([
-    ...SHARED_UPLOAD_SLOTS.flatMap((slot) => productUploadSlotIds(item, slot.code)),
+    ...[...SCAN_UPLOAD_SLOTS, ...optionalSlotsForItem(item)].flatMap((slot) => productUploadSlotIds(item, slot.code)),
     ...uploadRules(item).flatMap((rule) => uploadedSlotIds(item, rule.code))
   ])
   return (itemFiles[item.order_id] ?? []).filter((file) => !assigned.has(Number(file.file_id)))
@@ -1495,7 +1518,6 @@ function commitItemObjectFields(item: CaseGroupItem) {
 function caseStepOneErrors() {
   const errors: string[] = []
   if (designServiceSelected.value) return errors
-  if (!caseSettings.required_delivery_date) errors.push(t('请选择要求到货日期', 'Select a requested delivery date'))
   if (['IMPRESSION', 'REWORK', 'RETURN'].includes(caseSettings.order_type)
     && !caseSettings.inbound_tracking_no.trim()) {
     errors.push(t('请填写寄模运单号', 'Enter the inbound model tracking number'))
@@ -1609,7 +1631,6 @@ function validationTargetForText(targetStep: number, text: string, item?: CaseGr
   const mappings: Array<[string[], string]> = [
     [['患者', 'patient'], 'patient-selection'],
     [['至少选择一个产品', 'at least one product', '产品暂不可用', 'product is unavailable'], 'product-selection'],
-    [['要求到货', 'requested delivery'], 'required-delivery-date'],
     [['寄模运单', 'inbound model tracking'], 'inbound-tracking'],
     [['牙位', 'tooth position'], 'tooth-positions'],
     [['产品变体', 'product variant', '扩弓方向', 'expansion direction'], 'product-variant'],
@@ -2296,11 +2317,36 @@ async function selectSharedScanFiles(event: Event) {
   const input = event.target as HTMLInputElement
   const files = Array.from(input.files ?? [])
   input.value = ''
-  await uploadSharedScanFiles(files)
+  await uploadSharedMixedFiles(files)
 }
 
 async function handleSharedScanDrop(event: DragEvent) {
-  await uploadSharedScanFiles(Array.from(event.dataTransfer?.files ?? []))
+  await uploadSharedMixedFiles(Array.from(event.dataTransfer?.files ?? []))
+}
+
+function inferSharedRecordSlot(filename: string): SharedUploadSlotCode {
+  if (isSupportedScanFilename(filename)) return inferScanSlot(filename)
+  const normalized = filename.toLowerCase()
+  if (/(比色|shade|color|colour)/u.test(normalized)) return 'shade_photo'
+  if (/(口内|intraoral|occlusal|咬合照)/u.test(normalized)) return 'intraoral_photo'
+  if (/(旧义齿|旧牙|old.?denture|old.?restoration)/u.test(normalized)) return 'old_denture_reference'
+  return 'unclassified_record'
+}
+
+async function uploadSharedMixedFiles(files: File[]) {
+  if (!files.length) return
+  const grouped = new Map<SharedUploadSlotCode, File[]>()
+  files.forEach((file) => {
+    const slot = inferSharedRecordSlot(file.name)
+    grouped.set(slot, [...(grouped.get(slot) ?? []), file])
+  })
+  const scanFiles = files.filter((file) => isSupportedScanFilename(file.name))
+  if (scanFiles.length) await uploadSharedScanFiles(scanFiles)
+  for (const [slot, slotFiles] of grouped) {
+    if (isScanUploadSlotCode(slot)) continue
+    await uploadSharedFiles(slotFiles, slot)
+  }
+  if (grouped.has('unclassified_record')) optionalSharedExpanded.value = true
 }
 
 async function changeSharedScanRole(file: DoctorFile, role: ScanUploadSlotCode) {
@@ -2542,9 +2588,7 @@ function productionCycleLabel() {
   if (designServiceSelected.value) {
     return t('医生确认设计并完成账单付款后下载', 'Download after doctor approval and bill payment')
   }
-  return caseSettings.required_delivery_date
-    ? t('要求到货：{date}', 'Requested delivery: {date}', { date: caseSettings.required_delivery_date })
-    : t('要求到货日期未填写', 'Requested delivery date not entered')
+  return t('系统将在客服受理后按最长产品周期与物流天数自动计算预计到货日期', 'The estimated delivery date will be calculated after Order Support acceptance using the longest product cycle and transit time')
 }
 
 function openReviewSupportInquiry(item: CaseGroupItem, fieldCode: string, fieldLabel: string) {
@@ -2829,14 +2873,13 @@ onMounted(async () => {
                 <header class="case-section-title"><div><small>{{ t('订单要求', 'Order Requirements') }}</small><h3>{{ t('出货、到货与运输信息', 'Dispatch, Delivery & Shipping') }}</h3></div></header>
                 <div class="case-field-grid">
                   <label class="case-field"><span>{{ t('订单周期 *', 'Order Priority *') }}</span><select v-model="caseSettings.priority"><option value="NORMAL">{{ t('正常出货周期', 'Standard Lead Time') }}</option><option value="RUSH_3_DAYS">{{ t('3 天加急', '3-day Rush') }}</option><option value="SAME_DAY">{{ t('当天出货', 'Same-day Dispatch') }}</option></select></label>
-                  <label class="case-field" data-validation-target="required-delivery-date"><span>{{ t('要求到货日期 *', 'Requested Delivery Date *') }}</span><input v-model="caseSettings.required_delivery_date" :type="dateInputType" :placeholder="dateInputPlaceholder" inputmode="numeric" pattern="\d{4}-\d{2}-\d{2}" maxlength="10"></label>
+                  <div class="case-alert info"><strong>{{ t('系统预计到货日期', 'System Estimated Delivery Date') }}</strong> · {{ t('客服受理后，系统按本单最长产品制作周期、过程确认和物流天数自动计算；医生端不可手工修改。', 'After Order Support acceptance, the system calculates the date from the longest product production cycle, confirmations, and transit time. Doctors cannot edit it.') }}</div>
                   <label class="case-field"><span>{{ t('患者预约时间', 'Patient Appointment Date') }}</span><input v-model="caseSettings.appointment_date" :type="dateInputType" :placeholder="dateInputPlaceholder" inputmode="numeric" pattern="\d{4}-\d{2}-\d{2}" maxlength="10"></label>
                   <label class="case-field"><span>{{ t('运输类型 *', 'Shipping Method *') }}</span><select v-model="caseSettings.shipping_method"><option value="COURIER">{{ t('快递', 'Courier') }}</option><option value="SALES_DELIVERY">{{ t('业务员配送', 'Representative Delivery') }}</option><option value="SELF_PICKUP">{{ t('自取', 'Self Pickup') }}</option></select></label>
-                  <label class="case-field"><span>{{ t('订单类型 *', 'Order Type *') }}</span><select v-model="caseSettings.order_type"><option value="ONLINE">{{ t('网络订单', 'Online Order') }}</option><option value="IMPRESSION">{{ t('印模订单', 'Impression Order') }}</option><option value="REWORK">{{ t('返工订单', 'Remake Order') }}</option><option value="RETURN">{{ t('退货订单', 'Return Order') }}</option><option value="DESIGN_ONLY">{{ t('仅设计订单', 'Design-only Order') }}</option></select></label>
+                  <label class="case-field"><span>{{ t('订单类型 *', 'Order Type *') }}</span><select v-model="caseSettings.order_type"><option value="ONLINE">{{ t('口扫订单', 'Intraoral Scan Order') }}</option><option value="IMPRESSION">{{ t('印模订单', 'Impression Order') }}</option><option value="REWORK">{{ t('返工订单', 'Remake Order') }}</option><option value="RETURN">{{ t('退货订单', 'Return Order') }}</option><option value="DESIGN_ONLY">{{ t('仅设计订单', 'Design-only Order') }}</option></select></label>
                   <label v-if="['IMPRESSION', 'REWORK', 'RETURN'].includes(caseSettings.order_type)" class="case-field" data-validation-target="inbound-tracking"><span>{{ t('寄模运单号 *', 'Inbound Model Tracking Number *') }}</span><input v-model="caseSettings.inbound_tracking_no" :placeholder="t('填写寄回模型的运单号', 'Enter the tracking number for the returned model')"></label>
                   <label class="case-field full"><span>{{ t('整单备注', 'Case Notes') }}</span><textarea v-model="caseSettings.global_notes" rows="3" :placeholder="t('病例整体要求，可使用中文或英文', 'Overall case requirements')"></textarea></label>
                 </div>
-                <div class="case-alert warning">{{ t('请填写期望到货日期；客服将在受理订单时确认可行的制作与配送周期。', 'Enter the requested delivery date. Order Support will confirm a feasible production and delivery schedule during review.') }}</div>
               </section>
               <section v-else class="case-config-form case-design-service-summary" data-validation-target="order-requirements">
                 <header class="case-section-title"><div><small>{{ t('订单要求', 'Order Requirements') }}</small><h3>{{ t('数字设计交付', 'Digital Design Delivery') }}</h3></div></header>
@@ -3195,28 +3238,33 @@ onMounted(async () => {
 
       </section>
 
-      <section v-else-if="step === 3" class="case-panel" data-validation-target="step-3-section">
-        <header><h1>{{ t('资料上传', 'Upload Records') }}</h1><p>{{ t('口扫文件可在同一个区域一次选择多份。系统按文件名自动识别上颌、下颌和咬合，无法识别时请手工选择分类；也可直接上传一份包含完整上下颌信息的 ZIP 资料包。单个文件最大 500MB。', 'Select multiple scan files in one upload area. Files are classified by name and ambiguous files must be classified manually. A ZIP containing the complete scan package is also accepted. Maximum file size is 500 MB.') }}</p></header>
+      <section v-else-if="step === 3" class="case-panel case-upload-redesign" data-validation-target="step-3-section">
+        <header><h1>{{ t('资料上传', 'Upload Records') }}</h1><p>{{ t('在同一个区域批量选择或拖入资料。系统按文件名和扩展名自动分类；无法判断的文件进入“待分类资料”，不会计入口扫完整性。单个文件最大 500MB。', 'Choose or drop records in one batch area. Files are classified by name and extension; ambiguous files go to Unclassified Records and do not count toward scan completeness. Maximum file size is 500 MB.') }}</p></header>
         <section class="case-upload-card shared">
-          <header><div><strong>{{ t('病例共享资料 · 默认用于全部产品', 'Case-shared Records · Used by All Products by Default') }}</strong><small>{{ t('当前病例共 {count} 个产品；专属区未上传同类文件时，产品自动使用这里的文件', '{count} product(s) in this case. A product automatically uses these files unless a product-specific version is uploaded.', { count: group?.items.length ?? 0 }) }}</small></div><span>{{ t('{count} 个', '{count} file(s)', { count: sharedFiles.length }) }}</span></header>
+          <header><div><strong>{{ t('共享口扫与病例资料', 'Shared Scans and Case Records') }}</strong><small>{{ t('口扫可复用，照片按适用产品使用；产品专属版本优先。分类可手动调整。', 'Reuse scans and relevant photos; product-specific versions take priority. Categories can be changed manually.') }}</small></div><span>{{ t('{count} 个', '{count} file(s)', { count: sharedFiles.length }) }}</span></header>
           <div class="case-scan-bundle-zone" :class="{ complete: sharedScanBundleComplete }" data-validation-target="scan-records" @dragover.prevent @drop.prevent="handleSharedScanDrop">
-            <div><strong>{{ t('口扫资料', 'Scan Records') }}</strong><small>{{ t('支持 ZIP、STL、PLY、OBJ；可单次多选。ZIP 自动作为完整资料包，其他文件按名称自动分类。', 'ZIP, STL, PLY and OBJ are supported with multi-select. ZIP is treated as a complete package; other files are classified by filename.') }}</small></div>
+            <div><strong>{{ t('批量上传全部资料', 'Batch Upload All Records') }}</strong><small>{{ t('支持系统允许的全部格式；口扫文件自动识别上颌、下颌、咬合或完整包，照片和文档按名称分类。', 'All system-supported formats are accepted. Scan files are classified as upper, lower, bite or complete package; photos and documents are classified by name.') }}</small></div>
             <span>{{ sharedScanBundleComplete ? t('资料完整', 'Complete') : t('待上传完整资料包，或补齐上颌、下颌、咬合', 'Upload a complete package or provide upper, lower and bite scans') }}</span>
-            <label><i>＋ {{ t('批量选择口扫文件', 'Choose Scan Files') }}</i><input type="file" multiple accept=".zip,.stl,.ply,.obj" :disabled="fileUploading || !group?.items.length" @change="selectSharedScanFiles"></label>
+            <label><i>＋ {{ t('选择或拖入文件', 'Choose or Drop Files') }}</i><input type="file" multiple accept=".stl,.sla,.ply,.obj,.pdf,.jpg,.jpeg,.png,.webp,.dcm,.dicom,.zip,.doc,.docx,.txt" :disabled="fileUploading || !group?.items.length" @change="selectSharedScanFiles"></label>
             <article v-for="file in sharedScanFiles()" :key="file.file_id" class="case-classified-file">
-              <div><strong>{{ file.name }}</strong><small>{{ file.size_label }}</small><small v-if="!isSupportedScanFilename(file.name)" class="case-field-error">{{ t('此文件不能作为口扫资料，请移除并上传 ZIP、STL、PLY 或 OBJ。', 'This file cannot be used as scan data. Remove it and upload ZIP, STL, PLY or OBJ.') }}</small></div>
+              <div><button type="button" class="case-file-preview" @click="emit('preview', file)">{{ file.name }} ↗</button><small>{{ file.size_label }}</small><small v-if="!isSupportedScanFilename(file.name)" class="case-field-error">{{ t('此文件不能作为口扫资料，请移除并上传 ZIP、STL、PLY 或 OBJ。', 'This file cannot be used as scan data. Remove it and upload ZIP, STL, PLY or OBJ.') }}</small></div>
               <select :value="sharedScanRole(file)" :disabled="busy || fileUploading || !isSupportedScanFilename(file.name)" :aria-label="t('选择扫描分类', 'Select scan category')" @change="changeSharedScanRole(file, ($event.target as HTMLSelectElement).value as ScanUploadSlotCode)">
                 <option v-for="slot in scanRoleOptions(file)" :key="slot.code" :value="slot.code">{{ localizedSourceText(slot.label, slot.code) }}</option>
               </select>
+              <button type="button" class="case-file-preview" @click="emit('preview', file)">{{ t('预览', 'Preview') }}</button>
               <button type="button" class="case-file-remove" :disabled="busy || fileUploading" @click="removeSharedFile(file)">{{ t('移除', 'Remove') }}</button>
             </article>
           </div>
-          <div class="case-shared-upload-slots case-optional-upload-slots">
-            <div v-for="slot in OPTIONAL_SHARED_UPLOAD_SLOTS" :key="slot.code" class="case-shared-upload-slot" :class="{ complete: sharedUploadSlotIds(slot.code).length }" @dragover.prevent @drop.prevent="handleSharedFileDrop($event, slot.code)">
-              <div><strong>{{ localizedSourceText(slot.label, slot.code) }} <b>{{ t('选传', 'Optional') }}</b></strong><small>{{ slot.accept }}</small></div>
+          <button type="button" class="case-upload-disclosure" :aria-expanded="optionalSharedExpanded" @click="optionalSharedExpanded = !optionalSharedExpanded">
+            <span>{{ t('选传与待分类资料', 'Optional and Unclassified Records') }}</span>
+            <strong>{{ t('已上传 {count} 个 · {state}', '{count} uploaded · {state}', { count: optionalSharedSlots.reduce((total, slot) => total + sharedUploadSlotIds(slot.code).length, 0), state: optionalSharedExpanded ? t('收起', 'Collapse') : t('展开', 'Expand') }) }}</strong>
+          </button>
+          <div v-if="optionalSharedExpanded" class="case-shared-upload-slots case-optional-upload-slots">
+            <div v-for="slot in optionalSharedSlots" :key="slot.code" class="case-shared-upload-slot" :class="{ complete: sharedUploadSlotIds(slot.code).length }" @dragover.prevent @drop.prevent="handleSharedFileDrop($event, slot.code)">
+              <div><strong>{{ localizedSourceText(slot.label, slot.code) }} <b>{{ t('选传', 'Optional') }}</b></strong><small>{{ t('适用产品：', 'Applies to: ') }}{{ sharedSlotAudience(slot.code) || t('历史资料，仅保留供查阅', 'Legacy records retained for reference') }}</small><small>{{ slot.accept }}</small></div>
               <span>{{ sharedUploadSlotIds(slot.code).length ? t('已上传 {count} 个', '{count} uploaded', { count: sharedUploadSlotIds(slot.code).length }) : t('尚未上传', 'Not Uploaded') }}</span>
               <label><i>＋ {{ t('选择文件', 'Choose Files') }}</i><input type="file" multiple :accept="slot.accept" :disabled="fileUploading || !group?.items.length" @change="selectSharedUploadFiles($event, slot.code)"></label>
-              <article v-for="file in sharedFilesForSlot(slot.code)" :key="file.file_id"><div><strong>{{ file.name }}</strong><small>{{ file.size_label }}</small></div><button type="button" class="case-file-remove" :disabled="busy || fileUploading" @click="removeSharedFile(file)">{{ t('移除', 'Remove') }}</button></article>
+              <article v-for="file in sharedFilesForSlot(slot.code)" :key="file.file_id"><div><button type="button" class="case-file-preview" @click="emit('preview', file)">{{ file.name }} ↗</button><small>{{ file.size_label }}</small></div><button type="button" class="case-file-remove" :disabled="busy || fileUploading" @click="removeSharedFile(file)">{{ t('移除', 'Remove') }}</button></article>
             </div>
           </div>
           <div v-if="!sharedScanBundleComplete" class="case-alert neutral">{{ t('共享口扫资料尚未完整。可以在下方产品专属区补充；“待确认 / 其他扫描”不会计入完整性，请核对并修改分类。', 'Shared scan records are incomplete. Complete them in a product-specific area if needed. “Unclassified / Other” does not count as complete; verify and correct its category.') }}</div>
@@ -3228,27 +3276,32 @@ onMounted(async () => {
             </button>
           </aside>
           <section v-if="activeItem" class="case-upload-card">
-            <header><div><strong>{{ catalogProductName(activeItem) }} · {{ t('产品专属资料', 'Product-specific Records') }}</strong><small>{{ t('与共享区类型相同；上传专属版本后，仅当前产品优先使用专属文件', 'Uses the same record types as the shared area. A product-specific version takes priority only for this product.') }} · {{ activeItem.order_no }}</small></div><span>{{ t('{count} 个专属文件', '{count} product-specific file(s)', { count: itemFiles[activeItem.order_id]?.length ?? 0 }) }}</span></header>
+            <header><div><strong>{{ catalogProductName(activeItem) }} · {{ t('产品专属资料', 'Product-specific Records') }}</strong><small>{{ t('仅展示当前产品适用资料，均为选传。未上传专属版本时沿用同类共享资料。', 'Only records relevant to this product are shown, all optional. Shared records are used unless overridden.') }} · {{ activeItem.order_no }}</small></div><span>{{ t('{count} 个专属文件', '{count} product-specific file(s)', { count: itemFiles[activeItem.order_id]?.length ?? 0 }) }}</span></header>
+            <button type="button" class="case-upload-disclosure" :aria-expanded="productSpecificExpanded" @click="productSpecificExpanded = !productSpecificExpanded"><span>{{ t('产品专属覆盖资料', 'Product-specific Overrides') }}</span><strong>{{ productSpecificExpanded ? t('收起', 'Collapse') : t('按需展开', 'Expand When Needed') }}</strong></button>
+            <div v-if="productSpecificExpanded">
             <div class="case-scan-bundle-zone product" :class="{ complete: scanBundleCompleteForItem(activeItem) }">
               <div><strong>{{ t('产品专属口扫资料（可选覆盖）', 'Product-specific Scan Records (Optional Override)') }}</strong><small>{{ t('一次可选择多份文件。专属分类优先于同类共享文件，未覆盖的分类继续继承共享资料。', 'Select multiple files at once. A product-specific category overrides the same shared category; other categories continue to inherit shared files.') }}</small></div>
               <span>{{ scanBundleCompleteForItem(activeItem) ? t('当前产品资料完整', 'Complete for This Product') : t('当前产品资料未完整', 'Incomplete for This Product') }}</span>
               <label><i>＋ {{ t('批量上传专属口扫', 'Upload Product-specific Scans') }}</i><input type="file" multiple accept=".zip,.stl,.ply,.obj" :disabled="fileUploading" @change="uploadProductScanFiles($event, activeItem)"></label>
               <article v-for="file in productScanFiles(activeItem)" :key="file.file_id" class="case-classified-file">
-                <div><strong>{{ file.name }}</strong><small>{{ file.size_label }} · {{ t('产品专属', 'Product-specific') }}</small><small v-if="!isSupportedScanFilename(file.name)" class="case-field-error">{{ t('此文件不能作为口扫资料，请移除并上传 ZIP、STL、PLY 或 OBJ。', 'This file cannot be used as scan data. Remove it and upload ZIP, STL, PLY or OBJ.') }}</small></div>
+                <div><button type="button" class="case-file-preview" @click="emit('preview', file)">{{ file.name }} ↗</button><small>{{ file.size_label }} · {{ t('产品专属', 'Product-specific') }}</small><small v-if="!isSupportedScanFilename(file.name)" class="case-field-error">{{ t('此文件不能作为口扫资料，请移除并上传 ZIP、STL、PLY 或 OBJ。', 'This file cannot be used as scan data. Remove it and upload ZIP, STL, PLY or OBJ.') }}</small></div>
                 <select :value="productScanRole(activeItem, file)" :disabled="busy || fileUploading || !isSupportedScanFilename(file.name)" :aria-label="t('选择扫描分类', 'Select scan category')" @change="changeProductScanRole(activeItem, file, ($event.target as HTMLSelectElement).value as ScanUploadSlotCode)">
                   <option v-for="slot in scanRoleOptions(file)" :key="slot.code" :value="slot.code">{{ localizedSourceText(slot.label, slot.code) }}</option>
                 </select>
+                <button type="button" class="case-file-preview" @click="emit('preview', file)">{{ t('预览', 'Preview') }}</button>
                 <button type="button" class="case-file-remove" :disabled="busy || fileUploading" @click="removeProductFile(activeItem, file)">{{ t('移除', 'Remove') }}</button>
               </article>
               <small v-if="!productScanFiles(activeItem).length && sharedScanFiles().length" class="case-inherited-summary">{{ t('当前使用病例共享口扫资料；仅在此上传需要覆盖或补充的文件。', 'Using the case-shared scan records. Upload here only to override or supplement them.') }}</small>
             </div>
+            </div>
+            <p class="case-inherited-summary">{{ scanBundleCompleteForItem(activeItem) ? t('口扫资料已齐全，可按需补充以下资料。', 'Scan records are complete. Add optional records below if needed.') : t('口扫尚未齐全，请在共享区或专属口扫区补充。', 'Complete the shared or product-specific scan records.') }}</p>
             <div class="case-shared-upload-slots case-product-upload-slots case-optional-upload-slots">
-              <div v-for="slot in OPTIONAL_SHARED_UPLOAD_SLOTS" :key="slot.code" class="case-shared-upload-slot" :class="{ complete: effectiveUploadSlotIds(activeItem, slot.code).length, inherited: !productUploadSlotIds(activeItem, slot.code).length && sharedUploadSlotIds(slot.code).length }">
+              <div v-for="slot in optionalSlotsForItem(activeItem)" :key="slot.code" class="case-shared-upload-slot" :class="{ complete: effectiveUploadSlotIds(activeItem, slot.code).length, inherited: !productUploadSlotIds(activeItem, slot.code).length && sharedUploadSlotIds(slot.code).length }">
                 <div><strong>{{ localizedSourceText(slot.label, slot.code) }} <b>{{ t('选传', 'Optional') }}</b></strong><small>{{ slot.accept }} · {{ t('专属文件仅用于当前产品', 'Product-specific files apply only to this product') }}</small></div>
                 <span v-if="productUploadSlotIds(activeItem, slot.code).length">{{ t('使用专属资料', 'Using Product-specific') }}</span><span v-else-if="sharedUploadSlotIds(slot.code).length">{{ t('继承共享资料', 'Using Shared Record') }}</span><span v-else>{{ t('尚未上传', 'Not Uploaded') }}</span>
                 <label><i>＋ {{ t('上传专属文件', 'Upload Product-specific') }}</i><input type="file" multiple :accept="slot.accept" :disabled="fileUploading" @change="uploadProductFiles($event, activeItem, slot.code)"></label>
-                <article v-for="file in productFilesForSlot(activeItem, slot.code)" :key="file.file_id"><div><strong>{{ file.name }}</strong><small>{{ file.size_label }} · {{ t('产品专属', 'Product-specific') }}</small></div><button type="button" class="case-file-remove" :disabled="busy || fileUploading" @click="removeProductFile(activeItem, file)">{{ t('移除', 'Remove') }}</button></article>
-                <article v-for="file in inheritedSharedFilesForSlot(activeItem, slot.code)" :key="`shared-${file.file_id}`" class="inherited-file"><div><strong>{{ file.name }}</strong><small>{{ file.size_label }} · {{ t('来自病例共享', 'From Case-shared Records') }}</small></div></article>
+                <article v-for="file in productFilesForSlot(activeItem, slot.code)" :key="file.file_id"><div><button type="button" class="case-file-preview" @click="emit('preview', file)">{{ file.name }} ↗</button><small>{{ file.size_label }} · {{ t('产品专属', 'Product-specific') }}</small></div><button type="button" class="case-file-remove" :disabled="busy || fileUploading" @click="removeProductFile(activeItem, file)">{{ t('移除', 'Remove') }}</button></article>
+                <article v-for="file in inheritedSharedFilesForSlot(activeItem, slot.code)" :key="`shared-${file.file_id}`" class="inherited-file"><div><button type="button" class="case-file-preview" @click="emit('preview', file)">{{ file.name }} ↗</button><small>{{ file.size_label }} · {{ t('来自病例共享', 'From Case-shared Records') }}</small></div></article>
               </div>
             </div>
             <section v-if="uploadRules(activeItem).length" class="case-additional-product-records">
@@ -3256,10 +3309,11 @@ onMounted(async () => {
               <div class="case-upload-slots">
                 <div v-for="rule in uploadRules(activeItem)" :key="rule.code" class="case-extra-upload-slot" :class="{ complete: uploadedSlotIds(activeItem, rule.code).length }">
                   <div><strong>{{ localizedSourceText(rule.label, rule.code) }}</strong><small>{{ t('选传', 'Optional') }} · {{ rule.accept }}</small></div>
+                  <p v-if="rule.code === 'cbct'" class="case-record-explanation">{{ t('CBCT 是锥形束 CT 影像资料，用于查看牙齿、颌骨等三维影像；可上传已有影像或报告。此入口为选传，不表示需要重新拍片。', 'CBCT means cone-beam CT imaging of teeth and jaws. Upload existing images or reports if available. Optional; this does not request a new scan.') }}</p>
                   <span>{{ uploadedSlotIds(activeItem, rule.code).length ? t('已上传 {count} 个', '{count} uploaded', { count: uploadedSlotIds(activeItem, rule.code).length }) : t('尚未上传', 'Not Uploaded') }}</span>
                   <label>＋ {{ t('选择文件', 'Choose Files') }}<input type="file" multiple :accept="rule.accept" :disabled="fileUploading" @change="uploadProductFiles($event, activeItem, rule.code)"></label>
                   <article v-for="file in configuredProductFilesForSlot(activeItem, rule.code)" :key="file.file_id">
-                    <div><strong>{{ file.name }}</strong><small>{{ file.size_label }}</small></div>
+                    <div><button type="button" class="case-file-preview" @click="emit('preview', file)">{{ file.name }} ↗</button><small>{{ file.size_label }}</small></div>
                     <button type="button" class="case-file-remove" :disabled="busy || fileUploading" @click="removeProductFile(activeItem, file)">{{ t('移除', 'Remove') }}</button>
                   </article>
                 </div>
@@ -3268,7 +3322,7 @@ onMounted(async () => {
             <div v-if="unassignedProductFiles(activeItem).length" class="case-uploaded-files">
               <strong>{{ t('未分类的历史专属附件', 'Unclassified Existing Product Attachments') }}</strong>
               <article v-for="file in unassignedProductFiles(activeItem)" :key="file.file_id">
-                <div><strong>{{ file.name }}</strong><small>{{ file.size_label }}</small></div>
+                <div><button type="button" class="case-file-preview" @click="emit('preview', file)">{{ file.name }} ↗</button><small>{{ file.size_label }}</small></div>
                 <button type="button" class="case-file-remove" :disabled="busy || fileUploading" @click="removeProductFile(activeItem, file)">{{ t('移除', 'Remove') }}</button>
               </article>
             </div>
@@ -3370,7 +3424,7 @@ onMounted(async () => {
         </div>
         <section class="case-final-confirmations">
           <label data-validation-target="confirmation-requirements"><input v-model="finalConfirmations.requirements" type="checkbox"><div><strong>{{ designServiceSelected ? t('设计资料确认', 'Design Records Confirmation') : t('制作要求确认', 'Production Requirements Confirmation') }}</strong><p>{{ designServiceSelected ? t('我已核对牙位、数据格式、设计标准、设计时间、通用口扫资料及已填写的设计要求备注。', 'I have reviewed the tooth positions, data format, design standard, design turnaround, standard scan records, and any design requirements note provided.') : t('我已核对牙位、材料、工艺、资料、试戴及过程确认要求。', 'I have reviewed tooth positions, materials, processes, records, try-in, and confirmation requirements.') }}</p></div></label>
-          <label v-if="!designServiceSelected" data-validation-target="confirmation-cycle"><input v-model="finalConfirmations.cycle" type="checkbox"><div><strong>{{ t('制作周期确认', 'Lead Time Confirmation') }}</strong><p>{{ t('我已核对要求到货日：{date}。', 'I have reviewed the requested delivery date: {date}.', { date: caseSettings.required_delivery_date || t('未填写', 'Not Entered') }) }}</p></div></label>
+          <label v-if="!designServiceSelected" data-validation-target="confirmation-cycle"><input v-model="finalConfirmations.cycle" type="checkbox"><div><strong>{{ t('制作周期确认', 'Lead Time Confirmation') }}</strong><p>{{ t('我已知悉预计到货日期由系统在客服受理后自动计算。', 'I understand that the estimated delivery date is calculated automatically after Order Support acceptance.') }}</p></div></label>
         </section>
         <div v-if="incompleteItems.length" class="case-alert warning">{{ t('还有 {count} 个子产品不完整，请返回对应阶段补齐：{products}。', '{count} product(s) are incomplete. Return to the relevant sections: {products}.', { count: incompleteItems.length, products: incompleteItems.map((item) => catalogProductName(item)).join(locale === 'EN' ? ', ' : '、') }) }}</div>
         <div v-else-if="missingRequiredProductSlots.length" class="case-alert warning">{{ t('仍有产品的口扫资料未完整，请返回资料上传阶段：上传一份完整资料包，或通过共享/专属资料补齐上颌、下颌、咬合分类。', 'A product still has incomplete scan records. Return to Upload Records and upload a complete package or complete the upper, lower and bite categories with shared/product-specific files.') }}</div>
@@ -5338,6 +5392,23 @@ onMounted(async () => {
   border-radius: 11px;
   background: #fffaf0;
 }
+.case-upload-disclosure {
+  width: 100%;
+  min-height: 46px;
+  margin: 12px 0;
+  padding: 0 14px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  border: 1px solid #cbdcf8;
+  border-radius: 10px;
+  background: #f8fbff;
+  color: #153258;
+  cursor: pointer;
+}
+.case-upload-disclosure strong { color: #2563eb; font-size: 12px; }
+.case-upload-disclosure:hover,
+.case-upload-disclosure:focus-visible { border-color: #60a5fa; outline: none; box-shadow: 0 0 0 3px rgba(59, 130, 246, .12); }
 
 .case-scan-bundle-zone.complete {
   border-color: #78c7a0;

@@ -310,6 +310,10 @@ components:
           nullable: true
         order_no:
           type: string
+        box_no:
+          type: string
+          nullable: true
+          description: 客服或管理员维护的盒号；发货前处于占用状态时唯一，发货后释放可复用；系统尾号仍保留。
         product_type:
           type: string
         external_status:
@@ -330,6 +334,10 @@ components:
           type: integer
         order_no:
           type: string
+        box_no:
+          type: string
+          nullable: true
+          description: 盒号未分配时为 null；医生可见但不可修改。
         group_id:
           type: integer
           format: int64
@@ -1371,7 +1379,7 @@ components:
         approved_by_name: {type: string, nullable: true}
     DeliveryPlanResponse:
       type: object
-      description: TASK-034 F 批次交期引擎输出。各项天数均来自 ordering_rule_config，代码中无写死数字。
+      description: 系统预计到货日期及其计算明细。医生端只读；客服或管理员可说明原因后人工覆盖，后续自动重算不会覆盖人工日期。
       properties:
         order_id: {type: integer, format: int64}
         order_no: {type: string}
@@ -1387,11 +1395,14 @@ components:
         waiting_days: {type: integer, description: 医生超出宽限期未确认导致的顺延天数}
         production_days: {type: integer}
         transit_days: {type: integer}
-        computed_delivery_date: {type: string, format: date}
-        doctor_requested_delivery_date: {type: string, format: date, nullable: true}
+        computed_delivery_date: {type: string, format: date, description: 当前唯一对外展示的系统预计到货日期}
+        calculated_delivery_date: {type: string, format: date, description: 自动计算基准，供内部审计人工覆盖来源}
+        manual_override: {type: boolean}
+        manual_override_reason: {type: string, nullable: true}
+        manual_override_at: {type: string, format: date-time, nullable: true}
         variance_days: {type: integer, nullable: true}
-        variance_flag: {type: string, enum: [NONE, EARLIER_THAN_FEASIBLE, LATER_THAN_PLAN]}
-        delivery_alert: {type: string, nullable: true, enum: [EARLIER_THAN_FEASIBLE, WAITING_DOCTOR_CONFIRMATION, LATER_THAN_PLAN]}
+        variance_flag: {type: string, enum: [NONE], description: 兼容字段；当前单一系统预计日期口径固定为 NONE}
+        delivery_alert: {type: string, nullable: true, enum: [WAITING_DOCTOR_CONFIRMATION]}
         delivery_alert_message: {type: string, nullable: true}
         estimate_status: {type: string, enum: [PLACEHOLDER, CONFIRMED], description: PLACEHOLDER 时界面必须标注「待确认」}
         placeholder_rules: {type: array, items: {type: string}, description: 本次计算用到的占位规则名称}
@@ -1438,10 +1449,53 @@ components:
         remark: {type: string, nullable: true}
     AdjustDeliveryDateRequest:
       type: object
-      required: [requested_delivery_date]
+      required: [estimated_delivery_date, reason]
       properties:
-        requested_delivery_date: {type: string, format: date}
-        reason: {type: string, maxLength: 255}
+        estimated_delivery_date: {type: string, format: date}
+        reason: {type: string, maxLength: 500, description: 客服或管理员人工覆盖系统预计日期的原因，写入业务审计。}
+    OrderSupplementCreateRequest:
+      type: object
+      required: [file_ids, material_type, attachment_scope]
+      properties:
+        file_ids: {type: array, minItems: 1, items: {type: integer, format: int64}}
+        material_type: {type: string, maxLength: 64}
+        attachment_scope: {type: string, enum: [SHARED, PRODUCT]}
+        product_order_id: {type: integer, format: int64, nullable: true, description: PRODUCT 范围必填，且必须属于当前病例组}
+        note: {type: string, maxLength: 500, nullable: true, description: 选填；未填写时展示“医生补充资料”}
+    OrderSupplementReviewRequest:
+      type: object
+      required: [action]
+      properties:
+        action: {type: string, enum: [APPROVE, REJECT]}
+        reason: {type: string, maxLength: 500, nullable: true, description: REJECT 时必填}
+    OrderSupplementResponse:
+      type: object
+      properties:
+        supplement_id: {type: integer, format: int64}
+        order_id: {type: integer, format: int64}
+        file_id: {type: integer, format: int64}
+        original_filename: {type: string}
+        content_type: {type: string, nullable: true}
+        file_size: {type: integer, format: int64, nullable: true}
+        material_type: {type: string}
+        attachment_scope: {type: string, enum: [SHARED, PRODUCT]}
+        product_order_id: {type: integer, format: int64, nullable: true}
+        note: {type: string, nullable: true}
+        display_note: {type: string}
+        version_no: {type: integer}
+        approval_status: {type: string, enum: [EFFECTIVE, PENDING_CS_APPROVAL, APPROVED, REJECTED]}
+        uploaded_by_user_id: {type: integer, format: int64}
+        approved_by_user_id: {type: integer, format: int64, nullable: true}
+        approved_at: {type: string, format: date-time, nullable: true}
+        created_at: {type: string, format: date-time}
+    AssignmentCandidateResponse:
+      type: object
+      properties:
+        user_id: {type: string, pattern: "^[0-9]+$"}
+        display_name: {type: string}
+        dept_id: {type: integer, format: int64, nullable: true}
+        dept_name: {type: string, nullable: true}
+        active_node_count: {type: integer, format: int64}
     ProcessConfirmationRequestBody:
       type: object
       properties:
@@ -2002,6 +2056,26 @@ components:
           cs_user_id:
             type: integer
             description: 仅内部角色可见
+          production_order_no:
+            type: string
+            nullable: true
+            description: 仅内部角色可见；全局永久唯一，由客服初审登记。
+          promised_delivery_date:
+            type: string
+            format: date
+            nullable: true
+            description: 当前系统预计到货日期；医生端只读。
+          delivery_alert:
+            type: string
+            nullable: true
+            enum: [WAITING_DOCTOR_CONFIRMATION]
+          delivery_alert_message:
+            type: string
+            nullable: true
+          delivery_estimate_status:
+            type: string
+            nullable: true
+            enum: [PLACEHOLDER, CONFIRMED]
     FileInfo:
       type: object
       properties:
@@ -7205,6 +7279,121 @@ paths:
         '503':
           "$ref": "#/components/responses/ServiceUnavailable"
       operationId: getFilesByFileIdPreviewUrl
+  "/files/{fileId}/text-preview":
+    get:
+      tags: [File]
+      summary: 提取 TXT、DOC、DOCX 文件的安全文本预览
+      description: 复用文件访问权限、数据范围和审计校验；响应文本有长度上限，并通过 truncated 标识截断。
+      parameters:
+      - {name: fileId, in: path, required: true, schema: {type: integer, format: int64}}
+      responses:
+        '200':
+          description: 文本预览
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data:
+                    type: object
+                    properties:
+                      file_id: {type: integer, format: int64}
+                      filename: {type: string}
+                      text: {type: string}
+                      truncated: {type: boolean}
+        '400': {"$ref": "#/components/responses/BadRequest"}
+        '401': {"$ref": "#/components/responses/Unauthorized"}
+        '403': {"$ref": "#/components/responses/Forbidden"}
+        '404': {"$ref": "#/components/responses/NotFound"}
+        '409': {"$ref": "#/components/responses/Conflict"}
+        '503': {"$ref": "#/components/responses/ServiceUnavailable"}
+        default: {"$ref": "#/components/responses/DefaultError"}
+      operationId: getFilesByFileIdTextPreview
+  "/files/{fileId}/archive-entries":
+    get:
+      tags: [File]
+      summary: 安全列出 ZIP 内文件并标记可预览项
+      description: 拒绝绝对路径、路径穿越与非法条目；条目数和解压后成员大小均有限制。
+      parameters:
+      - {name: fileId, in: path, required: true, schema: {type: integer, format: int64}}
+      responses:
+        '200':
+          description: ZIP 目录
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data:
+                    type: object
+                    properties:
+                      file_id: {type: integer, format: int64}
+                      filename: {type: string}
+                      truncated: {type: boolean}
+                      entries:
+                        type: array
+                        items:
+                          type: object
+                          properties:
+                            path: {type: string}
+                            uncompressed_size: {type: integer, format: int64}
+                            directory: {type: boolean}
+                            preview_supported: {type: boolean}
+        '400': {"$ref": "#/components/responses/BadRequest"}
+        '401': {"$ref": "#/components/responses/Unauthorized"}
+        '403': {"$ref": "#/components/responses/Forbidden"}
+        '404': {"$ref": "#/components/responses/NotFound"}
+        '409': {"$ref": "#/components/responses/Conflict"}
+        '503': {"$ref": "#/components/responses/ServiceUnavailable"}
+        default: {"$ref": "#/components/responses/DefaultError"}
+      operationId: getFilesByFileIdArchiveEntries
+  "/files/{fileId}/archive-entry":
+    get:
+      tags: [File]
+      summary: 读取 ZIP 内支持浏览器直接预览的成员
+      parameters:
+      - {name: fileId, in: path, required: true, schema: {type: integer, format: int64}}
+      - {name: path, in: query, required: true, schema: {type: string}}
+      responses:
+        '200': {description: ZIP 成员内容, content: {application/octet-stream: {schema: {type: string, format: binary}}}}
+        '400': {"$ref": "#/components/responses/BadRequest"}
+        '401': {"$ref": "#/components/responses/Unauthorized"}
+        '403': {"$ref": "#/components/responses/Forbidden"}
+        '404': {"$ref": "#/components/responses/NotFound"}
+        '409': {"$ref": "#/components/responses/Conflict"}
+        '503': {"$ref": "#/components/responses/ServiceUnavailable"}
+        default: {"$ref": "#/components/responses/DefaultError"}
+      operationId: getFilesByFileIdArchiveEntry
+  "/files/{fileId}/archive-entry-text":
+    get:
+      tags: [File]
+      summary: 提取 ZIP 内 TXT、DOC、DOCX 成员的安全文本预览
+      parameters:
+      - {name: fileId, in: path, required: true, schema: {type: integer, format: int64}}
+      - {name: path, in: query, required: true, schema: {type: string}}
+      responses:
+        '200':
+          description: ZIP 成员文本预览
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data:
+                    type: object
+                    properties:
+                      file_id: {type: integer, format: int64}
+                      filename: {type: string}
+                      text: {type: string}
+                      truncated: {type: boolean}
+        '400': {"$ref": "#/components/responses/BadRequest"}
+        '401': {"$ref": "#/components/responses/Unauthorized"}
+        '403': {"$ref": "#/components/responses/Forbidden"}
+        '404': {"$ref": "#/components/responses/NotFound"}
+        '409': {"$ref": "#/components/responses/Conflict"}
+        '503': {"$ref": "#/components/responses/ServiceUnavailable"}
+        default: {"$ref": "#/components/responses/DefaultError"}
+      operationId: getFilesByFileIdArchiveEntryText
   "/files/{fileId}/download-url":
     get:
       tags:
@@ -8195,14 +8384,14 @@ paths:
         '409': {"$ref": "#/components/responses/Conflict"}
         '503': {"$ref": "#/components/responses/ServiceUnavailable"}
         default: {"$ref": "#/components/responses/DefaultError"}
-  "/orders/{orderId}/delivery-plan/requested-date":
+  "/orders/{orderId}/delivery-plan/estimated-date":
     put:
       tags: [Order]
-      summary: 医生调整要求到货时间
+      summary: 客服或管理员人工覆盖系统预计到货日期
       description: |
-        权限码：order:write-doctor（DOCTOR，仅本人订单）。调整后重算与系统可行交期的差异；
-        早于可行交期时 variance_flag = EARLIER_THAN_FEASIBLE，客服端订单视图出现时间异常提示并收到通知。
-      operationId: putOrderDeliveryRequestedDate
+        权限码：order:delivery-date:update（CS / ADMIN）。医生端只读。
+        reason 必填并写入业务审计；人工覆盖后仍保留自动计算基准，后续自动重算不覆盖人工日期。
+      operationId: putOrderEstimatedDeliveryDate
       parameters:
       - {name: orderId, in: path, required: true, schema: {type: integer, format: int64}}
       requestBody: {required: true, content: {application/json: {schema: {"$ref": "#/components/schemas/AdjustDeliveryDateRequest"}}}}
@@ -8650,6 +8839,128 @@ paths:
         '503':
           "$ref": "#/components/responses/ServiceUnavailable"
       operationId: putOrdersByOrderId
+  "/orders/{orderId}/box-no":
+    put:
+      tags:
+      - Order
+      summary: 客服或管理员维护订单盒号
+      description: |
+        权限码：order:box-no:update（CS / ADMIN）。盒号非空时全局唯一，修改写入业务审计。
+        本字段不替代完整订单号，也不删除由完整订单号派生的系统尾号。
+      parameters:
+      - name: orderId
+        in: path
+        required: true
+        schema: {type: integer, format: int64}
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                box_no: {type: string, nullable: true, maxLength: 64}
+                reason: {type: string, nullable: true, maxLength: 500}
+      responses:
+        '200':
+          description: 更新后的内部订单详情
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data: {"$ref": "#/components/schemas/OrderDetail"}
+        '400': {"$ref": "#/components/responses/BadRequest"}
+        '401': {"$ref": "#/components/responses/Unauthorized"}
+        '403': {"$ref": "#/components/responses/Forbidden"}
+        '404': {"$ref": "#/components/responses/NotFound"}
+        '409': {"$ref": "#/components/responses/Conflict"}
+        '503': {"$ref": "#/components/responses/ServiceUnavailable"}
+        default: {"$ref": "#/components/responses/DefaultError"}
+      operationId: putOrdersByOrderIdBoxNo
+  "/orders/{orderId}/production-order-no":
+    put:
+      tags: [Order]
+      summary: 客服或管理员登记或更正生产订单编号
+      description: |
+        权限码：order:production-no:update（CS / ADMIN）。编号全局永久唯一；初次登记无需原因，
+        已进入生产流程后的更正必须填写 reason，并始终写入业务审计。客服初审通过前必须先登记。
+      parameters:
+      - {name: orderId, in: path, required: true, schema: {type: integer, format: int64}}
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                production_order_no: {type: string, maxLength: 64}
+                reason: {type: string, maxLength: 500, nullable: true}
+      responses:
+        '200': {description: 更新后的内部订单详情, content: {application/json: {schema: {type: object, properties: {data: {"$ref": "#/components/schemas/OrderDetail"}}}}}}
+        '400': {"$ref": "#/components/responses/BadRequest"}
+        '401': {"$ref": "#/components/responses/Unauthorized"}
+        '403': {"$ref": "#/components/responses/Forbidden"}
+        '404': {"$ref": "#/components/responses/NotFound"}
+        '409': {"$ref": "#/components/responses/Conflict"}
+        '503': {"$ref": "#/components/responses/ServiceUnavailable"}
+        default: {"$ref": "#/components/responses/DefaultError"}
+      operationId: putOrdersByOrderIdProductionOrderNo
+  "/orders/{orderId}/supplements":
+    get:
+      tags: [Order]
+      summary: 读取订单补充资料版本记录
+      description: 医生仅可读取本人订单；内部端仍按订单数据范围校验。
+      parameters:
+      - {name: orderId, in: path, required: true, schema: {type: integer, format: int64}}
+      responses:
+        '200': {description: 补充资料列表, content: {application/json: {schema: {type: object, properties: {data: {type: array, items: {"$ref": "#/components/schemas/OrderSupplementResponse"}}}}}}}
+        '400': {"$ref": "#/components/responses/BadRequest"}
+        '401': {"$ref": "#/components/responses/Unauthorized"}
+        '403': {"$ref": "#/components/responses/Forbidden"}
+        '404': {"$ref": "#/components/responses/NotFound"}
+        '409': {"$ref": "#/components/responses/Conflict"}
+        '503': {"$ref": "#/components/responses/ServiceUnavailable"}
+        default: {"$ref": "#/components/responses/DefaultError"}
+      operationId: getOrdersByOrderIdSupplements
+    post:
+      tags: [Order]
+      summary: 医生提交订单补充资料
+      description: |
+        文件须为当前医生在该订单已完成上传的 ORDER_ATTACHMENT。初审前立即生效；初审后进入客服审核；
+        生产开始后客服审核通过会通知相关生产人员；已发货或已完成订单禁止补充。
+      parameters:
+      - {name: orderId, in: path, required: true, schema: {type: integer, format: int64}}
+      requestBody: {required: true, content: {application/json: {schema: {"$ref": "#/components/schemas/OrderSupplementCreateRequest"}}}}
+      responses:
+        '200': {description: 更新后的补充资料列表, content: {application/json: {schema: {type: object, properties: {data: {type: array, items: {"$ref": "#/components/schemas/OrderSupplementResponse"}}}}}}}
+        '400': {"$ref": "#/components/responses/BadRequest"}
+        '401': {"$ref": "#/components/responses/Unauthorized"}
+        '403': {"$ref": "#/components/responses/Forbidden"}
+        '404': {"$ref": "#/components/responses/NotFound"}
+        '409': {"$ref": "#/components/responses/Conflict"}
+        '503': {"$ref": "#/components/responses/ServiceUnavailable"}
+        default: {"$ref": "#/components/responses/DefaultError"}
+      operationId: postOrdersByOrderIdSupplements
+  "/orders/{orderId}/supplements/{supplementId}/review":
+    post:
+      tags: [Order]
+      summary: 客服或管理员审核医生补充资料
+      description: 权限码：order:supplement:approve。仅 PENDING_CS_APPROVAL 可审核；驳回必须填写原因。
+      parameters:
+      - {name: orderId, in: path, required: true, schema: {type: integer, format: int64}}
+      - {name: supplementId, in: path, required: true, schema: {type: integer, format: int64}}
+      requestBody: {required: true, content: {application/json: {schema: {"$ref": "#/components/schemas/OrderSupplementReviewRequest"}}}}
+      responses:
+        '200': {description: 审核后的补充资料, content: {application/json: {schema: {type: object, properties: {data: {"$ref": "#/components/schemas/OrderSupplementResponse"}}}}}}
+        '400': {"$ref": "#/components/responses/BadRequest"}
+        '401': {"$ref": "#/components/responses/Unauthorized"}
+        '403': {"$ref": "#/components/responses/Forbidden"}
+        '404': {"$ref": "#/components/responses/NotFound"}
+        '409': {"$ref": "#/components/responses/Conflict"}
+        '503': {"$ref": "#/components/responses/ServiceUnavailable"}
+        default: {"$ref": "#/components/responses/DefaultError"}
+      operationId: postOrdersByOrderIdSupplementsReview
   "/orders/{orderId}/review":
     post:
       tags:
@@ -8752,7 +9063,9 @@ paths:
         权限：DOCTOR（只能操作本人订单）。
         仅当订单已有物流记录且物流状态为 SHIPPED 或
         DELIVERED_PENDING_CONFIRMATION 时允许确认；成功后物流状态冻结为
-        DELIVERED、记录 delivered_at，订单外部状态变为 COMPLETED，并通知客服。
+        DELIVERED、记录 delivered_at 和 DOCTOR_MANUAL 确认类型，订单外部状态变为 COMPLETED，并通知客服。
+        医生未手动确认时，系统在 shipped_at + 7×24 小时自动确认，并提前 24 小时提醒；
+        异常、取消、退货或退款状态会暂停自动确认。
       parameters:
       - name: orderId
         in: path
@@ -8939,7 +9252,7 @@ paths:
       tags:
       - ProcessInstance
       summary: 批量绑定节点执行员工
-      description: 权限：ADMIN。目标账号必须是启用的 WORKER；已分配节点必须使用转派接口，操作写入派工审计并通知目标员工。
+      description: 权限码：workflow:assign。管理员可按授权范围派工；生产组长仅能选择本人生产部门内启用的 WORKER（含本人）。已分配节点必须使用转派接口，操作写入派工审计并通知目标员工。
       parameters:
       - name: orderId
         in: path
@@ -8999,7 +9312,7 @@ paths:
       tags:
       - ProcessInstance
       summary: 转派工序节点执行员工
-      description: 权限：ADMIN
+      description: 权限码：workflow:assign。生产组长仅能在本人生产部门内转派，reason 必填。
       parameters:
       - name: orderId
         in: path
@@ -9054,6 +9367,25 @@ paths:
         '503':
           "$ref": "#/components/responses/ServiceUnavailable"
       operationId: postOrdersByOrderIdProcessInstanceNodesByNodeInstanceIdReassign
+  "/process-instance/nodes/{nodeInstanceId}/assignment-candidates":
+    get:
+      tags: [ProcessInstance]
+      summary: 获取当前工序允许选择的派工候选人
+      description: |
+        权限码：workflow:assign。只返回启用的生产 WORKER；生产组长仅返回本人部门（含本人），
+        不返回医生、客服或管理员。无匹配时返回空数组，调用端显示“暂无合适人员”，不得自动放宽范围。
+      parameters:
+      - {name: nodeInstanceId, in: path, required: true, schema: {type: integer, format: int64}}
+      responses:
+        '200': {description: 候选人列表, content: {application/json: {schema: {type: object, properties: {data: {type: array, items: {"$ref": "#/components/schemas/AssignmentCandidateResponse"}}}}}}}
+        '400': {"$ref": "#/components/responses/BadRequest"}
+        '401': {"$ref": "#/components/responses/Unauthorized"}
+        '403': {"$ref": "#/components/responses/Forbidden"}
+        '404': {"$ref": "#/components/responses/NotFound"}
+        '409': {"$ref": "#/components/responses/Conflict"}
+        '503': {"$ref": "#/components/responses/ServiceUnavailable"}
+        default: {"$ref": "#/components/responses/DefaultError"}
+      operationId: getProcessNodeAssignmentCandidates
   "/tasks/mine":
     get:
       tags:

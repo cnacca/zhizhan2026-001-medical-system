@@ -302,6 +302,12 @@ async function createFixedDemoOrder(doctorToken) {
 }
 
 async function approveCsReview(orderId, csToken) {
+  await apiFetch(`/orders/${orderId}/production-order-no`, csToken, {
+    method: 'PUT',
+    body: JSON.stringify({
+      production_order_no: `DEMO-PROD-${orderId}`
+    })
+  })
   const payload = await apiFetch(`/orders/${orderId}/review`, csToken, {
     method: 'POST',
     body: JSON.stringify({
@@ -1050,7 +1056,7 @@ async function prepareFixedDemoFirstThreeSteps() {
   const internallyApprovedDesignDraft = await approveDesignDraftInternally(
     createdOrder.order_id,
     designDraft.draft_id,
-    adminSession.accessToken
+    workerSession.accessToken
   )
   if (stopAfter === 'design-pending') {
     console.log(

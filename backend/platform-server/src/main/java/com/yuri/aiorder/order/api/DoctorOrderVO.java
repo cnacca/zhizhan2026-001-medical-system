@@ -8,6 +8,7 @@ import java.util.List;
 public record DoctorOrderVO(
         @JsonProperty("order_id") long orderId,
         @JsonProperty("order_no") String orderNo,
+        @JsonProperty("box_no") String boxNo,
         @JsonProperty("group_id") Long groupId,
         @JsonProperty("patient_id") Long patientId,
         @JsonProperty("product_type") String productType,

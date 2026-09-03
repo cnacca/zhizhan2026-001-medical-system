@@ -4,6 +4,7 @@ import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.yuri.aiorder.common.BootstrapIdentity;
 import com.yuri.aiorder.notification.NotificationPushService;
+import com.yuri.aiorder.order.rules.DeliveryPlanService;
 import com.yuri.aiorder.order.status.InternalOrderStatus;
 import com.yuri.aiorder.order.status.OrderStatusService;
 import java.util.Locale;
@@ -21,18 +22,21 @@ public class OrderReviewService {
     private final OrderStatusService statusService;
     private final OrderProjectionQueryService queryService;
     private final NotificationPushService notificationPushService;
+    private final DeliveryPlanService deliveryPlanService;
 
     public OrderReviewService(
             JdbcClient jdbcClient,
             ObjectMapper objectMapper,
             OrderStatusService statusService,
             OrderProjectionQueryService queryService,
-            NotificationPushService notificationPushService) {
+            NotificationPushService notificationPushService,
+            DeliveryPlanService deliveryPlanService) {
         this.jdbcClient = jdbcClient;
         this.objectMapper = objectMapper;
         this.statusService = statusService;
         this.queryService = queryService;
         this.notificationPushService = notificationPushService;
+        this.deliveryPlanService = deliveryPlanService;
     }
 
     @Transactional
@@ -50,6 +54,10 @@ public class OrderReviewService {
     }
 
     private void approve(OrderReviewRow order, OrderReviewRequest request, BootstrapIdentity identity) {
+        if (order.productionOrderNo() == null || order.productionOrderNo().isBlank()) {
+            throw new ResponseStatusException(
+                    HttpStatus.CONFLICT, "production_order_no is required before CS approval");
+        }
         jdbcClient.sql("""
                         UPDATE orders
                         SET production_note = :productionNote,
@@ -67,6 +75,8 @@ public class OrderReviewService {
                 "CS_APPROVE_ORDER",
                 identity.userId(),
                 "客服初审通过，进入生产审核。");
+        deliveryPlanService.startFromCustomerServiceAcceptance(
+                order.orderId(), com.yuri.aiorder.common.BusinessTime.today());
         emit(order, "ORDER_APPROVED", "DOCTOR", order.doctorUserId(), "客服审核通过，等待生产审核。");
     }
 
@@ -97,7 +107,7 @@ public class OrderReviewService {
     private OrderReviewRow lockReviewableOrder(long orderId, BootstrapIdentity identity) {
         queryService.getInternalOrder(orderId, identity);
         OrderReviewRow order = jdbcClient.sql("""
-                        SELECT order_id, order_no, doctor_user_id, internal_status
+                        SELECT order_id, order_no, production_order_no, doctor_user_id, internal_status
                         FROM orders
                         WHERE order_id = :orderId
                         FOR UPDATE
@@ -106,6 +116,7 @@ public class OrderReviewService {
                 .query((rs, rowNum) -> new OrderReviewRow(
                         rs.getLong("order_id"),
                         rs.getString("order_no"),
+                        rs.getString("production_order_no"),
                         rs.getObject("doctor_user_id", Long.class),
                         rs.getString("internal_status")))
                 .single();
@@ -164,7 +175,8 @@ public class OrderReviewService {
         return value.trim();
     }
 
-    private record OrderReviewRow(long orderId, String orderNo, Long doctorUserId, String internalStatus) {
+    private record OrderReviewRow(
+            long orderId, String orderNo, String productionOrderNo, Long doctorUserId, String internalStatus) {
     }
 
     private record NotificationPayload(String event, long orderId, String orderNo, String message) {

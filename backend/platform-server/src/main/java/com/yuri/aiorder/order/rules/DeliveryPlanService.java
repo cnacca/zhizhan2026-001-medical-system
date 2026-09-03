@@ -133,7 +133,7 @@ public class DeliveryPlanService {
             return null;
         }
         List<ConfirmationRow> confirmations = loadConfirmationRows(orderId);
-        Rule cycle = ruleCatalog.productCycle(workflowProductType);
+        Rule cycle = longestProductCycle(orderId, workflowProductType);
         Rule cap = ruleCatalog.priorityCap(plan.priorityCode());
         Rule perItem = ruleCatalog.perProcessConfirmationDays();
         Rule grace = ruleCatalog.doctorConfirmationGraceDays();
@@ -159,7 +159,8 @@ public class DeliveryPlanService {
 
         int productionDays = Math.max(0, productionBase + confirmationDays + waitingDays);
         int transitDays = Math.max(0, transit.days());
-        LocalDate computed = plan.baselineDate().plusDays((long) productionDays + transitDays);
+        LocalDate calculated = plan.baselineDate().plusDays((long) productionDays + transitDays);
+        LocalDate effective = plan.manualDeliveryDate() == null ? calculated : plan.manualDeliveryDate();
 
         Set<String> placeholders = new LinkedHashSet<>();
         if (baseCycleInfluencesResult && cycle.isPlaceholder()) {
@@ -181,16 +182,10 @@ public class DeliveryPlanService {
                 ? OrderRuleVocabulary.ESTIMATE_CONFIRMED
                 : OrderRuleVocabulary.ESTIMATE_PLACEHOLDER;
 
-        Integer varianceDays = null;
+        Integer varianceDays = plan.manualDeliveryDate() == null
+                ? null
+                : (int) ChronoUnit.DAYS.between(calculated, plan.manualDeliveryDate());
         String varianceFlag = OrderRuleVocabulary.VARIANCE_NONE;
-        if (plan.doctorRequestedDeliveryDate() != null) {
-            varianceDays = (int) ChronoUnit.DAYS.between(computed, plan.doctorRequestedDeliveryDate());
-            if (varianceDays < 0) {
-                varianceFlag = OrderRuleVocabulary.VARIANCE_EARLIER_THAN_FEASIBLE;
-            } else if (varianceDays > 0) {
-                varianceFlag = OrderRuleVocabulary.VARIANCE_LATER_THAN_PLAN;
-            }
-        }
 
         jdbcClient.sql("""
                         UPDATE order_delivery_plan
@@ -201,6 +196,7 @@ public class DeliveryPlanService {
                             waiting_days = :waitingDays,
                             production_days = :productionDays,
                             transit_days = :transitDays,
+                            calculated_delivery_date = :calculatedDeliveryDate,
                             computed_delivery_date = :computedDeliveryDate,
                             variance_days = :varianceDays,
                             variance_flag = :varianceFlag,
@@ -214,7 +210,8 @@ public class DeliveryPlanService {
                 .param("waitingDays", waitingDays)
                 .param("productionDays", productionDays)
                 .param("transitDays", transitDays)
-                .param("computedDeliveryDate", computed)
+                .param("calculatedDeliveryDate", calculated)
+                .param("computedDeliveryDate", effective)
                 .param("varianceDays", varianceDays)
                 .param("varianceFlag", varianceFlag)
                 .param("estimateStatus", estimateStatus)
@@ -226,15 +223,21 @@ public class DeliveryPlanService {
         return new Computation(findPlan(orderId), List.copyOf(placeholders), waitingAlert);
     }
 
-    /** 医生调整到货时间。调整后由 {@link #recompute} 重算差异，客服端据此出现时间异常提示。 */
+    /** 客服/管理员人工覆盖系统预计到货日期。重算只更新自动计算基准，不覆盖人工日期。 */
     @Transactional
-    public Computation adjustRequestedDeliveryDate(long orderId, LocalDate requestedDate) {
+    public Computation adjustEstimatedDeliveryDate(
+            long orderId, LocalDate requestedDate, String reason, Long operatorUserId) {
         int updated = jdbcClient.sql("""
                         UPDATE order_delivery_plan
-                        SET doctor_requested_delivery_date = :requestedDate
+                        SET manual_delivery_date = :requestedDate,
+                            manual_override_reason = :reason,
+                            manual_override_by = :operatorUserId,
+                            manual_override_at = CURRENT_TIMESTAMP(3)
                         WHERE order_id = :orderId
                         """)
                 .param("requestedDate", requestedDate)
+                .param("reason", reason)
+                .param("operatorUserId", operatorUserId)
                 .param("orderId", orderId)
                 .update();
         if (updated == 0) {
@@ -321,13 +324,49 @@ public class DeliveryPlanService {
         return ruleCatalog.doctorConfirmationGraceDays().days();
     }
 
+    @Transactional
+    public void startFromCustomerServiceAcceptance(long orderId, LocalDate acceptedOn) {
+        jdbcClient.sql("""
+                        UPDATE order_delivery_plan
+                        SET baseline_date = :acceptedOn
+                        WHERE order_id = :orderId
+                        """)
+                .param("acceptedOn", acceptedOn)
+                .param("orderId", orderId)
+                .update();
+        recompute(orderId);
+    }
+
+    private Rule longestProductCycle(long orderId, String fallbackProductType) {
+        List<String> productTypes = jdbcClient.sql("""
+                        SELECT sibling.product_type
+                        FROM orders current_order
+                        JOIN orders sibling
+                          ON sibling.group_id = current_order.group_id
+                          OR (current_order.group_id IS NULL AND sibling.order_id = current_order.order_id)
+                        WHERE current_order.order_id = :orderId
+                        """)
+                .param("orderId", orderId)
+                .query(String.class)
+                .list();
+        if (productTypes.isEmpty()) {
+            return ruleCatalog.productCycle(fallbackProductType);
+        }
+        return productTypes.stream()
+                .map(ruleCatalog::productCycle)
+                .max(java.util.Comparator.comparingInt(Rule::days))
+                .orElseGet(() -> ruleCatalog.productCycle(fallbackProductType));
+    }
+
     public PlanRow findPlan(long orderId) {
         return jdbcClient.sql("""
                         SELECT plan_id, order_id, order_type, priority_code, shipping_method,
                                inbound_tracking_no, baseline_date, base_cycle_days,
                                priority_cap_days, process_confirmation_count,
                                process_confirmation_days, waiting_days, production_days,
-                               transit_days, computed_delivery_date,
+                               transit_days, computed_delivery_date, calculated_delivery_date,
+                               manual_delivery_date, manual_override_reason,
+                               manual_override_by, manual_override_at,
                                doctor_requested_delivery_date, variance_days,
                                variance_flag, estimate_status
                         FROM order_delivery_plan
@@ -407,6 +446,11 @@ public class DeliveryPlanService {
                 rs.getInt("production_days"),
                 rs.getInt("transit_days"),
                 rs.getObject("computed_delivery_date", LocalDate.class),
+                rs.getObject("calculated_delivery_date", LocalDate.class),
+                rs.getObject("manual_delivery_date", LocalDate.class),
+                rs.getString("manual_override_reason"),
+                rs.getObject("manual_override_by", Long.class),
+                rs.getObject("manual_override_at", LocalDateTime.class),
                 rs.getObject("doctor_requested_delivery_date", LocalDate.class),
                 rs.getObject("variance_days", Integer.class),
                 rs.getString("variance_flag"),
@@ -444,6 +488,11 @@ public class DeliveryPlanService {
             int productionDays,
             int transitDays,
             LocalDate computedDeliveryDate,
+            LocalDate calculatedDeliveryDate,
+            LocalDate manualDeliveryDate,
+            String manualOverrideReason,
+            Long manualOverrideBy,
+            LocalDateTime manualOverrideAt,
             LocalDate doctorRequestedDeliveryDate,
             Integer varianceDays,
             String varianceFlag,
