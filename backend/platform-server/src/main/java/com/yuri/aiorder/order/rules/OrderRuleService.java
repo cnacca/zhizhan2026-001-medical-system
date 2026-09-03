@@ -2,6 +2,7 @@ package com.yuri.aiorder.order.rules;
 
 import com.yuri.aiorder.common.BootstrapIdentity;
 import com.yuri.aiorder.common.auth.AccessControlService;
+import com.yuri.aiorder.order.api.OrderAdministrationService;
 import com.yuri.aiorder.order.rules.DeliveryPlanService.Computation;
 import com.yuri.aiorder.order.rules.DeliveryPlanService.ConfirmationRow;
 import com.yuri.aiorder.order.rules.DeliveryPlanService.PlanRow;
@@ -37,6 +38,7 @@ public class OrderRuleService {
     private final TryInService tryInService;
     private final OrderBillItemService billItemService;
     private final OrderingRuleCatalog ruleCatalog;
+    private final OrderAdministrationService orderAdministrationService;
 
     public OrderRuleService(
             JdbcClient jdbcClient,
@@ -45,7 +47,8 @@ public class OrderRuleService {
             DeliveryPlanService deliveryPlanService,
             TryInService tryInService,
             OrderBillItemService billItemService,
-            OrderingRuleCatalog ruleCatalog) {
+            OrderingRuleCatalog ruleCatalog,
+            OrderAdministrationService orderAdministrationService) {
         this.jdbcClient = jdbcClient;
         this.support = support;
         this.accessControlService = accessControlService;
@@ -53,6 +56,7 @@ public class OrderRuleService {
         this.tryInService = tryInService;
         this.billItemService = billItemService;
         this.ruleCatalog = ruleCatalog;
+        this.orderAdministrationService = orderAdministrationService;
     }
 
     /** 病例组提交时调用。同一批提交内任一子订单失败都会整体回滚。 */
@@ -76,28 +80,39 @@ public class OrderRuleService {
         return assemble(order);
     }
 
-    /**
-     * 医生调整到货时间。调整后交期差异落库，客服端的订单视图据此出现「时间异常」提示，
-     * 并给受理客服推一条通知——只落库不通知等于没提示。
-     */
+    /** 客服或管理员人工覆盖系统预计到货日期；医生提交后没有直接修改权限。 */
     @Transactional
     public DeliveryPlanResponse adjustDeliveryDate(
             long orderId, AdjustDeliveryDateRequest request, BootstrapIdentity identity) {
         OrderRow order = support.loadScopedOrder(orderId, identity, "identity cannot access this order");
-        support.requireDoctorOwnership(order, identity);
-        Computation computation =
-                deliveryPlanService.adjustRequestedDeliveryDate(orderId, request.requestedDeliveryDate());
-        if (computation != null
-                && OrderRuleVocabulary.VARIANCE_EARLIER_THAN_FEASIBLE.equals(
-                        computation.plan().varianceFlag())) {
-            support.emit(
-                    order,
-                    "DELIVERY_DATE_VARIANCE",
-                    "CS",
-                    order.csUserId(),
-                    "医生要求的到货时间早于系统可行交期 "
-                            + Math.abs(computation.plan().varianceDays()) + " 天，请与医生确认。");
+        accessControlService.requirePermission(
+                identity,
+                "order:delivery-date:update",
+                "adjusting requested delivery date requires order:delivery-date:update");
+        String reason = request.reason() == null ? "" : request.reason().trim();
+        if (reason.isEmpty()) {
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "reason is required");
         }
+        LocalDate before = jdbcClient.sql("""
+                        SELECT computed_delivery_date
+                        FROM order_delivery_plan
+                        WHERE order_id = :orderId
+                        FOR UPDATE
+                        """)
+                .param("orderId", orderId)
+                .query(LocalDate.class)
+                .optional()
+                .orElse(null);
+        deliveryPlanService.adjustEstimatedDeliveryDate(
+                orderId, request.estimatedDeliveryDate(), reason, identity.userId());
+        orderAdministrationService.auditDeliveryDate(
+                orderId, before, request.estimatedDeliveryDate(), reason, identity);
+        support.emit(
+                order,
+                "DELIVERY_DATE_UPDATED",
+                "DOCTOR",
+                order.doctorUserId(),
+                "订单服务已将系统预计到货日期调整为 " + request.estimatedDeliveryDate() + "。");
         return assemble(order);
     }
 
@@ -240,7 +255,7 @@ public class OrderRuleService {
         PlanRow plan = computation.plan();
         List<ProcessConfirmationResponse> confirmations =
                 deliveryPlanService.listConfirmations(order.orderId());
-        String alert = resolveAlert(plan.varianceFlag(), computation.waitingAlert());
+        String alert = resolveAlert(computation.waitingAlert());
         return new DeliveryPlanResponse(
                 order.orderId(),
                 order.orderNo(),
@@ -257,7 +272,10 @@ public class OrderRuleService {
                 plan.productionDays(),
                 plan.transitDays(),
                 plan.computedDeliveryDate(),
-                plan.doctorRequestedDeliveryDate(),
+                plan.calculatedDeliveryDate(),
+                plan.manualDeliveryDate() != null,
+                plan.manualOverrideReason(),
+                plan.manualOverrideAt(),
                 plan.varianceDays(),
                 plan.varianceFlag(),
                 alert,
@@ -269,15 +287,9 @@ public class OrderRuleService {
                 billItemService.list(order.orderId()));
     }
 
-    private String resolveAlert(String varianceFlag, boolean waitingAlert) {
-        if (OrderRuleVocabulary.VARIANCE_EARLIER_THAN_FEASIBLE.equals(varianceFlag)) {
-            return OrderRuleVocabulary.VARIANCE_EARLIER_THAN_FEASIBLE;
-        }
+    private String resolveAlert(boolean waitingAlert) {
         if (waitingAlert) {
             return OrderRuleVocabulary.ALERT_WAITING_DOCTOR_CONFIRMATION;
-        }
-        if (OrderRuleVocabulary.VARIANCE_LATER_THAN_PLAN.equals(varianceFlag)) {
-            return OrderRuleVocabulary.VARIANCE_LATER_THAN_PLAN;
         }
         return null;
     }
@@ -287,15 +299,8 @@ public class OrderRuleService {
             return null;
         }
         return switch (alert) {
-            case OrderRuleVocabulary.VARIANCE_EARLIER_THAN_FEASIBLE -> "医生要求到货 "
-                    + plan.doctorRequestedDeliveryDate() + "，早于系统可行交期 "
-                    + plan.computedDeliveryDate() + "（相差 "
-                    + Math.abs(plan.varianceDays() == null ? 0 : plan.varianceDays()) + " 天），请与医生确认。";
             case OrderRuleVocabulary.ALERT_WAITING_DOCTOR_CONFIRMATION -> "有过程确认环节超过宽限期未获医生确认，"
                     + "订单处于等待状态，交期已顺延 " + plan.waitingDays() + " 天。";
-            case OrderRuleVocabulary.VARIANCE_LATER_THAN_PLAN -> "医生要求到货 "
-                    + plan.doctorRequestedDeliveryDate() + "，晚于系统可行交期 "
-                    + plan.computedDeliveryDate() + "，按医生要求安排。";
             default -> null;
         };
     }

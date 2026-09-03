@@ -1,6 +1,6 @@
 export type ClinicRole = 'CLINIC_ADMIN' | 'DOCTOR' | 'RECEPTION' | 'NURSE'
 
-export type DoctorPage = 'dashboard' | 'orders' | 'assistant' | 'patients' | 'billing' | 'account' | 'messages'
+export type DoctorPage = 'dashboard' | 'orders' | 'design' | 'assistant' | 'patients' | 'billing' | 'account' | 'messages'
 
 export type DoctorAction =
   | 'VIEW_ORDER'
@@ -44,6 +44,7 @@ export type DoctorFile = {
   size_label: string
   status: 'UPLOADING' | 'PROCESSING' | 'READY' | 'FAILED'
   preview_url?: string
+  content_type?: string | null
   uploaded_at: string
 }
 
@@ -68,6 +69,7 @@ export type OrderReview = {
 export type OrderSummary = {
   order_id: string
   order_no: string
+  box_no?: string | null
   group_id?: number | null
   doctor_name: string
   patient_id: string
@@ -101,12 +103,30 @@ export type OrderDetail = OrderSummary & {
   review_options: ReviewType[]
   reviews: OrderReview[]
   files: DoctorFile[]
+  supplements: OrderSupplement[]
   messages: Message[]
   bill_summary: {
     bill_status: string
     payment_status: string
     outstanding: Money | null
   }
+}
+
+export type OrderSupplement = {
+  supplement_id: string
+  order_id: string
+  file_id: string
+  original_filename: string
+  content_type: string | null
+  file_size: number | null
+  material_type: string
+  attachment_scope: 'SHARED' | 'PRODUCT'
+  product_order_id: string | null
+  note: string | null
+  display_note: string
+  version_no: number
+  approval_status: 'EFFECTIVE' | 'PENDING_CS_APPROVAL' | 'APPROVED' | 'REJECTED'
+  created_at: string
 }
 
 export type PatientSummary = {
@@ -345,6 +365,13 @@ export interface DoctorGateway {
   updatePatient(input: PatientUpdateInput): Promise<PatientSummary>
   saveDraft(input: OrderDraftInput): Promise<OrderSummary>
   uploadOrderFiles(orderId: string, files: File[]): Promise<DoctorFile[]>
+  createOrderSupplements(orderId: string, input: {
+    fileIds: string[]
+    materialType: string
+    attachmentScope: 'SHARED' | 'PRODUCT'
+    productOrderId?: string
+    note?: string
+  }): Promise<OrderSupplement[]>
   submitOrder(input: OrderDraftInput): Promise<OrderSummary>
   submitReview(input: ReviewDecisionInput): Promise<OrderReview>
   sendMessage(threadId: string, content: string): Promise<Message>

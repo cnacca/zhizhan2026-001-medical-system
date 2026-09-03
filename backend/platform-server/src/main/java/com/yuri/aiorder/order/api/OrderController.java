@@ -6,6 +6,7 @@ import com.yuri.aiorder.common.UserRole;
 import com.yuri.aiorder.common.auth.RequirePermission;
 import com.yuri.aiorder.collaboration.CollaborationService;
 import jakarta.validation.Valid;
+import jakarta.validation.constraints.Size;
 import org.springframework.web.bind.annotation.CrossOrigin;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
@@ -23,16 +24,19 @@ public class OrderController {
     private final CollaborationService collaborationService;
     private final OrderCreationService creationService;
     private final OrderReviewService reviewService;
+    private final OrderAdministrationService administrationService;
 
     public OrderController(
             OrderProjectionQueryService queryService,
             CollaborationService collaborationService,
             OrderCreationService creationService,
-            OrderReviewService reviewService) {
+            OrderReviewService reviewService,
+            OrderAdministrationService administrationService) {
         this.queryService = queryService;
         this.collaborationService = collaborationService;
         this.creationService = creationService;
         this.reviewService = reviewService;
+        this.administrationService = administrationService;
     }
 
     @GetMapping("/orders")
@@ -86,6 +90,29 @@ public class OrderController {
         return new DataResponse<>(queryService.getInternalOrder(orderId, identity));
     }
 
+    @PutMapping("/orders/{orderId}/box-no")
+    @RequirePermission(value = "order:box-no:update", roles = {UserRole.ADMIN, UserRole.CS})
+    public DataResponse<OrderInternalDTO> updateBoxNo(
+            @PathVariable long orderId,
+            @Valid @RequestBody UpdateBoxNoRequest request,
+            BootstrapIdentity identity) {
+        queryService.getInternalOrder(orderId, identity);
+        administrationService.updateBoxNo(orderId, request.boxNo(), request.reason(), identity);
+        return new DataResponse<>(queryService.getInternalOrder(orderId, identity));
+    }
+
+    @PutMapping("/orders/{orderId}/production-order-no")
+    @RequirePermission(value = "order:production-no:update", roles = {UserRole.ADMIN, UserRole.CS})
+    public DataResponse<OrderInternalDTO> updateProductionOrderNo(
+            @PathVariable long orderId,
+            @Valid @RequestBody UpdateProductionOrderNoRequest request,
+            BootstrapIdentity identity) {
+        queryService.getInternalOrder(orderId, identity);
+        administrationService.updateProductionOrderNo(
+                orderId, request.productionOrderNo(), request.reason(), identity);
+        return new DataResponse<>(queryService.getInternalOrder(orderId, identity));
+    }
+
     @PostMapping("/orders/{orderId}/confirm-receipt")
     @RequirePermission(value = "order:write-doctor", roles = {UserRole.DOCTOR})
     public DataResponse<ConfirmReceiptResponse> confirmReceipt(
@@ -97,5 +124,17 @@ public class OrderController {
     }
 
     public record ConfirmReceiptResponse(long orderId, String externalStatus) {
+    }
+
+    public record UpdateBoxNoRequest(
+            @Size(max = 64) @com.fasterxml.jackson.annotation.JsonProperty("box_no") String boxNo,
+            @Size(max = 500) String reason) {
+    }
+
+
+    public record UpdateProductionOrderNoRequest(
+            @Size(max = 64) @com.fasterxml.jackson.annotation.JsonProperty("production_order_no")
+                    String productionOrderNo,
+            @Size(max = 500) String reason) {
     }
 }

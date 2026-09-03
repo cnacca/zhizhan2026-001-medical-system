@@ -42,8 +42,8 @@ public class OrderRuleController {
         return new DataResponse<>(service.getDeliveryPlan(orderId, identity));
     }
 
-    @PutMapping("/orders/{orderId}/delivery-plan/requested-date")
-    @RequirePermission(value = "order:write-doctor", roles = {UserRole.DOCTOR})
+    @PutMapping("/orders/{orderId}/delivery-plan/estimated-date")
+    @RequirePermission(value = "order:delivery-date:update", roles = {UserRole.ADMIN, UserRole.CS})
     public DataResponse<DeliveryPlanResponse> adjustDeliveryDate(
             @PathVariable long orderId,
             @Valid @RequestBody AdjustDeliveryDateRequest request,

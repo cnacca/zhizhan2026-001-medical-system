@@ -238,7 +238,7 @@ const requiredImplementationTexts = [
   },
   {
     file: "docs/requirements/dynamic-order-form-final-source-snapshot-20260825.md",
-    patterns: ["AUTHORITATIVE_SOURCE_TRANSCRIPTION", "弹簧矫正器", "螺旋扩弓器（单向）/（双向）", "加弹簧", "原表没有出现“推簧”"],
+    patterns: ["状态：`SOURCE_SUMMARY_WITH_VERIFIED_UPLOAD_EXCERPTS`", "弹簧矫正器", "螺旋扩弓器（单向）/（双向）", "加弹簧", "原表没有出现“推簧”"],
   },
   {
     file: "docs/requirements/orthodontic-product-selection-gap-analysis-20260825.md",

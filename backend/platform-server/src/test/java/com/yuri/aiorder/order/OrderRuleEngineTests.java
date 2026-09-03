@@ -310,16 +310,16 @@ class OrderRuleEngineTests {
     }
 
     // ---------------------------------------------------------------------
-    // 医生调整到货时间 → 客服端时间异常提示
+    // 医生提交后不可自行调整到货时间；客服说明原因后代为调整
     // ---------------------------------------------------------------------
 
     @Test
-    void doctorPullingTheDeliveryDateForwardRaisesTheCsVarianceAlert() throws Exception {
+    void csCanOverrideTheSingleSystemEstimatedDateWithReasonAndDoctorIsForbidden() throws Exception {
         long orderId = submitSingleItemGroup(formValues("""
                 "case_priority": "NORMAL"
                 """));
 
-        // 提交时没填要求到货日：没有可比对象，就不该有异常提示。
+        // 医生端和内部端读取同一个系统预计到货日，不再维护第二个“医生要求日期”。
         mockMvc.perform(get("/orders/{orderId}", orderId)
                         .header("X-Bootstrap-Role", "CS")
                         .header("X-Bootstrap-User-Id", CS_USER_ID))
@@ -327,42 +327,102 @@ class OrderRuleEngineTests {
                 .andExpect(jsonPath("$.data.delivery_alert").isEmpty());
 
         LocalDate feasible = deliveryDate(orderId);
-        mockMvc.perform(put("/orders/{orderId}/delivery-plan/requested-date", orderId)
+        mockMvc.perform(put("/orders/{orderId}/delivery-plan/estimated-date", orderId)
                         .header("X-Bootstrap-Role", "DOCTOR")
                         .header("X-Bootstrap-User-Id", DOCTOR_USER_ID)
                         .header("X-Bootstrap-Clinic-Id", clinicId)
                         .contentType(MediaType.APPLICATION_JSON)
                         .content("""
-                                {"requested_delivery_date": "%s", "reason": "患者提前复诊"}
+                                {"estimated_delivery_date": "%s", "reason": "患者提前复诊"}
+                                """.formatted(feasible.minusDays(3))))
+                .andExpect(status().isForbidden());
+
+        mockMvc.perform(put("/orders/{orderId}/delivery-plan/estimated-date", orderId)
+                        .header("X-Bootstrap-Role", "CS")
+                        .header("X-Bootstrap-User-Id", CS_USER_ID)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("""
+                                {"estimated_delivery_date": "%s", "reason": "患者提前复诊"}
                                 """.formatted(feasible.minusDays(3))))
                 .andExpect(status().isOk())
-                .andExpect(jsonPath("$.data.variance_days").value(-3))
-                .andExpect(jsonPath("$.data.variance_flag").value("EARLIER_THAN_FEASIBLE"));
+                .andExpect(jsonPath("$.data.computed_delivery_date").value(feasible.minusDays(3).toString()))
+                .andExpect(jsonPath("$.data.calculated_delivery_date").value(feasible.toString()))
+                .andExpect(jsonPath("$.data.manual_override").value(true))
+                .andExpect(jsonPath("$.data.manual_override_reason").value("患者提前复诊"));
 
         mockMvc.perform(get("/orders/{orderId}", orderId)
                         .header("X-Bootstrap-Role", "CS")
                         .header("X-Bootstrap-User-Id", CS_USER_ID))
                 .andExpect(status().isOk())
-                .andExpect(jsonPath("$.data.delivery_alert").value("EARLIER_THAN_FEASIBLE"))
-                .andExpect(jsonPath("$.data.delivery_variance_days").value(-3))
-                .andExpect(jsonPath("$.data.delivery_alert_message")
-                        .value(org.hamcrest.Matchers.containsString("早于系统可行交期")));
+                .andExpect(jsonPath("$.data.promised_delivery_date").value(feasible.minusDays(3).toString()))
+                .andExpect(jsonPath("$.data.doctor_requested_delivery_date").doesNotExist())
+                .andExpect(jsonPath("$.data.delivery_alert").isEmpty());
 
-        // 医生把日期放回可行范围，提示随之消失——不能只会亮不会灭。
-        mockMvc.perform(put("/orders/{orderId}/delivery-plan/requested-date", orderId)
-                        .header("X-Bootstrap-Role", "DOCTOR")
-                        .header("X-Bootstrap-User-Id", DOCTOR_USER_ID)
-                        .header("X-Bootstrap-Clinic-Id", clinicId)
+        // 客服把日期放回可行范围，提示随之消失——不能只会亮不会灭。
+        mockMvc.perform(put("/orders/{orderId}/delivery-plan/estimated-date", orderId)
+                        .header("X-Bootstrap-Role", "CS")
+                        .header("X-Bootstrap-User-Id", CS_USER_ID)
                         .contentType(MediaType.APPLICATION_JSON)
                         .content("""
-                                {"requested_delivery_date": "%s"}
+                                {"estimated_delivery_date": "%s", "reason": "客户确认恢复系统可行交期"}
                                 """.formatted(feasible)))
                 .andExpect(status().isOk())
-                .andExpect(jsonPath("$.data.variance_flag").value("NONE"));
+                .andExpect(jsonPath("$.data.computed_delivery_date").value(feasible.toString()))
+                .andExpect(jsonPath("$.data.manual_override").value(true));
         mockMvc.perform(get("/orders/{orderId}", orderId)
                         .header("X-Bootstrap-Role", "CS")
                         .header("X-Bootstrap-User-Id", CS_USER_ID))
                 .andExpect(jsonPath("$.data.delivery_alert").isEmpty());
+    }
+
+    @Test
+    void boxNumberIsUniqueVisibleAndOnlyStaffCanUpdateIt() throws Exception {
+        String boxNo = "BOX-" + UUID.randomUUID().toString().substring(0, 8).toUpperCase();
+        long firstOrderId = submitSingleItemGroup(formValues("""
+                "case_priority": "NORMAL"
+                """));
+        long secondOrderId = submitSingleItemGroup(formValues("""
+                "case_priority": "NORMAL"
+                """));
+
+        mockMvc.perform(put("/orders/{orderId}/box-no", firstOrderId)
+                        .header("X-Bootstrap-Role", "DOCTOR")
+                        .header("X-Bootstrap-User-Id", DOCTOR_USER_ID)
+                        .header("X-Bootstrap-Clinic-Id", clinicId)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"box_no\":\"" + boxNo + "\"}"))
+                .andExpect(status().isForbidden());
+
+        mockMvc.perform(put("/orders/{orderId}/box-no", firstOrderId)
+                        .header("X-Bootstrap-Role", "CS")
+                        .header("X-Bootstrap-User-Id", CS_USER_ID)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"box_no\":\"" + boxNo.toLowerCase() + "\",\"reason\":\"客服登记实物盒\"}"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.box_no").value(boxNo));
+
+        mockMvc.perform(get("/orders/{orderId}", firstOrderId)
+                        .header("X-Bootstrap-Role", "DOCTOR")
+                        .header("X-Bootstrap-User-Id", DOCTOR_USER_ID)
+                        .header("X-Bootstrap-Clinic-Id", clinicId))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.box_no").value(boxNo));
+
+        mockMvc.perform(put("/orders/{orderId}/box-no", secondOrderId)
+                        .header("X-Bootstrap-Role", "CS")
+                        .header("X-Bootstrap-User-Id", CS_USER_ID)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"box_no\":\"" + boxNo + "\",\"reason\":\"重复校验\"}"))
+                .andExpect(status().isConflict());
+
+        Integer audits = jdbcClient.sql("""
+                        SELECT COUNT(*) FROM order_business_audit
+                        WHERE order_id = :orderId AND action_code = 'UPDATE_BOX_NO'
+                        """)
+                .param("orderId", firstOrderId)
+                .query(Integer.class)
+                .single();
+        assertThat(audits).isEqualTo(1);
     }
 
     // ---------------------------------------------------------------------

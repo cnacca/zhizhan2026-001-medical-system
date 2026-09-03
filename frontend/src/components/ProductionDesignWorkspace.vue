@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import { computed, inject, onMounted, ref, watch } from 'vue'
 import { authenticatedFetchKey } from '../utils/authenticatedFetch'
+import UniversalFilePreviewDialog from './UniversalFilePreviewDialog.vue'
 
 const authenticatedFetch = inject(authenticatedFetchKey, fetch)
 
@@ -102,6 +103,10 @@ const pageError = ref('')
 const pageResult = ref('')
 const busyTaskId = ref<number | null>(null)
 const previewingFileId = ref<number | null>(null)
+const filePreviewVisible = ref(false)
+const filePreviewUrl = ref('')
+const filePreview = ref<DesignFile | null>(null)
+const orderFileMetadata = ref<Record<number, Record<number, DesignFile>>>({})
 const selectedFiles = ref<Record<number, File[]>>({})
 const uploadedFileIds = ref<Record<number, number[]>>({})
 const uploadNotes = ref<Record<number, string>>({})
@@ -246,8 +251,17 @@ function taskAssignee(task: DesignTask) {
 
 function draftFiles(draft?: DesignDraft | null): DesignFile[] {
   if (!draft) return []
-  if (draft.files?.length) return draft.files
-  return (draft.file_ids ?? (draft.file_id ? [draft.file_id] : [])).map((fileId): DesignFile => ({ file_id: fileId }))
+  if (draft.files?.length) return draft.files.map((file) => orderFileMetadata.value[draft.order_id]?.[file.file_id] ?? file)
+  return (draft.file_ids ?? (draft.file_id ? [draft.file_id] : [])).map((fileId): DesignFile =>
+    orderFileMetadata.value[draft.order_id]?.[fileId] ?? { file_id: fileId })
+}
+
+async function loadOrderFileMetadata(orderId: number) {
+  if (orderFileMetadata.value[orderId]) return orderFileMetadata.value[orderId]
+  const files = await apiFetch<DesignFile[]>(`/orders/${orderId}/files`)
+  const lookup = Object.fromEntries(files.map((file) => [file.file_id, file]))
+  orderFileMetadata.value = { ...orderFileMetadata.value, [orderId]: lookup }
+  return lookup
 }
 
 function latestDraft(task: DesignTask) {
@@ -432,12 +446,17 @@ async function createDraft(task: DesignTask) {
   }, `订单 ${task.order_no} 已新增一个完整设计版本`)
 }
 
-async function previewDesignFile(fileId: number) {
-  previewingFileId.value = fileId
+async function previewDesignFile(file: DesignFile, orderId?: number) {
+  previewingFileId.value = file.file_id
   pageError.value = ''
   try {
-    const result = await apiFetch<{ preview_url: string }>(`/files/${fileId}/preview-url`)
-    window.open(result.preview_url, '_blank', 'noopener,noreferrer')
+    const resolvedFile = orderId
+      ? (await loadOrderFileMetadata(orderId))[file.file_id] ?? file
+      : file
+    const result = await apiFetch<{ preview_url: string }>(`/files/${file.file_id}/preview-url`)
+    filePreview.value = resolvedFile
+    filePreviewUrl.value = result.preview_url
+    filePreviewVisible.value = true
   } catch (error) {
     pageError.value = error instanceof Error ? error.message : '设计文件预览失败'
   } finally {
@@ -542,7 +561,7 @@ watch(() => props.activeRoute, () => void loadWorkspace())
                 {{ file.original_filename || file.name || `设计文件 #${file.file_id}` }}
                 <small>{{ fileSizeLabel(file.file_size) }}</small>
               </span>
-              <button type="button" :disabled="previewingFileId === file.file_id" @click="previewDesignFile(file.file_id)">
+              <button type="button" :disabled="previewingFileId === file.file_id" @click="previewDesignFile(file, task.order_id)">
                 {{ previewingFileId === file.file_id ? '加载中…' : '预览' }}
               </button>
             </li>
@@ -621,7 +640,7 @@ watch(() => props.activeRoute, () => void loadWorkspace())
                   :key="file.file_id"
                   type="button"
                   :disabled="previewingFileId === file.file_id"
-                  @click="previewDesignFile(file.file_id)"
+                  @click="previewDesignFile(file, task.order_id)"
                 >
                   {{ previewingFileId === file.file_id ? '加载中…' : `预览文件 #${file.file_id}` }}
                 </button>
@@ -636,6 +655,15 @@ watch(() => props.activeRoute, () => void loadWorkspace())
         </footer>
       </article>
     </div>
+    <UniversalFilePreviewDialog
+      v-if="filePreview"
+      v-model:visible="filePreviewVisible"
+      :file-id="filePreview.file_id"
+      :source-url="filePreviewUrl"
+      :filename="filePreview.original_filename || filePreview.name || `设计文件-${filePreview.file_id}`"
+      :content-type="filePreview.content_type"
+      :authenticated-fetch="authenticatedFetch"
+    />
   </section>
 </template>
 

@@ -73,10 +73,32 @@ class WorkflowRuntimeTests {
 
         jdbcClient.sql("""
                         INSERT INTO system_user
-                            (user_id, username, password_hash, display_name, clinic_id, user_type, status)
+                            (user_id, username, password_hash, display_name, clinic_id, dept_id, user_type, status)
                         VALUES
-                            (:userId, :username, 'test-only', '工序运行备用员工', NULL, 'WORKER', 'ACTIVE')
+                            (:userId, :username, 'test-only', '工序运行组长', NULL, 120, 'WORKER', 'ACTIVE')
                         ON DUPLICATE KEY UPDATE
+                            dept_id = 120,
+                            user_type = 'WORKER',
+                            status = 'ACTIVE'
+                        """)
+                .param("userId", WORKER_USER_ID)
+                .param("username", "workflow-worker-" + WORKER_USER_ID)
+                .update();
+        jdbcClient.sql("""
+                        INSERT IGNORE INTO system_user_role (user_id, role_id)
+                        SELECT :userId, role_id
+                        FROM system_role
+                        WHERE role_code = 'WORKER'
+                        """)
+                .param("userId", WORKER_USER_ID)
+                .update();
+        jdbcClient.sql("""
+                        INSERT INTO system_user
+                            (user_id, username, password_hash, display_name, clinic_id, dept_id, user_type, status)
+                        VALUES
+                            (:userId, :username, 'test-only', '工序运行备用员工', NULL, 120, 'WORKER', 'ACTIVE')
+                        ON DUPLICATE KEY UPDATE
+                            dept_id = 120,
                             user_type = 'WORKER',
                             status = 'ACTIVE'
                         """)
@@ -837,6 +859,44 @@ class WorkflowRuntimeTests {
                         .contentType(MediaType.APPLICATION_JSON)
                         .content("{\"reason\":\"worker should not manage process\"}"))
                 .andExpect(status().isForbidden());
+    }
+
+    @Test
+    void productionTeamLeadCanAssignOnlyActiveWorkersInOwnProductionDepartment() throws Exception {
+        jdbcClient.sql("""
+                        INSERT IGNORE INTO system_user_role (user_id, role_id)
+                        SELECT :userId, role_id
+                        FROM system_role
+                        WHERE role_code = 'PROD_TEAM_LEAD'
+                        """)
+                .param("userId", WORKER_USER_ID)
+                .update();
+        long instanceId = approveProductionAndGetInstanceId();
+        long start = nodeId(instanceId, "START");
+        String leadToken = tokenService.issue(new BootstrapIdentity(
+                UserRole.WORKER,
+                WORKER_USER_ID,
+                null,
+                null,
+                Set.of("workflow:assign", "workflow:read-internal", "order:read-internal"),
+                "SELF"));
+
+        mockMvc.perform(get("/process-instance/nodes/{nodeInstanceId}/assignment-candidates", start)
+                        .header("Authorization", "Bearer " + leadToken))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data[*].user_id", org.hamcrest.Matchers.hasItem(String.valueOf(WORKER_USER_ID))))
+                .andExpect(jsonPath("$.data[*].user_id", org.hamcrest.Matchers.hasItem(String.valueOf(OTHER_WORKER_USER_ID))))
+                .andExpect(jsonPath("$.data[*].user_id", not(org.hamcrest.Matchers.hasItem("8001"))))
+                .andExpect(jsonPath("$.data[*].user_id", not(org.hamcrest.Matchers.hasItem("8002"))))
+                .andExpect(jsonPath("$.data[*].user_id", not(org.hamcrest.Matchers.hasItem(String.valueOf(DOCTOR_USER_ID)))));
+
+        mockMvc.perform(post("/orders/{orderId}/process-instance/assign", orderId)
+                        .header("Authorization", "Bearer " + leadToken)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("""
+                                {"assignments":[{"node_instance_id":%d,"user_id":%d}]}
+                                """.formatted(start, OTHER_WORKER_USER_ID)))
+                .andExpect(status().isOk());
     }
 
     @Test

@@ -294,6 +294,7 @@ for (const order of orders) {
     review_options: orderReviews.map((item) => item.review_type),
     reviews: clone(orderReviews),
     files: [file(`F-ORDER-${order.order_id}`, `${order.patient_code}-scan.stl`, 'STL', order.created_at), file(`F-PHOTO-${order.order_id}`, `${order.patient_code}-shade.jpg`, 'IMAGE', order.created_at)],
+    supplements: [],
     messages: [],
     bill_summary: {
       bill_status: order.quote ? 'ISSUED' : 'PENDING_QUOTE',
@@ -524,6 +525,7 @@ export class MockDoctorGateway implements DoctorGateway {
       review_options: [...input.reviewOptions],
       reviews: [],
       files: clone(input.files),
+      supplements: [],
       messages: [],
       bill_summary: { bill_status: 'PENDING_QUOTE', payment_status: 'UNPAID', outstanding: null }
     })
@@ -542,6 +544,38 @@ export class MockDoctorGateway implements DoctorGateway {
         uploaded_at: now
       }
     })
+  }
+
+  async createOrderSupplements(orderId: string, input: {
+    fileIds: string[]
+    materialType: string
+    attachmentScope: 'SHARED' | 'PRODUCT'
+    productOrderId?: string
+    note?: string
+  }) {
+    const detail = details.get(orderId)
+    if (!detail) throw new Error('订单不存在')
+    const created = input.fileIds.map((fileId, index) => {
+      const linked = detail.files.find((file) => file.file_id === fileId)
+      return {
+        supplement_id: `MOCK-S-${Date.now()}-${index}`,
+        order_id: orderId,
+        file_id: fileId,
+        original_filename: linked?.name ?? `补充资料-${index + 1}`,
+        content_type: linked?.content_type ?? null,
+        file_size: null,
+        material_type: input.materialType,
+        attachment_scope: input.attachmentScope,
+        product_order_id: input.attachmentScope === 'PRODUCT' ? (input.productOrderId ?? orderId) : null,
+        note: input.note?.trim() || null,
+        display_note: input.note?.trim() || '医生补充资料',
+        version_no: detail.supplements.length + index + 1,
+        approval_status: 'PENDING_CS_APPROVAL' as const,
+        created_at: new Date().toISOString()
+      }
+    })
+    detail.supplements.unshift(...created)
+    return clone(detail.supplements)
   }
 
   async submitOrder(input: OrderDraftInput): Promise<OrderSummary> {
@@ -578,6 +612,7 @@ export class MockDoctorGateway implements DoctorGateway {
       review_options: [...input.reviewOptions],
       reviews: createdReviews,
       files: clone(input.files),
+      supplements: [],
       messages: [],
       bill_summary: { bill_status: 'PENDING_QUOTE', payment_status: 'UNPAID', outstanding: null }
     }

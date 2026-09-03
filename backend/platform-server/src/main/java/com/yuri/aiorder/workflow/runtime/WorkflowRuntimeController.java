@@ -52,7 +52,7 @@ public class WorkflowRuntimeController {
     }
 
     @PostMapping("/orders/{orderId}/process-instance/assign")
-    @RequirePermission(value = "workflow:assign", roles = UserRole.ADMIN)
+    @RequirePermission(value = "workflow:assign", roles = {UserRole.ADMIN, UserRole.WORKER})
     public DataResponse<ProcessInstanceResponse> assign(
             @PathVariable long orderId,
             @Valid @RequestBody AssignmentRequest request,
@@ -62,7 +62,7 @@ public class WorkflowRuntimeController {
     }
 
     @PostMapping("/orders/{orderId}/process-instance/nodes/{nodeInstanceId}/reassign")
-    @RequirePermission(value = "workflow:assign", roles = UserRole.ADMIN)
+    @RequirePermission(value = "workflow:assign", roles = {UserRole.ADMIN, UserRole.WORKER})
     public DataResponse<ProcessInstanceResponse> reassign(
             @PathVariable long orderId,
             @PathVariable long nodeInstanceId,
@@ -70,6 +70,14 @@ public class WorkflowRuntimeController {
             BootstrapIdentity identity) {
         workflowRuntimeService.reassign(orderId, nodeInstanceId, request, identity);
         return new DataResponse<>(workflowRuntimeService.getProcessInstance(orderId, identity));
+    }
+
+    @GetMapping("/process-instance/nodes/{nodeInstanceId}/assignment-candidates")
+    @RequirePermission(value = "workflow:assign", roles = {UserRole.ADMIN, UserRole.WORKER})
+    public DataResponse<List<AssignmentCandidateResponse>> assignmentCandidates(
+            @PathVariable long nodeInstanceId,
+            BootstrapIdentity identity) {
+        return new DataResponse<>(workflowRuntimeService.assignmentCandidates(nodeInstanceId, identity));
     }
 
     @PostMapping("/process-instance/nodes/{nodeInstanceId}/start")

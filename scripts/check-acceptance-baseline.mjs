@@ -161,7 +161,7 @@ requireText('docs/development/doctor-order-wizard-simplification-plan-20260825.m
 ])
 requireText('DECISIONS.md', ['## D-213', '## D-212', '## D-208', '## D-207', '## D-205', '## D-204', '29 PASS、1 PARTIAL、0 MISSING、8 EXTERNAL_ACCEPTANCE'])
 requireText('docs/requirements/dynamic-order-form-final-source-snapshot-20260825.md', [
-  'AUTHORITATIVE_SOURCE_TRANSCRIPTION',
+  '状态：`SOURCE_SUMMARY_WITH_VERIFIED_UPLOAD_EXCERPTS`',
   '弹簧矫正器',
   '螺旋扩弓器（单向）/（双向）',
   '加弹簧',

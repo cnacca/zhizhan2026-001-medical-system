@@ -902,12 +902,15 @@ class DesignTaskCollaborationTests {
     private void ensureUser(long userId, String username, String roleCode) {
         jdbcClient.sql("""
                         INSERT INTO system_user
-                            (user_id, username, password_hash, display_name, user_type, status)
+                            (user_id, username, password_hash, display_name, dept_id, user_type, status)
                         VALUES
-                            (:userId, :username, 'test-password-hash', :username, :roleCode, 'ACTIVE')
+                            (:userId, :username, 'test-password-hash', :username,
+                             CASE WHEN :roleCode = 'WORKER' THEN 120 ELSE NULL END,
+                             :roleCode, 'ACTIVE')
                         ON DUPLICATE KEY UPDATE
                             username = VALUES(username),
                             display_name = VALUES(display_name),
+                            dept_id = VALUES(dept_id),
                             user_type = VALUES(user_type),
                             status = 'ACTIVE'
                         """)

@@ -26,6 +26,9 @@ importers:
       '@vitejs/plugin-vue':
         specifier: ^6.0.1
         version: 6.0.7(vite@7.3.6)(vue@3.5.39(typescript@5.9.3))
+      dicom-parser:
+        specifier: 1.8.21
+        version: 1.8.21
       element-plus:
         specifier: ^2.11.9
         version: 2.14.2(vue@3.5.39(typescript@5.9.3))
@@ -511,6 +514,9 @@ packages:
 
   dayjs@1.11.21:
     resolution: {integrity: sha512-98IT+HOahAisibz/yjKbzuOBwYcjJ7BCLPzARyHiyEBmRz4fatF+KPJszEHXsGYjUG234aH/cOjW1wwTbKUZlA==}
+
+  dicom-parser@1.8.21:
+    resolution: {integrity: sha512-lYCweHQDsC8UFpXErPlg86Px2A8bay0HiUY+wzoG3xv5GzgqVHU3lziwSc/Gzn7VV7y2KeP072SzCviuOoU02w==}
 
   element-plus@2.14.2:
     resolution: {integrity: sha512-eNH9uP3wQoNqieEIHXiNvIVv+zO5sZDU0CAZq5b0zqSN06DD0/V9xIq1R/qm3rw5k3nBTM1JvpxhCfRbaFLzDQ==}
@@ -1054,6 +1060,8 @@ snapshots:
   csstype@3.2.3: {}
 
   dayjs@1.11.21: {}
+
+  dicom-parser@1.8.21: {}
 
   element-plus@2.14.2(vue@3.5.39(typescript@5.9.3)):
     dependencies:

@@ -16,5 +16,6 @@ import './doctor-portal.css'
 import './admin-portal.css'
 import './admin-order-page.css'
 import './doctor/doctor-portal-v2.css'
+import './acceptance-refinements.css'
 
 createApp(App).use(ElementPlus).mount('#app')

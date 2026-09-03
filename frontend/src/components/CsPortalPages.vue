@@ -3,8 +3,10 @@ import { computed, defineAsyncComponent, ref, watch } from 'vue'
 import CustomerManagementPage from './CustomerManagementPage.vue'
 import { productionProgressNodes } from '../utils/productionProgress'
 import { staffOrderIdentity } from '../utils/orderIdentity'
+import { matchesDashboardScope, type DashboardScope } from '../utils/dashboardScope'
 
 const StlViewerDialog = defineAsyncComponent(() => import('./StlViewerDialog.vue'))
+const UniversalFilePreviewDialog = defineAsyncComponent(() => import('./UniversalFilePreviewDialog.vue'))
 
 type AuthMenu = {
   menuCode: string
@@ -29,6 +31,8 @@ type Paged<T> = { items: T[]; total: number; page: number; size: number }
 type OrderItem = {
   order_id: number
   order_no: string
+  production_order_no?: string | null
+  box_no?: string | null
   clinic_id: number
   clinic_name: string
   doctor_user_id: number | null
@@ -44,7 +48,6 @@ type OrderItem = {
   form_data: Record<string, unknown>
   // TASK-034 F 批次：交期引擎的输出。delivery_alert 非空即客户要求的「时间异常提示」。
   promised_delivery_date?: string | null
-  doctor_requested_delivery_date?: string | null
   delivery_variance_days?: number | null
   delivery_alert?: string | null
   delivery_alert_message?: string | null
@@ -99,6 +102,18 @@ type OrderFile = {
   content_type: string | null
   file_size: number | null
   upload_status: string
+  created_at: string
+}
+
+type OrderSupplement = {
+  supplement_id: number
+  file_id: number
+  original_filename: string
+  material_type: string
+  attachment_scope: 'SHARED' | 'PRODUCT'
+  display_note: string
+  version_no: number
+  approval_status: 'EFFECTIVE' | 'PENDING_CS_APPROVAL' | 'APPROVED' | 'REJECTED'
   created_at: string
 }
 
@@ -212,6 +227,8 @@ type CsPortalFocusTask =
   | 'DESIGN_UPDATE'
   | 'DELIVERY_FOLLOW_UP'
   | 'SHIPPING_PENDING'
+  | 'SHIPPED_ORDERS'
+  | 'ALL_BILLS'
   | 'BILLING_PENDING'
   | 'QUALITY_FOLLOW_UP'
   | 'SEARCH_CUSTOMER'
@@ -371,6 +388,7 @@ const props = defineProps<{
   searchKeyword: string
   focusOrderId: number | null
   focusTask: CsPortalFocusTask | null
+  dashboardScope?: DashboardScope | null
 }>()
 
 const emit = defineEmits<{
@@ -405,6 +423,11 @@ const orderProcess = ref<ProcessInstanceInfo | null>(null)
 const orderDrawerMessageDraft = ref('')
 const orderDrawerMessageSending = ref(false)
 const orderDrawerMessageError = ref('')
+const orderBoxNoDraft = ref('')
+const orderBoxNoReason = ref('')
+const orderDeliveryDateDraft = ref('')
+const orderDeliveryDateReason = ref('')
+const orderAdministrationBusy = ref(false)
 const orderDrawerShowAllMessages = ref(false)
 const orderDrawerShowAllFiles = ref(false)
 const orderDrawerShowAllDetails = ref(false)
@@ -417,6 +440,8 @@ const orderFilePreviewVisible = ref(false)
 const orderFilePreviewLoading = ref(false)
 const orderFilePreviewUrl = ref('')
 const orderFilePreviewName = ref('')
+const orderFilePreviewId = ref(0)
+const orderFilePreviewContentType = ref<string | null>(null)
 const orderFilePreviewKind = ref<'IMAGE' | 'DOCUMENT'>('DOCUMENT')
 const orderFilePreviewError = ref('')
 const orderStlViewerVisible = ref(false)
@@ -439,9 +464,12 @@ const translationTab = ref<'INFO' | 'TRANSLATION' | 'FILES' | 'HISTORY'>('INFO')
 const translationSource = ref('')
 const translationDraft = ref('')
 const translationFiles = ref<OrderFile[]>([])
+const translationSupplements = ref<OrderSupplement[]>([])
+const supplementRejectReasons = ref<Record<number, string>>({})
 const translationRequirements = ref<FormRequirement[]>([])
 const translationClinicPreference = ref<ClinicPreference | null>(null)
 const productionNoteDraft = ref('')
+const productionOrderNoDraft = ref('')
 const missingInfoItems = ref<MissingInfoItem[]>([])
 const missingInfoChecked = ref(false)
 const translationRejectReason = ref('')
@@ -1362,6 +1390,8 @@ function clearLoadedOrderState() {
   translationSource.value = ''
   translationDraft.value = ''
   translationFiles.value = []
+  translationSupplements.value = []
+  supplementRejectReasons.value = {}
   translationRequirements.value = []
   translationClinicPreference.value = null
   translationRejectReason.value = ''
@@ -1576,6 +1606,10 @@ async function openOrder(order: OrderItem) {
   }
   resetOrderPreview()
   selectedOrder.value = order
+  orderBoxNoDraft.value = order.box_no ?? ''
+  orderBoxNoReason.value = ''
+  orderDeliveryDateDraft.value = order.promised_delivery_date ?? ''
+  orderDeliveryDateReason.value = ''
   orderDrawerVisible.value = true
   orderMessages.value = []
   orderDrafts.value = []
@@ -1602,6 +1636,45 @@ async function openOrder(order: OrderItem) {
   orderBill.value = bill
   orderLogistics.value = logistics
   orderProcess.value = process
+}
+
+async function saveOrderBoxNo() {
+  const order = selectedOrder.value
+  if (!order || orderAdministrationBusy.value) return
+  orderAdministrationBusy.value = true
+  try {
+    const result = await apiFetch<OrderItem>(`/orders/${order.order_id}/box-no`, {
+      method: 'PUT',
+      body: JSON.stringify({ box_no: orderBoxNoDraft.value.trim() || null, reason: orderBoxNoReason.value.trim() || null })
+    })
+    Object.assign(order, result.data)
+    orderBoxNoDraft.value = order.box_no ?? ''
+    orderBoxNoReason.value = ''
+    pageResult.value = '盒号已更新并写入审计记录。'
+  } catch (error) {
+    pageError.value = error instanceof Error ? error.message : '盒号更新失败'
+  } finally {
+    orderAdministrationBusy.value = false
+  }
+}
+
+async function saveOrderDeliveryDate() {
+  const order = selectedOrder.value
+  if (!order || !orderDeliveryDateDraft.value || !orderDeliveryDateReason.value.trim() || orderAdministrationBusy.value) return
+  orderAdministrationBusy.value = true
+  try {
+    const result = await apiFetch<{ computed_delivery_date: string }>(`/orders/${order.order_id}/delivery-plan/estimated-date`, {
+      method: 'PUT',
+      body: JSON.stringify({ estimated_delivery_date: orderDeliveryDateDraft.value, reason: orderDeliveryDateReason.value.trim() })
+    })
+    order.promised_delivery_date = result.data.computed_delivery_date
+    orderDeliveryDateReason.value = ''
+    pageResult.value = '系统预计到货日期已更新，并记录修改原因。'
+  } catch (error) {
+    pageError.value = error instanceof Error ? error.message : '系统预计到货日期更新失败'
+  } finally {
+    orderAdministrationBusy.value = false
+  }
 }
 
 async function completeBusinessGate() {
@@ -1663,6 +1736,8 @@ function resetOrderPreview() {
   orderFilePreviewLoading.value = false
   orderFilePreviewUrl.value = ''
   orderFilePreviewName.value = ''
+  orderFilePreviewId.value = 0
+  orderFilePreviewContentType.value = null
   orderFilePreviewKind.value = 'DOCUMENT'
   orderFilePreviewError.value = ''
   orderStlViewerVisible.value = false
@@ -1675,8 +1750,10 @@ async function previewOrderFile(file: OrderFile) {
     const payload = await apiFetch<PreviewResponse>(`/files/${file.file_id}/preview-url`)
     orderFilePreviewUrl.value = payload.data.preview_url
     orderFilePreviewName.value = file.original_filename
+    orderFilePreviewId.value = file.file_id
+    orderFilePreviewContentType.value = file.content_type
     const extension = file.original_filename.split('.').pop()?.toLowerCase() || ''
-    if (extension === 'stl') {
+    if (['stl', 'sla', 'ply', 'obj'].includes(extension)) {
       orderStlViewerVisible.value = true
       return
     }
@@ -1722,14 +1799,16 @@ async function selectTranslationOrder(order: OrderItem) {
   const customerText = orderFormValue(order, ['instruction', 'customer_instruction', 'description', 'notes', 'special_requirements', 'doctor_note'])
   translationSource.value = customerText
   productionNoteDraft.value = businessProductionNote(order.production_note)
+  productionOrderNoDraft.value = order.production_order_no ?? ''
   translationDraft.value = ''
   translationFiles.value = []
   translationRequirements.value = []
   translationClinicPreference.value = null
   translationRejectReason.value = ''
   const frozenRequirements = frozenFormRequirements(order)
-  const [files, requirements, preference] = await Promise.all([
+  const [files, supplements, requirements, preference] = await Promise.all([
     safeData<OrderFile[]>(`/orders/${order.order_id}/files`, []),
+    safeData<OrderSupplement[]>(`/orders/${order.order_id}/supplements`, []),
     frozenRequirements == null
       ? safeData<FormRequirement[]>(`/form-configs?product_type=${encodeURIComponent(order.product_type)}`, [])
       : Promise.resolve(frozenRequirements),
@@ -1737,6 +1816,7 @@ async function selectTranslationOrder(order: OrderItem) {
   ])
   if (translationOrderId.value !== order.order_id) return
   translationFiles.value = files
+  translationSupplements.value = supplements
   translationRequirements.value = requirements.filter((item) => item.status === 'ACTIVE')
   translationClinicPreference.value = preference
   if (!productionNoteDraft.value && preference && order.internal_status === 'PENDING_CS_REVIEW') {
@@ -1744,6 +1824,48 @@ async function selectTranslationOrder(order: OrderItem) {
   }
   missingInfoItems.value = []
   missingInfoChecked.value = false
+}
+
+function supplementApprovalLabel(status: OrderSupplement['approval_status']) {
+  return ({
+    EFFECTIVE: '初审前已生效',
+    PENDING_CS_APPROVAL: '待客服审核',
+    APPROVED: '已通过',
+    REJECTED: '已退回'
+  } as Record<OrderSupplement['approval_status'], string>)[status]
+}
+
+async function previewSupplement(item: OrderSupplement) {
+  const file = translationFiles.value.find((candidate) => candidate.file_id === item.file_id)
+  if (!file) {
+    pageError.value = '补充资料文件不在当前可访问附件列表中。'
+    return
+  }
+  await previewOrderFile(file)
+}
+
+async function reviewSupplement(item: OrderSupplement, action: 'APPROVE' | 'REJECT') {
+  const orderId = translationOrderId.value
+  if (!orderId || item.approval_status !== 'PENDING_CS_APPROVAL') return
+  const reason = supplementRejectReasons.value[item.supplement_id]?.trim() || ''
+  if (action === 'REJECT' && !reason) {
+    pageError.value = '退回补充资料时请填写原因。'
+    return
+  }
+  aiLoading.value = true
+  pageError.value = ''
+  try {
+    const result = await apiFetch<OrderSupplement>(`/orders/${orderId}/supplements/${item.supplement_id}/review`, {
+      method: 'POST',
+      body: JSON.stringify({ action, reason: reason || null })
+    })
+    translationSupplements.value = translationSupplements.value.map((entry) => entry.supplement_id === item.supplement_id ? result.data : entry)
+    pageResult.value = action === 'APPROVE' ? '补充资料已审核通过；生产已开始时系统会通知相关生产人员。' : '补充资料已退回并保留审核记录。'
+  } catch (error) {
+    pageError.value = error instanceof Error ? error.message : '补充资料审核失败'
+  } finally {
+    aiLoading.value = false
+  }
 }
 
 function frozenFormRequirements(order: OrderItem): FormRequirement[] | null {
@@ -1883,6 +2005,10 @@ async function confirmProductionNote() {
     pageError.value = '该订单已不在待客服初审状态，请刷新队列后重试。'
     return
   }
+  if (!productionOrderNoDraft.value.trim()) {
+    pageError.value = '请先填写唯一生产订单编号，再通过客服初审。'
+    return
+  }
 
   const isComplete = await checkMissingInfo()
   if (!isComplete) {
@@ -1913,6 +2039,15 @@ async function confirmProductionNote() {
       : productionNoteDraft.value.trim()
     const confirmedProductionNote = reviewedDraft
 
+    const numberedOrder = await apiFetch<OrderItem>(`/orders/${orderId}/production-order-no`, {
+      method: 'PUT',
+      body: JSON.stringify({
+        production_order_no: productionOrderNoDraft.value.trim(),
+        reason: null
+      })
+    })
+    orders.value = orders.value.map((item) => item.order_id === orderId ? numberedOrder.data : item)
+
     const reviewedOrder = await apiFetch<OrderItem>(`/orders/${orderId}/review`, {
       method: 'POST',
       body: JSON.stringify({
@@ -1923,6 +2058,7 @@ async function confirmProductionNote() {
     })
     orders.value = orders.value.map((item) => item.order_id === orderId ? reviewedOrder.data : item)
     productionNoteDraft.value = businessProductionNote(reviewedOrder.data.production_note)
+    productionOrderNoDraft.value = reviewedOrder.data.production_order_no ?? productionOrderNoDraft.value
     translationTab.value = 'HISTORY'
     pageResult.value = '客服初审已通过，订单已进入生产审核。'
     emit('refreshNotifications')
@@ -1953,9 +2089,11 @@ async function previewDesignDraft(draft: DesignDraft) {
   if (!id) return
   pageError.value = ''
   try {
-    const payload = await apiFetch<PreviewResponse>(`/files/${id}/preview-url`)
-    designPreviewUrls.value[draft.draft_id] = payload.data.preview_url
-    window.open(payload.data.preview_url, '_blank', 'noopener,noreferrer')
+    const files = (await apiFetch<OrderFile[]>(`/orders/${draft.order_id}/files`)).data
+    const file = files.find((item) => item.file_id === id)
+    if (!file) throw new Error('当前设计文件不在可访问附件列表中')
+    await previewOrderFile(file)
+    designPreviewUrls.value[draft.draft_id] = orderFilePreviewUrl.value
   } catch (error) {
     pageError.value = error instanceof Error ? error.message : '设计稿预览失败'
   }
@@ -2257,6 +2395,7 @@ async function loadRoute(route: string) {
       }
     }
     if (route === '/cs/billing') {
+      if (focusTask === 'ALL_BILLS') billingFilter.value = 'ALL'
       if (focusTask === 'BILLING_PENDING') {
         billingTab.value = 'ORDER'
         billingFilter.value = 'PENDING'
@@ -2268,6 +2407,7 @@ async function loadRoute(route: string) {
     if (route === '/cs/delivery') {
       if (focusTask === 'DELIVERY_FOLLOW_UP') deliveryStatus.value = 'FOLLOW_UP'
       if (focusTask === 'SHIPPING_PENDING') deliveryStatus.value = 'PENDING'
+      if (focusTask === 'SHIPPED_ORDERS') deliveryStatus.value = 'SHIPPED'
       await loadDelivery()
       deliveryDrawerVisible.value = false
       const focusDelivery = deliveryItems.value.find((item) => item.order_id === focusOrderId)
@@ -2301,6 +2441,7 @@ async function loadRoute(route: string) {
 const filteredOrders = computed(() => {
   const keyword = orderKeyword.value.trim().toLowerCase()
   return orders.value.filter((order) => {
+    if (!matchesDashboardScope(order, props.dashboardScope)) return false
     const matchesKeyword = !keyword || csOrderMatchesKeyword(order, keyword)
     if (!matchesKeyword) return false
     if (orderFilter.value === 'NEW') return registrationStatus(order) === 'NEW'
@@ -2581,6 +2722,7 @@ const filteredBillingItems = computed(() => deliveryItems.value.filter((item) =>
   billingFilter.value === 'ALL' || !['PAID', 'NOT_REQUIRED', 'SETTLED', 'NO_PAYMENT_REQUIRED'].includes(item.payment_status)))
 const filteredDelivery = computed(() => deliveryItems.value.filter((item) => {
   if (deliveryStatus.value === 'FOLLOW_UP') return ['EXCEPTION', 'FOLLOWING', 'FOLLOWING_UP'].includes(item.logistics_status)
+  if (deliveryStatus.value === 'SHIPPED') return ['SHIPPED', 'IN_TRANSIT', 'DELIVERED', 'DELIVERED_PENDING_CONFIRMATION'].includes(item.logistics_status)
   return deliveryStatus.value === 'ALL' || item.logistics_status === deliveryStatus.value
 }))
 const filteredQualityRecords = computed(() => qualityRecords.value.filter((item) => {
@@ -2783,12 +2925,21 @@ watch(billingTab, (tab) => {
                 <div><span>客服负责人</span><strong>{{ selectedOrder.cs_user_id ? `人员 #${selectedOrder.cs_user_id}` : '未分配' }}</strong></div>
                 <div><span>应收金额</span><strong>{{ orderBill ? money(orderBill.amount_cents, orderBill.currency || 'CNY') : '金额待录入' }}</strong></div>
                 <div class="is-state"><span>登记状态</span><strong>{{ registrationStatus(selectedOrder) === 'NEW' ? '新订单' : '已登记' }}</strong></div>
-                <div><span>系统可行交期</span><strong data-testid="cs-promised-delivery-date">{{ selectedOrder.promised_delivery_date ? (selectedOrder.delivery_estimate_status === 'PLACEHOLDER' ? `${selectedOrder.promised_delivery_date}（待确认）` : selectedOrder.promised_delivery_date) : '尚未生成交期计划' }}</strong></div>
-                <div><span>医生要求到货</span><strong>{{ selectedOrder.doctor_requested_delivery_date || '未指定' }}</strong></div>
+                <div><span>系统预计到货日期</span><strong data-testid="cs-promised-delivery-date">{{ selectedOrder.promised_delivery_date ? (selectedOrder.delivery_estimate_status === 'PLACEHOLDER' ? `${selectedOrder.promised_delivery_date}（待确认）` : selectedOrder.promised_delivery_date) : '尚未生成交期计划' }}</strong></div>
                 <div><span>订单创建时间</span><strong>{{ compactDateTime(selectedOrder.created_at) }}</strong></div>
                 <div><span>最近更新</span><strong>{{ compactDateTime(selectedOrder.updated_at) }}</strong></div>
                 <div><span>生产创建时间</span><strong>{{ orderProcess ? compactDateTime(orderProcess.created_at) : '尚未创建生产流程' }}</strong></div>
               </div>
+            </section>
+            <section class="cs-r-editor-card" data-testid="cs-order-identifiers-delivery-editor">
+              <header><div><h3>订单标识与系统预计到货日期</h3><p>完整订单号与系统尾号保持不变；医生端只读，客服说明原因后可人工覆盖系统预计日期。</p></div></header>
+              <div class="cs-r-form-grid">
+                <label><span>盒号</span><input v-model="orderBoxNoDraft" maxlength="64" placeholder="例如 BX-20260901-001"></label>
+                <label><span>盒号修改说明</span><input v-model="orderBoxNoReason" maxlength="500" placeholder="选填，建议填写来源"></label>
+                <label><span>系统预计到货日期</span><input v-model="orderDeliveryDateDraft" type="date"></label>
+                <label><span>修改原因 *</span><input v-model="orderDeliveryDateReason" maxlength="500" placeholder="填写人工覆盖原因"></label>
+              </div>
+              <footer class="cs-r-record-actions"><button type="button" :disabled="orderAdministrationBusy" @click="saveOrderBoxNo">保存盒号</button><button type="button" class="is-primary" :disabled="orderAdministrationBusy || !orderDeliveryDateDraft || !orderDeliveryDateReason.trim()" @click="saveOrderDeliveryDate">更新系统预计日期</button></footer>
             </section>
 
             <section v-if="orderDrawerAlert" class="cs-r-order-alert" :class="`is-${orderDrawerAlert.tone}`">
@@ -2974,8 +3125,28 @@ watch(billingTab, (tab) => {
               </footer>
             </section>
           </template>
-          <template v-else-if="translationTab==='TRANSLATION'"><section class="cs-r-readonly-note"><strong>需要翻译的客户文字</strong><p class="cs-r-preserve-text">{{ translationSource || '该订单未单独填写外文指示，可跳过翻译并直接确认生产信息。' }}</p></section><section class="cs-r-editor-card"><header><div><h3>翻译确认稿</h3><p>检测到外文时必须生成或填写并人工核对；中文订单可跳过。</p></div><button type="button" :disabled="aiLoading || !translationSource.trim()" @click="generateTranslation">生成翻译草稿</button></header><textarea v-model="translationDraft" rows="5" placeholder="生成后由翻译人员逐项校对" aria-label="翻译草稿"></textarea></section><section class="cs-r-readonly-note" data-testid="cs-customer-requirement-reminder"><strong>客户档案特殊要求（已自动带入确认稿）</strong><div v-if="translationCustomerRequirementItems.length" class="cs-r-requirement-list"><p v-for="item in translationCustomerRequirementItems" :key="item.key"><b>{{ item.label }}</b><span>{{ item.value }}</span></p></div><p v-else>{{ translationClinicPreference ? '当前客户档案未维护特殊要求。' : '客户档案特殊要求暂未读取，请到客户管理核对。' }}</p></section><section class="cs-r-editor-card"><header><div><h3>客服初审生产信息</h3><p>客户档案要求会自动带入；通过初审后保存为订单快照，档案后续修改不会改变本单。</p></div><button type="button" :disabled="aiLoading" @click="generateProductionNote">根据档案重新整理</button></header><textarea v-model="productionNoteDraft" rows="9" placeholder="客户档案要求会自动带入，也可在确认前补充或修正" aria-label="生产信息确认稿"></textarea><footer><button type="button" @click="openInquiryForOrder(selectedTranslationOrder.order_id)">发现疑点，创建问单</button><button class="is-primary" type="button" :disabled="aiLoading || !productionNoteDraft.trim() || selectedTranslationOrder.internal_status !== 'PENDING_CS_REVIEW'" @click="confirmProductionNote">{{ selectedTranslationOrder.internal_status === 'PENDING_CS_REVIEW' ? '确认并通过客服初审' : '客服初审已完成' }}</button></footer></section></template>
-          <section v-else-if="translationTab==='FILES'" class="cs-r-editor-card"><header><div><h3>订单附件</h3><p>只显示当前账号可访问的真实文件记录；STL 可直接在线查看。</p></div><span>{{ translationFiles.length }} 个</span></header><div v-if="orderFilePreviewError" class="cs-r-inline-state is-warning">{{ orderFilePreviewError }}</div><div v-if="translationFiles.length" class="cs-r-record-list"><article v-for="file in translationFiles" :key="file.file_id"><div><strong>{{ file.original_filename }}</strong><span>{{ file.content_type || '类型未记录' }} · {{ file.file_size == null ? '大小未记录' : `${file.file_size} B` }}</span></div><div class="cs-r-record-actions"><span class="cs-r-badge">{{ statusLabel(file.upload_status) }}</span><button type="button" :disabled="orderFilePreviewLoading" @click="previewOrderFile(file)">{{ file.original_filename.toLowerCase().endsWith('.stl') ? '3D 查看' : '预览' }}</button></div></article></div><div v-else class="cs-r-state">当前订单没有可查看附件</div></section>
+          <template v-else-if="translationTab==='TRANSLATION'"><section class="cs-r-readonly-note"><strong>需要翻译的客户文字</strong><p class="cs-r-preserve-text">{{ translationSource || '该订单未单独填写外文指示，可跳过翻译并直接确认生产信息。' }}</p></section><section class="cs-r-editor-card"><header><div><h3>翻译确认稿</h3><p>检测到外文时必须生成或填写并人工核对；中文订单可跳过。</p></div><button type="button" :disabled="aiLoading || !translationSource.trim()" @click="generateTranslation">生成翻译草稿</button></header><textarea v-model="translationDraft" rows="5" placeholder="生成后由翻译人员逐项校对" aria-label="翻译草稿"></textarea></section><section class="cs-r-readonly-note" data-testid="cs-customer-requirement-reminder"><strong>客户档案特殊要求（已自动带入确认稿）</strong><div v-if="translationCustomerRequirementItems.length" class="cs-r-requirement-list"><p v-for="item in translationCustomerRequirementItems" :key="item.key"><b>{{ item.label }}</b><span>{{ item.value }}</span></p></div><p v-else>{{ translationClinicPreference ? '当前客户档案未维护特殊要求。' : '客户档案特殊要求暂未读取，请到客户管理核对。' }}</p></section><section class="cs-r-editor-card"><header><div><h3>客服初审生产信息</h3><p>客户档案要求会自动带入；通过初审后保存为订单快照，档案后续修改不会改变本单。</p></div><button type="button" :disabled="aiLoading" @click="generateProductionNote">根据档案重新整理</button></header><label class="cs-r-production-number"><span>生产订单编号 *</span><input v-model="productionOrderNoDraft" maxlength="64" placeholder="输入工厂生产单号；全系统永久不可重复" :disabled="selectedTranslationOrder.internal_status !== 'PENDING_CS_REVIEW'"><small>初次登记后不可清空；进入生产后如需纠正，必须填写原因并保留审计。</small></label><textarea v-model="productionNoteDraft" rows="9" placeholder="客户档案要求会自动带入，也可在确认前补充或修正" aria-label="生产信息确认稿"></textarea><footer><button type="button" @click="openInquiryForOrder(selectedTranslationOrder.order_id)">发现疑点，创建问单</button><button class="is-primary" type="button" :disabled="aiLoading || !productionOrderNoDraft.trim() || !productionNoteDraft.trim() || selectedTranslationOrder.internal_status !== 'PENDING_CS_REVIEW'" @click="confirmProductionNote">{{ selectedTranslationOrder.internal_status === 'PENDING_CS_REVIEW' ? '确认并通过客服初审' : '客服初审已完成' }}</button></footer></section></template>
+          <section v-else-if="translationTab==='FILES'" class="cs-r-editor-card">
+            <header><div><h3>订单附件</h3><p>只显示当前账号可访问的真实文件记录；上传白名单内文件均可站内预览。</p></div><span>{{ translationFiles.length }} 个</span></header>
+            <div v-if="orderFilePreviewError" class="cs-r-inline-state is-warning">{{ orderFilePreviewError }}</div>
+            <div v-if="translationSupplements.length" class="cs-r-supplement-review" data-testid="cs-supplement-review-list">
+              <h4>医生补充资料审核</h4>
+              <article v-for="item in translationSupplements" :key="item.supplement_id">
+                <div><strong>V{{ item.version_no }} · {{ item.original_filename }}</strong><span>{{ item.display_note }} · {{ item.attachment_scope === 'SHARED' ? '病例组共享' : '当前产品' }} · {{ compactDateTime(item.created_at) }}</span></div>
+                <div class="cs-r-supplement-actions">
+                  <span class="cs-r-badge" :class="item.approval_status === 'REJECTED' ? 'is-danger' : item.approval_status === 'PENDING_CS_APPROVAL' ? 'is-amber' : 'is-green'">{{ supplementApprovalLabel(item.approval_status) }}</span>
+                  <button type="button" @click="previewSupplement(item)">预览</button>
+                  <template v-if="item.approval_status === 'PENDING_CS_APPROVAL'">
+                    <input v-model="supplementRejectReasons[item.supplement_id]" maxlength="500" placeholder="退回时填写原因">
+                    <button type="button" :disabled="aiLoading" @click="reviewSupplement(item, 'REJECT')">退回</button>
+                    <button class="is-primary" type="button" :disabled="aiLoading" @click="reviewSupplement(item, 'APPROVE')">通过</button>
+                  </template>
+                </div>
+              </article>
+            </div>
+            <div v-if="translationFiles.length" class="cs-r-record-list"><article v-for="file in translationFiles" :key="file.file_id"><div><strong>{{ file.original_filename }}</strong><span>{{ file.content_type || '类型未记录' }} · {{ file.file_size == null ? '大小未记录' : `${file.file_size} B` }}</span></div><div class="cs-r-record-actions"><span class="cs-r-badge">{{ statusLabel(file.upload_status) }}</span><button type="button" :disabled="orderFilePreviewLoading" @click="previewOrderFile(file)">预览</button></div></article></div>
+            <div v-else class="cs-r-state">当前订单没有可查看附件</div>
+          </section>
           <section v-else class="cs-r-editor-card"><header><div><h3>处理记录</h3><p>显示当前订单已有的真实时间和客服初审结果。</p></div></header><div class="cs-r-record-list"><article><div><strong>订单建立</strong><span>{{ compactDateTime(selectedTranslationOrder.created_at) }}</span></div><span class="cs-r-badge">{{ statusLabel(selectedTranslationOrder.internal_status) }}</span></article><article><div><strong>最近更新</strong><span>{{ compactDateTime(selectedTranslationOrder.updated_at) }}</span></div><span class="cs-r-badge" :class="hasPassedCsReview(selectedTranslationOrder) ? 'is-green':'is-amber'">{{ informationStatus(selectedTranslationOrder) }}</span></article></div><section class="cs-r-readonly-note"><strong>客服初审确认的制作要求</strong><p>{{ businessProductionNote(selectedTranslationOrder.production_note) || '尚未形成客服初审确认的制作要求。' }}</p></section></section>
         </section>
         <div v-else class="cs-r-state">请选择左侧任务</div>
@@ -3187,11 +3358,7 @@ watch(billingTab, (tab) => {
       <section v-else class="cs-r-search-results"><button v-for="result in searchResults" :key="`${result.type}-${result.id}`" type="button" @click="openSearchResult(result)"><span class="cs-r-search-type">{{ result.type }}</span><div><strong>{{ result.title }}</strong><p>{{ result.detail }}</p></div><b>打开记录 →</b></button></section>
     </template>
 
-    <el-dialog v-model="orderFilePreviewVisible" width="min(920px, 92vw)" append-to-body destroy-on-close class="cs-r-order-file-dialog">
-      <template #header><div><strong>订单文件预览</strong><span>{{ orderFilePreviewName }}</span></div></template>
-      <img v-if="orderFilePreviewKind === 'IMAGE'" :src="orderFilePreviewUrl" :alt="orderFilePreviewName">
-      <iframe v-else :src="orderFilePreviewUrl" :title="`${orderFilePreviewName}预览`" />
-    </el-dialog>
+    <UniversalFilePreviewDialog v-model:visible="orderFilePreviewVisible" :file-id="orderFilePreviewId" :source-url="orderFilePreviewUrl" :filename="orderFilePreviewName" :content-type="orderFilePreviewContentType" :authenticated-fetch="authenticatedFetch" />
     <StlViewerDialog v-model:visible="orderStlViewerVisible" :source-url="orderFilePreviewUrl" :filename="orderFilePreviewName" />
   </div>
 </template>

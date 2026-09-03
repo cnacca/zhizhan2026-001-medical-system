@@ -9,6 +9,7 @@ import com.yuri.aiorder.notification.NotificationPushService;
 import com.yuri.aiorder.order.status.InternalOrderStatus;
 import com.yuri.aiorder.order.status.ExternalOrderStatus;
 import com.yuri.aiorder.order.status.OrderStatusService;
+import com.yuri.aiorder.order.api.OrderAdministrationService;
 import java.sql.Types;
 import java.time.LocalDateTime;
 import java.util.ArrayList;
@@ -43,18 +44,21 @@ public class CollaborationService {
     private final OrderStatusService orderStatusService;
     private final AccessControlService accessControlService;
     private final NotificationPushService notificationPushService;
+    private final OrderAdministrationService orderAdministrationService;
 
     public CollaborationService(
             JdbcClient jdbcClient,
             ObjectMapper objectMapper,
             OrderStatusService orderStatusService,
             AccessControlService accessControlService,
-            NotificationPushService notificationPushService) {
+            NotificationPushService notificationPushService,
+            OrderAdministrationService orderAdministrationService) {
         this.jdbcClient = jdbcClient;
         this.objectMapper = objectMapper;
         this.orderStatusService = orderStatusService;
         this.accessControlService = accessControlService;
         this.notificationPushService = notificationPushService;
+        this.orderAdministrationService = orderAdministrationService;
     }
 
     public List<MessageResponse> listMessages(long orderId, BootstrapIdentity identity) {
@@ -499,10 +503,13 @@ public class CollaborationService {
                         UPDATE order_logistics
                         SET logistics_status = 'DELIVERED',
                             delivered_at = CURRENT_TIMESTAMP(3),
+                            receipt_confirmation_type = 'DOCTOR_MANUAL',
+                            receipt_confirmed_by = :userId,
                             updated_at = CURRENT_TIMESTAMP(3)
                         WHERE order_id = :orderId
                         """)
                 .param("orderId", orderId)
+                .param("userId", identity.userId())
                 .update();
         ExternalOrderStatus status = orderStatusService.updateOrderState(
                 orderId,
@@ -602,6 +609,9 @@ public class CollaborationService {
                 .param("orderId", orderId)
                 .param("logisticsStatus", logisticsStatus)
                 .update();
+        if ("PENDING".equals(logisticsStatus)) {
+            orderAdministrationService.reactivateBoxAssignment(orderId, identity.userId());
+        }
         jdbcClient.sql("""
                         INSERT INTO order_message
                             (order_id, sender_user_id, sender_role, content, visibility, review_status)
@@ -627,14 +637,22 @@ public class CollaborationService {
         requirePaymentReady(orderId);
         jdbcClient.sql("""
                         INSERT INTO order_logistics
-                            (order_id, carrier_name, tracking_no, logistics_status, shipped_at)
+                            (order_id, carrier_name, tracking_no, logistics_status, shipped_at, auto_confirm_due_at)
                         VALUES
-                            (:orderId, :carrier, :trackingNo, 'SHIPPED', CURRENT_TIMESTAMP(3))
+                            (:orderId, :carrier, :trackingNo, 'SHIPPED', CURRENT_TIMESTAMP(3),
+                             DATE_ADD(CURRENT_TIMESTAMP(3), INTERVAL 7 DAY))
                         ON DUPLICATE KEY UPDATE
                             carrier_name = VALUES(carrier_name),
                             tracking_no = VALUES(tracking_no),
                             logistics_status = 'SHIPPED',
                             shipped_at = COALESCE(shipped_at, CURRENT_TIMESTAMP(3)),
+                            auto_confirm_due_at = COALESCE(
+                                auto_confirm_due_at,
+                                DATE_ADD(COALESCE(shipped_at, CURRENT_TIMESTAMP(3)), INTERVAL 7 DAY)
+                            ),
+                            auto_confirm_reminded_at = NULL,
+                            receipt_confirmation_type = NULL,
+                            receipt_confirmed_by = NULL,
                             updated_at = CURRENT_TIMESTAMP(3)
                         """)
                 .param("orderId", orderId)
@@ -642,8 +660,95 @@ public class CollaborationService {
                 .param("trackingNo", request.trackingNo())
                 .update();
         orderStatusService.updateOrderState(orderId, InternalOrderStatus.SHIPPED, "ORDER_SHIPPED", identity.userId(), request.trackingNo());
+        orderAdministrationService.releaseBoxAssignment(orderId, identity.userId(), "ORDER_SHIPPED");
         emit(order, "ORDER_SHIPPED", "DOCTOR", order.doctorUserId(), "订单已发货");
         return getLogistics(orderId, identity);
+    }
+
+    @Transactional
+    public int remindPendingAutoReceipts() {
+        List<AutoReceiptRow> dueSoon = jdbcClient.sql("""
+                        SELECT o.order_id, o.order_no, o.clinic_id, o.doctor_user_id, o.cs_user_id
+                        FROM order_logistics l
+                        JOIN orders o ON o.order_id = l.order_id
+                        WHERE l.logistics_status = 'SHIPPED'
+                          AND l.auto_confirm_due_at > CURRENT_TIMESTAMP(3)
+                          AND l.auto_confirm_due_at <= DATE_ADD(CURRENT_TIMESTAMP(3), INTERVAL 1 DAY)
+                          AND l.auto_confirm_reminded_at IS NULL
+                          AND o.internal_status = 'SHIPPED'
+                        ORDER BY l.auto_confirm_due_at
+                        LIMIT 200
+                        """)
+                .query(this::mapAutoReceipt)
+                .list();
+        int reminded = 0;
+        for (AutoReceiptRow row : dueSoon) {
+            int updated = jdbcClient.sql("""
+                            UPDATE order_logistics
+                            SET auto_confirm_reminded_at = CURRENT_TIMESTAMP(3)
+                            WHERE order_id = :orderId
+                              AND logistics_status = 'SHIPPED'
+                              AND auto_confirm_reminded_at IS NULL
+                            """)
+                    .param("orderId", row.orderId())
+                    .update();
+            if (updated == 1) {
+                emit(row.asOrderRow(), "RECEIPT_AUTO_CONFIRM_REMINDER", "DOCTOR", row.doctorUserId(),
+                        "订单将在24小时内自动确认收货；如尚未收到，请立即联系订单服务。");
+                reminded++;
+            }
+        }
+        return reminded;
+    }
+
+    @Transactional
+    public int autoConfirmDueReceipts() {
+        List<AutoReceiptRow> due = jdbcClient.sql("""
+                        SELECT o.order_id, o.order_no, o.clinic_id, o.doctor_user_id, o.cs_user_id
+                        FROM order_logistics l
+                        JOIN orders o ON o.order_id = l.order_id
+                        WHERE l.logistics_status = 'SHIPPED'
+                          AND l.auto_confirm_due_at <= CURRENT_TIMESTAMP(3)
+                          AND o.internal_status = 'SHIPPED'
+                        ORDER BY l.auto_confirm_due_at
+                        LIMIT 200
+                        """)
+                .query(this::mapAutoReceipt)
+                .list();
+        int completed = 0;
+        for (AutoReceiptRow row : due) {
+            int updated = jdbcClient.sql("""
+                            UPDATE order_logistics
+                            SET logistics_status = 'DELIVERED',
+                                delivered_at = CURRENT_TIMESTAMP(3),
+                                receipt_confirmation_type = 'AUTO_AFTER_7_DAYS',
+                                receipt_confirmed_by = NULL,
+                                updated_at = CURRENT_TIMESTAMP(3)
+                            WHERE order_id = :orderId
+                              AND logistics_status = 'SHIPPED'
+                              AND auto_confirm_due_at <= CURRENT_TIMESTAMP(3)
+                            """)
+                    .param("orderId", row.orderId())
+                    .update();
+            if (updated == 1) {
+                orderStatusService.updateOrderState(
+                        row.orderId(), InternalOrderStatus.COMPLETED, "AUTO_CONFIRM_RECEIPT", null,
+                        "automatically confirmed receipt seven days after shipment");
+                emit(row.asOrderRow(), "ORDER_RECEIVED_AUTO", "DOCTOR", row.doctorUserId(),
+                        "订单发货已满7天，系统已自动确认收货。如有异常，请联系订单服务。");
+                completed++;
+            }
+        }
+        return completed;
+    }
+
+    private AutoReceiptRow mapAutoReceipt(java.sql.ResultSet rs, int rowNum) throws java.sql.SQLException {
+        return new AutoReceiptRow(
+                rs.getLong("order_id"),
+                rs.getString("order_no"),
+                rs.getLong("clinic_id"),
+                rs.getObject("doctor_user_id", Long.class),
+                rs.getObject("cs_user_id", Long.class));
     }
 
     private DeliveryOrderResponse getDeliveryOrder(long orderId) {
@@ -1144,6 +1249,13 @@ public class CollaborationService {
     }
 
     private record OrderRow(long orderId, String orderNo, long clinicId, Long doctorUserId, Long csUserId) {
+    }
+
+    private record AutoReceiptRow(
+            long orderId, String orderNo, long clinicId, Long doctorUserId, Long csUserId) {
+        private OrderRow asOrderRow() {
+            return new OrderRow(orderId, orderNo, clinicId, doctorUserId, csUserId);
+        }
     }
 
     private record BillLedgerRow(Long amountCents, String currency) {

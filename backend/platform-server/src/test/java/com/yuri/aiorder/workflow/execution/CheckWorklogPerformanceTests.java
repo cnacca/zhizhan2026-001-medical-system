@@ -1008,9 +1008,11 @@ class CheckWorklogPerformanceTests {
     private void ensureUser(long userId, String username, String roleCode, Long userClinicId) {
         jdbcClient.sql("""
                         INSERT INTO system_user
-                            (user_id, username, password_hash, display_name, clinic_id, user_type, status)
+                            (user_id, username, password_hash, display_name, clinic_id, dept_id, user_type, status)
                         VALUES
-                            (:userId, :username, 'test-only', :username, :clinicId, :roleCode, 'ACTIVE')
+                            (:userId, :username, 'test-only', :username, :clinicId,
+                             CASE WHEN :roleCode = 'WORKER' THEN 120 ELSE NULL END,
+                             :roleCode, 'ACTIVE')
                         """)
                 .param("userId", userId)
                 .param("username", username)

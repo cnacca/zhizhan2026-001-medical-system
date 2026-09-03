@@ -10,11 +10,15 @@ import CsPortalPages from './components/CsPortalPages.vue'
 import ProductionDesignWorkspace from './components/ProductionDesignWorkspace.vue'
 import { staffOrderIdentity } from './utils/orderIdentity'
 import { orderMayHaveProcessInstance } from './utils/orderWorkflow'
+import { assignmentAvailability, assignmentErrorMessage } from './utils/processAssignment'
+import { matchesDashboardScope, type DashboardScope } from './utils/dashboardScope'
+import { productionDepartmentKey } from './utils/productionDepartment'
 import { productionProgressNodes, productionProgressSummary } from './utils/productionProgress'
 import { authenticatedFetchKey } from './utils/authenticatedFetch'
 import { captureRefreshTokenForLogout } from './utils/logoutRefreshCoordination.js'
 
 const StlViewerDialog = defineAsyncComponent(() => import('./components/StlViewerDialog.vue'))
+const UniversalFilePreviewDialog = defineAsyncComponent(() => import('./components/UniversalFilePreviewDialog.vue'))
 const DoctorPortalV2 = defineAsyncComponent(() => import('./doctor/DoctorPortalV2.vue'))
 
 type AuthMenu = {
@@ -79,6 +83,7 @@ type PushNotificationPayload = {
 type DoctorOrderItem = {
   order_id: number
   order_no: string
+  box_no?: string | null
   patient_id: number | null
   product_type: string
   external_status: string
@@ -216,6 +221,13 @@ type StaffWorkloadListResponse = {
 }
 
 type StaffAccountOption = { id: number; name: string }
+type AssignmentCandidate = {
+  user_id: string | number
+  display_name: string
+  dept_id: number | null
+  dept_name: string | null
+  active_node_count: number
+}
 
 type StaffAccountOptionsResponse = {
   departments: StaffAccountOption[]
@@ -242,6 +254,8 @@ type AdminPersonnelRow = {
 type InternalOrderItem = {
   order_id: number
   order_no: string
+  production_order_no?: string | null
+  box_no?: string | null
   clinic_id: number
   clinic_name: string
   doctor_user_id: number | null
@@ -255,6 +269,7 @@ type InternalOrderItem = {
   production_note: string | null
   reject_reason: string | null
   form_data: Record<string, unknown>
+  promised_delivery_date?: string | null
 }
 
 type InternalOrderListResponse = {
@@ -1310,6 +1325,8 @@ type CsPortalFocusTask =
   | 'DESIGN_UPDATE'
   | 'DELIVERY_FOLLOW_UP'
   | 'SHIPPING_PENDING'
+  | 'SHIPPED_ORDERS'
+  | 'ALL_BILLS'
   | 'BILLING_PENDING'
   | 'QUALITY_FOLLOW_UP'
   | 'SEARCH_CUSTOMER'
@@ -1342,6 +1359,15 @@ type DashboardAction = {
   meta: string
   tone: PrototypeTone
   actionLabel: string
+  routePath?: string
+  navId?: string
+  focusOrderId?: number
+  focusTask?: CsPortalFocusTask
+  doctorSection?: string
+  doctorDetailTab?: string
+}
+
+type DashboardNavigationTarget = {
   routePath?: string
   navId?: string
   focusOrderId?: number
@@ -1699,10 +1725,16 @@ const doctorUploadAllowedContentTypes = new Set([
   'application/pdf',
   'model/stl',
   'application/sla',
+  'model/ply',
+  'model/obj',
+  'application/dicom',
   'application/octet-stream',
   'text/plain',
   'image/png',
   'image/jpeg',
+  'image/webp',
+  'application/msword',
+  'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
   'application/zip',
   'application/x-zip-compressed'
 ])
@@ -1715,6 +1747,8 @@ const internalOrders = ref<InternalOrderItem[]>([])
 const internalOrdersTotal = ref(0)
 const selectedInternalOrder = ref<InternalOrderItem | null>(null)
 const internalOrderKeyword = ref('')
+const dashboardScope = ref<DashboardScope | null>(null)
+const dashboardDepartment = ref<{ key: string; name: string } | null>(null)
 const internalOrderStatus = ref('PENDING_CS_REVIEW')
 const internalOrdersLoading = ref(false)
 const internalOrderError = ref('')
@@ -1728,6 +1762,15 @@ const adminOrderPage = ref(1)
 const adminOrderDrawerVisible = ref(false)
 const adminOrderDetailLoading = ref(false)
 const adminOrderDetailError = ref('')
+const adminOrderBoxNoDraft = ref('')
+const adminOrderBoxNoReason = ref('')
+const adminOrderBoxNoBusy = ref(false)
+const adminOrderDeliveryDateDraft = ref('')
+const adminOrderDeliveryDateReason = ref('')
+const adminOrderDeliveryDateBusy = ref(false)
+const adminOrderProductionNoDraft = ref('')
+const adminOrderProductionNoReason = ref('')
+const adminOrderProductionNoBusy = ref(false)
 const adminOrderMessages = ref<MessageItem[]>([])
 const adminOrderBill = ref<BillInfo | null>(null)
 const adminOrderLogistics = ref<LogisticsInfo | null>(null)
@@ -1851,7 +1894,9 @@ const processAssignmentFiles = ref<OrderFileItem[]>([])
 const processAssignmentFilesLoading = ref(false)
 const processAssignmentFilesError = ref('')
 const workflowFileActionKey = ref('')
-const processAssignmentUserId = ref('9601')
+const processAssignmentUserId = ref('')
+const processAssignmentCandidates = ref<AssignmentCandidate[]>([])
+const processAssignmentCandidatesLoading = ref(false)
 const processAssignmentLoading = ref(false)
 const processAssignmentResult = ref('')
 const workerTasks = ref<WorkerTaskItem[]>([])
@@ -2345,11 +2390,12 @@ const displayNavigationConfig: Record<PortalTone, NavigationGroup[]> = {
         { id: 'production-review', title: '生产审核', description: '由获得生产审核授权的人员审核订单并生成工序。', icon: 'fact_check', routePath: '/workflow/review' },
         { id: 'production-orders', title: '生产订单', description: '查看待生产、生产异常和待发货订单。', icon: 'order', routePath: '/production/board' },
         { id: 'production-board', title: '生产看板', description: '跨状态查看生产订单、节点进度和终检发货门禁。', icon: 'dashboard', routePath: '/production/board' },
+        { id: 'production-assign', title: '员工派工', description: '生产组长为本部门工序安排或调整执行人员。', icon: 'assignment_ind', routePath: '/workflow/assign' },
         { id: 'production-design-pool', title: '设计任务池', description: '领取尚未分配的设计任务。', icon: 'design', routePath: '/production/design-tasks/pool' },
         { id: 'production-design-mine', title: '我的设计任务', description: '上传版本并提交设计内审。', icon: 'design', routePath: '/production/design-tasks/mine' },
         { id: 'production-design-reviews', title: '设计内审', description: '由具备内审权限的负责人审核设计版本。', icon: 'audit', routePath: '/production/design-reviews' },
         { id: 'production-tasks', title: '我的任务', description: '处理分配给当前员工的工序任务。', icon: 'task', routePath: '/tasks/mine' },
-        { id: 'production-scan', title: '扫码登记', description: '通过人工核验登记入检、开工、暂停、完工和流转节点。', icon: 'scan', routePath: '/checks' }
+        { id: 'production-scan', title: '入检/出检登记', description: '查找订单或工序，人工登记开工前入检和完工后出检结果。', icon: 'scan', routePath: '/checks' }
       ]
     },
     {
@@ -2513,9 +2559,9 @@ const placeholderContentMap: Record<string, PlaceholderContentItem[]> = {
     { title: '负责人', detail: '显示当前员工、班组负责人和待交接状态。', tone: 'green' }
   ],
   'production-scan': [
-    { title: '扫码入检', detail: '扫码登记入检、开工、暂停、完工和出检节点。', tone: 'teal' },
+    { title: '人工检验登记', detail: '查找订单或工序，登记开工前入检、完工后出检。', tone: 'teal' },
     { title: '流转追踪', detail: '记录订单在工序间的流转时间和异常停留。', tone: 'sky' },
-    { title: '异常提示', detail: '对错扫、漏扫、重复扫码和超时节点给出提醒。', tone: 'amber' }
+    { title: '检验留痕', detail: '保存检验结果、备注及操作记录；不通过时按流程处理。', tone: 'amber' }
   ],
   'production-quality': [
     { title: '总返工率', detail: '汇总内部返修与外部退回返修的总体比例。', tone: 'rose' },
@@ -2633,7 +2679,7 @@ const placeholderContentMap: Record<string, PlaceholderContentItem[]> = {
   ],
   'production-account-position': [
     { title: '岗位/工序', detail: '展示岗位能力、可执行工序和授权操作范围。', tone: 'teal' },
-    { title: '当前任务', detail: '后续关联本人任务、扫码登记和质量记录。', tone: 'amber' }
+    { title: '当前任务', detail: '关联本人任务、入检/出检登记和质量记录。', tone: 'amber' }
   ],
   'production-account-security': [
     { title: '账号安全', detail: '维护密码、安全提醒、登录记录和账号状态。', tone: 'teal' },
@@ -2658,6 +2704,8 @@ const placeholderContentMap: Record<string, PlaceholderContentItem[]> = {
 }
 const navigationPermissionByItemId: Record<string, string> = {
   'production-review': 'workflow:review-production',
+  'production-assign': 'workflow:assign-team',
+  'production-scan': 'check:gate-inspect',
   'admin-production-review': 'workflow:review-production',
   'production-design-reviews': 'design-draft:internal-review',
   'production-final-report': 'check:read-internal'
@@ -3119,16 +3167,16 @@ const adminBusinessMetrics = computed<AdminBusinessMetric[]>(() => {
   const customerExceptionCount = productionStats.externalReworkCount + productionStats.pendingQuestionCount
 
   return [
-    { title: '总入货', value: `${inboundCount}`, note: '本月接收订单', icon: 'order', tone: 'blue' },
-    { title: '总发货', value: `${outboundCount}`, note: '物流状态已同步', icon: 'delivery', tone: 'teal' },
-    { title: '待发货订单', value: `${pendingShipmentCount}`, note: '已完成质检待配送', icon: 'dashboard', tone: 'green' },
-    { title: '返工份数', value: `${productionStats.totalReworkCount}`, note: `返工率 ${formatRate(productionStats.totalReworkRate)}`, icon: 'quality', tone: 'rose' },
-    { title: '内返份数', value: `${productionStats.internalReworkCount}`, note: `内返率 ${formatRate(productionStats.internalReworkRate)}`, icon: 'quality', tone: 'amber' },
-    { title: '生产异常', value: `${productionStats.productionExceptionCount}`, note: '工序与生产待办', icon: 'process', tone: 'orange' },
-    { title: '客服异常', value: `${csExceptionCount}`, note: '审核、消息、账单物流', icon: 'chat', tone: 'violet' },
-    { title: '客户异常', value: `${customerExceptionCount}`, note: '外返与待确认', icon: 'customer', tone: 'rose' },
-    { title: '物料异常', value: `${productionStats.materialPendingCount}`, note: '缺料/错料处理中', icon: 'material', tone: 'amber' },
-    { title: '成本异常', value: `${productionStats.costWarningCount}`, note: '成本预警记录', icon: 'cost', tone: 'orange' }
+    { title: '总入货', value: `${inboundCount}`, note: '本月接收订单', icon: 'order', tone: 'blue', routePath: '/orders/internal', navId: 'admin-orders' },
+    { title: '总发货', value: `${outboundCount}`, note: '物流状态已同步', icon: 'delivery', tone: 'teal', routePath: '/delivery', navId: 'admin-billing-delivery' },
+    { title: '待发货订单', value: `${pendingShipmentCount}`, note: '已完成质检待配送', icon: 'dashboard', tone: 'green', routePath: '/delivery', navId: 'admin-billing-delivery' },
+    { title: '返工份数', value: `${productionStats.totalReworkCount}`, note: `返工率 ${formatRate(productionStats.totalReworkRate)}`, icon: 'quality', tone: 'rose', routePath: '/production/quality', navId: 'admin-quality' },
+    { title: '内返份数', value: `${productionStats.internalReworkCount}`, note: `内返率 ${formatRate(productionStats.internalReworkRate)}`, icon: 'quality', tone: 'amber', routePath: '/rework-final', navId: 'admin-quality' },
+    { title: '生产异常', value: `${productionStats.productionExceptionCount}`, note: '工序与生产待办', icon: 'process', tone: 'orange', routePath: '/workflow/process-instance', navId: 'admin-process' },
+    { title: '客服异常', value: `${csExceptionCount}`, note: '审核、消息、账单物流', icon: 'chat', tone: 'violet', routePath: '/admin/communication-management', navId: 'admin-communication' },
+    { title: '客户异常', value: `${customerExceptionCount}`, note: '外返与待确认', icon: 'customer', tone: 'rose', routePath: '/production/quality', navId: 'admin-quality' },
+    { title: '物料异常', value: `${productionStats.materialPendingCount}`, note: '缺料/错料处理中', icon: 'material', tone: 'amber', routePath: '/production/material-exceptions', navId: 'admin-material' },
+    { title: '成本异常', value: `${productionStats.costWarningCount}`, note: '成本预警记录', icon: 'cost', tone: 'orange', routePath: '/production/cost-management', navId: 'admin-cost-control' }
   ]
 })
 const adminEfficiencyMetrics = computed<AdminEfficiencyMetric[]>(() => {
@@ -3483,12 +3531,12 @@ const prototypeDashboards = computed<Record<PortalTone, PrototypeDashboard>>(() 
         navId: 'production-board'
       },
       metrics: [
-        { title: '生产异常', value: String(phaseOneAbProductionDashboardStats.value.productionExceptionCount), note: '当前队列异常订单', icon: 'process', tone: 'teal' },
-        { title: '待问异常 / 员工异常', value: `${phaseOneAbProductionDashboardStats.value.pendingQuestionCount} / ${phaseOneAbProductionDashboardStats.value.staffExceptionCount}`, note: '待确认 / 任务负载', icon: 'chat', tone: 'amber' },
-        { title: '质量与返工', value: String(phaseOneAbProductionDashboardStats.value.totalReworkCount), note: `内返 ${phaseOneAbProductionDashboardStats.value.internalReworkCount} / 外返 ${phaseOneAbProductionDashboardStats.value.externalReworkCount}`, icon: 'quality', tone: 'rose' },
-        { title: '设备异常', value: String(phaseOneAbProductionDashboardStats.value.equipmentExceptionCount), note: '保养与故障待处理', icon: 'device', tone: 'orange' },
-        { title: '物料异常', value: String(phaseOneAbProductionDashboardStats.value.materialPendingCount), note: '缺料、错料、损耗处理中', icon: 'material', tone: 'amber' },
-        { title: '安环 / 奖惩待办', value: `${phaseOneAbProductionDashboardStats.value.safetyTodoCount} / ${phaseOneAbProductionDashboardStats.value.rewardPendingCount}`, note: '巡检隐患 / 主管确认', icon: 'safety', tone: 'sky' }
+        { title: '生产异常', value: String(phaseOneAbProductionDashboardStats.value.productionExceptionCount), note: '当前队列异常订单', icon: 'process', tone: 'teal', routePath: '/production/board', navId: 'production-board' },
+        { title: '待问异常 / 员工异常', value: `${phaseOneAbProductionDashboardStats.value.pendingQuestionCount} / ${phaseOneAbProductionDashboardStats.value.staffExceptionCount}`, note: '待确认 / 任务负载', icon: 'chat', tone: 'amber', routePath: '/tasks/mine', navId: 'production-my-tasks' },
+        { title: '质量与返工', value: String(phaseOneAbProductionDashboardStats.value.totalReworkCount), note: `内返 ${phaseOneAbProductionDashboardStats.value.internalReworkCount} / 外返 ${phaseOneAbProductionDashboardStats.value.externalReworkCount}`, icon: 'quality', tone: 'rose', routePath: '/rework-final', navId: 'production-internal-rework-management' },
+        { title: '设备异常', value: String(phaseOneAbProductionDashboardStats.value.equipmentExceptionCount), note: '保养与故障待处理', icon: 'device', tone: 'orange', routePath: '/production/devices', navId: 'production-device' },
+        { title: '物料异常', value: String(phaseOneAbProductionDashboardStats.value.materialPendingCount), note: '缺料、错料、损耗处理中', icon: 'material', tone: 'amber', routePath: '/production/material-exceptions', navId: 'production-material-exception' },
+        { title: '安环 / 奖惩待办', value: `${phaseOneAbProductionDashboardStats.value.safetyTodoCount} / ${phaseOneAbProductionDashboardStats.value.rewardPendingCount}`, note: '巡检隐患 / 主管确认', icon: 'safety', tone: 'sky', routePath: '/production/safety-environment', navId: 'production-safety' }
       ],
       featuredPanel: {
         title: '生产运营待办',
@@ -3496,7 +3544,7 @@ const prototypeDashboards = computed<Record<PortalTone, PrototypeDashboard>>(() 
         tone: 'rose',
         items: [
           { title: '工序超时', detail: `${phaseOneAbProductionDashboardStats.value.productionExceptionCount} 单生产异常跟进中，优先处理卡工序和超时节点`, meta: '生产看板', tone: 'rose', actionLabel: '处理', routePath: '/production/board', navId: 'production-board' },
-          { title: '扫码异常', detail: '重复扫码、漏扫、回退扫码统一在扫码登记中复核', meta: '生产执行', tone: 'orange', actionLabel: '核查', routePath: '/checks', navId: 'production-scan' },
+          ...(canInspectProcess.value ? [{ title: '入检/出检登记', detail: '登记开工前入检和完工后出检结果', meta: '生产检验', tone: 'orange' as const, actionLabel: '登记', routePath: '/checks', navId: 'production-scan' }] : []),
           { title: '返工未关闭', detail: `${phaseOneAbProductionDashboardStats.value.totalReworkCount} 条质量返工记录需要确认关闭状态`, meta: '质量与返工', tone: 'rose', actionLabel: '跟进', routePath: '/rework-final', navId: 'production-internal-rework-management' },
           { title: '设备排队', detail: `${phaseOneAbProductionDashboardStats.value.equipmentExceptionCount} 项设备保养或故障可能影响产能`, meta: '设备管理', tone: 'amber', actionLabel: '调度', routePath: '/production/devices', navId: 'production-device' },
           { title: '安环巡检', detail: `${phaseOneAbProductionDashboardStats.value.safetyTodoCount} 项安环事件待处理或复核`, meta: '安环管理', tone: 'sky', actionLabel: '查看安环', routePath: '/production/safety-environment', navId: 'production-safety' },
@@ -3861,7 +3909,7 @@ const isProductionOrdersView = computed(() => isProductionBoardRoute.value && ac
 const isProductionKanbanView = computed(() => isProductionBoardRoute.value && activeNavId.value === 'production-board')
 const isProductionReferenceView = computed(() => isProductionBoardRoute.value && (isProductionOrdersView.value || isProductionKanbanView.value))
 const isProductionCompactRoute = computed(() => portalTone.value === 'production' && [
-  'production-orders', 'production-board', 'production-design-pool', 'production-design-mine', 'production-design-reviews',
+  'production-orders', 'production-board', 'production-assign', 'production-design-pool', 'production-design-mine', 'production-design-reviews',
   'production-tasks', 'production-scan', 'production-quality', 'production-quality-overview',
   'production-internal-rework-management', 'production-external-rework-management', 'production-final-report', 'production-staff',
   'production-performance', 'production-reward-penalty', 'production-device', 'production-material', 'production-cost',
@@ -3981,6 +4029,8 @@ const filteredProductionReviewOrders = computed(() => {
   ].some((value) => String(value ?? '').toLowerCase().includes(keyword)))
 })
 const selectedProcessNode = computed(() => selectedProcessInstance.value?.nodes.find((node) => node.node_instance_id === selectedProcessNodeId.value) ?? null)
+const processAssignmentState = computed(() => assignmentAvailability(selectedProcessNode.value, processAssignmentUserId.value, processAssignmentLoading.value || processAssignmentCandidatesLoading.value))
+const canInspectProcess = computed(() => currentUser.value?.permissions.includes('check:gate-inspect') ?? false)
 const fixedWorkflowChainNames = [
   '常规冠修复',
   '种植类修复',
@@ -4263,7 +4313,7 @@ const adminOrderRows = computed(() => {
     const clinicMatches = adminOrderClinicFilter.value === 'ALL' || String(order.clinic_id) === adminOrderClinicFilter.value
     const doctorMatches = adminOrderDoctorFilter.value === 'ALL' || String(order.doctor_user_id) === adminOrderDoctorFilter.value
     const quickMatches = adminOrderMatchesQuickFilter(order, adminOrderQuickFilter.value)
-    return keywordMatches && statusMatches && productMatches && clinicMatches && doctorMatches && quickMatches
+    return matchesDashboardScope(order, dashboardScope.value) && keywordMatches && statusMatches && productMatches && clinicMatches && doctorMatches && quickMatches
   })
 })
 const adminFileOrderRows = computed(() => {
@@ -4411,7 +4461,7 @@ const routeChrome = computed<RouteChrome>(() => {
   }
   if (route === '/checks') {
     if (activeDisplayItem.value?.id === 'production-scan') {
-      return { eyebrow: '生产端 / 扫码登记', title: '扫码登记', description: '通过人工核验登记入检、开工、暂停、完工和流转节点。', icon: 'scan' }
+      return { eyebrow: '生产端 / 入检/出检登记', title: '入检/出检登记', description: '人工登记开工前入检、完工后出检结果。', icon: 'scan' }
     }
     return { eyebrow: '生产端 / 入检出检', title: '入检出检', description: '执行节点入检、出检，出检不通过时进入返工链路。', icon: 'rule' }
   }
@@ -5050,7 +5100,7 @@ function canStartTask(node: Pick<WorkerTaskItem, 'can_start'> | Pick<ProcessNode
 function startTaskErrorMessage(error: unknown) {
   const message = error instanceof Error ? error.message : ''
   if (message.includes('node must pass in-check')) {
-    return '开始前需完成入检并通过，请先到“扫码登记”处理。'
+    return '开始前需完成入检并通过，请由检验人员到“入检/出检登记”处理。'
   }
   if (message.includes('请求失败：409')) {
     return '工序状态已变化，请刷新后再试。'
@@ -5095,6 +5145,7 @@ function productionBoardRiskLabel(risk: ProductionKanbanRisk) {
 }
 
 function productionOrderMatchesFilter(order: InternalOrderItem, filter = productionOrdersFilter.value) {
+  if (!matchesDashboardScope(order, dashboardScope.value)) return false
   if (filter === 'ALL') {
     return true
   }
@@ -5419,7 +5470,8 @@ const productionBoardActionSummaryGroups = computed<ProductionBoardActionSummary
 })
 
 const productionBoardFilteredKanbanCards = computed(() =>
-  productionBoardKanbanCards.value.filter((card) => matchesProductionBoardActionSummary(card, productionBoardActionSummaryFilter.value))
+  productionBoardKanbanCards.value.filter((card) => matchesProductionBoardActionSummary(card, productionBoardActionSummaryFilter.value)
+    && (!dashboardDepartment.value || (card.node && productionDepartmentKey(card.node) === dashboardDepartment.value.key)))
 )
 
 function selectProductionBoardActionSummary(key: ProductionBoardActionSummaryKey) {
@@ -6497,6 +6549,8 @@ function clearCsPortalFocusContext() {
 }
 
 function navigateToRoute(routePath: string, preserveCsPortalFocus = false) {
+  dashboardScope.value = null
+  dashboardDepartment.value = null
   const matchingItems = allDisplayItems().filter((item) => item.routePath === routePath)
   if (matchingItems.length > 0 && !matchingItems.some(hasConfiguredNavigationPermission)) {
     notificationError.value = '当前账号没有该页面权限'
@@ -6904,6 +6958,12 @@ function adminOrderProcessProgress(instance: ProcessInstanceDetail | null) {
 
 async function openAdminOrderDrawer(order: InternalOrderItem) {
   selectedInternalOrder.value = order
+  adminOrderProductionNoDraft.value = order.production_order_no ?? ''
+  adminOrderProductionNoReason.value = ''
+  adminOrderBoxNoDraft.value = order.box_no ?? ''
+  adminOrderBoxNoReason.value = ''
+  adminOrderDeliveryDateDraft.value = order.promised_delivery_date ?? ''
+  adminOrderDeliveryDateReason.value = ''
   adminOrderDrawerVisible.value = true
   adminOrderDetailLoading.value = true
   adminOrderDetailError.value = ''
@@ -6941,6 +7001,79 @@ async function openAdminOrderDrawer(order: InternalOrderItem) {
     }
   } finally {
     adminOrderDetailLoading.value = false
+  }
+}
+
+async function saveAdminOrderBoxNo() {
+  const order = selectedInternalOrder.value
+  if (!order || adminOrderBoxNoBusy.value) return
+  adminOrderBoxNoBusy.value = true
+  adminOrderDetailError.value = ''
+  try {
+    const result = await apiFetch<InternalOrderItem>(`/orders/${order.order_id}/box-no`, {
+      method: 'PUT',
+      body: JSON.stringify({ box_no: adminOrderBoxNoDraft.value.trim() || null, reason: adminOrderBoxNoReason.value.trim() || null })
+    })
+    selectedInternalOrder.value = result.data
+    adminOrderBoxNoDraft.value = result.data.box_no ?? ''
+    adminOrderBoxNoReason.value = ''
+  } catch (error) {
+    adminOrderDetailError.value = error instanceof Error ? error.message : '盒号更新失败'
+  } finally {
+    adminOrderBoxNoBusy.value = false
+  }
+}
+
+async function saveAdminOrderProductionNo() {
+  const order = selectedInternalOrder.value
+  if (!order || adminOrderProductionNoBusy.value) return
+  adminOrderProductionNoBusy.value = true
+  adminOrderDetailError.value = ''
+  try {
+    const result = await apiFetch<InternalOrderItem>(`/orders/${order.order_id}/production-order-no`, {
+      method: 'PUT',
+      body: JSON.stringify({
+        production_order_no: adminOrderProductionNoDraft.value.trim() || null,
+        reason: adminOrderProductionNoReason.value.trim() || null
+      })
+    })
+    selectedInternalOrder.value = result.data
+    adminOrderProductionNoDraft.value = result.data.production_order_no ?? ''
+    adminOrderProductionNoReason.value = ''
+  } catch (error) {
+    adminOrderDetailError.value = error instanceof Error ? error.message : '生产单号更新失败'
+  } finally {
+    adminOrderProductionNoBusy.value = false
+  }
+}
+
+async function saveAdminOrderDeliveryDate() {
+  const order = selectedInternalOrder.value
+  const reason = adminOrderDeliveryDateReason.value.trim()
+  if (!order || adminOrderDeliveryDateBusy.value) return
+  if (!adminOrderDeliveryDateDraft.value || !reason) {
+    adminOrderDetailError.value = '调整系统预计到货日期时必须填写日期和原因。'
+    return
+  }
+  adminOrderDeliveryDateBusy.value = true
+  adminOrderDetailError.value = ''
+  try {
+    await apiFetch(`/orders/${order.order_id}/delivery-plan/estimated-date`, {
+      method: 'PUT',
+      body: JSON.stringify({
+        estimated_delivery_date: adminOrderDeliveryDateDraft.value,
+        reason
+      })
+    })
+    selectedInternalOrder.value = {
+      ...order,
+      promised_delivery_date: adminOrderDeliveryDateDraft.value
+    }
+    adminOrderDeliveryDateReason.value = ''
+  } catch (error) {
+    adminOrderDetailError.value = error instanceof Error ? error.message : '系统预计到货日期更新失败'
+  } finally {
+    adminOrderDeliveryDateBusy.value = false
   }
 }
 
@@ -7045,7 +7178,7 @@ function selectBusinessShortcut(shortcut: BusinessShortcut) {
   selectDisplayNavigationItem(shortcut)
 }
 
-function selectDashboardAction(action: DashboardAction) {
+function selectDashboardAction(action: DashboardNavigationTarget) {
   if (portalTone.value === 'cs' && action.routePath && (action.focusTask || action.focusOrderId !== undefined)) {
     navigateFromCsPage(action.routePath, action.focusOrderId, action.focusTask)
     return
@@ -7072,14 +7205,80 @@ function selectDashboardAction(action: DashboardAction) {
   }
 }
 
+function openDashboardBusinessDetail(label: string, month = phaseOneAbDashboardSummary.value?.current_month.month) {
+  const production = portalTone.value === 'production'
+  const cs = portalTone.value === 'cs'
+  const qualityLabels = ['内返率', '外返率', '返工率', '客诉率', '投诉率']
+  if (qualityLabels.includes(label)) {
+    selectDashboardAction({ routePath: cs ? '/cs/quality' : '/production/quality', navId: cs ? 'cs-quality' : production ? 'production-quality-overview' : 'admin-quality' })
+    return
+  }
+  if (label === '物料异常') {
+    selectDashboardAction({ routePath: '/production/material-exceptions', navId: production ? 'production-material' : 'admin-material' })
+    return
+  }
+  if (['接单金额', '出货金额', '发货率', '出货率', '本月已发货'].includes(label)) {
+    deliveryStatusFilter.value = 'ALL'
+    selectDashboardAction({ routePath: cs ? (label === '接单金额' ? '/cs/billing' : '/cs/delivery') : '/delivery', navId: cs ? undefined : production ? 'production-orders' : 'admin-billing-delivery', focusTask: cs ? (label === '接单金额' ? 'ALL_BILLS' : 'SHIPPED_ORDERS') : undefined })
+    if (production) {
+      productionOrdersFilter.value = 'ALL'
+      dashboardScope.value = { label: '已发货订单', statuses: ['SHIPPED', 'RECEIVED', 'DELIVERED', 'DELIVERED_PENDING_CONFIRMATION'] }
+    }
+    return
+  }
+  selectDashboardAction({ routePath: cs ? '/cs/orders' : production ? '/production/orders' : '/orders/internal', navId: cs ? undefined : production ? 'production-orders' : 'admin-orders', focusTask: cs ? 'ALL_ORDERS' : undefined })
+  resetAdminOrderFilters()
+  productionOrdersFilter.value = 'ALL'
+  productionBoardKeyword.value = ''
+  dashboardScope.value = { label: `${month ?? ''} ${label}`, month, ...(label === '订单完成率' ? { statuses: ['COMPLETED', 'SHIPPED', 'RECEIVED'] } : {}) }
+}
+
+function openDashboardCustomer(clinicName: string) {
+  const customer = phaseOneAbDashboardSummary.value?.top_customers.find((item) => item.clinic_name === clinicName)
+  if (!customer) return
+  openDashboardBusinessDetail('本月订单')
+  dashboardScope.value = { ...dashboardScope.value!, clinicId: customer.clinic_id, label: `${clinicName} · 本月订单` }
+}
+
+function dashboardCardBindings(label: string, month?: string) {
+  const open = (event?: Event) => { event?.stopPropagation(); openDashboardBusinessDetail(label, month) }
+  return { role: 'button', tabindex: 0, title: `查看${label}相关明细`, onClick: open, onKeydown: (event: KeyboardEvent) => {
+    if (event.key === 'Enter' || event.key === ' ') { event.preventDefault(); open() }
+  } }
+}
+
+function dashboardCustomerBindings(clinicName: string) {
+  const open = () => openDashboardCustomer(clinicName)
+  return { role: 'button', tabindex: 0, title: `查看${clinicName}本月订单`, onClick: open, onKeydown: (event: KeyboardEvent) => {
+    if (event.key === 'Enter' || event.key === ' ') { event.preventDefault(); open() }
+  } }
+}
+
+function openDashboardDepartment(key: string, name: string, date?: string) {
+  productionBoardKeyword.value = ''
+  productionBoardStatus.value = 'ALL'
+  productionBoardActionSummaryFilter.value = 'all'
+  if (date) productionBoardKanbanDate.value = date
+  selectDashboardAction({ navId: 'production-board' })
+  dashboardDepartment.value = key === 'ALL' ? null : { key, name }
+}
+
 function selectDashboardMetric(metric: DashboardMetric | DashboardMetricAction) {
   if (!metric.routePath) return
-  navigateFromCsPage(metric.routePath, undefined, metric.focusTask)
+  if (portalTone.value === 'cs') {
+    navigateFromCsPage(metric.routePath, undefined, metric.focusTask)
+    return
+  }
+  selectDashboardAction(metric)
 }
 
 function selectDashboardPanel(panel: DashboardPanel) {
   if (!panel.routePath) return
-  navigateFromCsPage(panel.routePath, undefined, panel.focusTask)
+  if (portalTone.value === 'cs') {
+    navigateFromCsPage(panel.routePath, undefined, panel.focusTask)
+    return
+  }
+  selectDashboardAction(panel)
 }
 
 async function apiFetch<T>(path: string, options: RequestInit = {}) {
@@ -7098,7 +7297,7 @@ async function apiFetch<T>(path: string, options: RequestInit = {}) {
     } catch {
       // 非 JSON 错误响应仍保留状态码，供调用方显示通用提示。
     }
-    throw new Error(detail ? `请求失败：${detail}` : `请求失败：${response.status}`)
+    throw Object.assign(new Error(detail ? `请求失败：${detail}` : `请求失败：${response.status}`), { status: response.status })
   }
   return await response.json() as ApiResponse<T>
 }
@@ -8926,7 +9125,7 @@ async function previewOrderFileInline(file: OrderFileItem, target: 'doctor' | 'c
   inlineFilePreviewFile.value = file
   inlineFilePreviewError.value = ''
 
-  if (orderFileExtension(file) === 'stl') {
+  if (['stl', 'sla', 'ply', 'obj'].includes(orderFileExtension(file))) {
     try {
       const payload = await requestSignedFileUrl(file.file_id, 'preview')
       productionBoardStlViewerUrl.value = payload.data.preview_url
@@ -8940,18 +9139,12 @@ async function previewOrderFileInline(file: OrderFileItem, target: 'doctor' | 'c
     return
   }
 
-  const previewKind = inlinePreviewKind(file)
-  inlineFilePreviewVisible.value = true
-  if (previewKind === 'UNSUPPORTED') {
-    inlineFilePreviewKind.value = 'UNSUPPORTED'
-    return
-  }
-
   inlineFilePreviewKind.value = 'LOADING'
   try {
     const payload = await requestSignedFileUrl(file.file_id, 'preview')
     inlineFilePreviewUrl.value = payload.data.preview_url
-    inlineFilePreviewKind.value = previewKind
+    inlineFilePreviewKind.value = inlinePreviewKind(file)
+    inlineFilePreviewVisible.value = true
   } catch (error) {
     inlineFilePreviewError.value = error instanceof Error ? error.message : '文件预览失败'
     inlineFilePreviewKind.value = 'ERROR'
@@ -9671,13 +9864,33 @@ async function previewWorkflowStlFile(file: OrderFileItem, target: 'review' | 'a
   setWorkflowFileError(target, '')
   try {
     const payload = await requestSignedFileUrl(file.file_id, 'preview')
-    productionBoardStlViewerUrl.value = payload.data.preview_url
-    productionBoardStlViewerFilename.value = file.original_filename
-    productionBoardStlViewerVisible.value = true
+    if (['stl', 'sla', 'ply', 'obj'].includes(orderFileExtension(file))) {
+      productionBoardStlViewerUrl.value = payload.data.preview_url
+      productionBoardStlViewerFilename.value = file.original_filename
+      productionBoardStlViewerVisible.value = true
+    } else {
+      inlineFilePreviewFile.value = file
+      inlineFilePreviewFilename.value = file.original_filename
+      inlineFilePreviewUrl.value = payload.data.preview_url
+      inlineFilePreviewVisible.value = true
+    }
   } catch (error) {
-    setWorkflowFileError(target, error instanceof Error ? error.message : 'STL 文件预览失败')
+    setWorkflowFileError(target, error instanceof Error ? error.message : '文件预览失败')
   } finally {
     if (workflowFileActionKey.value === actionKey) workflowFileActionKey.value = ''
+  }
+}
+
+async function previewProductionBoardFile(file: OrderFileItem) {
+  productionBoardError.value = ''
+  try {
+    const payload = await requestSignedFileUrl(file.file_id, 'preview')
+    inlineFilePreviewFile.value = file
+    inlineFilePreviewFilename.value = file.original_filename
+    inlineFilePreviewUrl.value = payload.data.preview_url
+    inlineFilePreviewVisible.value = true
+  } catch (error) {
+    productionBoardError.value = error instanceof Error ? error.message : '文件预览失败'
   }
 }
 
@@ -9761,8 +9974,7 @@ async function reviewProductionOrder(action: 'APPROVE' | 'REJECT') {
 async function loadProcessInstancePage() {
   await Promise.all([
     loadWorkflowChains(),
-    loadProcessInstanceOrders(),
-    ...(portalTone.value === 'admin' ? [loadStaffWorkload()] : [])
+    loadProcessInstanceOrders()
   ])
 }
 
@@ -9818,9 +10030,9 @@ async function loadProcessInstanceOrders() {
     const assignableOrders = (await Promise.all(candidateOrders.map(async (item) => {
       try {
         const instancePayload = await apiFetch<ProcessInstanceDetail>(`/orders/${item.order_id}/process-instance`)
-        const hasUnassignedProductionNode = productionProgressNodes(instancePayload.data.nodes)
-          .some((node) => ['PENDING', 'READY', 'IN_PROGRESS'].includes(node.node_status) && !node.assigned_user_id)
-        return hasUnassignedProductionNode ? item : null
+        const hasAssignableProductionNode = productionProgressNodes(instancePayload.data.nodes)
+          .some((node) => ['PENDING', 'READY', 'IN_PROGRESS'].includes(node.node_status))
+        return hasAssignableProductionNode ? item : null
       } catch {
         return null
       }
@@ -9895,6 +10107,7 @@ async function loadProcessInstanceDetail(orderId: number) {
     if (!selectedProcessNodeId.value && productionNodes.length > 0) {
       selectedProcessNodeId.value = productionNodes[0].node_instance_id
     }
+    await loadProcessAssignmentCandidates()
   } catch (error) {
     selectedProcessInstance.value = null
     selectedProcessNodeId.value = null
@@ -9902,18 +10115,50 @@ async function loadProcessInstanceDetail(orderId: number) {
   }
 }
 
-function selectProcessNode(node: ProcessNodeItem) {
+async function selectProcessNode(node: ProcessNodeItem) {
+  if (processAssignmentLoading.value) return
   selectedProcessNodeId.value = node.node_instance_id
   processAssignmentResult.value = ''
+  processAssignmentUserId.value = ''
+  await loadProcessAssignmentCandidates()
+}
+
+async function loadProcessAssignmentCandidates() {
+  const requestNodeId = selectedProcessNode.value?.node_instance_id
+  if (!selectedProcessNode.value) {
+    processAssignmentCandidates.value = []
+    processAssignmentUserId.value = ''
+    return
+  }
+  processAssignmentCandidatesLoading.value = true
+  try {
+    const payload = await apiFetch<AssignmentCandidate[]>(`/process-instance/nodes/${requestNodeId}/assignment-candidates`)
+    if (selectedProcessNode.value?.node_instance_id !== requestNodeId) return
+    processAssignmentCandidates.value = payload.data
+    const currentStillEligible = payload.data.some((item) => String(item.user_id) === processAssignmentUserId.value)
+    if (!currentStillEligible) processAssignmentUserId.value = ''
+  } catch (error) {
+    if (selectedProcessNode.value?.node_instance_id !== requestNodeId) return
+    processAssignmentCandidates.value = []
+    processAssignmentUserId.value = ''
+    processInstanceError.value = error instanceof Error ? error.message : '合适人员加载失败'
+  } finally {
+    if (selectedProcessNode.value?.node_instance_id === requestNodeId) processAssignmentCandidatesLoading.value = false
+  }
 }
 
 async function assignSelectedProcessNode(mode: 'ASSIGN' | 'REASSIGN') {
+  if (processAssignmentLoading.value) return
   if (!selectedProcessInstanceOrder.value || !selectedProcessNode.value) {
     processInstanceError.value = '请先选择需要派工的订单和工序'
     return
   }
   if (!processAssignmentUserId.value.trim()) {
     processInstanceError.value = '请选择要安排的员工'
+    return
+  }
+  if (!(mode === 'ASSIGN' ? processAssignmentState.value.canAssign : processAssignmentState.value.canReassign)) {
+    processInstanceError.value = processAssignmentState.value.hint
     return
   }
   processAssignmentLoading.value = true
@@ -9928,18 +10173,21 @@ async function assignSelectedProcessNode(mode: 'ASSIGN' | 'REASSIGN') {
       ? `/orders/${selectedProcessInstanceOrder.value.order_id}/process-instance/nodes/${selectedProcessNode.value.node_instance_id}/reassign`
       : `/orders/${selectedProcessInstanceOrder.value.order_id}/process-instance/assign`
     const body = mode === 'REASSIGN'
-      ? { new_user_id: targetUserId, reason: '管理端调整执行人' }
+      ? { new_user_id: targetUserId, reason: portalTone.value === 'production' ? '生产组长调整执行人' : '管理端调整执行人' }
       : { assignments: [{ node_instance_id: selectedProcessNode.value.node_instance_id, user_id: targetUserId }] }
     const payload = await apiFetch<ProcessInstanceDetail>(path, {
       method: 'POST',
       body: JSON.stringify(body)
     })
     selectedProcessInstance.value = payload.data
-    const targetStaff = staffWorkloadItems.value.find((staff) => String(staff.user_id) === targetUserId)
+    const targetStaff = processAssignmentCandidates.value.find((staff) => String(staff.user_id) === targetUserId)
     processAssignmentResult.value = `${selectedProcessNode.value.process_name} 已${mode === 'REASSIGN' ? '调整' : '安排'}给 ${targetStaff?.display_name ?? `员工 ${targetUserId}`}`
     await loadWorkerTasks()
   } catch (error) {
-    processInstanceError.value = error instanceof Error ? error.message : '派工失败'
+    if ((error as { status?: number }).status === 409 && selectedProcessInstanceOrder.value) {
+      await loadProcessInstanceDetail(selectedProcessInstanceOrder.value.order_id)
+    }
+    processInstanceError.value = assignmentErrorMessage(error)
   } finally {
     processAssignmentLoading.value = false
   }
@@ -9988,6 +10236,7 @@ async function setWorkerTaskFilter(status: string) {
 }
 
 async function openTaskInCheck(task: { node_instance_id: number }) {
+  if (!canInspectProcess.value) return
   checkTaskLookup.value = String(task.node_instance_id)
   activeNavId.value = 'production-scan'
   navigateToRoute('/checks')
@@ -10015,7 +10264,7 @@ async function locateCheckTask() {
 }
 
 async function loadCheckTasks(preferredNodeInstanceId?: number) {
-  if (!token.value) {
+  if (!token.value || !canInspectProcess.value) {
     return
   }
   const requestVersion = ++checkTasksRequestVersion
@@ -10094,7 +10343,7 @@ async function loadCheckRecords(nodeInstanceId: number, selectionVersion = check
 }
 
 async function submitCheckRecord() {
-  if (!selectedCheckTask.value) {
+  if (!selectedCheckTask.value || !canInspectProcess.value || checkActionLoading.value) {
     return
   }
   checkActionLoading.value = true
@@ -11503,7 +11752,7 @@ async function startProductionBoardNode() {
   if (!node) return
   if (!canStartTask(node)) {
     productionBoardError.value = requiresInCheck(node)
-      ? '开始前需完成入检并通过，请先到“扫码登记”处理。'
+      ? '开始前需完成入检并通过，请由检验人员到“入检/出检登记”处理。'
       : '当前工序暂不可开工，请刷新后再试。'
     return
   }
@@ -12260,6 +12509,8 @@ onBeforeUnmount(() => {
           </template>
         </section>
 
+        <div v-if="dashboardScope && isLoggedIn" class="dashboard-scope-banner" role="status">工作台筛选：{{ dashboardScope.label }}<button type="button" @click="dashboardScope = null">清除筛选</button></div>
+        <div v-if="dashboardDepartment && isLoggedIn" class="dashboard-scope-banner" role="status">当前部门：{{ dashboardDepartment.name }} · 查看对应工序队列<button type="button" @click="dashboardDepartment = null">清除筛选</button></div>
         <section v-if="!isLoggedIn" class="login-page">
           <div class="login-brand">
             <div class="brand-mark" aria-hidden="true">
@@ -12389,6 +12640,7 @@ onBeforeUnmount(() => {
             :search-keyword="csPortalGlobalSearch"
             :focus-order-id="csPortalFocusOrderId"
             :focus-task="csPortalFocusTask"
+            :dashboard-scope="dashboardScope"
             @navigate="navigateFromCsPage"
             @focus-consumed="clearCsPortalFocusContext"
             @refresh-notifications="loadNotifications"
@@ -13185,14 +13437,13 @@ onBeforeUnmount(() => {
                     <div><strong>{{ file.original_filename }}</strong><small>{{ formatOrderFileSize(file.file_size) }} · {{ file.content_type || '类型未记录' }}</small></div>
                     <div class="inline-actions">
                       <el-button
-                        v-if="isStlOrderFile(file)"
                         size="small"
                         plain
                         :loading="workflowFileActionKey === `review:preview:${file.file_id}`"
                         :disabled="Boolean(workflowFileActionKey)"
                         @click="previewWorkflowStlFile(file, 'review')"
                       >
-                        浏览器 3D 查看
+                        {{ ['stl', 'sla', 'ply', 'obj'].includes(orderFileExtension(file)) ? '浏览器 3D 查看' : '预览' }}
                       </el-button>
                       <el-button
                         size="small"
@@ -13275,8 +13526,10 @@ onBeforeUnmount(() => {
         <section
           v-else-if="isProcessInstanceRoute || isWorkflowAssignRoute"
           class="panel route-panel process-instance-panel admin-process-page admin-flow-page"
+          :class="{ 'production-review-panel production-assignment-page': portalTone === 'production' }"
           data-testid="admin-process-assignment-page"
         >
+          <header v-if="portalTone === 'production'" class="factory-page-heading"><div><h2>员工派工</h2><p>按工序安排执行人，调整人员自动保留记录。</p></div></header>
           <section class="aor-workspace">
             <section class="aor-filter-panel aor-compact-filter" aria-label="筛选待派工订单">
               <div class="aor-filter-main">
@@ -13337,8 +13590,9 @@ onBeforeUnmount(() => {
           <el-drawer
             v-model="processAssignmentDrawerVisible"
             class="admin-flow-drawer aor-drawer"
+            :class="{ 'production-assignment-drawer': portalTone === 'production' }"
             modal-class="admin-drawer-overlay"
-            size="760px"
+            size="min(760px, 100vw)"
             data-testid="admin-process-assignment-drawer"
           >
             <template #header>
@@ -13363,29 +13617,31 @@ onBeforeUnmount(() => {
                   <div><strong>选择执行人</strong><small>{{ selectedProcessNode ? `当前选择：${selectedProcessNode.process_name}` : '请先从下方选择工序' }}</small></div>
                 </header>
                 <div class="assignment-toolbar admin-flow-assignment-toolbar">
+                  <p class="assignment-state-hint">{{ processAssignmentState.hint }}</p>
                   <el-alert v-if="staffWorkloadError" :title="staffWorkloadError" type="error" show-icon :closable="false" />
                   <el-form-item label="目标员工">
-                    <el-select v-model="processAssignmentUserId" filterable placeholder="按姓名选择员工">
+                    <el-select v-model="processAssignmentUserId" filterable :loading="processAssignmentCandidatesLoading" placeholder="按姓名选择当前工序合适人员">
                       <el-option
-                        v-for="staff in staffWorkloadItems"
+                        v-for="staff in processAssignmentCandidates"
                         :key="staff.user_id"
-                        :label="`${staff.display_name} · ${staff.dept_name || '部门未设置'}`"
+                        :label="`${staff.display_name} · ${staff.dept_name || '部门未设置'} · ${staff.active_node_count} 项进行中`"
                         :value="String(staff.user_id)"
                       />
                     </el-select>
                   </el-form-item>
+                  <p v-if="!processAssignmentCandidatesLoading && selectedProcessNode && processAssignmentCandidates.length === 0" class="admin-flow-file-state">暂无合适人员；系统不会自动放宽到客服、管理员、医生或其他生产组。</p>
                   <div class="inline-actions">
                     <el-button
                       type="primary"
                       :loading="processAssignmentLoading"
-                      :disabled="!selectedProcessNode || !processAssignmentUserId"
+                      :disabled="!processAssignmentState.canAssign"
                       @click="assignSelectedProcessNode('ASSIGN')"
                     >
                       安排员工
                     </el-button>
                     <el-button
                       :loading="processAssignmentLoading"
-                      :disabled="!selectedProcessNode || !selectedProcessNode.assigned_user_id || !processAssignmentUserId"
+                      :disabled="!processAssignmentState.canReassign"
                       @click="assignSelectedProcessNode('REASSIGN')"
                     >
                       调整员工
@@ -13396,7 +13652,7 @@ onBeforeUnmount(() => {
 
               <section class="admin-flow-section" data-testid="process-assignment-order-files">
                 <header>
-                  <div><strong>派工参考资料</strong><small>管理员可先在线核对 STL，再结合工序与人员负载派工</small></div>
+                  <div><strong>派工参考资料</strong><small>先在线核对资料，再结合工序与人员负载派工</small></div>
                   <span>{{ processAssignmentFiles.length }} 个文件</span>
                 </header>
                 <div v-if="processAssignmentFilesLoading" class="admin-flow-file-state">正在读取订单资料…</div>
@@ -13407,14 +13663,13 @@ onBeforeUnmount(() => {
                     <div><strong>{{ file.original_filename }}</strong><small>{{ formatOrderFileSize(file.file_size) }} · {{ file.content_type || '类型未记录' }}</small></div>
                     <div class="inline-actions">
                       <el-button
-                        v-if="isStlOrderFile(file)"
                         size="small"
                         plain
                         :loading="workflowFileActionKey === `assignment:preview:${file.file_id}`"
                         :disabled="Boolean(workflowFileActionKey)"
                         @click="previewWorkflowStlFile(file, 'assignment')"
                       >
-                        浏览器 3D 查看
+                        {{ ['stl', 'sla', 'ply', 'obj'].includes(orderFileExtension(file)) ? '浏览器 3D 查看' : '预览' }}
                       </el-button>
                       <el-button
                         size="small"
@@ -13436,6 +13691,7 @@ onBeforeUnmount(() => {
                     v-for="(node, index) in productionProgressNodes(selectedProcessInstance.nodes)"
                     :key="node.node_instance_id"
                     class="admin-flow-node-row"
+                    :disabled="processAssignmentLoading"
                     :class="{ active: selectedProcessNodeId === node.node_instance_id }"
                     type="button"
                     @click="selectProcessNode(node)"
@@ -13488,7 +13744,8 @@ onBeforeUnmount(() => {
                 <button type="button" class="factory-action-primary" :disabled="workerTaskActionLoading || task.node_status !== 'READY' || !canStartTask(task)" @click="operateWorkerTask(task, 'START')">
                   {{ requiresInCheck(task) ? '需先入检' : '开始工作' }}
                 </button>
-                <button v-if="requiresInCheck(task)" type="button" class="factory-action-secondary" :disabled="workerTaskActionLoading" @click="openTaskInCheck(task)">去扫码入检</button>
+                <button v-if="requiresInCheck(task) && canInspectProcess" type="button" class="factory-action-secondary" :disabled="workerTaskActionLoading" @click="openTaskInCheck(task)">去登记入检</button>
+                <small v-else-if="requiresInCheck(task)">等待检验人员完成入检</small>
                 <button type="button" class="factory-action-secondary" :disabled="workerTaskActionLoading || task.node_status !== 'IN_PROGRESS'" @click="operateWorkerTask(task, 'COMPLETE')">✓ 标记完成</button>
               </div>
             </article>
@@ -13496,9 +13753,10 @@ onBeforeUnmount(() => {
           </div>
         </section>
 
+        <section v-else-if="isCheckRecordsRoute && !canInspectProcess" class="panel" role="alert">当前账号没有入检/出检登记权限，请联系检验人员。</section>
         <section v-else-if="isCheckRecordsRoute" class="factory-scan-page">
           <header class="factory-page-heading">
-            <div><h2>扫码登记</h2><p>输入订单号或节点编号，定位当前账号可执行的真实任务。</p></div>
+            <div><h2>入检/出检登记</h2><p>输入订单号或节点编号，登记开工前入检、完工后出检。本入口为人工登记，不提供摄像头扫码。</p></div>
             <button class="factory-btn-g" type="button" :disabled="checkTasksLoading" @click="loadCheckTasks()">↻ 刷新任务</button>
           </header>
 
@@ -14689,7 +14947,7 @@ onBeforeUnmount(() => {
                               : '开始工作'
                       }}
                     </button>
-                    <button v-if="productionBoardSelectedCard?.node?.start_block_reason === 'IN_CHECK_REQUIRED'" type="button" class="factory-action-secondary" @click="openSelectedProductionBoardNodeInCheck">去扫码入检</button>
+                    <button v-if="canInspectProcess && productionBoardSelectedCard?.node?.start_block_reason === 'IN_CHECK_REQUIRED'" type="button" class="factory-action-secondary" @click="openSelectedProductionBoardNodeInCheck">去登记入检</button>
                   </template>
                   <button v-else-if="productionBoardSelectedCard?.node?.node_status === 'IN_PROGRESS'" type="button" class="factory-action-primary" @click="completeProductionBoardNode">✓ 标记完成</button>
                   <button v-else type="button" class="factory-action-primary" disabled>当前无可执行工序</button>
@@ -14721,7 +14979,7 @@ onBeforeUnmount(() => {
                         <strong>{{ file.original_filename }}</strong>
                         <small>{{ file.source_type }} · {{ file.file_size ? `${Math.ceil(file.file_size / 1024)} KB` : '文件大小未设置' }}</small>
                       </div>
-                      <button type="button" @click="downloadProductionBoardFile(file)">下载</button>
+                      <button type="button" @click="previewProductionBoardFile(file)">预览</button><button type="button" @click="downloadProductionBoardFile(file)">下载</button>
                     </article>
                   </div>
                 </section>
@@ -14913,7 +15171,7 @@ onBeforeUnmount(() => {
                     <button type="button" class="factory-action-primary" :disabled="productionBoardSelectedCard?.node ? !canStartTask(productionBoardSelectedCard.node) : true" @click="startProductionBoardNode">
                       {{ productionBoardSelectedCard?.node?.start_block_reason === 'IN_CHECK_REQUIRED' ? '需先入检' : '开始工作' }}
                     </button>
-                    <button v-if="productionBoardSelectedCard?.node?.start_block_reason === 'IN_CHECK_REQUIRED'" type="button" class="factory-action-secondary" @click="openSelectedProductionBoardNodeInCheck">去扫码入检</button>
+                    <button v-if="canInspectProcess && productionBoardSelectedCard?.node?.start_block_reason === 'IN_CHECK_REQUIRED'" type="button" class="factory-action-secondary" @click="openSelectedProductionBoardNodeInCheck">去登记入检</button>
                   </template>
                   <button v-else-if="productionBoardSelectedCard?.node?.node_status === 'IN_PROGRESS'" type="button" class="factory-action-primary" @click="completeProductionBoardNode">✓ 标记完成</button>
                   <button v-else type="button" class="factory-action-primary" disabled>工序已完成</button>
@@ -14945,7 +15203,7 @@ onBeforeUnmount(() => {
                         <strong>{{ file.original_filename }}</strong>
                         <small>{{ file.source_type }} · {{ file.file_size ? `${Math.ceil(file.file_size / 1024)} KB` : '-' }} · {{ compactDateTime(file.created_at) }}</small>
                       </div>
-                      <button type="button" @click="downloadProductionBoardFile(file)">下载</button>
+                      <button type="button" @click="previewProductionBoardFile(file)">预览</button><button type="button" @click="downloadProductionBoardFile(file)">下载</button>
                     </article>
                   </div>
                 </section>
@@ -17417,7 +17675,7 @@ onBeforeUnmount(() => {
                 <article
                   v-for="metric in adminMonthComparisonMetrics"
                   :key="metric.label"
-                  class="admin-month-comparison-item"
+                  class="admin-month-comparison-item dashboard-drilldown" v-bind="dashboardCardBindings(metric.label)"
                   :class="`tone-${metric.tone}`"
                 >
                   <span class="prototype-card-accent" />
@@ -17529,7 +17787,7 @@ onBeforeUnmount(() => {
                 <article
                   v-for="metric in activePrototypeDashboard.monthComparison.metrics"
                   :key="metric.label"
-                  class="production-month-metric"
+                  class="production-month-metric dashboard-drilldown" v-bind="dashboardCardBindings(metric.label)"
                   :class="`tone-${metric.tone}`"
                 >
                   <span class="production-month-metric-accent" />
@@ -17542,7 +17800,7 @@ onBeforeUnmount(() => {
 
               <div class="production-week-rate-list">
                 <h4>{{ activePrototypeDashboard.monthComparison.weekRatesTitle }}</h4>
-                <div v-for="rate in activePrototypeDashboard.monthComparison.weekRates" :key="rate.label" class="production-week-rate-row">
+                <div v-for="rate in activePrototypeDashboard.monthComparison.weekRates" :key="rate.label" class="production-week-rate-row dashboard-drilldown" v-bind="dashboardCardBindings(rate.label)">
                   <span>{{ rate.label }}</span>
                   <strong>{{ rate.value }}</strong>
                   <small :class="`tone-${rate.tone}`">{{ rate.comparison }}</small>
@@ -17557,7 +17815,7 @@ onBeforeUnmount(() => {
               <div>
                 <h3>部门效能对比</h3>
                 <small>每个部门当天数据与上月平均对照（上月平均 = 上月自然月内有产出的工作日均值）</small>
-                <small class="production-department-linkage-hint">点击部门可联动右侧近 7 日趋势</small>
+                <small class="production-department-linkage-hint">点击部门查看工序队列；“趋势”查看近 7 日对比</small>
               </div>
               <button v-if="productionWorkbenchDepartments.length > 6" class="production-department-expand" type="button" @click="showAllProductionWorkbenchDepartments = !showAllProductionWorkbenchDepartments">
                 {{ showAllProductionWorkbenchDepartments ? '收起' : `查看全部（${productionWorkbenchDepartments.length}）` }}
@@ -17567,8 +17825,8 @@ onBeforeUnmount(() => {
               <table class="production-department-table">
                 <thead><tr><th>部门</th><th>任务量<small>今日 / 上月日均</small></th><th>内返率<small>今日 / 上月</small></th><th>出货率<small>今日 / 上月</small></th><th>完成达成率<small>今日</small></th><th>状态</th></tr></thead>
                 <tbody>
-                  <tr v-for="department in visibleProductionWorkbenchDepartments" :key="department.department_key" :class="{ active: selectedProductionWorkbenchDepartmentKey === department.department_key }" @click="selectProductionWorkbenchDepartment(department.department_key)">
-                    <td><strong>{{ department.department_name }}</strong><small>{{ department.department_subtitle }}</small></td>
+                  <tr v-for="department in visibleProductionWorkbenchDepartments" :key="department.department_key" class="dashboard-drilldown" role="button" tabindex="0" :class="{ active: selectedProductionWorkbenchDepartmentKey === department.department_key }" @click="openDashboardDepartment(department.department_key, department.department_name)" @keydown.enter.prevent="openDashboardDepartment(department.department_key, department.department_name)" @keydown.space.prevent="openDashboardDepartment(department.department_key, department.department_name)">
+                    <td><strong>{{ department.department_name }}</strong><small>{{ department.department_subtitle }} <button type="button" @click.stop="selectProductionWorkbenchDepartment(department.department_key)" @keydown.stop>趋势</button></small></td>
                     <td>
                       <b class="production-department-rate" :class="department.today_task_count >= department.last_month_daily_avg_task_count ? 'tone-good' : 'tone-warn'">{{ department.today_task_count }}</b>
                       <span class="production-department-baseline">上月日均 {{ department.last_month_daily_avg_task_count }}</span>
@@ -17601,6 +17859,7 @@ onBeforeUnmount(() => {
             <svg class="production-department-line-chart" viewBox="0 0 760 230" role="img" aria-label="近七个生产日趋势图">
               <line x1="42" y1="170" x2="720" y2="170" />
               <polyline v-if="productionWorkbenchTrendSvgPoints" class="department-chart-line" :points="productionWorkbenchTrendSvgPoints" />
+              <circle v-for="(point, index) in selectedProductionWorkbenchTrendPoints" :key="point.date" :cx="42 + index / Math.max(selectedProductionWorkbenchTrendPoints.length - 1, 1) * 678" :cy="170 - Math.min(Math.max(point[selectedProductionWorkbenchTrendMetric], 0), 100) * 1.3" r="5" role="button" tabindex="0" :aria-label="`${point.date} 工序队列`" class="dashboard-drilldown" @click="openDashboardDepartment(selectedProductionWorkbenchTrend?.department_key ?? 'ALL', selectedProductionWorkbenchTrend?.department_name ?? '全部部门', point.date)" @keydown.enter.prevent="openDashboardDepartment(selectedProductionWorkbenchTrend?.department_key ?? 'ALL', selectedProductionWorkbenchTrend?.department_name ?? '全部部门', point.date)" />
             </svg>
           </section>
           </div>
@@ -17645,7 +17904,7 @@ onBeforeUnmount(() => {
                 <article
                   v-for="metric in adminEfficiencyMetrics"
                   :key="metric.label"
-                  class="admin-efficiency-item"
+                  class="admin-efficiency-item dashboard-drilldown" v-bind="dashboardCardBindings(metric.label)"
                   :class="`tone-${metric.tone}`"
                 >
                   <small>{{ metric.label }}</small>
@@ -17672,7 +17931,7 @@ onBeforeUnmount(() => {
                       <line x1="30" y1="38" x2="334" y2="38" class="chart-grid" /><line x1="30" y1="84" x2="334" y2="84" class="chart-grid" /><line x1="30" y1="130" x2="334" y2="130" />
                       <polyline class="sales-trend-line trend-inbound previous" :points="adminPreviousInboundTrendPolyline" />
                       <polyline class="sales-trend-line trend-inbound" :points="adminCurrentInboundTrendPolyline" />
-                      <g class="admin-sales-points trend-inbound"><circle v-for="(point, index) in adminSalesTrendPoints" :key="`admin-month-inbound-${point.day}`" :cx="adminMonthTrendX(index)" :cy="130 - (point.currentInbound / adminInboundTrendMax) * 92" r="2.6" /></g>
+                      <g class="admin-sales-points trend-inbound"><circle class="dashboard-drilldown" v-bind="dashboardCardBindings('接单金额')" v-for="(point, index) in adminSalesTrendPoints" :key="`admin-month-inbound-${point.day}`" :cx="adminMonthTrendX(index)" :cy="130 - (point.currentInbound / adminInboundTrendMax) * 92" r="2.6" /></g>
                       <g class="chart-labels"><template v-for="(point, index) in adminSalesTrendPoints" :key="`admin-month-inbound-label-${point.day}`"><text v-if="adminMonthTrendLabelVisible(point, index)" :x="adminMonthTrendX(index)" y="158">{{ point.day }}</text></template></g>
                     </svg>
                   </article>
@@ -17683,7 +17942,7 @@ onBeforeUnmount(() => {
                       <line x1="30" y1="38" x2="334" y2="38" class="chart-grid" /><line x1="30" y1="84" x2="334" y2="84" class="chart-grid" /><line x1="30" y1="130" x2="334" y2="130" />
                       <polyline class="sales-trend-line trend-outbound previous" :points="adminPreviousOutboundTrendPolyline" />
                       <polyline class="sales-trend-line trend-outbound" :points="adminCurrentOutboundTrendPolyline" />
-                      <g class="admin-sales-points trend-outbound"><circle v-for="(point, index) in adminSalesTrendPoints" :key="`admin-month-outbound-${point.day}`" :cx="adminMonthTrendX(index)" :cy="130 - (point.currentOutbound / adminOutboundTrendMax) * 92" r="2.6" /></g>
+                      <g class="admin-sales-points trend-outbound"><circle class="dashboard-drilldown" v-bind="dashboardCardBindings('出货金额')" v-for="(point, index) in adminSalesTrendPoints" :key="`admin-month-outbound-${point.day}`" :cx="adminMonthTrendX(index)" :cy="130 - (point.currentOutbound / adminOutboundTrendMax) * 92" r="2.6" /></g>
                       <g class="chart-labels"><template v-for="(point, index) in adminSalesTrendPoints" :key="`admin-month-outbound-label-${point.day}`"><text v-if="adminMonthTrendLabelVisible(point, index)" :x="adminMonthTrendX(index)" y="158">{{ point.day }}</text></template></g>
                     </svg>
                   </article>
@@ -17707,7 +17966,7 @@ onBeforeUnmount(() => {
                 <article
                   v-for="(customer, index) in adminCustomerRankRows"
                   :key="customer.clinicName"
-                  class="admin-customer-rank-row"
+                  class="admin-customer-rank-row dashboard-drilldown" v-bind="dashboardCustomerBindings(customer.clinicName)"
                 >
                   <strong>{{ index + 1 }}. {{ customer.clinicName }}</strong>
                   <div class="admin-customer-rank-track">
@@ -17736,7 +17995,7 @@ onBeforeUnmount(() => {
                   <article
                     v-for="metric in csBusinessMetrics"
                     :key="metric.label"
-                    class="cs-business-metric"
+                    class="cs-business-metric dashboard-drilldown" v-bind="dashboardCardBindings(metric.label)"
                     :class="`tone-${metric.tone}`"
                   >
                     <span class="prototype-card-accent" />
@@ -17750,7 +18009,7 @@ onBeforeUnmount(() => {
                   <article
                     v-for="rate in csWeekOnWeekRates"
                     :key="rate.label"
-                    class="cs-week-rate-row"
+                    class="cs-week-rate-row dashboard-drilldown" v-bind="dashboardCardBindings(rate.label)"
                   >
                     <span>{{ rate.label }}</span>
                     <strong>{{ rate.value }}</strong>
@@ -17785,6 +18044,7 @@ onBeforeUnmount(() => {
                     <circle
                       v-for="(point, index) in csAnnualTrendPoints"
                       :key="`cs-inbound-point-${point.label}`"
+                      class="dashboard-drilldown" v-bind="dashboardCardBindings('接单金额')"
                       :cx="42 + index * 58"
                       :cy="164 - (point.inbound / csAnnualTrendMax) * 112"
                       r="3.5"
@@ -17794,6 +18054,7 @@ onBeforeUnmount(() => {
                     <circle
                       v-for="(point, index) in csAnnualTrendPoints"
                       :key="`cs-outbound-point-${point.label}`"
+                      class="dashboard-drilldown" v-bind="dashboardCardBindings('出货金额')"
                       :cx="42 + index * 58"
                       :cy="164 - (point.outbound / csAnnualTrendMax) * 112"
                       r="3.5"
@@ -17826,10 +18087,10 @@ onBeforeUnmount(() => {
                 <span><i class="legend-previous" />上月</span>
               </div>
               <div v-if="csMonthOverMonthBars.length" class="cs-month-compare-grid">
-                <article v-for="bar in csMonthOverMonthBars" :key="bar.label" class="cs-month-compare-item">
+                <article v-for="bar in csMonthOverMonthBars" :key="bar.label" class="cs-month-compare-item dashboard-drilldown" v-bind="dashboardCardBindings(bar.label)">
                   <div class="cs-month-compare-bars">
-                    <div class="cs-month-compare-bar current" :style="{ height: `${bar.currentHeight}%` }"><span>{{ bar.currentLabel }}</span></div>
-                    <div class="cs-month-compare-bar previous" :style="{ height: `${bar.previousHeight}%` }"><span>{{ bar.previousLabel }}</span></div>
+                    <div class="cs-month-compare-bar current dashboard-drilldown" v-bind="dashboardCardBindings(bar.label, phaseOneAbDashboardSummary?.current_month.month)" :style="{ height: `${bar.currentHeight}%` }"><span>{{ bar.currentLabel }}</span></div>
+                    <div class="cs-month-compare-bar previous dashboard-drilldown" v-bind="dashboardCardBindings(bar.label, phaseOneAbDashboardSummary?.previous_month.month)" :style="{ height: `${bar.previousHeight}%` }"><span>{{ bar.previousLabel }}</span></div>
                   </div>
                   <strong>{{ bar.label }}</strong>
                   <em :class="`delta-${bar.deltaTone}`">{{ bar.deltaLabel }}</em>
@@ -17853,7 +18114,7 @@ onBeforeUnmount(() => {
               <article
                 v-for="(customer, index) in csCustomerRankRows"
                 :key="customer.clinicName"
-                class="cs-customer-rank-row"
+                class="cs-customer-rank-row dashboard-drilldown" v-bind="dashboardCustomerBindings(customer.clinicName)"
               >
                 <strong>{{ index + 1 }}. {{ customer.clinicName }}</strong>
                 <div class="cs-customer-rank-track">
@@ -19279,6 +19540,23 @@ onBeforeUnmount(() => {
                     <div><label>执行技师</label><span>{{ adminOrderTechnician(selectedInternalOrder) }}</span></div>
                     <div><label>医生</label><strong>{{ selectedInternalOrder.doctor_name || '医生未关联' }}</strong><small v-if="selectedInternalOrder.doctor_user_id">医生编号 #{{ selectedInternalOrder.doctor_user_id }}</small></div>
                     <div><label>医生状态</label><span>{{ statusLabel(selectedInternalOrder.external_status) }}</span></div>
+                    <div><label>生产订单编号</label><strong>{{ selectedInternalOrder.production_order_no || '待客服初审登记' }}</strong></div>
+                    <div><label>盒号</label><strong>{{ selectedInternalOrder.box_no || '暂未分配' }}</strong></div>
+                  </div>
+                  <div v-if="portalTone === 'admin'" class="aor-date-grid">
+                    <label class="aor-date-box"><span>编辑盒号</span><input v-model="adminOrderBoxNoDraft" maxlength="64" placeholder="未发货订单内唯一；发货后可复用"></label>
+                    <label class="aor-date-box"><span>修改说明</span><input v-model="adminOrderBoxNoReason" maxlength="500" placeholder="选填"></label>
+                    <button class="aor-button is-primary" type="button" :disabled="adminOrderBoxNoBusy" @click="saveAdminOrderBoxNo">{{ adminOrderBoxNoBusy ? '保存中…' : '保存盒号' }}</button>
+                  </div>
+                  <div v-if="portalTone === 'admin'" class="aor-date-grid">
+                    <label class="aor-date-box"><span>生产订单编号</span><input v-model="adminOrderProductionNoDraft" maxlength="64" placeholder="全生命周期永久唯一"></label>
+                    <label class="aor-date-box"><span>更正原因</span><input v-model="adminOrderProductionNoReason" maxlength="500" placeholder="首次登记可不填；更正时必填"></label>
+                    <button class="aor-button is-primary" type="button" :disabled="adminOrderProductionNoBusy" @click="saveAdminOrderProductionNo">{{ adminOrderProductionNoBusy ? '保存中…' : '保存生产单号' }}</button>
+                  </div>
+                  <div v-if="portalTone === 'admin'" class="aor-date-grid">
+                    <label class="aor-date-box"><span>系统预计到货日期</span><input v-model="adminOrderDeliveryDateDraft" type="date"></label>
+                    <label class="aor-date-box"><span>人工调整原因（必填）</span><input v-model="adminOrderDeliveryDateReason" maxlength="500" placeholder="填写调整原因，系统保留审计"></label>
+                    <button class="aor-button is-primary" type="button" :disabled="adminOrderDeliveryDateBusy" @click="saveAdminOrderDeliveryDate">{{ adminOrderDeliveryDateBusy ? '保存中…' : '调整系统预计日期' }}</button>
                   </div>
                 </section>
                 <section>
@@ -19557,39 +19835,16 @@ onBeforeUnmount(() => {
         </template>
       </el-drawer>
     </section>
-    <el-dialog
+    <UniversalFilePreviewDialog
       v-if="!isDoctorV2Active"
-      v-model="inlineFilePreviewVisible"
-      width="min(960px, 92vw)"
-      append-to-body
-      destroy-on-close
-      class="app-inline-file-preview"
+      v-model:visible="inlineFilePreviewVisible"
+      :file-id="inlineFilePreviewFile?.file_id ?? 0"
+      :source-url="inlineFilePreviewUrl"
+      :filename="inlineFilePreviewFilename"
+      :content-type="inlineFilePreviewFile?.content_type"
+      :authenticated-fetch="authenticatedFetch"
       data-testid="app-inline-file-preview"
-    >
-      <template #header>
-        <div class="app-inline-file-preview__header">
-          <strong>文件预览</strong>
-          <span>{{ inlineFilePreviewFilename }}</span>
-        </div>
-      </template>
-      <div class="app-inline-file-preview__stage">
-        <div v-if="inlineFilePreviewKind === 'LOADING'" class="app-inline-file-preview__state">正在获取安全预览链接…</div>
-        <img v-else-if="inlineFilePreviewKind === 'IMAGE'" :src="inlineFilePreviewUrl" :alt="inlineFilePreviewFilename">
-        <iframe v-else-if="inlineFilePreviewKind === 'PDF'" :src="inlineFilePreviewUrl" :title="`${inlineFilePreviewFilename}预览`" />
-        <div v-else-if="inlineFilePreviewKind === 'UNSUPPORTED'" class="app-inline-file-preview__state">
-          <strong>该格式暂不支持站内预览</strong>
-          <span>不会自动下载；如需查看，请使用下方“下载原文件”。</span>
-        </div>
-        <div v-else class="app-inline-file-preview__state is-error">
-          <strong>文件暂时无法预览</strong>
-          <span>{{ inlineFilePreviewError }}</span>
-        </div>
-      </div>
-      <template #footer>
-        <el-button @click="inlineFilePreviewVisible = false">关闭</el-button>
-        <el-button type="primary" :disabled="!inlineFilePreviewFile" @click="downloadInlinePreviewFile">下载原文件</el-button>
-      </template>
-    </el-dialog>
+    />
     <StlViewerDialog
       v-if="!isDoctorV2Active"
       v-model:visible="productionBoardStlViewerVisible"
