@@ -1,5 +1,7 @@
 # Tasks
 
+- 2026-09-09：D-222 生产开工入口与反馈已完成本地修复：设计确认节点转向设计任务，服务端拒绝普通开工/完工推进设计节点，详情返回实际开工条件并原位显示反馈。后端 370 项及 Chrome/Edge 实际点击验收通过，详见 `docs/acceptance/production-start-feedback-20260909.md`。正式发布待执行，无正式业务数据修改，Task 8 仍为 `NOT_READY`。
+
 - 2026-09-03：D-217 / D-218 及检验列表布局修复已通过 PR #58 / #59 发布正式版 `0eb3ffba`；自动部署 #33715356521 成功（完整回归、备份、双服务健康及公网探针）。本地 Chrome 10 项与完整后端 368 项通过。发布证据见 `docs/deployment/order-followup-release-20260903.md`；Task 8 不升级。
 
 - 2026-09-03：D-218 来源校准与上传/派工/工作台细化本地实施完成。沿用既有工程，不新增阶段 goal/task。75 项后端回归、前端构建、范围/权限检查及 Chrome 专项见 `docs/acceptance/upload-dispatch-refinements-20260903.md`。测试草稿和文件仅在 demo 环境；无提交、发布或正式数据变更，Task 8 仍为 `NOT_READY`。

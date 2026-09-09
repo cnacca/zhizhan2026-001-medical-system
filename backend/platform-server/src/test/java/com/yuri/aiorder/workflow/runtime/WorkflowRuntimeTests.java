@@ -802,6 +802,52 @@ class WorkflowRuntimeTests {
                 .doesNotContain(start, parallelB, joinD);
     }
 
+    @Autowired
+    private WorkflowRuntimeService runtimeService;
+
+    @Test
+    void designGateCannotBeStartedOrCompletedAsProductionEvenByAdmin() throws Exception {
+        long instanceId = approveProductionAndGetBlockedInstanceId();
+        long gate = nodeIdByCategory(instanceId, "DESIGN_GATE");
+        var admin = new BootstrapIdentity(UserRole.ADMIN, 1L, null, "admin",
+                Set.of("order:read-internal", "workflow:read-internal", "workflow:assign"), "ALL");
+        var node = runtimeService.getProcessInstance(orderId, admin).nodes().stream()
+                .filter(item -> item.nodeInstanceId() == gate).findFirst().orElseThrow();
+        assertThat(node.canStart()).isFalse();
+        assertThat(node.startBlockReason()).isEqualTo("DESIGN_WORKFLOW_REQUIRED");
+        for (String action : java.util.List.of("start", "complete")) {
+            mockMvc.perform(post("/process-instance/nodes/{nodeId}/{action}", gate, action)
+                            .header("X-Bootstrap-Role", "ADMIN"))
+                    .andExpect(status().isConflict());
+        }
+        assertThat(nodeStatusByCategory(instanceId, "DESIGN_GATE")).isEqualTo("READY");
+        assertThat(jdbcClient.sql("SELECT started_at FROM order_process_node WHERE node_instance_id = :id")
+                .param("id", gate).query(LocalDateTime.class).optional()).isEmpty();
+    }
+
+    @Test
+    void processDetailExplainsAssignmentAndDesignConditionsBeforeAllowingStart() throws Exception {
+        long instanceId = approveProductionAndGetBlockedInstanceId();
+        long start = nodeId(instanceId, "START");
+        var worker = new BootstrapIdentity(UserRole.WORKER, WORKER_USER_ID, null, "worker",
+                Set.of("order:read-internal", "workflow:read-internal", "workflow:operate-assigned"), "ALL");
+        jdbcClient.sql("UPDATE order_process_node SET node_status = 'READY' WHERE node_instance_id = :id")
+                .param("id", start).update();
+        java.util.function.Supplier<ProcessNodeResponse> node = () -> runtimeService.getProcessInstance(orderId, worker)
+                .nodes().stream().filter(item -> item.nodeInstanceId() == start).findFirst().orElseThrow();
+        assertThat(node.get().startBlockReason()).isEqualTo("ASSIGNMENT_REQUIRED");
+        jdbcClient.sql("UPDATE order_process_node SET assigned_user_id = :userId WHERE node_instance_id = :id")
+                .param("id", start).param("userId", OTHER_WORKER_USER_ID).update();
+        assertThat(node.get().startBlockReason()).isEqualTo("NOT_ASSIGNED_TO_YOU");
+        jdbcClient.sql("UPDATE order_process_node SET assigned_user_id = :userId WHERE node_instance_id = :id")
+                .param("id", start).param("userId", WORKER_USER_ID).update();
+        assertThat(node.get().canStart()).isFalse();
+        assertThat(node.get().startBlockReason()).isEqualTo("DESIGN_CONFIRMATION_REQUIRED");
+        completeDesignGateFixture(instanceId);
+        assertThat(node.get().canStart()).isTrue();
+        assertThat(node.get().startBlockReason()).isNull();
+    }
+
     @Test
     void myTasksReflectsDesignConfirmationGateBeforeProductionStart() throws Exception {
         long instanceId = approveProductionAndGetBlockedInstanceId();
