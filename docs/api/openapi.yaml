@@ -3749,7 +3749,12 @@ components:
           nullable: true
           enum:
           - IN_CHECK_REQUIRED
-          description: 开工受阻原因；IN_CHECK_REQUIRED 表示需先完成入检并通过。
+          - DESIGN_WORKFLOW_REQUIRED
+          - DESIGN_CONFIRMATION_REQUIRED
+          - ASSIGNMENT_REQUIRED
+          - NOT_ASSIGNED_TO_YOU
+          - NODE_NOT_READY
+          description: 开工受阻原因；设计确认节点必须经设计流程完成，普通工序需满足派工、设计确认及入检条件。
     ProcessEdgeInstance:
       type: object
       properties:
@@ -9442,7 +9447,9 @@ paths:
                           nullable: true
                           enum:
                           - IN_CHECK_REQUIRED
-                          description: 开工受阻原因；IN_CHECK_REQUIRED 表示需先完成入检并通过。
+                          - DESIGN_WORKFLOW_REQUIRED
+                          - DESIGN_CONFIRMATION_REQUIRED
+                          description: 开工受阻原因；设计确认节点不能作为普通生产任务开工。
         '400':
           "$ref": "#/components/responses/BadRequest"
         '401':

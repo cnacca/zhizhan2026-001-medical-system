@@ -177,7 +177,7 @@ public class WorkflowRuntimeService {
                 instance.intakeBranchUsed(),
                 instance.createdAt(),
                 instance.updatedAt(),
-                loadNodes(instance.instanceId()),
+                loadNodes(instance.instanceId(), identity),
                 loadEdges(instance.instanceId()));
     }
 
@@ -337,6 +337,10 @@ public class WorkflowRuntimeService {
     public NodeActionResponse startNode(long nodeInstanceId, BootstrapIdentity identity) {
         NodeRow node = lockNode(nodeInstanceId);
         requireWorkerAssignment(node, identity);
+        if ("DESIGN_GATE".equals(node.nodeCategory())) {
+            throw new ResponseStatusException(HttpStatus.CONFLICT,
+                    "design confirmation gate is completed by the doctor confirmation flow");
+        }
         if (!"READY".equals(node.nodeStatus())) {
             throw new ResponseStatusException(HttpStatus.CONFLICT, "node is not ready to start");
         }
@@ -370,6 +374,10 @@ public class WorkflowRuntimeService {
     public NodeActionResponse completeNode(long nodeInstanceId, BootstrapIdentity identity) {
         NodeRow node = lockNode(nodeInstanceId);
         requireWorkerAssignment(node, identity);
+        if ("DESIGN_GATE".equals(node.nodeCategory())) {
+            throw new ResponseStatusException(HttpStatus.CONFLICT,
+                    "design confirmation gate is completed by the doctor confirmation flow");
+        }
         if (!"IN_PROGRESS".equals(node.nodeStatus())) {
             throw new ResponseStatusException(HttpStatus.CONFLICT, "node is not in progress");
         }
@@ -537,6 +545,7 @@ public class WorkflowRuntimeService {
                             END AS standard_duration,
                             CASE
                                 WHEN n.node_status = 'READY'
+                                     AND COALESCE(n.node_category, '') <> 'DESIGN_GATE'
                                      AND (n.need_in_check = 0 OR EXISTS (
                                          SELECT 1
                                          FROM check_record in_check
@@ -549,6 +558,7 @@ public class WorkflowRuntimeService {
                                 ELSE FALSE
                             END AS can_start,
                             CASE
+                                WHEN n.node_category = 'DESIGN_GATE' THEN 'DESIGN_WORKFLOW_REQUIRED'
                                 WHEN n.node_status = 'READY'
                                      AND n.need_in_check = 1
                                      AND NOT EXISTS (
@@ -1778,7 +1788,7 @@ public class WorkflowRuntimeService {
         }
     }
 
-    private List<ProcessNodeResponse> loadNodes(long instanceId) {
+    private List<ProcessNodeResponse> loadNodes(long instanceId, BootstrapIdentity identity) {
         return jdbcClient.sql("""
                         SELECT
                             node_instance_id,
@@ -1804,6 +1814,9 @@ public class WorkflowRuntimeService {
                             completed_at,
                             CASE
                                 WHEN node_status = 'READY'
+                                     AND COALESCE(node_category, '') <> 'DESIGN_GATE'
+                                     AND (:canDelegate OR assigned_user_id = :operatorId)
+                                     AND %s
                                      AND (need_in_check = 0 OR EXISTS (
                                          SELECT 1
                                          FROM check_record in_check
@@ -1815,6 +1828,11 @@ public class WorkflowRuntimeService {
                                 ELSE FALSE
                             END AS can_start,
                             CASE
+                                WHEN node_category = 'DESIGN_GATE' THEN 'DESIGN_WORKFLOW_REQUIRED'
+                                WHEN node_status <> 'READY' THEN 'NODE_NOT_READY'
+                                WHEN NOT :canDelegate AND assigned_user_id IS NULL THEN 'ASSIGNMENT_REQUIRED'
+                                WHEN NOT :canDelegate AND assigned_user_id <> :operatorId THEN 'NOT_ASSIGNED_TO_YOU'
+                                WHEN NOT %s THEN 'DESIGN_CONFIRMATION_REQUIRED'
                                 WHEN node_status = 'READY'
                                      AND need_in_check = 1
                                      AND NOT EXISTS (
@@ -1837,7 +1855,11 @@ public class WorkflowRuntimeService {
                               OR order_process_node.branch_key = instance.intake_branch_used
                           )
                         ORDER BY step_order, node_instance_id
-                        """)
+                        """.formatted(
+                        DESIGN_START_ALLOWED_SQL.replace("n.", "order_process_node.").replace("i.", "instance."),
+                        DESIGN_START_ALLOWED_SQL.replace("n.", "order_process_node.").replace("i.", "instance.")))
+                .param("canDelegate", identity.hasPermission("workflow:assign"))
+                .param("operatorId", identity.hasPermission("workflow:operate-assigned") && identity.userId() != null ? identity.userId() : -1L)
                 .param("instanceId", instanceId)
                 .param("formalStandardTimeEnabled", standardTimeProperties.formalEnabled())
                 .query((rs, rowNum) -> new ProcessNodeResponse(

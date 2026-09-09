@@ -92,12 +92,15 @@ type MultipartPartUrlResponse = {
 }
 
 const props = defineProps<{
+  focusOrderId?: number | null
   activeRoute: string
   token: string
   user: LoginUser | null
 }>()
 
 const tasks = ref<DesignTask[]>([])
+const showAllOrders = ref(false)
+const visibleTasks = computed(() => props.focusOrderId && !showAllOrders.value ? tasks.value.filter(task => task.order_id === props.focusOrderId) : tasks.value)
 const loading = ref(false)
 const pageError = ref('')
 const pageResult = ref('')
@@ -527,10 +530,11 @@ watch(() => props.activeRoute, () => void loadWorkspace())
     <p v-if="pageError" class="design-feedback is-error">{{ pageError }}</p>
     <p v-if="pageResult" class="design-feedback is-success">{{ pageResult }}</p>
 
-    <div v-if="loading && tasks.length === 0" class="design-empty">设计任务加载中…</div>
-    <div v-else-if="tasks.length === 0" class="design-empty">{{ emptyText }}</div>
+    <p v-if="focusOrderId && !showAllOrders" class="design-empty">当前仅显示从生产详情打开的订单。<button type="button" @click="showAllOrders = true">查看全部任务</button></p>
+    <div v-if="loading && visibleTasks.length === 0" class="design-empty">设计任务加载中…</div>
+    <div v-else-if="visibleTasks.length === 0" class="design-empty">{{ focusOrderId && !showAllOrders ? '当前列表没有本单设计任务；可能尚未领取或由其他设计人员负责，请查看待领取设计或联系设计负责人。' : emptyText }}</div>
     <div v-else class="design-grid">
-      <article v-for="task in tasks" :key="task.task_id" class="design-card">
+      <article v-for="task in visibleTasks" :key="task.task_id" class="design-card">
         <header>
           <div>
             <small>{{ task.order_no }} · 任务 #{{ task.task_id }}</small>

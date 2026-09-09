@@ -2130,6 +2130,9 @@ const productionBoardActionSummaryFilter = ref<ProductionBoardActionSummaryKey>(
 const productionBoardLoading = ref(false)
 const productionBoardError = ref('')
 const productionBoardDrawerVisible = ref(false)
+const productionNodeActionBusy = ref(false)
+const productionNodeActionResult = ref('')
+const productionDesignFocus = ref<number | null>(null)
 const productionBoardSelectedCard = ref<ProductionKanbanCard | null>(null)
 const productionBoardKanbanDate = ref(productionBoardToday())
 const productionBoardStageMetrics = ref<Record<string, ProductionKanbanStageSummary>>({})
@@ -5092,15 +5095,51 @@ function requiresInCheck(node: Pick<WorkerTaskItem, 'start_block_reason'> | Pick
   return node.start_block_reason === 'IN_CHECK_REQUIRED'
 }
 
-function canStartTask(node: Pick<WorkerTaskItem, 'can_start'> | Pick<ProcessNodeItem, 'can_start'>) {
+function canStartTask(node: { can_start?: boolean; node_category?: string | null }) {
   // 在前后端滚动发布的短窗口兼容旧响应；新接口明确返回 false 时才阻止操作，服务端门禁仍是最终裁决。
-  return node.can_start !== false
+  return node.node_category !== 'DESIGN_GATE' && node.can_start !== false
+}
+
+function productionNodeStatus(node: ProcessNodeItem) {
+  return node.node_category === 'DESIGN_GATE' && !['COMPLETED', 'SKIPPED'].includes(node.node_status)
+    ? '设计流程处理中' : statusLabel(node.node_status)
+}
+
+function productionStartHint(node: ProcessNodeItem | null | undefined) {
+  if (!node) return '工序尚未加载，请重新打开订单后再试。'
+  if (node.node_category === 'DESIGN_GATE') return '本单尚未完成设计确认。请在设计任务中上传版本、提交内审，再由医生确认；确认后自动进入后续工序。'
+  const hints: Record<string, string> = {
+    DESIGN_WORKFLOW_REQUIRED: '请通过设计任务完成设计确认。',
+    DESIGN_CONFIRMATION_REQUIRED: '本单设计稿尚未获医生确认，暂不能开工。',
+    ASSIGNMENT_REQUIRED: '当前工序尚未派工，请联系生产组长安排负责人。',
+    NOT_ASSIGNED_TO_YOU: '当前工序分配给其他人员，仅负责人或有代操作权限的人员可开工。',
+    IN_CHECK_REQUIRED: '开始前需完成入检并通过，请由检验人员到“入检/出检登记”处理。',
+    NODE_NOT_READY: '当前工序尚未就绪，请先完成前置工序和检验。'
+  }
+  return hints[node.start_block_reason ?? ''] || (node.can_start === false ? '当前工序暂不可开工，请刷新后再试。' : '')
+}
+
+function openProductionDesignTasks(route: string) {
+  const menu = allDisplayItems().find(item => item.routePath === route && hasConfiguredNavigationPermission(item))
+  if (!menu) {
+    productionBoardError.value = '当前账号没有设计任务页面权限，请联系设计负责人处理本单。'
+    return
+  }
+  productionDesignFocus.value = selectedProductionBoardOrder.value?.order_id ?? null
+  productionBoardDrawerVisible.value = false
+  navigateToRoute(route)
 }
 
 function startTaskErrorMessage(error: unknown) {
   const message = error instanceof Error ? error.message : ''
   if (message.includes('node must pass in-check')) {
     return '开始前需完成入检并通过，请由检验人员到“入检/出检登记”处理。'
+  }
+  if (message.includes('design confirmation gate') || message.includes('design task must be confirmed') || message.includes('latest design draft must be confirmed')) {
+    return '设计流程尚未完成，请处理设计任务并等待医生确认后再开工。'
+  }
+  if (message.includes('worker cannot operate this node') || message.includes('请求失败：403')) {
+    return '当前账号无权操作这道工序，请由负责人处理或联系生产组长。'
   }
   if (message.includes('请求失败：409')) {
     return '工序状态已变化，请刷新后再试。'
@@ -11550,6 +11589,8 @@ async function syncProductionBoardProcessInstances(orders: InternalOrderItem[]) 
 }
 
 async function selectProductionBoardOrder(order: InternalOrderItem, card?: ProductionKanbanCard) {
+  productionBoardError.value = ''
+  productionNodeActionResult.value = ''
   selectedProductionBoardOrder.value = order
   productionBoardSelectedCard.value = card ?? buildProductionKanbanCard(order)
   productionBoardDrawerVisible.value = true
@@ -11748,21 +11789,25 @@ function printProductionBoardWorkOrder() {
 }
 
 async function startProductionBoardNode() {
+  if (productionNodeActionBusy.value) return
   const node = productionBoardSelectedCard.value?.node
-  if (!node) return
-  if (!canStartTask(node)) {
-    productionBoardError.value = requiresInCheck(node)
-      ? '开始前需完成入检并通过，请由检验人员到“入检/出检登记”处理。'
-      : '当前工序暂不可开工，请刷新后再试。'
+  productionBoardError.value = ''
+  productionNodeActionResult.value = ''
+  if (!node || !canStartTask(node)) {
+    productionBoardError.value = productionStartHint(node)
     return
   }
+  productionNodeActionBusy.value = true
   try {
     await apiFetch(`/process-instance/nodes/${node.node_instance_id}/start`, { method: 'POST' })
+    productionNodeActionResult.value = '已开始工作，开始时间已自动记录。'
     await loadProductionBoardInstance(selectedProductionBoardOrder.value?.order_id ?? 0)
     if (selectedProductionBoardOrder.value) productionBoardSelectedCard.value = buildProductionKanbanCard(selectedProductionBoardOrder.value)
     void loadProductionBoardKanbanSummary()
   } catch (error) {
     productionBoardError.value = startTaskErrorMessage(error)
+  } finally {
+    productionNodeActionBusy.value = false
   }
 }
 
@@ -11774,15 +11819,25 @@ async function openSelectedProductionBoardNodeInCheck() {
 }
 
 async function completeProductionBoardNode() {
+  if (productionNodeActionBusy.value) return
+  productionBoardError.value = ''
+  productionNodeActionResult.value = ''
   const node = productionBoardSelectedCard.value?.node
-  if (!node) return
+  if (!node || node.node_category === 'DESIGN_GATE') {
+    productionBoardError.value = productionStartHint(node)
+    return
+  }
+  productionNodeActionBusy.value = true
   try {
     await apiFetch(`/process-instance/nodes/${node.node_instance_id}/complete`, { method: 'POST' })
+    productionNodeActionResult.value = '工序已完成，完成时间已自动记录。'
     await loadProductionBoardInstance(selectedProductionBoardOrder.value?.order_id ?? 0)
     if (selectedProductionBoardOrder.value) productionBoardSelectedCard.value = buildProductionKanbanCard(selectedProductionBoardOrder.value)
     void loadProductionBoardKanbanSummary()
   } catch (error) {
-    productionBoardError.value = error instanceof Error ? error.message : '完成工序失败'
+    productionBoardError.value = startTaskErrorMessage(error)
+  } finally {
+    productionNodeActionBusy.value = false
   }
 }
 
@@ -13711,6 +13766,7 @@ onBeforeUnmount(() => {
         <ProductionDesignWorkspace
           v-else-if="isProductionDesignRoute"
           :active-route="activeRoute"
+          :focus-order-id="productionDesignFocus"
           :token="token"
           :user="currentUser"
         />
@@ -14922,7 +14978,7 @@ onBeforeUnmount(() => {
                     <span class="factory-drawer-timeline-marker">{{ ['COMPLETED', 'SKIPPED'].includes(node.node_status) ? '✓' : productionFlowStepNumber(productionProgressNodes(productionBoardInstance.nodes), node) }}</span>
                     <div>
                       <strong>{{ productionFlowStepLabel(productionProgressNodes(productionBoardInstance.nodes), node) }} · {{ node.process_name }} <em v-if="node.stage_name">· {{ node.stage_name }}</em><em v-if="productionFlowBranchLabel(node)">· {{ productionFlowBranchLabel(node) }}</em></strong>
-                      <small>{{ statusLabel(node.node_status) }} · 标准 {{ node.standard_duration ?? '未设置' }} 分钟</small>
+                      <small>{{ productionNodeStatus(node) }} · 标准 {{ node.standard_duration ?? '未设置' }} 分钟</small>
                       <small>开始 {{ node.started_at ? compactDateTime(node.started_at) : '未设置' }} · 截止 {{ node.deadline_at ? compactDateTime(node.deadline_at) : '未设置' }}</small>
                       <p v-if="productionBoardSelectedCard?.node?.node_instance_id === node.node_instance_id && node.node_status === 'IN_PROGRESS'">⚡ 进行中</p>
                     </div>
@@ -14934,22 +14990,21 @@ onBeforeUnmount(() => {
                 >工序明细加载失败：{{ productionBoardProcessSyncErrors[selectedProductionBoardOrder.order_id] || productionBoardError || '请刷新后重试' }}</p>
                 <p v-else class="factory-file-empty">工序记录加载中</p>
 
+                <p v-if="productionBoardError" role="alert" class="factory-orders-alert">{{ productionBoardError }}</p>
+                <p v-if="productionNodeActionResult" role="status" class="factory-drawer-notice">{{ productionNodeActionResult }}</p>
+                <p v-if="productionStartHint(productionBoardSelectedCard?.node) && !['IN_PROGRESS', 'COMPLETED', 'SKIPPED'].includes(productionBoardSelectedCard?.node?.node_status ?? '')" class="factory-drawer-notice">{{ productionStartHint(productionBoardSelectedCard?.node) }}</p>
                 <div class="factory-drawer-work-actions">
-                  <template v-if="productionBoardSelectedCard?.node?.node_status === 'READY'">
-                    <button type="button" class="factory-action-primary" :disabled="productionBoardSelectedCard?.node ? !canStartTask(productionBoardSelectedCard.node) : true" @click="startProductionBoardNode">
-                      {{
-                        productionBoardSelectedCard.node.assigned_user_id == null
-                          ? '待管理员派工'
-                          : !canStartTask(productionBoardSelectedCard.node)
-                            ? '仅负责人可操作'
-                            : productionBoardSelectedCard.node.start_block_reason === 'IN_CHECK_REQUIRED'
-                              ? '需先入检'
-                              : '开始工作'
-                      }}
-                    </button>
-                    <button v-if="canInspectProcess && productionBoardSelectedCard?.node?.start_block_reason === 'IN_CHECK_REQUIRED'" type="button" class="factory-action-secondary" @click="openSelectedProductionBoardNodeInCheck">去登记入检</button>
+                  <template v-if="productionBoardSelectedCard?.node?.node_category === 'DESIGN_GATE' && !['COMPLETED', 'SKIPPED'].includes(productionBoardSelectedCard.node.node_status)">
+                    <button type="button" class="factory-action-primary" @click="openProductionDesignTasks('/production/design-tasks/mine')">处理设计任务</button>
+                    <button type="button" class="factory-action-secondary" @click="openProductionDesignTasks('/production/design-tasks/pool')">查看待领取设计</button>
                   </template>
-                  <button v-else-if="productionBoardSelectedCard?.node?.node_status === 'IN_PROGRESS'" type="button" class="factory-action-primary" @click="completeProductionBoardNode">✓ 标记完成</button>
+                  <template v-else-if="productionBoardSelectedCard?.node?.node_status === 'READY'">
+                    <button type="button" class="factory-action-primary" :disabled="productionNodeActionBusy || !canStartTask(productionBoardSelectedCard.node)" @click="startProductionBoardNode">
+                      {{ productionNodeActionBusy ? '提交中…' : canStartTask(productionBoardSelectedCard.node) ? '开始工作' : '暂不可开工' }}
+                    </button>
+                    <button v-if="canInspectProcess && productionBoardSelectedCard.node.start_block_reason === 'IN_CHECK_REQUIRED'" type="button" class="factory-action-secondary" @click="openSelectedProductionBoardNodeInCheck">去登记入检</button>
+                  </template>
+                  <button v-else-if="productionBoardSelectedCard?.node?.node_status === 'IN_PROGRESS'" type="button" class="factory-action-primary" :disabled="productionNodeActionBusy" @click="completeProductionBoardNode">{{ productionNodeActionBusy ? '提交中…' : '✓ 标记完成' }}</button>
                   <button v-else type="button" class="factory-action-primary" disabled>当前无可执行工序</button>
                   <button type="button" class="factory-action-secondary" @click="openProductionBoardMessageCenter">联系客服</button>
                 </div>
@@ -15159,23 +15214,30 @@ onBeforeUnmount(() => {
                     <span class="factory-drawer-timeline-marker">{{ ['COMPLETED', 'SKIPPED'].includes(node.node_status) ? '✓' : productionFlowStepNumber(productionProgressNodes(productionBoardInstance.nodes), node) }}</span>
                     <div>
                       <strong>{{ productionFlowStepLabel(productionProgressNodes(productionBoardInstance.nodes), node) }} · {{ node.process_name }} <em v-if="node.stage_name">· {{ node.stage_name }}</em><em v-if="productionFlowBranchLabel(node)">· {{ productionFlowBranchLabel(node) }}</em></strong>
-                      <small>{{ statusLabel(node.node_status) }} · 员工 {{ node.assigned_user_id ?? '-' }} · 标准 {{ node.standard_duration ?? '-' }} 分钟</small>
+                      <small>{{ productionNodeStatus(node) }} · 员工 {{ node.assigned_user_id ?? '-' }} · 标准 {{ node.standard_duration ?? '-' }} 分钟</small>
                       <small>开始 {{ node.started_at ? compactDateTime(node.started_at) : '-' }} · 截止 {{ node.deadline_at ? compactDateTime(node.deadline_at) : '-' }}</small>
                       <p v-if="productionBoardSelectedCard?.node?.node_instance_id === node.node_instance_id && node.node_status === 'IN_PROGRESS'">⚡ 进行中</p>
                     </div>
                   </article>
                 </div>
 
+                <p v-if="productionBoardError" role="alert" class="factory-orders-alert">{{ productionBoardError }}</p>
+                <p v-if="productionNodeActionResult" role="status" class="factory-drawer-notice">{{ productionNodeActionResult }}</p>
+                <p v-if="productionStartHint(productionBoardSelectedCard?.node) && !['IN_PROGRESS', 'COMPLETED', 'SKIPPED'].includes(productionBoardSelectedCard?.node?.node_status ?? '')" class="factory-drawer-notice">{{ productionStartHint(productionBoardSelectedCard?.node) }}</p>
                 <div class="factory-drawer-work-actions">
-                  <template v-if="productionBoardSelectedCard?.node?.node_status === 'READY'">
-                    <button type="button" class="factory-action-primary" :disabled="productionBoardSelectedCard?.node ? !canStartTask(productionBoardSelectedCard.node) : true" @click="startProductionBoardNode">
-                      {{ productionBoardSelectedCard?.node?.start_block_reason === 'IN_CHECK_REQUIRED' ? '需先入检' : '开始工作' }}
-                    </button>
-                    <button v-if="canInspectProcess && productionBoardSelectedCard?.node?.start_block_reason === 'IN_CHECK_REQUIRED'" type="button" class="factory-action-secondary" @click="openSelectedProductionBoardNodeInCheck">去登记入检</button>
+                  <template v-if="productionBoardSelectedCard?.node?.node_category === 'DESIGN_GATE' && !['COMPLETED', 'SKIPPED'].includes(productionBoardSelectedCard.node.node_status)">
+                    <button type="button" class="factory-action-primary" @click="openProductionDesignTasks('/production/design-tasks/mine')">处理设计任务</button>
+                    <button type="button" class="factory-action-secondary" @click="openProductionDesignTasks('/production/design-tasks/pool')">查看待领取设计</button>
                   </template>
-                  <button v-else-if="productionBoardSelectedCard?.node?.node_status === 'IN_PROGRESS'" type="button" class="factory-action-primary" @click="completeProductionBoardNode">✓ 标记完成</button>
-                  <button v-else type="button" class="factory-action-primary" disabled>工序已完成</button>
-                  <button type="button" class="factory-action-secondary" @click="openProductionBoardMessageCenter">消息 CS</button>
+                  <template v-else-if="productionBoardSelectedCard?.node?.node_status === 'READY'">
+                    <button type="button" class="factory-action-primary" :disabled="productionNodeActionBusy || !canStartTask(productionBoardSelectedCard.node)" @click="startProductionBoardNode">
+                      {{ productionNodeActionBusy ? '提交中…' : canStartTask(productionBoardSelectedCard.node) ? '开始工作' : '暂不可开工' }}
+                    </button>
+                    <button v-if="canInspectProcess && productionBoardSelectedCard.node.start_block_reason === 'IN_CHECK_REQUIRED'" type="button" class="factory-action-secondary" @click="openSelectedProductionBoardNodeInCheck">去登记入检</button>
+                  </template>
+                  <button v-else-if="productionBoardSelectedCard?.node?.node_status === 'IN_PROGRESS'" type="button" class="factory-action-primary" :disabled="productionNodeActionBusy" @click="completeProductionBoardNode">{{ productionNodeActionBusy ? '提交中…' : '✓ 标记完成' }}</button>
+                  <button v-else type="button" class="factory-action-primary" disabled>当前无可执行工序</button>
+                  <button type="button" class="factory-action-secondary" @click="openProductionBoardMessageCenter">联系客服</button>
                 </div>
 
                 <section class="factory-drawer-files">
