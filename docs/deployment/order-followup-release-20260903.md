@@ -1,8 +1,21 @@
 # 订单后续需求与验收修复发布（2026-09-03）
 
-状态：`PRE_RELEASE_VERIFIED / DEPLOYMENT_PENDING`。
+状态：`DEPLOYED / PRODUCTION_HEALTH_VERIFIED`。
 
 用户明确要求“提交并部署”。目标为现有正式站 `https://chinesedigitaldental.com`，仓库 `cnacca/zhizhan2026-001-medical-system`。沿用功能分支 → dev → main 的 PR 合并流程，不直接 push main。
+
+## 实际发布结果
+
+- 业务提交：`b92327a2c7257be4d6359e7e968582c592caa4f0`；集成 PR [#58](https://github.com/cnacca/zhizhan2026-001-medical-system/pull/58)、发布 PR [#59](https://github.com/cnacca/zhizhan2026-001-medical-system/pull/59) 均已合并。
+- 正式版本：`0eb3ffbabdd686f4ce0ecbeb436649069f10ab09`。
+- [Deploy production #33715356521](https://github.com/cnacca/zhizhan2026-001-medical-system/actions/runs/33715356521)：`success`，2026-09-03 12:31:30–12:37:31（UTC+8，约 6 分钟），完整发布通道。
+- CI 再次完成 368 项后端回归、发布门禁、双镜像构建/检查、发布包校验、上传、部署与公网 Origin/重定向探针，全部通过。
+- 日志确认发布前 MySQL 备份 `20260903T043644Z-auto-deploy-0eb3ffbabdd6/mysql.sql.gz` 已生成并校验；服务端上级路径被 GitHub 脱敏，不将脱敏占位符当作真实路径。
+- 回滚镜像：`ai-order-platform-backend:rollback-before-0eb3ffbabdd6-20260903T043644Z` 和对应 frontend 标签。未执行实际回滚或数据库恢复演练。
+- 发布后独立公网读取 `/api/bootstrap/health` 返回 `status: ok`；MySQL/Redis/MinIO 仍为原有持续运行的健康容器，未重建数据服务。
+- 公网首页和新 JS/CSS 均为 HTTP 200；正式 JS 包含“入检/出检登记”，CSS 包含检验列表 `grid-auto-rows:max-content` 修复。Chrome 能显示登录页，医生测试账号登录响应 200，并进入医生端框架。
+- 线上浏览器工作台完整加载复验未完成：自动化多次出现导航超时，进入医生端后在 15–25 秒观察窗仍显示加载中，没有捕获 JS 异常。独立认证接口检查中订单、患者、通知、医生设置、产品、表单配置均 HTTP 200（本次读取约 37–243ms）。这不足以证明四端工作台全部正常，也不足以确定是网络还是页面聚合加载问题；不冒充线上四端浏览器通过，不据此自动回滚数据库。
+- 完整工作流日志保留于本地 `/tmp/aiorder-production-33715356521-full.log`。Actions 有 Node action runtime / setup-java v4 弃用警告，本次未阻断；不在此次发布中擅自升级工作流依赖。
 
 ## 发布范围
 
